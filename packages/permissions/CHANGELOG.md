@@ -1,5 +1,18 @@
 # @object-ui/permissions
 
+## 17.4.0
+
+### Patch Changes
+
+- Updated dependencies [d229dfa]
+- Updated dependencies [c2fd122]
+- Updated dependencies [48132f7]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/types@17.4.0
+
 ## 17.3.0
 
 ### Patch Changes

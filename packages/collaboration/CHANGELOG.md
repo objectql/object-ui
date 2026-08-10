@@ -1,5 +1,35 @@
 # @object-ui/collaboration
 
+## 17.4.0
+
+### Patch Changes
+
+- Updated dependencies [7864f03]
+- Updated dependencies [d229dfa]
+- Updated dependencies [f5f8744]
+- Updated dependencies [69becd2]
+- Updated dependencies [5e52495]
+- Updated dependencies [b750823]
+- Updated dependencies [c2fd122]
+- Updated dependencies [ac2139c]
+- Updated dependencies [b14ab3a]
+- Updated dependencies [8c60819]
+- Updated dependencies [e64a52e]
+- Updated dependencies [844d17f]
+- Updated dependencies [48132f7]
+- Updated dependencies [4dcd52a]
+- Updated dependencies [42ae5c6]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [6d762da]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [f9faa7d]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [33526fd]
+- Updated dependencies [32413ec]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/i18n@17.4.0
+  - @object-ui/types@17.4.0
+
 ## 17.3.0
 
 ### Patch Changes

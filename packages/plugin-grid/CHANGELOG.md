@@ -1,5 +1,340 @@
 # @object-ui/plugin-grid
 
+## 17.4.0
+
+### Patch Changes
+
+- 18c42c6: `BulkActionDialog` required params: the control now announces the required state, and the visual `*` stays out of its accessible name
+
+  `ParamField` renders each bulk param's label with a `*` marker when
+  `param.required`, inside a `<Label htmlFor>` that points at the control. Two
+  conventions the app-shell `ActionParamDialog` has carried since objectui#3299 /
+  objectui#3290 were missing at this site:
+
+  - The `*` span had no `aria-hidden="true"`. Accname folds a referencing label's
+    text into the control's name, so every required bulk param announced as
+    "Notify owner asterisk" — a decorative glyph read aloud as part of the label.
+  - No `aria-required` was passed to the widget. `param.required` is otherwise
+    live — the dialog's own pre-submit gate reads it to keep Next disabled — but
+    nothing carried the state to the control, and no widget derives it from
+    `field.required` (`toDomProps` forwards `aria-*` by prefix; it invents
+    nothing). So the only channel that could announce requiredness was empty
+    while the only thing present was the glyph.
+
+  The required state now rides the state channel to the control, deliberately as
+  `aria-required` and not the native `required` attribute — per the objectui#3290
+  ruling, the native attribute would arm the browser's constraint-validation
+  bubble alongside this dialog's own gating, giving one field two validators.
+  `|| undefined` keeps an optional param free of the attribute entirely rather
+  than carrying `aria-required="false"`, matching `ActionParamDialog`.
+
+  The marker remains visible; only its participation in the accessible name
+  changes. `id` ownership at this site was already correct and is untouched, as
+  is `ActionParamDialog`.
+
+- 5bfaabd: `PageComponentSchema.dataSource` now reaches every object-bound block, not just
+  `list-view` — and `element:record_picker` stops discarding `view`
+  (objectstack#6953).
+
+  objectstack#5576 wired the spec's per-element data binding
+  (`dataSource: { object, view?, filter?, sort?, limit? }`) to `list-view` and left
+  the same declaration inert on every other page component. Two gaps remained, and
+  both were silent:
+
+  - **`element:record_picker` read four of the five keys and dropped `view`.** So
+    `dataSource: { object: 'account', view: 'hot' }` — the spec's own example —
+    built a picker over EVERY account instead of the rows the saved view selects.
+    Nothing threw and nothing rendered an error; the option list was simply wider
+    than what was authored, which also means a user could select a record the page
+    said was out of scope.
+  - **`object-grid` / `object-form` / `object-kanban` / `object-calendar` /
+    `object-chart` / `object-metric` / `record:related_list` read none of it.**
+    Each gates its fetch on its own `objectName`, and nothing mapped
+    `dataSource.object` onto it, so a page written the way the spec documents
+    rendered an empty grid / a field-less form / a board with no cards / an empty
+    month / an empty chart / a static metric number — with no request and no
+    diagnostic anywhere. Spec-valid metadata rendering nothing is the
+    objectstack#4413 shape.
+
+  Composition follows objectstack#5576's landed semantics unchanged on every block:
+  a named saved view supplies the baseline, a key written on the component itself
+  overrides it, an explicit binding key overrides both, `filter` AND-combines
+  ("additional filter criteria" — a binding can narrow a view, never widen it), and
+  a `view` name that does not resolve renders a configuration error instead of
+  degrading to the object's full scope.
+
+  - `@object-ui/react` — new `useElementDataSourceSchema(schema, mapping, dataSource?)`
+    and `ElementDataSourceGate` apply a resolved binding to the schema keys a given
+    block reads, plus `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel`
+    for the two non-final states. One precedence table for all blocks rather than
+    one copy per block — that copy is how "additional filter criteria" would have
+    become two dialects.
+  - A mapping names **only** keys its block genuinely reads. A composed value
+    written onto a key the block ignores would be accepted and dropped, which is
+    the defect being removed, one layer deeper — so a kanban's swimlane `columns`
+    never receive a view's field list, and a block with no row cap leaves `limit`
+    unmapped. The per-block coverage table, including two residual gaps that are
+    named rather than papered over, is in `content/docs/guide/data-source.md`.
+
+  No behaviour changes for a block that carries no `dataSource`: the binding-free
+  path returns the schema by reference, so nothing remounts and nothing refetches.
+
+- 9154d9e: `object-grid` publishes the filter key it actually reads: `filter`, singular (objectui#4041)
+
+  The registration declared plural `filters` while `ObjectGrid` reads singular
+  `schema.filter`, and `schema.filters` had **zero** read points anywhere in the
+  renderer. Both halves of that mismatch were silent, in opposite directions:
+
+  - An author following the published vocabulary wrote `filters: [...]`. The save
+    gate accepted it — `sdui-parser/src/validate.ts` walks a node's props against
+    the block's `inputs`, and `filters` was there — the renderer never read it, and
+    the grid answered with **the whole table**. No error at authoring time, none at
+    runtime, and a wider answer is not visibly wrong.
+  - The spelling that actually worked, `filter`, was undeclared, so writing it was
+    reported as `unknown-prop`.
+
+  Published word and runtime read pointed at opposite keys, on a shipped authoring
+  surface. `list-view` — the sibling block, same family — has always declared the
+  singular and read the singular.
+
+  **The plural is removed, not taught to the renderer** (maintainer ruling
+  2026-08-10, option A). It has no read point on any ref, so no working grid can
+  depend on it: this deletes a key with no users rather than a contract. Teaching
+  the renderer to read `filters` too was the rejected alternative — it would have
+  hardened a misspelling into a second de-facto contract for the same concept.
+
+  `patch` rather than `minor`/`major` on that same fact. The removed key never
+  reached the query on any released version, so nothing that worked stops working;
+  what changes is that a filter written under the published name now takes effect.
+
+  **The read point now lowers through `toFilterNode`**, which is what makes the
+  newly-reachable key honest rather than merely reachable. Until now the only value
+  that could arrive at `schema.filter` was an ObjectQL AST synthesized by
+  `ElementDataSourceGate`, and copying that onto `$filter` verbatim was correct. An
+  author writes the spec's view vocabulary instead — `ViewFilterRule[]`,
+  `[{ field, operator, value }]` — and that shape byte-copied onto `$filter` is
+  refused on the wire: `isFilterAST` is false for an array of objects and the data
+  API answers `400 INVALID_FILTER` (measured against a real backend in
+  objectui#3431). Declaring the key without this hop would have traded a silent
+  wrong answer for a guaranteed failure, which is not a fix. `toFilterNode` is the
+  repo's single lowering hop before the wire and every other consumer on this chain
+  already went through it — `plugin-list`'s `buildEffectiveFilter`, `plugin-view`'s
+  `ObjectView`, `plugin-detail`'s `RelatedList`; this read point was the last one
+  that did not.
+
+  Two behaviour changes ride along at that read point, both narrow and both toward
+  the shared sink's documented contract: a MongoDB-style object `filter` is now
+  converted instead of silently dropped (the old `Array.isArray` guard read false
+  for it, and the grid returned every record — the same defect `buildEffectiveFilter`
+  fixed one package over), and a declared-but-empty `filter: []` now skips `$filter`
+  rather than sending an empty one. The fetch and the server-side export read the
+  same lowered value, so the downloaded file cannot disagree with the screen.
+
+- 97b63d7: Row actions declaring `visible: false` are now hidden instead of rendered
+
+  A custom row action's visibility **gate** was detected by truthiness, so
+  `visible: false` — the most explicit way an author can say "never show this" —
+  fell into the "no gate declared" branch and the action rendered for every row.
+  Both surfaces of the ObjectGrid row cell (the "⋮" overflow item and the inline
+  `variant:'primary'` button) and the data-table's row overflow menu read the same
+  gate, so all three rendered it; the `#3562` emptiness guard counts with that same
+  gate, so a row whose only action was `visible: false` also grew a "⋮" it could
+  not fill.
+
+  The gate now detects a **declared** gate by `!= null && !== ''` and lets the
+  declaration itself decide — a boolean short-circuits to its own verdict rather
+  than being handed to the CEL engine. This is the invariant objectui#3492 already
+  established for the selection bar, whose `hasVisibilityGate` spells out why
+  truthiness cannot answer the question, and the same `!= null` posture the
+  built-in `visibleWhen` gate has always had. `visible: true` still renders,
+  `''` and an absent `visible` are still no gate at all, and no expression-valued
+  `visible` changes verdict.
+
+  Behaviour change surface, deliberately narrow: only an action whose `visible` is
+  the literal boolean `false` (or another falsy non-empty value) changes — it goes
+  from rendered to hidden, which is what the declaration asked for.
+  `ActionSchema.visible` is `ExpressionInputSchema` with no boolean member, so
+  `objectstack build` cannot emit this shape; hand-written view JSON and
+  in-process callers constructing defs can, and did. The three row surfaces now
+  reach the same verdict as the selection bar and the record page header for every
+  non-expression shape, which `predicate-surface-parity` pins.
+
+- 14c59c0: Grid row actions: the inline button budget is now spent on the primaries that actually render
+
+  `RowActionMenu` allocated its inline slots on the **declared** row actions, before
+  any `visible` predicate ran:
+
+  ```ts
+  const primaryDefs = gatedActionDefs.filter((d) => d.variant === "primary");
+  const inlineDefs = primaryDefs.slice(0, Math.max(0, maxInlineActions));
+  ```
+
+  So on a row where the _leading_ `variant: 'primary'` action was suppressed by its
+  own `visible`, that action still held the slot — `RowActionInlineButton` returned
+  `null` into it — while the next primary, the one that _did_ survive the row's
+  predicates, had already been sliced into the overflow list. The row then rendered
+  **no inline button and a "⋮" hiding its main CTA**, even though exactly one primary
+  was visible and `maxInlineActions` (default 1) allowed exactly one inline button.
+
+  Slot allocation now happens inside `planRowActionMenu`, after visibility, so the
+  budget is only ever spent on a primary that renders. `maxInlineActions` is
+  unchanged in meaning and default — it is a width budget for real buttons, and
+  counting an invisible action against it protected no layout.
+
+  Behaviour change surface, deliberately narrow:
+
+  - a row with 2 or more primaries where a _leading_ one is suppressed for that row —
+    the surviving primary moves from the "⋮" menu to an inline button, and the "⋮"
+    disappears if nothing else is left to fold;
+  - unchanged: how many primaries may go inline, the menu order (folded primaries
+    above secondaries), which items render at all, the ADR-0066 D4 capability gate
+    (still applied once to the declared set, upstream of this decision), and the
+    #3562 empty-menu guard — a row with nothing renderable still grows no trigger.
+
+  Rows whose primaries are all ungated (the `sys_environment` Open + Upgrade Plan
+  shape that motivated `maxInlineActions`) are bit-for-bit unaffected: declared order
+  and surviving order coincide.
+
+- aeb8424: List row Edit/Delete, bulk delete and related-list CRUD now run the caller's own permission, not just the object's API exposure (objectui#4096)
+
+  The row kebab's built-in Edit/Delete rendered for every account, including ones
+  the server answers `403 PERMISSION_DENIED` on. Clicking Edit opened a fully
+  prefilled dialog that could only fail on save; Delete — a destructive entry —
+  sat one click away from users who could never perform it.
+
+  The gate intersected the object's resolved CRUD affordance with the server's
+  effective API operation set (`/me/permissions` `apiOperations`, objectui#3720),
+  and nothing else. `apiOperations` is the object's **API exposure surface** —
+  "which verbs does this object publish" — and the spec's own describe text says
+  so. It is principal-independent: the report measured two accounts with opposite
+  `allowEdit`, 30 shared objects, and **30/30 identical** `apiOperations`. A gate
+  made only of object-scoped layers therefore fails OPEN for every unprivileged
+  caller, which is why the same screen carried three different answers to "may
+  this user write this object": the toolbar's New was correctly hidden
+  (`affordances.create && can(obj, 'create')`), the record header's Edit/Delete
+  were correctly hidden (per-record write probe), and the row kebab was not.
+
+  Four surfaces now AND the principal's own verdict — `can(obj, 'update' |
+'delete')`, i.e. `/me/permissions` `allowEdit` / `allowDelete`, the toolbar's
+  source — on top of the layers they already had:
+
+  - the grid row kebab's built-in Edit/Delete (`resolveRowCrudAffordances` gained
+    `permissionUpdate` / `permissionDelete`, filled at the `ObjectGrid` call site);
+  - the grid's bulk-delete bar, which rides the same object-level delete verdict,
+    so the row gate and the more destructive bulk entry move together;
+  - the non-grid (kanban / calendar / gallery) bulk bar `ListView` renders itself;
+  - the related-list Create/Edit/Delete on a child object
+    (`RelatedRecordActionsBridge`), which had the same object-only gate.
+
+  **This is a tightening of the intersection, not a swap.** Every existing layer
+  stays: the ADR-0103 lifecycle bucket, `userActions.edit` / `delete`, and
+  `apiOperations`. A permission grant cannot re-open what any of them closed, and
+  none of them survives a permission denial.
+
+  Fail-open is preserved where it is the deliberate contract: `usePermissions()`
+  with no `PermissionProvider` answers `can: () => true`, so standalone embeds and
+  hosts that ship no permission source keep their Edit/Delete exactly as before.
+  Under `MePermissionsProvider` the semantics are the toolbar's, unchanged and now
+  shared: an authenticated principal whose object is absent from
+  `/me/permissions.objects` resolves fail-closed (objectui#2926 ④), an anonymous
+  session keeps the permissive default, and children never render while the
+  permission set is loading. Per-key absence is still permissive — an object entry
+  without `allowEdit` reads as allowed.
+
+  Server-side enforcement was already hard (403, DB unchanged), so this closes a
+  UI-affordance gap rather than an authorization hole.
+
+- 1a33b1a: fix(plugin-grid): don't render a row "⋮" trigger that opens an empty menu
+
+  The object list's row overflow trigger was gated on whether row-action
+  **handlers** were wired and how many actions were **declared**
+  (`(canEdit && onEdit) || (canDelete && onDelete) || menuDefs.length > 0 || rowActions.length > 0`),
+  while the menu's items were filtered a second time — per item, per record —
+  against `visibleWhen` / `visible`. On a row where every item was
+  predicate-suppressed the trigger still rendered and opened an empty box, which
+  reads as a broken page: a platform object whose row actions are gated for one
+  role showed a "⋮" on every row for everyone else, with nothing inside it.
+
+  The trigger is now decided by the items that will actually render for that row,
+  resolved through the same visibility functions the items gate themselves on, so
+  the two cannot disagree. The decision is per row: within one grid a row that
+  keeps an action keeps its trigger while a row with nothing left renders none. The
+  inline `variant: 'primary'` button reads that same shared rule. The actions
+  column is table-level and unchanged, so a row with nothing to offer renders an
+  empty cell and every row keeps the same cell count.
+
+  Which items render is untouched — only whether the trigger renders when none of
+  them survive.
+
+- Updated dependencies [794c497]
+- Updated dependencies [993336f]
+- Updated dependencies [f0a625a]
+- Updated dependencies [b5980f4]
+- Updated dependencies [8aad9fd]
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [0186cdc]
+- Updated dependencies [7864f03]
+- Updated dependencies [ea41a59]
+- Updated dependencies [0cbdca8]
+- Updated dependencies [d229dfa]
+- Updated dependencies [ecae400]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [d3e738a]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [f5f8744]
+- Updated dependencies [7ed3360]
+- Updated dependencies [69becd2]
+- Updated dependencies [5e52495]
+- Updated dependencies [0fa5e4d]
+- Updated dependencies [b750823]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [65bb513]
+- Updated dependencies [c97a45e]
+- Updated dependencies [b19162d]
+- Updated dependencies [c2fd122]
+- Updated dependencies [1bd6faa]
+- Updated dependencies [ac2139c]
+- Updated dependencies [b14ab3a]
+- Updated dependencies [e24d767]
+- Updated dependencies [8c60819]
+- Updated dependencies [aca561a]
+- Updated dependencies [e64a52e]
+- Updated dependencies [844d17f]
+- Updated dependencies [d8a0be4]
+- Updated dependencies [48132f7]
+- Updated dependencies [4dcd52a]
+- Updated dependencies [42ae5c6]
+- Updated dependencies [0ef9dfd]
+- Updated dependencies [f4b97c8]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [6d762da]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [54233b1]
+- Updated dependencies [c2ecbae]
+- Updated dependencies [f9faa7d]
+- Updated dependencies [97b63d7]
+- Updated dependencies [6bb454a]
+- Updated dependencies [11c1e71]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [33526fd]
+- Updated dependencies [32413ec]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/components@17.4.0
+  - @object-ui/react@17.4.0
+  - @object-ui/core@17.4.0
+  - @object-ui/fields@17.4.0
+  - @object-ui/i18n@17.4.0
+  - @object-ui/types@17.4.0
+  - @object-ui/mobile@17.4.0
+  - @object-ui/permissions@17.4.0
+
 ## 17.3.0
 
 ### Patch Changes
@@ -1000,6 +1335,7 @@ os_tianshun_ehr_position — use a unique value or the record id` — with the f
   is byte-identical, it just comes from the pack now.
 
   Adds two guards, both mutation-verified:
+
   - `en` ↔ `zh` full key parity, asserted in both directions. The other eight
     packs are still ~357 keys behind and are tracked separately (objectui#2872
     part a), so they are deliberately not asserted yet.
@@ -2183,6 +2519,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
 
   Extract the bulk-vs-per-row decision into a reusable
   `executeBulkBatch(input, ops)` helper in `@object-ui/core`:
+
   - Single decision tree shared by both update and delete fast paths.
   - Bulk success → no per-row pass.
   - Bulk partial-count → aggregate batch error.
@@ -2195,12 +2532,14 @@ undefined` — swallowing the very errors the command exists to print. Now reads
 - 5633edd: feat(detail,grid): tab + selection motion polish
 
   **plugin-detail**
+
   - `DetailTabs` and the auto-tabs path in `DetailView` (5 inline
     `<TabsContent>` instances: details, related, activity, discussion,
     history) now fade in when their tab becomes active, eliminating
     the harsh flash when switching tabs.
 
   **plugin-grid**
+
   - `BulkActionBar` slides in from the bottom + fades in when a
     selection is made, instead of popping into existence.
   - The "N items selected" counter re-animates on every count change
@@ -2229,6 +2568,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
   `defaultCurrency` is set on the field/column, formatting is unchanged.
 
   Fixed call sites:
+
   - `@object-ui/fields`: `formatCurrency`, `formatCompactCurrency`, and
     `CurrencyCellRenderer` no longer default-param `'USD'`.
   - `@object-ui/i18n`: `formatCurrency()` falls back to `formatNumber`
@@ -2318,6 +2658,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
   non-en/zh locales) and the `common.addToFavorites` /
   `common.removeFromFavorites` keys across all ten built-in locales so
   the `builtInLocales` parity tests pass.
+
   - @object-ui/components@5.0.2
   - @object-ui/fields@5.0.2
   - @object-ui/react@5.0.2
@@ -2390,6 +2731,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
 - 9aacced: **Bulk actions (Phase 2): cross-page select-all.**
 
   When the user selects every row on the current page and there are more matching records off-screen, the `BulkActionBar` now surfaces a banner with a "Select all N matching" affordance (Gmail / Salesforce convention). Opting in flips the bar into "all matches" mode and the bulk dispatcher transparently expands the record set by re-issuing the active find against `dataSource` (paged at 500/request, hard-capped at 5000) before handing it to the executor or the consumer's `onBulkDelete` callback.
+
   - `BulkActionBar` gains `pageSize`, `totalMatching`, `allMatchingSelected`, and `onSelectAllMatching` props.
   - `ObjectGrid` captures `total` + the last find params from `dataSource.find` and resets the cross-page flag whenever the underlying query changes.
   - 7 new `BulkActionBar.test.tsx` cases cover the affordance + Clear interaction.
@@ -2397,10 +2739,12 @@ undefined` — swallowing the very errors the command exists to print. Now reads
 - 9661d86: **Bulk actions (Phase 2): undo last batch + per-row error inspector.**
 
   `useBulkExecutor` now snapshots the pre-mutation values for every successful row in an `update` run (limited to keys actually touched by the patch). The dialog's result step exposes:
+
   - **Undo** — a one-shot button that replays the snapshot through `dataSource.update`, restoring the prior values. Available only for `update` operations where at least one row landed; consumed after a single click so a sticky toast can't double-revert.
   - **Per-row error inspector** — failed rows are listed with an inline **Retry** affordance that re-attempts the original op + params for that record and drops the row from the error list on success.
 
   Notes:
+
   - `delete` and `custom` operations never accumulate a snapshot — undoing a delete from the client would silently miss server-side cascades, so the button is hidden up-front.
   - The CSV export of all errors is unchanged.
   - 5 new tests in `useBulkExecutor.test.ts` cover snapshot capture, failure filtering, undo replay, delete no-op, and retry-clears-error.
@@ -2575,6 +2919,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
 - fd15918: Comprehensive i18n refactor + CI test fix.
 
   **i18n (`@object-ui/i18n`)**
+
   - Added ~130 new keys under 12 new top-level namespaces: `layout`, `search`,
     `empty`, `renderer`, `actionDialog`, `rowAction`, `navigationSync`,
     `objectActions`, `objectViewActions`, `dashboardActions`, `recordDetail`,
@@ -2586,6 +2931,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
 
   **App shell (`@object-ui/app-shell`)** — replaced hardcoded English in 14
   files with `useObjectTranslation`:
+
   - Layout: `AppSidebar`, `ActivityFeed` (locale-aware relative time),
     `MetadataInspector`.
   - Views: `SearchResultsPage`, `ActionParamDialog`, `RecordFormPage`,
@@ -2597,12 +2943,14 @@ undefined` — swallowing the very errors the command exists to print. Now reads
     `useObjectActions` (delete confirm + success / failure toasts).
 
   **Plugin grid (`@object-ui/plugin-grid`)**
+
   - `ObjectGrid` record-detail panel now translates Empty / Yes / No / System
     via the existing `useGridTranslation` safe-fallback wrapper.
   - `RowActionMenu` adopts a local safe-fallback i18n wrapper for
     `Open menu` / `Edit` / `Delete`, preserving standalone-usage guarantees.
 
   **CLI test fix (`@object-ui/cli`)**
+
   - `cli-bin.test.ts` auto-builds the package on first run when `dist/cli.js`
     is missing, instead of throwing. This unbreaks `pnpm test:coverage` in CI
     (root vitest run does not honor turbo's `^build` deps) and removes the
@@ -2621,6 +2969,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
 ### Patch Changes
 
 - 89ae109: Fix click navigation and required-FK form rendering
+
   - **plugin-grid**: ObjectGrid's `getSelectFields()` now always includes `id` in
     the SELECT projection. Previously, when a view configured `columns` without
     `id`, the SQL driver stripped it from results, and row-click handlers silently
@@ -2685,6 +3034,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.
@@ -2751,6 +3101,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
   contract through the renderer end-to-end:
 
   **`@object-ui/types`** — `DataSource` gains four optional methods:
+
   - `createExportJob(resource, request)` → `{ jobId, status, estimatedRecords, createdAt }`
   - `getExportJobProgress(jobId)` → `{ status, processedRecords, totalRecords, percentComplete, downloadUrl, … }`
   - `cancelExportJob(jobId)` (optional)
@@ -2760,6 +3111,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
   remain dependency-free.
 
   **`@object-ui/components`** — new public API:
+
   - `useExportJob({ dataSource, pollIntervalMs, onComplete, onError })` — owns the
     full polling loop, terminal-state handling, cancel, and download.
   - `<ExportProgressDialog open onOpenChange job filename closeAfterDownloadMs />` —
@@ -2778,24 +3130,29 @@ undefined` — swallowing the very errors the command exists to print. Now reads
 - a2d7023: End-user feature batch — forms, designer history, import/export, and PWA offline sync.
 
   **Forms (`@object-ui/fields`, `@object-ui/providers`)**
+
   - `FileField`: native `<input capture="environment">` camera capture for mobile devices, plus a uploading-progress indicator driven by `UploadProvider`.
   - `ImageField`: per-image inline crop/rotate via the lazy-loaded `ImageCropperDialog` (canvas-based, zero new deps).
   - New `UploadProvider` in `@object-ui/providers` with pluggable adapters for S3 and Azure Blob (plus the default object-URL adapter for local previews). XHR-based with progress, abort, and retry.
   - `LookupField`: `lookup.dependsOn: string | string[]` to chain dependent lookups (e.g. State depends on Country); the trigger is gated until parent values are present and the OData `$filter` is built automatically.
 
   **Container-aware widget widths (`@object-ui/components`)**
+
   - New `useResizeObserver(ref)` hook exposing `{ width, height }` of any element. SSR-safe; reads the initial size via `getBoundingClientRect`.
   - `plugin-gantt` and `plugin-kanban` now react to their container size instead of `window.innerWidth`, so they behave correctly inside split panels and dashboards.
 
   **Designer history (`@object-ui/plugin-designer`)**
+
   - `useUndoRedo` (and therefore `useDesignerHistory`) gains `persistKey` + `storage` options to round-trip the undo/redo stack through `sessionStorage`, plus a `clearPersisted()` cleanup helper. Drafts now survive accidental tab refreshes.
   - New `<HistoryPanel>` component renders the timeline visually with one-click jump-to-checkpoint via the new `jumpTo(index)` API.
 
   **Import wizard (`@object-ui/plugin-grid`)**
+
   - Saved column-mapping templates: name, save, re-apply, and delete via a new template bar in the mapping step. Persisted under `objectui:import-templates:${objectName}` (override via `templateStorageKey` / `templateStorage`).
   - Inline validation correction: cells with errors in the preview step are now editable; corrections feed straight into the import without requiring a re-upload, with green-bar status indicators for fixed rows.
 
   **PWA offline sync (`@object-ui/mobile`)**
+
   - New `MemoryOfflineQueue` / `IndexedDbOfflineQueue` (`createOfflineQueue()` picks the best backend) backed by IndexedDB.
   - `createOfflineDataSource(inner, { queue })` wraps any DataSource so mutations issued while offline (or that fail with a network-style error) are queued and replayed in order on reconnect. Includes `replay()`, `drop()`, `clear()`, `pending()`, an `onChange` notifier, and an opt-in `resolveConflict` hook for stale-write conflicts.
   - New `useOfflineSync(source)` hook exposes `{ isOnline, pending, isReplaying, replay, drop, clear }` and auto-replays on the browser's `online` event.

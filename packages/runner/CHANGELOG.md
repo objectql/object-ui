@@ -1,5 +1,78 @@
 # @object-ui/runner
 
+## 17.4.0
+
+### Patch Changes
+
+- 04fb8b8: Runner in-app navigation now carries the current query string across to the pushed URL instead of `pushState`-ing a bare path. Opening the Runner with `?api=<base>` and clicking a sidebar entry no longer drops the parameter from the address bar, so reloading or sharing the resulting URL still reaches the same backend rather than silently falling back to the (normally empty) `LocalBundleLoader` and rendering `Page not found`. The whole query string is preserved, not just `api` — `@object-ui/core`'s `?__debug…` flags survive navigation for the same reason. A navigation target that spells out its own query keeps it and wins on collision, with the remaining current parameters merged in behind it (#3578).
+- 03f25f7: Complete `packages/runner/vite.config.ts`'s workspace alias table to the full
+  transitive import closure, so `@object-ui/runner` boots and builds from the
+  monorepo sources without a prior `pnpm -w build` (objectui#3575).
+
+  The table aliased 7 `@object-ui/*` specifiers to `packages/*/src`, but those
+  `src` trees import 8 more workspace packages that were not aliased. Those fell
+  back to Node resolution and landed on `packages/<pkg>/dist`, which does not
+  exist in a fresh install-only checkout — so the "From Source" flow documented in
+  `content/docs/utilities/runner.mdx` (`pnpm install` then `pnpm dev`, no build
+  step) failed with "Failed to run dependency scan" and served HTTP 500 for every
+  module on the chain. `pnpm --filter @object-ui/runner build` failed the same way.
+
+  Newly aliased: `i18n`, `sdui-parser`, `react-runtime`, `fields`, `plugin-detail`
+  (first layer), `providers` and `permissions` (only reachable once the first layer
+  resolves to src), and `data-objectstack` (a type-only import that esbuild erases,
+  so the dependency scan never reported it).
+
+  This is user-visible in the published artifact, because the alias table is not
+  scoped by `command` and therefore applies to `vite build` as well. Bundling the
+  newly aliased packages from src stops the per-icon `lucide-react/dynamic.mjs`
+  chunks from being inlined, so the build now emits ~1.7k lazy icon micro-chunks
+  like `apps/console` does. `build.modulePreload` is disabled to match console, so
+  those chunks are not all preloaded on first paint: the measured initial eager
+  payload drops from 4231003 to 591795 bytes, while total `dist` size grows about
+  5.5% because the previously inlined icons are now separate files.
+
+- Updated dependencies [794c497]
+- Updated dependencies [993336f]
+- Updated dependencies [f0a625a]
+- Updated dependencies [b5980f4]
+- Updated dependencies [8aad9fd]
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [0cbdca8]
+- Updated dependencies [d229dfa]
+- Updated dependencies [ecae400]
+- Updated dependencies [a7e39a8]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [d3e738a]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [7ed3360]
+- Updated dependencies [0fa5e4d]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [c2fd122]
+- Updated dependencies [e24d767]
+- Updated dependencies [aca561a]
+- Updated dependencies [48132f7]
+- Updated dependencies [0ef9dfd]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [54233b1]
+- Updated dependencies [97b63d7]
+- Updated dependencies [6bb454a]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/components@17.4.0
+  - @object-ui/react@17.4.0
+  - @object-ui/core@17.4.0
+  - @object-ui/types@17.4.0
+  - @object-ui/plugin-charts@17.4.0
+  - @object-ui/plugin-kanban@17.4.0
+
 ## 17.3.0
 
 ### Patch Changes
@@ -1191,6 +1264,7 @@
 ### Patch Changes
 
 - 1b6dc64: fix: complete Tailwind v3→v4 migration cleanup
+
   - Rename deprecated `flex-shrink-0` → `shrink-0` and `flex-grow-N` →
     `grow-N` (Tailwind v4 dropped the long-form aliases). Affects
     data-table, fields/index, FileField, ChatbotEnhanced,
@@ -1494,6 +1568,7 @@
 - New plugin-object and ObjectQL SDK updates
 
   **Added:**
+
   - New Plugin: @object-ui/plugin-object - ObjectQL plugin for automatic table and form generation
     - ObjectTable: Auto-generates tables from ObjectQL object schemas
     - ObjectForm: Auto-generates forms from ObjectQL object schemas with create/edit/view modes
@@ -1502,6 +1577,7 @@
   - ObjectQL Integration: Enhanced ObjectQLDataSource with getObjectSchema() method using MetadataApiClient
 
   **Changed:**
+
   - Updated @objectql/sdk from ^1.8.3 to ^1.9.1
   - Updated @objectql/types from ^1.8.3 to ^1.9.1
 

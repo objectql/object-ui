@@ -1,5 +1,93 @@
 # @object-ui/create-plugin
 
+## 17.4.0
+
+### Patch Changes
+
+- e473b6c: Anchor the scaffold's build-side `devDependencies` to this repo's real toolchain, and pin the whole generated manifest against drift
+
+  A freshly scaffolded plugin declared a build stack one to two majors behind the one this monorepo actually builds and tests every in-tree plugin with: `vite ^7.3.1` against the repo's `^8.2.0`, `@vitejs/plugin-react ^4.2.1` against `^6.0.5`, `vite-plugin-dts ^4.5.4` against `^5.0.3`, `typescript ^5.9.3` against `^6.0.3`, `vitest ^4.0.18` against `^4.1.10`. Those five ranges were never sourced from anything — objectui#3716's end-to-end run of the generated artifact only ever exercised the versions installed in this repo, so the declared ranges were not the ones under test. All five now quote an in-repo anchor, the same way the three testing ranges already did.
+
+  Two anchors, because the root manifest does not declare everything. `create-plugin` writes into `<cwd>/packages/plugin-<name>`, so a generated plugin is a literal sibling of `packages/plugin-*`; those manifests anchor the two build-only tools the root omits (`@vitejs/plugin-react`, `vite-plugin-dts`), and the root anchors the rest.
+
+  The parity test now covers **every** entry of the generated `devDependencies` rather than the three testing ones, including a completeness check that fails when a dependency is added without naming its anchor — the five build ranges drifted precisely because nothing pinned them. It also asserts the two anchors agree wherever both declare a dependency, so which one is read cannot hide a drift.
+
+  The generated `vite.config.ts` resolves its library entry from `import.meta.dirname` instead of `__dirname`. vite 8 still defines `__dirname` under its default `bundle` config loader but warns on it ("unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite ... Use `import.meta.dirname` instead"), and under `native` — which imports the config with Node's own ESM loader, where no `__dirname` exists — the generated config failed to load outright. `apps/console/vite.config.ts` was converted for the same reason in objectui#3384.
+
+  Not a peer-dependency fix: `@vitejs/plugin-react ^4.2.1` resolved to 4.7.0, whose vite peer had widened to `^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0` and accepted the declared `vite ^7.3.1`, so the old manifest installed cleanly. The cost was a scaffold lagging its own monorepo, not a failing install.
+
+- f4f42b4: create-plugin: make the scaffolded plugin's own test suite runnable
+
+  The generator wrote an example test importing `@testing-library/react` and
+  asserting with `toBeInTheDocument()`, plus a `test: 'vitest run'` script, while
+  declaring neither library and giving Vitest no DOM environment — so `pnpm test`
+  in a freshly scaffolded plugin failed on the very first run, at import
+  resolution.
+
+  The generated `package.json` now declares `@testing-library/react`,
+  `@testing-library/jest-dom` and `jsdom` (each range copied from this
+  monorepo's own manifest), the generated `vite.config.ts` gains a `test` block
+  with `environment: 'jsdom'`, `globals: true` and `setupFiles`, and a
+  `vitest.setup.ts` registering the jest-dom matchers is written alongside it.
+  The templates moved to `src/templates.ts` so the generated artifacts can be
+  pinned by unit tests without executing the CLI.
+
+- c852682: Remove the scaffold's unused pinned icon dependency, and make its generated schema interface reachable
+
+  Two declared-but-unreachable artifacts in the generated plugin, both on the blind side of
+  the import gate objectui#3733 added — that gate rejects an import nothing declares, and
+  never looked for a declaration nothing imports.
+
+  **The generated `dependencies` no longer pin `lucide-react`** (objectui#3755). It was
+  declared at `^0.563.0` and imported by no generated source file, so every freshly
+  scaffolded plugin really installed lucide 0.563.x for code that never referenced it — two
+  majors behind the 23 in-repo declarations, all `^1.28.0`. Worse than ordinary caret drift:
+  a `0.x` caret does not cross minors, so `^0.563.0` is `>=0.563.0 <0.564.0` and could not
+  float even within `0.x`. It is removed rather than re-anchored because this repo declares
+  an icon library where it imports one — of the 24 manifests mentioning `lucide-react`, 23
+  import it, and none pre-declares it for code not yet written. An author who wants icons
+  runs `pnpm add lucide-react` and lands the current version by construction, with no anchor
+  table to maintain for an unused entry. The generated `dependencies` is now exactly the four
+  `workspace:*` platform packages, which cannot drift at all.
+
+  **The generated `src/index.tsx` now re-exports the schema interface** from `src/types.ts`
+  (objectui#3759). The generated `exports` map exposes exactly one key — `.` — so the entry
+  is a consumer's only door, and nothing walked through it to `src/types.ts`: no generated
+  source imported it, and the deep paths that would have reached it (`<pkg>/types`,
+  `<pkg>/dist/types`) are closed by that same map. The interface in it is the plugin's schema
+  contract, and it shipped dead — while the generator's own documentation page told authors to
+  "export your schema types … make it importable rather than internal". A named type-only
+  re-export, matching the four in-repo plugins that ship a `src/types.ts` and the worked
+  example in the plugin-development guide.
+
+  **That interface now extends `BaseSchema` from `@object-ui/types`** instead of re-declaring
+  a subset of the base node. Unreachable, a hand-rolled `{ type; id?; className? }` was only
+  dead weight; published, it would be a second dialect of a node the protocol already defines,
+  silently missing everything else `BaseSchema` carries (`name`, `label`, `visible`, …). Only
+  the `type` literal is narrowed locally, the same shape every in-repo plugin uses. This also
+  makes the generated `@object-ui/types` dependency a used declaration.
+
+  Both halves are pinned structurally rather than by string match, so the next dead artifact
+  fails a test instead of shipping: no versioned runtime dependency may be declared that no
+  generated source imports (`workspace:*` exempt — it cannot drift), and no generated `src/**`
+  module may be unreachable from the single entry the `exports` map exposes. Each of those
+  gates passes over an empty result on today's templates, so each is paired with a self-test
+  that plants the removed defect back and asserts the rule names it — a gate that is green
+  because it produces nothing is not a gate.
+
+- c29ceff: Move the generator templates' dependency ranges onto the repo's current ones
+
+  The dependabot wave of 2026-08-10 bumped `lucide-react` to `1.29.0` and `vite`
+  to `8.2.1` in this repo's own manifests, but the ranges hard-coded in the
+  scaffold generators do not move with it — dependabot does not know the
+  templates exist. A project scaffolded by `objectui init` / `objectui dev` or by
+  `create-plugin` therefore declared a range the repo itself had already moved
+  past.
+
+  Three ranges are re-anchored: `lucide-react` `^1.28.0` → `^1.29.0` in the routed
+  app generator, and `vite` `^8.2.0` → `^8.2.1` in both the shared CLI scaffold
+  devDependencies and the create-plugin template.
+
 ## 17.3.0
 
 ## 17.2.0

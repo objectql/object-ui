@@ -1,5 +1,274 @@
 # @object-ui/types
 
+## 17.4.0
+
+### Minor Changes
+
+- 48132f7: Track the `@objectstack` family at `17.0.0-rc.5` (objectui#3560).
+
+  The pin moves from `^17.0.0-rc.2` to `^17.0.0-rc.5` across all 37 declarations in
+  30 `package.json` files, and the sibling `@objectstack/*` packages (`client` /
+  `formula` / `lint`) move with it — they pin `@objectstack/spec` **exactly**, so
+  leaving them behind would keep a second copy of the spec in the tree and have
+  `@objectstack/lint` validating against schemas that still accept the keys rc.3–rc.5
+  retire. `pnpm-lock.yaml` now resolves one copy of each of the six family packages
+  (`spec` / `client` / `core` / `formula` / `lint` / `sdui-parser`), all at rc.5.
+
+  Bumping the pin and repairing the fallout cannot be split: the pin alone reddens
+  CI, and the code alone targets a shape that is not in effect yet.
+
+  ## A live bug this upgrade fixes
+
+  **`ObjectStackDataSource.delete()` never emitted its mutation event, and resolved
+  `undefined` instead of a boolean.** `@objectstack/client`'s `DeleteDataResult`
+  declared a key called `deleted` — a key no schema has ever declared and no server
+  path has ever returned on `DELETE /data/:object/:id`. So `result.deleted`
+  compiled and read `undefined` at runtime: the guard never fired, a successful
+  delete notified no subscriber, and every consumer's cache stayed stale.
+  objectstack#5638 corrected the interface to the schema's `success`; following the
+  rename is what restores both behaviours. Nothing in this repo had to change shape
+  for it — the code was already asking the right question of the wrong key.
+
+  ## Breaking, in FROM → TO form
+
+  - **The five `@objectstack/spec/ui` interaction-config modules are gone** —
+    touch / dnd / keyboard / animation / offline, 32 defs and 64 exports
+    (objectstack#4988, PR objectstack#5321). None of them had an authoring door: no
+    metadata document could ever carry one of these blocks, so a stack that parsed
+    before the retirement parses byte-for-byte the same after it. `@object-ui/types`
+    drops the 32 `export type` re-exports. The vocabulary each one's only real
+    consumer needs is now declared by that consumer, which is the remedy the spec's
+    own retirement ledger prescribes ("declare that union locally — it is your
+    client's policy, not the platform's"):
+
+    - `@object-ui/react`'s `useOffline` owns `OfflineStrategy`, `ConflictResolution`,
+      `PersistStorageType`, `EvictionPolicyType`, `OfflineConfig`,
+      `OfflineCacheConfig`, `OfflineSyncConfig`;
+    - `@object-ui/core`'s `DndProtocol` / `KeyboardProtocol` own `DndConfig`,
+      `DragItem`, `DropZone`, `DragConstraint`, `DragHandle`, `DropEffect`,
+      `KeyboardNavigationConfig`, `KeyboardShortcut`, `FocusManagement`,
+      `FocusTrapConfig`;
+    - `@object-ui/types`' `mobile` module owns `SpecGestureConfig`,
+      `SwipeGestureConfig`, `PinchGestureConfig`, `LongPressGestureConfig`,
+      `TouchTargetConfig`, `TouchInteraction` (plus a new `SPEC_GESTURE_TYPES`
+      runtime tuple), so `@object-ui/mobile`'s import paths are unchanged.
+
+    Every shape is moved verbatim — same keys, same members, same optionality — so
+    no hook or bridge changes behaviour. Consumers importing these names from
+    `@object-ui/types` must import them from the owning package instead. Note the
+    spec's _surviving_ `ConnectorConflictResolution` (`/integration`, connector sync)
+    and `ConflictResolutionStrategy` (`/api`, route merge policy) are **different
+    concepts** — do not re-point at them.
+
+  - **`@object-ui/types` no longer re-exports `NotificationAction` or `EmbedConfig`**
+    (objectstack#5015, PR objectstack#5300). Both were published `ui` vocabulary with
+    no authoring door; no notification action was ever parsed from metadata and no
+    iframe route ever read an embed config. The presentation enums
+    (`NotificationType` / `NotificationSeverity` / `NotificationPosition`) and
+    `SharingConfig` **survive** and are untouched — public form sharing still gates
+    the anonymous endpoints on `allowAnonymous` + `publicLink`.
+    `@object-ui/core`'s `SharingProtocol` keeps `resolveEmbedConfig` /
+    `generateEmbedCode` against a locally declared `EmbedConfig`, so its surface is
+    unchanged.
+  - **`ThemeEngine` stops emitting nine retired CSS variable groups**
+    (objectstack#5021 option 2, PR objectstack#5289). `theme.animation`,
+    `theme.zIndex` and five typography groups (`fontSize` / `fontWeight` /
+    `lineHeight` / `letterSpacing`, plus `fontFamily.heading` / `fontFamily.mono`)
+    are tombstones the schema now rejects by name, so `--duration-*`, `--timing-*`,
+    `--z-*`, `--font-size-*`, `--font-weight-*`, `--line-height-*`,
+    `--letter-spacing-*`, `--font-heading` and `--font-mono` had become structurally
+    dead code — no author could produce the input that reached them.
+    `generateAnimationVars` and `generateZIndexVars` are removed from
+    `@object-ui/core`, and `@object-ui/types` drops `Animation` / `ZIndex` /
+    `AnimationSchema` / `ZIndexSchema`. **`theme.customVars` is the declared — and
+    since #5021 the only — door**: each entry is emitted verbatim as
+    `--<key>: <value>`, so a `--z-modal` or a `--duration-fast` goes there now.
+    LIVE emission is untouched byte for byte: `colors`, `borderRadius`, `shadows`,
+    `typography.fontFamily.base` (→ `--font-sans`) and `customVars`.
+  - **`@object-ui/types`' `HttpMethodSchema` now binds the spec's
+    `HttpMethodSubsetSchema`, and `HttpMethod` binds `HttpMethodSubset`**
+    (objectstack#5832, PR objectstack#5976 — objectui#3499). The spec renamed its
+    5-value UI subset because `schemaNameFromExportKey` strips the `Schema` suffix,
+    so the 5-value and 7-value enums both published as `shared/HttpMethod` and the
+    later write won — the emitted JSON Schema and reference page described only one
+    of them. **The runtime domain is unchanged and this repo's exported names are
+    unchanged**; this follows the rename without touching cross-package semantics.
+    Deliberately NOT re-pointed at the spec's bare `HttpMethod`: that is the 7-value
+    enum, and widening to it would let `method: 'HEAD'` compile and then throw in
+    `HttpRequestSchema.parse()`.
+  - **`dashboard.widgets[].actionUrl` / `actionType` / `actionIcon` / `aria` are
+    refused, not stripped** (objectstack#5010, ADR-0049 enforce-or-remove). A
+    dashboard widget has no action button and never had one — every action the
+    dashboard dispatches comes from `header.actions[]` — and no renderer ever applied
+    the widget `aria`, so it promised accessibility compliance it did not deliver.
+    A stale dashboard now gets a named error telling it where the affordance moved,
+    instead of silently losing it. Run `os migrate meta --from 16` to rewrite.
+
+- e6fdbdc: Reclaim the natural names `GestureType` and `GestureConfig` (objectui#3363).
+
+  `@objectstack/spec` 17.0.0-rc.3 deleted the whole `ui/touch` module
+  (objectstack#4988, PR objectstack#5321), vacating three names objectui had
+  renamed **away from** in objectstack#4115 purely to avoid a collision. Two of
+  those workarounds have now outlived their reason and are undone.
+
+  ## Breaking, in FROM → TO form
+
+  - `TouchGestureType` → **`GestureType`** — objectui's direction-fused recogniser
+    vocabulary (`tap`, `swipe-left`, `swipe-up`, …).
+  - `TouchGestureConfig` → **`GestureConfig`** — the flat gesture→`action` handler
+    binding.
+
+  Both are exported from `@object-ui/types` and re-exported by `@object-ui/mobile`.
+  Nothing about either shape changed: same members, same optionality. Consumers
+  import the new name; there is no other edit.
+
+  **The old names are gone, not deprecated.** This follows the precedent set by the
+  objectstack#4115 rename batch that introduced them, whose own migration note reads:
+  "an alias would preserve exactly the ambiguity being removed". A deprecated alias
+  would be worse here than in the general case, because the ambiguity these renames
+  exist to prevent is between two same-named types — leaving `TouchGestureType`
+  alive next to `GestureType` restores the two-spellings-one-concept problem while
+  claiming to retire it.
+
+  The retired spec vocabulary that used to hold these names still lives in
+  `@object-ui/types`' `mobile` module under its deliberate `Spec…` prefix
+  (`SpecGestureType`, `SpecGestureConfig`, `SwipeGestureConfig`, …), and that prefix
+  is untouched — it is now the only thing distinguishing the two contracts, so
+  `useSpecGesture` still maps one onto the other exactly as before.
+
+  ## `PWAOfflineConfig` is deliberately NOT reclaimed
+
+  The spec vacated `OfflineConfig` in the same retirement, but the spec was never
+  its only claimant: that rename was a **cross-package arbitration between two
+  objectui packages**, and `@object-ui/react` won it. `useOffline`'s config is the
+  offline data/sync model key for key, so it holds the bare `OfflineConfig`, while
+  this package's service-worker route cache stays `PWAOfflineConfig`
+  (objectui#3156 / objectui#3159).
+
+  Before objectui#3560 that name reached `@object-ui/react` from the spec, so the
+  spec-side tripwire covered it by accident. Since the retirement it is declared
+  locally in `packages/react/src/hooks/useOffline.ts`, which means the spec's
+  vacancy no longer says anything about whether the name is free — it is not.
+  Reclaiming it would put two different `OfflineConfig` shapes on the public
+  surface of two packages that are routinely imported together, which is the exact
+  ambiguity objectstack#4115 renamed it away from.
+
+  `page-nav-misc-spec-parity.test.ts` now pins that reason directly instead of
+  leaving it as prose: it asserts `@object-ui/react` still declares
+  `OfflineConfig`, and its failure message tells the next reader that the reclaim
+  has become available if it ever stops.
+
+### Patch Changes
+
+- d229dfa: `BulkActionParam.options` entries now accept the widget config the renderer already forwards
+
+  The entry type was a closed `{ label, value }`, and it was the only layer in the
+  path that said so. `bulkParamToField` spreads each entry into the metadata it
+  hands the field widget (`{ ...o, value: String(o.value) }`), so extra keys
+  survive; the destination shape `SelectOptionMetadata` declares `color` / `icon` /
+  `disabled` / `visibleWhen` and `@object-ui/fields` genuinely reads them; and
+  `@objectstack/spec`'s `BulkActionParamSchema` makes the same entry
+  `.passthrough()`, so the server accepts them. Writing
+  `options: [{ label: 'Purple', value: 'purple', color: '#8B5CF6' }]` therefore
+  produced a TypeScript excess-property error on a configuration the renderer
+  honours — the type rejected working metadata, which is the most expensive
+  direction for an author (an AI author especially) that trusts it absolutely.
+
+  The entry now carries a `[key: string]: unknown` catch-all, matching the one its
+  parent `BulkActionParam` has had all along and the idiom `ActionParamOption`
+  settled one interface over. `label` and `value` stay required and keep their
+  exact types: open is not optional, and the catch-all is not an invitation to
+  author new option keys — the authoring gate remains the spec's strict
+  `SelectOptionSchema`. No runtime behaviour changes; the widening is
+  backward-compatible for consumers.
+
+- c2fd122: fix(actions): forward `bodyShape` end-to-end so a declared body wrap is honoured
+
+  Sibling of the `bodyExtra` fix, same failure shape one key over. `bodyShape` is
+  the spec's body-WRAPPING declaration for a `type: 'api'` action — `'flat'` (the
+  default) or `{ wrap: key }` to nest the collected params under `key`, the shape
+  better-auth's `organization/update` needs. The console `apiHandler` read it
+  unconditionally while **no** action renderer forwarded it, so an author who
+  declared `bodyShape: { wrap: 'data' }` on an `action:button` / `:group` / `:icon`
+  / `:menu` action got a FLAT body on the wire: the endpoint received the params at
+  the top level, and the declaration read as honoured because it parsed and
+  published.
+
+  The four declared-action renderers now forward the key, and `ActionSchema`
+  declares it (typed by derivation from the spec, so the union cannot drift).
+  `ActionRunner.executeAPI` — the fallback path taken when no host registered an
+  `api` handler — now reads it too, closing a second asymmetry in which the same
+  action changed body shape depending on which host executed it. The wrap covers
+  the collected params only; `bodyExtra` and other top-level keys stay flat, which
+  is the spec's own wording for the key and what both console read-sites already
+  did.
+
+  `element:button` deliberately does **not** forward it: its whitelist mirrors
+  spec's `InlineActionSchema` pick list field for field, and that pick list does
+  not include `bodyShape` — it is not inline vocabulary.
+
+- 7e5bb5d: fix(actions): forward `bodyExtra` end-to-end through the action chain
+
+  An action's static request body (`bodyExtra`) was dropped one hop before the
+  `ActionRunner`: every action renderer forwards an explicit whitelist of keys, and
+  none of them listed `bodyExtra`. Since `@objectstack/spec` 17 made it the only way
+  a `type: 'api'` action can carry a payload (`params` keeps its single meaning as
+  the parameter definition array), and the ADR-0087
+  `inline-action-api-params-to-body-extra` conversion rewrites older object-form
+  `params` pages onto it at load, a previously-working published page validated,
+  published and then POSTed an empty body.
+
+  `element:button`, `action:button`, `action:group`, `action:icon` and `action:menu`
+  now forward the key; `ActionRunner.executeAPI` merges it into the request body
+  **last** (so a constant always overrides a same-named user param, matching the
+  console `apiHandler`); `ActionSchema` declares it; and a non-array `params` on a
+  `type: 'api'` action keeps working for one version window with a dev-mode
+  deprecation warning naming `bodyExtra`.
+
+- 7e2b7e9: Fix saved list-view preferences never reading back (density, column widths, sort, hidden columns, inline edit)
+
+  `listViewOverrides` in the ObjectStack adapter enumerated `GET /api/v1/meta/{objectName}` — putting the object name in the metadata **type** slot — while `updateViewConfig` persists under `type='view'`. The two key spaces are disjoint, so the batch map came back empty for every object and every personalization a user saved on a list view was written to the server but never read back, showing up as "the setting didn't save".
+
+  The read now enumerates `type='view'` once and narrows to the object client-side, through the same accessor `listViews()` uses over the same rows — the metadata index is name-only, so there is no server-side `?object=` filter to push it into.
+
+  Second half: the batch read no longer swallows its own failures into an empty map. An empty map is an authoritative "this object has no overrides" and callers may still trust it and skip the per-view reads (the batch optimization is intact), but a transport failure now rejects, so the per-view `getView` fallback it was silently disabling becomes reachable again. `DataSource.listViewOverrides` documents both terms so other adapters implement the same contract.
+
+- c1e1e6b: Studio's widget config panel no longer authors the retired `actionUrl` widget key
+
+  `actionUrl` / `actionType` / `actionIcon` were retired at the WIDGET level in
+  `@objectstack/spec` 17.0.0-rc.3 (objectstack#5010, ADR-0049 D2). They are
+  `retiredKey` tombstones: `DashboardWidgetSchema` types them `never` and refuses
+  any value, so authoring one is a tsc error and a parse error. Two producers in
+  `plugin-dashboard` were still emitting the widget-level key anyway
+  (objectstack#7129):
+
+  - `WidgetConfigPanel` offered a Behavior-group field labelled "Click-through
+    URL", bound to `actionUrl`. That control was inert twice over: no dashboard
+    widget renderer has ever read `widget.actionUrl`, so a URL typed there never
+    navigated anywhere, and the value it wrote was refused by the spec.
+  - `DashboardWithConfig` seeded `actionUrl: widget.actionUrl ?? ''` into every
+    widget config handed to the panel. Because the ADR-0021 save scrub only knew
+    the dataset-shape keys, that seed rode through to `onWidgetSave` on EVERY
+    save — so a Studio author who merely renamed a widget still persisted
+    `actionUrl: ''` into stored metadata, a key the spec then refuses. This is
+    the wider half of the defect: it did not require anyone to use the field.
+
+  The Behavior group and the seed are both gone, and `sanitizeDraftForType` now
+  scrubs all three keys as a second line of defence, for stored widgets that
+  already carry them and for hosts that drive `WidgetConfigPanel` directly.
+
+  Behaviour change surface: the widget config panel loses its Behavior section
+  (that section contained only this one field). Nothing that rendered before stops
+  rendering — the field had no consumer. `header.actions[]` keeps its own,
+  unrelated and still-live `actionUrl`; only the widget-level key is a tombstone.
+
+  Also corrects the `DashboardWidgetSchema` docblock in `@object-ui/types`, which
+  listed the three retired keys among those that "flow in from the spec" next to
+  live keys like `colorVariant`. They do flow in — as `?: never`. The docblock now
+  says so, and notes that while authoring one is a tsc error, _reading_ one still
+  type-checks (`never | undefined`), which is exactly how these producers survived
+  the 2026-08-04 sweep that removed the renderer-side reads.
+
 ## 17.3.0
 
 ### Minor Changes
@@ -2891,6 +3160,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
 - 991b62d: Add `compareTo` field to dashboard widgets for period-over-period
   comparison. Supports `'previousPeriod'`, `'previousYear'`, and
   `{ offset: '7d' | '4w' | '1M' | '1y' }`.
+
   - **Metric / gauge widgets** now compute a delta percentage when `compareTo`
     is set and surface it as a derived `trend` (auto-labelled via
     `dashboard.trend.vsLast*` i18n keys sniffed from the filter macros).
@@ -2991,6 +3261,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
 
   Extract the bulk-vs-per-row decision into a reusable
   `executeBulkBatch(input, ops)` helper in `@object-ui/core`:
+
   - Single decision tree shared by both update and delete fast paths.
   - Bulk success → no per-row pass.
   - Bulk partial-count → aggregate batch error.
@@ -3026,6 +3297,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
 ### Minor Changes
 
 - cf30cc2: Polish Lightning record detail page layout.
+
   - `record:details` sections now render with Card chrome by default when a `title` is present, restoring visual grouping that was missing on pages like the opportunity detail page.
   - Section labels can be translated via the `{ns}.objects.{objectName}._sections.{name}.label` convention. Author each section with a stable `name` (e.g. `info`, `forecast`) and the renderer picks up the locale-specific label automatically. Falls back to the literal `label` when no translation exists.
   - The `page:header` action toolbar now collapses into a `⋯` overflow menu when more than two actions are present. The first business action stays inline; secondary system actions (Edit / Share / Delete) move into the menu, with destructive styling applied to Delete.
@@ -3043,6 +3315,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
   multi-user editing scenarios.
 
   **`@object-ui/data-objectstack`**
+
   - Exports `ConcurrentUpdateError` (carries `currentVersion` and
     `currentRecord`) and `isConcurrentUpdateError()` type guard.
   - `update()` / `delete()` accept `opts.ifMatch` and forward it via the
@@ -3055,6 +3328,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
     from conflicts without parsing the wire format.
 
   **`@object-ui/core`**
+
   - `ApiDataSource.update()` and `.delete()` accept `opts.ifMatch` and emit
     the `If-Match` HTTP header.
 
@@ -3078,6 +3352,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
   customize the header or one tab.
 
   **Slot menu (v1):**
+
   - `header` — replaces `page:header`
   - `actions` — replaces the `record:quick_actions` action bar
   - `highlights` — replaces the chips + chevron path strip
@@ -3105,6 +3380,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
   ```
 
   **API changes:**
+
   - `PageSchema` (in `@object-ui/types`): adds `kind?: 'full' | 'slotted'`
     (default `'full'`) and `slots?: PageSlotMap`.
   - `usePageAssignment` (in `@object-ui/react`): result now exposes a
@@ -3190,6 +3466,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
 - Release v4.0.0: Unified app shell, convention-based i18n, and plugin architecture overhaul.
 
   ### Major Changes
+
   - **`@object-ui/app-shell`**: New unified application shell with sidebar, breadcrumb, and dashboard wiring.
   - **`@object-ui/providers`**: Promoted to first-class fixed package; new `DataSourceProvider` and `ThemeProvider` APIs.
   - **Convention-based i18n** (`@object-ui/i18n`): `useObjectLabel` now covers nav groups, dashboards, pages, reports, charts, and field options — zero-config localisation via translation packs.
@@ -3210,6 +3487,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
   contract through the renderer end-to-end:
 
   **`@object-ui/types`** — `DataSource` gains four optional methods:
+
   - `createExportJob(resource, request)` → `{ jobId, status, estimatedRecords, createdAt }`
   - `getExportJobProgress(jobId)` → `{ status, processedRecords, totalRecords, percentComplete, downloadUrl, … }`
   - `cancelExportJob(jobId)` (optional)
@@ -3219,6 +3497,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
   remain dependency-free.
 
   **`@object-ui/components`** — new public API:
+
   - `useExportJob({ dataSource, pollIntervalMs, onComplete, onError })` — owns the
     full polling loop, terminal-state handling, cancel, and download.
   - `<ExportProgressDialog open onOpenChange job filename closeAfterDownloadMs />` —
@@ -3256,11 +3535,13 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
   `FormSchema.mobileStickyActions` (new) is the lower-level escape hatch — applied automatically when `mobile.stickyActions` is set on `ObjectFormSchema`.
 
   **`@object-ui/plugin-form`** — `ObjectForm` now:
+
   - propagates `mobile.fullscreenLongText` to every textarea/markdown/html field as `mobile_fullscreen: true`,
   - sets `mobileStickyActions` on the inner form schema and adds `pb-20` padding so content isn't covered by the fixed bar,
   - when `mobile.stepper === true` (or `'auto'` + `useIsMobile()` + > `stepperMinFields` fields), routes the flat field list through the existing `WizardForm` with synthetic single-field "steps" — keeping per-step validation and the existing `Next`/`Back`/`Submit` flow.
 
   **`@object-ui/components`** — the registered `form` renderer adds:
+
   - a `mobileStickyActions` opt-in that turns the action row into a `position: sticky; bottom: 0` bar on small viewports, and
   - an inline `FullscreenTextarea` wrapper used when no field-package widget is registered, providing the same expand-button + edit-dialog UX so the feature works even in lighter setups.
 
@@ -3327,6 +3608,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
 - New plugin-object and ObjectQL SDK updates
 
   **Added:**
+
   - New Plugin: @object-ui/plugin-object - ObjectQL plugin for automatic table and form generation
     - ObjectTable: Auto-generates tables from ObjectQL object schemas
     - ObjectForm: Auto-generates forms from ObjectQL object schemas with create/edit/view modes
@@ -3335,6 +3617,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
   - ObjectQL Integration: Enhanced ObjectQLDataSource with getObjectSchema() method using MetadataApiClient
 
   **Changed:**
+
   - Updated @objectql/sdk from ^1.8.3 to ^1.9.1
   - Updated @objectql/types from ^1.8.3 to ^1.9.1
 
@@ -3345,6 +3628,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
 - Patch release: Add automated changeset workflow and CI/CD improvements
 
   This release includes infrastructure improvements:
+
   - Added changeset-based version management
   - Enhanced CI/CD workflows with GitHub Actions
   - Improved documentation for contributing and releasing

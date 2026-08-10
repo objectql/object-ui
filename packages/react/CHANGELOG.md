@@ -1,5 +1,438 @@
 # @object-ui/react
 
+## 17.4.0
+
+### Minor Changes
+
+- 5bfaabd: `PageComponentSchema.dataSource` now reaches every object-bound block, not just
+  `list-view` — and `element:record_picker` stops discarding `view`
+  (objectstack#6953).
+
+  objectstack#5576 wired the spec's per-element data binding
+  (`dataSource: { object, view?, filter?, sort?, limit? }`) to `list-view` and left
+  the same declaration inert on every other page component. Two gaps remained, and
+  both were silent:
+
+  - **`element:record_picker` read four of the five keys and dropped `view`.** So
+    `dataSource: { object: 'account', view: 'hot' }` — the spec's own example —
+    built a picker over EVERY account instead of the rows the saved view selects.
+    Nothing threw and nothing rendered an error; the option list was simply wider
+    than what was authored, which also means a user could select a record the page
+    said was out of scope.
+  - **`object-grid` / `object-form` / `object-kanban` / `object-calendar` /
+    `object-chart` / `object-metric` / `record:related_list` read none of it.**
+    Each gates its fetch on its own `objectName`, and nothing mapped
+    `dataSource.object` onto it, so a page written the way the spec documents
+    rendered an empty grid / a field-less form / a board with no cards / an empty
+    month / an empty chart / a static metric number — with no request and no
+    diagnostic anywhere. Spec-valid metadata rendering nothing is the
+    objectstack#4413 shape.
+
+  Composition follows objectstack#5576's landed semantics unchanged on every block:
+  a named saved view supplies the baseline, a key written on the component itself
+  overrides it, an explicit binding key overrides both, `filter` AND-combines
+  ("additional filter criteria" — a binding can narrow a view, never widen it), and
+  a `view` name that does not resolve renders a configuration error instead of
+  degrading to the object's full scope.
+
+  - `@object-ui/react` — new `useElementDataSourceSchema(schema, mapping, dataSource?)`
+    and `ElementDataSourceGate` apply a resolved binding to the schema keys a given
+    block reads, plus `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel`
+    for the two non-final states. One precedence table for all blocks rather than
+    one copy per block — that copy is how "additional filter criteria" would have
+    become two dialects.
+  - A mapping names **only** keys its block genuinely reads. A composed value
+    written onto a key the block ignores would be accepted and dropped, which is
+    the defect being removed, one layer deeper — so a kanban's swimlane `columns`
+    never receive a view's field list, and a block with no row cap leaves `limit`
+    unmapped. The per-block coverage table, including two residual gaps that are
+    named rather than papered over, is in `content/docs/guide/data-source.md`.
+
+  No behaviour changes for a block that carries no `dataSource`: the binding-free
+  path returns the schema by reference, so nothing remounts and nothing refetches.
+
+- 48132f7: Track the `@objectstack` family at `17.0.0-rc.5` (objectui#3560).
+
+  The pin moves from `^17.0.0-rc.2` to `^17.0.0-rc.5` across all 37 declarations in
+  30 `package.json` files, and the sibling `@objectstack/*` packages (`client` /
+  `formula` / `lint`) move with it — they pin `@objectstack/spec` **exactly**, so
+  leaving them behind would keep a second copy of the spec in the tree and have
+  `@objectstack/lint` validating against schemas that still accept the keys rc.3–rc.5
+  retire. `pnpm-lock.yaml` now resolves one copy of each of the six family packages
+  (`spec` / `client` / `core` / `formula` / `lint` / `sdui-parser`), all at rc.5.
+
+  Bumping the pin and repairing the fallout cannot be split: the pin alone reddens
+  CI, and the code alone targets a shape that is not in effect yet.
+
+  ## A live bug this upgrade fixes
+
+  **`ObjectStackDataSource.delete()` never emitted its mutation event, and resolved
+  `undefined` instead of a boolean.** `@objectstack/client`'s `DeleteDataResult`
+  declared a key called `deleted` — a key no schema has ever declared and no server
+  path has ever returned on `DELETE /data/:object/:id`. So `result.deleted`
+  compiled and read `undefined` at runtime: the guard never fired, a successful
+  delete notified no subscriber, and every consumer's cache stayed stale.
+  objectstack#5638 corrected the interface to the schema's `success`; following the
+  rename is what restores both behaviours. Nothing in this repo had to change shape
+  for it — the code was already asking the right question of the wrong key.
+
+  ## Breaking, in FROM → TO form
+
+  - **The five `@objectstack/spec/ui` interaction-config modules are gone** —
+    touch / dnd / keyboard / animation / offline, 32 defs and 64 exports
+    (objectstack#4988, PR objectstack#5321). None of them had an authoring door: no
+    metadata document could ever carry one of these blocks, so a stack that parsed
+    before the retirement parses byte-for-byte the same after it. `@object-ui/types`
+    drops the 32 `export type` re-exports. The vocabulary each one's only real
+    consumer needs is now declared by that consumer, which is the remedy the spec's
+    own retirement ledger prescribes ("declare that union locally — it is your
+    client's policy, not the platform's"):
+
+    - `@object-ui/react`'s `useOffline` owns `OfflineStrategy`, `ConflictResolution`,
+      `PersistStorageType`, `EvictionPolicyType`, `OfflineConfig`,
+      `OfflineCacheConfig`, `OfflineSyncConfig`;
+    - `@object-ui/core`'s `DndProtocol` / `KeyboardProtocol` own `DndConfig`,
+      `DragItem`, `DropZone`, `DragConstraint`, `DragHandle`, `DropEffect`,
+      `KeyboardNavigationConfig`, `KeyboardShortcut`, `FocusManagement`,
+      `FocusTrapConfig`;
+    - `@object-ui/types`' `mobile` module owns `SpecGestureConfig`,
+      `SwipeGestureConfig`, `PinchGestureConfig`, `LongPressGestureConfig`,
+      `TouchTargetConfig`, `TouchInteraction` (plus a new `SPEC_GESTURE_TYPES`
+      runtime tuple), so `@object-ui/mobile`'s import paths are unchanged.
+
+    Every shape is moved verbatim — same keys, same members, same optionality — so
+    no hook or bridge changes behaviour. Consumers importing these names from
+    `@object-ui/types` must import them from the owning package instead. Note the
+    spec's _surviving_ `ConnectorConflictResolution` (`/integration`, connector sync)
+    and `ConflictResolutionStrategy` (`/api`, route merge policy) are **different
+    concepts** — do not re-point at them.
+
+  - **`@object-ui/types` no longer re-exports `NotificationAction` or `EmbedConfig`**
+    (objectstack#5015, PR objectstack#5300). Both were published `ui` vocabulary with
+    no authoring door; no notification action was ever parsed from metadata and no
+    iframe route ever read an embed config. The presentation enums
+    (`NotificationType` / `NotificationSeverity` / `NotificationPosition`) and
+    `SharingConfig` **survive** and are untouched — public form sharing still gates
+    the anonymous endpoints on `allowAnonymous` + `publicLink`.
+    `@object-ui/core`'s `SharingProtocol` keeps `resolveEmbedConfig` /
+    `generateEmbedCode` against a locally declared `EmbedConfig`, so its surface is
+    unchanged.
+  - **`ThemeEngine` stops emitting nine retired CSS variable groups**
+    (objectstack#5021 option 2, PR objectstack#5289). `theme.animation`,
+    `theme.zIndex` and five typography groups (`fontSize` / `fontWeight` /
+    `lineHeight` / `letterSpacing`, plus `fontFamily.heading` / `fontFamily.mono`)
+    are tombstones the schema now rejects by name, so `--duration-*`, `--timing-*`,
+    `--z-*`, `--font-size-*`, `--font-weight-*`, `--line-height-*`,
+    `--letter-spacing-*`, `--font-heading` and `--font-mono` had become structurally
+    dead code — no author could produce the input that reached them.
+    `generateAnimationVars` and `generateZIndexVars` are removed from
+    `@object-ui/core`, and `@object-ui/types` drops `Animation` / `ZIndex` /
+    `AnimationSchema` / `ZIndexSchema`. **`theme.customVars` is the declared — and
+    since #5021 the only — door**: each entry is emitted verbatim as
+    `--<key>: <value>`, so a `--z-modal` or a `--duration-fast` goes there now.
+    LIVE emission is untouched byte for byte: `colors`, `borderRadius`, `shadows`,
+    `typography.fontFamily.base` (→ `--font-sans`) and `customVars`.
+  - **`@object-ui/types`' `HttpMethodSchema` now binds the spec's
+    `HttpMethodSubsetSchema`, and `HttpMethod` binds `HttpMethodSubset`**
+    (objectstack#5832, PR objectstack#5976 — objectui#3499). The spec renamed its
+    5-value UI subset because `schemaNameFromExportKey` strips the `Schema` suffix,
+    so the 5-value and 7-value enums both published as `shared/HttpMethod` and the
+    later write won — the emitted JSON Schema and reference page described only one
+    of them. **The runtime domain is unchanged and this repo's exported names are
+    unchanged**; this follows the rename without touching cross-package semantics.
+    Deliberately NOT re-pointed at the spec's bare `HttpMethod`: that is the 7-value
+    enum, and widening to it would let `method: 'HEAD'` compile and then throw in
+    `HttpRequestSchema.parse()`.
+  - **`dashboard.widgets[].actionUrl` / `actionType` / `actionIcon` / `aria` are
+    refused, not stripped** (objectstack#5010, ADR-0049 enforce-or-remove). A
+    dashboard widget has no action button and never had one — every action the
+    dashboard dispatches comes from `header.actions[]` — and no renderer ever applied
+    the widget `aria`, so it promised accessibility compliance it did not deliver.
+    A stale dashboard now gets a named error telling it where the affordance moved,
+    instead of silently losing it. Run `os migrate meta --from 16` to rewrite.
+
+### Patch Changes
+
+- 8aad9fd: Action-face predicates written against the canonical `record.` root now evaluate
+
+  `action:button`, `action:icon`, `action:menu` and `action:group` gated their
+  actions on `useCondition(pred, context)`, which evaluates on
+  `new ExpressionEvaluator({ ...scope, ...context })` — and the context each of
+  them passed was the row spread flat, or nothing at all. Only the shorthand
+  spelling resolved:
+
+  | predicate                    | verdict, before                  |
+  | ---------------------------- | -------------------------------- |
+  | `status == "pending"`        | evaluates (`action:button` only) |
+  | `record.status == "pending"` | throws `record is not defined`   |
+  | `data.status == "pending"`   | throws `data is not defined`     |
+
+  `record.` is not a mistaken spelling — it is the canonical one. It is what
+  `ExpressionEvaluator`'s CEL path binds (`bag.record` as the record namespace),
+  what `evalRowPredicate` binds on the record header, list rows, the row kebab
+  and conditional formatting (`record.status` / bare `status` / `data.status`),
+  and what the server enforces with. A `visible` that fails CLOSED turns the throw
+  into "hidden", so a correctly-authored predicate deleted its own button —
+  indistinguishable from the gate having said no. On the fail-soft legs the same
+  throw lands the other way: `disabled` greyed a control out for everyone.
+
+  Live rather than theoretical: every declared action on framework's
+  `sys_approval_request` gates on `record.viewer.*`, so the whole server-declared
+  approval decision set was invisible wherever the declared-action bar rendered
+  until objectui#4077 fixed that bar. These four generic renderers carried the
+  same binding.
+
+  What changed:
+
+  - all four bind the row the three canonical ways, through one named helper
+    (`usePredicateRecordContext`, exported from `@object-ui/react` beside
+    `useCondition`), so the action face and the row surfaces answer an author's
+    `visible:` the same way;
+  - `action:icon` reads the row at all. It evaluated against an empty bag, so not
+    even the bare-field shorthand resolved — and its `data` prop was landing in
+    the props spread onto the DOM button;
+  - `action:menu`'s items and `action:group`'s two leaves receive the row from
+    their host, which they previously never got;
+  - `action:bar` forwards the row into the overflow menu it builds, not just to
+    its inline members. An action's predicate had been answering a different
+    question purely because it spilled past `maxVisible` — which on mobile
+    defaults to 1, making the verdict a function of the viewport.
+
+  Deliberately unchanged: the evaluation entry and each site's error policy. A
+  predicate that genuinely faults still fails closed on `action:button` /
+  `action:menu` `visible` and still fails soft on the other legs, exactly as
+  before; `toPredicateInput`, `hasDeclaredVisibilityGate` and the empty-predicate
+  rules keep their pinned semantics. Binding the row is a separate question from
+  what to do when the predicate faults.
+
+  A surface with no row of its own binds nothing rather than an empty record, so
+  a host that supplies the row through the ambient predicate scope is not blanked
+  out; a row passed explicitly still wins over the scope.
+
+- e06810e: `PageComponentSchema.dataSource` is now consumed instead of discarded — a
+  `list-view` page component can reference a **saved view by name** for the first
+  time, and writing the binding no longer breaks the component
+  (objectstack#5576).
+
+  The spec declares a per-element data binding on every page component —
+  `dataSource: { object, view?, filter?, sort?, limit? }` — and objectui read none
+  of it. `ViewDataProvider.resolveElementDataSource` forwarded
+  `filter`/`sort`/`limit` and dropped `view` entirely, and had no caller outside its
+  own test; nothing mapped `object` onto the `objectName` a list actually reads. So
+  "reference a saved view by name" was published, validated and inert, and every
+  page that wanted a saved view's columns/filter/sort had to inline a second copy of
+  them — the drift the binding exists to remove.
+
+  Writing the binding also **broke** the block, for a reason unrelated to `view`:
+  `SchemaRenderer` spread the schema's `dataSource` metadata onto the component as a
+  React prop, and that is the prop name the host uses to inject the data-source
+  ADAPTER. The plain `{ object, view }` object shadowed the adapter, so the first
+  `dataSource.find(…)` threw `dataSource.find is not a function` and `list-view`
+  rendered "Couldn't load records" — a spec-compliant component failing next to
+  identical ones that omitted the binding.
+
+  - `@object-ui/react` — `SchemaRenderer` no longer spreads `schema.dataSource` as a
+    prop (it is metadata, like `visibleWhen`); renderers read it off `schema`. An
+    explicit React `dataSource` prop is unaffected. New
+    `useElementDataSource(schema, dataSource?)` hook resolves a binding, fetching
+    the named saved view from the object definition's `listViews` and the metadata
+    overlay's `listViews()`.
+  - `@object-ui/core` — new `isElementDataSourceConfig` / `collectSavedViews` /
+    `resolveSavedView` / `composeElementDataSource`, and `resolveElementDataSource`
+    now honours `view` through an optional `DataFetcher.fetchViews`, reporting an
+    unresolvable view as an error instead of silently returning every record.
+    `resolveViewId` moved here from `@object-ui/app-shell` (re-exported there) so
+    one matcher serves both the object page and a page component.
+  - `@object-ui/plugin-list` — `list-view` maps the binding onto the props
+    `ListView` reads. `dataSource.*` keys are authoritative, view-supplied values
+    are a baseline the component's own keys override, and `filter` AND-combines at
+    every level (the spec calls the binding's filter "additional criteria"), so a
+    binding can narrow a saved view but never widen it. A `view` name that does not
+    resolve renders a configuration error naming the object's actual views and
+    issues no query — it never falls back to the object's default view, because that
+    turns a typo into a silently wider answer.
+
+- ab3ad4f: An empty predicate is no longer a declared gate anywhere (objectui#3850, objectui#3862)
+
+  "Is a gate DECLARED on this key — is there a condition to reach a verdict on?" was
+  answered three times in this repo, with three different scopes, and the widest
+  answers sat on `disabled`, where the mistake is not benign:
+
+  - `hasDeclaredVisibilityGate` (the action face) asked `!= null && !== ''`, so every
+    OBJECT counted — including `{ dialect: 'cel', source: '' }`. That envelope is not
+    a hand-written curiosity: `@objectstack/spec`'s `ExpressionInputSchema` normalizes
+    every authored predicate into one, so "the author left the predicate empty"
+    compiles to exactly it. The verdict path normalized the same value back to
+    `undefined`, and `evaluateCondition(undefined)` answers `true` — "no condition, so
+    visible/enabled". On `visible` that `true` means SHOW, so the two mistakes
+    cancelled; on `disabled` it means GREY, so they compounded: a button disabled
+    forever that no author asked to disable (objectui#3850, the residue objectui#3842
+    left behind).
+  - `SchemaRenderer` asked `disabled !== undefined` inline, one notch wider again, so
+    `disabled: null` greyed out too — on the GENERIC rendering path, since that block
+    runs for every node type, and not as an internal flag either: `_disabled` is
+    forwarded to the component as a real `disabled` prop (objectui#3862).
+  - `ActionRunner`'s execution gates asked "does this normalize to something
+    evaluable?" — the scope that turned out to be right (objectui#3848 / objectui#3872).
+
+  There is now ONE definition, `hasDeclaredPredicate`, exported from
+  `@object-ui/core` (`evaluator/declaredPredicate.ts`, beside the `toPredicateInput`
+  normalizer it is derived from): a gate is declared when normalization still leaves a
+  condition to evaluate. `''`, a whitespace-only string, an empty-`source` envelope
+  and any non-predicate value (`0`, `{}`) are NOT declared; `false` IS (a verdict is
+  not a missing gate — objectui#3812). `hasDeclaredVisibilityGate` keeps its name as a
+  re-export of it, so the five member-action renderer call sites, `DeclaredActionsBar`
+  and `record-quick-actions` are unchanged and inherit the scope;
+  `SchemaRenderer`'s `disabled` / `disabledOn` chain and `ActionRunner`'s two gates
+  read the same function. No consumer got a local "and also check for empty" test —
+  that fourth dialect is what objectui#3842 / objectui#3849 spent two PRs merging away.
+
+  Measured behaviour change, `action:button` and the generic path, before → after:
+
+  | value                                                     | `visible`      | `disabled` | `enabled` | `SchemaRenderer` `disabled` prop |
+  | --------------------------------------------------------- | -------------- | ---------- | --------- | -------------------------------- |
+  | `''`                                                      | shown → shown  | on → on    | on → on   | forwarded → absent               |
+  | `null`                                                    | shown → shown  | on → on    | on → on   | forwarded → absent               |
+  | `{ dialect: 'cel', source: '' }`                          | shown → shown  | GREY → on  | on → on   | forwarded → absent               |
+  | `{ source: '' }`                                          | shown → shown  | GREY → on  | on → on   | forwarded → absent               |
+  | `'   '` (whitespace)                                      | HIDDEN → shown | on → on    | GREY → on | forwarded → absent               |
+  | `0` / `{}` (not predicates)                               | shown → shown  | GREY → on  | on → on   | forwarded → absent               |
+  | `true` / `false` / bare CEL / `${…}` / non-empty envelope | unchanged      | unchanged  | unchanged | unchanged                        |
+
+  Every row moves toward "there is no gate here", never away from it, and no value
+  that HAS a verdict changes it — the verdict is still read from the raw value, only
+  the gate in front of it narrowed. Two rows are behaviour changes rather than the
+  equivalence the ruling expected, and are pinned as such: the whitespace string moves
+  on `visible` / `enabled` (it used to normalize to `'${   }'`, which evaluates falsy,
+  so a predicate that says nothing HID the action from everyone), and non-predicate
+  junk stops greying controls out (fail-open, the posture `ActionRunner` already
+  committed to).
+
+  One blank spelling is knowingly still outside the scope: an envelope whose `source`
+  is blank but not EMPTY (`{ dialect: 'cel', source: '   ' }`) — the normalizer folds a
+  `source` of `''` and does not trim, so the string spelling of a blank predicate is
+  trimmed and the envelope spelling is not, and `disabled` still greys out for that one
+  value. The ruling enumerated three empty spellings; this is a fourth, measured and
+  filed as objectui#3960 rather than widened in here.
+
+  One chain is deliberately untouched: `SchemaRenderer`'s `visible` / `visibleWhen` /
+  `visibleOn` / `visibility` / `hidden` / `hiddenOn` legs keep `!== undefined`, because
+  narrowing them would change ALIAS PRECEDENCE, not just emptiness. The `hidden` legs
+  are not negated and therefore carry this same defect with the polarity that makes the
+  node vanish — measured, out of this ruling's scope, filed as objectui#3955.
+
+- 0109f54: Blank predicates and non-predicate values are no longer gates, at the last three entries that still judged them (objectui#3955, objectui#3957, objectui#3960)
+
+  objectui#3850 sank "is a predicate gate DECLARED here?" into one definition,
+  `@object-ui/core`'s `hasDeclaredPredicate`. Three places were left out of that
+  ruling's placement clause, each with the same shape of defect: the evaluator's
+  single default for "there is nothing here to evaluate" is `true`, meaning
+  _visible/enabled_, and wherever a too-wide "declared" test hands it an empty
+  predicate on an INVERTED key, that `true` turns a control off for a value the
+  metadata never used to say anything.
+
+  **`SchemaRenderer`'s `hidden` / `hiddenOn` legs (objectui#3955)** asked
+  `!== undefined` and did NOT negate the verdict, so an empty predicate meant HIDE
+  and the node disappeared — on the generic rendering path, since that block runs
+  for every schema type. Harder to diagnose than the `disabled` twin objectui#3862
+  fixed: a greyed-out control is still on screen, while a node that never rendered
+  is indistinguishable from metadata that meant to hide it. Both legs now read the
+  shared definition.
+
+  **The "blank" criterion now covers the envelope spelling (objectui#3960).** The
+  definition trimmed a whitespace-only STRING and not an envelope's whitespace-only
+  `source`, because `toPredicateInput` folds a `source` of `''` and does not trim.
+  So `{ dialect: 'cel', source: '   ' }` was a declared gate whose verdict came from
+  core's own CEL entry calling that exact value "no predicate" (`if (!source.trim())
+return true`) — `disabled` greyed out forever and `ActionRunner.execute` answered
+  `{ success: false, error: 'Action is disabled' }` with the handler never invoked.
+  Blankness is now decided once for both spellings, at the definition. The
+  NORMALIZER's contract is deliberately unchanged: "what shape does the evaluator
+  accept" is not the same question as "is there a condition", and moving the trim
+  there would have flipped verdicts for every
+  `useCondition(toPredicateInput(…))` call site, including container-level `visible`
+  reads that never asked this question at all.
+
+  **`ActionEngine.getActionsForLocation`'s `visible` filter (objectui#3957)** was the
+  last consumer answering the question with a range of its own — three empty
+  spellings folded by hand, everything else coerced with `Boolean(raw)`. It now reads
+  the shared definition and the coercion branch is gone, so one value no longer gets
+  two answers depending on whether an action was surfaced by the engine or rendered
+  standalone (the invariant objectui#3314 established). Its fail-CLOSED posture on a
+  predicate that THROWS is untouched (`throwOnError: true` + `warnHiddenPredicate`):
+  "the predicate faulted" and "there is no predicate" are different facts.
+
+  Behaviour changes, before → after. Observation-class: each needs an author to write
+  an empty/blank predicate or a non-predicate value, and there is no known user path
+  today.
+
+  | value                                                       | `ActionEngine` `visible` | `SchemaRenderer` `hidden` | `disabled` (action face + generic path) | `ActionRunner.execute` `disabled` |
+  | ----------------------------------------------------------- | ------------------------ | ------------------------- | --------------------------------------- | --------------------------------- |
+  | `''` / `null`                                               | shown → shown            | HIDDEN → rendered         | unchanged                               | unchanged                         |
+  | `'   '` (blank text)                                        | HIDDEN → shown           | HIDDEN → rendered         | unchanged                               | unchanged                         |
+  | `0` / `NaN`                                                 | HIDDEN → shown           | HIDDEN → rendered         | unchanged                               | unchanged                         |
+  | `{}` / `[]`                                                 | shown → shown            | HIDDEN → rendered         | unchanged                               | unchanged                         |
+  | `{ dialect: 'cel', source: '' }`                            | shown → shown            | HIDDEN → rendered         | unchanged                               | unchanged                         |
+  | `{ dialect: 'cel', source: '   ' }`                         | shown → shown            | HIDDEN → rendered         | GREY → on                               | refused → runs                    |
+  | `{ source: '   ' }` (no dialect)                            | HIDDEN → shown           | HIDDEN → rendered         | GREY → on                               | refused → runs                    |
+  | `true` / `false` / bare CEL / `${…}` / a non-blank envelope | unchanged                | unchanged                 | unchanged                               | unchanged                         |
+
+  Every row moves toward "there is no gate here", never away from it, and no value
+  that HAS a verdict changes it — a declared `false` is still a verdict, not a
+  missing gate (objectui#3812), and blankness is `trim()`, not "short": `{ dialect:
+'cel', source: ' x ' }` is a predicate. One alias precedence changes with the
+  `hidden` legs and is pinned rather than claimed as an equivalence: an undeclared
+  `hidden` no longer short-circuits the chain, so a declared `hiddenOn` is finally
+  consulted.
+
+  `SchemaRenderer`'s four `visible*` legs keep `!== undefined` deliberately, as
+  objectui#3850 ruled: their `true` is negated, so an empty predicate already lands
+  on "shown", and narrowing them would change alias precedence rather than fix
+  anything.
+
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [7864f03]
+- Updated dependencies [d229dfa]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [f5f8744]
+- Updated dependencies [3765678]
+- Updated dependencies [d83f6b3]
+- Updated dependencies [5f08c05]
+- Updated dependencies [69becd2]
+- Updated dependencies [5e52495]
+- Updated dependencies [b750823]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [c2fd122]
+- Updated dependencies [ac2139c]
+- Updated dependencies [b14ab3a]
+- Updated dependencies [8c60819]
+- Updated dependencies [41d6022]
+- Updated dependencies [e64a52e]
+- Updated dependencies [844d17f]
+- Updated dependencies [48132f7]
+- Updated dependencies [4dcd52a]
+- Updated dependencies [42ae5c6]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [6d762da]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [f9faa7d]
+- Updated dependencies [6bb454a]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [33526fd]
+- Updated dependencies [32413ec]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/core@17.4.0
+  - @object-ui/i18n@17.4.0
+  - @object-ui/types@17.4.0
+  - @object-ui/data-objectstack@17.4.0
+
 ## 17.3.0
 
 ### Patch Changes
@@ -1555,6 +1988,7 @@
   result and the "warn-once" tracking are now stored separately: a
   `WeakMap` caches the validation outcome (so the visual flag is stable),
   while a `WeakSet` continues to dedupe `console.warn` output.
+
   - @object-ui/types@6.2.2
   - @object-ui/core@6.2.2
   - @object-ui/i18n@6.2.2
@@ -1704,6 +2138,7 @@
 ### Minor Changes
 
 - b2d1704: feat(cmdk): record search across objects in the Command Palette
+
   - New `useRecordSearch` hook in `@object-ui/react` debounces a query, fans out
     to `dataSource.find(name, { $search, $top })` across candidate objects, and
     aggregates hits. Race-safe via a monotonic runId; per-object 404s are
@@ -1718,6 +2153,7 @@
 
   Three related fixes that all addressed the same UX: a user follows a URL
   shaped `/{object}/{recordId}` and sees a completely blank content area.
+
   1. **`useNavigationOverlay` produced the broken URL itself.** When
      middle-click / Cmd-click opened a gallery card in a new tab and no
      `onNavigate` was provided, the hook built `/{object}/{id}` — a URL
@@ -1737,6 +2173,7 @@
 
 - aa063db: `useRecordSearch` now orders hits by relevance instead of object-fanout
   order. Tiers (higher wins):
+
   - 110: exact recordId paste
   - 100: display exactly equals the query
   - 80: display starts with the query
@@ -1796,17 +2233,20 @@
 - bd8447d: Three platform-wide detail polish items.
 
   **Tighter page rhythm**
+
   - Outer `PageRenderer` padding `p-4 md:p-6 lg:p-8` → `p-3 md:p-4 lg:p-6`
     and outer body wrap `space-y-8` → `space-y-6` so list / detail / home
     pages share the same edge rhythm. Cuts ~16px of edge slack on lg.
 
   **Highlights KPI treatment**
+
   - `HeaderHighlight` now renders numeric / currency / percent / decimal
     values as KPI numbers (`text-xl md:text-2xl font-semibold tabular-nums`)
     instead of the uniform `text-sm font-semibold`, so amount / probability
     / count fields read as headline stats — Salesforce-style key facts.
 
   **Discussion footer upgrade**
+
   - `RecordActivityTimeline` now uses `RichTextCommentInput` (bold / italic /
     list / code, `@`-mention autocomplete, preview toggle, Send) instead of
     a bare `<textarea>`.
@@ -1817,6 +2257,7 @@
     and sidebar positions.
 
 - d51a577: feat(platform): Discussion attachments + @mention directory + Reference Rail aside
+
   - **Discussion attachments** — `RichTextCommentInput` now accepts an `extraSlot`
     and a `canSubmitEmpty` flag so hosts can mount the existing
     `CommentAttachment` composer beneath the editor without forking the toolbar.
@@ -1906,6 +2347,7 @@
   page so the two renderers share state.
 
 - 74962b0: feat(detail): record:discussion schema component + flush accordion variant
+
   - New `record:discussion` schema type lets authors place the record
     chatter feed anywhere in a custom Page schema. Wired through a
     shared `DiscussionContext` provider on the `assignedPage` branch
@@ -1926,6 +2368,7 @@
   customize the header or one tab.
 
   **Slot menu (v1):**
+
   - `header` — replaces `page:header`
   - `actions` — replaces the `record:quick_actions` action bar
   - `highlights` — replaces the chips + chevron path strip
@@ -1953,6 +2396,7 @@
   ```
 
   **API changes:**
+
   - `PageSchema` (in `@object-ui/types`): adds `kind?: 'full' | 'slotted'`
     (default `'full'`) and `slots?: PageSlotMap`.
   - `usePageAssignment` (in `@object-ui/react`): result now exposes a
@@ -2132,6 +2576,7 @@
   detail view (`TypeError: titleFormat.replace is not a function`) and printed
   `Failed to evaluate expression: ${[object Object]}` for every action visibility
   predicate.
+
   - `@object-ui/core`: `ExpressionEvaluator.evaluate` / `evaluateCondition` now
     unwrap Expression envelopes transparently.
   - `@object-ui/react`: new `toPredicateInput()` helper to safely normalize
@@ -2383,6 +2828,7 @@
 - New plugin-object and ObjectQL SDK updates
 
   **Added:**
+
   - New Plugin: @object-ui/plugin-object - ObjectQL plugin for automatic table and form generation
     - ObjectTable: Auto-generates tables from ObjectQL object schemas
     - ObjectForm: Auto-generates forms from ObjectQL object schemas with create/edit/view modes
@@ -2391,6 +2837,7 @@
   - ObjectQL Integration: Enhanced ObjectQLDataSource with getObjectSchema() method using MetadataApiClient
 
   **Changed:**
+
   - Updated @objectql/sdk from ^1.8.3 to ^1.9.1
   - Updated @objectql/types from ^1.8.3 to ^1.9.1
 
@@ -2404,6 +2851,7 @@
 - Patch release: Add automated changeset workflow and CI/CD improvements
 
   This release includes infrastructure improvements:
+
   - Added changeset-based version management
   - Enhanced CI/CD workflows with GitHub Actions
   - Improved documentation for contributing and releasing

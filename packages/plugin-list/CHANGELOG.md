@@ -1,5 +1,167 @@
 # @object-ui/plugin-list
 
+## 17.4.0
+
+### Minor Changes
+
+- bd863fe: fix(timeline): the timeline binds to the date axis the view actually declares (#3129)
+
+  A view whose date axis is bound under `calendar` was **offered** the Timeline
+  visualization and then bucketed every record into "No date" — while the calendar
+  rendered the very same field correctly. Two read-sites disagreed about what
+  counts as a timeline binding:
+
+  - `ListView`'s capability gate accepted `options.calendar.startDateField` as a
+    timeline-resolvable axis; the render branch never read calendar config at all,
+    so it fell through to its `created_at` last resort.
+  - `app-shell`'s object page emitted `startDateField: 'due_date'` into
+    `options.timeline` for **every** object view, declared or not. Downstream that
+    is indistinguishable from a real binding, and because it is always present it
+    shadowed the fallback entirely.
+
+  `ListView` now resolves the axis once — `resolveTimelineDateBinding`, consumed by
+  the capability gate and the render branch alike, reading spec key before legacy
+  alias and `timeline` before `calendar` in both nestings — and the object page
+  forwards only what the view declared. A declared `timeline.startDateField` still
+  wins wherever both appear, and a view that declares no date axis anywhere keeps
+  the historical `created_at` fallback.
+
+  Observable rendering change (records move out of "No date" into real date
+  buckets), hence `minor`.
+
+### Patch Changes
+
+- e06810e: `PageComponentSchema.dataSource` is now consumed instead of discarded — a
+  `list-view` page component can reference a **saved view by name** for the first
+  time, and writing the binding no longer breaks the component
+  (objectstack#5576).
+
+  The spec declares a per-element data binding on every page component —
+  `dataSource: { object, view?, filter?, sort?, limit? }` — and objectui read none
+  of it. `ViewDataProvider.resolveElementDataSource` forwarded
+  `filter`/`sort`/`limit` and dropped `view` entirely, and had no caller outside its
+  own test; nothing mapped `object` onto the `objectName` a list actually reads. So
+  "reference a saved view by name" was published, validated and inert, and every
+  page that wanted a saved view's columns/filter/sort had to inline a second copy of
+  them — the drift the binding exists to remove.
+
+  Writing the binding also **broke** the block, for a reason unrelated to `view`:
+  `SchemaRenderer` spread the schema's `dataSource` metadata onto the component as a
+  React prop, and that is the prop name the host uses to inject the data-source
+  ADAPTER. The plain `{ object, view }` object shadowed the adapter, so the first
+  `dataSource.find(…)` threw `dataSource.find is not a function` and `list-view`
+  rendered "Couldn't load records" — a spec-compliant component failing next to
+  identical ones that omitted the binding.
+
+  - `@object-ui/react` — `SchemaRenderer` no longer spreads `schema.dataSource` as a
+    prop (it is metadata, like `visibleWhen`); renderers read it off `schema`. An
+    explicit React `dataSource` prop is unaffected. New
+    `useElementDataSource(schema, dataSource?)` hook resolves a binding, fetching
+    the named saved view from the object definition's `listViews` and the metadata
+    overlay's `listViews()`.
+  - `@object-ui/core` — new `isElementDataSourceConfig` / `collectSavedViews` /
+    `resolveSavedView` / `composeElementDataSource`, and `resolveElementDataSource`
+    now honours `view` through an optional `DataFetcher.fetchViews`, reporting an
+    unresolvable view as an error instead of silently returning every record.
+    `resolveViewId` moved here from `@object-ui/app-shell` (re-exported there) so
+    one matcher serves both the object page and a page component.
+  - `@object-ui/plugin-list` — `list-view` maps the binding onto the props
+    `ListView` reads. `dataSource.*` keys are authoritative, view-supplied values
+    are a baseline the component's own keys override, and `filter` AND-combines at
+    every level (the spec calls the binding's filter "additional criteria"), so a
+    binding can narrow a saved view but never widen it. A `view` name that does not
+    resolve renders a configuration error naming the object's actual views and
+    issues no query — it never falls back to the object's default view, because that
+    turns a typo into a silently wider answer.
+
+- aeb8424: List row Edit/Delete, bulk delete and related-list CRUD now run the caller's own permission, not just the object's API exposure (objectui#4096)
+
+  The row kebab's built-in Edit/Delete rendered for every account, including ones
+  the server answers `403 PERMISSION_DENIED` on. Clicking Edit opened a fully
+  prefilled dialog that could only fail on save; Delete — a destructive entry —
+  sat one click away from users who could never perform it.
+
+  The gate intersected the object's resolved CRUD affordance with the server's
+  effective API operation set (`/me/permissions` `apiOperations`, objectui#3720),
+  and nothing else. `apiOperations` is the object's **API exposure surface** —
+  "which verbs does this object publish" — and the spec's own describe text says
+  so. It is principal-independent: the report measured two accounts with opposite
+  `allowEdit`, 30 shared objects, and **30/30 identical** `apiOperations`. A gate
+  made only of object-scoped layers therefore fails OPEN for every unprivileged
+  caller, which is why the same screen carried three different answers to "may
+  this user write this object": the toolbar's New was correctly hidden
+  (`affordances.create && can(obj, 'create')`), the record header's Edit/Delete
+  were correctly hidden (per-record write probe), and the row kebab was not.
+
+  Four surfaces now AND the principal's own verdict — `can(obj, 'update' |
+'delete')`, i.e. `/me/permissions` `allowEdit` / `allowDelete`, the toolbar's
+  source — on top of the layers they already had:
+
+  - the grid row kebab's built-in Edit/Delete (`resolveRowCrudAffordances` gained
+    `permissionUpdate` / `permissionDelete`, filled at the `ObjectGrid` call site);
+  - the grid's bulk-delete bar, which rides the same object-level delete verdict,
+    so the row gate and the more destructive bulk entry move together;
+  - the non-grid (kanban / calendar / gallery) bulk bar `ListView` renders itself;
+  - the related-list Create/Edit/Delete on a child object
+    (`RelatedRecordActionsBridge`), which had the same object-only gate.
+
+  **This is a tightening of the intersection, not a swap.** Every existing layer
+  stays: the ADR-0103 lifecycle bucket, `userActions.edit` / `delete`, and
+  `apiOperations`. A permission grant cannot re-open what any of them closed, and
+  none of them survives a permission denial.
+
+  Fail-open is preserved where it is the deliberate contract: `usePermissions()`
+  with no `PermissionProvider` answers `can: () => true`, so standalone embeds and
+  hosts that ship no permission source keep their Edit/Delete exactly as before.
+  Under `MePermissionsProvider` the semantics are the toolbar's, unchanged and now
+  shared: an authenticated principal whose object is absent from
+  `/me/permissions.objects` resolves fail-closed (objectui#2926 ④), an anonymous
+  session keeps the permissive default, and children never render while the
+  permission set is loading. Per-key absence is still permissive — an object entry
+  without `allowEdit` reads as allowed.
+
+  Server-side enforcement was already hard (403, DB unchanged), so this closes a
+  UI-affordance gap rather than an authorization hole.
+
+- cb5e32d: `UserFilters` preset tab buttons no longer submit an enclosing form; all six buttons declare `type="button"`
+
+  An HTML `<button>` defaults to `type="submit"` inside a `<form>`, so a preset
+  filter tab (`filter-tab-*`, tabs mode) submitted the enclosing form on every
+  click. The three buttons objectstack#6952 named now declare `type="button"`
+  explicitly — the dropdown chip trigger (`filter-badge-*`), the overflow trigger
+  (`user-filters-more`) and the preset tab — joining the session-tab buttons that
+  objectstack#5236 already declared it on.
+
+  Only one of the three was actually at risk, and the difference is measured
+  rather than assumed. The chip and the overflow trigger are
+  `PopoverTrigger asChild` children, and Radix's `PopoverTrigger` renders
+  `Primitive.button type="button"`; its Slot merges that onto a child declaring no
+  `type` of its own, so both already rendered as `button`. Reverting the change
+  confirms it: those two keep reading `button`, the plain preset tab button reads
+  `null`. For the two triggers this therefore moves a contract out of an upstream
+  implementation detail and into local source — the same reasoning objectui#3344
+  wrote onto the Combobox trigger — while the preset tab is a real fix.
+
+  Dormant rather than live: the only mount point today is `ListView`'s toolbar,
+  which is not inside a form, so no shipped screen submitted anything. The new
+  tests pin every rendered `UserFilters` button, in both modes, so a future button
+  cannot land at the submit default and an upstream Radix change surfaces in this
+  package's tests instead of in a user's form.
+
+  The in-file comment claiming "a Radix trigger keeps the HTML default of `submit`"
+  is corrected in passing — it is the inaccuracy that propagated into
+  objectstack#6952's premise.
+
+- cf5be4e: `userFilters` tabs: the `allowAddTab` button now adds a tab instead of doing nothing (objectstack#5236)
+
+  The affordance `allowAddTab` renders had hover styling and `title="Add filter tab"` but no `onClick`, and `TabFilters` took no add-tab callback at all — a control that looked fully clickable and did nothing, which disguises "not implemented" as "a bug where clicking does nothing". That mattered more once objectstack#5073 promoted `allowAddTab` into the spec's `UserFiltersSchema`: the key became discoverable through JSON Schema, the Studio SchemaForm and the reference docs, so an author writing `allowAddTab: true` gets a declaration the runtime did not honour.
+
+  Clicking it now opens a small naming popover (the same Popover primitive the filter chips and the "More" overflow already use). Confirming a name adds a tab to the same bar as the presets, carrying a snapshot of the conditions applied at that moment, and selects it. Session tabs also carry a remove affordance; authored presets deliberately do not, since those are metadata. Removing the active session tab re-selects the author's default with the same precedence the initial mount uses, so the bar is never left with no active tab while the removed tab's conditions stay applied.
+
+  The new tab is **session-scoped, held in component state** — no `sys_metadata` write, no API call, no web storage, per ADR-0047 ("an end user's filter choices are session-scoped and never become metadata"). `sessionStorage` was available and deliberately not used: `UserFilters` receives no object or view identity, so any storage key it could invent would be shared by every list in the browser tab, surfacing one list's ad-hoc tabs on another's bar. Persistence beyond the mount, if ever wanted, belongs to the host that already owns the session channel for filter selections (`onSelectionsChange` mirrored into `uf_*` URL params) and can key it by view. The synthetic tab id is reported through `onSelectionsChange` like any other tab switch, so a host mirroring it into the URL hands it back on the next mount, where the existing id check finds no such tab and falls back to the author's default.
+
+  No public API change: `UserFiltersProps` is untouched, and `allowAddTab: false` / an omitted `allowAddTab` still render no affordance at all.
+
 ## 17.3.0
 
 ### Patch Changes
@@ -19,6 +181,7 @@
   stayed invisible.
 
   ## What changed
+
   - Both reads now share one `resolveCoverUrl`, so the "does anything have a
     cover?" predicate and the per-card render can no longer disagree — that
     disagreement is what collapsed the area for records that did have a cover.
@@ -1383,6 +1546,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
   platform primitive for "no records / no data" states. Two new props
   keep it flexible enough to absorb the hand-rolled variants that lived
   in `plugin-list`, `plugin-kanban`, and `plugin-dashboard`:
+
   - `showIcon?: boolean` — drops the icon container entirely. Used by the
     kanban board-level empty banner, which is a status banner rather than
     a true empty-state.
@@ -1391,6 +1555,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
     empty state, which uses a large standalone glyph).
 
   Adopters:
+
   - `plugin-list` (`ListView` grid empty-state) — preserves the existing
     large icon, title, message, add-record button and `data-testid`s,
     but delegates the structural markup to `DataEmptyState`.
@@ -1467,6 +1632,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
   chrome on phones: title + 1 primary action, plus content. We were
   shipping ~5 rows of toolbars + chips + tabs above the data. This commit
   hides the desktop-only chrome at the `<sm` breakpoint:
+
   - **ListView**: TabBar (view switcher), UserFilters chip row, quick-filters
     chip row, Sort button, list-scoped Search popover, and the
     (newly-added) mobile-only ViewSettingsPopover gear are all hidden on
@@ -1488,6 +1654,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
 
   Refactor mobile object-view layout to match the Airtable Interface
   pattern:
+
   - **AppHeader**: the mobile topbar's static page label is now a
     view-switcher dropdown (`<viewName> ▾`). Tapping opens a list of
     available views with icons + active-state checkmark. Falls back to
@@ -1618,6 +1785,7 @@ colorField, scale }` arrived with only `titleField` and an axis pinned to the
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.

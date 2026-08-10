@@ -1,5 +1,200 @@
 # @object-ui/cli
 
+## 17.4.0
+
+### Patch Changes
+
+- c32323e: Generated temp apps now declare every package they import, at ranges anchored to this repo
+
+  `objectui dev` / `serve` / `build` write a throwaway app into `<cwd>/.objectui-tmp`,
+  and the `package.json` they wrote named neither `lucide-react` nor any of the seven
+  `@object-ui/plugin-*` packages the generated sources import — while pinning
+  `@object-ui/react` and `@object-ui/components` at `^0.1.0`, a range that resolves to
+  nothing at all for packages published at 17.x (the registry has no 0.1.0). Outside
+  this workspace that manifest could not install; inside it, hoisting to the root
+  `node_modules` satisfied every missing name, so nothing was ever red.
+
+  **`lucide-react` is now declared** (objectui#3827). Both of its imports in the
+  generated layout are live — `import * as LucideIcons` feeds a `DynamicIcon` lookup
+  and four `LucideIcons.*` icons, and the named `{ Moon, Sun }` renders the theme
+  toggle — so this is the opposite disposition from the sibling generator, where
+  objectui#3755 removed an equivalent declaration precisely because nothing imported
+  it. Anchored to `^1.28.0`, the range all 23 in-repo manifests that import lucide
+  agree on. `commands/dev.ts` had been covering the gap in the consumer, aliasing
+  `lucide-react` to a path resolved out of `packages/components` "to avoid dependency
+  not found in temp app" — but only in monorepo mode, leaving every other path with an
+  unsatisfiable import. The declaration belongs at the producer; the alias is now a
+  workspace convenience rather than the only thing holding the import up.
+
+  **The seven plugin packages are now declared too**, in both generators. Measuring
+  the reported defect turned up that `src/App.tsx` side-effect-imports
+  `@object-ui/plugin-charts`, `-editor`, `-kanban`, `-markdown`, `-form`, `-grid` and
+  `-view` to register their components, and no manifest ever named them: the
+  undeclared set was eight packages, not the one the issue reported.
+
+  **`@object-ui/*` ranges are derived from this CLI's own version** instead of being
+  written out as literals. `.changeset/config.json` puts `@object-ui/cli` in the same
+  `fixed` group as every platform package a generated app depends on, so they always
+  publish at one version — which makes `^<own version>` both current and guaranteed to
+  exist on the registry. A literal here is not merely a fossil risk but a fossil
+  generator: that group re-versions on every release, so any hard-coded range is stale
+  the next day. This is how `^0.1.0` survived to sit 16 majors behind.
+
+  **The toolchain ranges are anchored to in-repo manifests**, the discipline
+  objectui#3742/objectui#3754 established: `vite ^5.0.0` → `^8.2.0`, `typescript
+~5.7.3` → `^6.0.3`, `@vitejs/plugin-react ^4.2.1` → `^6.0.5`, `react`/`react-dom`
+  `^18.3.1` → `19.2.8` with `@types/*` to match, `react-router-dom ^7.12.0` →
+  `^7.18.2`, `postcss ^8.5.6` → `^8.5.26`, `autoprefixer ^10.4.23` → `^10.5.4`. React
+  quotes the root's installed version rather than the wider `^18 || ^19` the platform
+  packages accept as a peer: the peer says what can work, the root says what the
+  generated code has actually run against, and inside this workspace the temp app
+  resolves React by hoisting to the root.
+
+  `tailwindcss` is deliberately left at `^3.4.19`. This repo is on Tailwind 4 and
+  `@object-ui/components` peers `^4.2.1`, so the range is not merely behind — it
+  conflicts. But re-anchoring it is not a version edit: the generated `index.css` uses
+  v3 directives, the generated `postcss.config.js` names the plugin key v4 moved to
+  `@tailwindcss/postcss`, and the generated `tailwind.config.js` is a v3 config. Raising
+  the range without rewriting those three files yields an app that installs and renders
+  unstyled, which looks fixed and is worse. Filed separately as objectui#3852; kept
+  internally consistent at v3 until then, and pinned as a deliberate deferral rather
+  than left to read as drift.
+
+  The generators now build their output as a file map that the writers spill to disk,
+  so tests assert over the same artifact the CLI writes. Three structural gates port
+  the ones the sibling generator grew: every bare import must be declared, no versioned
+  runtime dependency may be declared that nothing imports, and no generated `src/**`
+  file may be unreachable from `src/main.tsx` — the one module `index.html` loads. Each
+  is paired with a self-test that plants the defect back. Note for the next port: the
+  `create-plugin` import scanner matches single-quoted specifiers only, and these
+  templates mix quote styles, so a verbatim copy would have been blind to
+  `from "lucide-react"` — one of the two lines this issue reports.
+
+- 8277053: 修复 `objectui dev` 生成的临时 app 的 CSS 管线:整套从 Tailwind 3 迁到 Tailwind 4
+
+  生成器写出的样式面此前是完整的 v3 三件套 —— `src/index.css` 用 `@tailwind base/components/utilities` 指令、`postcss.config.js` 写 v3 的 `tailwindcss: {}` 插件键、外加一份 `tailwind.config.js` —— 而仓内与 `@object-ui/components` 都已在 v4(components 的 peer 是 `tailwindcss ^4.2.1`)。两个后果都是真的:
+
+  - **仓内 `objectui dev` 今天不出样式。** `commands/dev.ts` 的 monorepo 分支把 `require('tailwindcss')(configPath)` 当 PostCSS 插件调用,v4 下这条路径只会抛 "moved to `@tailwindcss/postcss`",而该异常被 `try/catch` 吞成一行黄字警告;`css.postcss` 因此没被设上,Vite 退回去搜配置文件,`/src/index.css` 请求最终 500(实测:`Failed to load PostCSS config … Cannot find module '@tailwindcss/postcss'`),浏览器里一条样式都没有。
+  - **仓外一次干净安装会 ERESOLVE。** 生成清单声明 `tailwindcss ^3.4.19`,与它依赖的 `@object-ui/components` 的 v4 peer 冲突。
+
+  改动:
+
+  - `src/index.css` 改为仓内惯用的 v4 CSS-first 写法(`@import 'tailwindcss'` + `@custom-variant dark` + `@source` + `@theme`),`@theme` 的 token 集与 `packages/components/src/index.css` 逐条对齐 —— 包含 v3 config 一直缺、而生成的 `src/Layout.tsx` 自己就在用的 8 个 `sidebar-*` token。
+  - `postcss.config.js` 改写 `'@tailwindcss/postcss': {}`;`tailwind.config.js` 不再生成(v4 下没有 `@config` 指向它时它就是死文件,仓内本身也零个 `tailwind.config.*`),v3 的 `content` 扫描面等价迁为 `@source`。
+  - 清单:`tailwindcss` 抬到 `^4.3.3` 并新增 `@tailwindcss/postcss ^4.3.3`,两者都锚回仓内(#3827 记的 `TAILWIND_V3_DEFERRED` 记账钉随之翻转)。
+  - `commands/dev.ts` 改用 `@tailwindcss/postcss`,并由 `@object-ui/cli` 自己声明这两个插件包;加载失败不再吞成警告,而是带修法响亮报错 —— 静默无样式正是这个缺陷能潜伏这么久的原因。
+
+- 59df371: `objectui doctor` now diagnoses Tailwind 4 instead of Tailwind 3
+
+  The Tailwind section of `objectui doctor` was written against v3 and got every
+  question backwards on a v4 project — which is every project this repo ships.
+
+  **It counted a missing `tailwind.config.js` as an issue.** In v4 that file is not
+  part of the setup: the engine reads CSS-first configuration (`@import
+'tailwindcss'`, `@theme`, `@source`) and only loads a JS config when a stylesheet
+  opts in with `@config`. So the command reported a problem that did not exist and
+  pushed the reader toward creating a file Tailwind would never read. Measured on
+  `examples/console-starter`, a correct v4 app: before, `Found 1 issue(s)` —
+  `⚠️ tailwind.config.js not found`; after, `Everything looks good! ✨`. The repo's
+  own root reproduced it identically.
+
+  **It then graded that file on its `content` array**, the v3 key `@source`
+  replaced. The two `tailwind.config.*` files still tracked here are exactly that
+  trap: `apps/console` and `examples/byo-backend-console` both declare a `content`
+  array, no stylesheet in the repo contains `@config`, so both files are inert —
+  and the old check answered `✓ Tailwind content paths configured` for them. A
+  false green on a dead file. `apps/console` before: `Everything looks good! ✨`;
+  after: one finding saying the config is inert and what to do about it.
+
+  **It never checked `@tailwindcss/postcss`**, the one dependency a v4 build cannot
+  start without — v4 moved the PostCSS plugin out of `tailwindcss` into that
+  package, and naming the old `tailwindcss` key in a PostCSS config resolves to a
+  shim whose only job is to throw. That is the failure form objectui#3852 measured
+  on the generated app, and doctor printed `✓ Tailwind CSS installed` straight
+  through it.
+
+  The checks are now the v4 contract, matching what `objectui init` scaffolds:
+  `@tailwindcss/postcss` declared or installed, a PostCSS config naming it rather
+  than the v3 `tailwindcss` key, and a CSS entry running `@import 'tailwindcss'`
+  (with `@source` acknowledged when present). The declared `tailwindcss` major is
+  read too, so a v3 range is named as migration debt instead of passing as
+  `✓ installed`.
+
+  Two deliberate silences, because objectui#3891 is about doctor asserting things
+  it cannot see. A **missing** `tailwind.config.*` produces no finding of any level
+  — only a _present_ one does, and only when nothing opts into it via `@config`.
+  And when no recognised CSS entry exists at all (a monorepo root, a bespoke
+  layout), the CSS verdicts are skipped rather than guessed.
+
+  A v3-tolerant dual path — branching on the declared major and running two sets of
+  checks — was considered and deliberately not built: it widens the product surface
+  past this repo's v4-only posture. v3 spellings are diagnosed as migration debt,
+  not supported as a second mode.
+
+  Internally `runDiagnostics(cwd)` now returns structured findings carrying a
+  stable `id`, and `doctor()` only renders and counts them. That split is what
+  makes the matrix testable against real fixture directories instead of scraped
+  console output; the tests pin verdicts by `id`, so wording can improve without
+  the coverage evaporating.
+
+- 85fb95b: Fix `objectui init` scaffolding an app that renders neither components nor styles.
+
+  The generated `src/App.tsx` imported only `SchemaRenderer` from `@object-ui/react`, which does not depend on `@object-ui/components` — and registration is a side effect of importing that package. The component registry was therefore empty in every scaffolded project, and each node of all three templates (`simple`, `form`, `dashboard`) rendered "Unknown component type". The manifest already declared `@object-ui/components`; it was declared and never imported. The generated `src/App.tsx` now performs the side-effect import.
+
+  The generated `src/index.css` was a bare `@import 'tailwindcss';` and never loaded the library's published stylesheet, so the theme utilities the templates lean on had no tokens behind them. It now also does `@import '@object-ui/components/style.css';`, matching what the quick-start guide teaches hand-rolled consumers.
+
+  `objectui init` is unchanged in every other respect: the same eleven files, byte for byte, apart from these two lines.
+
+- c29ceff: Move the generator templates' dependency ranges onto the repo's current ones
+
+  The dependabot wave of 2026-08-10 bumped `lucide-react` to `1.29.0` and `vite`
+  to `8.2.1` in this repo's own manifests, but the ranges hard-coded in the
+  scaffold generators do not move with it — dependabot does not know the
+  templates exist. A project scaffolded by `objectui init` / `objectui dev` or by
+  `create-plugin` therefore declared a range the repo itself had already moved
+  past.
+
+  Three ranges are re-anchored: `lucide-react` `^1.28.0` → `^1.29.0` in the routed
+  app generator, and `vite` `^8.2.0` → `^8.2.1` in both the shared CLI scaffold
+  devDependencies and the create-plugin template.
+
+- 0a09793: `objectui init` now versions the project it scaffolds against the CLI that wrote it, and stops writing a `tailwind.config.js` Tailwind 4 never reads.
+
+  The generated `package.json` asked for `@object-ui/components` and `@object-ui/react` at `^2.0.0` while those packages publish at 17.x, so `npm install` in a fresh scaffold resolved a major unrelated to the CLI that produced it. Both ranges are now derived from the CLI's own version, which is sound because `.changeset/config.json` releases the CLI and every platform package from one `fixed` group. The scaffold's toolchain ranges had drifted the same way — vite `^7.3.1` against the repo's `^8.2.0`, typescript `^5.9.3` against `^6.0.3`, and seven more — and now read from the same table the temp-app generators use rather than from literals of their own.
+
+  The scaffold's CSS pipeline was already Tailwind 4 (`@tailwindcss/postcss`, `@import 'tailwindcss'`), and v4 reads a JS config only when a stylesheet points `@config` at one. The `tailwind.config.js` written beside it was therefore inert — an authoritative-looking `content` list nothing consumed — and is no longer written.
+
+- Updated dependencies [794c497]
+- Updated dependencies [993336f]
+- Updated dependencies [f0a625a]
+- Updated dependencies [b5980f4]
+- Updated dependencies [8aad9fd]
+- Updated dependencies [0cbdca8]
+- Updated dependencies [d229dfa]
+- Updated dependencies [ecae400]
+- Updated dependencies [d3e738a]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [7ed3360]
+- Updated dependencies [0fa5e4d]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [c2fd122]
+- Updated dependencies [e24d767]
+- Updated dependencies [aca561a]
+- Updated dependencies [48132f7]
+- Updated dependencies [0ef9dfd]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [54233b1]
+- Updated dependencies [97b63d7]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/components@17.4.0
+  - @object-ui/react@17.4.0
+  - @object-ui/types@17.4.0
+
 ## 17.3.0
 
 ### Patch Changes
@@ -864,6 +1059,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
 - fd15918: Comprehensive i18n refactor + CI test fix.
 
   **i18n (`@object-ui/i18n`)**
+
   - Added ~130 new keys under 12 new top-level namespaces: `layout`, `search`,
     `empty`, `renderer`, `actionDialog`, `rowAction`, `navigationSync`,
     `objectActions`, `objectViewActions`, `dashboardActions`, `recordDetail`,
@@ -875,6 +1071,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
 
   **App shell (`@object-ui/app-shell`)** — replaced hardcoded English in 14
   files with `useObjectTranslation`:
+
   - Layout: `AppSidebar`, `ActivityFeed` (locale-aware relative time),
     `MetadataInspector`.
   - Views: `SearchResultsPage`, `ActionParamDialog`, `RecordFormPage`,
@@ -886,12 +1083,14 @@ undefined` — swallowing the very errors the command exists to print. Now reads
     `useObjectActions` (delete confirm + success / failure toasts).
 
   **Plugin grid (`@object-ui/plugin-grid`)**
+
   - `ObjectGrid` record-detail panel now translates Empty / Yes / No / System
     via the existing `useGridTranslation` safe-fallback wrapper.
   - `RowActionMenu` adopts a local safe-fallback i18n wrapper for
     `Open menu` / `Edit` / `Delete`, preserving standalone-usage guarantees.
 
   **CLI test fix (`@object-ui/cli`)**
+
   - `cli-bin.test.ts` auto-builds the package on first run when `dist/cli.js`
     is missing, instead of throwing. This unbreaks `pnpm test:coverage` in CI
     (root vitest run does not honor turbo's `^build` deps) and removes the
@@ -1142,6 +1341,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
 - New plugin-object and ObjectQL SDK updates
 
   **Added:**
+
   - New Plugin: @object-ui/plugin-object - ObjectQL plugin for automatic table and form generation
     - ObjectTable: Auto-generates tables from ObjectQL object schemas
     - ObjectForm: Auto-generates forms from ObjectQL object schemas with create/edit/view modes
@@ -1150,6 +1350,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
   - ObjectQL Integration: Enhanced ObjectQLDataSource with getObjectSchema() method using MetadataApiClient
 
   **Changed:**
+
   - Updated @objectql/sdk from ^1.8.3 to ^1.9.1
   - Updated @objectql/types from ^1.8.3 to ^1.9.1
 
@@ -1164,6 +1365,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
 - Patch release: Add automated changeset workflow and CI/CD improvements
 
   This release includes infrastructure improvements:
+
   - Added changeset-based version management
   - Enhanced CI/CD workflows with GitHub Actions
   - Improved documentation for contributing and releasing

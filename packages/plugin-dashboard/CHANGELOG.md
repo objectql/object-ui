@@ -1,5 +1,318 @@
 # @object-ui/plugin-dashboard
 
+## 17.4.0
+
+### Patch Changes
+
+- 4bc6c23: Converge dashboard widget `compareTo` on the executor's `{ kind, dimension? }` contract, and make the dataset path actually render a comparison
+
+  `CompareToConfig` was a three-branch union (`'previousPeriod' | 'previousYear' | { offset }`). `@objectstack/spec` collapsed it to the shape the analytics executor already implements — `DatasetCompareTo`, a plain strict object `{ kind: 'previousPeriod' | 'previousYear'; dimension?: string }` (objectstack#5011) — so this renderer now reads that one shape:
+
+  - `shiftFilterByCompareTo` / `compareToTrendLabelKey` dispatch on `compareTo.kind`. The `{ offset }` duration shift is gone: `{ offset: '1y' }` is `kind: 'previousYear'`, while `'7d'` / `'1M'` have no faithful target and are restated by the author on the widget's own `filter` plus `kind: 'previousPeriod'`. No trend label key is retired — the offset arm resolved to `vsPreviousPeriod`, which survives as the `previousPeriod` fallback.
+  - `DatasetWidget` no longer discards part of `compareTo`. It used to forward only the object form because the two string forms had no meaning downstream; with one shape there is nothing to discard, and a stale string is now invalid metadata rejected where it is authored rather than silently reinterpreted here.
+  - **The comparison now actually runs on the dataset path.** A widget states its window in its own `filter` (a date macro, or the dashboard date-range filter merged in), but the executor shifts a `timeDimensions` entry carrying a `dateRange` — so a dataset widget asking for a comparison got "compareTo needs a dated window to shift" and rendered none. When (and only when) a comparison is requested, the resolved filter's bounded date windows are lowered into `selection.timeDimensions[].dateRange` and moved out of `runtimeFilter` (a copy left behind would intersect the shifted window with the current one and empty every comparison column). Which dimension gets shifted stays the executor's decision: every window found is lowered under the name the author wrote, and zero or two candidates surfaces the executor's own error, listing them.
+  - The `<measure>__compare` columns that come back are now shown: a delta + window label on KPI widgets, a comparison column on tables, and a `variant: 'comparison'` overlay series on charts — the same treatment and the same `dashboard.trend.*` labels the inline object-provider widgets already use.
+
+- 230ffd8: Dashboard metadata's `chartConfig` presentation keys now take effect for the first time
+
+  `DashboardWidgetSchema.chartConfig` is declared as the full spec
+  `ChartConfigSchema`, but the ADR-0021 dataset path lowered exactly one key onto
+  the chart renderer: `showLegend` (objectui#3135). Everything else an author wrote
+  there — the chart's own `title`/`subtitle`, the accessibility `description`, an
+  explicit plot `height`, a `colors` palette or per-category colour map,
+  `showDataLabels`, `annotations`, `interaction` — parsed as valid metadata,
+  reached `DatasetWidget`, and was dropped before the chart schema was built. The
+  underlying chart block draws all of them; only the dashboard's hand-off was
+  missing.
+
+  `DatasetWidget` now lowers each of those keys, on two mechanical criteria, both
+  of which have to hold:
+
+  1. **The chart block draws it end to end on this path.** `{ type: 'chart' }`
+     resolves to `ChartRenderer` → `AdvancedChartImpl`, which draws
+     `title`/`subtitle` above the plot, turns `description` into the chart
+     container's `role="img"` + `aria-label`, applies `height` as that container's
+     inline height, paints `colors`, prints `showDataLabels` as per-point labels,
+     draws `annotations` as reference lines/bands and honours `interaction` as the
+     tooltip toggle plus the range selector. Each is pinned at the DOM level, so a
+     key is never forwarded to a prop that ignores it.
+  2. **It does not fight the dataset derivation.** `xAxis`, `yAxis` and `series`
+     are derived from the widget's dataset selection, so an authored one would
+     shadow the derived binding and blank the chart; they stay unforwarded, as does
+     `type` (the widget's own `type` already picks the chart family). `aria` stays
+     unforwarded too, for the other reason: nothing on this path reads it.
+
+  `colors` is split the way the react tier already splits it, because the two arms
+  reach the renderer through different props: a `string[]` is the positional
+  palette, a `{ value: color }` record is a per-category map merged over the
+  category dimension's own option colours.
+
+  **Behaviour-opening surface.** A dashboard that already wrote any of these keys
+  goes from having them ignored to having them applied — the point of the change,
+  but visible: a widget that declared `chartConfig.title` now shows that title
+  inside the plot area (in addition to the widget card's own `title`, which is a
+  separate key), one that declared `height` no longer fills its card, one that
+  declared `colors` stops using the theme palette, and `showDataLabels`,
+  `annotations` and `interaction.brush` start drawing. Widgets with no
+  `chartConfig`, or with only `showLegend`, render exactly as before: undeclared
+  keys are never emitted, so the renderer's own defaults stay in charge.
+
+  Part of objectstack#5175 (the enforce half); the narrowing half — what to do
+  about `aria`, and about `xAxis`/`yAxis`/`series` being declared on a surface that
+  derives them — is still open there.
+
+- c4c0ac8: Dataset-bound metric cards honour their declared `colorVariant` (objectui#3359, objectstack#5010 ruling B)
+
+  `DashboardWidgetSchema.widgets[].colorVariant` has been spec-declared, offered by
+  every authoring surface (the widget inspector, the dashboard editor, the config
+  panel) and authored **16 times** in shipped metadata — `system_overview` ×7 in
+  `platform-objects`, app-showcase's `ops-dashboard` / `revenue-pulse` ×9 — with
+  every one of those a `type: 'metric'` widget bound to a dataset. None of them
+  ever rendered a colour.
+
+  The reason is structural rather than a missing branch: `dataset` is **required**
+  on `DashboardWidgetSchema`, so every legal widget reaches `DatasetWidget` through
+  one of `DashboardRenderer`'s two dispatch sites, and `DatasetWidget` read the key
+  nowhere. Only the inline (`object` + `valueField`) path had a colour affordance,
+  via the `...options` spread into `MetricWidget` — a path the current schema
+  cannot produce. Declared, authored, offered in the designer, and inert: the
+  renderer painted all sixteen the same.
+
+  The metric card now maps the declaration onto the accent system this package
+  already has, instead of a second one:
+
+  - the vocabulary is the spec's `WidgetColorVariantSchema` enum, read from the
+    spec **in a test** rather than restated in prose — `default`, `blue`, `teal`,
+    `orange`, `purple`, `success`, `warning`, `danger`;
+  - the accent lands on the big number, the way `MetricWidget`'s chrome-less
+    `bare` layout carries it, because a dataset-bound metric renders no icon chip
+    and no card of its own. A dataset-bound KPI and an inline `bare` KPI declaring
+    the same variant now read the same;
+  - the two class tables both layouts use moved into one shared module
+    (`colorVariants.ts`) rather than being copied — the designer's swatch picker
+    already calls itself a mirror of "the renderer's colorVariant tokens", and a
+    second copy of a palette is how a declared-but-unenforced key becomes the
+    harder bug: a key declared two disagreeing ways.
+
+  Nothing changes for a widget that declares no `colorVariant`: its markup is
+  pinned byte-for-byte against the pre-change render, as is the enum's own
+  `'default'` (its name for "no accent"). Off-spec tokens — including the swatch
+  picker's three display-only aliases `green` / `red` / `amber`, which exist so a
+  legacy stored value can still be drawn as a swatch — get no accent and no
+  aliasing here: the spec enum rejects them where metadata is authored and
+  published, and teaching the renderer a second spelling would hand AI-authored
+  metadata a dialect the contract does not have.
+
+- 5bfaabd: `PageComponentSchema.dataSource` now reaches every object-bound block, not just
+  `list-view` — and `element:record_picker` stops discarding `view`
+  (objectstack#6953).
+
+  objectstack#5576 wired the spec's per-element data binding
+  (`dataSource: { object, view?, filter?, sort?, limit? }`) to `list-view` and left
+  the same declaration inert on every other page component. Two gaps remained, and
+  both were silent:
+
+  - **`element:record_picker` read four of the five keys and dropped `view`.** So
+    `dataSource: { object: 'account', view: 'hot' }` — the spec's own example —
+    built a picker over EVERY account instead of the rows the saved view selects.
+    Nothing threw and nothing rendered an error; the option list was simply wider
+    than what was authored, which also means a user could select a record the page
+    said was out of scope.
+  - **`object-grid` / `object-form` / `object-kanban` / `object-calendar` /
+    `object-chart` / `object-metric` / `record:related_list` read none of it.**
+    Each gates its fetch on its own `objectName`, and nothing mapped
+    `dataSource.object` onto it, so a page written the way the spec documents
+    rendered an empty grid / a field-less form / a board with no cards / an empty
+    month / an empty chart / a static metric number — with no request and no
+    diagnostic anywhere. Spec-valid metadata rendering nothing is the
+    objectstack#4413 shape.
+
+  Composition follows objectstack#5576's landed semantics unchanged on every block:
+  a named saved view supplies the baseline, a key written on the component itself
+  overrides it, an explicit binding key overrides both, `filter` AND-combines
+  ("additional filter criteria" — a binding can narrow a view, never widen it), and
+  a `view` name that does not resolve renders a configuration error instead of
+  degrading to the object's full scope.
+
+  - `@object-ui/react` — new `useElementDataSourceSchema(schema, mapping, dataSource?)`
+    and `ElementDataSourceGate` apply a resolved binding to the schema keys a given
+    block reads, plus `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel`
+    for the two non-final states. One precedence table for all blocks rather than
+    one copy per block — that copy is how "additional filter criteria" would have
+    become two dialects.
+  - A mapping names **only** keys its block genuinely reads. A composed value
+    written onto a key the block ignores would be accepted and dropped, which is
+    the defect being removed, one layer deeper — so a kanban's swimlane `columns`
+    never receive a view's field list, and a block with no row cap leaves `limit`
+    unmapped. The per-block coverage table, including two residual gaps that are
+    named rather than papered over, is in `content/docs/guide/data-source.md`.
+
+  No behaviour changes for a block that carries no `dataSource`: the binding-free
+  path returns the schema by reference, so nothing remounts and nothing refetches.
+
+- 022002a: `PageComponentSchema.dataSource` now reaches the remaining object-bound public
+  blocks: `object-gantt` / `object-timeline` / `object-map` / `object-pivot` /
+  `object-master-detail-form` / `embeddable-form` / `record:line_items`
+  (objectstack#7121).
+
+  objectstack#6953 wired the spec's per-element data binding
+  (`dataSource: { object, view?, filter?, sort?, limit? }`) to the eight blocks it
+  named and left the same declaration inert on these seven. Each gates its fetch on
+  its own object key and nothing mapped `dataSource.object` onto it, so a page
+  written the way the spec documents rendered an empty gantt / an empty timeline
+  rail / a map with no markers / an empty cross-tab / a field-less form — with no
+  request and no diagnostic anywhere. Spec-valid metadata rendering nothing is the
+  objectstack#4413 shape.
+
+  Composition follows objectstack#5576's landed semantics unchanged, through the
+  shared `ElementDataSourceGate` (no change to it or to the resolution layer): a
+  named saved view supplies the baseline, a key written on the component itself
+  overrides it, an explicit binding key overrides both, `filter` AND-combines
+  ("additional filter criteria" — a binding can narrow a view, never widen it), and
+  a `view` name that does not resolve renders a configuration error on every one of
+  these blocks instead of degrading to the object's full scope.
+
+  Each block maps **only** the keys it genuinely reads, which for this batch means
+  several keys stay deliberately unmapped rather than being parked somewhere
+  plausible:
+
+  - `object-gantt` and `object-map` take `object` / `filter` / `sort`; neither has a
+    row cap or a field-list read site.
+  - `object-pivot` takes `object` / `filter`; a cross-tab orders itself by its own
+    row/column grouping and cannot be computed over a truncated page.
+  - `object-timeline` takes `object` only — its fetch is
+    `find(objectName, { options: { $top: 100 } })`, with no filter/sort read site
+    at all, so a named view is error-checked and then contributes nothing.
+  - `embeddable-form` and `object-master-detail-form` take `object` only (the
+    parent object, in the master-detail case); a form that writes one record has no
+    collection query for `filter` / `sort` / `limit` to narrow.
+  - `record:line_items` takes `object` onto **`childObject`** — the collection it
+    actually lists — and nothing else: its query is the parent FK plus a fixed
+    `$top: 500`, and its `columns` are editable `GridColumn` objects rather than a
+    field-name projection a view could supply.
+
+  The per-block coverage table, including every residual gap named above, is in
+  `content/docs/guide/data-source.md`.
+
+  No behaviour change for a block that carries no `dataSource`: the binding-free
+  path returns the schema by reference, so nothing remounts and nothing refetches.
+
+- 02eb444: Show the `compareTo` comparison in a dataset pivot cross-tab instead of dropping it
+
+  A dataset widget with `type: 'pivot'` and two or more `dimensions` renders a true cross-tab, and that branch was the one render path the `compareTo` work left out (objectui#3614, following objectui#3337 / PR #3612). It laid out its columns as `bucket × measure` and never admitted the `<measure>__compare` columns the executor returns — so a pivot with a bounded date window and a `compareTo` ran a correct comparison query, received correct comparison data, and displayed none of it: headers, cells and all three subtotals were silent.
+
+  The comparison is now **stacked inside the cell** — current value on top, comparison value and its delta percentage beneath in smaller type:
+
+  - The pivot's column structure is unchanged. Giving the comparison a column of its own would turn `bucket × measure` into `bucket × measure × window`, doubling the width and adding a third header level on the widget family whose width is already the scarce resource.
+  - **Row, column and grand subtotals stack it the same way.** A Total that alone showed no comparison would read as "this row has none", which is a different and false statement.
+  - One caption names the comparison window ("vs last year") for the whole table, from the same `dashboard.trend.*` vocabulary the KPI and flat-table paths use, and the delta comes from the same helper — so a KPI and a cross-tab cell comparing the same two windows agree on sign and rounding.
+  - **CSV export stays data-shaped.** The cross-tab now exports a flat `<measure>__compare` column per compared measure, with bare numbers in the cells: a spreadsheet can compute on the export, and no stacked display string ("$120 $100 20%") ever reaches it.
+
+  Presence is detected from the returned data, as on every other path, so there is no new option to set — and a pivot the executor sent no comparison for renders exactly as it did before.
+
+- c1e1e6b: Studio's widget config panel no longer authors the retired `actionUrl` widget key
+
+  `actionUrl` / `actionType` / `actionIcon` were retired at the WIDGET level in
+  `@objectstack/spec` 17.0.0-rc.3 (objectstack#5010, ADR-0049 D2). They are
+  `retiredKey` tombstones: `DashboardWidgetSchema` types them `never` and refuses
+  any value, so authoring one is a tsc error and a parse error. Two producers in
+  `plugin-dashboard` were still emitting the widget-level key anyway
+  (objectstack#7129):
+
+  - `WidgetConfigPanel` offered a Behavior-group field labelled "Click-through
+    URL", bound to `actionUrl`. That control was inert twice over: no dashboard
+    widget renderer has ever read `widget.actionUrl`, so a URL typed there never
+    navigated anywhere, and the value it wrote was refused by the spec.
+  - `DashboardWithConfig` seeded `actionUrl: widget.actionUrl ?? ''` into every
+    widget config handed to the panel. Because the ADR-0021 save scrub only knew
+    the dataset-shape keys, that seed rode through to `onWidgetSave` on EVERY
+    save — so a Studio author who merely renamed a widget still persisted
+    `actionUrl: ''` into stored metadata, a key the spec then refuses. This is
+    the wider half of the defect: it did not require anyone to use the field.
+
+  The Behavior group and the seed are both gone, and `sanitizeDraftForType` now
+  scrubs all three keys as a second line of defence, for stored widgets that
+  already carry them and for hosts that drive `WidgetConfigPanel` directly.
+
+  Behaviour change surface: the widget config panel loses its Behavior section
+  (that section contained only this one field). Nothing that rendered before stops
+  rendering — the field had no consumer. `header.actions[]` keeps its own,
+  unrelated and still-live `actionUrl`; only the widget-level key is a tombstone.
+
+  Also corrects the `DashboardWidgetSchema` docblock in `@object-ui/types`, which
+  listed the three retired keys among those that "flow in from the spec" next to
+  live keys like `colorVariant`. They do flow in — as `?: never`. The docblock now
+  says so, and notes that while authoring one is a tsc error, _reading_ one still
+  type-checks (`never | undefined`), which is exactly how these producers survived
+  the 2026-08-04 sweep that removed the renderer-side reads.
+
+- Updated dependencies [794c497]
+- Updated dependencies [993336f]
+- Updated dependencies [f0a625a]
+- Updated dependencies [b5980f4]
+- Updated dependencies [8aad9fd]
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [0186cdc]
+- Updated dependencies [7864f03]
+- Updated dependencies [ea41a59]
+- Updated dependencies [0cbdca8]
+- Updated dependencies [d229dfa]
+- Updated dependencies [ecae400]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [d3e738a]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [f5f8744]
+- Updated dependencies [7ed3360]
+- Updated dependencies [69becd2]
+- Updated dependencies [5e52495]
+- Updated dependencies [0fa5e4d]
+- Updated dependencies [b750823]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [65bb513]
+- Updated dependencies [c97a45e]
+- Updated dependencies [b19162d]
+- Updated dependencies [c2fd122]
+- Updated dependencies [1bd6faa]
+- Updated dependencies [ac2139c]
+- Updated dependencies [b14ab3a]
+- Updated dependencies [e24d767]
+- Updated dependencies [8c60819]
+- Updated dependencies [aca561a]
+- Updated dependencies [e64a52e]
+- Updated dependencies [844d17f]
+- Updated dependencies [d8a0be4]
+- Updated dependencies [48132f7]
+- Updated dependencies [4dcd52a]
+- Updated dependencies [42ae5c6]
+- Updated dependencies [0ef9dfd]
+- Updated dependencies [f4b97c8]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [6d762da]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [54233b1]
+- Updated dependencies [c2ecbae]
+- Updated dependencies [f9faa7d]
+- Updated dependencies [97b63d7]
+- Updated dependencies [6bb454a]
+- Updated dependencies [11c1e71]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [33526fd]
+- Updated dependencies [32413ec]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/components@17.4.0
+  - @object-ui/react@17.4.0
+  - @object-ui/core@17.4.0
+  - @object-ui/fields@17.4.0
+  - @object-ui/i18n@17.4.0
+  - @object-ui/types@17.4.0
+
 ## 17.3.0
 
 ### Patch Changes
@@ -1031,6 +1344,7 @@
   project `health`) painted its categories from the generic `--chart-1..5`
   palette — the same gap the chart view (`object-chart`) had before #1932. It now
   resolves the dimension field's option colors (using the dataset's base `object`
+
   - dimension→field map the query already returns) and threads them to the
     renderer as a per-category `categoryColors` map, so health green/red/yellow
     paints semantically.
@@ -1282,6 +1596,7 @@
 - 991b62d: Add `compareTo` field to dashboard widgets for period-over-period
   comparison. Supports `'previousPeriod'`, `'previousYear'`, and
   `{ offset: '7d' | '4w' | '1M' | '1y' }`.
+
   - **Metric / gauge widgets** now compute a delta percentage when `compareTo`
     is set and surface it as a derived `trend` (auto-labelled via
     `dashboard.trend.vsLast*` i18n keys sniffed from the filter macros).
@@ -1446,6 +1761,7 @@
   platform primitive for "no records / no data" states. Two new props
   keep it flexible enough to absorb the hand-rolled variants that lived
   in `plugin-list`, `plugin-kanban`, and `plugin-dashboard`:
+
   - `showIcon?: boolean` — drops the icon container entirely. Used by the
     kanban board-level empty banner, which is a status banner rather than
     a true empty-state.
@@ -1454,6 +1770,7 @@
     empty state, which uses a large standalone glyph).
 
   Adopters:
+
   - `plugin-list` (`ListView` grid empty-state) — preserves the existing
     large icon, title, message, add-record button and `data-testid`s,
     but delegates the structural markup to `DataEmptyState`.
@@ -1476,6 +1793,7 @@
   `defaultCurrency` is set on the field/column, formatting is unchanged.
 
   Fixed call sites:
+
   - `@object-ui/fields`: `formatCurrency`, `formatCompactCurrency`, and
     `CurrencyCellRenderer` no longer default-param `'USD'`.
   - `@object-ui/i18n`: `formatCurrency()` falls back to `formatNumber`
@@ -1857,6 +2175,7 @@
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.

@@ -1,5 +1,313 @@
 # @object-ui/data-objectstack
 
+## 17.4.0
+
+### Minor Changes
+
+- 48132f7: Track the `@objectstack` family at `17.0.0-rc.5` (objectui#3560).
+
+  The pin moves from `^17.0.0-rc.2` to `^17.0.0-rc.5` across all 37 declarations in
+  30 `package.json` files, and the sibling `@objectstack/*` packages (`client` /
+  `formula` / `lint`) move with it — they pin `@objectstack/spec` **exactly**, so
+  leaving them behind would keep a second copy of the spec in the tree and have
+  `@objectstack/lint` validating against schemas that still accept the keys rc.3–rc.5
+  retire. `pnpm-lock.yaml` now resolves one copy of each of the six family packages
+  (`spec` / `client` / `core` / `formula` / `lint` / `sdui-parser`), all at rc.5.
+
+  Bumping the pin and repairing the fallout cannot be split: the pin alone reddens
+  CI, and the code alone targets a shape that is not in effect yet.
+
+  ## A live bug this upgrade fixes
+
+  **`ObjectStackDataSource.delete()` never emitted its mutation event, and resolved
+  `undefined` instead of a boolean.** `@objectstack/client`'s `DeleteDataResult`
+  declared a key called `deleted` — a key no schema has ever declared and no server
+  path has ever returned on `DELETE /data/:object/:id`. So `result.deleted`
+  compiled and read `undefined` at runtime: the guard never fired, a successful
+  delete notified no subscriber, and every consumer's cache stayed stale.
+  objectstack#5638 corrected the interface to the schema's `success`; following the
+  rename is what restores both behaviours. Nothing in this repo had to change shape
+  for it — the code was already asking the right question of the wrong key.
+
+  ## Breaking, in FROM → TO form
+
+  - **The five `@objectstack/spec/ui` interaction-config modules are gone** —
+    touch / dnd / keyboard / animation / offline, 32 defs and 64 exports
+    (objectstack#4988, PR objectstack#5321). None of them had an authoring door: no
+    metadata document could ever carry one of these blocks, so a stack that parsed
+    before the retirement parses byte-for-byte the same after it. `@object-ui/types`
+    drops the 32 `export type` re-exports. The vocabulary each one's only real
+    consumer needs is now declared by that consumer, which is the remedy the spec's
+    own retirement ledger prescribes ("declare that union locally — it is your
+    client's policy, not the platform's"):
+
+    - `@object-ui/react`'s `useOffline` owns `OfflineStrategy`, `ConflictResolution`,
+      `PersistStorageType`, `EvictionPolicyType`, `OfflineConfig`,
+      `OfflineCacheConfig`, `OfflineSyncConfig`;
+    - `@object-ui/core`'s `DndProtocol` / `KeyboardProtocol` own `DndConfig`,
+      `DragItem`, `DropZone`, `DragConstraint`, `DragHandle`, `DropEffect`,
+      `KeyboardNavigationConfig`, `KeyboardShortcut`, `FocusManagement`,
+      `FocusTrapConfig`;
+    - `@object-ui/types`' `mobile` module owns `SpecGestureConfig`,
+      `SwipeGestureConfig`, `PinchGestureConfig`, `LongPressGestureConfig`,
+      `TouchTargetConfig`, `TouchInteraction` (plus a new `SPEC_GESTURE_TYPES`
+      runtime tuple), so `@object-ui/mobile`'s import paths are unchanged.
+
+    Every shape is moved verbatim — same keys, same members, same optionality — so
+    no hook or bridge changes behaviour. Consumers importing these names from
+    `@object-ui/types` must import them from the owning package instead. Note the
+    spec's _surviving_ `ConnectorConflictResolution` (`/integration`, connector sync)
+    and `ConflictResolutionStrategy` (`/api`, route merge policy) are **different
+    concepts** — do not re-point at them.
+
+  - **`@object-ui/types` no longer re-exports `NotificationAction` or `EmbedConfig`**
+    (objectstack#5015, PR objectstack#5300). Both were published `ui` vocabulary with
+    no authoring door; no notification action was ever parsed from metadata and no
+    iframe route ever read an embed config. The presentation enums
+    (`NotificationType` / `NotificationSeverity` / `NotificationPosition`) and
+    `SharingConfig` **survive** and are untouched — public form sharing still gates
+    the anonymous endpoints on `allowAnonymous` + `publicLink`.
+    `@object-ui/core`'s `SharingProtocol` keeps `resolveEmbedConfig` /
+    `generateEmbedCode` against a locally declared `EmbedConfig`, so its surface is
+    unchanged.
+  - **`ThemeEngine` stops emitting nine retired CSS variable groups**
+    (objectstack#5021 option 2, PR objectstack#5289). `theme.animation`,
+    `theme.zIndex` and five typography groups (`fontSize` / `fontWeight` /
+    `lineHeight` / `letterSpacing`, plus `fontFamily.heading` / `fontFamily.mono`)
+    are tombstones the schema now rejects by name, so `--duration-*`, `--timing-*`,
+    `--z-*`, `--font-size-*`, `--font-weight-*`, `--line-height-*`,
+    `--letter-spacing-*`, `--font-heading` and `--font-mono` had become structurally
+    dead code — no author could produce the input that reached them.
+    `generateAnimationVars` and `generateZIndexVars` are removed from
+    `@object-ui/core`, and `@object-ui/types` drops `Animation` / `ZIndex` /
+    `AnimationSchema` / `ZIndexSchema`. **`theme.customVars` is the declared — and
+    since #5021 the only — door**: each entry is emitted verbatim as
+    `--<key>: <value>`, so a `--z-modal` or a `--duration-fast` goes there now.
+    LIVE emission is untouched byte for byte: `colors`, `borderRadius`, `shadows`,
+    `typography.fontFamily.base` (→ `--font-sans`) and `customVars`.
+  - **`@object-ui/types`' `HttpMethodSchema` now binds the spec's
+    `HttpMethodSubsetSchema`, and `HttpMethod` binds `HttpMethodSubset`**
+    (objectstack#5832, PR objectstack#5976 — objectui#3499). The spec renamed its
+    5-value UI subset because `schemaNameFromExportKey` strips the `Schema` suffix,
+    so the 5-value and 7-value enums both published as `shared/HttpMethod` and the
+    later write won — the emitted JSON Schema and reference page described only one
+    of them. **The runtime domain is unchanged and this repo's exported names are
+    unchanged**; this follows the rename without touching cross-package semantics.
+    Deliberately NOT re-pointed at the spec's bare `HttpMethod`: that is the 7-value
+    enum, and widening to it would let `method: 'HEAD'` compile and then throw in
+    `HttpRequestSchema.parse()`.
+  - **`dashboard.widgets[].actionUrl` / `actionType` / `actionIcon` / `aria` are
+    refused, not stripped** (objectstack#5010, ADR-0049 enforce-or-remove). A
+    dashboard widget has no action button and never had one — every action the
+    dashboard dispatches comes from `header.actions[]` — and no renderer ever applied
+    the widget `aria`, so it promised accessibility compliance it did not deliver.
+    A stale dashboard now gets a named error telling it where the affordance moved,
+    instead of silently losing it. Run `os migrate meta --from 16` to rewrite.
+
+### Patch Changes
+
+- 3765678: data-objectstack: pass the server's `drillRanges` date-bucket drill scope through `queryDataset` (restores date drill-through)
+
+  `queryDataset` rebuilds its result by **hand-picking** keys off the REST payload,
+  and `drillRanges` was never in the list — so the analytics service's date-range
+  drill sidecar (framework#1752) was dropped by the only real adapter in this repo,
+  while five consumer call sites were already reading it (`DatasetWidget.tsx:471`
+  and `:593`, `DatasetReportRenderer.tsx:316`, `:431`, `:855`).
+
+  The user-visible effect was not a degraded drill but a missing one. A
+  `dateGranularity` dimension groups a **span** of records into one bucket, which
+  equality filters cannot express, so `service-analytics` deliberately excludes
+  date dimensions from `dimensionFields`/`drillRawRows` and sends a parallel
+  half-open `[gte, lt)` range per row instead. For a chart or report grouped **only
+  by time** that makes `drillRanges` the _only_ thing that can make
+  `canDrill = !!object && (drillDims.length > 0 || !!drillRanges?.length)` true —
+  with the key dropped, the entire drill entry point disappeared. A mixed
+  date + non-date grouping kept its drill but built a filter with no time bound, so
+  clicking June's bar opened every month (a superset).
+
+  Neither side's tests could see it: the dashboard and report tests mock their own
+  data source and feed `drillRanges` in directly, and the adapter's own suite never
+  asserted the key. The new adapter-level tests therefore mock the **envelope the
+  server actually sends** — bare (`res.json(result)`, no `{ success, data }`
+  wrapper), carrying `sql`, and for a date-only grouping carrying `object` +
+  `drillRanges` and _no_ `dimensionFields`/`drillRawRows` — then assert the key
+  arrives verbatim and row-aligned, that the consumers' own `canDrill` predicate is
+  true, and that `buildDatasetDrillFilter` (the shared builder both surfaces call)
+  scopes the drilled list to the clicked bucket.
+
+  The declared entry type is `@object-ui/core`'s `DatasetDrillRange` **by
+  reference**, per the objectui#3613/#3752 discipline: it is the single in-repo
+  declaration of this shape (what the filter builder accepts and what both
+  renderers type their state with), and nothing in `@objectstack/spec` owns it yet,
+  so restating `{ field, gte, lt }` locally would create a third dialect of it.
+
+  `drillRawTotals` (the totals-row companion, framework#3214) is deliberately
+  **not** added: it has zero consumers in this repo, so passing it through would
+  add a declared-but-unexercised return key with no user-facing effect — it belongs
+  in the change that lands a totals-row drill and can test it.
+
+- d83f6b3: data-objectstack: type `queryDataset`'s result `fields[]` as the spec's `AnalyticsResult.fields[]` element instead of a hand-written copy
+
+  The return-value half of the drift objectui#3613 fixed on the parameter side. The
+  adapter hand-listed five keys for a result column
+  (`name`/`type`/`label`/`format`/`currency`) and, like every restatement, stopped
+  at the contract of the day it was written: it never grew **`percentScale`**,
+  which `@objectstack/spec@17.0.0-rc.5` carries on
+  `AnalyticsResult.fields[]` and documents as mandatory reading for renderers —
+  "renderers that receive it must scale by it instead of guessing from the value"
+  (objectui#3136).
+
+  That omission was not cosmetic. `percentScale` is the server's answer to a
+  question a `%` format string cannot express (is the stored number a 0–1 fraction,
+  or already percentage points?), and objectui#3136 exists because guessing from
+  the value's magnitude printed a ratio of exactly `1` as "1.0%". Three in-repo
+  consumers read the field through their own local types
+  (`DatasetResultField` in `@object-ui/core`), so nothing was red here — but any
+  author reading columns through the adapter's **declared** return type got
+  `Property 'percentScale' does not exist`, i.e. the declaration actively steered
+  them back to the guess the spec bans.
+
+  `fields` is now the spec type by reference, so there is nothing left to re-sync;
+  the change is additive for existing consumers (one more optional key).
+  `queryDataset.test.ts` pins structural identity with the spec element, pins
+  `percentScale` as the `'fraction' | 'whole'` union rather than a widened
+  `string`, keeps a negative pin against the five-key shape, and adds a runtime
+  test that reads `percentScale` off a result column **through the declared type**.
+
+  The rest of the envelope stays locally declared, deliberately. It is the REST
+  envelope, not an `AnalyticsResult`: the route adds ADR-0021 D2 drill metadata
+  (`object` / `dimensionFields` / `drillRawRows`) on top of the spec result, and
+  this method rebuilds its own object from the payload without copying `sql` — so
+  declaring the envelope as `AnalyticsResult & { … }` would advertise a key the
+  adapter structurally cannot return. A pin records that too.
+
+- 5f08c05: data-objectstack: type `queryDataset(selection)` as the spec's `DatasetSelection` instead of a hand-written copy
+
+  The adapter restated the selection contract inline, field by field, and the copy
+  had drifted three ways from the pinned `@objectstack/spec@17.0.0-rc.5`:
+
+  - **`compareTo.dimension` was required.** It has been optional since
+    objectstack#5011, _because the executor resolves it_: exactly one time
+    dimension carrying a `dateRange` is the one shifted, and zero or several
+    raises a loud error naming the candidates. Requiring it made the compiler
+    demand from every typed caller precisely the consumer-side dimension guess
+    that change forbids — trading a loud executor error for a silently wrong
+    comparison window. No runtime path hit this yet (the dashboard's
+    `DatasetWidget` passes `selection` as `unknown`), but a declaration is a live
+    instruction to anyone calling this client from TypeScript.
+  - **`timeDimensions` was widened to `unknown[]`**, erasing the very entry shape
+    the executor's resolution reads (`{ dimension, granularity?, dateRange? }`),
+    and **`runtimeFilter` to `Record<string, unknown>`**, erasing the
+    `$and`/`$or`/`$not` vocabulary the server parses.
+  - **`dateGranularity` was missing entirely** — the copy had simply stopped at
+    whatever the contract looked like the day it was written, so a typed caller
+    could not bucket a trend by month at all.
+
+  The parameter is now the spec type by reference, so there is nothing left to
+  re-sync. The fix is the removal of the dialect rather than a correction to it:
+  restating a contract owned elsewhere creates a second de-facto dialect of it, and
+  drift is then only a matter of time (AGENTS.md #0/#0.1). `queryDataset.test.ts`
+  pins structural identity with `DatasetSelection` plus each of the three drifts
+  individually, checked by this package's `tsc --noEmit`; a runtime test pins that
+  a dimension-less `compareTo` reaches the server untouched, so the adapter can
+  never start guessing on the executor's behalf.
+
+  The response type is deliberately left alone — it is the REST envelope
+  (`object` / `dimensionFields` / `drillRawRows`), not a restatement of
+  `AnalyticsResult`.
+
+- 41d6022: The console no longer reads `/meta/*` before it knows whether it has a session, and a failed request now says which request failed
+
+  Opening a logged-out console painted ~30 red `HTTP request failed` lines before
+  the login form was drawn. Two independent causes, fixed independently
+  (objectui#4042).
+
+  **1. Requests fired before the session was known.** `ConnectedShellInner` now
+  withholds the metadata tree until `GET /auth/get-session` resolves, so
+  `meta/object` / `meta/view` / `meta/app` are never issued blind. `useAuth()`
+  outside an `AuthProvider` reports `isLoading: false`, so an embed with no auth
+  provider is unaffected, and every protected route already sat behind an
+  `AuthGuard` that resolves auth first — the signed-in data flow is unchanged.
+
+  The console's landing route (`<Route path="/">`) was the actual entry point for
+  the burst: it mounted `ConnectedShell` with no guard above it, so simply opening
+  `/_console/` mounted the whole data layer as an anonymous visitor. It is now
+  guarded, which also means an unauthenticated visitor reaches `/login` without a
+  single doomed request. `examples/console-starter` had the same shape and got the
+  same fix.
+
+  **2. Two requests per type, per mount — not an unauthenticated artefact.**
+  Consumers read metadata during the FIRST render (`useActionModal` reads
+  `objects`, whose getter kicks `ensureType('object')` and `ensureType('view')`
+  from the render phase), before any effect runs. `MetadataProvider`'s preview-mode
+  effect then cleared the whole cache on mount, discarding those two entries while
+  their requests were in flight; the next render found them `idle` and refetched
+  both. The effect now skips its mount run — on mount the cache is empty and there
+  was never anything to drop; it only ever meant something on a later
+  `previewDrafts` change. That halved `meta/object` and `meta/view` on **every**
+  mount, signed in included.
+
+  A second duplicate only appeared once a read had failed: `entry.promise`
+  collapses callers that arrive while a request is in flight, but callers arriving
+  just after a failure each started a fresh attempt. A failed type now stays
+  un-retried for ~1s, which collapses one mount's burst of callers into a single
+  attempt. This is deliberately not the 5-minute `ttlMs` — later callers still
+  retry on their own, and `refresh()` / `invalidate()` retry immediately and
+  unconditionally, so no explicit recovery path changes.
+
+  **3. `HTTP request failed` now identifies the request.** `@objectstack/client`
+  reports every non-2xx as
+  `logger.error("HTTP request failed", undefined, { method, url, status, error })`,
+  and the console's logger forwarded that verbatim — so the identifying fields
+  lived only in the third argument, and anything that flattens a console record to
+  text rendered them `[object Object]` / `Object`. A screenful of failures could
+  not tell you a single URL or status. The message string now carries them:
+
+  ```text
+  HTTP request failed: GET /api/v1/meta/object -> 401 [UNAUTHORIZED]
+  ```
+
+  The structured bag is still passed alongside for DevTools to expand — text for
+  the flatteners, object for the inspectors, neither at the other's expense. The
+  formatter is exported as `formatHttpFailureMessage`, and `createQuietHttpLogger`
+  is now exported too so an app wiring its own `ObjectStackClient` gets the same
+  identified failures.
+
+  Nothing is newly silenced. The only demotion remains 404-on-an-optional-
+  collection (`sys_presence`, `sys_activity`), which is an expected outcome of a
+  request we still mean to make; a 401 that survives the session gate — a
+  mid-session expiry, say — stays a visible, fully-identified error. The cure for
+  doomed requests is not issuing them, never hiding them once issued.
+
+- 7e2b7e9: Fix saved list-view preferences never reading back (density, column widths, sort, hidden columns, inline edit)
+
+  `listViewOverrides` in the ObjectStack adapter enumerated `GET /api/v1/meta/{objectName}` — putting the object name in the metadata **type** slot — while `updateViewConfig` persists under `type='view'`. The two key spaces are disjoint, so the batch map came back empty for every object and every personalization a user saved on a list view was written to the server but never read back, showing up as "the setting didn't save".
+
+  The read now enumerates `type='view'` once and narrows to the object client-side, through the same accessor `listViews()` uses over the same rows — the metadata index is name-only, so there is no server-side `?object=` filter to push it into.
+
+  Second half: the batch read no longer swallows its own failures into an empty map. An empty map is an authoritative "this object has no overrides" and callers may still trust it and skip the per-view reads (the batch optimization is intact), but a transport failure now rejects, so the per-view `getView` fallback it was silently disabling becomes reachable again. `DataSource.listViewOverrides` documents both terms so other adapters implement the same contract.
+
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [d229dfa]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [c2fd122]
+- Updated dependencies [48132f7]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [6bb454a]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/core@17.4.0
+  - @object-ui/types@17.4.0
+
 ## 17.3.0
 
 ### Minor Changes
@@ -1022,6 +1330,7 @@ ${order}"` is exactly the shape `ObjectGrid` builds from its view metadata's
   objects+fields were editable in Studio; this reworks both surfaces.
 
   **Setup (assign + read-only):**
+
   - The six facets (`object_permissions`, `field_permissions`, `system_permissions`,
     `row_level_security`, `tab_permissions`, `admin_scope`) now render read-only on
     the `sys_permission_set` record page as a compact summary (counts, or capability
@@ -1036,6 +1345,7 @@ ${order}"` is exactly the shape `ObjectGrid` builds from its view metadata's
 
   **Studio (design every facet):** the permission matrix editor gains structured
   editors for the facets that were JSON-only —
+
   - **System Capabilities**: a multi-select over the live `sys_capability` registry
     (scope-grouped, labelled chips).
   - **Row-Level Security**: per-policy rows (object · operation · enabled) with CEL
@@ -1052,6 +1362,7 @@ ${order}"` is exactly the shape `ObjectGrid` builds from its view metadata's
   record the Setup summary reads, so a fresh Studio edit isn’t reflected in Setup’s
   read-only view until the projection refreshes — tracked as a framework follow-up
   (enforcement reads the authoritative metadata).
+
   - @object-ui/types@13.2.0
   - @object-ui/core@13.2.0
 
@@ -1359,6 +1670,7 @@ ${order}"` is exactly the shape `ObjectGrid` builds from its view metadata's
 
   **`@object-ui/plugin-designer`** — two new route-ready pages that
   together close the "Data Model" management loop in the Setup app:
+
   - `MetadataObjectsPage` — lists every object schema (via
     `MetadataClient.list('object')`), renders the existing
     `ObjectManager`, and persists edits/deletes through PUT/DELETE on
@@ -1389,6 +1701,7 @@ ${order}"` is exactly the shape `ObjectGrid` builds from its view metadata's
   the Setup app → _All Metadata Types_.
 
   ### New: `@object-ui/app-shell` views/metadata-admin
+
   - **`MetadataDirectoryPage`** — auto-grouped tile directory by domain, with
     free-text search, domain chips, and a _Writable only_ filter.
   - **`MetadataResourceListPage` / `MetadataResourceEditPage` / `…CreatePage` / `…HistoryPage`** —
@@ -1412,6 +1725,7 @@ ${order}"` is exactly the shape `ObjectGrid` builds from its view metadata's
     `t(key)` helper.
 
   ### New routing variant
+
   - App nav now supports `{ type: 'component', componentRef, params? }` items.
     `AppContent` resolves them through the existing `ComponentRegistry`.
   - Built-in components registered: `metadata:directory`, `metadata:resource`,
@@ -1420,12 +1734,14 @@ ${order}"` is exactly the shape `ObjectGrid` builds from its view metadata's
     / page.
 
   ### Plugin-designer
+
   - Lazy-exported `ObjectManager`, `FieldDesigner`, `ObjectViewConfigurator`,
     `DashboardEditor`, `PageCanvasEditor`, `MetadataObjectsPage`, and
     `MetadataFieldsPage` so the engine can mount them on demand.
 
   The temporary `/dev/meta` route is removed. Setup app navigation flows
   through the new component routes.
+
   - @object-ui/types@6.2.0
   - @object-ui/core@6.2.0
 
@@ -1533,6 +1849,7 @@ ${order}"` is exactly the shape `ObjectGrid` builds from its view metadata's
 
   Extract the bulk-vs-per-row decision into a reusable
   `executeBulkBatch(input, ops)` helper in `@object-ui/core`:
+
   - Single decision tree shared by both update and delete fast paths.
   - Bulk success → no per-row pass.
   - Bulk partial-count → aggregate batch error.
@@ -1576,6 +1893,7 @@ ${order}"` is exactly the shape `ObjectGrid` builds from its view metadata's
   multi-user editing scenarios.
 
   **`@object-ui/data-objectstack`**
+
   - Exports `ConcurrentUpdateError` (carries `currentVersion` and
     `currentRecord`) and `isConcurrentUpdateError()` type guard.
   - `update()` / `delete()` accept `opts.ifMatch` and forward it via the
@@ -1588,6 +1906,7 @@ ${order}"` is exactly the shape `ObjectGrid` builds from its view metadata's
     from conflicts without parsing the wire format.
 
   **`@object-ui/core`**
+
   - `ApiDataSource.update()` and `.delete()` accept `opts.ifMatch` and emit
     the `If-Match` HTTP header.
 
@@ -1630,6 +1949,7 @@ ${order}"` is exactly the shape `ObjectGrid` builds from its view metadata's
   their settings.
 
   The adapter now defaults to:
+
   - `resource`: `sys_user_preference`
   - field shape: `(user_id, key, value)` instead of `(user_id, kind, payload)`
   - option name: **`key`** instead of `kind`

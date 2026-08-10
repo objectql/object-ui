@@ -1,5 +1,377 @@
 # @object-ui/plugin-form
 
+## 17.4.0
+
+### Minor Changes
+
+- ecae400: Retire the `capability-multiselect` field widget name, which existed only on the docs-site registration path and which nothing ever stamped (objectui#3308, ADR-0049 enforce-or-remove)
+
+  `field:capability-multiselect` was registered by `registerFields()` and only there. That function's sole caller is the docs site, so the key never existed on the live path (`registerAllFields()`, run at module import, iterates `fieldWidgetMap` — which never listed it). A field authored with `widget: 'capability-multiselect'` therefore resolved to nothing in every real application, while the comment above the registration described it as usable from a record form: a code comment promising a capability that does not exist, which is the worst direction for a metadata renderer AI-authored apps read as authority.
+
+  Nothing stamped the hint either. ADR-0056 P1 stamps `permission-facet-link` on all six `sys_permission_set` facets — `system_permissions` included — through the single `ObjectStackAdapter.getObjectSchema` choke point, and P2 put the capability editor in Studio. The widget name was a leftover from an intermediate iteration of that rollout.
+
+  Removed, with a tombstone at each site:
+
+  - `@object-ui/fields` — the `field:capability-multiselect` registration and the comment that advertised it. **Breaking in name only**: the key was unreachable outside the docs site, so no application could have resolved it. A field still carrying the hint now degrades to its declared `type` renderer, the defined behavior for an unregistered widget.
+  - `@object-ui/plugin-detail` — `InlineFieldInput`'s `widget === 'capability-multiselect'` branch, the hint's last honoring surface. Leaving one consumer for a name no producer emits and no form resolves is the same declared-vs-enforced split, inverted. The sibling `permission-facet-link` branch is untouched and pinned.
+  - `@object-ui/components` — the dead `capability-multiselect` entry in the form renderer's `DATA_SOURCE_FIELD_TYPES` set, which could never match a resolvable widget.
+  - `@object-ui/plugin-form` — a comment naming `capability-multiselect` as the widget stamped onto `sys_permission_set.system_permissions`; it names `permission-facet-link` now, which is what is actually stamped.
+
+  `CapabilityMultiSelectField` itself is **unchanged and still exported**: Studio's `PermissionMatrixEditor` imports and renders it directly, which is ADR-0056 P2's design. Only the widget name is retired — the component is not a registry field widget and its doc comment now says so.
+
+  `registerFields()` is also **kept**, with its `@deprecated Use registerAllFields() instead` note corrected. The two are not interchangeable: it registers `createFieldRenderer(widget)`, which synthesizes the label, description and the local `value`/`onChange` state that lets a bare field node (`{ type: 'currency', label: 'Amount' }`) render standalone in the docs demos. Retiring it needs a decision about where that demo chrome goes; the note now records that instead of implying a drop-in replacement.
+
+- 1bd6faa: fix(fields,plugin-form): stop the inline child grid from collapsing `datetime`/`time` columns onto the `date` control
+
+  `deriveMasterDetail`'s `fieldTypeToColumnType` mapped `date`, `datetime` and `time` onto the single `date` grid column type, and `GridField` renders that as `<input type="date">`. The consequence was not cosmetic: that control emits a bare `YYYY-MM-DD` on change, so a user who merely re-picked the **day** of a `datetime` cell silently wrote the record's time component out of existence — a `14:30` became midnight with no warning and no undo.
+
+  `GridColumn['type']` now carries `'datetime'` and `'time'` alongside `'date'`, and each renders its own control with its own read/write adapter:
+
+  - `datetime` → `<input type="datetime-local">`, read through `toDateTimeInputValue` and written back through `fromDateTimeInputValue`, so the stored shape stays ISO-8601 and read and write share one basis (the contract `DateTimeField` already follows, objectui#3127).
+  - `time` → `<input type="time">`, round-tripping the stored zone-less `HH:mm[:ss]` verbatim.
+  - `date` → unchanged.
+
+  The read-only surfaces are fixed with it. `displayText()` and the read-only table both fell through to `String(value)` and printed the raw stored ISO on screen (`2026-06-17T00:00:00.000Z`); each temporal type now formats as itself — a day for `date`, day + local time for `datetime`, the wall clock for `time`. That could not be fixed before the type collapse was undone, because with one column type the renderer had no way to know which of the two to show.
+
+  Authors writing explicit grid `columns` can now declare `type: 'datetime'` / `type: 'time'`; previously those spellings were not part of the exported union.
+
+### Patch Changes
+
+- 8497579: A required field whose `defaultValue` is a runtime token is submittable from a create form
+
+  `@objectstack/spec` lets a field's `defaultValue` be a runtime _instruction_
+  rather than a value — the `DEFAULT_VALUE_TOKENS` family (`'NOW()'`,
+  `'current_user'`) or a CEL Expression envelope. The server resolves those per
+  insert, in `ObjectQL.applyFieldDefaults`, for any field that arrives absent or
+  null, which is why a create form must leave them empty: seeding the literal text
+  `NOW()` into a datetime input and submitting it suppresses the very resolution
+  the declaration asked for.
+
+  Correct for an optional field. Combined with `required: true` it deadlocked:
+
+  ```ts
+  remind_at: Field.datetime({ required: true, defaultValue: 'NOW()' }),
+  ```
+
+  the control opened empty, the client-side required rule refused the submit, and
+  there was nothing sensible for the user to type — the declaration had already
+  said what the value is, and omitting the field is exactly what makes the server
+  supply it. Same shape as the `required` + static-default case, one layer down.
+
+  In **create** mode a runtime `defaultValue` now suppresses the client-side
+  `required` rule, and the field is omitted from the payload. The producer
+  guarantees the value at insert, so the field is not "missing" — it is
+  server-owned. `required: true` alongside a runtime default is coherent authoring
+  (storage-level required, producer-guaranteed), not an authoring error.
+
+  Both halves matter. Suppressing the rule alone would have been half an answer: a
+  rendered control registers with the form whether or not anything seeded it, so
+  an untouched runtime-default field still reached the payload as `undefined` — or
+  as `''` once anything focused it. `undefined` is invisible to a
+  `JSON.stringify` inspection while remaining a KEY a data source may translate
+  into an explicit column write, and `''` is neither absent nor null, so it stores
+  a blank and defeats the declaration outright.
+
+  Three boundaries came with it, each pinned in both directions:
+
+  - **Create only.** An edit form shows a persisted row, where the token was
+    resolved at insert; blanking a required column there is a real removal and is
+    still refused.
+  - **Runtime defaults only.** A static literal default _is_ seeded into the
+    control, so if the user clears it they have removed a value that was really
+    there — `required` still fires.
+  - **The rule, not the field.** A value the user does type is submitted normally
+    and outranks the declared default. Only the "must not be empty" check is
+    suppressed.
+
+  Seeding and this rule read ONE predicate (`isRuntimeDefault`), so a form can
+  never seed a field it also refuses to submit. The suppression also drops the
+  required marker and `aria-required` for that field in create mode, since both
+  are driven by the same boolean — the honest reading, as the user really is not
+  required to provide the value. Surfacing what the server _will_ supply, as a
+  non-authoritative preview, is a separate follow-up.
+
+  Not extended to `requiredWhen` (the conditional-required CEL rule), which is
+  resolved downstream in the form renderer against the live record.
+
+- f0c9a90: Create forms now open with the object schema's declared `defaultValue`s
+
+  A field declared `required: true, defaultValue: 'draft'` opened the console's
+  create dialog with an empty select and a required marker: the user had to pick a
+  value the system already knew, with every neighbouring option — some with side
+  effects — one click away. `defaultValue` + `required` produced the worst create
+  experience of any modelling choice, strictly worse than declaring no default.
+
+  The server was never the problem. Omitting the field from a create request
+  stores the declared default, because `ObjectQL.applyFieldDefaults` resolves it on
+  insert. The gap was container-side: `ObjectForm` seeded its opening values from
+  the object schema, and the five other object-form containers did not — their
+  create branch set the form data to `initialData || initialValues || {}` and never
+  looked at the schema. The console's create dialog is the global `<ModalForm>`,
+  one of those five. Modal, Drawer, Tabbed, Split and Wizard now seed through one
+  shared module (`schemaDefaults`), so a create form opens preselected and
+  submittable.
+
+  Three boundaries came with it, each pinned in both directions:
+
+  - **Create only.** An edit form shows a persisted row as the server holds it.
+    `ObjectForm`'s pass had been running in every mode, so a column the record
+    leaves unset showed the default — arming a silent write of a value the user
+    never chose on the next save of any other field. It is now gated on the same
+    "no persisted record" test the data-fetch effect uses.
+  - **Static defaults only.** A `defaultValue` may be an instruction the server
+    resolves per insert — the `NOW()` / `current_user` runtime tokens
+    (`DEFAULT_VALUE_TOKENS`) or a CEL Expression envelope. `ObjectForm` had been
+    seeding those verbatim, which put the literal text `NOW()` into a datetime
+    input and then submitted it as the field's value, suppressing the very
+    resolution the declaration asked for (`applyFieldDefaults` only fills fields
+    that arrive empty). Those are now left empty for the server.
+  - **Callers still win.** `initialData` / `initialValues` outrank a schema
+    default — a lookup prefill or a duplicate-record seed is the more specific
+    instruction.
+
+  Only the field-level `defaultValue` is honoured, not a select option's
+  `default: true`, even though `@objectstack/spec`'s `SelectOptionSchema` declares
+  that key: the insert path resolves `defaultValue` and nothing else, so seeding
+  from option-level `default` would preselect values the server would never have
+  applied — a UI-only second default contract.
+
+- 5bfaabd: `PageComponentSchema.dataSource` now reaches every object-bound block, not just
+  `list-view` — and `element:record_picker` stops discarding `view`
+  (objectstack#6953).
+
+  objectstack#5576 wired the spec's per-element data binding
+  (`dataSource: { object, view?, filter?, sort?, limit? }`) to `list-view` and left
+  the same declaration inert on every other page component. Two gaps remained, and
+  both were silent:
+
+  - **`element:record_picker` read four of the five keys and dropped `view`.** So
+    `dataSource: { object: 'account', view: 'hot' }` — the spec's own example —
+    built a picker over EVERY account instead of the rows the saved view selects.
+    Nothing threw and nothing rendered an error; the option list was simply wider
+    than what was authored, which also means a user could select a record the page
+    said was out of scope.
+  - **`object-grid` / `object-form` / `object-kanban` / `object-calendar` /
+    `object-chart` / `object-metric` / `record:related_list` read none of it.**
+    Each gates its fetch on its own `objectName`, and nothing mapped
+    `dataSource.object` onto it, so a page written the way the spec documents
+    rendered an empty grid / a field-less form / a board with no cards / an empty
+    month / an empty chart / a static metric number — with no request and no
+    diagnostic anywhere. Spec-valid metadata rendering nothing is the
+    objectstack#4413 shape.
+
+  Composition follows objectstack#5576's landed semantics unchanged on every block:
+  a named saved view supplies the baseline, a key written on the component itself
+  overrides it, an explicit binding key overrides both, `filter` AND-combines
+  ("additional filter criteria" — a binding can narrow a view, never widen it), and
+  a `view` name that does not resolve renders a configuration error instead of
+  degrading to the object's full scope.
+
+  - `@object-ui/react` — new `useElementDataSourceSchema(schema, mapping, dataSource?)`
+    and `ElementDataSourceGate` apply a resolved binding to the schema keys a given
+    block reads, plus `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel`
+    for the two non-final states. One precedence table for all blocks rather than
+    one copy per block — that copy is how "additional filter criteria" would have
+    become two dialects.
+  - A mapping names **only** keys its block genuinely reads. A composed value
+    written onto a key the block ignores would be accepted and dropped, which is
+    the defect being removed, one layer deeper — so a kanban's swimlane `columns`
+    never receive a view's field list, and a block with no row cap leaves `limit`
+    unmapped. The per-block coverage table, including two residual gaps that are
+    named rather than papered over, is in `content/docs/guide/data-source.md`.
+
+  No behaviour changes for a block that carries no `dataSource`: the binding-free
+  path returns the schema by reference, so nothing remounts and nothing refetches.
+
+- 022002a: `PageComponentSchema.dataSource` now reaches the remaining object-bound public
+  blocks: `object-gantt` / `object-timeline` / `object-map` / `object-pivot` /
+  `object-master-detail-form` / `embeddable-form` / `record:line_items`
+  (objectstack#7121).
+
+  objectstack#6953 wired the spec's per-element data binding
+  (`dataSource: { object, view?, filter?, sort?, limit? }`) to the eight blocks it
+  named and left the same declaration inert on these seven. Each gates its fetch on
+  its own object key and nothing mapped `dataSource.object` onto it, so a page
+  written the way the spec documents rendered an empty gantt / an empty timeline
+  rail / a map with no markers / an empty cross-tab / a field-less form — with no
+  request and no diagnostic anywhere. Spec-valid metadata rendering nothing is the
+  objectstack#4413 shape.
+
+  Composition follows objectstack#5576's landed semantics unchanged, through the
+  shared `ElementDataSourceGate` (no change to it or to the resolution layer): a
+  named saved view supplies the baseline, a key written on the component itself
+  overrides it, an explicit binding key overrides both, `filter` AND-combines
+  ("additional filter criteria" — a binding can narrow a view, never widen it), and
+  a `view` name that does not resolve renders a configuration error on every one of
+  these blocks instead of degrading to the object's full scope.
+
+  Each block maps **only** the keys it genuinely reads, which for this batch means
+  several keys stay deliberately unmapped rather than being parked somewhere
+  plausible:
+
+  - `object-gantt` and `object-map` take `object` / `filter` / `sort`; neither has a
+    row cap or a field-list read site.
+  - `object-pivot` takes `object` / `filter`; a cross-tab orders itself by its own
+    row/column grouping and cannot be computed over a truncated page.
+  - `object-timeline` takes `object` only — its fetch is
+    `find(objectName, { options: { $top: 100 } })`, with no filter/sort read site
+    at all, so a named view is error-checked and then contributes nothing.
+  - `embeddable-form` and `object-master-detail-form` take `object` only (the
+    parent object, in the master-detail case); a form that writes one record has no
+    collection query for `filter` / `sort` / `limit` to narrow.
+  - `record:line_items` takes `object` onto **`childObject`** — the collection it
+    actually lists — and nothing else: its query is the parent FK plus a fixed
+    `$top: 500`, and its `columns` are editable `GridColumn` objects rather than a
+    field-name projection a view could supply.
+
+  The per-block coverage table, including every residual gap named above, is in
+  `content/docs/guide/data-source.md`.
+
+  No behaviour change for a block that carries no `dataSource`: the binding-free
+  path returns the schema by reference, so nothing remounts and nothing refetches.
+
+- 6d762da: The five locale keys behind #3546's eight no-fallback `t()` call sites are now defined in all ten packs, so the built-in-view toasts, the activity-timeline source link, the wizard's required-field toast and the Gantt refresh button's accessible name are translated instead of falling back to English — or, on two surfaces, to the key itself (part of #3546).
+
+  `scripts/check-i18n-call-site-keys.mjs` measured 258 keys that a `t()` call site asks for and no pack defines. These five were the subset with no working inline default: `console.objectView.cannotEditMetaView`, `console.objectView.cannotDeleteMetaView`, `detail.viewSource`, `gantt.toolbar.refresh` and `wizard.missingRequired`. Adding a `defaultValue` is deliberately not the fix — that mechanism is what kept all 258 invisible for months.
+
+  **Two of the eight sites really did render the raw key**, and both go through a binding with nothing in front of i18next. `ObjectView.tsx` calls `useObjectTranslation()` directly, so five toasts read `console.objectView.cannotEditMetaView` / `cannotDeleteMetaView` on screen; the `|| 'Built-in views cannot be renamed.'` guards next to them were dead on every path, because i18next answers a miss with the key itself and a non-empty string never falls through `||`. Those four unreachable English strings are removed rather than repaired: one key served four call sites (rename / pin / set-as-default / configure), so the pack copy covers any change to a built-in view instead of naming one operation. `RecordActivityTimeline.tsx` fails the same way for a subtler reason — `useDetailTranslation` is `createSafeTranslation(..., 'detail.back')`, and because `detail.back` does resolve, the probe hands back i18next's `t` for every key and bypasses the defaults map wholesale, so `detail.viewSource` reached the user verbatim.
+
+  **The other two sites were not rendering a raw key**, contrary to the issue's description, and are fixed here as the milder "English in all ten languages" class. `wizard.missingRequired` is its own hook's probe key, so the probe failed and `createSafeTranslation` correctly served its English default. `gantt.toolbar.refresh` goes through `useGanttTranslation`, which deliberately does not use `createSafeTranslation` and falls back per key — so the refresh button's `aria-label` was "Refresh", in English, never the key. Screen-reader users heard an English word rather than an identifier; a `zh` session now hears 刷新.
+
+  Regression cover is provider-mounted on purpose: with no `I18nProvider` the defaults maps answer every one of these keys and the assertions pass while the console is broken, which is precisely the false-green the issue documents. For the two sites whose English output was already correct, `en` cannot discriminate before from after — the `zh` assertions are the ones that pin the fix.
+
+- 11c1e71: Resolve a `select` field declared `multiple: true` to the `field:multiselect` widget, so the object form's visible label actually names the chip picker it renders (objectui#3986).
+
+  `mapFieldTypeToFormType` keyed the widget id on the field's `type` string alone, so an object-schema `{ type: 'select', multiple: true }` picklist — a spec-legal, entirely ordinary shape — became `field:select`. `SelectField` then delegated to `MultiSelectField` on `config.multiple`, so the component that RENDERED was the chip picker while everything keyed on the widget id still answered for the single-value combobox. Above all the label-association declaration (`ComponentMeta.labelling`, objectui#3961), which the form renderer resolves per widget id: the host emitted `<label for>` at the chip row's wrapper `div`, where a `for` is inert — `HTMLLabelElement.control` returns `null`. Visually the field had a label; in the accessibility tree that label named nothing. Measured on the object-form path, `role=group` + accessible name went from 1 for a `multiselect`-typed field (fixed in objectui#3975) to 0 for this one.
+
+  Declaring `select` itself `labelling: 'group'` was not available: a single-value select's trigger is a labelable `button[role=combobox]` whose `for` association works, and a bare `select` is a builtin the renderer resolves without consulting the registry at all. The fix is therefore at the producer — the widget id now carries the arity, so one place decides which widget renders and the declaration can no longer be addressed to a widget that is not rendering.
+
+  - `mapFieldTypeToFormType(fieldType, config?)` takes an optional second argument — the rest of the field definition, of which only `multiple` is read. Existing single-argument calls are unchanged, and so is every type outside the new table: `select` is the only one whose `multiple` form is a different WIDGET. The spec's multi-capable set is larger (select / lookup / file / image, with `radio` on the select branch and `user` storing like `lookup`), but `LookupField`, `FileField` and `ImageField` each render both arities themselves, so their id — and their labelling declaration — is already right for either.
+  - The four object-form producers pass the pair: `ObjectForm`, `DrawerForm`, `ModalForm`, and `sectionFields` (Tabbed / Wizard / Split / Drawer / Modal). In `sectionFields` the id is now computed once from the EFFECTIVE pair, after view-level overrides have merged, because `multiple` is itself a spec `FormField` key: a view restating only `multiple: true` over a single-value object field moves the widget too, and `multiple: false` moves it back.
+  - `SelectField`'s `multiple` delegation is KEPT, not retired. Measured, it stays reachable from three entrances that never consult the alias map: the inline grid editor (`FieldEditWidget` finds `select` in its own table first), `ActionParamDialog` (`resolveFormWidgetType` returns `select` from `fieldWidgetMap` first), and hand-written SDUI addressing `field:select` by name with `multiple` on its metadata.
+
+  Read-only rendering of these widgets is untouched (objectui#4005), as is the built-in `Select` branch (objectui#3976).
+
+- 523be48: `object-timeline` and `record:line_items` now apply the filter / sort / row cap they are given, so a named `dataSource.view` narrows them instead of contributing nothing
+
+  These were the two residual gaps in objectstack#7121's per-block coverage table
+  (objectstack#7137). Both blocks are object-bound lists, both accepted the spec's
+  per-element `dataSource` binding, and neither had a read site for `filter` or
+  `sort` anywhere in its fetch:
+
+  - `object-timeline`'s entire query was
+    `find(objectName, { options: { $top: 100 } })`.
+  - `record:line_items`' was the parent FK plus a fixed `$top: 500`.
+
+  So `dataSource: { object, view: 'hot' }` resolved the view — a typo still reported
+  a configuration error, it never degraded into an unfiltered query — and then
+  dropped everything the view said. The rendered rows could be **wider than the view
+  they named**, silently, which is exactly the class of mistake AI-authored metadata
+  hides best: the page looks like it works. objectstack#7121 deliberately left the
+  keys unmapped and recorded the gap rather than writing composed values onto schema
+  keys nobody read; this closes it at the fetch instead.
+
+  What each block now reads:
+
+  - **`object-timeline`** — `$filter: schema.filter`,
+    `$orderby: convertSortToQueryParams(schema.sort)`, and
+    `$top: schema.limit ?? 100`, matching the form `object-gantt` / `object-map` /
+    `object-calendar` already use. Its registry mapping gains
+    `filter` / `sort` / `limit`; `columns` stays unmapped, because a timeline
+    projects the fields its `timeline` config names.
+  - **`record:line_items`** — the composed filter is **AND-combined** with the parent
+    relationship condition through `mergeFilterNodes`, never substituted for it, the
+    same way `record:related_list` composes its own since objectstack#7118: a
+    line-items panel is always scoped to the record it sits on, so an _additional_
+    criterion can only narrow this parent's children and can never surface another
+    parent's rows. `sort` becomes the load order and `limit` the row cap (default
+    500). `columns` stays unmapped — here they are `GridColumn[]` driving an editable
+    grid, not a field-name projection, so a view's column list would be the wrong
+    _shape_ rather than merely a wider answer.
+
+  **Behaviour change worth knowing about:** the timeline's default window is now a
+  real cap. `{ options: { $top: 100 } }` nested the limit under a key that is not a
+  `QueryParams` field and that no adapter in this repo reads (`convertQueryParams`
+  maps `params.$top`), so the intended window never reached the wire and a timeline
+  over a large object fetched whatever the server chose to return. It is now sent as
+  `$top`, and authorable via `limit` or a view's `pagination.pageSize`.
+
+  `@object-ui/core` gains `convertSortToQueryParams`, the sort→`$orderby` lowering
+  the three sibling blocks each inline privately. It is shared rather than copied
+  twice more, and is slightly more faithful to the declared contract than those
+  copies: a sort entry that omits `order` means ascending instead of being dropped
+  (the string spelling `"amount"` already meant ascending in the same copies), and
+  nothing orderable yields `undefined` rather than a truthy empty `{}`. Migrating
+  the three existing copies onto it is objectstack#7148 and is not done here.
+
+- Updated dependencies [794c497]
+- Updated dependencies [993336f]
+- Updated dependencies [f0a625a]
+- Updated dependencies [b5980f4]
+- Updated dependencies [8aad9fd]
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [0186cdc]
+- Updated dependencies [7864f03]
+- Updated dependencies [ea41a59]
+- Updated dependencies [0cbdca8]
+- Updated dependencies [d229dfa]
+- Updated dependencies [ecae400]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [d3e738a]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [f5f8744]
+- Updated dependencies [7ed3360]
+- Updated dependencies [69becd2]
+- Updated dependencies [5e52495]
+- Updated dependencies [0fa5e4d]
+- Updated dependencies [b750823]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [65bb513]
+- Updated dependencies [c97a45e]
+- Updated dependencies [b19162d]
+- Updated dependencies [c2fd122]
+- Updated dependencies [1bd6faa]
+- Updated dependencies [ac2139c]
+- Updated dependencies [b14ab3a]
+- Updated dependencies [e24d767]
+- Updated dependencies [8c60819]
+- Updated dependencies [aca561a]
+- Updated dependencies [e64a52e]
+- Updated dependencies [844d17f]
+- Updated dependencies [d8a0be4]
+- Updated dependencies [48132f7]
+- Updated dependencies [4dcd52a]
+- Updated dependencies [42ae5c6]
+- Updated dependencies [0ef9dfd]
+- Updated dependencies [f4b97c8]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [6d762da]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [54233b1]
+- Updated dependencies [c2ecbae]
+- Updated dependencies [f9faa7d]
+- Updated dependencies [97b63d7]
+- Updated dependencies [6bb454a]
+- Updated dependencies [11c1e71]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [33526fd]
+- Updated dependencies [32413ec]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/components@17.4.0
+  - @object-ui/react@17.4.0
+  - @object-ui/core@17.4.0
+  - @object-ui/fields@17.4.0
+  - @object-ui/i18n@17.4.0
+  - @object-ui/types@17.4.0
+  - @object-ui/permissions@17.4.0
+
 ## 17.3.0
 
 ### Minor Changes
@@ -1268,6 +1640,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
   objects+fields were editable in Studio; this reworks both surfaces.
 
   **Setup (assign + read-only):**
+
   - The six facets (`object_permissions`, `field_permissions`, `system_permissions`,
     `row_level_security`, `tab_permissions`, `admin_scope`) now render read-only on
     the `sys_permission_set` record page as a compact summary (counts, or capability
@@ -1282,6 +1655,7 @@ undefined` — swallowing the very errors the command exists to print. Now reads
 
   **Studio (design every facet):** the permission matrix editor gains structured
   editors for the facets that were JSON-only —
+
   - **System Capabilities**: a multi-select over the live `sys_capability` registry
     (scope-grouped, labelled chips).
   - **Row-Level Security**: per-policy rows (object · operation · enabled) with CEL
@@ -2459,6 +2833,7 @@ parentData, details)` — emits a parent `update` op (index 0) then diffs each
 ### Patch Changes
 
 - 89ae109: Fix click navigation and required-FK form rendering
+
   - **plugin-grid**: ObjectGrid's `getSelectFields()` now always includes `id` in
     the SELECT projection. Previously, when a view configured `columns` without
     `id`, the SQL driver stripped it from results, and row-click handlers silently
@@ -2521,6 +2896,7 @@ parentData, details)` — emits a parent `update` op (index 0) then diffs each
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.
@@ -2598,11 +2974,13 @@ parentData, details)` — emits a parent `update` op (index 0) then diffs each
   `FormSchema.mobileStickyActions` (new) is the lower-level escape hatch — applied automatically when `mobile.stickyActions` is set on `ObjectFormSchema`.
 
   **`@object-ui/plugin-form`** — `ObjectForm` now:
+
   - propagates `mobile.fullscreenLongText` to every textarea/markdown/html field as `mobile_fullscreen: true`,
   - sets `mobileStickyActions` on the inner form schema and adds `pb-20` padding so content isn't covered by the fixed bar,
   - when `mobile.stepper === true` (or `'auto'` + `useIsMobile()` + > `stepperMinFields` fields), routes the flat field list through the existing `WizardForm` with synthetic single-field "steps" — keeping per-step validation and the existing `Next`/`Back`/`Submit` flow.
 
   **`@object-ui/components`** — the registered `form` renderer adds:
+
   - a `mobileStickyActions` opt-in that turns the action row into a `position: sticky; bottom: 0` bar on small viewports, and
   - an inline `FullscreenTextarea` wrapper used when no field-package widget is registered, providing the same expand-button + edit-dialog UX so the feature works even in lighter setups.
 

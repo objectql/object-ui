@@ -1,5 +1,138 @@
 # @object-ui/plugin-gantt
 
+## 17.4.0
+
+### Patch Changes
+
+- 022002a: `PageComponentSchema.dataSource` now reaches the remaining object-bound public
+  blocks: `object-gantt` / `object-timeline` / `object-map` / `object-pivot` /
+  `object-master-detail-form` / `embeddable-form` / `record:line_items`
+  (objectstack#7121).
+
+  objectstack#6953 wired the spec's per-element data binding
+  (`dataSource: { object, view?, filter?, sort?, limit? }`) to the eight blocks it
+  named and left the same declaration inert on these seven. Each gates its fetch on
+  its own object key and nothing mapped `dataSource.object` onto it, so a page
+  written the way the spec documents rendered an empty gantt / an empty timeline
+  rail / a map with no markers / an empty cross-tab / a field-less form — with no
+  request and no diagnostic anywhere. Spec-valid metadata rendering nothing is the
+  objectstack#4413 shape.
+
+  Composition follows objectstack#5576's landed semantics unchanged, through the
+  shared `ElementDataSourceGate` (no change to it or to the resolution layer): a
+  named saved view supplies the baseline, a key written on the component itself
+  overrides it, an explicit binding key overrides both, `filter` AND-combines
+  ("additional filter criteria" — a binding can narrow a view, never widen it), and
+  a `view` name that does not resolve renders a configuration error on every one of
+  these blocks instead of degrading to the object's full scope.
+
+  Each block maps **only** the keys it genuinely reads, which for this batch means
+  several keys stay deliberately unmapped rather than being parked somewhere
+  plausible:
+
+  - `object-gantt` and `object-map` take `object` / `filter` / `sort`; neither has a
+    row cap or a field-list read site.
+  - `object-pivot` takes `object` / `filter`; a cross-tab orders itself by its own
+    row/column grouping and cannot be computed over a truncated page.
+  - `object-timeline` takes `object` only — its fetch is
+    `find(objectName, { options: { $top: 100 } })`, with no filter/sort read site
+    at all, so a named view is error-checked and then contributes nothing.
+  - `embeddable-form` and `object-master-detail-form` take `object` only (the
+    parent object, in the master-detail case); a form that writes one record has no
+    collection query for `filter` / `sort` / `limit` to narrow.
+  - `record:line_items` takes `object` onto **`childObject`** — the collection it
+    actually lists — and nothing else: its query is the parent FK plus a fixed
+    `$top: 500`, and its `columns` are editable `GridColumn` objects rather than a
+    field-name projection a view could supply.
+
+  The per-block coverage table, including every residual gap named above, is in
+  `content/docs/guide/data-source.md`.
+
+  No behaviour change for a block that carries no `dataSource`: the binding-free
+  path returns the schema by reference, so nothing remounts and nothing refetches.
+
+- 6d762da: The five locale keys behind #3546's eight no-fallback `t()` call sites are now defined in all ten packs, so the built-in-view toasts, the activity-timeline source link, the wizard's required-field toast and the Gantt refresh button's accessible name are translated instead of falling back to English — or, on two surfaces, to the key itself (part of #3546).
+
+  `scripts/check-i18n-call-site-keys.mjs` measured 258 keys that a `t()` call site asks for and no pack defines. These five were the subset with no working inline default: `console.objectView.cannotEditMetaView`, `console.objectView.cannotDeleteMetaView`, `detail.viewSource`, `gantt.toolbar.refresh` and `wizard.missingRequired`. Adding a `defaultValue` is deliberately not the fix — that mechanism is what kept all 258 invisible for months.
+
+  **Two of the eight sites really did render the raw key**, and both go through a binding with nothing in front of i18next. `ObjectView.tsx` calls `useObjectTranslation()` directly, so five toasts read `console.objectView.cannotEditMetaView` / `cannotDeleteMetaView` on screen; the `|| 'Built-in views cannot be renamed.'` guards next to them were dead on every path, because i18next answers a miss with the key itself and a non-empty string never falls through `||`. Those four unreachable English strings are removed rather than repaired: one key served four call sites (rename / pin / set-as-default / configure), so the pack copy covers any change to a built-in view instead of naming one operation. `RecordActivityTimeline.tsx` fails the same way for a subtler reason — `useDetailTranslation` is `createSafeTranslation(..., 'detail.back')`, and because `detail.back` does resolve, the probe hands back i18next's `t` for every key and bypasses the defaults map wholesale, so `detail.viewSource` reached the user verbatim.
+
+  **The other two sites were not rendering a raw key**, contrary to the issue's description, and are fixed here as the milder "English in all ten languages" class. `wizard.missingRequired` is its own hook's probe key, so the probe failed and `createSafeTranslation` correctly served its English default. `gantt.toolbar.refresh` goes through `useGanttTranslation`, which deliberately does not use `createSafeTranslation` and falls back per key — so the refresh button's `aria-label` was "Refresh", in English, never the key. Screen-reader users heard an English word rather than an identifier; a `zh` session now hears 刷新.
+
+  Regression cover is provider-mounted on purpose: with no `I18nProvider` the defaults maps answer every one of these keys and the assertions pass while the console is broken, which is precisely the false-green the issue documents. For the two sites whose English output was already correct, `en` cannot discriminate before from after — the `zh` assertions are the ones that pin the fix.
+
+- Updated dependencies [794c497]
+- Updated dependencies [993336f]
+- Updated dependencies [f0a625a]
+- Updated dependencies [b5980f4]
+- Updated dependencies [8aad9fd]
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [0186cdc]
+- Updated dependencies [7864f03]
+- Updated dependencies [ea41a59]
+- Updated dependencies [0cbdca8]
+- Updated dependencies [d229dfa]
+- Updated dependencies [ecae400]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [d3e738a]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [f5f8744]
+- Updated dependencies [7ed3360]
+- Updated dependencies [69becd2]
+- Updated dependencies [5e52495]
+- Updated dependencies [0fa5e4d]
+- Updated dependencies [b750823]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [65bb513]
+- Updated dependencies [c97a45e]
+- Updated dependencies [b19162d]
+- Updated dependencies [c2fd122]
+- Updated dependencies [1bd6faa]
+- Updated dependencies [ac2139c]
+- Updated dependencies [b14ab3a]
+- Updated dependencies [e24d767]
+- Updated dependencies [7b3e048]
+- Updated dependencies [8c60819]
+- Updated dependencies [aca561a]
+- Updated dependencies [e64a52e]
+- Updated dependencies [844d17f]
+- Updated dependencies [d8a0be4]
+- Updated dependencies [48132f7]
+- Updated dependencies [4dcd52a]
+- Updated dependencies [42ae5c6]
+- Updated dependencies [0ef9dfd]
+- Updated dependencies [f4b97c8]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [6d762da]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [4178d5a]
+- Updated dependencies [54233b1]
+- Updated dependencies [c2ecbae]
+- Updated dependencies [acc34c5]
+- Updated dependencies [c4768a7]
+- Updated dependencies [f9faa7d]
+- Updated dependencies [97b63d7]
+- Updated dependencies [6bb454a]
+- Updated dependencies [11c1e71]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [33526fd]
+- Updated dependencies [32413ec]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/components@17.4.0
+  - @object-ui/plugin-detail@17.4.0
+  - @object-ui/react@17.4.0
+  - @object-ui/core@17.4.0
+  - @object-ui/fields@17.4.0
+  - @object-ui/i18n@17.4.0
+  - @object-ui/types@17.4.0
+
 ## 17.3.0
 
 ### Patch Changes
@@ -1188,6 +1321,7 @@ fields` formatters) and feeds `GanttView` a `task.fields` array that replaces
   non-en/zh locales) and the `common.addToFavorites` /
   `common.removeFromFavorites` keys across all ten built-in locales so
   the `builtInLocales` parity tests pass.
+
   - @object-ui/components@5.0.2
   - @object-ui/fields@5.0.2
   - @object-ui/react@5.0.2
@@ -1487,6 +1621,7 @@ fields` formatters) and feeds `GanttView` a `task.fields` array that replaces
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.
@@ -1545,24 +1680,29 @@ fields` formatters) and feeds `GanttView` a `task.fields` array that replaces
 - a2d7023: End-user feature batch — forms, designer history, import/export, and PWA offline sync.
 
   **Forms (`@object-ui/fields`, `@object-ui/providers`)**
+
   - `FileField`: native `<input capture="environment">` camera capture for mobile devices, plus a uploading-progress indicator driven by `UploadProvider`.
   - `ImageField`: per-image inline crop/rotate via the lazy-loaded `ImageCropperDialog` (canvas-based, zero new deps).
   - New `UploadProvider` in `@object-ui/providers` with pluggable adapters for S3 and Azure Blob (plus the default object-URL adapter for local previews). XHR-based with progress, abort, and retry.
   - `LookupField`: `lookup.dependsOn: string | string[]` to chain dependent lookups (e.g. State depends on Country); the trigger is gated until parent values are present and the OData `$filter` is built automatically.
 
   **Container-aware widget widths (`@object-ui/components`)**
+
   - New `useResizeObserver(ref)` hook exposing `{ width, height }` of any element. SSR-safe; reads the initial size via `getBoundingClientRect`.
   - `plugin-gantt` and `plugin-kanban` now react to their container size instead of `window.innerWidth`, so they behave correctly inside split panels and dashboards.
 
   **Designer history (`@object-ui/plugin-designer`)**
+
   - `useUndoRedo` (and therefore `useDesignerHistory`) gains `persistKey` + `storage` options to round-trip the undo/redo stack through `sessionStorage`, plus a `clearPersisted()` cleanup helper. Drafts now survive accidental tab refreshes.
   - New `<HistoryPanel>` component renders the timeline visually with one-click jump-to-checkpoint via the new `jumpTo(index)` API.
 
   **Import wizard (`@object-ui/plugin-grid`)**
+
   - Saved column-mapping templates: name, save, re-apply, and delete via a new template bar in the mapping step. Persisted under `objectui:import-templates:${objectName}` (override via `templateStorageKey` / `templateStorage`).
   - Inline validation correction: cells with errors in the preview step are now editable; corrections feed straight into the import without requiring a re-upload, with green-bar status indicators for fixed rows.
 
   **PWA offline sync (`@object-ui/mobile`)**
+
   - New `MemoryOfflineQueue` / `IndexedDbOfflineQueue` (`createOfflineQueue()` picks the best backend) backed by IndexedDB.
   - `createOfflineDataSource(inner, { queue })` wraps any DataSource so mutations issued while offline (or that fail with a network-style error) are queued and replayed in order on reconnect. Includes `replay()`, `drop()`, `clear()`, `pending()`, an `onChange` notifier, and an opt-in `resolveConflict` hook for stale-write conflicts.
   - New `useOfflineSync(source)` hook exposes `{ isOnline, pending, isReplaying, replay, drop, clear }` and auto-replays on the browser's `online` event.
@@ -1571,11 +1711,13 @@ fields` formatters) and feeds `GanttView` a `task.fields` array that replaces
 - e93fe35: Mobile UX round 3 — Gantt and Map
 
   **@object-ui/plugin-gantt**
+
   - Added a sticky vertical "Today" marker on the timeline plus a one-tap **Jump to Today** toolbar button so on-call users can re-orient the view instantly on small screens.
   - Added a **collapsible task list** (toolbar toggle + auto-collapse on the first narrow render) so the timeline area gets the full viewport on phones.
   - Added **pinch-to-zoom** touch gestures on the timeline; wired `columnWidthOverride` state so the existing zoom buttons also respond (previously a no-op).
 
   **@object-ui/plugin-map**
+
   - Added a **geolocate button** with the standard `navigator.geolocation.getCurrentPosition` permission flow, an inline error banner, a busy state, and a **user-location marker** (blue dot) the map flies to on success.
   - **Cluster tap-through**: tapping a cluster now flies the map in (zoom + 2, capped at 20) instead of just sitting there.
   - On mobile, the desktop popup is replaced by a **bottom-sheet record card** with safe-area padding and an explicit close button. Desktop continues to use the popup.

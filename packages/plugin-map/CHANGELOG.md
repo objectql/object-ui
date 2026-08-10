@@ -1,5 +1,119 @@
 # @object-ui/plugin-map
 
+## 17.4.0
+
+### Patch Changes
+
+- 022002a: `PageComponentSchema.dataSource` now reaches the remaining object-bound public
+  blocks: `object-gantt` / `object-timeline` / `object-map` / `object-pivot` /
+  `object-master-detail-form` / `embeddable-form` / `record:line_items`
+  (objectstack#7121).
+
+  objectstack#6953 wired the spec's per-element data binding
+  (`dataSource: { object, view?, filter?, sort?, limit? }`) to the eight blocks it
+  named and left the same declaration inert on these seven. Each gates its fetch on
+  its own object key and nothing mapped `dataSource.object` onto it, so a page
+  written the way the spec documents rendered an empty gantt / an empty timeline
+  rail / a map with no markers / an empty cross-tab / a field-less form — with no
+  request and no diagnostic anywhere. Spec-valid metadata rendering nothing is the
+  objectstack#4413 shape.
+
+  Composition follows objectstack#5576's landed semantics unchanged, through the
+  shared `ElementDataSourceGate` (no change to it or to the resolution layer): a
+  named saved view supplies the baseline, a key written on the component itself
+  overrides it, an explicit binding key overrides both, `filter` AND-combines
+  ("additional filter criteria" — a binding can narrow a view, never widen it), and
+  a `view` name that does not resolve renders a configuration error on every one of
+  these blocks instead of degrading to the object's full scope.
+
+  Each block maps **only** the keys it genuinely reads, which for this batch means
+  several keys stay deliberately unmapped rather than being parked somewhere
+  plausible:
+
+  - `object-gantt` and `object-map` take `object` / `filter` / `sort`; neither has a
+    row cap or a field-list read site.
+  - `object-pivot` takes `object` / `filter`; a cross-tab orders itself by its own
+    row/column grouping and cannot be computed over a truncated page.
+  - `object-timeline` takes `object` only — its fetch is
+    `find(objectName, { options: { $top: 100 } })`, with no filter/sort read site
+    at all, so a named view is error-checked and then contributes nothing.
+  - `embeddable-form` and `object-master-detail-form` take `object` only (the
+    parent object, in the master-detail case); a form that writes one record has no
+    collection query for `filter` / `sort` / `limit` to narrow.
+  - `record:line_items` takes `object` onto **`childObject`** — the collection it
+    actually lists — and nothing else: its query is the parent FK plus a fixed
+    `$top: 500`, and its `columns` are editable `GridColumn` objects rather than a
+    field-name projection a view could supply.
+
+  The per-block coverage table, including every residual gap named above, is in
+  `content/docs/guide/data-source.md`.
+
+  No behaviour change for a block that carries no `dataSource`: the binding-free
+  path returns the schema by reference, so nothing remounts and nothing refetches.
+
+- 9ad21b6: `plugin-map` 加载时不再向控制台打印 `Registering object-map...`
+
+  `packages/plugin-map/src/index.tsx` 的注册调用之前留着一句调试输出
+  `console.log('Registering object-map...')`。它位于**模块作用域**,所以不是「渲染地图时打一行」,
+  而是**只要这个 plugin 被 import 就打一行**:console 应用的 `register-plugins` 一加载即触发,
+  单元测试里跟着刷,生产 bundle 同样保留 —— 使用者控制台里凭空多出一行来源不明的噪音。
+
+  同仓其余 18 个 plugin 的 `src/index.tsx` 注册处都没有这类输出,这一句是孤例
+  (`plugin-editor` 里唯一的 `console.log` 命中是 `defaultProps.value` 示例代码字符串,
+  不是会执行的语句)。纯噪音,不涉及任何行为:注册本身、`ObjectMap` 的渲染与取数都不读它。
+
+  顺带记一条搜索时确认的背景:仓库的 eslint 配置没有开 `no-console` 规则,所以这类遗留
+  调试输出没有任何自动化拦网 —— 这次是靠人工发现的。是否全仓开 `no-console`(以及
+  `ObjectMap.tsx` 里三处**有意**保留的 `console.warn`/`console.error` 诊断如何豁免)是一个
+  影响多个包的策略决定,已另行开单,不混进本 PR。
+
+  回潮钉在 `src/index.registration.test.tsx`:spy 掉 `console.log`/`info`/`debug` 后
+  `vi.resetModules()` 再 `import('./index')`,断言零输出。钉子刻意只覆盖这三个「噪音通道」,
+  不含 `warn`/`error` —— `ComponentRegistry.register()` 在缺 namespace、以及裸名 fallback
+  覆盖冲突时**按设计**会 `console.warn`(`packages/core/src/registry/Registry.ts`),
+  一刀切断言「零 console 输出」等于把 Registry 的诊断契约钉在这里,将来会因与「遗留调试输出」
+  无关的原因变红。钉子里还有一条非空断言:import 后校验 `object-map`/`map` 两个注册确实进了
+  registry,免得模块缓存导致 import 未真正执行、于是「没有输出」是因为**什么都没发生**而假绿。
+
+- Updated dependencies [794c497]
+- Updated dependencies [993336f]
+- Updated dependencies [f0a625a]
+- Updated dependencies [b5980f4]
+- Updated dependencies [8aad9fd]
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [0cbdca8]
+- Updated dependencies [d229dfa]
+- Updated dependencies [ecae400]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [d3e738a]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [7ed3360]
+- Updated dependencies [0fa5e4d]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [c2fd122]
+- Updated dependencies [e24d767]
+- Updated dependencies [aca561a]
+- Updated dependencies [48132f7]
+- Updated dependencies [0ef9dfd]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [54233b1]
+- Updated dependencies [97b63d7]
+- Updated dependencies [6bb454a]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/components@17.4.0
+  - @object-ui/react@17.4.0
+  - @object-ui/core@17.4.0
+  - @object-ui/types@17.4.0
+
 ## 17.3.0
 
 ### Patch Changes
@@ -1001,6 +1115,7 @@
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.
@@ -1055,11 +1170,13 @@
 - e93fe35: Mobile UX round 3 — Gantt and Map
 
   **@object-ui/plugin-gantt**
+
   - Added a sticky vertical "Today" marker on the timeline plus a one-tap **Jump to Today** toolbar button so on-call users can re-orient the view instantly on small screens.
   - Added a **collapsible task list** (toolbar toggle + auto-collapse on the first narrow render) so the timeline area gets the full viewport on phones.
   - Added **pinch-to-zoom** touch gestures on the timeline; wired `columnWidthOverride` state so the existing zoom buttons also respond (previously a no-op).
 
   **@object-ui/plugin-map**
+
   - Added a **geolocate button** with the standard `navigator.geolocation.getCurrentPosition` permission flow, an inline error banner, a busy state, and a **user-location marker** (blue dot) the map flies to on success.
   - **Cluster tap-through**: tapping a cluster now flies the map in (zoom + 2, capped at 20) instead of just sitting there.
   - On mobile, the desktop popup is replaced by a **bottom-sheet record card** with safe-area padding and an explicit close button. Desktop continues to use the popup.

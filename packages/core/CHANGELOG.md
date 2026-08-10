@@ -1,5 +1,659 @@
 # @object-ui/core
 
+## 17.4.0
+
+### Minor Changes
+
+- c3b01a7: Give composite and grouped field widgets a real accessible name: the form renderer now associates its label by IDREF for widgets that declare `labelling: 'group'`, instead of emitting a `<label for>` that nothing labelable answers (objectui#3961).
+
+  Six widgets rendered a visible group label that named **nothing** in the accessibility tree. Measured in a real form, one field per row, reading each label's `for` against the DOM:
+
+  ```
+  address      for=…-form-item -> MISSING            byLabelText=0   role+name=0
+  geolocation  for=…-form-item -> MISSING            byLabelText=0   role+name=0
+  checkboxes   for=…-form-item -> div                byLabelText=0   role+name=0
+  radio        for=…-form-item -> div[radiogroup]    byLabelText=0   role+name=0
+  rating       for=…-form-item -> div                byLabelText=0   role+name=0
+  file         for=…-form-item -> div[role=button]   byLabelText=0   role+name=0
+  ```
+
+  Two shapes, one outcome. `address` / `geolocation` spread the host's id onto their first sub-input and then replaced it with that input's own unique id (objectui#3343, correct in itself), so the `for` named an id no element carried — clicking "Shipping Address" did nothing and the group label was absent from the accessibility tree entirely. `checkboxes` / `radio` / `rating` / `file` kept the id, but on a `div`: a `<label for>` on a non-labelable element is inert HTML — `HTMLLabelElement.control` is `null`, so it activates nothing and contributes no name. A screen reader heard "Street Address", "City", "Alpha", "Beta" — never which group they belonged to.
+
+  The fix is the WAI-ARIA group pattern, driven by a DECLARATION rather than by the host guessing at widget DOM:
+
+  - `@object-ui/core` — `ComponentMeta` gains `labelling?: 'control' | 'group'`. Additive and optional; absent means `'control'`, which is every existing component's behaviour.
+  - `@object-ui/components` — the form renderer reads it. For a `'group'` field the `<FormLabel>` publishes an `id` and drops its `for`, and the widget receives `aria-labelledby`. The single-control path is unchanged down to the attribute: no id on the label, no `aria-labelledby` key on the widget, so no field acquires a second naming channel. `ui/form.tsx` is untouched (Shadcn no-touch) — both halves travel as ordinary props, since `<FormLabel>` spreads props after its own `htmlFor`.
+  - `@object-ui/fields` — the six audited widgets declare `labelling: 'group'`. `address` / `geolocation` move the host id (and only the id) from their first sub-input to the group container; `checkboxes` / `rating` answer a host-supplied `aria-labelledby` with `role="group"`; `radio` keeps Radix's more specific `radiogroup`; `file` takes the name on its dropzone with no invented group layer, because it has exactly one control that merely happens not to be labelable.
+
+  No new key in the widget props contract: `aria-*` is already declared on it and forwarded by `toDomProps`, the same channel `aria-required` (objectui#3290) travels.
+
+  Deliberately unchanged: sub-labels keep naming their own inputs (`aria-labelledby` overrides `<label for>`, so putting the group name on the first sub-input would have replaced "Street Address" with the field name — the concatenated-name outcome this issue rejected), `aria-describedby` stays on the first focusable sub-input where focus can reach it (objectui#3318), the sub-input ids of objectui#3343 do not move, and standalone rendering — the inline grid editor, a bare SDUI node, where nobody hands down an id and there is no host label to point at — emits no role and no IDREF at all.
+
+  A widget that does not declare itself keeps the old `for`, which the label-association tests report as an association resolving to a non-labelable element. Silence was the failure mode being fixed; the default path stays loud.
+
+- 48132f7: Track the `@objectstack` family at `17.0.0-rc.5` (objectui#3560).
+
+  The pin moves from `^17.0.0-rc.2` to `^17.0.0-rc.5` across all 37 declarations in
+  30 `package.json` files, and the sibling `@objectstack/*` packages (`client` /
+  `formula` / `lint`) move with it — they pin `@objectstack/spec` **exactly**, so
+  leaving them behind would keep a second copy of the spec in the tree and have
+  `@objectstack/lint` validating against schemas that still accept the keys rc.3–rc.5
+  retire. `pnpm-lock.yaml` now resolves one copy of each of the six family packages
+  (`spec` / `client` / `core` / `formula` / `lint` / `sdui-parser`), all at rc.5.
+
+  Bumping the pin and repairing the fallout cannot be split: the pin alone reddens
+  CI, and the code alone targets a shape that is not in effect yet.
+
+  ## A live bug this upgrade fixes
+
+  **`ObjectStackDataSource.delete()` never emitted its mutation event, and resolved
+  `undefined` instead of a boolean.** `@objectstack/client`'s `DeleteDataResult`
+  declared a key called `deleted` — a key no schema has ever declared and no server
+  path has ever returned on `DELETE /data/:object/:id`. So `result.deleted`
+  compiled and read `undefined` at runtime: the guard never fired, a successful
+  delete notified no subscriber, and every consumer's cache stayed stale.
+  objectstack#5638 corrected the interface to the schema's `success`; following the
+  rename is what restores both behaviours. Nothing in this repo had to change shape
+  for it — the code was already asking the right question of the wrong key.
+
+  ## Breaking, in FROM → TO form
+
+  - **The five `@objectstack/spec/ui` interaction-config modules are gone** —
+    touch / dnd / keyboard / animation / offline, 32 defs and 64 exports
+    (objectstack#4988, PR objectstack#5321). None of them had an authoring door: no
+    metadata document could ever carry one of these blocks, so a stack that parsed
+    before the retirement parses byte-for-byte the same after it. `@object-ui/types`
+    drops the 32 `export type` re-exports. The vocabulary each one's only real
+    consumer needs is now declared by that consumer, which is the remedy the spec's
+    own retirement ledger prescribes ("declare that union locally — it is your
+    client's policy, not the platform's"):
+
+    - `@object-ui/react`'s `useOffline` owns `OfflineStrategy`, `ConflictResolution`,
+      `PersistStorageType`, `EvictionPolicyType`, `OfflineConfig`,
+      `OfflineCacheConfig`, `OfflineSyncConfig`;
+    - `@object-ui/core`'s `DndProtocol` / `KeyboardProtocol` own `DndConfig`,
+      `DragItem`, `DropZone`, `DragConstraint`, `DragHandle`, `DropEffect`,
+      `KeyboardNavigationConfig`, `KeyboardShortcut`, `FocusManagement`,
+      `FocusTrapConfig`;
+    - `@object-ui/types`' `mobile` module owns `SpecGestureConfig`,
+      `SwipeGestureConfig`, `PinchGestureConfig`, `LongPressGestureConfig`,
+      `TouchTargetConfig`, `TouchInteraction` (plus a new `SPEC_GESTURE_TYPES`
+      runtime tuple), so `@object-ui/mobile`'s import paths are unchanged.
+
+    Every shape is moved verbatim — same keys, same members, same optionality — so
+    no hook or bridge changes behaviour. Consumers importing these names from
+    `@object-ui/types` must import them from the owning package instead. Note the
+    spec's _surviving_ `ConnectorConflictResolution` (`/integration`, connector sync)
+    and `ConflictResolutionStrategy` (`/api`, route merge policy) are **different
+    concepts** — do not re-point at them.
+
+  - **`@object-ui/types` no longer re-exports `NotificationAction` or `EmbedConfig`**
+    (objectstack#5015, PR objectstack#5300). Both were published `ui` vocabulary with
+    no authoring door; no notification action was ever parsed from metadata and no
+    iframe route ever read an embed config. The presentation enums
+    (`NotificationType` / `NotificationSeverity` / `NotificationPosition`) and
+    `SharingConfig` **survive** and are untouched — public form sharing still gates
+    the anonymous endpoints on `allowAnonymous` + `publicLink`.
+    `@object-ui/core`'s `SharingProtocol` keeps `resolveEmbedConfig` /
+    `generateEmbedCode` against a locally declared `EmbedConfig`, so its surface is
+    unchanged.
+  - **`ThemeEngine` stops emitting nine retired CSS variable groups**
+    (objectstack#5021 option 2, PR objectstack#5289). `theme.animation`,
+    `theme.zIndex` and five typography groups (`fontSize` / `fontWeight` /
+    `lineHeight` / `letterSpacing`, plus `fontFamily.heading` / `fontFamily.mono`)
+    are tombstones the schema now rejects by name, so `--duration-*`, `--timing-*`,
+    `--z-*`, `--font-size-*`, `--font-weight-*`, `--line-height-*`,
+    `--letter-spacing-*`, `--font-heading` and `--font-mono` had become structurally
+    dead code — no author could produce the input that reached them.
+    `generateAnimationVars` and `generateZIndexVars` are removed from
+    `@object-ui/core`, and `@object-ui/types` drops `Animation` / `ZIndex` /
+    `AnimationSchema` / `ZIndexSchema`. **`theme.customVars` is the declared — and
+    since #5021 the only — door**: each entry is emitted verbatim as
+    `--<key>: <value>`, so a `--z-modal` or a `--duration-fast` goes there now.
+    LIVE emission is untouched byte for byte: `colors`, `borderRadius`, `shadows`,
+    `typography.fontFamily.base` (→ `--font-sans`) and `customVars`.
+  - **`@object-ui/types`' `HttpMethodSchema` now binds the spec's
+    `HttpMethodSubsetSchema`, and `HttpMethod` binds `HttpMethodSubset`**
+    (objectstack#5832, PR objectstack#5976 — objectui#3499). The spec renamed its
+    5-value UI subset because `schemaNameFromExportKey` strips the `Schema` suffix,
+    so the 5-value and 7-value enums both published as `shared/HttpMethod` and the
+    later write won — the emitted JSON Schema and reference page described only one
+    of them. **The runtime domain is unchanged and this repo's exported names are
+    unchanged**; this follows the rename without touching cross-package semantics.
+    Deliberately NOT re-pointed at the spec's bare `HttpMethod`: that is the 7-value
+    enum, and widening to it would let `method: 'HEAD'` compile and then throw in
+    `HttpRequestSchema.parse()`.
+  - **`dashboard.widgets[].actionUrl` / `actionType` / `actionIcon` / `aria` are
+    refused, not stripped** (objectstack#5010, ADR-0049 enforce-or-remove). A
+    dashboard widget has no action button and never had one — every action the
+    dashboard dispatches comes from `header.actions[]` — and no renderer ever applied
+    the widget `aria`, so it promised accessibility compliance it did not deliver.
+    A stale dashboard now gets a named error telling it where the affordance moved,
+    instead of silently losing it. Run `os migrate meta --from 16` to rewrite.
+
+### Patch Changes
+
+- 6719877: `condition: false` now actually prevents the action from executing (objectui#3872)
+
+  `ActionRunner.execute` — the engine's public execution entry, shared by every
+  action surface — gated conditional execution on `if (action.condition)`, i.e. on
+  the raw value's TRUTHINESS. Truthiness cannot answer the question the gate needs
+  answered ("did the author declare a condition?"), and on this key it answered in
+  the over-permissive direction: `condition: false` fell on `if (false)`, so the
+  whole block was skipped, `evaluateCondition` was never consulted, and the action
+  executed. Measured with a call-counting handler:
+
+  - `condition: false` — handler ran: **true**, result `{ success: true }`
+  - `condition: { dialect: 'cel', source: 'false' }` — handler ran: false, result `{ success: false, error: 'Action condition not met' }`
+
+  Two spellings of the same statement, opposite outcomes. `false` is the most
+  explicit "never execute this" metadata can carry — and what a template that
+  switches an action off emits — so the direction matters: the action really ran,
+  possibly writing. This is the over-permission half of the objectui#3492 family
+  (the `disabled` gate one line below is objectui#3848, whose defect pointed the
+  other way).
+
+  The gate now asks whether a `condition` gate is DECLARED before evaluating.
+  "Nothing to evaluate" is read from core's single predicate normalizer
+  (`toPredicateInput`, which maps `''`, `null`, an empty-`source` envelope and
+  non-predicate values to `undefined`), plus the whitespace-only string, which the
+  normalizer wraps rather than collapses — objectui#3850's ruling on the scope of
+  "empty predicate", the same one the `disabled` gate already applies. Once the
+  door asks the right question the verdict needs no boolean branch of its own:
+  `evaluateCondition` returns a boolean argument verbatim.
+
+  **Behaviour change surface, deliberately one-directional and one row wide.**
+  Exactly one shape changes verdict — a declared boolean `false`, from executing to
+  refused (`{ success: false, error: 'Action condition not met' }`, the message the
+  key already used). Everything else is byte-identical: `condition: true`, an
+  absent `condition`, and truthy expressions/envelopes still execute; falsy
+  expressions, falsy CEL envelopes and falsy `${…}` templates are still refused,
+  as before; the three empty predicates (`''`, whitespace-only, an empty-`source`
+  envelope) still execute, now because nothing was declared rather than because
+  `if ('')` happened to be falsy; and non-predicate junk (`0`, `{}`) still
+  executes — a value that is not a predicate must not decide an action's fate,
+  which is the fail-open posture this module already committed to for `disabled`.
+  So this change can only start refusing execution, never start allowing it — the
+  mirror image of objectui#3848's fix.
+
+  `ActionDef.condition` is widened to `string | boolean` to match what the gate now
+  honours (and the `disabled` key beside it). This is not a lenient consumer
+  alias: the boolean was always accepted at runtime through the interface's index
+  signature, it was simply ignored.
+
+  The value handed to the evaluator is deliberately left RAW rather than normalized
+  first, for the same reason as objectui#3848 with the sign flipped:
+  `toPredicateInput` wraps unconditionally, so an already-templated `'${x}'`
+  becomes `'${${x}}'`, fails to parse, returns verbatim and coerces to a constant
+  `true` — on `disabled` that blocks everything, on `condition` it would EXECUTE
+  everything. That normalizer defect is objectui#3871; a tripwire next to the new
+  pins goes red the day it is fixed.
+
+- 56ff091: An empty `disabled` predicate no longer refuses to run the action (objectui#3848)
+
+  `ActionRunner.execute` — the engine's public execution entry, shared by every
+  action surface — gated on `action.disabled != null && action.disabled !== false`
+  and handed the value straight to `evaluateCondition`. That function documents one
+  default for "there is no condition here": return `true`, meaning
+  _visible/enabled_. On `disabled`, `true` means BLOCKED. So every empty predicate
+  was read as "disabled": the handler was never invoked and the caller got
+  `{ success: false, error: 'Action is disabled' }` — a state the metadata never
+  declared. Measured with a call-counting handler:
+
+  - `disabled: ''` — handler ran: false
+  - `disabled: '   '` (whitespace only) — handler ran: false
+  - `disabled: { dialect: 'cel', source: '' }` (the empty envelope `objectstack build` can emit) — handler ran: false
+
+  After objectui#3842 / objectui#3849 fixed the renderer halves, this was live
+  user-visible behaviour: the button became clickable and clicking it returned
+  `Action is disabled` — the renderer and the execution entry disagreeing about one
+  predicate value, the shape objectui#3314 already paid for once.
+
+  The gate now asks whether a `disabled` gate is DECLARED — whether there is a
+  condition to reach a verdict on — before evaluating. "Nothing to evaluate" is
+  read from core's single predicate normalizer (`toPredicateInput`, which maps
+  `''`, `null`, an empty-`source` envelope and non-predicate values to
+  `undefined`), plus the whitespace-only string, which the normalizer wraps rather
+  than collapses and which `evaluateCondition` itself calls "no condition"
+  (`evalRowPredicate` applies the same blank-source rule).
+
+  **Behaviour change surface, deliberately one-directional.** Only values with
+  nothing to evaluate change, and only from blocked to allowed: `''`,
+  whitespace-only, an empty-`source` envelope, and non-predicate junk (`0`, `{}`,
+  which previously coerced to "disabled"). `disabled: true`, a truthy expression
+  and a truthy CEL envelope still block; `disabled: false` and an absent `disabled`
+  still run; no expression- or envelope-valued predicate changes verdict. The
+  existing `catch { isDisabled = false }` fail-open posture is untouched, and this
+  change can only stop blocking things, never start.
+
+  The value handed to the evaluator is deliberately left RAW rather than normalized
+  first. `evaluateCondition(toPredicateInput(x))` is not interchangeable with
+  `evaluateCondition(x)` for a string that is already a `${…}` template:
+  `toPredicateInput` assumes a bare expression and wraps unconditionally, so
+  `'${x}'` becomes `'${${x}}'`, fails to parse, returns verbatim, and coerces to a
+  constant `true` — a template-spelled predicate evaluated that way is ALWAYS
+  "disabled", whatever it says. That normalizer defect is filed as objectui#3871
+  (it is live at the action renderers and `ActionEngine`, while `SchemaRenderer` and
+  `page:header` evaluate the raw value and pin the correct verdict); a tripwire next
+  to the new pins goes red the day it is fixed. Two rows therefore still differ
+  between the execution and renderer paths, each recorded with its owning issue:
+  the empty envelope (objectui#3850 owns the renderer half's scope ruling) and the
+  `${…}` spelling (objectui#3871).
+
+- 4bc6c23: Converge dashboard widget `compareTo` on the executor's `{ kind, dimension? }` contract, and make the dataset path actually render a comparison
+
+  `CompareToConfig` was a three-branch union (`'previousPeriod' | 'previousYear' | { offset }`). `@objectstack/spec` collapsed it to the shape the analytics executor already implements — `DatasetCompareTo`, a plain strict object `{ kind: 'previousPeriod' | 'previousYear'; dimension?: string }` (objectstack#5011) — so this renderer now reads that one shape:
+
+  - `shiftFilterByCompareTo` / `compareToTrendLabelKey` dispatch on `compareTo.kind`. The `{ offset }` duration shift is gone: `{ offset: '1y' }` is `kind: 'previousYear'`, while `'7d'` / `'1M'` have no faithful target and are restated by the author on the widget's own `filter` plus `kind: 'previousPeriod'`. No trend label key is retired — the offset arm resolved to `vsPreviousPeriod`, which survives as the `previousPeriod` fallback.
+  - `DatasetWidget` no longer discards part of `compareTo`. It used to forward only the object form because the two string forms had no meaning downstream; with one shape there is nothing to discard, and a stale string is now invalid metadata rejected where it is authored rather than silently reinterpreted here.
+  - **The comparison now actually runs on the dataset path.** A widget states its window in its own `filter` (a date macro, or the dashboard date-range filter merged in), but the executor shifts a `timeDimensions` entry carrying a `dateRange` — so a dataset widget asking for a comparison got "compareTo needs a dated window to shift" and rendered none. When (and only when) a comparison is requested, the resolved filter's bounded date windows are lowered into `selection.timeDimensions[].dateRange` and moved out of `runtimeFilter` (a copy left behind would intersect the shifted window with the current one and empty every comparison column). Which dimension gets shifted stays the executor's decision: every window found is lowered under the name the author wrote, and zero or two candidates surfaces the executor's own error, listing them.
+  - The `<measure>__compare` columns that come back are now shown: a delta + window label on KPI widgets, a comparison column on tables, and a `variant: 'comparison'` overlay series on charts — the same treatment and the same `dashboard.trend.*` labels the inline object-provider widgets already use.
+
+- e06810e: `PageComponentSchema.dataSource` is now consumed instead of discarded — a
+  `list-view` page component can reference a **saved view by name** for the first
+  time, and writing the binding no longer breaks the component
+  (objectstack#5576).
+
+  The spec declares a per-element data binding on every page component —
+  `dataSource: { object, view?, filter?, sort?, limit? }` — and objectui read none
+  of it. `ViewDataProvider.resolveElementDataSource` forwarded
+  `filter`/`sort`/`limit` and dropped `view` entirely, and had no caller outside its
+  own test; nothing mapped `object` onto the `objectName` a list actually reads. So
+  "reference a saved view by name" was published, validated and inert, and every
+  page that wanted a saved view's columns/filter/sort had to inline a second copy of
+  them — the drift the binding exists to remove.
+
+  Writing the binding also **broke** the block, for a reason unrelated to `view`:
+  `SchemaRenderer` spread the schema's `dataSource` metadata onto the component as a
+  React prop, and that is the prop name the host uses to inject the data-source
+  ADAPTER. The plain `{ object, view }` object shadowed the adapter, so the first
+  `dataSource.find(…)` threw `dataSource.find is not a function` and `list-view`
+  rendered "Couldn't load records" — a spec-compliant component failing next to
+  identical ones that omitted the binding.
+
+  - `@object-ui/react` — `SchemaRenderer` no longer spreads `schema.dataSource` as a
+    prop (it is metadata, like `visibleWhen`); renderers read it off `schema`. An
+    explicit React `dataSource` prop is unaffected. New
+    `useElementDataSource(schema, dataSource?)` hook resolves a binding, fetching
+    the named saved view from the object definition's `listViews` and the metadata
+    overlay's `listViews()`.
+  - `@object-ui/core` — new `isElementDataSourceConfig` / `collectSavedViews` /
+    `resolveSavedView` / `composeElementDataSource`, and `resolveElementDataSource`
+    now honours `view` through an optional `DataFetcher.fetchViews`, reporting an
+    unresolvable view as an error instead of silently returning every record.
+    `resolveViewId` moved here from `@object-ui/app-shell` (re-exported there) so
+    one matcher serves both the object page and a page component.
+  - `@object-ui/plugin-list` — `list-view` maps the binding onto the props
+    `ListView` reads. `dataSource.*` keys are authoritative, view-supplied values
+    are a baseline the component's own keys override, and `filter` AND-combines at
+    every level (the spec calls the binding's filter "additional criteria"), so a
+    binding can narrow a saved view but never widen it. A `view` name that does not
+    resolve renders a configuration error naming the object's actual views and
+    issues no query — it never falls back to the object's default view, because that
+    turns a typo into a silently wider answer.
+
+- ab3ad4f: An empty predicate is no longer a declared gate anywhere (objectui#3850, objectui#3862)
+
+  "Is a gate DECLARED on this key — is there a condition to reach a verdict on?" was
+  answered three times in this repo, with three different scopes, and the widest
+  answers sat on `disabled`, where the mistake is not benign:
+
+  - `hasDeclaredVisibilityGate` (the action face) asked `!= null && !== ''`, so every
+    OBJECT counted — including `{ dialect: 'cel', source: '' }`. That envelope is not
+    a hand-written curiosity: `@objectstack/spec`'s `ExpressionInputSchema` normalizes
+    every authored predicate into one, so "the author left the predicate empty"
+    compiles to exactly it. The verdict path normalized the same value back to
+    `undefined`, and `evaluateCondition(undefined)` answers `true` — "no condition, so
+    visible/enabled". On `visible` that `true` means SHOW, so the two mistakes
+    cancelled; on `disabled` it means GREY, so they compounded: a button disabled
+    forever that no author asked to disable (objectui#3850, the residue objectui#3842
+    left behind).
+  - `SchemaRenderer` asked `disabled !== undefined` inline, one notch wider again, so
+    `disabled: null` greyed out too — on the GENERIC rendering path, since that block
+    runs for every node type, and not as an internal flag either: `_disabled` is
+    forwarded to the component as a real `disabled` prop (objectui#3862).
+  - `ActionRunner`'s execution gates asked "does this normalize to something
+    evaluable?" — the scope that turned out to be right (objectui#3848 / objectui#3872).
+
+  There is now ONE definition, `hasDeclaredPredicate`, exported from
+  `@object-ui/core` (`evaluator/declaredPredicate.ts`, beside the `toPredicateInput`
+  normalizer it is derived from): a gate is declared when normalization still leaves a
+  condition to evaluate. `''`, a whitespace-only string, an empty-`source` envelope
+  and any non-predicate value (`0`, `{}`) are NOT declared; `false` IS (a verdict is
+  not a missing gate — objectui#3812). `hasDeclaredVisibilityGate` keeps its name as a
+  re-export of it, so the five member-action renderer call sites, `DeclaredActionsBar`
+  and `record-quick-actions` are unchanged and inherit the scope;
+  `SchemaRenderer`'s `disabled` / `disabledOn` chain and `ActionRunner`'s two gates
+  read the same function. No consumer got a local "and also check for empty" test —
+  that fourth dialect is what objectui#3842 / objectui#3849 spent two PRs merging away.
+
+  Measured behaviour change, `action:button` and the generic path, before → after:
+
+  | value                                                     | `visible`      | `disabled` | `enabled` | `SchemaRenderer` `disabled` prop |
+  | --------------------------------------------------------- | -------------- | ---------- | --------- | -------------------------------- |
+  | `''`                                                      | shown → shown  | on → on    | on → on   | forwarded → absent               |
+  | `null`                                                    | shown → shown  | on → on    | on → on   | forwarded → absent               |
+  | `{ dialect: 'cel', source: '' }`                          | shown → shown  | GREY → on  | on → on   | forwarded → absent               |
+  | `{ source: '' }`                                          | shown → shown  | GREY → on  | on → on   | forwarded → absent               |
+  | `'   '` (whitespace)                                      | HIDDEN → shown | on → on    | GREY → on | forwarded → absent               |
+  | `0` / `{}` (not predicates)                               | shown → shown  | GREY → on  | on → on   | forwarded → absent               |
+  | `true` / `false` / bare CEL / `${…}` / non-empty envelope | unchanged      | unchanged  | unchanged | unchanged                        |
+
+  Every row moves toward "there is no gate here", never away from it, and no value
+  that HAS a verdict changes it — the verdict is still read from the raw value, only
+  the gate in front of it narrowed. Two rows are behaviour changes rather than the
+  equivalence the ruling expected, and are pinned as such: the whitespace string moves
+  on `visible` / `enabled` (it used to normalize to `'${   }'`, which evaluates falsy,
+  so a predicate that says nothing HID the action from everyone), and non-predicate
+  junk stops greying controls out (fail-open, the posture `ActionRunner` already
+  committed to).
+
+  One blank spelling is knowingly still outside the scope: an envelope whose `source`
+  is blank but not EMPTY (`{ dialect: 'cel', source: '   ' }`) — the normalizer folds a
+  `source` of `''` and does not trim, so the string spelling of a blank predicate is
+  trimmed and the envelope spelling is not, and `disabled` still greys out for that one
+  value. The ruling enumerated three empty spellings; this is a fourth, measured and
+  filed as objectui#3960 rather than widened in here.
+
+  One chain is deliberately untouched: `SchemaRenderer`'s `visible` / `visibleWhen` /
+  `visibleOn` / `visibility` / `hidden` / `hiddenOn` legs keep `!== undefined`, because
+  narrowing them would change ALIAS PRECEDENCE, not just emptiness. The `hidden` legs
+  are not negated and therefore carry this same defect with the polarity that makes the
+  node vanish — measured, out of this ruling's scope, filed as objectui#3955.
+
+- c2fd122: fix(actions): forward `bodyShape` end-to-end so a declared body wrap is honoured
+
+  Sibling of the `bodyExtra` fix, same failure shape one key over. `bodyShape` is
+  the spec's body-WRAPPING declaration for a `type: 'api'` action — `'flat'` (the
+  default) or `{ wrap: key }` to nest the collected params under `key`, the shape
+  better-auth's `organization/update` needs. The console `apiHandler` read it
+  unconditionally while **no** action renderer forwarded it, so an author who
+  declared `bodyShape: { wrap: 'data' }` on an `action:button` / `:group` / `:icon`
+  / `:menu` action got a FLAT body on the wire: the endpoint received the params at
+  the top level, and the declaration read as honoured because it parsed and
+  published.
+
+  The four declared-action renderers now forward the key, and `ActionSchema`
+  declares it (typed by derivation from the spec, so the union cannot drift).
+  `ActionRunner.executeAPI` — the fallback path taken when no host registered an
+  `api` handler — now reads it too, closing a second asymmetry in which the same
+  action changed body shape depending on which host executed it. The wrap covers
+  the collected params only; `bodyExtra` and other top-level keys stay flat, which
+  is the spec's own wording for the key and what both console read-sites already
+  did.
+
+  `element:button` deliberately does **not** forward it: its whitelist mirrors
+  spec's `InlineActionSchema` pick list field for field, and that pick list does
+  not include `bodyShape` — it is not inline vocabulary.
+
+- 1d723e3: fix(core): stop re-wrapping an already-`${…}` predicate, so action-face `visible` / `disabled` finally honour it (objectui#3871)
+
+  `toPredicateInput` — the one normalizer every action surface and the action
+  engine share — wrapped **every** string as `${string}`, assuming a bare
+  expression. But `${…}` is a spelling this repo documents for a predicate
+  (AGENTS.md §4) and one the normalizer's own output type lists as valid, so an
+  already-normalized value was wrapped a second time: `'${x}'` became `'${${x}}'`,
+  which cannot match the evaluator's single-template fast path and does not parse.
+  The author's expression then decided nothing, and which constant came back
+  depended on the caller's error policy:
+
+  - **fail-soft** legs (every `disabled` / `enabled` leg; `visible` on
+    `action:icon`, `action:group` and the related-list toolbar) got the unparsed
+    string back, so `Boolean(…)` was a constant `true`: `disabled: '${…}'` greyed
+    the action out permanently, `visible: '${…}'` showed one the author had gated
+    away, and `enabled: '${…}'` never disabled anything.
+  - **fail-closed** legs (`throwOnError: true` — `visible` on `action:button`,
+    `action:bar`, `action:menu`, `DeclaredActionsBar`, and
+    `ActionEngine.getActionsForLocation`) got a **throw**, which each site turns
+    into "hidden": an action gated with a template predicate was invisible even
+    while its gate held, and the fail-closed warning blamed the author's
+    expression.
+
+  A string that already carries `${` is now returned untouched (the same guard
+  covers the envelope branch, where an unwrapped `source` reaches the identical
+  wrap), which makes the normalizer idempotent. Every affected surface goes from a
+  constant verdict to the predicate's real one — converging the action face with
+  `SchemaRenderer` and `page:header`, which read the raw value and have always
+  been right about this spelling (objectui#3314's shape). Bare expressions and
+  `{ dialect: 'cel' }` envelopes are untouched.
+
+  `ActionRunner`'s two execution gates already read the raw value and are
+  unchanged; the objectui#3871 tripwires they carried have been replaced by pins
+  of the now-converged behaviour.
+
+  Whether `${…}` should be _authorable_ on an action predicate at all is a
+  separate, spec-side question (`@objectstack/spec`'s `PredicateInput` models a
+  bare string and a dialect envelope): if it is to be rejected, that belongs in
+  publish-time validation, not in a consumer that silently invents a verdict.
+
+- 0109f54: Blank predicates and non-predicate values are no longer gates, at the last three entries that still judged them (objectui#3955, objectui#3957, objectui#3960)
+
+  objectui#3850 sank "is a predicate gate DECLARED here?" into one definition,
+  `@object-ui/core`'s `hasDeclaredPredicate`. Three places were left out of that
+  ruling's placement clause, each with the same shape of defect: the evaluator's
+  single default for "there is nothing here to evaluate" is `true`, meaning
+  _visible/enabled_, and wherever a too-wide "declared" test hands it an empty
+  predicate on an INVERTED key, that `true` turns a control off for a value the
+  metadata never used to say anything.
+
+  **`SchemaRenderer`'s `hidden` / `hiddenOn` legs (objectui#3955)** asked
+  `!== undefined` and did NOT negate the verdict, so an empty predicate meant HIDE
+  and the node disappeared — on the generic rendering path, since that block runs
+  for every schema type. Harder to diagnose than the `disabled` twin objectui#3862
+  fixed: a greyed-out control is still on screen, while a node that never rendered
+  is indistinguishable from metadata that meant to hide it. Both legs now read the
+  shared definition.
+
+  **The "blank" criterion now covers the envelope spelling (objectui#3960).** The
+  definition trimmed a whitespace-only STRING and not an envelope's whitespace-only
+  `source`, because `toPredicateInput` folds a `source` of `''` and does not trim.
+  So `{ dialect: 'cel', source: '   ' }` was a declared gate whose verdict came from
+  core's own CEL entry calling that exact value "no predicate" (`if (!source.trim())
+return true`) — `disabled` greyed out forever and `ActionRunner.execute` answered
+  `{ success: false, error: 'Action is disabled' }` with the handler never invoked.
+  Blankness is now decided once for both spellings, at the definition. The
+  NORMALIZER's contract is deliberately unchanged: "what shape does the evaluator
+  accept" is not the same question as "is there a condition", and moving the trim
+  there would have flipped verdicts for every
+  `useCondition(toPredicateInput(…))` call site, including container-level `visible`
+  reads that never asked this question at all.
+
+  **`ActionEngine.getActionsForLocation`'s `visible` filter (objectui#3957)** was the
+  last consumer answering the question with a range of its own — three empty
+  spellings folded by hand, everything else coerced with `Boolean(raw)`. It now reads
+  the shared definition and the coercion branch is gone, so one value no longer gets
+  two answers depending on whether an action was surfaced by the engine or rendered
+  standalone (the invariant objectui#3314 established). Its fail-CLOSED posture on a
+  predicate that THROWS is untouched (`throwOnError: true` + `warnHiddenPredicate`):
+  "the predicate faulted" and "there is no predicate" are different facts.
+
+  Behaviour changes, before → after. Observation-class: each needs an author to write
+  an empty/blank predicate or a non-predicate value, and there is no known user path
+  today.
+
+  | value                                                       | `ActionEngine` `visible` | `SchemaRenderer` `hidden` | `disabled` (action face + generic path) | `ActionRunner.execute` `disabled` |
+  | ----------------------------------------------------------- | ------------------------ | ------------------------- | --------------------------------------- | --------------------------------- |
+  | `''` / `null`                                               | shown → shown            | HIDDEN → rendered         | unchanged                               | unchanged                         |
+  | `'   '` (blank text)                                        | HIDDEN → shown           | HIDDEN → rendered         | unchanged                               | unchanged                         |
+  | `0` / `NaN`                                                 | HIDDEN → shown           | HIDDEN → rendered         | unchanged                               | unchanged                         |
+  | `{}` / `[]`                                                 | shown → shown            | HIDDEN → rendered         | unchanged                               | unchanged                         |
+  | `{ dialect: 'cel', source: '' }`                            | shown → shown            | HIDDEN → rendered         | unchanged                               | unchanged                         |
+  | `{ dialect: 'cel', source: '   ' }`                         | shown → shown            | HIDDEN → rendered         | GREY → on                               | refused → runs                    |
+  | `{ source: '   ' }` (no dialect)                            | HIDDEN → shown           | HIDDEN → rendered         | GREY → on                               | refused → runs                    |
+  | `true` / `false` / bare CEL / `${…}` / a non-blank envelope | unchanged                | unchanged                 | unchanged                               | unchanged                         |
+
+  Every row moves toward "there is no gate here", never away from it, and no value
+  that HAS a verdict changes it — a declared `false` is still a verdict, not a
+  missing gate (objectui#3812), and blankness is `trim()`, not "short": `{ dialect:
+'cel', source: ' x ' }` is a predicate. One alias precedence changes with the
+  `hidden` legs and is pinned rather than claimed as an equivalence: an undeclared
+  `hidden` no longer short-circuits the chain, so a declared `hiddenOn` is finally
+  consulted.
+
+  `SchemaRenderer`'s four `visible*` legs keep `!== undefined` deliberately, as
+  objectui#3850 ruled: their `true` is negated, so an empty predicate already lands
+  on "shown", and narrowing them would change alias precedence rather than fix
+  anything.
+
+- 7e5bb5d: fix(actions): forward `bodyExtra` end-to-end through the action chain
+
+  An action's static request body (`bodyExtra`) was dropped one hop before the
+  `ActionRunner`: every action renderer forwards an explicit whitelist of keys, and
+  none of them listed `bodyExtra`. Since `@objectstack/spec` 17 made it the only way
+  a `type: 'api'` action can carry a payload (`params` keeps its single meaning as
+  the parameter definition array), and the ADR-0087
+  `inline-action-api-params-to-body-extra` conversion rewrites older object-form
+  `params` pages onto it at load, a previously-working published page validated,
+  published and then POSTed an empty body.
+
+  `element:button`, `action:button`, `action:group`, `action:icon` and `action:menu`
+  now forward the key; `ActionRunner.executeAPI` merges it into the request body
+  **last** (so a constant always overrides a same-named user param, matching the
+  console `apiHandler`); `ActionSchema` declares it; and a non-array `params` on a
+  `type: 'api'` action keeps working for one version window with a dev-mode
+  deprecation warning naming `bodyExtra`.
+
+- fbc23e0: Action params that inherit a field's options now keep the keys that field declared
+
+  A field-backed action param (`{ field: 'tier' }`) had its inherited option list
+  rebuilt entry by entry as `{ label, value }`, which silently dropped every other
+  key the field's options declared — most consequentially the per-option
+  `visibleWhen` predicate (ADR-0058). A select field whose options narrow by
+  predicate in an object form therefore offered the FULL list in an action dialog,
+  including the entries the predicate exists to hide, with no diagnostic on either
+  side; `color` / `icon` / `disabled` were lost the same way. Options authored
+  inline on the param were never affected — they always passed through verbatim,
+  which is the asymmetry this restores.
+
+  The resolver now preserves each inherited entry and only does its two real jobs:
+  expanding bare strings into label/value pairs and translating the label through
+  `fieldOptionLabel`. The option widgets already filter on `visibleWhen`, so a
+  role-gated option (`'admin' in current_user.positions`) inherited by a dialog
+  param now narrows the offered set and clears a seeded value the predicate hides.
+
+  `ActionParamDef.options` (`@object-ui/core`) and the resolver's `RawActionParam`
+  are widened to match: `ActionParamOption` names the two keys the param layer
+  reads and carries the rest of a field's option vocabulary through.
+
+- 6bb454a: `evalRowPredicate`: the fail-closed report now names the engine's failure reason, and the ROW always wins over host scope (objectui#3792, objectui#3796)
+
+  Two defects in one function, `packages/core/src/evaluator/listConditional.ts`,
+  shared by every surface that gates on a row predicate: the row kebab, the bulk
+  selection bar, kanban conditional formatting, and — since objectui#3521 — the
+  record page header.
+
+  **The safest path said the least (objectui#3792).** `evalRowPredicate` has two
+  diagnostic routes, and their information content was inverted. The single-eval
+  fast route lets the canonical helper warn, so it prints the engine's own reason
+  (`Reason: [runtime] No such key: owner_id`). The `warnOnError: true` route — the
+  fail-CLOSED one, taken by every caller that makes a button disappear — runs
+  `evalFieldPredicate` twice with `{ warn: false }` to tell a fault from a genuine
+  `false`, and that silence discarded the reason along with the duplicate warning.
+  So the more decisively a surface hid a control, the less it said about why: the
+  console line named the predicate but not the defect, and `No such key: owner_id`
+  or `no such overload: string == null` is usually the whole answer.
+
+  `FieldPredicateDiagnostic` gains an optional `onFault(reason)` passback:
+  `evalFieldPredicate` hands out the engine's verbatim text (kind tag, message and
+  source excerpt — the exact string it prints after `Reason:`) even when its own
+  warning is suppressed. It fires per fault, deliberately independent of the
+  once-per-predicate warning dedupe, so a caller doing its own warn-once
+  bookkeeping keeps control of it; the verdict is unaffected, and callers that pass
+  nothing are unchanged. `evalRowPredicate` threads that reason into its labelled
+  warning, and the legacy-dialect route does the same with the message its engine
+  throws (`Reason: [legacy] …`), so both dialect paths report a fault the same way.
+  Warn-once semantics are unchanged — the reason is deliberately not part of the
+  dedupe key.
+
+  **Wording: not a list function, and not for a long time.** The same message
+  called every caller a "**list** conditional predicate". A hidden button on a
+  record page header reporting "a list conditional predicate" sends its author to
+  the list view to look for a control that was never there. Both messages this
+  module emits (evaluation failure and the legacy-dialect deprecation) now read
+  "conditional predicate".
+
+  **The row is the subject — on both dialect paths (objectui#3796).** The scope
+  merge pinned `data` after the host-scope spread but not `record`, leaving
+  `record` to each engine's own binding — and the two engines disagreed. The legacy
+  evaluator re-pinned `record` to the row (row won); the CEL engine takes its
+  `extra` bag over its `record` binding, so a host scope carrying a `record` key
+  won there instead. One function, one predicate text, two subjects — selected by
+  whether the string happens to contain `===` or `${…}`, the dialect-routing
+  markers, which no author picks deliberately. `record` is now pinned after the
+  spread exactly as `data` is, which fixes both paths at the merge site rather than
+  relying on either engine's precedence.
+
+  No host injects a `record` key today — `ExpressionProvider` binds
+  `current_user` / `user` / `ctx` / `os` / `app` / `data` / `features` — so nothing
+  observable changes for existing apps; this closes the edge before a host adds one
+  (`ctx.record` already exists, which is exactly how it would arrive). A row FIELD
+  named `record` is likewise no longer able to become the row root; it stays
+  addressable as `data.record`.
+
+  Shipped as a patch: no new exported symbol, one optional field added to an
+  already-exported options interface, and no existing call signature changed.
+
+- 523be48: `object-timeline` and `record:line_items` now apply the filter / sort / row cap they are given, so a named `dataSource.view` narrows them instead of contributing nothing
+
+  These were the two residual gaps in objectstack#7121's per-block coverage table
+  (objectstack#7137). Both blocks are object-bound lists, both accepted the spec's
+  per-element `dataSource` binding, and neither had a read site for `filter` or
+  `sort` anywhere in its fetch:
+
+  - `object-timeline`'s entire query was
+    `find(objectName, { options: { $top: 100 } })`.
+  - `record:line_items`' was the parent FK plus a fixed `$top: 500`.
+
+  So `dataSource: { object, view: 'hot' }` resolved the view — a typo still reported
+  a configuration error, it never degraded into an unfiltered query — and then
+  dropped everything the view said. The rendered rows could be **wider than the view
+  they named**, silently, which is exactly the class of mistake AI-authored metadata
+  hides best: the page looks like it works. objectstack#7121 deliberately left the
+  keys unmapped and recorded the gap rather than writing composed values onto schema
+  keys nobody read; this closes it at the fetch instead.
+
+  What each block now reads:
+
+  - **`object-timeline`** — `$filter: schema.filter`,
+    `$orderby: convertSortToQueryParams(schema.sort)`, and
+    `$top: schema.limit ?? 100`, matching the form `object-gantt` / `object-map` /
+    `object-calendar` already use. Its registry mapping gains
+    `filter` / `sort` / `limit`; `columns` stays unmapped, because a timeline
+    projects the fields its `timeline` config names.
+  - **`record:line_items`** — the composed filter is **AND-combined** with the parent
+    relationship condition through `mergeFilterNodes`, never substituted for it, the
+    same way `record:related_list` composes its own since objectstack#7118: a
+    line-items panel is always scoped to the record it sits on, so an _additional_
+    criterion can only narrow this parent's children and can never surface another
+    parent's rows. `sort` becomes the load order and `limit` the row cap (default
+    500). `columns` stays unmapped — here they are `GridColumn[]` driving an editable
+    grid, not a field-name projection, so a view's column list would be the wrong
+    _shape_ rather than merely a wider answer.
+
+  **Behaviour change worth knowing about:** the timeline's default window is now a
+  real cap. `{ options: { $top: 100 } }` nested the limit under a key that is not a
+  `QueryParams` field and that no adapter in this repo reads (`convertQueryParams`
+  maps `params.$top`), so the intended window never reached the wire and a timeline
+  over a large object fetched whatever the server chose to return. It is now sent as
+  `$top`, and authorable via `limit` or a view's `pagination.pageSize`.
+
+  `@object-ui/core` gains `convertSortToQueryParams`, the sort→`$orderby` lowering
+  the three sibling blocks each inline privately. It is shared rather than copied
+  twice more, and is slightly more faithful to the declared contract than those
+  copies: a sort entry that omits `order` means ascending instead of being dropped
+  (the string spelling `"amount"` already meant ascending in the same copies), and
+  nothing orderable yields `undefined` rather than a truthy empty `{}`. Migrating
+  the three existing copies onto it is objectstack#7148 and is not done here.
+
+- Updated dependencies [d229dfa]
+- Updated dependencies [c2fd122]
+- Updated dependencies [48132f7]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/types@17.4.0
+
 ## 17.3.0
 
 ### Minor Changes
@@ -2641,6 +3295,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   project `health`) painted its categories from the generic `--chart-1..5`
   palette — the same gap the chart view (`object-chart`) had before #1932. It now
   resolves the dimension field's option colors (using the dataset's base `object`
+
   - dimension→field map the query already returns) and threads them to the
     renderer as a per-category `categoryColors` map, so health green/red/yellow
     paints semantically.
@@ -2883,6 +3538,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
 - 991b62d: Add `compareTo` field to dashboard widgets for period-over-period
   comparison. Supports `'previousPeriod'`, `'previousYear'`, and
   `{ offset: '7d' | '4w' | '1M' | '1y' }`.
+
   - **Metric / gauge widgets** now compute a delta percentage when `compareTo`
     is set and surface it as a derived `trend` (auto-labelled via
     `dashboard.trend.vsLast*` i18n keys sniffed from the filter macros).
@@ -2985,6 +3641,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
 
   Extract the bulk-vs-per-row decision into a reusable
   `executeBulkBatch(input, ops)` helper in `@object-ui/core`:
+
   - Single decision tree shared by both update and delete fast paths.
   - Bulk success → no per-row pass.
   - Bulk partial-count → aggregate batch error.
@@ -3029,6 +3686,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   multi-user editing scenarios.
 
   **`@object-ui/data-objectstack`**
+
   - Exports `ConcurrentUpdateError` (carries `currentVersion` and
     `currentRecord`) and `isConcurrentUpdateError()` type guard.
   - `update()` / `delete()` accept `opts.ifMatch` and forward it via the
@@ -3041,6 +3699,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
     from conflicts without parsing the wire format.
 
   **`@object-ui/core`**
+
   - `ApiDataSource.update()` and `.delete()` accept `opts.ifMatch` and emit
     the `If-Match` HTTP header.
 
@@ -3176,6 +3835,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   detail view (`TypeError: titleFormat.replace is not a function`) and printed
   `Failed to evaluate expression: ${[object Object]}` for every action visibility
   predicate.
+
   - `@object-ui/core`: `ExpressionEvaluator.evaluate` / `evaluateCondition` now
     unwrap Expression envelopes transparently.
   - `@object-ui/react`: new `toPredicateInput()` helper to safely normalize
@@ -3190,6 +3850,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
     the new `{ source }` envelope.
 
   All changes are backward-compatible — legacy bare strings continue to work.
+
   - @object-ui/types@4.0.7
 
 ## 4.0.6
@@ -3368,6 +4029,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
 - New plugin-object and ObjectQL SDK updates
 
   **Added:**
+
   - New Plugin: @object-ui/plugin-object - ObjectQL plugin for automatic table and form generation
     - ObjectTable: Auto-generates tables from ObjectQL object schemas
     - ObjectForm: Auto-generates forms from ObjectQL object schemas with create/edit/view modes
@@ -3376,6 +4038,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   - ObjectQL Integration: Enhanced ObjectQLDataSource with getObjectSchema() method using MetadataApiClient
 
   **Changed:**
+
   - Updated @objectql/sdk from ^1.8.3 to ^1.9.1
   - Updated @objectql/types from ^1.8.3 to ^1.9.1
 
@@ -3389,6 +4052,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
 - Patch release: Add automated changeset workflow and CI/CD improvements
 
   This release includes infrastructure improvements:
+
   - Added changeset-based version management
   - Enhanced CI/CD workflows with GitHub Actions
   - Improved documentation for contributing and releasing

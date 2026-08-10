@@ -1,9 +1,0 @@
----
-'@object-ui/app-shell': patch
----
-
-Match the built-in pseudo-routes on whole path segments, so a mistyped app name can no longer render a different app (objectui#3638).
-
-`AppContent` decides whether a URL is a built-in pseudo-route (`create-app`, `system/*`, `metadata/*`, `setup`) before it decides which app to render, and two of those switches were substring tests: `pathname.includes('/system')` and `pathname.includes('/metadata')`. Both are true for any segment that merely *starts* with the word — `system_log`, `system_setting`, `systems`, `metadata_import`, `metadata-export`. `isSpecialRoute` feeds `requestedAppMissing`, so visiting `/apps/<mistyped-app>/system_log` marked the URL as a pseudo-route, suppressed the "App not available" guard, fell back to the default app and rendered **that** app's shell with `system_log` taken as its object name — the exact "must NOT silently render a DIFFERENT app" case the fallback's own comment exists to prevent, with no indication that the requested app does not exist.
-
-The two flags now test path *segments* (`pathname.split('/').includes('system' | 'metadata')`); `isCreateAppRoute`'s `endsWith('/create-app')` is unchanged. Every real pseudo-route spells the word as a whole segment — `system/marketplace{,/installed,/:packageId}`, the host's `system/{apps,profile,approvals,ai-approvals,audit-log,settings,objects,metadata/…}`, `metadata/{,_diagnostics,:type,…}` and the legacy `component/metadata/{directory,resource/*}` aliases — so all of them stay special, including in the zero-app branch that keys on these flags directly (objectui#3590 / #3610). Knock-on, in a zero-app console only: a `system`-prefixed near-miss such as `/apps/setup/system_log` now reaches the same "No Apps Configured" screen every other unresolved URL there reaches, instead of the pseudo-route branch's "Page not found".

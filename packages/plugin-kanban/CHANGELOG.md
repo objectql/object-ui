@@ -1,5 +1,128 @@
 # @object-ui/plugin-kanban
 
+## 17.4.0
+
+### Patch Changes
+
+- 5bfaabd: `PageComponentSchema.dataSource` now reaches every object-bound block, not just
+  `list-view` — and `element:record_picker` stops discarding `view`
+  (objectstack#6953).
+
+  objectstack#5576 wired the spec's per-element data binding
+  (`dataSource: { object, view?, filter?, sort?, limit? }`) to `list-view` and left
+  the same declaration inert on every other page component. Two gaps remained, and
+  both were silent:
+
+  - **`element:record_picker` read four of the five keys and dropped `view`.** So
+    `dataSource: { object: 'account', view: 'hot' }` — the spec's own example —
+    built a picker over EVERY account instead of the rows the saved view selects.
+    Nothing threw and nothing rendered an error; the option list was simply wider
+    than what was authored, which also means a user could select a record the page
+    said was out of scope.
+  - **`object-grid` / `object-form` / `object-kanban` / `object-calendar` /
+    `object-chart` / `object-metric` / `record:related_list` read none of it.**
+    Each gates its fetch on its own `objectName`, and nothing mapped
+    `dataSource.object` onto it, so a page written the way the spec documents
+    rendered an empty grid / a field-less form / a board with no cards / an empty
+    month / an empty chart / a static metric number — with no request and no
+    diagnostic anywhere. Spec-valid metadata rendering nothing is the
+    objectstack#4413 shape.
+
+  Composition follows objectstack#5576's landed semantics unchanged on every block:
+  a named saved view supplies the baseline, a key written on the component itself
+  overrides it, an explicit binding key overrides both, `filter` AND-combines
+  ("additional filter criteria" — a binding can narrow a view, never widen it), and
+  a `view` name that does not resolve renders a configuration error instead of
+  degrading to the object's full scope.
+
+  - `@object-ui/react` — new `useElementDataSourceSchema(schema, mapping, dataSource?)`
+    and `ElementDataSourceGate` apply a resolved binding to the schema keys a given
+    block reads, plus `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel`
+    for the two non-final states. One precedence table for all blocks rather than
+    one copy per block — that copy is how "additional filter criteria" would have
+    become two dialects.
+  - A mapping names **only** keys its block genuinely reads. A composed value
+    written onto a key the block ignores would be accepted and dropped, which is
+    the defect being removed, one layer deeper — so a kanban's swimlane `columns`
+    never receive a view's field list, and a block with no row cap leaves `limit`
+    unmapped. The per-block coverage table, including two residual gaps that are
+    named rather than papered over, is in `content/docs/guide/data-source.md`.
+
+  No behaviour changes for a block that carries no `dataSource`: the binding-free
+  path returns the schema by reference, so nothing remounts and nothing refetches.
+
+- Updated dependencies [794c497]
+- Updated dependencies [993336f]
+- Updated dependencies [f0a625a]
+- Updated dependencies [b5980f4]
+- Updated dependencies [8aad9fd]
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [0186cdc]
+- Updated dependencies [7864f03]
+- Updated dependencies [ea41a59]
+- Updated dependencies [0cbdca8]
+- Updated dependencies [d229dfa]
+- Updated dependencies [ecae400]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [d3e738a]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [f5f8744]
+- Updated dependencies [7ed3360]
+- Updated dependencies [69becd2]
+- Updated dependencies [5e52495]
+- Updated dependencies [0fa5e4d]
+- Updated dependencies [b750823]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [65bb513]
+- Updated dependencies [c97a45e]
+- Updated dependencies [b19162d]
+- Updated dependencies [c2fd122]
+- Updated dependencies [1bd6faa]
+- Updated dependencies [ac2139c]
+- Updated dependencies [b14ab3a]
+- Updated dependencies [e24d767]
+- Updated dependencies [7b3e048]
+- Updated dependencies [8c60819]
+- Updated dependencies [aca561a]
+- Updated dependencies [e64a52e]
+- Updated dependencies [844d17f]
+- Updated dependencies [d8a0be4]
+- Updated dependencies [48132f7]
+- Updated dependencies [4dcd52a]
+- Updated dependencies [42ae5c6]
+- Updated dependencies [0ef9dfd]
+- Updated dependencies [f4b97c8]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [6d762da]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [4178d5a]
+- Updated dependencies [54233b1]
+- Updated dependencies [c2ecbae]
+- Updated dependencies [acc34c5]
+- Updated dependencies [c4768a7]
+- Updated dependencies [f9faa7d]
+- Updated dependencies [97b63d7]
+- Updated dependencies [6bb454a]
+- Updated dependencies [11c1e71]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [33526fd]
+- Updated dependencies [32413ec]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/components@17.4.0
+  - @object-ui/plugin-detail@17.4.0
+  - @object-ui/react@17.4.0
+  - @object-ui/core@17.4.0
+  - @object-ui/fields@17.4.0
+  - @object-ui/i18n@17.4.0
+  - @object-ui/types@17.4.0
+
 ## 17.3.0
 
 ### Patch Changes
@@ -1052,6 +1175,7 @@
   - Stage chevron (`record:path`): bump completed-stage contrast (emerald-800 text on emerald-500/15, was 700 on /10) and future-stage text from `foreground/70` to `foreground/85` for legibility.
   - i18n: add `notifications.emptyUnread`, `notifications.filterUnread`, `notifications.filterAll` (en + zh) so the InboxPopover Unread/All sub-filter renders in the active locale.
 - 5425608: CRM UX polish pass — calmer enterprise look across detail + kanban.
+
   - **plugin-kanban**: column headers now use a 2px muted accent stripe with
     neutral foreground titles + a quiet grey count pill instead of full
     rainbow gradient + colored title + colored count. Pipeline boards
@@ -1074,6 +1198,7 @@
     `empty.recordNotFound{,Description}` keys (en + zh).
 
 - d912a60: CRM polish — denser kanban cards, smarter currency, calmer dates.
+
   - **plugin-kanban card body**: drop the verbose `Label: value` two-column
     grid in favor of a single-column dense list (values only, with the
     field label preserved as a hover `title` for accessibility). Pipeline
@@ -1096,6 +1221,7 @@
   platform primitive for "no records / no data" states. Two new props
   keep it flexible enough to absorb the hand-rolled variants that lived
   in `plugin-list`, `plugin-kanban`, and `plugin-dashboard`:
+
   - `showIcon?: boolean` — drops the icon container entirely. Used by the
     kanban board-level empty banner, which is a status banner rather than
     a true empty-state.
@@ -1104,6 +1230,7 @@
     empty state, which uses a large standalone glyph).
 
   Adopters:
+
   - `plugin-list` (`ListView` grid empty-state) — preserves the existing
     large icon, title, message, add-record button and `data-testid`s,
     but delegates the structural markup to `DataEmptyState`.
@@ -1254,6 +1381,7 @@
   chrome on phones: title + 1 primary action, plus content. We were
   shipping ~5 rows of toolbars + chips + tabs above the data. This commit
   hides the desktop-only chrome at the `<sm` breakpoint:
+
   - **ListView**: TabBar (view switcher), UserFilters chip row, quick-filters
     chip row, Sort button, list-scoped Search popover, and the
     (newly-added) mobile-only ViewSettingsPopover gear are all hidden on
@@ -1490,6 +1618,7 @@
   detail view (`TypeError: titleFormat.replace is not a function`) and printed
   `Failed to evaluate expression: ${[object Object]}` for every action visibility
   predicate.
+
   - `@object-ui/core`: `ExpressionEvaluator.evaluate` / `evaluateCondition` now
     unwrap Expression envelopes transparently.
   - `@object-ui/react`: new `toPredicateInput()` helper to safely normalize
@@ -1516,6 +1645,7 @@
 ### Patch Changes
 
 - 1b6dc64: fix: complete Tailwind v3→v4 migration cleanup
+
   - Rename deprecated `flex-shrink-0` → `shrink-0` and `flex-grow-N` →
     `grow-N` (Tailwind v4 dropped the long-form aliases). Affects
     data-table, fields/index, FileField, ChatbotEnhanced,
@@ -1576,6 +1706,7 @@
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.
@@ -1630,24 +1761,29 @@
 - a2d7023: End-user feature batch — forms, designer history, import/export, and PWA offline sync.
 
   **Forms (`@object-ui/fields`, `@object-ui/providers`)**
+
   - `FileField`: native `<input capture="environment">` camera capture for mobile devices, plus a uploading-progress indicator driven by `UploadProvider`.
   - `ImageField`: per-image inline crop/rotate via the lazy-loaded `ImageCropperDialog` (canvas-based, zero new deps).
   - New `UploadProvider` in `@object-ui/providers` with pluggable adapters for S3 and Azure Blob (plus the default object-URL adapter for local previews). XHR-based with progress, abort, and retry.
   - `LookupField`: `lookup.dependsOn: string | string[]` to chain dependent lookups (e.g. State depends on Country); the trigger is gated until parent values are present and the OData `$filter` is built automatically.
 
   **Container-aware widget widths (`@object-ui/components`)**
+
   - New `useResizeObserver(ref)` hook exposing `{ width, height }` of any element. SSR-safe; reads the initial size via `getBoundingClientRect`.
   - `plugin-gantt` and `plugin-kanban` now react to their container size instead of `window.innerWidth`, so they behave correctly inside split panels and dashboards.
 
   **Designer history (`@object-ui/plugin-designer`)**
+
   - `useUndoRedo` (and therefore `useDesignerHistory`) gains `persistKey` + `storage` options to round-trip the undo/redo stack through `sessionStorage`, plus a `clearPersisted()` cleanup helper. Drafts now survive accidental tab refreshes.
   - New `<HistoryPanel>` component renders the timeline visually with one-click jump-to-checkpoint via the new `jumpTo(index)` API.
 
   **Import wizard (`@object-ui/plugin-grid`)**
+
   - Saved column-mapping templates: name, save, re-apply, and delete via a new template bar in the mapping step. Persisted under `objectui:import-templates:${objectName}` (override via `templateStorageKey` / `templateStorage`).
   - Inline validation correction: cells with errors in the preview step are now editable; corrections feed straight into the import without requiring a re-upload, with green-bar status indicators for fixed rows.
 
   **PWA offline sync (`@object-ui/mobile`)**
+
   - New `MemoryOfflineQueue` / `IndexedDbOfflineQueue` (`createOfflineQueue()` picks the best backend) backed by IndexedDB.
   - `createOfflineDataSource(inner, { queue })` wraps any DataSource so mutations issued while offline (or that fail with a network-style error) are queued and replayed in order on reconnect. Includes `replay()`, `drop()`, `clear()`, `pending()`, an `onChange` notifier, and an opt-in `resolveConflict` hook for stale-write conflicts.
   - New `useOfflineSync(source)` hook exposes `{ isOnline, pending, isReplaying, replay, drop, clear }` and auto-replays on the browser's `online` event.
@@ -1656,15 +1792,18 @@
 - b2be122: fix(mobile): round 2 — kanban readability, calendar default view, timeline dot clipping
 
   **Kanban**
+
   - Remove `font-mono` from card titles, descriptions, column headers, and empty-state labels — CRM cards no longer render in a monospace font.
   - Constrain column body height (`max-h-full min-h-0` + `h-full` on the layout root) so `ScrollArea` activates and cards don't bleed past the viewport bottom.
   - Opportunistically derive `description` (e.g. `$60K · Acme Corp · @owner`) and up to two `badges` (priority/severity/industry/rating) in `ObjectKanban` when the schema/source omits them, giving mobile cards more context at a glance.
 
   **Calendar**
+
   - `ObjectCalendar` previously hardcoded `view={schema.defaultView ?? 'month'}`, making the view-selector dropdown a no-op. Wire the `view` state through to the `<Calendar>` prop so user selection is respected.
   - On mobile (viewport < 768 px) coerce `day` defaults to `month` via a synchronous lazy initialiser and a resize/orientation effect — avoids the useless 24-hour empty-hour grid for date-only events.
 
   **Timeline**
+
   - Add `ml-3` to the `<Timeline>` `<ol>` so the `absolute -left-3` marker dots are no longer clipped at the scroll-container edge.
 
 - Updated dependencies [a2d7023]
@@ -1844,6 +1983,7 @@
 - New plugin-object and ObjectQL SDK updates
 
   **Added:**
+
   - New Plugin: @object-ui/plugin-object - ObjectQL plugin for automatic table and form generation
     - ObjectTable: Auto-generates tables from ObjectQL object schemas
     - ObjectForm: Auto-generates forms from ObjectQL object schemas with create/edit/view modes
@@ -1852,6 +1992,7 @@
   - ObjectQL Integration: Enhanced ObjectQLDataSource with getObjectSchema() method using MetadataApiClient
 
   **Changed:**
+
   - Updated @objectql/sdk from ^1.8.3 to ^1.9.1
   - Updated @objectql/types from ^1.8.3 to ^1.9.1
 
@@ -1868,6 +2009,7 @@
 - Patch release: Add automated changeset workflow and CI/CD improvements
 
   This release includes infrastructure improvements:
+
   - Added changeset-based version management
   - Enhanced CI/CD workflows with GitHub Actions
   - Improved documentation for contributing and releasing

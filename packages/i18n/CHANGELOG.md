@@ -1,5 +1,651 @@
 # @object-ui/i18n
 
+## 17.4.0
+
+### Patch Changes
+
+- 7864f03: Backfill the auth family's 54 missing locale keys — `auth` 26 + `oauth` 16 + `acceptInvitation` 12 (objectui#3546, slice three)
+
+  `scripts/check-i18n-call-site-keys.mjs` (objectui#3530) measured 54 keys that a
+  `t()` call site asks for and that **no locale pack defined** — 54 distinct keys at
+  54 call sites across the console's six auth pages. All 54 carried an inline
+  `t(key, { defaultValue: 'English' })`, which is exactly the objectui#3517 class:
+  English rendered correctly, and **all ten languages were stuck on it** for
+  months. Nothing here rendered a raw key — slice one (PR #3583) held those sites.
+
+  What that meant on the page: a `zh` user reaching `/login` and switching to the
+  phone/SMS branch got "Email or phone number", "Get code", "Resend in {seconds}s"
+  and "Sign in with password instead" in English; the whole `/oauth/consent` screen
+  — including the four scope sentences describing what a third-party client is
+  about to be granted — was English-only; so was the `/accept-invitation` page and
+  the device-authorization dead end.
+
+  - **`packages/i18n/src/locales/en.ts`** gains the 54 keys. `oauth.consent.*` and
+    `acceptInvitation.*` are new top-level namespaces; the other 26 extend
+    `auth.login`, `auth.forgotPassword`, `auth.device` and `auth.verifyEmail`.
+    Every one of the 52 keys whose call site carries a **string** `defaultValue`
+    gets that exact string, byte for byte (52/52, script-compared), so the pack
+    path and the inline-default path cannot diverge. The two remaining keys —
+    `oauth.consent.title` / `oauth.consent.request` — have **template**
+    defaultValues, where byte identity is structurally impossible (JS `${…}` vs
+    i18next `{{…}}`); both take the interpolation contract the call site actually
+    declares in its options.
+  - **The nine other packs** get real translations, each evidenced against a
+    neighbour key in the same pack (fr's space before `?`/`:`, de's en dash, ru's
+    ё, ar's verb-first placement so an RTL sentence does not open on a Latin
+    client name, zh's full-width punctuation). The one string all ten packs share
+    is `phonePlaceholder` — the E.164 example number, treated like the
+    `name@example.com` the packs already keep untranslated.
+  - **`scripts/i18n-call-site-key-baseline.json`** loses exactly those 54 entries
+    (163 → 109). The file is a ratchet: an unfixed key missing from it fails the
+    build, and a fixed key still listed fails it too.
+  - **No component changed.** An AST sweep of all 122 call sites in these three
+    namespaces found zero dead `t(key) || 'English'` fallbacks (the construct
+    slice one had to delete from `ObjectView.tsx`, where i18next's key-as-value
+    return made `||` unreachable).
+
+  Two holes here are **not** i18next's and must survive translation intact:
+  `resendOtpCountdownText` carries `{seconds}` in single braces because
+  `packages/auth/src/LoginForm.tsx` and `ForgotPasswordForm.tsx` substitute it with
+  a literal `.replace()`, and `oauth.consent.request`'s `{{suffix}}` arrives
+  pre-formatted from the page. Both are pinned in
+  `packages/i18n/src/__tests__/auth-namespace-3546.test.tsx`, in both directions.
+
+- f5f8744: Backfill the `console` namespace's 41 missing locale keys plus the `console.ai.group.` template family (objectui#3546, slice four)
+
+  `scripts/check-i18n-call-site-keys.mjs` (objectui#3530) measured **41 distinct
+  keys at 47 call sites** under `console.*` that a `t()` call site asks for and
+  that **no locale pack defined** — five of those keys have more than one site
+  (`console.ai.dock.maximize` has three), which is why the denominator is measured
+  and never counted by hand. All 47 carried an inline
+  `t(key, { defaultValue: 'English' })`, so this is the objectui#3517 class:
+  English rendered correctly, and **all ten languages were stuck on it**. Nothing
+  here rendered a raw key — slice one (PR #3583) held those sites.
+
+  What that meant on the page: a `zh` user opening `/ai` got "Waiting for
+  server…", "Still working…" and "Connection lost — reconnecting…" in the
+  connection banner, all ten "Designing your app…" progress hints in English, and
+  "Built" / "Not yet built" / "Published" / "Publish failed" on the plan card; the
+  ChatDock's whole chrome (title, resize handle, collapse, "Open full page") was
+  English including two `aria-label`s; the conversation sidebar's date headers read
+  "Today" / "Yesterday" / "Previous 7 days"; a mistyped URL produced an English
+  "Page not found"; and the `?` shortcuts dialog's AI group was English inside an
+  otherwise translated table. Two of these strings ("Not yet built", "TODAY") are
+  named in objectui#2458's mixed-language list.
+
+  - **`packages/i18n/src/locales/en.ts`** gains 46 keys: the 41 measured ones plus
+    the five members of the `console.ai.group.` family. `console.notFound` is a new
+    sub-namespace; the rest extend `console.shortcuts` and `console.ai` (with new
+    `console.ai.dock`, `console.ai.designingPlanHint` and `console.ai.group`
+    objects). Every one of the 41 measured keys takes its call site's inline
+    `defaultValue` **byte for byte** (46/47 sites, script-compared), so the pack
+    path and the inline-default path cannot diverge.
+
+    - The one site that cannot match is `ChatDock.tsx:563`, where a single key
+      (`console.ai.dock.open`) carries two different English strings: the
+      `aria-label` says `Open assistant` and the `title` says
+      `Open assistant (⌘⇧I)`. A key can hold one value, so `en` takes the
+      `aria-label` spelling — an accessible name must not carry a glyph run that
+      screen readers announce as symbols, and `⌘` is a mac-only glyph that a
+      _language_ pack cannot vary per platform. The tooltip therefore stops
+      advertising the shortcut; recorded on objectui#3810 (whose class this
+      divergence joins) rather than papered over.
+
+  - **`console.ai.group.` leaves the ratchet's `missingPrefixes` (4 → 3).** It is a
+    template key — `` t(`console.ai.group.${group.key}`) `` in
+    `ConversationsSidebar.tsx:277` — whose static head matched no `en` key, so every
+    expansion missed. Its value surface is the **closed** `ConversationGroupKey`
+    union, so the repair is an enumeration of all five members, not a wildcard; a
+    test reads the component's own union and label map and fails if a sixth bucket
+    is ever added without a key.
+
+  - **The nine other packs** get real translations, each evidenced against its own
+    `console` neighbours: `zh` full-width punctuation and the pack's single-em-dash
+    status-line style, `ja`/`ko` the pack's `AI ` spacing, `de` formal _Sie_ and
+    its `Wird …` progressive, `fr` straight apostrophes, `es` _usted_ (as the
+    `console.ai` neighbourhood already uses), `pt` the pack's `off-line` spelling,
+    `ru` ё orthography, `ar` verb-first phrasing that never opens an RTL sentence
+    with a Latin token. Where `en` repeats a string the packs already translate
+    (`Go back`, `Publish failed`, `Try again`, `Back to home`, `Assistant`,
+    `Today`, `Yesterday`), the existing neighbour's wording is reused rather than
+    re-invented.
+
+  - **`scripts/i18n-call-site-key-baseline.json`** shrinks by exactly 42 entries
+    (41 keys + 1 prefix family): 109 → 68 keys, 4 → 3 prefixes.
+
+  No component changed: an AST sweep of all 308 `console.*` call sites in the repo
+  found zero dead `t(key) || 'English'` fallbacks among this slice's keys.
+
+- 69becd2: `de` approvals inbox no longer shows two quote typographies on one screen
+
+  Three `approvalsInbox` values quoted the record title with ASCII straight quotes
+  on **both** sides while their own sibling `approvalsInbox.approveOneTitle` used
+  the correct German pair (U+201E low-9 opener, U+201C closer):
+
+  | key                             | before                  | after                   |
+  | ------------------------------- | ----------------------- | ----------------------- |
+  | `approvalsInbox.rejectOneTitle` | `"{{title}}" ablehnen?` | `„{{title}}“ ablehnen?` |
+  | `approvalsInbox.inlineApproved` | `"{{title}}" genehmigt` | `„{{title}}“ genehmigt` |
+  | `approvalsInbox.inlineRejected` | `"{{title}}" abgelehnt` | `„{{title}}“ abgelehnt` |
+
+  A German approver therefore met both typographies in a single screen and inside a
+  single operation pair — German quotes on the approve confirmation, typewriter
+  quotes on the reject confirmation and on both inline toasts. `„…“` is the pack's
+  own majority (50 paired spans) and DUDEN R11, so the three values were the
+  outlier. Keys and the `{{title}}` placeholder are unchanged; this is a
+  value-domain typography fix, and `en` (ASCII on both sides by design) is
+  untouched.
+
+  This is a **different defect shape** from objectui#3876, which paired a German
+  opener with an ASCII closer. Because these three were ASCII on both sides they
+  were self-consistent, so the pairing invariant objectui#3876 left behind could
+  not see them — it scans forward from each `„`, and there was no `„` in them to
+  scan from. The pack's straight-quote census being empty now lets that pin become
+  strictly stronger: `de-quote-pairing-3876.test.ts` asserted an explicit
+  three-key allowlist and now asserts that **no `de` value holds a U+0022 at all**,
+  which covers both defect shapes and needs no per-key maintenance as new values
+  land. The pack census moves from `„` 47 / `“` 47 / `”` 0 / `"` 6 to
+  `„` 50 / `“` 50 / `”` 0 / `"` 0.
+
+  None of the three i18n gates could have caught this: `all-locales-key-parity`
+  compares key sets and placeholder shapes, `check-i18n-call-site-keys.mjs` only
+  asks whether a key resolves, and `check-i18n-en-drift.mjs` fires on `en` value
+  changes — these values were wrong from the day they landed, so no drift event
+  ever existed. All three are value-blind by design, which is why the invariant
+  lives in a test.
+
+- 5e52495: German pack: the 20 values that closed the German opening quote with an ASCII straight quote now close it with `“`
+
+  `packages/i18n/src/locales/de.ts` opened a quoted span with the German low-9
+  quote `„` (U+201E) and closed it with the ASCII typewriter quote `"` (U+0022) in
+  20 keys, so a German user read `Registerkarte „Alle Datensätze" anzeigen` — a
+  mismatched pair. `search.resultsCount` showed it most plainly: the value ended
+  `„{{query}}""`, the mismatched closer immediately followed by the TS string
+  terminator.
+
+  This was never a pack convention. Measured on `main@2937bcf7d` before the fix,
+  the same file already spelled 23 spans the correct German way, `„…“` — the two
+  styles sat side by side, in sibling keys of the same namespace. Every mismatched
+  closer is now `“` (U+201C), which is what German orthography (DUDEN R11) and the
+  majority of the file already used. Affected surfaces: the four empty states
+  (object / page / dashboard / report not found), the search results header, the
+  lookup "create named" action, four `console.objectView` strings, the home
+  getting-started hint, the six `navigationSync` toasts, the local marketplace
+  install toast, and the preview not-ready title.
+
+  No other language pack and no `en` value changed — the counts are unchanged for
+  every other locale, and the mismatch was measured only in `de`.
+
+  ### Counted at landing, in two units
+
+  The card reported "20 values" and the triage re-scan reported "22 mismatched
+  pairs"; both are correct about different units, and the difference is now
+  recorded rather than left to the next reader. 20 keys carried a mismatch;
+  22 mismatch occurrences lived in them, because `navigationSync.renamedPage` and
+  `navigationSync.renamedDashboard` each quote two names in one sentence
+  ("Seite „alt“ in „neu“ umbenannt") and so contribute two each. Full-file counts
+  before → after: `„` 45 → 45, `“` 25 → 47, `”` 2 → 2, `"` 28 → 6.
+
+  ### The durable half, and why it is not the count equality the card proposed
+
+  Three i18n gates run over these packs and none can see a wrong quote:
+  `all-locales-key-parity` compares key sets and placeholder shapes,
+  `check-i18n-call-site-keys.mjs` only asks whether a key resolves, and
+  `check-i18n-en-drift.mjs` fires on `en` **value changes** — these values were
+  wrong from the day they landed, so no drift event ever existed. Without a
+  value-domain assertion the next backfill copies the mismatch from a neighbour
+  again, which is exactly how these 20 accumulated.
+
+  The card proposed asserting `count(„) === count(“)`. That is **false on the
+  correctly fixed file** (45 vs 47) and would have sent the next reader hunting a
+  bug that is not there: two values in this pack, `grid.import.savedMappingHint`
+  and `grid.import.savedMappingPreviewNote`, are still untranslated English prose
+  and quote in the English style `“…”`, so their two `“` are legitimate _openers_.
+  The invariant that is pinned instead is the pairing itself — for every `„`, the
+  first quote character that follows must be `“` — backed by the arithmetic
+  identity `count(“) === count(„) + count(”)`, which stays true if those two values
+  are later translated (47 === 47 + 0) and breaks the moment a mismatch returns.
+  Both carry a presence guard so a broken import cannot make them pass by scanning
+  nothing.
+
+- b750823: `preview.draftBar` speaks one second person in `es` — the draft-preview banner no
+  longer switches from tú to usted when a Spanish user publishes (#3844)
+
+  `DraftPreviewBar` renders two mutually exclusive sentences in the same strip of
+  the same banner: `message` while there are unpublished changes, `messageClean`
+  once there are none. In `es` the two disagreed on register — `message` was tú
+  (`estás viendo`, `publiques`) while `messageClean` (`ve`) and `sampleDataBody`
+  (`Está`, `su`, `Publíquela`) were usted. So a Spanish user who pressed Publish
+  watched the banner change person: same component, same position, same session.
+
+  This is a third defect class in the value-domain blind spot behind #3582 and
+  #3625, and no gate in the repo can see it. Both `es` values are correct
+  translations of their `en` sentences — nothing is missing, nothing is stale, and
+  nothing holds English. The inconsistency is _internal to one pack, on one UI
+  surface_: `scripts/check-i18n-call-site-keys.mjs` only asks whether a key exists
+  in `en`, `all-locales-key-parity` compares key sets and placeholder shapes and
+  never reads values, and `scripts/check-i18n-en-drift.mjs` only fires when an `en`
+  value moves — these two `en` values never moved.
+
+  `message` is the value that changes, because usted is what the pack already says
+  everywhere around it: the `es` pack censuses 102 usted markers to 30 tú (tú being
+  the marked exception, concentrated in the auth, report-editor and organizations
+  neighbourhoods that #3546 slice two deliberately ruled informal); the other three
+  strings of this same object were already usted; and #3546 slice five gave the 19
+  new `preview.unpublishedBar.*` / `preview.history.*` keys usted on the strength
+  of `home.pendingDrafts.published` ("¡Publicado! Sus cambios están activos."). Two
+  smaller divergences inside the same sentence are closed with it, so the banner's
+  two halves stop disagreeing about wording as well as person:
+
+  - **`—` instead of `:`** in `messageClean`, matching `en`, where both sentences
+    open `Draft preview — `. That is the whole of `messageClean`'s diff.
+  - **`activo` instead of `en producción`** for "live". The pack spells this concept
+    `activo` in four neighbouring places including `publishCta` in this very object
+    ("Publicar para verlo activo"), and it reserves _producción_ for the actual
+    production environment (`environment.entitlement.planLockedBody`), so the
+    outlier was ambiguous as well as inconsistent.
+  - **`Vista previa del borrador`** as the shared opening, `del` being the form
+    `messageClean` already used.
+
+  No `en` value changes (the en-drift gate reports 0), no key is added or removed
+  (so `all-locales-key-parity` is untouched by construction), and the nine other
+  packs are not touched. The diff is two values in one file.
+
+  Re-voicing the whole `preview` namespace to tú was considered and rejected — a
+  much larger change that would collide with the adjacent `marketplace.*` (9:0
+  usted) and `console.ai.*`. `preview.empty.notReadyDescription` therefore stays tú
+  here, since #3844's ruling is this banner only; it is filed as #3875 rather than
+  waved through, because `PreviewDraftEmptyState` renders _underneath_
+  `DraftPreviewBar` and so those two show usted and tú on screen at the same time.
+  After this change the `preview` namespace is 23 usted to that 1 tú.
+
+  A gate that checks "one register per namespace" is deliberately **not** here:
+  recognising usted vs tú needs real morphology, and token matching demonstrably
+  cannot — in this pack the token `revisa` is usted in `console.ai.empty.build`
+  (es.ts:1365, "…y usted revisa y publica.") and tú in
+  `auth.forgotPassword.successTitle` (es.ts:1918, "Revisa tu correo electrónico"),
+  the same eight letters in opposite registers. The neighbourhood boundary such a
+  gate would police is human judgement anyway — #3546 slice two's "same rule,
+  different answer". A new `draftBar-es-register-3844.test.ts` pins the four `es`
+  values byte for byte instead, plus the `en` literals, so a future reword of
+  either `en` sentence fails in the same PR that reworded it.
+
+- ac2139c: `grid.import` saved-mapping copy is now translated in ko / de / fr / es / pt / ru / ar instead of served as English
+
+  Five keys — `grid.import.savedMapping`, `chooseSavedMapping`, `manualMapping`,
+  `savedMappingHint` and `savedMappingPreviewNote` — were **byte-identical to `en`**
+  in seven of the nine non-`en` packs, 35 values in all. Only zh and ja had been
+  translated, and two of the five are multi-clause explanatory sentences rather
+  than placeholders or proper nouns, so this was not a deliberately untranslated
+  term: a German, French, Spanish, Portuguese, Russian, Korean or Arabic user
+  picking a saved mapping in the import wizard read English.
+
+  None of the three i18n gates could see it. `all-locales-key-parity` compares key
+  sets and placeholder shapes, so English passed perfectly; the call-site gate only
+  asks whether a key resolves; `check-i18n-en-drift.mjs` fires on an `en` **value
+  change** and these keys arrived in the packs already English, so no drift event
+  ever existed. objectui#3920 also proposed a general "no non-`en` value may be
+  byte-equal to `en`" gate; that is deliberately not part of this change, because
+  values like `auth.*.emailPlaceholder` (`name@example.com`),
+  `fields.image.counter` (`{{current}} / {{total}}`) and
+  `grid.import.templateFileName` are byte-equal across packs correctly, and
+  objectui#3880 records the other face of the family. The five keys are pinned by
+  name instead.
+
+  Each translation reuses vocabulary its own pack already ships rather than
+  inventing a second word for the same concept: `stepMapping` for "mapping"
+  (Zuordnung / Correspondance / Asignación / Mapeamento / Сопоставление / تعيين /
+  매핑), `legacyFallbackNotice` for "type coercion" (Typkonvertierung / conversion
+  de type / conversión de tipos / conversão de tipos / приведение типов / تحويل
+  الأنواع / 형 변환), `view.readonlyTooltip` for "read-only", and `validateHint`
+  for "on the server". `es` follows the usted ruling objectui#3844 measured for
+  this pack; `pt` is the pack's own pt-BR (mapeamento / salvo / no servidor);
+  `ru` keeps its ё; `fr` keeps the straight apostrophe and the space before colon
+  and semicolon; `ar` punctuates with U+060C and U+061B; `ko` uses the 은(는) /
+  이(가) spelling its `fields.file.exceedsMaxSize` already uses for a placeholder
+  whose particle cannot be resolved at authoring time.
+
+  The quote around `{{name}}` follows each pack's measured majority for wrapping a
+  placeholder — de `„…“` (38 spans against 3 ASCII), fr `« … »` with an ASCII
+  space (25 against 18), ru `«…»` (23 against 18), and ASCII `"…"` for ko (38:0),
+  pt (39:0), es (22:19) and ar (27:15). The card cited
+  `residue-namespaces-3546.test.tsx` as pinning "the rest ASCII", but that line
+  pins the `empty.*` family only and its own comment scopes the rule to "the
+  sibling value in the SAME pack"; `grid.import` has no other quoted span, so the
+  census one ring out decides.
+
+  Germanising the two `de` sentences also closes the 45/47 gap
+  `de-quote-pairing-3876.test.ts` documented: that pack's census moves from
+  `„` 45 / `“` 47 / `”` 2 to `„` 47 / `“` 47 / `”` 0, exactly as that file's header
+  predicted, and its `count(“) === count(„) + count(”)` identity still holds. The
+  three literal counts in it were updated and the two keys are now pinned by name
+  there, so `rdqKeys === []` cannot become an assertion that passes because nothing
+  is produced.
+
+  `en`, `zh` and `ja` are untouched, and `grid.import.transform` — the sixth key in
+  the same block, English in the same seven packs, and the third column header of
+  the very table this hint sits above — is deliberately left alone, filed as
+  objectui#3938 and pinned as still-English so the number cannot drift while that
+  issue waits its turn.
+
+- b14ab3a: `grid.import.transform` is now translated in ko / de / fr / es / pt / ru / ar instead of served as English
+
+  The third column header of the import wizard's saved-mapping summary was
+  **byte-identical to `en`** — the literal string `Transform` — in seven of the
+  nine non-`en` packs. zh (`转换`) and ja (`変換`) had translated it, which is what
+  rules out the "deliberately untranslated term" reading; this is the sixth key of
+  the same six-line block objectui#3920 / PR #3936 fixed the other five of, and it
+  was left out of that card only to keep its 5-keys / 35-values census verifiable.
+
+  | pack | before      | after            | the pack's own anchor                                                                    |
+  | ---- | ----------- | ---------------- | ---------------------------------------------------------------------------------------- |
+  | ko   | `Transform` | `변환`           | `savedMappingHint` "이름 변경 + 변환 + 형 변환"                                          |
+  | de   | `Transform` | `Transformation` | `savedMappingHint` "Umbenennung + Transformationen + Typkonvertierung"                   |
+  | fr   | `Transform` | `Transformation` | `savedMappingHint` "le renommage + les transformations + la conversion de type"          |
+  | es   | `Transform` | `Transformación` | `savedMappingHint` "el cambio de nombre + las transformaciones + la conversión de tipos" |
+  | pt   | `Transform` | `Transformação`  | `savedMappingHint` "renomeação + transformações + conversão de tipos"                    |
+  | ru   | `Transform` | `Преобразование` | `savedMappingHint` "переименование + преобразования + приведение типов"                  |
+  | ar   | `Transform` | `التحويل`        | `savedMappingHint` "إعادة التسمية + التحويلات + تحويل الأنواع"                           |
+
+  Each value is the **singular of the word the pack already uses** for `en`'s
+  plural "transforms" in `grid.import.savedMappingHint` — the sentence
+  `SavedMappingSummary` renders directly above this header. That is the anchor
+  rather than `legacyFallbackNotice`'s term, because `en`'s own sentence lists
+  "transforms" and "type coercion" as two different server-side operations and
+  `legacyFallbackNotice` is about the second: reusing de "Typkonvertierung", ko
+  "형 변환" or ar "تحويل الأنواع" for this header would name the wrong operation.
+
+  Why it was worth a card of its own rather than waiting for a general gate: this
+  value is not a hidden string. It is the third `TableHead` of
+  `SavedMappingSummary`, sitting in one row with `csvColumn` and `mapsTo`, which
+  were always translated — so a German user read `Spalte` / `Zugeordnet zu` /
+  `Transform`, two languages in a single header row, directly under the German
+  hint PR #3936 had just landed. Before that PR the whole panel was English and
+  therefore at least self-consistent.
+
+  The three i18n gates are value-blind here exactly as they were for
+  objectui#3920: `all-locales-key-parity` compares key sets and placeholder shapes
+  (the key was present with no placeholder, so English passed perfectly), the
+  call-site gate only asks whether a key resolves, and `check-i18n-en-drift.mjs`
+  fires on an `en` **value change** — this value entered the seven packs already
+  English, so no drift event ever existed. `en`, zh and ja are untouched, and the
+  pin PR #3936 left in `gridImportSavedMapping-i18n-3920.test.ts` asserting these
+  seven were "still English" has been replaced by the translated pin it asked for.
+
+- 8c60819: The inbox popover now spells out what the bell badge is made of
+
+  The bell badge is `unread notification topics + pending approvals`, clamped to
+  "9+" above nine. As one number it is unexplainable: objectstack#7213 measured
+  Home's "pending approvals" card saying 8 while the bell said "9+", and read that
+  as the two counts disagreeing — they never did, the bell was simply carrying a
+  second addend the user could not see.
+
+  The popover already tabs the two streams and puts a count pill on each tab, so
+  the split was partly visible — but those pills clamp at "9+" too. A loaded
+  console therefore showed three "9+"s that reconcile to nothing, which is why
+  sectioning alone did not close this.
+
+  A breakdown line under the popover header now states the exact, unclamped
+  addends beside the exact total — `15 total · 12 notifications + 3 pending
+approvals`. The approvals half is the same `pendingApprovalsCount` the Home card
+  and the Approvals Inbox tab read, so the number a user reconciles against is
+  literally the one they see elsewhere.
+
+  The badge formula, the counting APIs and the "9+" clamp on the badge itself are
+  unchanged — this is a display fix. Three new keys
+  (`notifications.badgeTotal` / `badgeNotifications` / `badgeApprovals`) land in
+  all ten locale packs. They interpolate named placeholders (`{{total}}`,
+  `{{unread}}`, `{{approvals}}`) rather than i18next's `{{count}}`, which would
+  additionally drive plural-key resolution these packs carry no forms for.
+
+- e64a52e: 回填 `perm` + `home` 两命名空间 14 个缺失语言 key,十个语言包补齐(#3546 切片六)
+
+  `scripts/check-i18n-call-site-keys.mjs` 实测:14 个不重复 key / 14 个调用点(1:1),分布在权限集
+  记录的授权面摘要(`PermissionFacetLink`,ADR-0056 P1)与"一键发布全部草稿"的其余几条 toast
+  (`usePublishAllDrafts`:ADR-0038 L3 探针健康、示例数据健康、ADR-0066 ⑨ 能力引用巡检)。
+
+  这 14 处都带内联 `defaultValue`,所以英文一直正常渲染,**十种语言都翻不了** —— 修的是这一半。
+  英文字串一字未改:9 处静态 `defaultValue` 与 en 逐字节相同;另外 4 个计数标签(对象 / 字段规则 /
+  RLS 策略 / 标签页规则)的 `defaultValue` 是带英文单复数分支的模板串,改用 i18next 复数族
+  (`key` + `key_one`)后逐个计数渲染结果与模板串一致。
+
+  复数族刻意带**基础 key** 而不是只写 `_one`/`_other`:i18next 只按语言的 CLDR 类别取一个后缀,
+  取不到就沿 fallback 链落到 `en`。ru(few 2-4、many 5-20)与 ar(two、few 3-10、many 11-99)
+  恰好在用户最先遇到的计数上会因此显示英文;基础 key 让这些类别落回**本语言**。
+
+- 844d17f: Backfill the `marketplace` and `preview` namespaces' 37 missing locale keys plus the `marketplace.disclosure.runtime.` template-key family (objectui#3546, slice five)
+
+  `scripts/check-i18n-call-site-keys.mjs` (objectui#3530) measured 37 keys that a
+  `t()` call site asks for and that **no locale pack defined** — 37 distinct keys at
+  37 call sites across five console components — plus one `missing-prefix` family
+  whose static head matched no `en` key at all, so every expansion missed. All 37
+  carried an inline `t(key, { defaultValue: 'English' })`, which is exactly the
+  objectui#3517 class: English rendered correctly, and **all ten languages were
+  stuck on it** for months. Nothing here rendered a raw key — slice one (PR #3583)
+  held those sites.
+
+  What that meant on the page for a `zh` (or `ja`, `de`, `ar`, …) user: the
+  marketplace's "Your organization" strip, its Install / Installing… / Installed
+  buttons and the version-update affordances were English; the whole ADR-0025 PD4
+  **pre-install permission disclosure** was English — "This package contains code",
+  the trust-tier badge, "Reviewed & approved" / "Not yet reviewed" / "Signed", the
+  four permission group labels (platform services, lifecycle hooks, network,
+  filesystem) and the consent checkbox the user ticks to accept them; the ADR-0045
+  unpublished-app banner and its publish toasts were English; and the entire
+  ADR-0067 build-history sheet — title, description, the per-commit labels, the
+  Revert button and both of its result toasts — was English.
+
+  `marketplace.disclosure.runtime.` is repaired as an **enumeration, not a
+  wildcard**: its value surface is the closed trust-tier enum
+  (`PluginRuntimeSchema` = `z.enum(['node', 'sandbox', 'worker'])`, ADR-0025 §3.6),
+  so all three members are backfilled and the family leaves the ratchet's
+  `missingPrefixes` (3 → 2). A test reads the component's own fallback map and
+  fails if a fourth tier is ever added without a key — the job the prefix entry
+  used to do.
+
+  Each `en` value is byte-identical to the inline `defaultValue` it replaces (36 of
+  36 literal sites; the 37th's `defaultValue` is a template literal whose
+  `${pkg.display_name}` becomes the `{{name}}` hole its call site already passes),
+  so no English string a user sees today changes. The nine translations follow each
+  pack's own neighbourhood — including two namespaces that legitimately take
+  **different** second persons in `zh` (`marketplace` 你, `preview` 您) — and reuse
+  an existing neighbour's translation wherever the `en` string already existed
+  verbatim, so one English string never renders as two different sentences in the
+  same language.
+
+  No component changed: an AST sweep of the whole `marketplace.*`/`preview.*`
+  call-site surface found the slice's own dead-`||`-fallback count to be zero.
+
+- 4dcd52a: `console.objectView.systemViewReadonly` and `console.objectView.expandToPage`
+  are translated in the eight packs that stored English for them, so a Japanese,
+  Korean, German, French, Spanish, Portuguese, Russian or Arabic session reads
+  the system-view hint and the expand affordance in its own language (#3582).
+
+  This is a different defect class from #3546's ledger, and no gate in the repo
+  could see it. There the key was _missing_ from a pack and `fallbackLng: 'en'`
+  rendered English; here the key was **present in all ten** and eight of them
+  stored English as the value. `all-locales-key-parity` compares key _sets_ and
+  placeholder _shape_ — identical before and after this change, and neither key
+  interpolates anything. `scripts/check-i18n-call-site-keys.mjs` and its baseline
+  ratchet ask whether a `t()` key exists in `en`; it did, so these two were never
+  in the 258.
+
+  `systemViewReadonly` carried the sharper half: the eight packs did not hold
+  `en`'s sentence, they held one `en` had already abandoned. `en` says the view
+  is read-only; the eight said `System view defined in code - duplicate to
+customize.` — pointing eight locales at a duplicate-to-customize path the
+  product no longer presents. They are translated against `en`'s **current**
+  read-only meaning, not against the stale English they replaced.
+
+  Each value is built from terminology the same pack already uses rather than
+  invented: `view.readonlyTooltip` supplies "system view" and
+  `console.objectView.cannotEditMetaView` (landed in #3583) supplies "defined in
+  code", so the new hint agrees with the copy beside it in every pack. For
+  `expandToPage`, `detail.openAsFullPage` is the identical English sentence one
+  namespace over and was already translated everywhere — `en` and `zh` hold their
+  two byte-identical to each other, so the eight now do too, and one locale
+  cannot end up with two different words for one action.
+
+  `en` and `zh` are unchanged, byte for byte. No key is added or removed —
+  the diff is 16 values in 8 files. A new
+  `objectView-value-language-3582.test.ts` pins the `en` literal (so the next
+  rewording of `en` fails loudly instead of silently orphaning nine
+  translations), asserts that no pack but `en` serves either English spelling,
+  and requires the zh/ja/ko/ru/ar values to contain characters of their own
+  script. The repo-wide "no ASCII English sentence in a non-Latin pack" gate that
+  #3582 also sketched is deliberately **not** here; it is a separate, lands-green
+  change.
+
+- 42ae5c6: The organization-management console is translatable. The 90 keys under
+  `organization.*` — the org layout and its tabs, the members list, the whole
+  invitation flow, organization settings including the leave and delete
+  confirmations, the accept-invitation page, and the workspace switcher — are now
+  defined in all ten locale packs, so a non-English session reads the org admin
+  surface in its own language instead of English (part of #3546).
+
+  `scripts/check-i18n-call-site-keys.mjs` measured 258 keys that a `t()` call site
+  asks for and no pack defines. `organization.*` was the largest namespace in that
+  tally at 90 keys across 93 call sites in seven components. Every one of them
+  carried an inline `t(key, { defaultValue: 'English' })`, which is why nothing
+  looked broken: English rendered correctly at each site and all ten languages
+  were pinned to it. That is the #3517 class, not the raw-key class slice one
+  (#3583) held — no organization site rendered an identifier, and none had a dead
+  `||` fallback to remove, which was measured before deciding not to touch the
+  components.
+
+  Adding a `defaultValue` is deliberately not the fix; it is the mechanism that
+  kept these invisible for months. The existing defaults stay where they are, and
+  each `en` value is byte-identical to the default at its call site so the two
+  paths cannot render different text.
+
+  `organization` is a new top-level namespace, sitting next to — and distinct
+  from — `organizations`: the singular one is the management surface, the plural
+  one the org picker. The ratchet in `scripts/i18n-call-site-key-baseline.json`
+  shrinks by exactly these 90 entries, from 253 to 163. The
+  `organization.invitations.status.*` template-key family is untouched and still
+  baselined: enumerating an invitation status set is a different repair from
+  backfilling literal keys.
+
+- 6d762da: The five locale keys behind #3546's eight no-fallback `t()` call sites are now defined in all ten packs, so the built-in-view toasts, the activity-timeline source link, the wizard's required-field toast and the Gantt refresh button's accessible name are translated instead of falling back to English — or, on two surfaces, to the key itself (part of #3546).
+
+  `scripts/check-i18n-call-site-keys.mjs` measured 258 keys that a `t()` call site asks for and no pack defines. These five were the subset with no working inline default: `console.objectView.cannotEditMetaView`, `console.objectView.cannotDeleteMetaView`, `detail.viewSource`, `gantt.toolbar.refresh` and `wizard.missingRequired`. Adding a `defaultValue` is deliberately not the fix — that mechanism is what kept all 258 invisible for months.
+
+  **Two of the eight sites really did render the raw key**, and both go through a binding with nothing in front of i18next. `ObjectView.tsx` calls `useObjectTranslation()` directly, so five toasts read `console.objectView.cannotEditMetaView` / `cannotDeleteMetaView` on screen; the `|| 'Built-in views cannot be renamed.'` guards next to them were dead on every path, because i18next answers a miss with the key itself and a non-empty string never falls through `||`. Those four unreachable English strings are removed rather than repaired: one key served four call sites (rename / pin / set-as-default / configure), so the pack copy covers any change to a built-in view instead of naming one operation. `RecordActivityTimeline.tsx` fails the same way for a subtler reason — `useDetailTranslation` is `createSafeTranslation(..., 'detail.back')`, and because `detail.back` does resolve, the probe hands back i18next's `t` for every key and bypasses the defaults map wholesale, so `detail.viewSource` reached the user verbatim.
+
+  **The other two sites were not rendering a raw key**, contrary to the issue's description, and are fixed here as the milder "English in all ten languages" class. `wizard.missingRequired` is its own hook's probe key, so the probe failed and `createSafeTranslation` correctly served its English default. `gantt.toolbar.refresh` goes through `useGanttTranslation`, which deliberately does not use `createSafeTranslation` and falls back per key — so the refresh button's `aria-label` was "Refresh", in English, never the key. Screen-reader users heard an English word rather than an identifier; a `zh` session now hears 刷新.
+
+  Regression cover is provider-mounted on purpose: with no `I18nProvider` the defaults maps answer every one of these keys and the assertions pass while the console is broken, which is precisely the false-green the issue documents. For the two sites whose English output was already correct, `en` cannot discriminate before from after — the `zh` assertions are the ones that pin the fix.
+
+- f9faa7d: Backfill the last 17 missing locale keys and both remaining template-key families, emptying the call-site key ratchet (objectui#3546, slice seven — final)
+
+  `scripts/check-i18n-call-site-keys.mjs` (objectui#3530) opened this backlog with
+  **258 keys and 4 template-key families** that a `t()` call site asks for and that
+  **no locale pack defined**. Seven slices later the last of it is paid: this change
+  takes the ratchet from 17 keys to **zero** and from 2 prefix families to **zero**,
+  and the gate now reports every one of the **2320** literal call-site keys
+  resolving against `en`.
+
+  The residue was the long tail — nine namespaces across `app-shell`,
+  `plugin-detail`, `plugin-dashboard`, `plugin-kanban` and `plugin-gantt`, none of
+  them big enough to have been its own slice. 17 distinct keys at **23** call sites
+  (five keys are used at more than one site) plus **3** call sites behind the two
+  families.
+
+  What that meant on the page for a `zh` (or `ja`, `de`, `ar`, …) user: the "App not
+  available" empty state a user lands on when an app is still publishing, including
+  its whole explanation and its Retry button; the interface page's "source is not
+  available" message; the system navigation's **Administration** group header,
+  **Datasources** and **Documentation** entries; the "creating new organizations is
+  disabled on this instance" guard in the workspace dialog; the invitation list's
+  five status labels (All / Pending / Accepted / Rejected / Canceled) on both the
+  filter tabs and every invitation badge; the Gantt dependency-drag hint that names
+  which endpoint the drop will link (`start` / `end`); the record detail's Add,
+  "Record deleted", "No history yet" and the concurrent-update dialog's "this
+  record"; the kanban empty board's column count; the dashboard widget's screen
+  reader "Loading…"; and the page editor's "Edit in studio" tooltip and accessible
+  name. All of it rendered English, in every one of the ten languages.
+
+  Nothing here rendered a raw key — slice one (PR #3583) held those sites, and the
+  three keys the issue body named as unprotected (`detail.viewSource`,
+  `wizard.missingRequired`, `gantt.toolbar.refresh`) have resolved in `en` since.
+
+  Both families are repaired as **enumerations, not wildcards**, and the assertion
+  that used to live in the ratchet's `missingPrefixes` moves into a test that fails
+  if either union grows a member without a key:
+
+  - `gantt.linkEnd.` — the closed union `'start' | 'end'`, declared by GanttView's
+    own `linkDrag` state.
+  - `organization.invitations.status.` — `StatusFilter`
+    (`all | pending | accepted | rejected | canceled`), declared by InvitationsPage.
+
+  Every `en` value is byte-identical to the English the call site rendered before,
+  so no string a user sees today changes: 16 keys match an inline
+  `t(key, { defaultValue: … })`; `dashboard.loading` matches `useSafeTranslate`'s
+  positional fallback `tt(key, 'Loading…')`; `gantt.linkEnd.*` match
+  `useGanttTranslation`'s per-key fallback map; and the five status labels match the
+  CSS-capitalised wire value each badge and tab showed. The nine translations follow
+  each pack's own neighbourhood and reuse an existing neighbour's row wherever the
+  `en` string already existed verbatim **and** that row is grammatical here — the
+  four invitation adjectives are deliberately not reused from the approvals family,
+  because those agree with each pack's word for "request" (`ru` masculine `Отклонён`)
+  while an invitation needs its own agreement (`ru` neuter `Отклонено`).
+
+  `scripts/i18n-call-site-key-baseline.json` is kept rather than deleted: empty is
+  its terminal, load-bearing state — against an empty baseline any NEW unresolved
+  call-site key is unexpected and fails the build.
+
+  No component changed.
+
+- 33526fd: `view.readonlyTooltip` — the tooltip on a view tab's read-only lock — is
+  retranslated in the eight packs (ja/ko/de/fr/es/pt/ru/ar) that still described
+  the retired "duplicate to customize" workflow, so a Japanese, Korean, German,
+  French, Spanish, Portuguese, Russian or Arabic session is told the view is
+  defined in code and read-only, which is what `en` says and what the product
+  does (#3625).
+
+  This is the same stale sentence #3582 fixed one namespace over, but it hid
+  behind a much better disguise. In #3582 the eight packs stored the **English**
+  string, so two cheap criteria could see it: "value equals `en`" and "a
+  non-Latin pack holds pure ASCII". Neither can see this key. Its eight values
+  were **idiomatic translations** — real Japanese, real Cyrillic, real Arabic —
+  of a sentence `en` itself had already abandoned. Nothing about their form was
+  wrong; only their meaning was. Key sets were complete, so
+  `all-locales-key-parity` was green; the key exists in `en`, so the call-site
+  guard and its ratchet were green; the values are distinct and in their own
+  scripts, so every heuristic #3582 sketched would have been green too. Eight
+  locales spent those releases pointing users at a path the product no longer
+  offers, with every gate reporting success.
+
+  Each value is translated against `en`'s **current** meaning and built from
+  words the same pack already uses — "read-only" from its own `view.readOnly` /
+  `view.readonlyAriaLabel`, "defined in code" from
+  `console.objectView.systemViewReadonly` / `cannotEditMetaView` — so the tooltip
+  agrees with the copy beside it instead of introducing a ninth way to say
+  read-only. Nothing is rewritten from the stale text.
+
+  `en` and `zh` are unchanged, byte for byte, and no key is added or removed —
+  the diff is eight values in eight files. A new
+  `viewReadonlyTooltip-semantics-3625.test.ts` tests **meaning** rather than
+  form, in both directions: no pack may name the duplicate/copy workflow in its
+  own language, and every pack must positively carry all three pieces of the
+  sentence ("system view", "defined in code", "read-only") so the negative check
+  cannot pass on a gutted string. It also pins the `en` literal, so the next
+  rewording of `en` fails in the PR that does the rewording rather than orphaning
+  nine translations for another release — which is the invariant this family of
+  defects has actually been missing.
+
+- 32413ec: Resolve `_views` translation keys by the bare view name only — the prefixed full name is no longer a second candidate
+
+  `useObjectLabel().viewLabel` / `viewDescription` / `viewEmptyState` build their key by stripping the object prefix off the runtime view id (`crm_opportunity.pipeline_kanban` → `objects.crm_opportunity._views.pipeline_kanban.<tail>`). Until now, if that bare key missed, the resolver **also** tried the prefixed full name — `objects.crm_opportunity._views.crm_opportunity.pipeline_kanban.<tail>` — so a bundle authored against the prefixed spelling resolved too.
+
+  **Behavior change:** it no longer does. A `_views` entry keyed by the prefixed full name is not read at all; the label falls back to the metadata default, exactly as it would if no translation had been written. Bundles keyed by the bare view name — the only spelling the extractor emits and `os lint` accepts — are unaffected.
+
+  This closes an asymmetry, not a feature. The server-side resolver reads the one bare key (objectstack#5165), so a prefixed-key bundle produced a **translated label in the Console and English everywhere else**: the REST boundary, mobile, plain HTTP and SDUI consumers do not run this second resolution pass. The half-success was harder to notice than a clean miss, and it fossilized a second de-facto spelling of a key the platform has now converged on: per the objectstack#5164 ruling (2026-08-06, option A), the canonical `_views` key is the runtime view identity's bare name, with the i18n extractor deriving it from the view composer (objectstack#6124) and `packages/lint` enforcing that single spelling (objectstack#6038). This is the third and last leg of that convergence.
+
+  The object-name axis is untouched: a bundle written against the short object name (`objects.opportunity._views.…`) still resolves when the runtime presents the namespaced name (`crm__opportunity`).
+
+  **If a label stopped translating after this upgrade,** its `_views` key is written with the object prefix. Drop the prefix — `_views.crm_opportunity.pipeline_kanban.label` becomes `_views.pipeline_kanban.label`. `os lint` names these for you: a prefixed key is reported as `translation-target-unknown`, because no view of the object declares it.
+
 ## 17.3.0
 
 ### Minor Changes
@@ -249,6 +895,7 @@ first`. The form renderer passes a new `dependsOnLabels` widget prop (the
   ten packs missing it identically kept parity fully green.
 
   ## What changed
+
   - `createTargetOrg` is backfilled into `en` as `Creates in {{org}}`, which makes
     the parity gate demand it from the other nine; each is translated to its pack's
     existing `form`-section tone rather than copied or machine-filled.
@@ -711,7 +1358,7 @@ plan` sentence users reported (cloud#959). Both spec builders now take a transla
 
 ### Patch Changes
 
-- 752e18f: fix(console,app-shell): readable reassign hand-off + "System" label for svc:* audit actors — objectstack#4365 / objectstack#4366
+- 752e18f: fix(console,app-shell): readable reassign hand-off + "System" label for svc:\* audit actors — objectstack#4365 / objectstack#4366
 
   - **Approvals inbox** (`ApprovalsInboxPage`): a reassign timeline entry now
     renders "from A to B" from the structured
@@ -1423,6 +2070,7 @@ os_tianshun_ehr_position — use a unique value or the record id` — with the f
   is byte-identical, it just comes from the pack now.
 
   Adds two guards, both mutation-verified:
+
   - `en` ↔ `zh` full key parity, asserted in both directions. The other eight
     packs are still ~357 keys behind and are tracked separately (objectui#2872
     part a), so they are deliberately not asserted yet.
@@ -2357,6 +3005,7 @@ actionName, spec)`: overlays translated `title` / `description` /
   wired by `RecentItemsProvider` + `useTrackRouteAsRecent` +
   `RecordDetailView`). Multi-device by construction: open a record on
   laptop, see it in `⌘K → Recently viewed` on phone.
+
   - Group renders only when input is empty (no competition with search).
   - Limited to the 5 most recent record-type entries.
   - New i18n key `console.commandPalette.recentRecords` (en + zh seeded;
@@ -2366,6 +3015,7 @@ actionName, spec)`: overlays translated `title` / `description` /
 
   When `useRecordSearch` is mid-flight (debounced fetch across objects
   hasn't returned yet), the palette now surfaces a subtle visual:
+
   - A small pulsing primary-coloured dot next to the **Records** group
     heading, so the user sees that more results may still appear.
   - A `Searching…` placeholder inside the empty state when the user has
@@ -2379,6 +3029,7 @@ actionName, spec)`: overlays translated `title` / `description` /
   - Stage chevron (`record:path`): bump completed-stage contrast (emerald-800 text on emerald-500/15, was 700 on /10) and future-stage text from `foreground/70` to `foreground/85` for legibility.
   - i18n: add `notifications.emptyUnread`, `notifications.filterUnread`, `notifications.filterAll` (en + zh) so the InboxPopover Unread/All sub-filter renders in the active locale.
 - 5425608: CRM UX polish pass — calmer enterprise look across detail + kanban.
+
   - **plugin-kanban**: column headers now use a 2px muted accent stripe with
     neutral foreground titles + a quiet grey count pill instead of full
     rainbow gradient + colored title + colored count. Pipeline boards
@@ -2410,6 +3061,7 @@ actionName, spec)`: overlays translated `title` / `description` /
   `defaultCurrency` is set on the field/column, formatting is unchanged.
 
   Fixed call sites:
+
   - `@object-ui/fields`: `formatCurrency`, `formatCompactCurrency`, and
     `CurrencyCellRenderer` no longer default-param `'USD'`.
   - `@object-ui/i18n`: `formatCurrency()` falls back to `formatNumber`
@@ -2433,6 +3085,7 @@ actionName, spec)`: overlays translated `title` / `description` /
 ### Minor Changes
 
 - 49b1760: Polish the ConcurrentUpdateDialog and add i18n.
+
   - Internationalise all dialog strings (title, body, button labels, "your edit" / "current value" headings, audit-trail line) through `useDetailTranslation`. Locale strings added to `@object-ui/i18n` for English and Chinese.
   - Replace the plain dialog header with an amber warning badge + `AlertTriangle` icon to communicate that this is a conflict, not a routine confirmation.
   - Visually differentiate the two value blocks: amber tint for the user's pending edit, sky tint for the server's current value. Both wrap long values cleanly.
@@ -2498,6 +3151,7 @@ actionName, spec)`: overlays translated `title` / `description` /
   default detail view. They were missing cross-cutting affordances and
   shipped with English-only tab labels and heavy bordered section cards
   even when the host locale was Chinese. Track 1 closes the visible gap:
+
   - **app-shell `RecordDetailView`**: the `assignedPage` branch now wears
     the same chrome as the default branch — lifecycle managed-by badge
     and presence avatars in the top-right, `MetadataPanel` debug panel,
@@ -2553,6 +3207,7 @@ actionName, spec)`: overlays translated `title` / `description` /
   The matrix/summary "Group by" (rows) and "Columns axis" (cols) sections now
   share the same searchable popup picker as the columns section, with a
   commit-on-select single-pick mode wired through `FieldPickerDialog`.
+
   - Per-row field buttons display the human-readable field label and open a
     dialog scoped to swap that single field (already-used fields filtered out)
   - "Add grouping" trigger uses the same dialog
@@ -2562,6 +3217,7 @@ actionName, spec)`: overlays translated `title` / `description` /
   - Bigger row spacing (h-7 / text-xs) — the old `text-[10px]` was unreadable
 
   `FieldPickerDialog` gains:
+
   - `commitOnSelect`: hides the Confirm/Cancel footer; clicking a row commits
     - closes immediately (intended for `singleSelect` flows)
   - `trigger`: custom trigger element override (used by the per-row field button)
@@ -2590,6 +3246,7 @@ actionName, spec)`: overlays translated `title` / `description` /
   in the spec.
 
   New exports from `@object-ui/plugin-report`:
+
   - `JoinedBlocksEditor` — standalone component for embedding the
     block editor anywhere.
   - `validateJoinedBlocks` — pure helper returning translated
@@ -2621,6 +3278,7 @@ actionName, spec)`: overlays translated `title` / `description` /
   The report configuration panel is now safe to open on any spec-shape `Report` and only exposes fields that are actually persisted by `@objectstack/spec`.
 
   `@object-ui/plugin-report`:
+
   - Add a bidirectional `SpecFilterAdapter` so `ReportConfigPanel` can edit
     spec `FilterCondition` filters (`{field: value}`, `{field: {$op: value}}`,
     top-level `$and`/`$or`). Complex / nested filters fall back to a
@@ -2642,12 +3300,14 @@ actionName, spec)`: overlays translated `title` / `description` /
   - 18 new unit tests cover the filter adapter round-trip.
 
   `@object-ui/components`:
+
   - `FilterBuilder` now guards against malformed external `value` props.
     Previously a spec-shape filter (`{is_active: true}`) would crash the
     component on first render; the builder now falls back to an empty
     AND group whenever `value` is not a valid `FilterGroup`.
 
   `@object-ui/i18n`:
+
   - Add `report.editor.*` strings to `en` and `zh`.
 
 - 8442c05: Improve report editor panel usability based on real-user browser testing:
@@ -2727,6 +3387,7 @@ actionName, spec)`: overlays translated `title` / `description` /
   no visible effect — the user/session were nulled but the UI stayed authenticated.
 
   Changes:
+
   - **`@object-ui/auth`** — added `isAuthEnabled: boolean` to `AuthContextValue`
     (`true` only when real auth is in use, `false` for guest/preview modes).
   - **`@object-ui/app-shell`** — `AppHeader` and `AppSidebar` now hide the "Log out"
@@ -2744,6 +3405,7 @@ actionName, spec)`: overlays translated `title` / `description` /
 - fd15918: Comprehensive i18n refactor + CI test fix.
 
   **i18n (`@object-ui/i18n`)**
+
   - Added ~130 new keys under 12 new top-level namespaces: `layout`, `search`,
     `empty`, `renderer`, `actionDialog`, `rowAction`, `navigationSync`,
     `objectActions`, `objectViewActions`, `dashboardActions`, `recordDetail`,
@@ -2755,6 +3417,7 @@ actionName, spec)`: overlays translated `title` / `description` /
 
   **App shell (`@object-ui/app-shell`)** — replaced hardcoded English in 14
   files with `useObjectTranslation`:
+
   - Layout: `AppSidebar`, `ActivityFeed` (locale-aware relative time),
     `MetadataInspector`.
   - Views: `SearchResultsPage`, `ActionParamDialog`, `RecordFormPage`,
@@ -2766,12 +3429,14 @@ actionName, spec)`: overlays translated `title` / `description` /
     `useObjectActions` (delete confirm + success / failure toasts).
 
   **Plugin grid (`@object-ui/plugin-grid`)**
+
   - `ObjectGrid` record-detail panel now translates Empty / Yes / No / System
     via the existing `useGridTranslation` safe-fallback wrapper.
   - `RowActionMenu` adopts a local safe-fallback i18n wrapper for
     `Open menu` / `Edit` / `Delete`, preserving standalone-usage guarantees.
 
   **CLI test fix (`@object-ui/cli`)**
+
   - `cli-bin.test.ts` auto-builds the package on first run when `dist/cli.js`
     is missing, instead of throwing. This unbreaks `pnpm test:coverage` in CI
     (root vitest run does not honor turbo's `^build` deps) and removes the

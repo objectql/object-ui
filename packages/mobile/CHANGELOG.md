@@ -1,5 +1,174 @@
 # @object-ui/mobile
 
+## 17.4.0
+
+### Minor Changes
+
+- 48132f7: Track the `@objectstack` family at `17.0.0-rc.5` (objectui#3560).
+
+  The pin moves from `^17.0.0-rc.2` to `^17.0.0-rc.5` across all 37 declarations in
+  30 `package.json` files, and the sibling `@objectstack/*` packages (`client` /
+  `formula` / `lint`) move with it — they pin `@objectstack/spec` **exactly**, so
+  leaving them behind would keep a second copy of the spec in the tree and have
+  `@objectstack/lint` validating against schemas that still accept the keys rc.3–rc.5
+  retire. `pnpm-lock.yaml` now resolves one copy of each of the six family packages
+  (`spec` / `client` / `core` / `formula` / `lint` / `sdui-parser`), all at rc.5.
+
+  Bumping the pin and repairing the fallout cannot be split: the pin alone reddens
+  CI, and the code alone targets a shape that is not in effect yet.
+
+  ## A live bug this upgrade fixes
+
+  **`ObjectStackDataSource.delete()` never emitted its mutation event, and resolved
+  `undefined` instead of a boolean.** `@objectstack/client`'s `DeleteDataResult`
+  declared a key called `deleted` — a key no schema has ever declared and no server
+  path has ever returned on `DELETE /data/:object/:id`. So `result.deleted`
+  compiled and read `undefined` at runtime: the guard never fired, a successful
+  delete notified no subscriber, and every consumer's cache stayed stale.
+  objectstack#5638 corrected the interface to the schema's `success`; following the
+  rename is what restores both behaviours. Nothing in this repo had to change shape
+  for it — the code was already asking the right question of the wrong key.
+
+  ## Breaking, in FROM → TO form
+
+  - **The five `@objectstack/spec/ui` interaction-config modules are gone** —
+    touch / dnd / keyboard / animation / offline, 32 defs and 64 exports
+    (objectstack#4988, PR objectstack#5321). None of them had an authoring door: no
+    metadata document could ever carry one of these blocks, so a stack that parsed
+    before the retirement parses byte-for-byte the same after it. `@object-ui/types`
+    drops the 32 `export type` re-exports. The vocabulary each one's only real
+    consumer needs is now declared by that consumer, which is the remedy the spec's
+    own retirement ledger prescribes ("declare that union locally — it is your
+    client's policy, not the platform's"):
+
+    - `@object-ui/react`'s `useOffline` owns `OfflineStrategy`, `ConflictResolution`,
+      `PersistStorageType`, `EvictionPolicyType`, `OfflineConfig`,
+      `OfflineCacheConfig`, `OfflineSyncConfig`;
+    - `@object-ui/core`'s `DndProtocol` / `KeyboardProtocol` own `DndConfig`,
+      `DragItem`, `DropZone`, `DragConstraint`, `DragHandle`, `DropEffect`,
+      `KeyboardNavigationConfig`, `KeyboardShortcut`, `FocusManagement`,
+      `FocusTrapConfig`;
+    - `@object-ui/types`' `mobile` module owns `SpecGestureConfig`,
+      `SwipeGestureConfig`, `PinchGestureConfig`, `LongPressGestureConfig`,
+      `TouchTargetConfig`, `TouchInteraction` (plus a new `SPEC_GESTURE_TYPES`
+      runtime tuple), so `@object-ui/mobile`'s import paths are unchanged.
+
+    Every shape is moved verbatim — same keys, same members, same optionality — so
+    no hook or bridge changes behaviour. Consumers importing these names from
+    `@object-ui/types` must import them from the owning package instead. Note the
+    spec's _surviving_ `ConnectorConflictResolution` (`/integration`, connector sync)
+    and `ConflictResolutionStrategy` (`/api`, route merge policy) are **different
+    concepts** — do not re-point at them.
+
+  - **`@object-ui/types` no longer re-exports `NotificationAction` or `EmbedConfig`**
+    (objectstack#5015, PR objectstack#5300). Both were published `ui` vocabulary with
+    no authoring door; no notification action was ever parsed from metadata and no
+    iframe route ever read an embed config. The presentation enums
+    (`NotificationType` / `NotificationSeverity` / `NotificationPosition`) and
+    `SharingConfig` **survive** and are untouched — public form sharing still gates
+    the anonymous endpoints on `allowAnonymous` + `publicLink`.
+    `@object-ui/core`'s `SharingProtocol` keeps `resolveEmbedConfig` /
+    `generateEmbedCode` against a locally declared `EmbedConfig`, so its surface is
+    unchanged.
+  - **`ThemeEngine` stops emitting nine retired CSS variable groups**
+    (objectstack#5021 option 2, PR objectstack#5289). `theme.animation`,
+    `theme.zIndex` and five typography groups (`fontSize` / `fontWeight` /
+    `lineHeight` / `letterSpacing`, plus `fontFamily.heading` / `fontFamily.mono`)
+    are tombstones the schema now rejects by name, so `--duration-*`, `--timing-*`,
+    `--z-*`, `--font-size-*`, `--font-weight-*`, `--line-height-*`,
+    `--letter-spacing-*`, `--font-heading` and `--font-mono` had become structurally
+    dead code — no author could produce the input that reached them.
+    `generateAnimationVars` and `generateZIndexVars` are removed from
+    `@object-ui/core`, and `@object-ui/types` drops `Animation` / `ZIndex` /
+    `AnimationSchema` / `ZIndexSchema`. **`theme.customVars` is the declared — and
+    since #5021 the only — door**: each entry is emitted verbatim as
+    `--<key>: <value>`, so a `--z-modal` or a `--duration-fast` goes there now.
+    LIVE emission is untouched byte for byte: `colors`, `borderRadius`, `shadows`,
+    `typography.fontFamily.base` (→ `--font-sans`) and `customVars`.
+  - **`@object-ui/types`' `HttpMethodSchema` now binds the spec's
+    `HttpMethodSubsetSchema`, and `HttpMethod` binds `HttpMethodSubset`**
+    (objectstack#5832, PR objectstack#5976 — objectui#3499). The spec renamed its
+    5-value UI subset because `schemaNameFromExportKey` strips the `Schema` suffix,
+    so the 5-value and 7-value enums both published as `shared/HttpMethod` and the
+    later write won — the emitted JSON Schema and reference page described only one
+    of them. **The runtime domain is unchanged and this repo's exported names are
+    unchanged**; this follows the rename without touching cross-package semantics.
+    Deliberately NOT re-pointed at the spec's bare `HttpMethod`: that is the 7-value
+    enum, and widening to it would let `method: 'HEAD'` compile and then throw in
+    `HttpRequestSchema.parse()`.
+  - **`dashboard.widgets[].actionUrl` / `actionType` / `actionIcon` / `aria` are
+    refused, not stripped** (objectstack#5010, ADR-0049 enforce-or-remove). A
+    dashboard widget has no action button and never had one — every action the
+    dashboard dispatches comes from `header.actions[]` — and no renderer ever applied
+    the widget `aria`, so it promised accessibility compliance it did not deliver.
+    A stale dashboard now gets a named error telling it where the affordance moved,
+    instead of silently losing it. Run `os migrate meta --from 16` to rewrite.
+
+- e6fdbdc: Reclaim the natural names `GestureType` and `GestureConfig` (objectui#3363).
+
+  `@objectstack/spec` 17.0.0-rc.3 deleted the whole `ui/touch` module
+  (objectstack#4988, PR objectstack#5321), vacating three names objectui had
+  renamed **away from** in objectstack#4115 purely to avoid a collision. Two of
+  those workarounds have now outlived their reason and are undone.
+
+  ## Breaking, in FROM → TO form
+
+  - `TouchGestureType` → **`GestureType`** — objectui's direction-fused recogniser
+    vocabulary (`tap`, `swipe-left`, `swipe-up`, …).
+  - `TouchGestureConfig` → **`GestureConfig`** — the flat gesture→`action` handler
+    binding.
+
+  Both are exported from `@object-ui/types` and re-exported by `@object-ui/mobile`.
+  Nothing about either shape changed: same members, same optionality. Consumers
+  import the new name; there is no other edit.
+
+  **The old names are gone, not deprecated.** This follows the precedent set by the
+  objectstack#4115 rename batch that introduced them, whose own migration note reads:
+  "an alias would preserve exactly the ambiguity being removed". A deprecated alias
+  would be worse here than in the general case, because the ambiguity these renames
+  exist to prevent is between two same-named types — leaving `TouchGestureType`
+  alive next to `GestureType` restores the two-spellings-one-concept problem while
+  claiming to retire it.
+
+  The retired spec vocabulary that used to hold these names still lives in
+  `@object-ui/types`' `mobile` module under its deliberate `Spec…` prefix
+  (`SpecGestureType`, `SpecGestureConfig`, `SwipeGestureConfig`, …), and that prefix
+  is untouched — it is now the only thing distinguishing the two contracts, so
+  `useSpecGesture` still maps one onto the other exactly as before.
+
+  ## `PWAOfflineConfig` is deliberately NOT reclaimed
+
+  The spec vacated `OfflineConfig` in the same retirement, but the spec was never
+  its only claimant: that rename was a **cross-package arbitration between two
+  objectui packages**, and `@object-ui/react` won it. `useOffline`'s config is the
+  offline data/sync model key for key, so it holds the bare `OfflineConfig`, while
+  this package's service-worker route cache stays `PWAOfflineConfig`
+  (objectui#3156 / objectui#3159).
+
+  Before objectui#3560 that name reached `@object-ui/react` from the spec, so the
+  spec-side tripwire covered it by accident. Since the retirement it is declared
+  locally in `packages/react/src/hooks/useOffline.ts`, which means the spec's
+  vacancy no longer says anything about whether the name is free — it is not.
+  Reclaiming it would put two different `OfflineConfig` shapes on the public
+  surface of two packages that are routinely imported together, which is the exact
+  ambiguity objectstack#4115 renamed it away from.
+
+  `page-nav-misc-spec-parity.test.ts` now pins that reason directly instead of
+  leaving it as prose: it asserts `@object-ui/react` still declares
+  `OfflineConfig`, and its failure message tells the next reader that the reclaim
+  has become available if it ever stops.
+
+### Patch Changes
+
+- Updated dependencies [d229dfa]
+- Updated dependencies [c2fd122]
+- Updated dependencies [48132f7]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/types@17.4.0
+
 ## 17.3.0
 
 ### Patch Changes
@@ -594,24 +763,29 @@
 - a2d7023: End-user feature batch — forms, designer history, import/export, and PWA offline sync.
 
   **Forms (`@object-ui/fields`, `@object-ui/providers`)**
+
   - `FileField`: native `<input capture="environment">` camera capture for mobile devices, plus a uploading-progress indicator driven by `UploadProvider`.
   - `ImageField`: per-image inline crop/rotate via the lazy-loaded `ImageCropperDialog` (canvas-based, zero new deps).
   - New `UploadProvider` in `@object-ui/providers` with pluggable adapters for S3 and Azure Blob (plus the default object-URL adapter for local previews). XHR-based with progress, abort, and retry.
   - `LookupField`: `lookup.dependsOn: string | string[]` to chain dependent lookups (e.g. State depends on Country); the trigger is gated until parent values are present and the OData `$filter` is built automatically.
 
   **Container-aware widget widths (`@object-ui/components`)**
+
   - New `useResizeObserver(ref)` hook exposing `{ width, height }` of any element. SSR-safe; reads the initial size via `getBoundingClientRect`.
   - `plugin-gantt` and `plugin-kanban` now react to their container size instead of `window.innerWidth`, so they behave correctly inside split panels and dashboards.
 
   **Designer history (`@object-ui/plugin-designer`)**
+
   - `useUndoRedo` (and therefore `useDesignerHistory`) gains `persistKey` + `storage` options to round-trip the undo/redo stack through `sessionStorage`, plus a `clearPersisted()` cleanup helper. Drafts now survive accidental tab refreshes.
   - New `<HistoryPanel>` component renders the timeline visually with one-click jump-to-checkpoint via the new `jumpTo(index)` API.
 
   **Import wizard (`@object-ui/plugin-grid`)**
+
   - Saved column-mapping templates: name, save, re-apply, and delete via a new template bar in the mapping step. Persisted under `objectui:import-templates:${objectName}` (override via `templateStorageKey` / `templateStorage`).
   - Inline validation correction: cells with errors in the preview step are now editable; corrections feed straight into the import without requiring a re-upload, with green-bar status indicators for fixed rows.
 
   **PWA offline sync (`@object-ui/mobile`)**
+
   - New `MemoryOfflineQueue` / `IndexedDbOfflineQueue` (`createOfflineQueue()` picks the best backend) backed by IndexedDB.
   - `createOfflineDataSource(inner, { queue })` wraps any DataSource so mutations issued while offline (or that fail with a network-style error) are queued and replayed in order on reconnect. Includes `replay()`, `drop()`, `clear()`, `pending()`, an `onChange` notifier, and an opt-in `resolveConflict` hook for stale-write conflicts.
   - New `useOfflineSync(source)` hook exposes `{ isOnline, pending, isReplaying, replay, drop, clear }` and auto-replays on the browser's `online` event.

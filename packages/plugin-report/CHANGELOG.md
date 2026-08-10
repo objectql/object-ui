@@ -1,5 +1,90 @@
 # @object-ui/plugin-report
 
+## 17.4.0
+
+### Patch Changes
+
+- 3b1f888: Accept React 19 in `@object-ui/plugin-report`'s peer range, the last UI package still declaring React 18 alone (objectui#3690).
+
+  `peerDependencies.react` and `peerDependencies.react-dom` widen from `^18.0.0` to `^18.0.0 || ^19.0.0`, matching the other 29 packages in the fixed version group. With npm 7+ resolving peers strictly, a React 19 consumer installing this published package hit an `ERESOLVE` on first install while every sibling installed clean — and the package's own README already documented the wider range, so the manifest was the half that was wrong.
+
+  The narrow range was never a constraint anyone stated. `packages/plugin-report/package.json` was hand-authored on 2026-02-06 (`1e557cbda`), by which point nineteen sibling packages already carried `^18.0.0 || ^19.0.0` and every package created afterwards was born with it; the one other package born narrow, `plugin-dashboard`, was corrected on 2026-05-08 (`d2b6ecec6`) in a build fix that touched only itself. No commit in the file's 172-commit history ever revisited the peer line, and no commit message mentions a React 18 requirement.
+
+  Nothing in the package needs React 18. Its entire React surface is `React.FC`, `useState`, `useEffect`, `useMemo`, `useReducer`, `useContext`, `Fragment`, `ComponentType`, `CSSProperties` and `ReactNode` — all unchanged in React 19 — with zero uses of anything React 19 removed (`ReactDOM.render`, `unmountComponentAtNode`, `findDOMNode`, legacy context, string refs, `defaultProps` / `propTypes` on function components, `createFactory`, `useFormState`, `react-dom/test-utils`). `react-dom` is not imported by the source at all; it appears only as a UMD global name in the Vite externals config. The workspace pins `react` to 19.2.8 via a root `pnpm.overrides`, so this package's 78 tests have been running against React 19 the whole time it declared it did not support it.
+
+- Updated dependencies [794c497]
+- Updated dependencies [993336f]
+- Updated dependencies [f0a625a]
+- Updated dependencies [b5980f4]
+- Updated dependencies [8aad9fd]
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [0186cdc]
+- Updated dependencies [7864f03]
+- Updated dependencies [ea41a59]
+- Updated dependencies [0cbdca8]
+- Updated dependencies [d229dfa]
+- Updated dependencies [18c42c6]
+- Updated dependencies [ecae400]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [d3e738a]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [f5f8744]
+- Updated dependencies [7ed3360]
+- Updated dependencies [69becd2]
+- Updated dependencies [5e52495]
+- Updated dependencies [0fa5e4d]
+- Updated dependencies [b750823]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [65bb513]
+- Updated dependencies [c97a45e]
+- Updated dependencies [b19162d]
+- Updated dependencies [c2fd122]
+- Updated dependencies [1bd6faa]
+- Updated dependencies [9154d9e]
+- Updated dependencies [ac2139c]
+- Updated dependencies [b14ab3a]
+- Updated dependencies [e24d767]
+- Updated dependencies [8c60819]
+- Updated dependencies [aca561a]
+- Updated dependencies [e64a52e]
+- Updated dependencies [844d17f]
+- Updated dependencies [d8a0be4]
+- Updated dependencies [48132f7]
+- Updated dependencies [4dcd52a]
+- Updated dependencies [42ae5c6]
+- Updated dependencies [0ef9dfd]
+- Updated dependencies [f4b97c8]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [6d762da]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [54233b1]
+- Updated dependencies [c2ecbae]
+- Updated dependencies [f9faa7d]
+- Updated dependencies [97b63d7]
+- Updated dependencies [14c59c0]
+- Updated dependencies [aeb8424]
+- Updated dependencies [6bb454a]
+- Updated dependencies [1a33b1a]
+- Updated dependencies [11c1e71]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [33526fd]
+- Updated dependencies [32413ec]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/components@17.4.0
+  - @object-ui/react@17.4.0
+  - @object-ui/core@17.4.0
+  - @object-ui/fields@17.4.0
+  - @object-ui/i18n@17.4.0
+  - @object-ui/types@17.4.0
+  - @object-ui/plugin-grid@17.4.0
+
 ## 17.3.0
 
 ### Patch Changes
@@ -1425,6 +1510,7 @@
   The matrix/summary "Group by" (rows) and "Columns axis" (cols) sections now
   share the same searchable popup picker as the columns section, with a
   commit-on-select single-pick mode wired through `FieldPickerDialog`.
+
   - Per-row field buttons display the human-readable field label and open a
     dialog scoped to swap that single field (already-used fields filtered out)
   - "Add grouping" trigger uses the same dialog
@@ -1434,6 +1520,7 @@
   - Bigger row spacing (h-7 / text-xs) — the old `text-[10px]` was unreadable
 
   `FieldPickerDialog` gains:
+
   - `commitOnSelect`: hides the Confirm/Cancel footer; clicking a row commits
     - closes immediately (intended for `singleSelect` flows)
   - `trigger`: custom trigger element override (used by the per-row field button)
@@ -1483,6 +1570,7 @@
   in the spec.
 
   New exports from `@object-ui/plugin-report`:
+
   - `JoinedBlocksEditor` — standalone component for embedding the
     block editor anywhere.
   - `validateJoinedBlocks` — pure helper returning translated
@@ -1513,6 +1601,7 @@
   The report configuration panel is now safe to open on any spec-shape `Report` and only exposes fields that are actually persisted by `@objectstack/spec`.
 
   `@object-ui/plugin-report`:
+
   - Add a bidirectional `SpecFilterAdapter` so `ReportConfigPanel` can edit
     spec `FilterCondition` filters (`{field: value}`, `{field: {$op: value}}`,
     top-level `$and`/`$or`). Complex / nested filters fall back to a
@@ -1534,12 +1623,14 @@
   - 18 new unit tests cover the filter adapter round-trip.
 
   `@object-ui/components`:
+
   - `FilterBuilder` now guards against malformed external `value` props.
     Previously a spec-shape filter (`{is_active: true}`) would crash the
     component on first render; the builder now falls back to an empty
     AND group whenever `value` is not a valid `FilterGroup`.
 
   `@object-ui/i18n`:
+
   - Add `report.editor.*` strings to `en` and `zh`.
 
 - 8442c05: Improve report editor panel usability based on real-user browser testing:
@@ -1600,6 +1691,7 @@
 
 - 650392e: MatrixRenderer now displays i18n-translated labels for picklist (`select` / `status`) groupings instead of raw values (e.g. `Best Case` / `Commit` / `Pipeline` instead of `best_case` / `commit` / `pipeline`). Field labels in the corner cell, row/column total labels, and the `(Empty)` / `(All)` placeholders are also fully translated. Adds `report.*` keys to `en` and `zh` locale bundles.
 - 26f5fce: Simplify report identity: replace the dashboard-style KPI grid with a compact "Totals" strip so reports look like reports (table-first with a grand total), not like mini-dashboards.
+
   - `SpecReportGrid` now renders one inline `Totals: Label1: value Label2: value …` strip above the chart and table, styled as a muted single-line band — clearly subordinate to the data grid below.
   - The Totals strip is now also shown for `tabular` reports when they declare aggregating columns (matches Salesforce's "Grand Total" convention).
   - Drop the duplicate chart title `<div>`: the chart component already renders its own title from `report.chart.title`.
@@ -1627,6 +1719,7 @@
 ### Minor Changes
 
 - b4ce9e2: Fix summary reports: render chart + KPIs, correct empty-table on server-aggregated data.
+
   - `plugin-report`: `SpecReportGrid` now renders a KPI strip (per aggregating column) and a chart section above the grid for `summary` reports. KPI section auto-hides when no aggregating columns. New `buildChartData()` adapter buckets aggregated `ReportRow[]` to chart-ready data, auto-sorts pie/funnel descending, and falls back to row count when the chart `yAxis` points at a non-numeric column. When the data is server-aggregated, the grid switches columns to `[groupings, ${field}__${agg}]` so cells aren't empty against a raw-row column schema.
   - `plugin-charts`: register `'column'` as an alias of `'bar'` in `ChartRenderer` / `AdvancedChartImpl` (Recharts only has `BarChart`).
   - `app-shell`: `ReportView` now routes any object-backed report (matrix/joined/summary/tabular/columns/groupingsAcross) through the spec `ReportRenderer`; fully-legacy `fields`+`data` schemas still use `ReportViewer`.
@@ -1770,6 +1863,7 @@
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.

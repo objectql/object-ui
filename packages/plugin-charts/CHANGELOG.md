@@ -1,5 +1,167 @@
 # @object-ui/plugin-charts
 
+## 17.4.0
+
+### Patch Changes
+
+- a7e39a8: `ChartContainer`'s min-size fallback survives a consumer-supplied `style` (objectstack#7026)
+
+  The container wrote `style={{ minHeight: 280, minWidth: 0, ...props.style }}` and
+  then spread `{...props}` on the line BELOW it. `props` is the rest of
+  `ComponentProps< "div" >` — only `id`, `className`, `children`, `config` and
+  `disableSettleRemount` are destructured out of it — so it still carried the
+  consumer's `style`, and a later JSX attribute of the same name replaces an earlier
+  one outright. Any caller that passed a `style` therefore replaced the whole object:
+  both `minHeight` and `minWidth` vanished, and the `...props.style` merge written
+  inside it never executed even once. It was dead code that read, to anyone auditing
+  the file, as if the fallback were guaranteed.
+
+  That fallback is not decorative. It exists so Recharts' `ResponsiveContainer`
+  always has a non-zero box to measure: a dashboard widget that overrides the
+  container's `h-[350px]` class and wraps the chart in flex/grid without an explicit
+  child height leaves the box at 0, Recharts measures `width/height = -1`, and the
+  chart renders invisibly — the exact failure the guard was added for.
+
+  `style` is now destructured out of the rest props and merged explicitly, so which
+  side wins is stated in code instead of being decided by JSX attribute order, and
+  `{...props}` can no longer reach `style` at all.
+
+  Precedence: **an author's explicit size wins.** Simply spreading `{...props}`
+  first and merging unconditionally would have traded this bug for its mirror image
+  — `minHeight: 280` injected next to an authored `height: 100` floors that 100 to
+  280, silently overriding the author. So each half of the fallback applies only
+  when the consumer style declares neither of its own keys: `height`/`minHeight`
+  gate the height half, `width`/`minWidth` gate the width half, and a key present
+  but set to `undefined`/`null` counts as not declared. Every other consumer style
+  key passes through untouched.
+
+  Behaviour change surface, deliberately narrow. A caller that supplies no `style`
+  is byte-for-byte unchanged. A caller whose `style` declares a height — which today
+  is the only shape in the tree, `AdvancedChartImpl`'s `containerProps` forwarding
+  `ChartConfig.height` — keeps exactly the height it authored, also unchanged, and
+  additionally regains the `minWidth: 0` half. What changes is the case the issue
+  was filed for: a `style` carrying no size key (a margin, a padding, an
+  aspect-ratio, any future container-level presentation prop routed through the same
+  `containerProps` path) now keeps the min-size fallback instead of silently
+  stripping it.
+
+  Pinned in both directions, since a one-sided pin would have been satisfied by the
+  mirror-image fix: a non-size `style` keeps `min-height: 280` / `min-width: 0`
+  (red before this change), and an explicit `height: 100` renders as 100 with no
+  `min-height` floor (red under the unconditional-merge alternative).
+
+- 4bc6c23: Converge dashboard widget `compareTo` on the executor's `{ kind, dimension? }` contract, and make the dataset path actually render a comparison
+
+  `CompareToConfig` was a three-branch union (`'previousPeriod' | 'previousYear' | { offset }`). `@objectstack/spec` collapsed it to the shape the analytics executor already implements — `DatasetCompareTo`, a plain strict object `{ kind: 'previousPeriod' | 'previousYear'; dimension?: string }` (objectstack#5011) — so this renderer now reads that one shape:
+
+  - `shiftFilterByCompareTo` / `compareToTrendLabelKey` dispatch on `compareTo.kind`. The `{ offset }` duration shift is gone: `{ offset: '1y' }` is `kind: 'previousYear'`, while `'7d'` / `'1M'` have no faithful target and are restated by the author on the widget's own `filter` plus `kind: 'previousPeriod'`. No trend label key is retired — the offset arm resolved to `vsPreviousPeriod`, which survives as the `previousPeriod` fallback.
+  - `DatasetWidget` no longer discards part of `compareTo`. It used to forward only the object form because the two string forms had no meaning downstream; with one shape there is nothing to discard, and a stale string is now invalid metadata rejected where it is authored rather than silently reinterpreted here.
+  - **The comparison now actually runs on the dataset path.** A widget states its window in its own `filter` (a date macro, or the dashboard date-range filter merged in), but the executor shifts a `timeDimensions` entry carrying a `dateRange` — so a dataset widget asking for a comparison got "compareTo needs a dated window to shift" and rendered none. When (and only when) a comparison is requested, the resolved filter's bounded date windows are lowered into `selection.timeDimensions[].dateRange` and moved out of `runtimeFilter` (a copy left behind would intersect the shifted window with the current one and empty every comparison column). Which dimension gets shifted stays the executor's decision: every window found is lowered under the name the author wrote, and zero or two candidates surfaces the executor's own error, listing them.
+  - The `<measure>__compare` columns that come back are now shown: a delta + window label on KPI widgets, a comparison column on tables, and a `variant: 'comparison'` overlay series on charts — the same treatment and the same `dashboard.trend.*` labels the inline object-provider widgets already use.
+
+- 5bfaabd: `PageComponentSchema.dataSource` now reaches every object-bound block, not just
+  `list-view` — and `element:record_picker` stops discarding `view`
+  (objectstack#6953).
+
+  objectstack#5576 wired the spec's per-element data binding
+  (`dataSource: { object, view?, filter?, sort?, limit? }`) to `list-view` and left
+  the same declaration inert on every other page component. Two gaps remained, and
+  both were silent:
+
+  - **`element:record_picker` read four of the five keys and dropped `view`.** So
+    `dataSource: { object: 'account', view: 'hot' }` — the spec's own example —
+    built a picker over EVERY account instead of the rows the saved view selects.
+    Nothing threw and nothing rendered an error; the option list was simply wider
+    than what was authored, which also means a user could select a record the page
+    said was out of scope.
+  - **`object-grid` / `object-form` / `object-kanban` / `object-calendar` /
+    `object-chart` / `object-metric` / `record:related_list` read none of it.**
+    Each gates its fetch on its own `objectName`, and nothing mapped
+    `dataSource.object` onto it, so a page written the way the spec documents
+    rendered an empty grid / a field-less form / a board with no cards / an empty
+    month / an empty chart / a static metric number — with no request and no
+    diagnostic anywhere. Spec-valid metadata rendering nothing is the
+    objectstack#4413 shape.
+
+  Composition follows objectstack#5576's landed semantics unchanged on every block:
+  a named saved view supplies the baseline, a key written on the component itself
+  overrides it, an explicit binding key overrides both, `filter` AND-combines
+  ("additional filter criteria" — a binding can narrow a view, never widen it), and
+  a `view` name that does not resolve renders a configuration error instead of
+  degrading to the object's full scope.
+
+  - `@object-ui/react` — new `useElementDataSourceSchema(schema, mapping, dataSource?)`
+    and `ElementDataSourceGate` apply a resolved binding to the schema keys a given
+    block reads, plus `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel`
+    for the two non-final states. One precedence table for all blocks rather than
+    one copy per block — that copy is how "additional filter criteria" would have
+    become two dialects.
+  - A mapping names **only** keys its block genuinely reads. A composed value
+    written onto a key the block ignores would be accepted and dropped, which is
+    the defect being removed, one layer deeper — so a kanban's swimlane `columns`
+    never receive a view's field list, and a block with no row cap leaves `limit`
+    unmapped. The per-block coverage table, including two residual gaps that are
+    named rather than papered over, is in `content/docs/guide/data-source.md`.
+
+  No behaviour changes for a block that carries no `dataSource`: the binding-free
+  path returns the schema by reference, so nothing remounts and nothing refetches.
+
+- Updated dependencies [794c497]
+- Updated dependencies [993336f]
+- Updated dependencies [f0a625a]
+- Updated dependencies [b5980f4]
+- Updated dependencies [8aad9fd]
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [7864f03]
+- Updated dependencies [0cbdca8]
+- Updated dependencies [d229dfa]
+- Updated dependencies [ecae400]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [d3e738a]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [f5f8744]
+- Updated dependencies [7ed3360]
+- Updated dependencies [69becd2]
+- Updated dependencies [5e52495]
+- Updated dependencies [0fa5e4d]
+- Updated dependencies [b750823]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [c2fd122]
+- Updated dependencies [ac2139c]
+- Updated dependencies [b14ab3a]
+- Updated dependencies [e24d767]
+- Updated dependencies [8c60819]
+- Updated dependencies [aca561a]
+- Updated dependencies [e64a52e]
+- Updated dependencies [844d17f]
+- Updated dependencies [48132f7]
+- Updated dependencies [4dcd52a]
+- Updated dependencies [42ae5c6]
+- Updated dependencies [0ef9dfd]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [6d762da]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [54233b1]
+- Updated dependencies [f9faa7d]
+- Updated dependencies [97b63d7]
+- Updated dependencies [6bb454a]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [33526fd]
+- Updated dependencies [32413ec]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/components@17.4.0
+  - @object-ui/react@17.4.0
+  - @object-ui/core@17.4.0
+  - @object-ui/i18n@17.4.0
+  - @object-ui/types@17.4.0
+
 ## 17.3.0
 
 ### Minor Changes
@@ -872,6 +1034,7 @@
   project `health`) painted its categories from the generic `--chart-1..5`
   palette — the same gap the chart view (`object-chart`) had before #1932. It now
   resolves the dimension field's option colors (using the dataset's base `object`
+
   - dimension→field map the query already returns) and threads them to the
     renderer as a per-category `categoryColors` map, so health green/red/yellow
     paints semantically.
@@ -1078,6 +1241,7 @@
 - 991b62d: Add `compareTo` field to dashboard widgets for period-over-period
   comparison. Supports `'previousPeriod'`, `'previousYear'`, and
   `{ offset: '7d' | '4w' | '1M' | '1y' }`.
+
   - **Metric / gauge widgets** now compute a delta percentage when `compareTo`
     is set and surface it as a derived `trend` (auto-labelled via
     `dashboard.trend.vsLast*` i18n keys sniffed from the filter macros).
@@ -1562,6 +1726,7 @@
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.
@@ -1795,6 +1960,7 @@
 - New plugin-object and ObjectQL SDK updates
 
   **Added:**
+
   - New Plugin: @object-ui/plugin-object - ObjectQL plugin for automatic table and form generation
     - ObjectTable: Auto-generates tables from ObjectQL object schemas
     - ObjectForm: Auto-generates forms from ObjectQL object schemas with create/edit/view modes
@@ -1803,6 +1969,7 @@
   - ObjectQL Integration: Enhanced ObjectQLDataSource with getObjectSchema() method using MetadataApiClient
 
   **Changed:**
+
   - Updated @objectql/sdk from ^1.8.3 to ^1.9.1
   - Updated @objectql/types from ^1.8.3 to ^1.9.1
 
@@ -1819,6 +1986,7 @@
 - Patch release: Add automated changeset workflow and CI/CD improvements
 
   This release includes infrastructure improvements:
+
   - Added changeset-based version management
   - Enhanced CI/CD workflows with GitHub Actions
   - Improved documentation for contributing and releasing

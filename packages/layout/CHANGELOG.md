@@ -1,5 +1,205 @@
 # @object-ui/layout
 
+## 17.4.0
+
+### Patch Changes
+
+- 6bd6a4d: `registerLayout()` 的 `inputs` 声明面与渲染器实现对齐 —— 校验器不再对正确写法报假诊断
+
+  `inputs` 是**作者面**:`sdui-parser/src/validate.ts` 拿一个节点的顶层属性逐个比对
+  `comp.inputs`,不在其中的报 `unknown-prop`,类型不符的报 `type-mismatch`;设计器面板、
+  `sdui.manifest.json`、生成的 JSX 类型也都由它派生。所以声明面写错的代价不是"文档不全",
+  而是**校验器对着能正常渲染的 schema 说谎**(objectui#3972,与 objectui#3900 同族、换到属性面)。
+
+  两处修正,都是按渲染器**实际读点**审计出来的:
+
+  - **`page-header` 补声明 `icon` 与 `actions`。** 两个键三面齐全:渲染器真读
+    (`PageHeader.tsx:117` 取参 `:224-226` 渲染 icon;`:119` 取参 `:192-196` 把 actions
+    委派给 `record:quick_actions`)、`@objectstack/spec/ui` 的 `PageHeaderProps` 声明、
+    `ManifestInputType` 表达得了(`string` / `array`)。`content/docs/layout/page-header.mdx`
+    的 Component Props 段落也把两者写成公开契约,而该文档页**唯一**的 live demo
+    (`layout-page-header/pageheader-with-actions`)就写着 `"icon": "users"` —— 于是仓内
+    自己的文档示例每次过 manifest 门都收到一条 `unknown-prop: page-header has no prop "icon"`。
+    `actions` 的类型与 canonical 的 `page:header` 逐字一致(`type: 'array'`),一个概念一个键
+    一种类型。
+  - **`navigation-renderer` 的 `items` 由 `type: 'object'` 改为 `'array'`。**
+    `NavigationRendererProps.items` 是 `NavigationItem[]`(`NavigationRenderer.tsx:108`),
+    而 `checkType` 对 `'object'` 判 `typeof value === 'object' && !Array.isArray(value)`、
+    对 `'array'` 判 `Array.isArray`(`validate.ts:124-129`)—— 两者互斥。所以旧声明对这个
+    渲染器**唯一能渲染的形状**报 `type-mismatch ... expected an object`,而对真会让它崩的
+    对象形状一言不发。这不是 objectui#3832 的表达力问题:`ManifestInputType` 本来就有
+    `'array'`,只是声明写错了一个表达得了的类型。
+
+  **刻意不声明**的键同样被钉住,因为"照抄 spec 的 shape"是这条修复最容易滑进去的反向缺陷:
+  `breadcrumb`(spec 有、这个渲染器零读点 —— 声明它就是 objectui#3829 的缺陷方向)、
+  `showBack` / `action` / `description`(渲染器读、spec 无此键 —— 声明任一个就是在开第二套
+  方言,正是 objectui#3226 收窄要防的事)、`aria`(每个 block 都因同一理由省略的可访问性逃逸口)。
+
+  渲染输出逐字节不变:渲染路径从不读 `inputs`。变化只在校验/设计器/清单这一侧,且两个方向
+  都钉了 —— 正确写法放行的同时,`description` 这类刻意不声明的键仍报 `unknown-prop`、
+  `items` 写成对象仍报 `type-mismatch`(诊断没有被弄哑)。
+
+- 876e3f7: `@object-ui/layout` no longer tells bundlers it has no side effects while registering components at load time (objectui#3899)
+
+  The published manifest declared `"sideEffects": false` — a promise that no module
+  in the package does anything on evaluation, so any module whose exports go unused
+  may be dropped whole. But `src/index.ts` ends with a bare
+  `try { registerLayout(); } catch {}`, and that call is the only thing that puts
+  `page-header`, `page:card`, `app-shell`, `responsive-grid`,
+  `navigation-renderer` and `app-schema-renderer` into the `ComponentRegistry`.
+
+  Both statements cannot be true, and a bundler that believes the manifest is
+  right to delete the registration. Measured with the repo's own bundler by
+  building `import '@object-ui/layout';` — the side-effect-only import, i.e. the
+  documented "import it to register" pattern:
+
+  - `sideEffects: false` — the bundle is **0 bytes**. Zero registrations, exit
+    code 0, no warning.
+  - after this change — the bundle keeps all six `ComponentRegistry.register`
+    calls.
+
+  A dropped registration does not fail where it happened. It surfaces later as a
+  red `Unknown component type` panel (OBJUI-001) on a fully green build, with
+  nothing in the build log to connect the two. Nobody had been bitten yet only
+  because every consumer today ALSO imports a named export, which forces the module
+  to be evaluated regardless — coincidence, not design. objectui#3787 met the
+  hazard and routed around it by calling `registerLayout()` explicitly.
+
+  `sideEffects` is now the narrowest honest answer: an array naming the modules
+  that actually register, rather than `true`, which would be honest but would hand
+  the whole package to every bundler as unshakeable.
+
+  ```json
+  "sideEffects": ["./dist/index.js", "./dist/index.umd.cjs", "./src/index.ts"]
+  ```
+
+  All three are load-bearing, and the set is derived from the manifest rather than
+  guessed:
+
+  - `./dist/index.js` and `./dist/index.umd.cjs` are every JS file the manifest's
+    own entry fields point at (`module` / `main` / `exports` import+require). The
+    library build inlines everything into those two files, so there is no third
+    chunk to name.
+  - `./src/index.ts` is not published (`files` ships `dist` only) but is bundled
+    for real: `apps/console` and `examples/console-starter` both alias the
+    specifier straight at `packages/layout/src`, and a bundler reads this same
+    manifest for those files. With only the published paths declared, the console's
+    alias shape still produced a 0-byte bundle.
+
+  What deliberately did NOT change: the load-time `registerLayout()` itself.
+  Replacing it with an explicit registration API is the opposite direction — it
+  eliminates the side effect instead of declaring it, and it is breaking for any
+  consumer relying on automatic registration. objectui#3899 leaves that call to the
+  maintainer, and the two steps do not conflict: once the manifest tells the truth,
+  the migration to explicit registration can happen whenever it is wanted.
+
+  A new pin (`packages/layout/src/__tests__/side-effects-manifest.test.ts`) runs a
+  real bundler build per entry form and asserts the registrations survive a
+  side-effect-only import, with a `sideEffects: false` control per form asserting
+  they are dropped — so the pin cannot pass because the bundler stopped shaking
+  anything. The required set is derived from the manifest's own entry fields, so a
+  renamed build output or a new `exports` subpath fails as a missing declaration
+  instead of drifting silently.
+
+- f3b2874: `navigation-renderer` 的 `items` 声明为 `required: true` —— 校验器不再放过必崩的节点
+
+  `items` 在组件侧是**非可选**的 `NavigationItem[]`(`NavigationRendererProps.items`,无 `?`),
+  渲染器也不给默认值,而注册声明一直没写 `required`。`sdui-parser` 只在 `input.required` 为真时
+  报 `missing-required-prop`(`validate.ts:55-64`),于是 `{ "type": "navigation-renderer" }`
+  这个节点**校验零诊断、渲染直接抛**:第一处无守卫的读点是 `pinnedItems` memo 里的
+  `collectPinnedItems(filteredItems)`(`NavigationRenderer.tsx:1242` → `:1410` 的
+  `for (const item of items)`),实测 `TypeError: items is not iterable`。
+  (`resolveActiveNavItem` memo 挡得住 —— 它的 `visit` 首行是 `if (!nodes) return`;
+  `:1247` 的 `filteredItems.slice()` 同样会抛,但根本走不到。)
+
+  这是 objectui#3972(键的**存在**与**类型**三面对齐)的第四面:**可选性**。#3972 与
+  objectui#3900 都是删除假诊断,这一条相反——它是**收紧**。
+
+  **blast radius:** 今天省略 `items` 写 `navigation-renderer` 的 schema,会新增一条
+  **error** 级 `missing-required-prop`。受影响面是仓外按 `inputs` / `packages/layout/README.md`
+  做 schema 驱动的消费者(仓内没有任何 JSON 元数据把它当 schema 节点写,React 调用侧的必填由
+  TS 兜住;`examples/schema-catalog` 的 `not-a-container` 对照节点补了 `items: []`,使它只剩
+  那一处故意植入的缺陷)。而这条诊断新拦下的形状,**恰好等于渲染必然崩溃的形状** —— 让作者
+  (尤其是 AI 作者)在发布期就听到运行期注定要发生的失败,正是 `missing-required-prop` 存在
+  的理由。若某个消费者确实想要"缺 items 就渲染空导航",那是给组件加 `= []` 默认值的另一条路
+  (objectui#3987 里记了,与本改动不互斥),而不是让校验器继续沉默。
+
+  `basePath` **保持可选**并被钉成对照:渲染器真的给了它默认值(`basePath = ''`)。`required`
+  是逐个属性从组件读出的事实,不是一刀切——否则这道门会开始拒绝完全能渲染的 schema,作者就会
+  学着无视 `missing-required-prop`,正如 #3972 里他们被教着无视 `type-mismatch`。
+
+- 82f8dff: `page-header` 注册补 `isContainer: true` —— 校验器不再对文档承诺的 children 写法报 `not-a-container`
+
+  `PageHeader` 一直**有意**把 `schema.children` 渲染进右侧动作槽(`PageHeader.tsx:182`,
+  `record:quick_actions` 嵌在 `page:header.children` 下就是靠它),
+  `content/docs/layout/page-header.mdx` 把该槽的优先级(`action` → React `children` →
+  `actions` → schema children)写成公开契约,该文档页唯一的 live demo
+  (`layout-page-header/pageheader-with-actions`)正是这个形状且实测正常渲染。但
+  `packages/layout/src/index.ts` 的注册漏了 `isContainer: true`。
+
+  漏这个 flag 从来没有挡住任何渲染 —— 渲染路径根本不读它(`SchemaRenderer` 把
+  `children` 从 React props 里剥掉当元数据,而始终把整个节点作为 `schema` 传下去,
+  `PageHeader` 自己再把 `schema.children` 放回槽里)。它的消费者在别处:`sdui-parser`
+  的 `not-a-container` 诊断、Studio 调色板元数据、react-page 标签表。所以真正的后果是
+  **校验器在说谎**:作者照文档写出能正常渲染的 schema,却拿到一条
+  "`page-header` does not accept children" 的 warning;信了这条 warning 去掉 children,
+  右槽就空掉。而会说谎的 warning 比缺一条 warning 更贵 —— 它训练作者(尤其 AI 作者)
+  连真实的 `not-a-container`(那些确实不收子节点的组件)一起无视。
+
+  这不是在 spec 之外新开作者面:`children` 是 objectui JSON 协议里**每个节点**的基础属性
+  (`sdui-parser/src/validate.ts` 的 `BASE_PROPS` 把它和 `type`/`id`/`className` 并列),
+  不是 `PageHeaderProps` 的键。所以这个 flag 回答的是协议层面的"该节点是否接受子节点列表",
+  而对这个组件,答案一直是"是"。维护者 2026-08-09 就 objectui#3900 的 A/B 分叉裁定 A 案,
+  理由同上。
+
+  行为面变化极窄:注册元数据一个布尔位。渲染输出逐字节不变(渲染路径不读该 flag);
+  `sdui-parser` 对带 children 的 `page-header` 少报一条 warning;设计器把它当容器对待
+  (即它本来的样子)。canonical 的 `page:header`(`@object-ui/components`)不在此列且刻意不动
+  —— 那个渲染器完全不读 `schema.children`,所以它没有 `isContainer` 是正确的。
+
+  两个方向都已钉住:文档 demo 走应用真实构建的 manifest 后不再产生 `not-a-container`,
+  而一个真正不收子节点的组件(`navigation-renderer`)带 children 时诊断照旧触发 ——
+  后者是前者的对照,保证这条修复不是把诊断弄哑了。
+
+- Updated dependencies [794c497]
+- Updated dependencies [993336f]
+- Updated dependencies [f0a625a]
+- Updated dependencies [b5980f4]
+- Updated dependencies [8aad9fd]
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [0cbdca8]
+- Updated dependencies [d229dfa]
+- Updated dependencies [ecae400]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [d3e738a]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [7ed3360]
+- Updated dependencies [0fa5e4d]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [c2fd122]
+- Updated dependencies [e24d767]
+- Updated dependencies [aca561a]
+- Updated dependencies [48132f7]
+- Updated dependencies [0ef9dfd]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [54233b1]
+- Updated dependencies [97b63d7]
+- Updated dependencies [6bb454a]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/components@17.4.0
+  - @object-ui/react@17.4.0
+  - @object-ui/core@17.4.0
+  - @object-ui/types@17.4.0
+
 ## 17.3.0
 
 ### Minor Changes
@@ -17,6 +217,7 @@
   the switcher and instead rendered as a selectable, empty area.
 
   ## What changed
+
   - **Area visibility is now derived, not authored.** An area appears in the
     switcher iff at least one of its navigation items survives the exact
     item-level guards `NavigationRenderer` applies: the `visible` expression,
@@ -1012,6 +1213,7 @@
 - b703480: feat(layout): smoother sidebar transitions
 
   `SidebarNav` now animates the previously-instant state changes:
+
   - Active-state colour swap on `SidebarMenuButton` /
     `SidebarMenuSubButton` is wrapped in `transition-colors duration-150`
     so navigating between rows glides rather than snaps.
@@ -1091,6 +1293,7 @@
   record detail page (lead, opportunity, future account/contact/case).
   Before this change it had two problems that bled into every custom
   page across the product:
+
   1. **Quadruple registration**: `@object-ui/layout` registered both
      `page-header` and `page:header`, and `@object-ui/components`
      independently registered `page:header` (and `page:section`).
@@ -1101,6 +1304,7 @@
      than the default detail view it was meant to supersede.
 
   This commit:
+
   - Removes the `@object-ui/layout` `page:header` registration. The
     layout package keeps the legacy kebab-cased `page-header` alias only.
     The canonical renderer now lives in `@object-ui/components` and is
@@ -1179,6 +1383,7 @@
 - d714e85: Lookup display-name resolution now falls back through a Salesforce-style chain
   when an `$expand`'d reference object lacks a top-level `name`/`label`/
   `display_name`/`title` field:
+
   1. Standard display fields (existing behaviour)
   2. `salutation first_name last_name` composite — handles person records that
      only carry first/last name parts
@@ -1237,6 +1442,7 @@ Lin` and no `name` field now renders as `Bob Lin` everywhere — instead of
   pages without a record context are unaffected.
 
 - 2bd45af: feat(shell): main becomes the scroll container; record tabs are sticky
+
   - `AppShell`'s SidebarProvider wrapper is now constrained to viewport
     height (`h-svh overflow-hidden`) instead of expanding with content via
     the default `min-h-svh`. This makes the inner `<main>` (which is
@@ -1259,6 +1465,7 @@ Lin` and no `name` field now renders as `Bob Lin` everywhere — instead of
 ### Patch Changes
 
 - 6b683c8: fix(detail): clean up record page rendering
+
   - Drop `ai:chat_window` from the protocol-component placeholder list. The
     floating chat overlay (plugin-chatbot) is the canonical AI entry point;
     inline page schemas that still reference `ai:chat_window` now surface
@@ -1272,6 +1479,7 @@ Lin` and no `name` field now renders as `Bob Lin` everywhere — instead of
     as a fallback so both inlined and raw-bag schema shapes are supported.
 
 - 0d8eb98: feat(detail): Salesforce-style record header + section field grid
+
   - `page:header` now renders an icon chip (resolves Lucide names via
     `LazyIcon`) plus subtitle, so detail pages can show
     "Name / Company" without an extra component.
@@ -1430,6 +1638,7 @@ Lin` and no `name` field now renders as `Bob Lin` everywhere — instead of
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.

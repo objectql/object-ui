@@ -1,5 +1,165 @@
 # @object-ui/plugin-timeline
 
+## 17.4.0
+
+### Patch Changes
+
+- 022002a: `PageComponentSchema.dataSource` now reaches the remaining object-bound public
+  blocks: `object-gantt` / `object-timeline` / `object-map` / `object-pivot` /
+  `object-master-detail-form` / `embeddable-form` / `record:line_items`
+  (objectstack#7121).
+
+  objectstack#6953 wired the spec's per-element data binding
+  (`dataSource: { object, view?, filter?, sort?, limit? }`) to the eight blocks it
+  named and left the same declaration inert on these seven. Each gates its fetch on
+  its own object key and nothing mapped `dataSource.object` onto it, so a page
+  written the way the spec documents rendered an empty gantt / an empty timeline
+  rail / a map with no markers / an empty cross-tab / a field-less form — with no
+  request and no diagnostic anywhere. Spec-valid metadata rendering nothing is the
+  objectstack#4413 shape.
+
+  Composition follows objectstack#5576's landed semantics unchanged, through the
+  shared `ElementDataSourceGate` (no change to it or to the resolution layer): a
+  named saved view supplies the baseline, a key written on the component itself
+  overrides it, an explicit binding key overrides both, `filter` AND-combines
+  ("additional filter criteria" — a binding can narrow a view, never widen it), and
+  a `view` name that does not resolve renders a configuration error on every one of
+  these blocks instead of degrading to the object's full scope.
+
+  Each block maps **only** the keys it genuinely reads, which for this batch means
+  several keys stay deliberately unmapped rather than being parked somewhere
+  plausible:
+
+  - `object-gantt` and `object-map` take `object` / `filter` / `sort`; neither has a
+    row cap or a field-list read site.
+  - `object-pivot` takes `object` / `filter`; a cross-tab orders itself by its own
+    row/column grouping and cannot be computed over a truncated page.
+  - `object-timeline` takes `object` only — its fetch is
+    `find(objectName, { options: { $top: 100 } })`, with no filter/sort read site
+    at all, so a named view is error-checked and then contributes nothing.
+  - `embeddable-form` and `object-master-detail-form` take `object` only (the
+    parent object, in the master-detail case); a form that writes one record has no
+    collection query for `filter` / `sort` / `limit` to narrow.
+  - `record:line_items` takes `object` onto **`childObject`** — the collection it
+    actually lists — and nothing else: its query is the parent FK plus a fixed
+    `$top: 500`, and its `columns` are editable `GridColumn` objects rather than a
+    field-name projection a view could supply.
+
+  The per-block coverage table, including every residual gap named above, is in
+  `content/docs/guide/data-source.md`.
+
+  No behaviour change for a block that carries no `dataSource`: the binding-free
+  path returns the schema by reference, so nothing remounts and nothing refetches.
+
+- 523be48: `object-timeline` and `record:line_items` now apply the filter / sort / row cap they are given, so a named `dataSource.view` narrows them instead of contributing nothing
+
+  These were the two residual gaps in objectstack#7121's per-block coverage table
+  (objectstack#7137). Both blocks are object-bound lists, both accepted the spec's
+  per-element `dataSource` binding, and neither had a read site for `filter` or
+  `sort` anywhere in its fetch:
+
+  - `object-timeline`'s entire query was
+    `find(objectName, { options: { $top: 100 } })`.
+  - `record:line_items`' was the parent FK plus a fixed `$top: 500`.
+
+  So `dataSource: { object, view: 'hot' }` resolved the view — a typo still reported
+  a configuration error, it never degraded into an unfiltered query — and then
+  dropped everything the view said. The rendered rows could be **wider than the view
+  they named**, silently, which is exactly the class of mistake AI-authored metadata
+  hides best: the page looks like it works. objectstack#7121 deliberately left the
+  keys unmapped and recorded the gap rather than writing composed values onto schema
+  keys nobody read; this closes it at the fetch instead.
+
+  What each block now reads:
+
+  - **`object-timeline`** — `$filter: schema.filter`,
+    `$orderby: convertSortToQueryParams(schema.sort)`, and
+    `$top: schema.limit ?? 100`, matching the form `object-gantt` / `object-map` /
+    `object-calendar` already use. Its registry mapping gains
+    `filter` / `sort` / `limit`; `columns` stays unmapped, because a timeline
+    projects the fields its `timeline` config names.
+  - **`record:line_items`** — the composed filter is **AND-combined** with the parent
+    relationship condition through `mergeFilterNodes`, never substituted for it, the
+    same way `record:related_list` composes its own since objectstack#7118: a
+    line-items panel is always scoped to the record it sits on, so an _additional_
+    criterion can only narrow this parent's children and can never surface another
+    parent's rows. `sort` becomes the load order and `limit` the row cap (default
+    500). `columns` stays unmapped — here they are `GridColumn[]` driving an editable
+    grid, not a field-name projection, so a view's column list would be the wrong
+    _shape_ rather than merely a wider answer.
+
+  **Behaviour change worth knowing about:** the timeline's default window is now a
+  real cap. `{ options: { $top: 100 } }` nested the limit under a key that is not a
+  `QueryParams` field and that no adapter in this repo reads (`convertQueryParams`
+  maps `params.$top`), so the intended window never reached the wire and a timeline
+  over a large object fetched whatever the server chose to return. It is now sent as
+  `$top`, and authorable via `limit` or a view's `pagination.pageSize`.
+
+  `@object-ui/core` gains `convertSortToQueryParams`, the sort→`$orderby` lowering
+  the three sibling blocks each inline privately. It is shared rather than copied
+  twice more, and is slightly more faithful to the declared contract than those
+  copies: a sort entry that omits `order` means ascending instead of being dropped
+  (the string spelling `"amount"` already meant ascending in the same copies), and
+  nothing orderable yields `undefined` rather than a truthy empty `{}`. Migrating
+  the three existing copies onto it is objectstack#7148 and is not done here.
+
+- Updated dependencies [794c497]
+- Updated dependencies [993336f]
+- Updated dependencies [f0a625a]
+- Updated dependencies [b5980f4]
+- Updated dependencies [8aad9fd]
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [7864f03]
+- Updated dependencies [0cbdca8]
+- Updated dependencies [d229dfa]
+- Updated dependencies [ecae400]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [d3e738a]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [f5f8744]
+- Updated dependencies [7ed3360]
+- Updated dependencies [69becd2]
+- Updated dependencies [5e52495]
+- Updated dependencies [0fa5e4d]
+- Updated dependencies [b750823]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [c2fd122]
+- Updated dependencies [ac2139c]
+- Updated dependencies [b14ab3a]
+- Updated dependencies [e24d767]
+- Updated dependencies [8c60819]
+- Updated dependencies [aca561a]
+- Updated dependencies [e64a52e]
+- Updated dependencies [844d17f]
+- Updated dependencies [48132f7]
+- Updated dependencies [4dcd52a]
+- Updated dependencies [42ae5c6]
+- Updated dependencies [0ef9dfd]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [6d762da]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [54233b1]
+- Updated dependencies [f9faa7d]
+- Updated dependencies [97b63d7]
+- Updated dependencies [6bb454a]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [33526fd]
+- Updated dependencies [32413ec]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/components@17.4.0
+  - @object-ui/react@17.4.0
+  - @object-ui/core@17.4.0
+  - @object-ui/i18n@17.4.0
+  - @object-ui/types@17.4.0
+  - @object-ui/mobile@17.4.0
+
 ## 17.3.0
 
 ### Patch Changes
@@ -1078,6 +1238,7 @@
 ### Patch Changes
 
 - 1b6dc64: fix: complete Tailwind v3→v4 migration cleanup
+
   - Rename deprecated `flex-shrink-0` → `shrink-0` and `flex-grow-N` →
     `grow-N` (Tailwind v4 dropped the long-form aliases). Affects
     data-table, fields/index, FileField, ChatbotEnhanced,
@@ -1140,6 +1301,7 @@
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.
@@ -1198,15 +1360,18 @@
 - b2be122: fix(mobile): round 2 — kanban readability, calendar default view, timeline dot clipping
 
   **Kanban**
+
   - Remove `font-mono` from card titles, descriptions, column headers, and empty-state labels — CRM cards no longer render in a monospace font.
   - Constrain column body height (`max-h-full min-h-0` + `h-full` on the layout root) so `ScrollArea` activates and cards don't bleed past the viewport bottom.
   - Opportunistically derive `description` (e.g. `$60K · Acme Corp · @owner`) and up to two `badges` (priority/severity/industry/rating) in `ObjectKanban` when the schema/source omits them, giving mobile cards more context at a glance.
 
   **Calendar**
+
   - `ObjectCalendar` previously hardcoded `view={schema.defaultView ?? 'month'}`, making the view-selector dropdown a no-op. Wire the `view` state through to the `<Calendar>` prop so user selection is respected.
   - On mobile (viewport < 768 px) coerce `day` defaults to `month` via a synchronous lazy initialiser and a resize/orientation effect — avoids the useless 24-hour empty-hour grid for date-only events.
 
   **Timeline**
+
   - Add `ml-3` to the `<Timeline>` `<ol>` so the `absolute -left-3` marker dots are no longer clipped at the scroll-container edge.
 
 - Updated dependencies [a2d7023]

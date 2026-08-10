@@ -1,5 +1,91 @@
 # @object-ui/console
 
+## 17.4.0
+
+### Patch Changes
+
+- 28c3856: Register `approvals:inbox` as a component ref, and stop sending Home's "pending approvals" card into the setup app (objectstack#7231).
+
+  The Approvals Inbox had no addressable identity: nothing in any app's navigation metadata pointed at it, and every entry to it was a hardcoded path. `HomePage`'s action-center card spelled `/apps/setup/system/approvals`. That path is not wrong about the page — `system/approvals` is mounted as both `extraRoutes` and `extraRoutesNoApp`, so `/apps/{any app}/system/approvals` has always resolved — it is wrong about the app. A business user with approvals waiting but no access to `setup` followed the only entry Home offers them into the shell's "App not available" guard.
+
+  Two changes, one additive and one corrective:
+
+  - `approvals:inbox` now resolves in the component registry to the Approvals Inbox page, so a `{ type: 'component', componentRef: 'approvals:inbox' }` nav item renders the full inbox at `/apps/{app}/component/approvals/inbox` — tabs, drawer, decision actions and record deep links all scoped to `{app}`. Both mount paths are relative routes under `/apps/:appName/*`, so the page reads the same `:appName` and the same `?request={id}` deep link either way. The standalone `system/approvals` route is untouched and stays the target of server notification and email links; the registry key is purely additive indirection, so the approval surface can be rebuilt later behind the same key without any navigation metadata changing.
+  - The Home card now navigates within the app the user last had open, re-checked against their live active-app list so a remembered app that has since been deactivated is not resurrected as a dead link, falling back to their first available app. `setup` survives only as the last resort for an app carrying no addressable segment at all — the zero-app workspace never reaches this producer, because Home returns its welcome empty state before the action center exists.
+
+- 7883c02: Send the console host's legacy URL redirects straight to the canonical metadata-admin routes instead of routing them through the deprecated `component/metadata/resource` alias (objectui#3639).
+
+  `apps/console`'s `ObjectRedirect` and `MetadataRedirect` rewrote `system/objects[/:name]` and `system/metadata[/:type[/:name]]` onto `…/component/metadata/resource[/:name]?type=:type`. app-shell declares that spelling as a legacy _alias_, not a page: its route element is `LegacyMetadataRedirect`, which immediately navigates on to `…/metadata/:type[/:name]`. Every one of those URLs therefore took two `<Navigate>` hops (plus a re-render) to reach a destination the host could name directly — and it was this indirection that carried `sys-objects` into the zero-app blank screen fixed in objectui#3610, since the alias was the leg that branch did not recognise.
+
+  Both redirects now construct `…/metadata/:type[/:name]` (and `…/metadata` for the typeless directory arm) themselves. The endpoints are unchanged, byte for byte, including the alias hop's own percent-encoding of `:type` and its verbatim pass-through of `:name`; only the intermediate hop is gone. The alias routes stay declared exactly as they were — bookmarks, external links and the setup left-nav still arrive on them and are still forwarded — this change only stops the console feeding its own traffic through them.
+
+  Also corrects four docblocks that described the alias as "the engine route", in `apps/console`'s two redirects and in app-shell's `datasource` resource registration and page. That wording is not merely stale: the objectui#3610 dispatch read this chain and concluded `component/metadata/resource` was the canonical spelling, which is the exact opposite of what the route table says.
+
+- d2fd044: Point the last four navigation producers at the canonical metadata-admin routes instead of the deprecated `component/metadata` alias, removing a redirect hop from each (objectui#3660).
+
+  The System hub's "Metadata" and "Datasources" cards aimed at `…/component/metadata/directory` and `…/component/metadata/resource?type=datasource`, and the `sys-datasources` entry in both `AppSidebar.systemFallbackNavigation` and `UnifiedSidebar.homeNavigation` spelled the latter too. app-shell declares those spellings as legacy _aliases_, not pages: their route element is `LegacyMetadataRedirect`, which immediately navigates on to `…/metadata` and `…/metadata/datasource`. Every click on any of the four therefore paid a redundant hop plus a re-render to reach a destination the navigation could name directly. All four now name it.
+
+  The landing pages are unchanged, byte for byte — the new URLs are exactly what the alias hop was already computing (`datasource` percent-encodes to itself, and neither producer carried a query or hash beyond the `?type=` the alias itself consumed). Only the intermediate hop is gone.
+
+  The alias routes stay declared in both `AppContent` branches, untouched: bookmarks and external links still arrive on them and are still forwarded. This completes objectui#3639, which corrected the console host's two redirects and enumerated these four as the remainder.
+
+- c1a18ed: System Hub: a card count that failed to load no longer renders as `0`
+
+  Each count on the System Hub fetched one object and caught its own failure with
+  an empty page, so a 500, a 401, a 403 or a dropped connection all produced the
+  same confident `0` as a table that really is empty — no error, no retry, and no
+  way to tell the two apart. The most reachable case was a permission denial on a
+  single object: an administrator who may open the hub but cannot read
+  `sys_audit_log` was shown "0 entries" rather than being told anything at all.
+
+  A failed lookup now leaves that card's count unknown, and the badge — which
+  already renders only for a known count — is omitted, so the card shows no
+  number instead of a wrong one. The catch stays on each call rather than around
+  the batch, so one object's failure blanks only its own card and the cards beside
+  it keep the real numbers they received.
+
+  Unchanged: an object the backend does not have still counts `0`. The adapter
+  resolves an unregistered object as an empty page by design (callers read empty
+  as "feature unavailable"), so that never was an error and is not treated as one
+  here.
+
+- 278f57c: Count System Hub's Organizations card through `sys_organization`, the object the framework actually registers — it asked for `sys_org`, which does not exist, so the card read `0` on every deployment (objectui#3670).
+
+  The failure was silent by construction. A missing object answers `404 OBJECT_NOT_FOUND`, and `ObjectStackAdapter.find()` absorbs that on purpose — it caches the name in `missingResources` and resolves `{ data: [], total: 0 }` so callers can treat an uninstalled collection as "no rows". The hub renders `data.length`, so a name the framework never had produced a perfectly ordinary `0`, indistinguishable from a workspace that genuinely has no organizations — which no single-org deployment ever is, since `sys_organization` always holds at least one row. The `.catch` on each call never even saw the 404; it only ever covered non-404 rejections.
+
+  The other three counted names were checked against the framework's object registry and are correct as spelled: `sys_user`, `sys_position`, `sys_audit_log`.
+
+  The Permissions card is **not** fixed here and still reads `0`. Its query names `sys_permission`, which the framework also does not have — it splits that surface into `sys_capability` (lineage: its own docblock says "named `sys_capability`, not `sys_permission`") and `sys_permission_set` (function: the admin-managed grant container). Both would render, so choosing one would silently bind the card to a surface nobody picked; that decision is open on objectui#3655. Until it lands the gap is held visible by a MEASUREMENT case in the page's test rather than quietly re-aimed.
+
+- cc95c2c: Point System Hub's Permissions card — both its link and its count — at `sys_permission_set`, closing the last of the five `system/*` navigation targets (objectui#3655).
+
+  Four of those URLs became redirects in an earlier change; `system/permissions` was deliberately held back, and so was the count beside it, because the framework splits what this console calls "Permissions" into two Setup entries and picking one would have silently bound every click, bookmark and badge to a surface nobody chose:
+
+  - `sys_capability` — ADR-0066 layer 1, the definition registry of "what can be done". Its own docblock notes it is what the ADR "loosely floats" as `sys_permission`, which is the name the retired page and the count query both used, so lineage pointed here.
+  - `sys_permission_set` — ADR-0066 layer 2, the grant container the permissions docs call "the only capability container" (object CRUD, field security, access depth, system capabilities), so function pointed here.
+
+  It is decided as `sys_permission_set`: the card reads "Manage permission rules and assignments", and rules-and-assignments is layer 2 — a capability is what a permission set references by name, not what an administrator is assigned. Two user-visible consequences:
+
+  - `/apps/:app/system/permissions` now forwards in one hop to `/apps/:app/sys_permission_set` instead of being rewritten to `…/system/record/permissions` and rendering a record detail page for an object literally named `system` — a dead link that read as a backend fault.
+  - The Permissions card's badge shows the real number of permission sets. It previously counted `sys_permission`, an object the framework does not register; the adapter absorbs that `404` into an empty page on purpose, so the card printed a confident `0` no administrator could tell apart from "there really are none".
+
+  Recorded as a transitional alias. Retiring this hand-written card wall along with the hub (already `@deprecated` in favour of the metadata-driven navigation) remains open and does not conflict — a redirect keeps old bookmarks resolving either way.
+
+- 9961df2: Declare the retired `system/{users,organizations,roles,positions}` console URLs as redirects onto the framework-owned system objects (objectui#3655).
+
+  `SystemHubPage`'s cards and both sidebars' `sys-*` cluster emit five `/apps/setup/system/…` targets. Four of them were real routes until `apps/console` was slimmed for third-party customisation, which deleted the bespoke wrapper pages because "these objects are now contributed by framework plugins … and resolved via the generic `/apps/setup/<object_name>` route" — but the producers were never retargeted and nothing redeclared the URLs. All five fell through to app-shell's tail, where the failure they got depended on how long the word was, because `ShorthandRecordRedirect` treats any URL-safe segment of 6+ characters as a record id:
+
+  - `users` (5) and `roles` (5) rendered "Page not found".
+  - `organizations` (13) and `positions` (9) were rewritten to `…/system/record/<word>` and rendered a record detail page for an object literally named `system` — the worse of the two, because it reads as a backend/data problem rather than a dead link.
+
+  Each now forwards in one hop to the object the framework's own Setup navigation names: `sys_user`, `sys_organization` (the list entry — the record-scoped one needs a runtime `{current_org_id}` a static redirect cannot resolve), and `sys_position` for both `roles` and `positions` (ADR-0090 D3 renamed `sys_role` to `sys_position`, so the sidebar's "Roles" and the hub's "Positions" are one surface in two vocabularies). Same shape as the `system/objects` and `system/metadata` redirects beside them: the URL is translated, the deleted page is not resurrected, and the navigation producers are untouched.
+
+  `system/permissions` is deliberately left as it was. The framework splits what this console calls "Permissions" into two Setup entries — `sys_capability` and `sys_permission_set` — and picking one here would silently commit every click and bookmark to a surface nobody chose. Its unchanged landing is pinned in the tests so the gap stays visible.
+
+- Updated dependencies [d11996e]
+  - @object-ui/react-runtime@17.4.0
+  - @object-ui/sdui-parser@17.4.0
+
 ## 17.3.0
 
 ### Minor Changes
@@ -110,6 +196,7 @@
     `severity` were dropped and the toast read the bare HTTP status text.
 
   ## What changed
+
   - `jsonOrThrow` unwraps the envelope with the exact predicate
     `ObjectStackClient.unwrapResponse` uses — `success` is a boolean **and**
     `data` is present. Requiring both is what keeps error envelopes
@@ -303,7 +390,7 @@
 
 ### Patch Changes
 
-- 752e18f: fix(console,app-shell): readable reassign hand-off + "System" label for svc:* audit actors — objectstack#4365 / objectstack#4366
+- 752e18f: fix(console,app-shell): readable reassign hand-off + "System" label for svc:\* audit actors — objectstack#4365 / objectstack#4366
 
   - **Approvals inbox** (`ApprovalsInboxPage`): a reassign timeline entry now
     renders "from A to B" from the structured
@@ -871,6 +958,7 @@
   is byte-identical, it just comes from the pack now.
 
   Adds two guards, both mutation-verified:
+
   - `en` ↔ `zh` full key parity, asserted in both directions. The other eight
     packs are still ~357 keys behind and are tracked separately (objectui#2872
     part a), so they are deliberately not asserted yet.
@@ -926,6 +1014,7 @@
   all four of its failure modes, and re-introducing the `maplibre-gl` import turns
   the job red again, as does a fresh error injected into `plugin-ai` — a package
   that had no type checking whatsoever before this change.
+
   - @object-ui/react-runtime@17.0.0
   - @object-ui/sdui-parser@17.0.0
 
@@ -979,6 +1068,7 @@
   `record.viewer.*` — and correctly recognizes position/team-addressed approvers
   that the client heuristic couldn't resolve. The heuristic remains as a fallback
   for a backend that predates `viewer`.
+
   - @object-ui/react-runtime@16.1.0
   - @object-ui/sdui-parser@16.1.0
 
@@ -1110,6 +1200,7 @@
   - **Permission matrix OWD badges**: every object row now shows its record-level baseline (`OWD Public read`, `Ext Private`, or `OWD Private (default)` for the D1 fail-closed unset case) so grant edits carry their record-reach context.
 
   The flow designer's approval assignee `role` kind is intentionally unchanged — spec 13 keeps it as the sole D3 exception (better-auth `sys_member.role` org-membership tier).
+
   - @object-ui/react-runtime@13.0.0
   - @object-ui/sdui-parser@13.0.0
 
@@ -1424,6 +1515,7 @@
 - efb4c00: feat(observability): Sentry integration + bundle splitting for production launch
 
   **Sentry (opt-in via `VITE_SENTRY_DSN`)**
+
   - New `initSentry()` / `captureError()` / `setSentryUser()` / `getSentry()`
     helpers exported from `@object-ui/app-shell`.
   - Dynamic-import design: when `VITE_SENTRY_DSN` is unset, `@sentry/react`
@@ -1441,6 +1533,7 @@
     stripped from breadcrumb URLs before send.
 
   **Bundle splitting**
+
   - `plugin-dashboard` (8 component types) now lazy-registered via
     `ComponentRegistry.registerLazy()` — only loads on dashboard pages.
   - `plugin-dashboard` and `plugin-report` each get their own chunk
@@ -1537,6 +1630,7 @@ CONCURRENT_UPDATE` response shape with `currentVersion` /
   detail view (`TypeError: titleFormat.replace is not a function`) and printed
   `Failed to evaluate expression: ${[object Object]}` for every action visibility
   predicate.
+
   - `@object-ui/core`: `ExpressionEvaluator.evaluate` / `evaluateCondition` now
     unwrap Expression envelopes transparently.
   - `@object-ui/react`: new `toPredicateInput()` helper to safely normalize

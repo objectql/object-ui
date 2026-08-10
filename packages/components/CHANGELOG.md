@@ -1,5 +1,722 @@
 # @object-ui/components
 
+## 17.4.0
+
+### Minor Changes
+
+- ecae400: Retire the `capability-multiselect` field widget name, which existed only on the docs-site registration path and which nothing ever stamped (objectui#3308, ADR-0049 enforce-or-remove)
+
+  `field:capability-multiselect` was registered by `registerFields()` and only there. That function's sole caller is the docs site, so the key never existed on the live path (`registerAllFields()`, run at module import, iterates `fieldWidgetMap` — which never listed it). A field authored with `widget: 'capability-multiselect'` therefore resolved to nothing in every real application, while the comment above the registration described it as usable from a record form: a code comment promising a capability that does not exist, which is the worst direction for a metadata renderer AI-authored apps read as authority.
+
+  Nothing stamped the hint either. ADR-0056 P1 stamps `permission-facet-link` on all six `sys_permission_set` facets — `system_permissions` included — through the single `ObjectStackAdapter.getObjectSchema` choke point, and P2 put the capability editor in Studio. The widget name was a leftover from an intermediate iteration of that rollout.
+
+  Removed, with a tombstone at each site:
+
+  - `@object-ui/fields` — the `field:capability-multiselect` registration and the comment that advertised it. **Breaking in name only**: the key was unreachable outside the docs site, so no application could have resolved it. A field still carrying the hint now degrades to its declared `type` renderer, the defined behavior for an unregistered widget.
+  - `@object-ui/plugin-detail` — `InlineFieldInput`'s `widget === 'capability-multiselect'` branch, the hint's last honoring surface. Leaving one consumer for a name no producer emits and no form resolves is the same declared-vs-enforced split, inverted. The sibling `permission-facet-link` branch is untouched and pinned.
+  - `@object-ui/components` — the dead `capability-multiselect` entry in the form renderer's `DATA_SOURCE_FIELD_TYPES` set, which could never match a resolvable widget.
+  - `@object-ui/plugin-form` — a comment naming `capability-multiselect` as the widget stamped onto `sys_permission_set.system_permissions`; it names `permission-facet-link` now, which is what is actually stamped.
+
+  `CapabilityMultiSelectField` itself is **unchanged and still exported**: Studio's `PermissionMatrixEditor` imports and renders it directly, which is ADR-0056 P2's design. Only the widget name is retired — the component is not a registry field widget and its doc comment now says so.
+
+  `registerFields()` is also **kept**, with its `@deprecated Use registerAllFields() instead` note corrected. The two are not interchangeable: it registers `createFieldRenderer(widget)`, which synthesizes the label, description and the local `value`/`onChange` state that lets a bare field node (`{ type: 'currency', label: 'Amount' }`) render standalone in the docs demos. Retiring it needs a decision about where that demo chrome goes; the note now records that instead of implying a drop-in replacement.
+
+### Patch Changes
+
+- 794c497: `action:bar` member actions declaring `visible: false` are now hidden instead of rendered
+
+  `action:button` and `action:icon` carried the same truthiness gate objectui#3812
+  removed from the member-action leaves — `if (schema.visible && !isVisible)
+return null` — so `visible: false`, the most explicit way an author can say
+  "never show this", fell into the "no gate declared" branch and the action
+  rendered anyway.
+
+  objectui#3812's triage judged the five component-level `schema.visible` gates a
+  dormant defensive layer, because `packages/react`'s `SchemaRenderer` evaluates
+  `newSchema.visible !== undefined` and hides the node before the component ever
+  mounts. Two of the five are not dormant, and this is the difference:
+
+  `action:bar` does not route through `SchemaRenderer`. It resolves each member's
+  renderer from the `ComponentRegistry` itself and spreads the whole member action
+  onto that renderer's schema, so an author's `visible` on a member arrives as the
+  child's own `schema.visible` and lands on the child's gate. `action:bar` is also
+  the only gate on that path by design — its `filteredActions` deliberately
+  filters on `requiredPermissions` and `actionRendersAt` only, leaving `visible` to
+  the member renderer. The path is reachable end-to-end and is now pinned that way
+  (registry-mounted `action:bar`, member declaring `visible: false`), so the
+  reachability does not have to be argued again.
+
+  Both gates now read the same named definition as the rest of the family,
+  `hasDeclaredVisibilityGate` (`!= null && !== ''`) — the invariant objectui#3492
+  established for the selection bar and objectui#3758 applied to the row-action
+  surfaces. The evaluation entry is untouched and already short-circuits a boolean
+  rather than handing it to the CEL engine, which `actionPredicate.parity` pins for
+  both the engine and the renderer path.
+
+  Behaviour change surface, deliberately narrow: only an `action:button` /
+  `action:icon` whose `visible` is the literal boolean `false` (or another falsy
+  non-empty value) changes — from rendered to hidden, which is what the
+  declaration asked for. `visible: true` still renders, `''` and an absent
+  `visible` are still no gate at all, and no expression-valued `visible` changes
+  verdict. `ActionSchema.visible` is `ExpressionInputSchema` with no boolean
+  member, so `objectstack build` cannot emit this shape; hand-written view JSON and
+  in-process callers constructing action defs can.
+
+  The remaining three component-level gates (`action:group`, `action:menu`,
+  `action:bar`'s own) stay as they are — they only ever mount through
+  `SchemaRenderer`, which resolves `visible` first, and the overflow `action:menu`
+  that `action:bar` synthesizes carries no `visible` at all.
+
+- 993336f: An action declaring `disabled: ''` is no longer greyed out forever (objectui#3842)
+
+  The "is a `disabled` gate declared?" test stopped at `!= null`, missing the
+  `!== ''` half of the invariant the `visible` family converged on
+  (`hasDeclaredVisibilityGate`, objectui#3492 / #3758 / #3812 / #3823 / #3835). So
+  `disabled: ''` counted as a declared gate, and the verdict went to the evaluation
+  entry — which reads an empty predicate as "no condition → `true`"
+  (`toPredicateInput('')` is `undefined`, `evaluateCondition(undefined)` is `true`).
+
+  The direction is why this half is a defect and the `visible` half was not. On
+  `visible`, that `true` means SHOW, so an over-broad "declared" test and a
+  permissive empty predicate cancel out and `visible: ''` renders either way. On
+  `disabled`, the same `true` means DISABLE — the two mistakes compound, and an
+  empty predicate stopped meaning "no gate" and started meaning "permanently
+  greyed out". One empty predicate, opposite treatment under two keys.
+
+  Two gates now ask the shared definition instead:
+
+  - `@object-ui/app-shell`'s `DeclaredActionsBar` — the hot one. Its actions are
+    SERVER-declared (`objectDef.actions[]`) and its hosts are the approvals inbox's
+    record sections, so a `disabled: ''` arriving from metadata (an authoring form
+    left empty, a template that rendered to an empty string) produced an Approve /
+    Reject button nobody could click, indistinguishable from deliberate metadata.
+    objectui#3835 was this same surface failing the other way.
+  - `@object-ui/components`' `action:button` — verified to be the same shape before
+    it was changed (the issue inferred it from the identical spelling but did not
+    probe it): with `disabled: ''` the rendered button carried `disabled=""`.
+
+  **Behaviour change surface, deliberately narrow.** Only `disabled: ''` changes —
+  from disabled to clickable, which is what "no predicate" asked for. `disabled:
+true` still disables, `disabled: false` and an absent `disabled` still do not, and
+  no expression-valued `disabled` changes verdict. One consequence worth naming: on
+  `action:button`, an empty `disabled` now falls THROUGH to the legacy non-spec
+  `enabled` fallback instead of short-circuiting on the empty predicate, so an
+  action spelling both (`disabled: ''` + `enabled: true`) becomes clickable.
+
+  The legacy `enabled` leg of `action:button` was routed through the same
+  definition for consistency, and that part is behaviour-preserving by derivation
+  rather than a fix: the leg is negated (`disabled = !isEnabled`), so an empty
+  predicate's `true` already arrived as "not disabled" — the same verdict "no gate"
+  produces. All four shapes are identical under either test; the derivation table
+  and the reason no test can distinguish them are written down next to the pins.
+
+  `hasDeclaredVisibilityGate` keeps its historic name at both call sites (the
+  objectui#3842 dispatch ruling): the predicate is key-neutral, and one
+  implementation behind two names is how a repo grows dialects. Each call site says
+  so in a comment.
+
+- f0a625a: `disabled: ''` no longer greys out the remaining five action surfaces (objectui#3849)
+
+  objectui#3842 / PR #3851 fixed the "is a `disabled` gate DECLARED?" test on
+  `action:button` and app-shell's `DeclaredActionsBar`. Five same-shaped sites were
+  outside that PR's scope and stayed on `!= null`, so within one component the
+  `visible` gate asked `hasDeclaredVisibilityGate` while the `disabled` gate on the
+  next line asked `!= null` — two spellings of one question:
+
+  - `@object-ui/components` — `action:icon`, `action:group`'s inline button
+    (`InlineActionButton`) and dropdown item (`DropdownActionItem`), and
+    `action:menu`'s item (`ActionMenuItem`).
+  - `@object-ui/plugin-detail` — `record:quick_actions`' `QuickActionButton`.
+
+  Why the missing `!== ''` half is a defect on this key and not on `visible`:
+  `toPredicateInput('')` is `undefined` and `evaluateCondition(undefined)` is
+  `true`. On `visible` that `true` means SHOW, so an over-broad "declared" test and
+  a permissive empty predicate cancel out. On `disabled` it means DISABLE, so they
+  compound — `disabled: ''` (an empty predicate: nothing declared) rendered a
+  permanently greyed-out control, with nothing the author could write to un-grey
+  it. Unlike #3842's approvals inbox, these five are the general action face
+  (toolbars, dropdowns, record quick actions), so the reach is wider even though no
+  single high-value host owns them.
+
+  **Behaviour change surface, deliberately narrow.** Only `disabled: ''` changes —
+  from disabled to clickable, which is what "no predicate" asked for. `disabled:
+true` still disables, `disabled: false` and an absent `disabled` still do not, and
+  no expression-valued `disabled` changes verdict. On the four sites that also carry
+  the legacy non-spec `enabled` fallback, one consequence follows: an empty
+  `disabled` now falls THROUGH to that leg instead of short-circuiting on the empty
+  predicate, so an action spelling both (`disabled: ''` + `enabled: true`) becomes
+  clickable. `record:quick_actions` has no `enabled` leg, so its chain is the single
+  gate.
+
+  Routing those legacy `enabled` legs through the same definition is
+  behaviour-preserving by derivation rather than a fix: the leg is negated
+  (`disabled = !isEnabled`), so an empty predicate's `true` already arrived as "not
+  disabled" — the verdict "no gate declared" produces. #3842's four-shape derivation
+  table is reproduced next to the new pins, together with the statement that no
+  `enabled` case can go red by reverting that leg.
+
+  `hasDeclaredVisibilityGate` keeps its historic name (the objectui#3842 ruling): the
+  predicate is key-neutral, and one implementation behind two names is how a repo
+  grows dialects. The three `@object-ui/components` sites import it relatively;
+  `record:quick_actions` takes it from the package barrel, the cross-package route
+  objectui#3835 opened. Every call site says so in a comment.
+
+- b5980f4: Action-face member actions declaring `visible: false` are now hidden instead of rendered
+
+  The three member-action gates on the action face asked truthiness —
+  `if (action.visible && !isVisible) return null` — so `visible: false`, the most
+  explicit way an author can say "never show this", fell into the "no gate
+  declared" branch and the action rendered anyway:
+
+  - `action:group` in `display: 'inline'` mode (`InlineActionButton`);
+  - `action:group` in `display: 'dropdown'` mode (`DropdownActionItem`);
+  - `action:menu`'s items (`ActionMenuItem`).
+
+  These leaves `.map()` the component's own `actions` array, so neither
+  `SchemaRenderer`'s node-level `visible` handling nor
+  `ActionEngine.getActionsForLocation` (whose boolean `visible` was always
+  correct) is in the path — the truthy gate was the only gate.
+
+  All three now read one named definition, `hasDeclaredVisibilityGate`
+  (`!= null && !== ''`), and let the declaration itself decide. This is not a new
+  decision: objectui#3492 established the invariant for the selection bar, whose
+  `hasVisibilityGate` spells out why truthiness cannot answer the question, and
+  objectui#3758 applied it to both row-action surfaces. The evaluation entry is
+  untouched and already short-circuits a boolean rather than handing it to the CEL
+  engine, which `actionPredicate.parity` pins for both the engine and the renderer
+  path.
+
+  Behaviour change surface, deliberately narrow: only a member action whose
+  `visible` is the literal boolean `false` (or another falsy non-empty value)
+  changes — from rendered to hidden, which is what the declaration asked for.
+  `visible: true` still renders, `''` and an absent `visible` are still no gate at
+  all, and no expression-valued `visible` changes verdict.
+  `ActionSchema.visible` is `ExpressionInputSchema` with no boolean member, so
+  `objectstack build` cannot emit this shape; hand-written view JSON and
+  in-process callers constructing action defs can.
+
+- 8aad9fd: Action-face predicates written against the canonical `record.` root now evaluate
+
+  `action:button`, `action:icon`, `action:menu` and `action:group` gated their
+  actions on `useCondition(pred, context)`, which evaluates on
+  `new ExpressionEvaluator({ ...scope, ...context })` — and the context each of
+  them passed was the row spread flat, or nothing at all. Only the shorthand
+  spelling resolved:
+
+  | predicate                    | verdict, before                  |
+  | ---------------------------- | -------------------------------- |
+  | `status == "pending"`        | evaluates (`action:button` only) |
+  | `record.status == "pending"` | throws `record is not defined`   |
+  | `data.status == "pending"`   | throws `data is not defined`     |
+
+  `record.` is not a mistaken spelling — it is the canonical one. It is what
+  `ExpressionEvaluator`'s CEL path binds (`bag.record` as the record namespace),
+  what `evalRowPredicate` binds on the record header, list rows, the row kebab
+  and conditional formatting (`record.status` / bare `status` / `data.status`),
+  and what the server enforces with. A `visible` that fails CLOSED turns the throw
+  into "hidden", so a correctly-authored predicate deleted its own button —
+  indistinguishable from the gate having said no. On the fail-soft legs the same
+  throw lands the other way: `disabled` greyed a control out for everyone.
+
+  Live rather than theoretical: every declared action on framework's
+  `sys_approval_request` gates on `record.viewer.*`, so the whole server-declared
+  approval decision set was invisible wherever the declared-action bar rendered
+  until objectui#4077 fixed that bar. These four generic renderers carried the
+  same binding.
+
+  What changed:
+
+  - all four bind the row the three canonical ways, through one named helper
+    (`usePredicateRecordContext`, exported from `@object-ui/react` beside
+    `useCondition`), so the action face and the row surfaces answer an author's
+    `visible:` the same way;
+  - `action:icon` reads the row at all. It evaluated against an empty bag, so not
+    even the bare-field shorthand resolved — and its `data` prop was landing in
+    the props spread onto the DOM button;
+  - `action:menu`'s items and `action:group`'s two leaves receive the row from
+    their host, which they previously never got;
+  - `action:bar` forwards the row into the overflow menu it builds, not just to
+    its inline members. An action's predicate had been answering a different
+    question purely because it spilled past `maxVisible` — which on mobile
+    defaults to 1, making the verdict a function of the viewport.
+
+  Deliberately unchanged: the evaluation entry and each site's error policy. A
+  predicate that genuinely faults still fails closed on `action:button` /
+  `action:menu` `visible` and still fails soft on the other legs, exactly as
+  before; `toPredicateInput`, `hasDeclaredVisibilityGate` and the empty-predicate
+  rules keep their pinned semantics. Binding the row is a separate question from
+  what to do when the predicate faults.
+
+  A surface with no row of its own binds nothing rather than an empty record, so
+  a host that supplies the row through the ambient predicate scope is not blanked
+  out; a row passed explicitly still wins over the scope.
+
+- 0cbdca8: Built-in `select` fields: the form's label, validation message and required state now reach the control
+
+  A hand-written form field `{ name: 'status', label: 'Status', type: 'select', options: [...] }`
+  rendered a visible "Status" label that pointed at nothing. Measured before the fix:
+  `<label for="…-form-item">` resolved to no element at all, `getByLabelText(/status/i)`
+  found zero matches, and the trigger button carried no `id`, no `aria-describedby`, no
+  `aria-invalid` and no `aria-required`. Clicking the label did nothing and a screen reader
+  announced an anonymous combobox with no field name, no error link and no required state.
+
+  Cause: the built-in `select` branch spread its whole DOM pass-through onto Radix's
+  `Select.Root`. Root renders no DOM element of its own, so everything it does not
+  recognise is silently dropped — and that is exactly where `<FormControl>`'s Slot puts the
+  field's `id` / `aria-describedby` / `aria-invalid` and the renderer puts `aria-required`.
+  The pass-through now lands on `SelectTrigger`, the focusable `button[role=combobox]` the
+  user and their assistive tech actually operate, with the same two keys deliberately kept
+  on Root as in the widget-side fix: `name` (the one key Root consumes — it forwards it to
+  the hidden native `select` that takes part in form submission) and `disabled` (Root
+  disables trigger, items and hidden select together, so the raw prop must not gain a second
+  author). `ref` rides the pass-through too, so react-hook-form can finally focus a built-in
+  select.
+
+  This is the built-in half of the same mechanism objectui#3306 fixed on the widget side.
+  The two halves diverged because `'select'` is a `BUILTIN_FIELD_TYPES` member: an
+  object-driven `field:select` resolves to the registered `SelectField` (fixed since #3306),
+  while a hand-written bare `type: 'select'` never consults the registry and kept the
+  defect. Both paths are now pinned side by side — the registered path as a positive control
+  — so they cannot drift apart again. Which component renders a bare `select` is unchanged;
+  only where its host props land.
+
+  Authored `className` on a built-in `select` now reaches the trigger (it previously reached
+  no element), composed with the branch's touch-target height rather than replacing it.
+
+- d3e738a: Export `hasDeclaredVisibilityGate` from the package barrel (objectui#3835)
+
+  `hasDeclaredVisibilityGate(visible)` — "did this action DECLARE a visibility gate
+  at all?", i.e. `!= null && !== ''`, with the verdict left to the evaluation entry
+  — is the single definition objectui#3492 established and PR #3816 / #3825 / #3836
+  applied to every member-action gate in this package and in `@object-ui/plugin-grid`.
+  It lived module-private in `src/renderers/action/visibility-gate.ts`.
+
+  The family turned out to have a member outside these packages:
+  `@object-ui/app-shell`'s `DeclaredActionsBar` gates server-declared actions with
+  the same question and had the same truthiness bug (objectui#3835). Exporting the
+  one definition is what keeps that fix from becoming a fifth hand-spelled copy of
+  it — the drift shape objectui#3142 already had to unpick for `locations` in these
+  same files.
+
+  Additive only: one `export` line, no behaviour change in this package. The
+  function is pure and dependency-free.
+
+- c3b01a7: Give composite and grouped field widgets a real accessible name: the form renderer now associates its label by IDREF for widgets that declare `labelling: 'group'`, instead of emitting a `<label for>` that nothing labelable answers (objectui#3961).
+
+  Six widgets rendered a visible group label that named **nothing** in the accessibility tree. Measured in a real form, one field per row, reading each label's `for` against the DOM:
+
+  ```
+  address      for=…-form-item -> MISSING            byLabelText=0   role+name=0
+  geolocation  for=…-form-item -> MISSING            byLabelText=0   role+name=0
+  checkboxes   for=…-form-item -> div                byLabelText=0   role+name=0
+  radio        for=…-form-item -> div[radiogroup]    byLabelText=0   role+name=0
+  rating       for=…-form-item -> div                byLabelText=0   role+name=0
+  file         for=…-form-item -> div[role=button]   byLabelText=0   role+name=0
+  ```
+
+  Two shapes, one outcome. `address` / `geolocation` spread the host's id onto their first sub-input and then replaced it with that input's own unique id (objectui#3343, correct in itself), so the `for` named an id no element carried — clicking "Shipping Address" did nothing and the group label was absent from the accessibility tree entirely. `checkboxes` / `radio` / `rating` / `file` kept the id, but on a `div`: a `<label for>` on a non-labelable element is inert HTML — `HTMLLabelElement.control` is `null`, so it activates nothing and contributes no name. A screen reader heard "Street Address", "City", "Alpha", "Beta" — never which group they belonged to.
+
+  The fix is the WAI-ARIA group pattern, driven by a DECLARATION rather than by the host guessing at widget DOM:
+
+  - `@object-ui/core` — `ComponentMeta` gains `labelling?: 'control' | 'group'`. Additive and optional; absent means `'control'`, which is every existing component's behaviour.
+  - `@object-ui/components` — the form renderer reads it. For a `'group'` field the `<FormLabel>` publishes an `id` and drops its `for`, and the widget receives `aria-labelledby`. The single-control path is unchanged down to the attribute: no id on the label, no `aria-labelledby` key on the widget, so no field acquires a second naming channel. `ui/form.tsx` is untouched (Shadcn no-touch) — both halves travel as ordinary props, since `<FormLabel>` spreads props after its own `htmlFor`.
+  - `@object-ui/fields` — the six audited widgets declare `labelling: 'group'`. `address` / `geolocation` move the host id (and only the id) from their first sub-input to the group container; `checkboxes` / `rating` answer a host-supplied `aria-labelledby` with `role="group"`; `radio` keeps Radix's more specific `radiogroup`; `file` takes the name on its dropzone with no invented group layer, because it has exactly one control that merely happens not to be labelable.
+
+  No new key in the widget props contract: `aria-*` is already declared on it and forwarded by `toDomProps`, the same channel `aria-required` (objectui#3290) travels.
+
+  Deliberately unchanged: sub-labels keep naming their own inputs (`aria-labelledby` overrides `<label for>`, so putting the group name on the first sub-input would have replaced "Street Address" with the field name — the concatenated-name outcome this issue rejected), `aria-describedby` stays on the first focusable sub-input where focus can reach it (objectui#3318), the sub-input ids of objectui#3343 do not move, and standalone rendering — the inline grid editor, a bare SDUI node, where nobody hands down an id and there is no host label to point at — emits no role and no IDREF at all.
+
+  A widget that does not declare itself keeps the old `for`, which the label-association tests report as an association resolving to a non-labelable element. Silence was the failure mode being fixed; the default path stays loud.
+
+- 7ed3360: fix(data-table): don't render a row overflow ("⋮") trigger that opens an empty menu
+
+  The row overflow trigger was gated on whether row-action **handlers** were
+  supplied (`onRowEdit` / `onRowDelete` / `rowActionDefs`), while the menu's items
+  were filtered a second time — per item, per record — against
+  `rowEditPredicates` / `rowDeletePredicates` and a custom action's `visible`. On a
+  row where every item was predicate-suppressed the trigger still rendered and
+  opened an empty box, which reads as a broken page.
+
+  The trigger is now decided by the items that will actually render for that row,
+  resolved through the same visibility rule the items gate themselves on, so the
+  two cannot disagree. The decision is per row: within one table a row that keeps
+  an action keeps its trigger while a row with nothing left renders none. The
+  actions cell itself is unchanged, so the column stays aligned with its header.
+
+- 0fa5e4d: The `div` deprecation notice is now reported once per module load, not once per render (objectui#3965)
+
+  `DivRenderer` called `console.warn` on every render. That is invisible on a page
+  with one `div` and destructive on a page with many: the docs schema-catalog index
+  renders 400+ example thumbnails and emitted ~190 byte-identical notices, burying
+  the page's real console errors underneath — the two nested-button errors fixed in
+  objectui#3903 / PR #3964 had to be fished out of that flood, and it cost a
+  browser-verification run its signal twice.
+
+  The deprecation itself is unchanged: dev builds still report it, the message and
+  its migration guidance are byte-identical, and production builds are still
+  silent. Only the repetition is gone. The guard is a module-level `Set` keyed by
+  type, and the production early-return happens _before_ the set is marked, so a
+  production render cannot suppress a later dev-build notice.
+
+- 5bfaabd: `PageComponentSchema.dataSource` now reaches every object-bound block, not just
+  `list-view` — and `element:record_picker` stops discarding `view`
+  (objectstack#6953).
+
+  objectstack#5576 wired the spec's per-element data binding
+  (`dataSource: { object, view?, filter?, sort?, limit? }`) to `list-view` and left
+  the same declaration inert on every other page component. Two gaps remained, and
+  both were silent:
+
+  - **`element:record_picker` read four of the five keys and dropped `view`.** So
+    `dataSource: { object: 'account', view: 'hot' }` — the spec's own example —
+    built a picker over EVERY account instead of the rows the saved view selects.
+    Nothing threw and nothing rendered an error; the option list was simply wider
+    than what was authored, which also means a user could select a record the page
+    said was out of scope.
+  - **`object-grid` / `object-form` / `object-kanban` / `object-calendar` /
+    `object-chart` / `object-metric` / `record:related_list` read none of it.**
+    Each gates its fetch on its own `objectName`, and nothing mapped
+    `dataSource.object` onto it, so a page written the way the spec documents
+    rendered an empty grid / a field-less form / a board with no cards / an empty
+    month / an empty chart / a static metric number — with no request and no
+    diagnostic anywhere. Spec-valid metadata rendering nothing is the
+    objectstack#4413 shape.
+
+  Composition follows objectstack#5576's landed semantics unchanged on every block:
+  a named saved view supplies the baseline, a key written on the component itself
+  overrides it, an explicit binding key overrides both, `filter` AND-combines
+  ("additional filter criteria" — a binding can narrow a view, never widen it), and
+  a `view` name that does not resolve renders a configuration error instead of
+  degrading to the object's full scope.
+
+  - `@object-ui/react` — new `useElementDataSourceSchema(schema, mapping, dataSource?)`
+    and `ElementDataSourceGate` apply a resolved binding to the schema keys a given
+    block reads, plus `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel`
+    for the two non-final states. One precedence table for all blocks rather than
+    one copy per block — that copy is how "additional filter criteria" would have
+    become two dialects.
+  - A mapping names **only** keys its block genuinely reads. A composed value
+    written onto a key the block ignores would be accepted and dropped, which is
+    the defect being removed, one layer deeper — so a kanban's swimlane `columns`
+    never receive a view's field list, and a block with no row cap leaves `limit`
+    unmapped. The per-block coverage table, including two residual gaps that are
+    named rather than papered over, is in `content/docs/guide/data-source.md`.
+
+  No behaviour changes for a block that carries no `dataSource`: the binding-free
+  path returns the schema by reference, so nothing remounts and nothing refetches.
+
+- ab3ad4f: An empty predicate is no longer a declared gate anywhere (objectui#3850, objectui#3862)
+
+  "Is a gate DECLARED on this key — is there a condition to reach a verdict on?" was
+  answered three times in this repo, with three different scopes, and the widest
+  answers sat on `disabled`, where the mistake is not benign:
+
+  - `hasDeclaredVisibilityGate` (the action face) asked `!= null && !== ''`, so every
+    OBJECT counted — including `{ dialect: 'cel', source: '' }`. That envelope is not
+    a hand-written curiosity: `@objectstack/spec`'s `ExpressionInputSchema` normalizes
+    every authored predicate into one, so "the author left the predicate empty"
+    compiles to exactly it. The verdict path normalized the same value back to
+    `undefined`, and `evaluateCondition(undefined)` answers `true` — "no condition, so
+    visible/enabled". On `visible` that `true` means SHOW, so the two mistakes
+    cancelled; on `disabled` it means GREY, so they compounded: a button disabled
+    forever that no author asked to disable (objectui#3850, the residue objectui#3842
+    left behind).
+  - `SchemaRenderer` asked `disabled !== undefined` inline, one notch wider again, so
+    `disabled: null` greyed out too — on the GENERIC rendering path, since that block
+    runs for every node type, and not as an internal flag either: `_disabled` is
+    forwarded to the component as a real `disabled` prop (objectui#3862).
+  - `ActionRunner`'s execution gates asked "does this normalize to something
+    evaluable?" — the scope that turned out to be right (objectui#3848 / objectui#3872).
+
+  There is now ONE definition, `hasDeclaredPredicate`, exported from
+  `@object-ui/core` (`evaluator/declaredPredicate.ts`, beside the `toPredicateInput`
+  normalizer it is derived from): a gate is declared when normalization still leaves a
+  condition to evaluate. `''`, a whitespace-only string, an empty-`source` envelope
+  and any non-predicate value (`0`, `{}`) are NOT declared; `false` IS (a verdict is
+  not a missing gate — objectui#3812). `hasDeclaredVisibilityGate` keeps its name as a
+  re-export of it, so the five member-action renderer call sites, `DeclaredActionsBar`
+  and `record-quick-actions` are unchanged and inherit the scope;
+  `SchemaRenderer`'s `disabled` / `disabledOn` chain and `ActionRunner`'s two gates
+  read the same function. No consumer got a local "and also check for empty" test —
+  that fourth dialect is what objectui#3842 / objectui#3849 spent two PRs merging away.
+
+  Measured behaviour change, `action:button` and the generic path, before → after:
+
+  | value                                                     | `visible`      | `disabled` | `enabled` | `SchemaRenderer` `disabled` prop |
+  | --------------------------------------------------------- | -------------- | ---------- | --------- | -------------------------------- |
+  | `''`                                                      | shown → shown  | on → on    | on → on   | forwarded → absent               |
+  | `null`                                                    | shown → shown  | on → on    | on → on   | forwarded → absent               |
+  | `{ dialect: 'cel', source: '' }`                          | shown → shown  | GREY → on  | on → on   | forwarded → absent               |
+  | `{ source: '' }`                                          | shown → shown  | GREY → on  | on → on   | forwarded → absent               |
+  | `'   '` (whitespace)                                      | HIDDEN → shown | on → on    | GREY → on | forwarded → absent               |
+  | `0` / `{}` (not predicates)                               | shown → shown  | GREY → on  | on → on   | forwarded → absent               |
+  | `true` / `false` / bare CEL / `${…}` / non-empty envelope | unchanged      | unchanged  | unchanged | unchanged                        |
+
+  Every row moves toward "there is no gate here", never away from it, and no value
+  that HAS a verdict changes it — the verdict is still read from the raw value, only
+  the gate in front of it narrowed. Two rows are behaviour changes rather than the
+  equivalence the ruling expected, and are pinned as such: the whitespace string moves
+  on `visible` / `enabled` (it used to normalize to `'${   }'`, which evaluates falsy,
+  so a predicate that says nothing HID the action from everyone), and non-predicate
+  junk stops greying controls out (fail-open, the posture `ActionRunner` already
+  committed to).
+
+  One blank spelling is knowingly still outside the scope: an envelope whose `source`
+  is blank but not EMPTY (`{ dialect: 'cel', source: '   ' }`) — the normalizer folds a
+  `source` of `''` and does not trim, so the string spelling of a blank predicate is
+  trimmed and the envelope spelling is not, and `disabled` still greys out for that one
+  value. The ruling enumerated three empty spellings; this is a fourth, measured and
+  filed as objectui#3960 rather than widened in here.
+
+  One chain is deliberately untouched: `SchemaRenderer`'s `visible` / `visibleWhen` /
+  `visibleOn` / `visibility` / `hidden` / `hiddenOn` legs keep `!== undefined`, because
+  narrowing them would change ALIAS PRECEDENCE, not just emptiness. The `hidden` legs
+  are not negated and therefore carry this same defect with the polarity that makes the
+  node vanish — measured, out of this ruling's scope, filed as objectui#3955.
+
+- c2fd122: fix(actions): forward `bodyShape` end-to-end so a declared body wrap is honoured
+
+  Sibling of the `bodyExtra` fix, same failure shape one key over. `bodyShape` is
+  the spec's body-WRAPPING declaration for a `type: 'api'` action — `'flat'` (the
+  default) or `{ wrap: key }` to nest the collected params under `key`, the shape
+  better-auth's `organization/update` needs. The console `apiHandler` read it
+  unconditionally while **no** action renderer forwarded it, so an author who
+  declared `bodyShape: { wrap: 'data' }` on an `action:button` / `:group` / `:icon`
+  / `:menu` action got a FLAT body on the wire: the endpoint received the params at
+  the top level, and the declaration read as honoured because it parsed and
+  published.
+
+  The four declared-action renderers now forward the key, and `ActionSchema`
+  declares it (typed by derivation from the spec, so the union cannot drift).
+  `ActionRunner.executeAPI` — the fallback path taken when no host registered an
+  `api` handler — now reads it too, closing a second asymmetry in which the same
+  action changed body shape depending on which host executed it. The wrap covers
+  the collected params only; `bodyExtra` and other top-level keys stay flat, which
+  is the spec's own wording for the key and what both console read-sites already
+  did.
+
+  `element:button` deliberately does **not** forward it: its whitelist mirrors
+  spec's `InlineActionSchema` pick list field for field, and that pick list does
+  not include `bodyShape` — it is not inline vocabulary.
+
+- e24d767: Record page header action predicates now speak CEL, like every other action surface
+
+  `visible` / `hidden` / `disabled` on a `page:header` action were handed to
+  ObjectUI's legacy JS evaluator, while the row kebab, the selection bar and
+  conditional formatting have evaluated the identical metadata on the canonical
+  CEL engine since objectui#1584 / ADR-0058. Every construct that exists only in
+  CEL therefore worked in a list row and threw on the record page — where the
+  throw fail-closed hid the button, leaving nothing on screen to notice:
+
+  - method calls — `record.f_tags.size() > 0`, `record.f_textarea.contains("x")`
+  - the `in` operator — `'"red" in record.f_multiselect'` (a parse error)
+  - stdlib functions — `record.f_date < today()` (`today is not a function`)
+
+  Both header evaluation sites now go through `evalRowPredicate`: the same entry,
+  the same bindings (`record.*` + bare field names + `data.*` + the host scope,
+  with relations bound as the stored foreign key), and the same fail-closed +
+  warn-once semantics as the row surfaces. One predicate on one record now reaches
+  the same show/hide verdict in the row menu, the selection bar and the record
+  header.
+
+  Legacy-dialect strings are unaffected: `${…}`, `===`/`!==`, `?.`, `??` and
+  JS-only methods such as `.includes()` still route to the legacy evaluator (with
+  its existing one-time deprecation warning), so authored pages keep working. A
+  `${…}` template predicate, which the header previously could not evaluate at
+  all, now resolves through that fallback instead of hiding the button. A
+  predicate that genuinely cannot be evaluated still hides its action, and now
+  reports itself once in the same words the other surfaces use, naming the
+  surface, the action and the predicate.
+
+- aca561a: Four spec keys the renderers already honoured are now discoverable from the published `inputs`
+
+  `record:details.hideFields`, `record:related_list.relationshipValueField`,
+  `record:related_list.add` and `element:text_input.defaultValue` were declared by
+  `@objectstack/spec` and read by their renderers, while the registry `inputs` —
+  the surface `gen-manifest.ts` serializes into `sdui.manifest.json` and
+  `sdui-intrinsics.d.ts` — never mentioned them. Nothing anywhere reported the
+  mismatch, and every layer that reads a manifest said the opposite of the
+  runtime: the keys were in no designer panel and no generated `.d.ts`,
+  `sdui-parser`'s prop walk returned `unknown-prop` for an author who wrote one,
+  and the renderer honoured it regardless. That is objectui#3407's original
+  complaint (`readonly` was enforced and honoured, the description just never said
+  so) on four more keys.
+
+  Each description is derived from what the renderer actually does, not from
+  restating the spec's one-liner, because the two can differ and the published
+  text is what an AI author reads:
+
+  - `hideFields` documents bare field names only — the renderer tolerates
+    `{name}` / `{field}` entries but the spec is `z.array(z.string())` and rejects
+    them, so teaching that spelling would publish a dialect the contract refuses;
+  - `relationshipValueField` publishes the renderer's `'id'` default and says that
+    the resolved value drives the list filter, the Add-picker link value and the
+    pre-filled create form together;
+  - `add` publishes its member shape in prose (`ComponentInput` is flat and has no
+    member-shape slot) with each default taken from the renderer — including
+    `picker.labelField`, where the renderer defaults to `name` while the spec's
+    own wording says "the object title field". It also names `picker.filter` as a
+    KNOWN GAP rather than documenting it as a restriction: the spec declares it
+    and nothing reads it, so an author would otherwise believe their picker is
+    scoped when it offers every record (objectui#3831);
+  - `defaultValue` distinguishes the two behaviours an author can get — seeding a
+    bound page variable once while it is still empty, versus the native
+    uncontrolled initial value with no variable bound.
+
+  `element:text_input` is not in the public tier, so its gap was not in
+  `sdui.manifest.json` at all — it was in the JSX-page compiler's prop whitelist,
+  which `renderers/layout/page.tsx` builds from `getKnownTypes()` plus these same
+  `inputs`, making the undeclared `defaultValue` a live `unknown-prop` warning.
+
+  The repo-wide parity gate now runs in both directions over one covered set and
+  one exemption discipline, so neither direction can be forgotten again the way
+  the reverse half was after PR #3806. Nine spec keys stay deliberately
+  unpublished, each with a written reason and a tracking issue: two the renderers
+  do not read at all (objectui#3829), three retired upstream by ADR-0087
+  tombstones, `page:tabs.type` (a carrier collision, objectstack#6776), two
+  `targetVariable` declarative hints (objectui#3834), and
+  `element:record_picker.filter` (objectui#3830).
+
+- 0ef9dfd: `page:card` publishes `children` instead of the retired `body`, and `page:section` / `page:footer` / `page:sidebar` publish the `children` slot they render
+
+  `inputs` is the published authoring surface, not documentation: the Studio block
+  designer builds its panel from it, `sdui-parser`'s `gen-manifest.ts` serializes
+  it into `sdui.manifest.json` and `sdui-intrinsics.d.ts`, and the JSX-page
+  compiler builds its prop whitelist from it. Two of the `page:*` containers had
+  drifted from the contract in opposite directions.
+
+  `page:card` published `{ name: 'body', type: 'slot' }`. `@objectstack/spec`
+  retired `PageCardProps.body` in objectstack#5775 (PR objectstack#6281, merged
+  2026-08-07, ADR-0087 D2) and declared `children` in its place — one composition
+  slot with one spelling, the same one `grid`, `flex`, `page:section` and
+  `page:tabs` items already use. The designer was teaching a key the contract now
+  rejects by name.
+
+  `page:section`, `page:footer` and `page:sidebar` declared no `inputs` at all, so
+  the designer could not authorize the child list those three components exist to
+  render. The same upstream PR replaced their `EmptyProps` declaration with the
+  shared `PageContainerProps`, whose single key is `children`; all three now
+  publish that one slot from one shared literal, mirroring the spec's own single
+  definition.
+
+  Rendering is unchanged in both directions. `PageCardRenderer` still READS `body`
+  first (`schema?.body ?? schema?.children`) and the three thin containers still
+  read `schema?.children || schema?.body`, so documents stored under the old
+  contract keep rendering until the ADR-0087 D2 conversion rewrites the key at
+  load time — a back-compat read is not a second authorable spelling, the same
+  split the `page-header-subtitle-alias` sequencing established. No validation
+  verdict moves either: `children` is already in `sdui-parser`'s `BASE_PROPS` (so
+  it was never an `unknown-prop`), `isContainer: true` was already set on all
+  four, and `codegen.ts` filters `slot` inputs out of the generated `.d.ts` where
+  `SduiBaseProps.children` types it.
+
+  What changes for an author is the designer surface: `body` is no longer offered
+  on `page:card`, `children` is, and the three thin containers gained an
+  authorable content slot.
+
+- 7e5bb5d: fix(actions): forward `bodyExtra` end-to-end through the action chain
+
+  An action's static request body (`bodyExtra`) was dropped one hop before the
+  `ActionRunner`: every action renderer forwards an explicit whitelist of keys, and
+  none of them listed `bodyExtra`. Since `@objectstack/spec` 17 made it the only way
+  a `type: 'api'` action can carry a payload (`params` keeps its single meaning as
+  the parameter definition array), and the ADR-0087
+  `inline-action-api-params-to-body-extra` conversion rewrites older object-form
+  `params` pages onto it at load, a previously-working published page validated,
+  published and then POSTed an empty body.
+
+  `element:button`, `action:button`, `action:group`, `action:icon` and `action:menu`
+  now forward the key; `ActionRunner.executeAPI` merges it into the request body
+  **last** (so a constant always overrides a same-named user param, matching the
+  console `apiHandler`); `ActionSchema` declares it; and a non-array `params` on a
+  `type: 'api'` action keeps working for one version window with a dev-mode
+  deprecation warning naming `bodyExtra`.
+
+- 54233b1: Record detail pages: a header ⟳ that refreshes the record, its related lists and its tab counts in place — no browser reload
+
+  Concurrent-editing scenario from the shop floor (MES work orders): operator A sits on a record's detail page while operator B starts or reports the same order. A had no way to see the new state except F5, which throws away the open tab, the scroll position and any in-progress inline edit along with the stale data.
+
+  The pipeline for this already existed — the objectui#2269 invalidation bus refetches every mounted reader in place, and `RecordContext.refresh` had been declared for it — but nothing produced that field and no UI reached for it. Three changes give it a trigger:
+
+  - **`RecordDetailView` produces `RecordContext.refresh`**, publishing `notifyDataChanged({ objectName: '*' })`. The wildcard is deliberate: a user reaches for refresh because of a write made by SOMEONE ELSE, which this client never saw and therefore cannot attribute to particular objects. `'*'` marks everything mounted as stale, so the main record, every related child list and the tab-count badges all refetch — no remount, so tab / scroll / draft state survive. First phase covers the standalone record route; embedded hosts (list drawer, split-pane preview) keep their existing chrome unchanged.
+  - **`page:header` renders the ⟳** at the far end of the header row when — and only when — the host provides `refresh`. It is page chrome rather than a header action, so its position is the same on every record page regardless of which business actions the object declares, and it can never be collapsed into the `⋯` overflow. Styled as that `⋯` trigger's twin so the row reads as one button family. Its accessible name and tooltip come from the existing `common.refresh` key, so the icon-only button is not English-only in the other nine locales. The icon spins for a short floor after a click, because the bus is fire-and-forget and a warm backend would otherwise finish before the click looked like it landed.
+  - **`RelatedList` accepts the `'*'` wildcard** on the legacy `objectui:related-changed` event, matching what `dataChangeMatches` already does for the bus's own readers. This listener compared the payload's object name to its own, so a wildcard invalidation reached everything on the page except the related lists — a concrete foreign object name is still ignored.
+
+  Hosts that provide no `refresh` render exactly as before.
+
+- 97b63d7: Row actions declaring `visible: false` are now hidden instead of rendered
+
+  A custom row action's visibility **gate** was detected by truthiness, so
+  `visible: false` — the most explicit way an author can say "never show this" —
+  fell into the "no gate declared" branch and the action rendered for every row.
+  Both surfaces of the ObjectGrid row cell (the "⋮" overflow item and the inline
+  `variant:'primary'` button) and the data-table's row overflow menu read the same
+  gate, so all three rendered it; the `#3562` emptiness guard counts with that same
+  gate, so a row whose only action was `visible: false` also grew a "⋮" it could
+  not fill.
+
+  The gate now detects a **declared** gate by `!= null && !== ''` and lets the
+  declaration itself decide — a boolean short-circuits to its own verdict rather
+  than being handed to the CEL engine. This is the invariant objectui#3492 already
+  established for the selection bar, whose `hasVisibilityGate` spells out why
+  truthiness cannot answer the question, and the same `!= null` posture the
+  built-in `visibleWhen` gate has always had. `visible: true` still renders,
+  `''` and an absent `visible` are still no gate at all, and no expression-valued
+  `visible` changes verdict.
+
+  Behaviour change surface, deliberately narrow: only an action whose `visible` is
+  the literal boolean `false` (or another falsy non-empty value) changes — it goes
+  from rendered to hidden, which is what the declaration asked for.
+  `ActionSchema.visible` is `ExpressionInputSchema` with no boolean member, so
+  `objectstack build` cannot emit this shape; hand-written view JSON and
+  in-process callers constructing defs can, and did. The three row surfaces now
+  reach the same verdict as the selection bar and the record page header for every
+  non-expression shape, which `predicate-surface-parity` pins.
+
+- Updated dependencies [8aad9fd]
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [7864f03]
+- Updated dependencies [d229dfa]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [f5f8744]
+- Updated dependencies [69becd2]
+- Updated dependencies [5e52495]
+- Updated dependencies [b750823]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [c2fd122]
+- Updated dependencies [ac2139c]
+- Updated dependencies [b14ab3a]
+- Updated dependencies [8c60819]
+- Updated dependencies [e64a52e]
+- Updated dependencies [844d17f]
+- Updated dependencies [48132f7]
+- Updated dependencies [4dcd52a]
+- Updated dependencies [42ae5c6]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [6d762da]
+- Updated dependencies [d11996e]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [f9faa7d]
+- Updated dependencies [6bb454a]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [33526fd]
+- Updated dependencies [32413ec]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/react@17.4.0
+  - @object-ui/core@17.4.0
+  - @object-ui/i18n@17.4.0
+  - @object-ui/types@17.4.0
+  - @object-ui/react-runtime@17.4.0
+  - @object-ui/sdui-parser@17.4.0
+
 ## 17.3.0
 
 ### Minor Changes
@@ -159,6 +876,7 @@ props}` _alongside_ `field`. The predictable result was ~30 widgets resolving
   compile time rather than work under one host and not another.
 
   ## What did NOT change
+
   - **Host metadata (SDUI JSON) is untouched.** No authored schema changes; this is
     a change to how widgets are _written_, not to what apps declare.
   - **`schema` is still the universal SDUI prop** every registered component
@@ -210,6 +928,7 @@ props}` _alongside_ `field`. The predictable result was ~30 widgets resolving
     the flip where a name cannot.
 
   ## What changed
+
   - Every field control — built-in (`input` / `textarea` / `checkbox` / `switch` /
     `select`) and registered widget alike — now receives `aria-required="true"`
     when the field resolves required, and **no attribute at all** when it does
@@ -253,7 +972,7 @@ AriaAttributes`) and every widget forwards its leftover props to the control it
   half-translated in a way a user could see inside one widget: the dependency-gate
   sentence next to it already went through `t()`
   (`fields.options.selectFirst`), so under a `zh` session a gated select read
-  "请先选择Country" and the same select — one keystroke later, when the parent
+  "请先选择 Country" and the same select — one keystroke later, when the parent
   value matched no option — flipped to English.
 
   `fields.options.empty` is added to `useSafeFormTranslation`'s defaults map, the
@@ -357,6 +1076,7 @@ AriaAttributes`) and every widget forwards its leftover props to the control it
   - 展开按钮的无障碍名永远插值通用名词，一张有三个长文本字段的表单上三个按钮读屏完全一样。读屏用户无法判断自己要展开的是哪个字段，这是可达性缺陷而不是观感问题。
 
   ## 改了什么
+
   - 调用点显式转发 `label`（与 `placeholder` / `emptyHint` 同法），这是唯一的行为改动。
   - `label` 属于 renderer-only：`stripRendererOnlyProps` 与 `stripRegisteredFieldProps` 各加一条丢弃项，所以它既不会变成 DOM 上的 `label="备注"` 杂属性（每个内置分支都会把剩余 props 直接摊到 DOM 节点上），也不会成为注册型 widget 新收到的 prop——自 v17 起 `field` 是它们唯一的元数据载体（objectui#3233），label 一直在那里读。
   - 内置 `textarea` 分支里那句 `const { label: _label, ...rest }` 随之删除。它本想拦住 label 落到 DOM，但既然从来没有 label 送进来，它拦的是不存在的东西（ESLint 一直报着 `'_label' is assigned a value but never used`），而且只护住了这一个分支。现在这件事由 strip 统一负责，所有分支同等受护。
@@ -2659,6 +3379,7 @@ overflow-auto` region (bottom on-screen, within the viewport) and the table can
   objects+fields were editable in Studio; this reworks both surfaces.
 
   **Setup (assign + read-only):**
+
   - The six facets (`object_permissions`, `field_permissions`, `system_permissions`,
     `row_level_security`, `tab_permissions`, `admin_scope`) now render read-only on
     the `sys_permission_set` record page as a compact summary (counts, or capability
@@ -2673,6 +3394,7 @@ overflow-auto` region (bottom on-screen, within the viewport) and the table can
 
   **Studio (design every facet):** the permission matrix editor gains structured
   editors for the facets that were JSON-only —
+
   - **System Capabilities**: a multi-select over the live `sys_capability` registry
     (scope-grouped, labelled chips).
   - **Row-Level Security**: per-policy rows (object · operation · enabled) with CEL
@@ -3409,6 +4131,7 @@ overflow-auto` region (bottom on-screen, within the viewport) and the table can
   platform primitive for "no records / no data" states. Two new props
   keep it flexible enough to absorb the hand-rolled variants that lived
   in `plugin-list`, `plugin-kanban`, and `plugin-dashboard`:
+
   - `showIcon?: boolean` — drops the icon container entirely. Used by the
     kanban board-level empty banner, which is a status banner rather than
     a true empty-state.
@@ -3417,6 +4140,7 @@ overflow-auto` region (bottom on-screen, within the viewport) and the table can
     empty state, which uses a large standalone glyph).
 
   Adopters:
+
   - `plugin-list` (`ListView` grid empty-state) — preserves the existing
     large icon, title, message, add-record button and `data-testid`s,
     but delegates the structural markup to `DataEmptyState`.
@@ -3479,6 +4203,7 @@ overflow-auto` region (bottom on-screen, within the viewport) and the table can
   The renderer now passes `schema.action` through `SchemaRenderer` to turn it
   into a real React element, and explicitly strips `action`/`icon` from the
   spread so schema-shaped objects don't reach DOM attributes.
+
   - @object-ui/types@5.1.1
   - @object-ui/core@5.1.1
   - @object-ui/i18n@5.1.1
@@ -3501,17 +4226,20 @@ overflow-auto` region (bottom on-screen, within the viewport) and the table can
 - bd8447d: Three platform-wide detail polish items.
 
   **Tighter page rhythm**
+
   - Outer `PageRenderer` padding `p-4 md:p-6 lg:p-8` → `p-3 md:p-4 lg:p-6`
     and outer body wrap `space-y-8` → `space-y-6` so list / detail / home
     pages share the same edge rhythm. Cuts ~16px of edge slack on lg.
 
   **Highlights KPI treatment**
+
   - `HeaderHighlight` now renders numeric / currency / percent / decimal
     values as KPI numbers (`text-xl md:text-2xl font-semibold tabular-nums`)
     instead of the uniform `text-sm font-semibold`, so amount / probability
     / count fields read as headline stats — Salesforce-style key facts.
 
   **Discussion footer upgrade**
+
   - `RecordActivityTimeline` now uses `RichTextCommentInput` (bold / italic /
     list / code, `@`-mention autocomplete, preview toggle, Send) instead of
     a bare `<textarea>`.
@@ -3526,6 +4254,7 @@ overflow-auto` region (bottom on-screen, within the viewport) and the table can
   accordion in flush mode dropped all per-item borders so the collapsed
   "Quotes / Products / Open Tasks" triggers stacked with zero visual
   separation.
+
   - `@object-ui/plugin-detail` `DetailSection`: override the `CardTitle`
     className to `text-base font-semibold tracking-tight`, slim down
     `CardHeader` padding (`py-3 px-4 sm:py-4 sm:px-6`) and `CardContent`
@@ -3540,6 +4269,7 @@ hover:no-underline` (Shadcn's hover-underline default looks busy on
     CRM-style related-list lists).
 
 - d51a577: feat(platform): Discussion attachments + @mention directory + Reference Rail aside
+
   - **Discussion attachments** — `RichTextCommentInput` now accepts an `extraSlot`
     and a `canSubmitEmpty` flag so hosts can mount the existing
     `CommentAttachment` composer beneath the editor without forking the toolbar.
@@ -3559,6 +4289,7 @@ hover:no-underline` (Shadcn's hover-underline default looks busy on
 - d1ec6a2: Fold inline-edit into the page-header overflow menu (HubSpot/Lightning
   pattern) and remove the orphan "Edit fields" toolbar row that previously
   floated between the tab strip and the first detail section.
+
   - `@object-ui/app-shell` `RecordDetailView`: injects a new `sys_inline_edit`
     system action that appears in the ⋯ overflow menu and dispatches a
     `objectui:record:inline-edit-toggle` window CustomEvent (filtered by
@@ -3575,6 +4306,7 @@ hover:no-underline` (Shadcn's hover-underline default looks busy on
     in `page:accordion` / `page:tabs` items.
 
 - d548d6b: Unify empty-state visuals across timeline + registered `empty` renderer.
+
   - `RecordActivityTimeline` and `ActivityTimeline` now use `DataEmptyState`
     instead of a bare `<p>` so empty timelines match list/related-list visuals
     (muted icon badge + centered copy).
@@ -3625,6 +4357,7 @@ hover:no-underline` (Shadcn's hover-underline default looks busy on
   not only contacts of that account).
 
   Two coupled fixes:
+
   1. `RelatedList` now requires `parentId` + `referenceField` to auto-
      fetch. When both are present it calls `dataSource.find(api,
 { $filter: { [referenceField]: parentId } })`. When either is
@@ -3653,6 +4386,7 @@ hover:no-underline` (Shadcn's hover-underline default looks busy on
   default detail view. They were missing cross-cutting affordances and
   shipped with English-only tab labels and heavy bordered section cards
   even when the host locale was Chinese. Track 1 closes the visible gap:
+
   - **app-shell `RecordDetailView`**: the `assignedPage` branch now wears
     the same chrome as the default branch — lifecycle managed-by badge
     and presence avatars in the top-right, `MetadataPanel` debug panel,
@@ -3681,6 +4415,7 @@ hover:no-underline` (Shadcn's hover-underline default looks busy on
   record detail page (lead, opportunity, future account/contact/case).
   Before this change it had two problems that bled into every custom
   page across the product:
+
   1. **Quadruple registration**: `@object-ui/layout` registered both
      `page-header` and `page:header`, and `@object-ui/components`
      independently registered `page:header` (and `page:section`).
@@ -3691,6 +4426,7 @@ hover:no-underline` (Shadcn's hover-underline default looks busy on
      than the default detail view it was meant to supersede.
 
   This commit:
+
   - Removes the `@object-ui/layout` `page:header` registration. The
     layout package keeps the legacy kebab-cased `page-header` alias only.
     The canonical renderer now lives in `@object-ui/components` and is
@@ -3716,6 +4452,7 @@ hover:no-underline` (Shadcn's hover-underline default looks busy on
   opportunity highlights strip looks coherent with the chip above it.
 
 - ddb08a7: feat(page:header,page:tabs): title fallback + single-tab strip auto-hide (Phase G slice 3 polish)
+
   - `page:header.resolvedTitle` now honors `objectSchema.titleFormat`
     (e.g. `{first_name} {last_name}`) and falls back through `name →
 full_name → title → subject → display_name → label` before degrading
@@ -3762,6 +4499,7 @@ full_name → title → subject → display_name → label` before degrading
   muted badge on every empty Activity/History tab).
 
 - b14fe09: Phase P.0 + P.5: tighten record-detail header chrome.
+
   - `RecordTitleChip` collapses the title row to a single baseline-aligned line — H1, eyebrow object label, copy-id, favorite star — instead of the previous two-row title + subtitle layout.
   - `record:details` extends the highlight-field dedup set to also exclude the title field resolved from `objectSchema.primaryField` (or the standard `name`/`full_name`/`title`/`subject`/`display_name`/`label` fallbacks). Removes the duplicate row that previously echoed the H1 (e.g. "客户名称: Acme Corporation") inside the field grid.
 
@@ -3778,6 +4516,7 @@ full_name → title → subject → display_name → label` before degrading
   underline when active. 'card' and 'pill' variants are unchanged.
 
 - 74962b0: feat(detail): record:discussion schema component + flush accordion variant
+
   - New `record:discussion` schema type lets authors place the record
     chatter feed anywhere in a custom Page schema. Wired through a
     shared `DiscussionContext` provider on the `assignedPage` branch
@@ -3804,6 +4543,7 @@ full_name → title → subject → display_name → label` before degrading
   accordion, discussion slot) that custom Lightning pages already enjoy.
 
   Changes:
+
   - `buildDefaultPageSchema` now emits `page:tabs.items` (correct shape
     for the renderer) rather than `tabs`.
   - `PageHeaderRenderer.resolvedTitle` honors `objectSchema.primaryField`
@@ -3917,6 +4657,7 @@ full_name → title → subject → display_name → label` before degrading
   For every tab item whose `count` is not set explicitly, the renderer walks the tab's children (depth-first) to find the first `record:related_list` schema node and issues a `limit:1` find through the active `dataSource` to read the matching `total`. The badge appears in the tab strip without spec authors having to wire counts manually.
 
   Behavior:
+
   - Explicit `count` in the spec always wins.
   - Probe is filtered by the parent record id via `relationshipField` when present (skipped until the parent record is loaded).
   - Best-effort: a failed probe just omits the badge — no error surface.
@@ -3957,6 +4698,7 @@ full_name → title → subject → display_name → label` before degrading
 ### Patch Changes
 
 - 6b683c8: fix(detail): clean up record page rendering
+
   - Drop `ai:chat_window` from the protocol-component placeholder list. The
     floating chat overlay (plugin-chatbot) is the canonical AI entry point;
     inline page schemas that still reference `ai:chat_window` now surface
@@ -3984,6 +4726,7 @@ full_name → title → subject → display_name → label` before degrading
   The report configuration panel is now safe to open on any spec-shape `Report` and only exposes fields that are actually persisted by `@objectstack/spec`.
 
   `@object-ui/plugin-report`:
+
   - Add a bidirectional `SpecFilterAdapter` so `ReportConfigPanel` can edit
     spec `FilterCondition` filters (`{field: value}`, `{field: {$op: value}}`,
     top-level `$and`/`$or`). Complex / nested filters fall back to a
@@ -4005,15 +4748,18 @@ full_name → title → subject → display_name → label` before degrading
   - 18 new unit tests cover the filter adapter round-trip.
 
   `@object-ui/components`:
+
   - `FilterBuilder` now guards against malformed external `value` props.
     Previously a spec-shape filter (`{is_active: true}`) would crash the
     component on first render; the builder now falls back to an empty
     AND group whenever `value` is not a valid `FilterGroup`.
 
   `@object-ui/i18n`:
+
   - Add `report.editor.*` strings to `en` and `zh`.
 
 - 8442c05: Improve report editor panel usability based on real-user browser testing:
+
   - **Wider config panel** — the report editor now defaults to a `--config-panel-width`
     of 440px (up from 280px), driven by a new optional `style` prop on
     `ConfigPanelRenderer`. Long field labels, report titles, type labels, and filter
@@ -4136,6 +4882,7 @@ full_name → title → subject → display_name → label` before degrading
   detail view (`TypeError: titleFormat.replace is not a function`) and printed
   `Failed to evaluate expression: ${[object Object]}` for every action visibility
   predicate.
+
   - `@object-ui/core`: `ExpressionEvaluator.evaluate` / `evaluateCondition` now
     unwrap Expression envelopes transparently.
   - `@object-ui/react`: new `toPredicateInput()` helper to safely normalize
@@ -4218,6 +4965,7 @@ full_name → title → subject → display_name → label` before degrading
   plugin-designer, plugin-detail, plugin-editor, plugin-form, plugin-gantt,
   plugin-grid, plugin-kanban, plugin-list, plugin-map, plugin-markdown,
   plugin-report, plugin-timeline, plugin-view, plugin-workflow.
+
   - @object-ui/types@4.0.5
   - @object-ui/core@4.0.5
   - @object-ui/i18n@4.0.5
@@ -4232,6 +4980,7 @@ full_name → title → subject → display_name → label` before degrading
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.
@@ -4288,6 +5037,7 @@ full_name → title → subject → display_name → label` before degrading
   contract through the renderer end-to-end:
 
   **`@object-ui/types`** — `DataSource` gains four optional methods:
+
   - `createExportJob(resource, request)` → `{ jobId, status, estimatedRecords, createdAt }`
   - `getExportJobProgress(jobId)` → `{ status, processedRecords, totalRecords, percentComplete, downloadUrl, … }`
   - `cancelExportJob(jobId)` (optional)
@@ -4297,6 +5047,7 @@ full_name → title → subject → display_name → label` before degrading
   remain dependency-free.
 
   **`@object-ui/components`** — new public API:
+
   - `useExportJob({ dataSource, pollIntervalMs, onComplete, onError })` — owns the
     full polling loop, terminal-state handling, cancel, and download.
   - `<ExportProgressDialog open onOpenChange job filename closeAfterDownloadMs />` —
@@ -4315,24 +5066,29 @@ full_name → title → subject → display_name → label` before degrading
 - a2d7023: End-user feature batch — forms, designer history, import/export, and PWA offline sync.
 
   **Forms (`@object-ui/fields`, `@object-ui/providers`)**
+
   - `FileField`: native `<input capture="environment">` camera capture for mobile devices, plus a uploading-progress indicator driven by `UploadProvider`.
   - `ImageField`: per-image inline crop/rotate via the lazy-loaded `ImageCropperDialog` (canvas-based, zero new deps).
   - New `UploadProvider` in `@object-ui/providers` with pluggable adapters for S3 and Azure Blob (plus the default object-URL adapter for local previews). XHR-based with progress, abort, and retry.
   - `LookupField`: `lookup.dependsOn: string | string[]` to chain dependent lookups (e.g. State depends on Country); the trigger is gated until parent values are present and the OData `$filter` is built automatically.
 
   **Container-aware widget widths (`@object-ui/components`)**
+
   - New `useResizeObserver(ref)` hook exposing `{ width, height }` of any element. SSR-safe; reads the initial size via `getBoundingClientRect`.
   - `plugin-gantt` and `plugin-kanban` now react to their container size instead of `window.innerWidth`, so they behave correctly inside split panels and dashboards.
 
   **Designer history (`@object-ui/plugin-designer`)**
+
   - `useUndoRedo` (and therefore `useDesignerHistory`) gains `persistKey` + `storage` options to round-trip the undo/redo stack through `sessionStorage`, plus a `clearPersisted()` cleanup helper. Drafts now survive accidental tab refreshes.
   - New `<HistoryPanel>` component renders the timeline visually with one-click jump-to-checkpoint via the new `jumpTo(index)` API.
 
   **Import wizard (`@object-ui/plugin-grid`)**
+
   - Saved column-mapping templates: name, save, re-apply, and delete via a new template bar in the mapping step. Persisted under `objectui:import-templates:${objectName}` (override via `templateStorageKey` / `templateStorage`).
   - Inline validation correction: cells with errors in the preview step are now editable; corrections feed straight into the import without requiring a re-upload, with green-bar status indicators for fixed rows.
 
   **PWA offline sync (`@object-ui/mobile`)**
+
   - New `MemoryOfflineQueue` / `IndexedDbOfflineQueue` (`createOfflineQueue()` picks the best backend) backed by IndexedDB.
   - `createOfflineDataSource(inner, { queue })` wraps any DataSource so mutations issued while offline (or that fail with a network-style error) are queued and replayed in order on reconnect. Includes `replay()`, `drop()`, `clear()`, `pending()`, an `onChange` notifier, and an opt-in `resolveConflict` hook for stale-write conflicts.
   - New `useOfflineSync(source)` hook exposes `{ isOnline, pending, isReplaying, replay, drop, clear }` and auto-replays on the browser's `online` event.
@@ -4360,11 +5116,13 @@ full_name → title → subject → display_name → label` before degrading
   `FormSchema.mobileStickyActions` (new) is the lower-level escape hatch — applied automatically when `mobile.stickyActions` is set on `ObjectFormSchema`.
 
   **`@object-ui/plugin-form`** — `ObjectForm` now:
+
   - propagates `mobile.fullscreenLongText` to every textarea/markdown/html field as `mobile_fullscreen: true`,
   - sets `mobileStickyActions` on the inner form schema and adds `pb-20` padding so content isn't covered by the fixed bar,
   - when `mobile.stepper === true` (or `'auto'` + `useIsMobile()` + > `stepperMinFields` fields), routes the flat field list through the existing `WizardForm` with synthetic single-field "steps" — keeping per-step validation and the existing `Next`/`Back`/`Submit` flow.
 
   **`@object-ui/components`** — the registered `form` renderer adds:
+
   - a `mobileStickyActions` opt-in that turns the action row into a `position: sticky; bottom: 0` bar on small viewports, and
   - an inline `FullscreenTextarea` wrapper used when no field-package widget is registered, providing the same expand-button + edit-dialog UX so the feature works even in lighter setups.
 
@@ -4403,6 +5161,7 @@ full_name → title → subject → display_name → label` before degrading
   `@object-ui/app-shell` and `@object-ui/components` have been updated to
   point at the new paths; no runtime behaviour changed. A new
   `examples/README.md` provides a "which example should I use?" selector.
+
   - @object-ui/types@3.3.1
   - @object-ui/core@3.3.1
   - @object-ui/i18n@3.3.1
@@ -4547,6 +5306,7 @@ full_name → title → subject → display_name → label` before degrading
 - New plugin-object and ObjectQL SDK updates
 
   **Added:**
+
   - New Plugin: @object-ui/plugin-object - ObjectQL plugin for automatic table and form generation
     - ObjectTable: Auto-generates tables from ObjectQL object schemas
     - ObjectForm: Auto-generates forms from ObjectQL object schemas with create/edit/view modes
@@ -4555,6 +5315,7 @@ full_name → title → subject → display_name → label` before degrading
   - ObjectQL Integration: Enhanced ObjectQLDataSource with getObjectSchema() method using MetadataApiClient
 
   **Changed:**
+
   - Updated @objectql/sdk from ^1.8.3 to ^1.9.1
   - Updated @objectql/types from ^1.8.3 to ^1.9.1
 
@@ -4570,6 +5331,7 @@ full_name → title → subject → display_name → label` before degrading
 - Patch release: Add automated changeset workflow and CI/CD improvements
 
   This release includes infrastructure improvements:
+
   - Added changeset-based version management
   - Enhanced CI/CD workflows with GitHub Actions
   - Improved documentation for contributing and releasing

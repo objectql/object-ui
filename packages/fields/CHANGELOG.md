@@ -1,5 +1,326 @@
 # @object-ui/fields
 
+## 17.4.0
+
+### Minor Changes
+
+- ecae400: Retire the `capability-multiselect` field widget name, which existed only on the docs-site registration path and which nothing ever stamped (objectui#3308, ADR-0049 enforce-or-remove)
+
+  `field:capability-multiselect` was registered by `registerFields()` and only there. That function's sole caller is the docs site, so the key never existed on the live path (`registerAllFields()`, run at module import, iterates `fieldWidgetMap` — which never listed it). A field authored with `widget: 'capability-multiselect'` therefore resolved to nothing in every real application, while the comment above the registration described it as usable from a record form: a code comment promising a capability that does not exist, which is the worst direction for a metadata renderer AI-authored apps read as authority.
+
+  Nothing stamped the hint either. ADR-0056 P1 stamps `permission-facet-link` on all six `sys_permission_set` facets — `system_permissions` included — through the single `ObjectStackAdapter.getObjectSchema` choke point, and P2 put the capability editor in Studio. The widget name was a leftover from an intermediate iteration of that rollout.
+
+  Removed, with a tombstone at each site:
+
+  - `@object-ui/fields` — the `field:capability-multiselect` registration and the comment that advertised it. **Breaking in name only**: the key was unreachable outside the docs site, so no application could have resolved it. A field still carrying the hint now degrades to its declared `type` renderer, the defined behavior for an unregistered widget.
+  - `@object-ui/plugin-detail` — `InlineFieldInput`'s `widget === 'capability-multiselect'` branch, the hint's last honoring surface. Leaving one consumer for a name no producer emits and no form resolves is the same declared-vs-enforced split, inverted. The sibling `permission-facet-link` branch is untouched and pinned.
+  - `@object-ui/components` — the dead `capability-multiselect` entry in the form renderer's `DATA_SOURCE_FIELD_TYPES` set, which could never match a resolvable widget.
+  - `@object-ui/plugin-form` — a comment naming `capability-multiselect` as the widget stamped onto `sys_permission_set.system_permissions`; it names `permission-facet-link` now, which is what is actually stamped.
+
+  `CapabilityMultiSelectField` itself is **unchanged and still exported**: Studio's `PermissionMatrixEditor` imports and renders it directly, which is ADR-0056 P2's design. Only the widget name is retired — the component is not a registry field widget and its doc comment now says so.
+
+  `registerFields()` is also **kept**, with its `@deprecated Use registerAllFields() instead` note corrected. The two are not interchangeable: it registers `createFieldRenderer(widget)`, which synthesizes the label, description and the local `value`/`onChange` state that lets a bare field node (`{ type: 'currency', label: 'Amount' }`) render standalone in the docs demos. Retiring it needs a decision about where that demo chrome goes; the note now records that instead of implying a drop-in replacement.
+
+- 65bb513: fields: remove the docs-demo registration path (`registerFields` + `createFieldRenderer`), and host the docs field examples in a real form
+
+  **Breaking (shipped as `minor` per AGENTS.md §版本号策略 — objectui's major tracks `@objectstack`, so the repo's own breaking changes are `minor` with the break spelled out here):** two public exports are removed from `@object-ui/fields`:
+
+  - `registerFields()` — registered every widget under the same `field:<type>` keys as `registerAllFields()`, but wrapped in a demo-only renderer. Two paths writing the same registry keys meant whoever ran LAST won it for every consumer sharing the registry.
+  - `createFieldRenderer()` — that wrapper. It synthesized a `label`, a description, and a local `useState`/`onChange` around a widget.
+
+  **Migration:** there is nothing to migrate for an application. `registerAllFields()` runs on import of `@object-ui/fields` and is the one registration seam (`registerField(type)` for a single type); no shipped application ever called the removed pair — the docs site was the only caller. Code that rendered a **bare field node** standalone (`{ type: 'currency', label: 'Amount' }`) and relied on the wrapper for label and value state must host the field in a form instead: `{ type: 'form', fields: [{ name: 'amount', label: 'Amount', type: 'currency' }] }`. Seed values through the form's `defaultValues`, not a field-level `value`.
+
+  **Why the removal rather than a relocation** (ruling B of objectui#3798, confirmed by the maintainer; objectui#3308 is the origin, PR #3793 the safety net that first corrected the misleading `@deprecated` note): the wrapper existed only so the documentation could render a bare field node as a labelled, editable input. No application produces that rendering — on the live path a bare field node has no host for its label or its value. So the field docs, which are a first-hand transcription source for AI authors, were teaching a shape that does not work, and an author copying it got a node with neither label nor `onChange`. Relocating the wrapper into the docs site would have preserved that divergence under a new owner. Hosting the examples in a real form removes the reason for the wrapper to exist: the form renderer already owns label and value state, so the docs can only show what an application actually renders.
+
+  The 74 bare-node examples under `examples/schema-catalog/src/schemas/fields-*` are now form-hosted (the other 2 already were). A field's `value` moved to the form's `defaultValues`, because the form renderer spreads react-hook-form's state after the schema props and a field-level `value` is therefore ignored — a catalog guard now pins that so a dead `value` cannot come back.
+
+- b19162d: Build and publish `@object-ui/fields/style.css` — the subpath the package has always declared and never shipped
+
+  `packages/fields/package.json` has declared `"./style.css": "./dist/index.css"` for the package's entire life, while its build was `tsc && vite build` and the package contained no `.css` file for Vite to extract. **No published version up to and including 17.3.0 contains a stylesheet** — the `@object-ui/fields@17.3.0` tarball has zero `.css` files in it. The subpath did not merely render badly, it failed to resolve: a consumer writing the `@import '@object-ui/fields/style.css'` that the quick-start guide taught got a build error. This release is the first one where that import works, so it is a new capability rather than a repair of a working one, and no existing consumer can be relying on the old behaviour — an import that never resolved has no working callers.
+
+  Removing the export was the cheaper option and was rejected on a measurement: fields' class surface is not a subset of what `@object-ui/components` publishes. 155 classes exist only here, and 17 of them (`hover:bg-accent/30`, `ring-destructive/50`, `bg-primary/20`, …) resolve `@theme` tokens declared in unpublished package source, so no consumer-side Tailwind configuration can generate them. Dropping the export would have made the field widgets permanently under-styled with no supported remedy.
+
+  The new sheet is a **supplement, not a replacement** — it is compiled against the components theme and then has every rule that package's sheet already ships subtracted from it, so it is ~22 kB rather than another ~180 kB of near-duplicate CSS. Import it after the components sheet:
+
+  ```css
+  @import "tailwindcss";
+  @import "@object-ui/components/style.css";
+  @import "@object-ui/fields/style.css";
+  ```
+
+  Also adds a workspace-wide guard (`scripts/__tests__/package-files-exist.test.ts`) that fails when any package exports a subpath its published tarball cannot contain, so a stylesheet export with nothing building it cannot recur silently.
+
+- 1bd6faa: fix(fields,plugin-form): stop the inline child grid from collapsing `datetime`/`time` columns onto the `date` control
+
+  `deriveMasterDetail`'s `fieldTypeToColumnType` mapped `date`, `datetime` and `time` onto the single `date` grid column type, and `GridField` renders that as `<input type="date">`. The consequence was not cosmetic: that control emits a bare `YYYY-MM-DD` on change, so a user who merely re-picked the **day** of a `datetime` cell silently wrote the record's time component out of existence — a `14:30` became midnight with no warning and no undo.
+
+  `GridColumn['type']` now carries `'datetime'` and `'time'` alongside `'date'`, and each renders its own control with its own read/write adapter:
+
+  - `datetime` → `<input type="datetime-local">`, read through `toDateTimeInputValue` and written back through `fromDateTimeInputValue`, so the stored shape stays ISO-8601 and read and write share one basis (the contract `DateTimeField` already follows, objectui#3127).
+  - `time` → `<input type="time">`, round-tripping the stored zone-less `HH:mm[:ss]` verbatim.
+  - `date` → unchanged.
+
+  The read-only surfaces are fixed with it. `displayText()` and the read-only table both fell through to `String(value)` and printed the raw stored ISO on screen (`2026-06-17T00:00:00.000Z`); each temporal type now formats as itself — a day for `date`, day + local time for `datetime`, the wall clock for `time`. That could not be fixed before the type collapse was undone, because with one column type the renderer had no way to know which of the two to show.
+
+  Authors writing explicit grid `columns` can now declare `type: 'datetime'` / `type: 'time'`; previously those spellings were not part of the exported union.
+
+### Patch Changes
+
+- 0186cdc: `address` widget: the ZIP box now reads and writes `postalCode`, the part name the platform stores
+
+  `AddressField` bound its ZIP input to `zipCode` — a part name that appears
+  nowhere in `@objectstack/spec`. The stored value uses `postalCode`, which
+  `AddressValueSchema` declares and enforces with `$strip` semantics, so the two
+  sides never met:
+
+  - opening a stored address showed an **empty** ZIP box (no input read
+    `postalCode`), while street / city / state / country all populated — four of
+    five parts working is what let this survive review;
+  - anything the user then typed into that box was written back as `zipCode` and
+    **stripped at the contract boundary**. On a new record the postal code was
+    lost outright; on an existing one the correction was silently discarded and
+    the stale stored code remained, with no error anywhere.
+
+  The widget now uses `postalCode` throughout — state key, sub-input id, the
+  `onChange` part name and the read-only formatter. Data written by the previous
+  builds is still **read** through `zipCode` as a compatibility limb, and the
+  first edit of any part normalizes such a record onto `postalCode` rather than
+  writing the split shape back out. Nothing writes `zipCode` any more, and it is
+  deliberately not part of the exported `AddressValue` type, so authoring code
+  cannot spell it.
+
+  `AddressValue` is otherwise unchanged in shape; consumers that referenced
+  `AddressValue['zipCode']` must read `postalCode`.
+
+  Fixes objectstack-ai/objectstack#5143.
+
+- ea41a59: fix(fields): `BooleanField` uses the control id its host hands down, so a boolean field's visible label is really associated with the switch
+
+  A `boolean` / `checkbox` field inside a form emitted **two** labels with the same text, and the visible one pointed at nothing. `<FormControl>` (a Radix `Slot`) hands the control the id its `<FormLabel htmlFor>` already references, and the widget replaced it with the field name — so `label for="_r_3_-form-item"` had no target while the switch carried `id="notifications"`. Clicking the visible label, the normal affordance for a switch/checkbox row, toggled nothing on every generated form in every app; the accessible name survived only through the widget's own `sr-only` label.
+
+  The widget now honours the id it was handed (`id` is a declared key of the widget contract, forwarded by `toDomProps`) and stops emitting its own label when a host supplied one. Standalone rendering is unchanged: with no host id the id still falls back to the field name and then to `useId()`, and the `sr-only` label — the only accessible name the inline grid editor and the console's action-param dialog have — is still emitted.
+
+- c3b01a7: Give composite and grouped field widgets a real accessible name: the form renderer now associates its label by IDREF for widgets that declare `labelling: 'group'`, instead of emitting a `<label for>` that nothing labelable answers (objectui#3961).
+
+  Six widgets rendered a visible group label that named **nothing** in the accessibility tree. Measured in a real form, one field per row, reading each label's `for` against the DOM:
+
+  ```
+  address      for=…-form-item -> MISSING            byLabelText=0   role+name=0
+  geolocation  for=…-form-item -> MISSING            byLabelText=0   role+name=0
+  checkboxes   for=…-form-item -> div                byLabelText=0   role+name=0
+  radio        for=…-form-item -> div[radiogroup]    byLabelText=0   role+name=0
+  rating       for=…-form-item -> div                byLabelText=0   role+name=0
+  file         for=…-form-item -> div[role=button]   byLabelText=0   role+name=0
+  ```
+
+  Two shapes, one outcome. `address` / `geolocation` spread the host's id onto their first sub-input and then replaced it with that input's own unique id (objectui#3343, correct in itself), so the `for` named an id no element carried — clicking "Shipping Address" did nothing and the group label was absent from the accessibility tree entirely. `checkboxes` / `radio` / `rating` / `file` kept the id, but on a `div`: a `<label for>` on a non-labelable element is inert HTML — `HTMLLabelElement.control` is `null`, so it activates nothing and contributes no name. A screen reader heard "Street Address", "City", "Alpha", "Beta" — never which group they belonged to.
+
+  The fix is the WAI-ARIA group pattern, driven by a DECLARATION rather than by the host guessing at widget DOM:
+
+  - `@object-ui/core` — `ComponentMeta` gains `labelling?: 'control' | 'group'`. Additive and optional; absent means `'control'`, which is every existing component's behaviour.
+  - `@object-ui/components` — the form renderer reads it. For a `'group'` field the `<FormLabel>` publishes an `id` and drops its `for`, and the widget receives `aria-labelledby`. The single-control path is unchanged down to the attribute: no id on the label, no `aria-labelledby` key on the widget, so no field acquires a second naming channel. `ui/form.tsx` is untouched (Shadcn no-touch) — both halves travel as ordinary props, since `<FormLabel>` spreads props after its own `htmlFor`.
+  - `@object-ui/fields` — the six audited widgets declare `labelling: 'group'`. `address` / `geolocation` move the host id (and only the id) from their first sub-input to the group container; `checkboxes` / `rating` answer a host-supplied `aria-labelledby` with `role="group"`; `radio` keeps Radix's more specific `radiogroup`; `file` takes the name on its dropzone with no invented group layer, because it has exactly one control that merely happens not to be labelable.
+
+  No new key in the widget props contract: `aria-*` is already declared on it and forwarded by `toDomProps`, the same channel `aria-required` (objectui#3290) travels.
+
+  Deliberately unchanged: sub-labels keep naming their own inputs (`aria-labelledby` overrides `<label for>`, so putting the group name on the first sub-input would have replaced "Street Address" with the field name — the concatenated-name outcome this issue rejected), `aria-describedby` stays on the first focusable sub-input where focus can reach it (objectui#3318), the sub-input ids of objectui#3343 do not move, and standalone rendering — the inline grid editor, a bare SDUI node, where nobody hands down an id and there is no host label to point at — emits no role and no IDREF at all.
+
+  A widget that does not declare itself keeps the old `for`, which the label-association tests report as an association resolving to a non-labelable element. Silence was the failure mode being fixed; the default path stays loud.
+
+- c97a45e: Group-labelled field widgets now consume the host label's IDREF in their readonly and zero-option states, so the visible label names something there too
+
+  A field declared `labelling: 'group'` (objectui#3961) is named by IDREF: the form
+  renderer publishes its `<FormLabel>`'s own `id`, drops the inert `for`, and hands
+  the widget `aria-labelledby` plus the host control `id`. All seven such widgets
+  consumed that pair on their editable surface only. A field-level
+  `readonly: true`, and an option list that resolved to zero offered options, take
+  early returns that render before the container doing the consuming — so the label
+  published an id that no element in the document referenced.
+
+  Measured on the previous `main`, one field per row in a real form, counting the
+  elements that reference the host label's published id:
+
+  ```
+                               consumers  byLabelText  named group
+  multiselect  readonly+value      0           0           0
+  multiselect  readonly+empty      0           0           0
+  multiselect  zeroOptions         0           0           0
+  multiselect  editable            1           1           1
+  ```
+
+  All seven measured identically in every readonly state; each is 1 now. The
+  user-visible effect is the one objectui#3961 fixed for editable fields: the
+  visible label was the accessible name of NOTHING, so a readonly "Tags" or
+  "Shipping Address" was announced as loose text next to unattributed values. It is
+  not a regression of #3961 or objectui#3975 — before them these same states
+  emitted a `for` pointing at an id no element carried, which named nothing either.
+  The shape changed from a dangling `for` to an unconsumed IDREF; the defect did
+  not.
+
+  Each readonly surface now carries exactly two keys — the host `id` and
+  `aria-labelledby` — plus the `role="group"` that makes them meaningful, in one
+  shared spelling (`toHostGroupProps`). The narrow pair is deliberate: a readonly
+  display has no focusable control, so `aria-describedby` / `aria-required` /
+  `disabled` / the focus handlers have nothing to announce on, and `name` on a
+  `div` is exactly the DOM leak objectui#3291 sweeps for.
+
+  Two widgets answer with a different role than they do while editable, because
+  they render a different surface: `radio` (editable `radiogroup`) shows the chosen
+  option's label as text with no radios in it, and `file` (editable `button`, the
+  dropzone) shows file names with no dropzone. `role="group"` is also what the
+  shared "no options available" box now answers with for `checkboxes` / `radio` /
+  `multiselect`; the single `select` is not group-labelled, keeps its working
+  `for`, and that box emits nothing new for it.
+
+  Standalone rendering is untouched. The grid's inline cell editor and bare SDUI
+  nodes hand down neither key, so nothing is emitted and the markup stays
+  byte-identical — including the `EmptyValue` placeholder, which keeps its own
+  `aria-label` and gains no role. Hosted-and-empty, that placeholder is the whole
+  readonly surface, so it carries the group props: its `aria-label` ("No value") is
+  then outranked by `aria-labelledby` per accname, which is the intended outcome —
+  on the `generic` role that span carries, an author name is prohibited and was
+  never exposed, so the choice was between the field's name and no name.
+
+- d8a0be4: A form-hosted `multiselect` field is now NAMED by its visible label. It was the
+  residual of objectui#3961: that issue's probe audited six widgets and fixed
+  them, and re-running the same probe over the whole widget map afterwards put
+  `multiselect` on the byte-identical failure shape as `checkboxes` — the host's
+  `id` kept, but on the chip row's wrapper `div`, where a `<label for>` is inert
+  HTML (`HTMLLabelElement.control` is `null`, so it activates nothing and
+  contributes no accessible name). Measured on the tree that already carried
+  #3961's fix, one field per row:
+
+  ```
+  checkboxes   for=(none) ownId=…-group-label   byLabelText=1(div[role=group])
+  multiselect  for=…-form-item ownId=(none)     byLabelText=0
+  ```
+
+  Visually the field had a "Tags" label; a screen reader heard only "Alpha" /
+  "Beta" and nothing about what the set of chips was for.
+
+  No new mechanism — #3961's declaration, applied to one more widget:
+  `multiselect` declares `labelling: 'group'` at the registration boundary, so
+  the form renderer publishes its label's `id` and drops the dead `for`, and the
+  chip row answers with `role="group"` + the handed-down `aria-labelledby`.
+
+  Unchanged on purpose: each chip keeps its own accessible name from its text
+  content (the group name sits one level up and does not override it), and
+  STANDALONE rendering — the grid's inline cell editor, a bare SDUI node, where
+  nobody hands an id and there is no host label to point at — emits no role and
+  no IDREF, exactly as before.
+
+- f4b97c8: `percent` / `progress` cells now give the NUMBER shrink priority over the decorative bar (objectstack#5066)
+
+  In a narrow clipping container the percent display renderer sacrificed the wrong
+  half of itself. It emitted a `w-16 shrink-0` bar in front of a shrinkable value
+  span, so in a `record:highlights` chip — `basis-[9rem]`, shrinking toward
+  `min-w-[7rem]` as chips are added, clipping with `truncate` — the 64px bar plus
+  the 8px gap consumed the content box and `truncate` removed what was left of the
+  value. A stored `33.33` carried `33%` in the DOM and read as `3` on screen
+  (measured: 79px clip box, 32px text node, 25px overflow), with no ellipsis and
+  nothing in the accessible name to signal the loss: a silently smaller, plausible
+  number rather than a cosmetic glitch. Downstream the app had to override the
+  highlight's render type to `number` to get its digits back, losing the `%` glyph
+  and the bar entirely.
+
+  The priority is now inverted, on the principle that the number is the CONTENT and
+  the bar is DECORATION: the value span is `shrink-0` and the bar carries
+  `min-w-0 shrink`, keeping `w-16` only as its PREFERRED width, so a squeezed
+  container eats the bar and the digits survive intact.
+
+  The bar is deliberately NOT `flex-1`. `flex-1` would let it GROW as well as
+  shrink, stretching the bar across every wide grid cell and changing a surface
+  that has no bug; `w-16` stays the upper bound, so wide containers render exactly
+  as before and only the shrink direction changed. Below roughly 40px of content
+  the bar has collapsed to nothing and the value clips like any other single-line
+  cell — same floor as the plain number renderer, which is as far as a
+  self-contained renderer fix reaches (the chip's own width is a function of how
+  many chips the record has, so the strip's `@container` cannot see it).
+
+  The neighbouring `number` renderer is untouched.
+
+- c2ecbae: 相关列表 Add 选择器兑现 `add.picker.filter`:作者限定的候选范围现在真的生效
+
+  `record:related_list.add.picker.filter` 被 spec 声明为「Restrict which records the picker offers」,但渲染器从未读过它 —— 挂 `RecordPickerDialog` 时不传任何 filter,对话框照样提供 `picker.object` 的全部记录,选中即建链接行或改父,`os validate` / `os build` 全绿、运行时零诊断。作者写下「只允许指派 active 的岗位」「只允许挂未过期的许可」,得到的是完整候选列表。
+
+  现在它按原样传给 `RecordPickerDialog` 的 `baseFilter` —— 不是 `lookupFilters`,后者会把条件渲染成用户可编辑的筛选栏行,等于把作者的硬性限制降级成建议。
+
+  `baseFilter` 因此接受两种形状,按结构判别(`Array.isArray`):
+
+  - **`QueryParams.$filter` 记录形式**(依赖型 lookup 链)保持原有的键覆盖语义逐字节不变 —— 级联父值必须**替换**同字段上过期的 `lookupFilters` 条目,而不是与之求交。
+  - **spec 的 `ViewFilterRule[]`** 经 `mergeFilterNodes`(仓内唯一的 filter 下沉口)下沉,19 个 operator 全部无损到达服务端,包括记录形式没有 `$op` 可用的 `before` / `after` / `is_empty` / `is_not_empty`。此处**不新增**第二份 operator 词汇表。
+
+  槽位类型同时从 `Record<string, any>` 收紧为 `unknown`:前者会接受规则数组(数组满足 `any` 的字符串索引),旧的对象展开再把它压成 `{"0": {...}}`,于是查询去过滤名为 `0` 的列 —— 类型全绿、查询错误、无任何诊断。
+
+- 11c1e71: Resolve a `select` field declared `multiple: true` to the `field:multiselect` widget, so the object form's visible label actually names the chip picker it renders (objectui#3986).
+
+  `mapFieldTypeToFormType` keyed the widget id on the field's `type` string alone, so an object-schema `{ type: 'select', multiple: true }` picklist — a spec-legal, entirely ordinary shape — became `field:select`. `SelectField` then delegated to `MultiSelectField` on `config.multiple`, so the component that RENDERED was the chip picker while everything keyed on the widget id still answered for the single-value combobox. Above all the label-association declaration (`ComponentMeta.labelling`, objectui#3961), which the form renderer resolves per widget id: the host emitted `<label for>` at the chip row's wrapper `div`, where a `for` is inert — `HTMLLabelElement.control` returns `null`. Visually the field had a label; in the accessibility tree that label named nothing. Measured on the object-form path, `role=group` + accessible name went from 1 for a `multiselect`-typed field (fixed in objectui#3975) to 0 for this one.
+
+  Declaring `select` itself `labelling: 'group'` was not available: a single-value select's trigger is a labelable `button[role=combobox]` whose `for` association works, and a bare `select` is a builtin the renderer resolves without consulting the registry at all. The fix is therefore at the producer — the widget id now carries the arity, so one place decides which widget renders and the declaration can no longer be addressed to a widget that is not rendering.
+
+  - `mapFieldTypeToFormType(fieldType, config?)` takes an optional second argument — the rest of the field definition, of which only `multiple` is read. Existing single-argument calls are unchanged, and so is every type outside the new table: `select` is the only one whose `multiple` form is a different WIDGET. The spec's multi-capable set is larger (select / lookup / file / image, with `radio` on the select branch and `user` storing like `lookup`), but `LookupField`, `FileField` and `ImageField` each render both arities themselves, so their id — and their labelling declaration — is already right for either.
+  - The four object-form producers pass the pair: `ObjectForm`, `DrawerForm`, `ModalForm`, and `sectionFields` (Tabbed / Wizard / Split / Drawer / Modal). In `sectionFields` the id is now computed once from the EFFECTIVE pair, after view-level overrides have merged, because `multiple` is itself a spec `FormField` key: a view restating only `multiple: true` over a single-value object field moves the widget too, and `multiple: false` moves it back.
+  - `SelectField`'s `multiple` delegation is KEPT, not retired. Measured, it stays reachable from three entrances that never consult the alias map: the inline grid editor (`FieldEditWidget` finds `select` in its own table first), `ActionParamDialog` (`resolveFormWidgetType` returns `select` from `fieldWidgetMap` first), and hand-written SDUI addressing `field:select` by name with `multiple` on its metadata.
+
+  Read-only rendering of these widgets is untouched (objectui#4005), as is the built-in `Select` branch (objectui#3976).
+
+- Updated dependencies [794c497]
+- Updated dependencies [993336f]
+- Updated dependencies [f0a625a]
+- Updated dependencies [b5980f4]
+- Updated dependencies [8aad9fd]
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [7864f03]
+- Updated dependencies [0cbdca8]
+- Updated dependencies [d229dfa]
+- Updated dependencies [ecae400]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [d3e738a]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [f5f8744]
+- Updated dependencies [7ed3360]
+- Updated dependencies [69becd2]
+- Updated dependencies [5e52495]
+- Updated dependencies [0fa5e4d]
+- Updated dependencies [b750823]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [c2fd122]
+- Updated dependencies [ac2139c]
+- Updated dependencies [b14ab3a]
+- Updated dependencies [e24d767]
+- Updated dependencies [8c60819]
+- Updated dependencies [aca561a]
+- Updated dependencies [e64a52e]
+- Updated dependencies [844d17f]
+- Updated dependencies [48132f7]
+- Updated dependencies [4dcd52a]
+- Updated dependencies [42ae5c6]
+- Updated dependencies [0ef9dfd]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [6d762da]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [54233b1]
+- Updated dependencies [f9faa7d]
+- Updated dependencies [97b63d7]
+- Updated dependencies [6bb454a]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [33526fd]
+- Updated dependencies [32413ec]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/components@17.4.0
+  - @object-ui/react@17.4.0
+  - @object-ui/core@17.4.0
+  - @object-ui/i18n@17.4.0
+  - @object-ui/types@17.4.0
+  - @object-ui/providers@17.4.0
+
 ## 17.3.0
 
 ### Minor Changes
@@ -60,6 +381,7 @@ first`. The form renderer passes a new `dependsOnLabels` widget prop (the
   so that line filtered nothing — the comment actively misled. It is gone.
 
   ## What changed
+
   - New `toDomProps(props)`, exported from `@object-ui/fields`. It keeps only
     what may legitimately become a DOM attribute and drops the rest.
   - The 14 field widgets that spread onto a host element now go through it:
@@ -245,6 +567,7 @@ props}` _alongside_ `field`. The predictable result was ~30 widgets resolving
   compile time rather than work under one host and not another.
 
   ## What did NOT change
+
   - **Host metadata (SDUI JSON) is untouched.** No authored schema changes; this is
     a change to how widgets are _written_, not to what apps declare.
   - **`schema` is still the universal SDUI prop** every registered component
@@ -1666,6 +1989,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   objects+fields were editable in Studio; this reworks both surfaces.
 
   **Setup (assign + read-only):**
+
   - The six facets (`object_permissions`, `field_permissions`, `system_permissions`,
     `row_level_security`, `tab_permissions`, `admin_scope`) now render read-only on
     the `sys_permission_set` record page as a compact summary (counts, or capability
@@ -1680,6 +2004,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
 
   **Studio (design every facet):** the permission matrix editor gains structured
   editors for the facets that were JSON-only —
+
   - **System Capabilities**: a multi-select over the live `sys_capability` registry
     (scope-grouped, labelled chips).
   - **Row-Level Security**: per-policy rows (object · operation · enabled) with CEL
@@ -2455,6 +2780,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   assuming USD.
 
 - d912a60: CRM polish — denser kanban cards, smarter currency, calmer dates.
+
   - **plugin-kanban card body**: drop the verbose `Label: value` two-column
     grid in favor of a single-column dense list (values only, with the
     field label preserved as a hover `title` for accessibility). Pipeline
@@ -2483,6 +2809,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   `defaultCurrency` is set on the field/column, formatting is unchanged.
 
   Fixed call sites:
+
   - `@object-ui/fields`: `formatCurrency`, `formatCompactCurrency`, and
     `CurrencyCellRenderer` no longer default-param `'USD'`.
   - `@object-ui/i18n`: `formatCurrency()` falls back to `formatNumber`
@@ -2643,6 +2970,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
 - d714e85: Lookup display-name resolution now falls back through a Salesforce-style chain
   when an `$expand`'d reference object lacks a top-level `name`/`label`/
   `display_name`/`title` field:
+
   1. Standard display fields (existing behaviour)
   2. `salutation first_name last_name` composite — handles person records that
      only carry first/last name parts
@@ -2832,6 +3160,7 @@ Lin` and no `name` field now renders as `Bob Lin` everywhere — instead of
 ### Patch Changes
 
 - 89ae109: Fix click navigation and required-FK form rendering
+
   - **plugin-grid**: ObjectGrid's `getSelectFields()` now always includes `id` in
     the SELECT projection. Previously, when a view configured `columns` without
     `id`, the SQL driver stripped it from results, and row-click handlers silently
@@ -2845,6 +3174,7 @@ Lin` and no `name` field now renders as `Bob Lin` everywhere — instead of
     to create child records.
 
 - 1b6dc64: fix: complete Tailwind v3→v4 migration cleanup
+
   - Rename deprecated `flex-shrink-0` → `shrink-0` and `flex-grow-N` →
     `grow-N` (Tailwind v4 dropped the long-form aliases). Affects
     data-table, fields/index, FileField, ChatbotEnhanced,
@@ -2909,6 +3239,7 @@ Lin` and no `name` field now renders as `Bob Lin` everywhere — instead of
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.
@@ -2971,24 +3302,29 @@ Lin` and no `name` field now renders as `Bob Lin` everywhere — instead of
 - a2d7023: End-user feature batch — forms, designer history, import/export, and PWA offline sync.
 
   **Forms (`@object-ui/fields`, `@object-ui/providers`)**
+
   - `FileField`: native `<input capture="environment">` camera capture for mobile devices, plus a uploading-progress indicator driven by `UploadProvider`.
   - `ImageField`: per-image inline crop/rotate via the lazy-loaded `ImageCropperDialog` (canvas-based, zero new deps).
   - New `UploadProvider` in `@object-ui/providers` with pluggable adapters for S3 and Azure Blob (plus the default object-URL adapter for local previews). XHR-based with progress, abort, and retry.
   - `LookupField`: `lookup.dependsOn: string | string[]` to chain dependent lookups (e.g. State depends on Country); the trigger is gated until parent values are present and the OData `$filter` is built automatically.
 
   **Container-aware widget widths (`@object-ui/components`)**
+
   - New `useResizeObserver(ref)` hook exposing `{ width, height }` of any element. SSR-safe; reads the initial size via `getBoundingClientRect`.
   - `plugin-gantt` and `plugin-kanban` now react to their container size instead of `window.innerWidth`, so they behave correctly inside split panels and dashboards.
 
   **Designer history (`@object-ui/plugin-designer`)**
+
   - `useUndoRedo` (and therefore `useDesignerHistory`) gains `persistKey` + `storage` options to round-trip the undo/redo stack through `sessionStorage`, plus a `clearPersisted()` cleanup helper. Drafts now survive accidental tab refreshes.
   - New `<HistoryPanel>` component renders the timeline visually with one-click jump-to-checkpoint via the new `jumpTo(index)` API.
 
   **Import wizard (`@object-ui/plugin-grid`)**
+
   - Saved column-mapping templates: name, save, re-apply, and delete via a new template bar in the mapping step. Persisted under `objectui:import-templates:${objectName}` (override via `templateStorageKey` / `templateStorage`).
   - Inline validation correction: cells with errors in the preview step are now editable; corrections feed straight into the import without requiring a re-upload, with green-bar status indicators for fixed rows.
 
   **PWA offline sync (`@object-ui/mobile`)**
+
   - New `MemoryOfflineQueue` / `IndexedDbOfflineQueue` (`createOfflineQueue()` picks the best backend) backed by IndexedDB.
   - `createOfflineDataSource(inner, { queue })` wraps any DataSource so mutations issued while offline (or that fail with a network-style error) are queued and replayed in order on reconnect. Includes `replay()`, `drop()`, `clear()`, `pending()`, an `onChange` notifier, and an opt-in `resolveConflict` hook for stale-write conflicts.
   - New `useOfflineSync(source)` hook exposes `{ isOnline, pending, isReplaying, replay, drop, clear }` and auto-replays on the browser's `online` event.
@@ -3016,11 +3352,13 @@ Lin` and no `name` field now renders as `Bob Lin` everywhere — instead of
   `FormSchema.mobileStickyActions` (new) is the lower-level escape hatch — applied automatically when `mobile.stickyActions` is set on `ObjectFormSchema`.
 
   **`@object-ui/plugin-form`** — `ObjectForm` now:
+
   - propagates `mobile.fullscreenLongText` to every textarea/markdown/html field as `mobile_fullscreen: true`,
   - sets `mobileStickyActions` on the inner form schema and adds `pb-20` padding so content isn't covered by the fixed bar,
   - when `mobile.stepper === true` (or `'auto'` + `useIsMobile()` + > `stepperMinFields` fields), routes the flat field list through the existing `WizardForm` with synthetic single-field "steps" — keeping per-step validation and the existing `Next`/`Back`/`Submit` flow.
 
   **`@object-ui/components`** — the registered `form` renderer adds:
+
   - a `mobileStickyActions` opt-in that turns the action row into a `position: sticky; bottom: 0` bar on small viewports, and
   - an inline `FullscreenTextarea` wrapper used when no field-package widget is registered, providing the same expand-button + edit-dialog UX so the feature works even in lighter setups.
 

@@ -1,5 +1,128 @@
 # @object-ui/plugin-chatbot
 
+## 17.4.0
+
+### Minor Changes
+
+- d9ce385: `ApproveOutcome` / `RejectOutcome` are now derived from `@objectstack/spec`
+  instead of hand-transcribed (objectui#3783). Same failure class #3220 cleared
+  from the same file for `PendingActionRow` / `PendingActionStatus` — but this pair
+  wore local names rather than spec names, so `check-spec-symbol-derivation.mjs`,
+  which fires on a spec export name being occupied, had no handle on it. A renamed
+  hand copy is invisible to a name-based guard by construction.
+
+  Both types now re-export the spec's decision responses
+  (`ApproveAiPendingActionResponse` / `RejectAiPendingActionResponse` from
+  `@objectstack/spec/api` — the same schemas `@objectstack/client`'s
+  `ai.pendingActions.approve()` / `.reject()` type their returns with). The public
+  export names do not change. The shapes do, in three ways:
+
+  - **`ApproveOutcome` no longer declares `id`.** The approve response has never
+    carried one — `id` is on the _reject_ response. This was the one drift that
+    was not dormant: `useHitlInChat`'s public `onDecided` callback promised
+    consumers `id: string` and handed them `undefined` at runtime, with nothing
+    in the compiler to say so. **If you read `outcome.id` after an approve, that
+    read was already `undefined` and now fails to compile** — take the id from
+    `ContinueContext.pendingActionId` or from the row you decided on.
+  - **`status` is closed.** `'executed' | 'failed' | string` and
+    `'rejected' | string` were both just `string`: a union with `string` absorbs
+    the literals, so neither annotation carried any information. They are now
+    `'executed' | 'failed'` and `'rejected'`.
+  - **The `[k: string]: unknown` index signature on `ApproveOutcome` is gone.** The
+    objectstack#4075 mechanism: with it, any structural comparison against the
+    spec answers "identical" however far the copy has drifted, so a parity test
+    bolted onto the old type would have been green from its first day.
+
+  **Breaking at the type level for importers of `@object-ui/plugin-chatbot`** —
+  narrowing a published type is a break even when the old type was lying, which is
+  why it is spelled out here. Shipped as `minor` per AGENTS.md §版本号策略: the
+  family's `major` tracks `@objectstack`'s, and objectui's own breaking changes go
+  out as `minor` with the break named in the changeset.
+
+  Runtime behaviour is unchanged — including the hook's decision handling for a
+  status outside the spec vocabulary, and the locally synthesized failure envelope
+  on a non-2xx, both now pinned by tests. The consumer-side tolerances that remain
+  in `useHitlInChat` are recorded in objectui#3790 for a maintainer decision.
+
+### Patch Changes
+
+- 2a54e86: `parseAiQuotaError` now reads the AI quota refusal code from all three shapes the
+  cloud 429 producers use, instead of only the flat `error`-holds-the-code dialect.
+
+  The two live producers fill the same `error` key in opposite ways — the token
+  guardrail puts the **code** there, `service-ai` puts the **message** there and the
+  code in a `code` sibling — while ADR-0112 declares a third shape both are
+  converging on: `{ success: false, error: { code, message } }`. The consumer had to
+  learn the declared shape **first**, or the producers' convergence would silently
+  turn every quota refusal back into a generic "Response failed" banner (the same
+  consumer-first sequencing as objectui#2992).
+
+  - Code lookup order is a total order — declared envelope, then the flat guardrail
+    code, then the `code` sibling — so a transitional producer that double-emits the
+    new envelope alongside the legacy top-level keys has one defined outcome.
+  - Only the code's **location** widens. The recognized code set is unchanged, and
+    any unrecognized shape still degrades to today's behavior (`null`), so no
+    non-quota error is newly captured by the quota CTA.
+  - Companion fields (`upgrade`, `topUp`, `messageEn`) keep their established
+    top-level read; their position inside the declared envelope is deliberately not
+    presumed, and is aligned once the producer PR fixes the real shape.
+
+- Updated dependencies [794c497]
+- Updated dependencies [993336f]
+- Updated dependencies [f0a625a]
+- Updated dependencies [b5980f4]
+- Updated dependencies [8aad9fd]
+- Updated dependencies [6719877]
+- Updated dependencies [56ff091]
+- Updated dependencies [7864f03]
+- Updated dependencies [0cbdca8]
+- Updated dependencies [d229dfa]
+- Updated dependencies [ecae400]
+- Updated dependencies [4bc6c23]
+- Updated dependencies [d3e738a]
+- Updated dependencies [c3b01a7]
+- Updated dependencies [f5f8744]
+- Updated dependencies [7ed3360]
+- Updated dependencies [69becd2]
+- Updated dependencies [5e52495]
+- Updated dependencies [0fa5e4d]
+- Updated dependencies [b750823]
+- Updated dependencies [5bfaabd]
+- Updated dependencies [e06810e]
+- Updated dependencies [ab3ad4f]
+- Updated dependencies [c2fd122]
+- Updated dependencies [ac2139c]
+- Updated dependencies [b14ab3a]
+- Updated dependencies [e24d767]
+- Updated dependencies [8c60819]
+- Updated dependencies [aca561a]
+- Updated dependencies [e64a52e]
+- Updated dependencies [844d17f]
+- Updated dependencies [48132f7]
+- Updated dependencies [4dcd52a]
+- Updated dependencies [42ae5c6]
+- Updated dependencies [0ef9dfd]
+- Updated dependencies [1d723e3]
+- Updated dependencies [0109f54]
+- Updated dependencies [7e5bb5d]
+- Updated dependencies [fbc23e0]
+- Updated dependencies [6d762da]
+- Updated dependencies [e6fdbdc]
+- Updated dependencies [54233b1]
+- Updated dependencies [f9faa7d]
+- Updated dependencies [97b63d7]
+- Updated dependencies [6bb454a]
+- Updated dependencies [523be48]
+- Updated dependencies [7e2b7e9]
+- Updated dependencies [33526fd]
+- Updated dependencies [32413ec]
+- Updated dependencies [c1e1e6b]
+  - @object-ui/components@17.4.0
+  - @object-ui/react@17.4.0
+  - @object-ui/core@17.4.0
+  - @object-ui/i18n@17.4.0
+  - @object-ui/types@17.4.0
+
 ## 17.3.0
 
 ### Patch Changes
@@ -1000,6 +1123,7 @@ type:'chart', … }}/>` (decoupled — no hard dep on `plugin-charts`), giving t
 - 0335ec4: Polish the AI chat surface based on real-world dogfooding feedback.
 
   **`@object-ui/plugin-chatbot`** — new display helpers shared by `ChatbotEnhanced`:
+
   - `unwrapToolResult(value)` peels the MCP-style `{ type: 'text', value: '<json>' }`
     envelope that backend tools emit (`@objectstack/service-ai`'s data/metadata
     tools, in particular), and JSON-parses the inner payload. The result panel
@@ -1020,6 +1144,7 @@ type:'chart', … }}/>` (decoupled — no hard dep on `plugin-charts`), giving t
   so wrappers can compose richer titles.
 
   **`@object-ui/app-shell`** — `AiChatPage`:
+
   - Removes the fake "Hello! I'm X" assistant welcome bubble so the empty-state
     suggestion chips can actually render.
   - Adds per-agent default suggestion sets (`data_chat`, `metadata_assistant`)
@@ -1472,6 +1597,7 @@ Assistant…  (try "系统里有多少个用户？")`).
 ### Patch Changes
 
 - 1b6dc64: fix: complete Tailwind v3→v4 migration cleanup
+
   - Rename deprecated `flex-shrink-0` → `shrink-0` and `flex-grow-N` →
     `grow-N` (Tailwind v4 dropped the long-form aliases). Affects
     data-table, fields/index, FileField, ChatbotEnhanced,
@@ -1532,6 +1658,7 @@ Assistant…  (try "系统里有多少个用户？")`).
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.

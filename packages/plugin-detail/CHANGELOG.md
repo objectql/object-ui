@@ -1,5 +1,310 @@
 # @object-ui/plugin-detail
 
+## 17.4.0
+
+### Minor Changes
+
+- ecae400: Retire the `capability-multiselect` field widget name, which existed only on the docs-site registration path and which nothing ever stamped (objectui#3308, ADR-0049 enforce-or-remove)
+
+  `field:capability-multiselect` was registered by `registerFields()` and only there. That function's sole caller is the docs site, so the key never existed on the live path (`registerAllFields()`, run at module import, iterates `fieldWidgetMap` — which never listed it). A field authored with `widget: 'capability-multiselect'` therefore resolved to nothing in every real application, while the comment above the registration described it as usable from a record form: a code comment promising a capability that does not exist, which is the worst direction for a metadata renderer AI-authored apps read as authority.
+
+  Nothing stamped the hint either. ADR-0056 P1 stamps `permission-facet-link` on all six `sys_permission_set` facets — `system_permissions` included — through the single `ObjectStackAdapter.getObjectSchema` choke point, and P2 put the capability editor in Studio. The widget name was a leftover from an intermediate iteration of that rollout.
+
+  Removed, with a tombstone at each site:
+
+  - `@object-ui/fields` — the `field:capability-multiselect` registration and the comment that advertised it. **Breaking in name only**: the key was unreachable outside the docs site, so no application could have resolved it. A field still carrying the hint now degrades to its declared `type` renderer, the defined behavior for an unregistered widget.
+  - `@object-ui/plugin-detail` — `InlineFieldInput`'s `widget === 'capability-multiselect'` branch, the hint's last honoring surface. Leaving one consumer for a name no producer emits and no form resolves is the same declared-vs-enforced split, inverted. The sibling `permission-facet-link` branch is untouched and pinned.
+  - `@object-ui/components` — the dead `capability-multiselect` entry in the form renderer's `DATA_SOURCE_FIELD_TYPES` set, which could never match a resolvable widget.
+  - `@object-ui/plugin-form` — a comment naming `capability-multiselect` as the widget stamped onto `sys_permission_set.system_permissions`; it names `permission-facet-link` now, which is what is actually stamped.
+
+  `CapabilityMultiSelectField` itself is **unchanged and still exported**: Studio's `PermissionMatrixEditor` imports and renders it directly, which is ADR-0056 P2's design. Only the widget name is retired — the component is not a registry field widget and its doc comment now says so.
+
+  `registerFields()` is also **kept**, with its `@deprecated Use registerAllFields() instead` note corrected. The two are not interchangeable: it registers `createFieldRenderer(widget)`, which synthesizes the label, description and the local `value`/`onChange` state that lets a bare field node (`{ type: 'currency', label: 'Amount' }`) render standalone in the docs demos. Retiring it needs a decision about where that demo chrome goes; the note now records that instead of implying a drop-in replacement.
+
+### Patch Changes
+
+- f0a625a: `disabled: ''` no longer greys out the remaining five action surfaces (objectui#3849)
+
+  objectui#3842 / PR #3851 fixed the "is a `disabled` gate DECLARED?" test on
+  `action:button` and app-shell's `DeclaredActionsBar`. Five same-shaped sites were
+  outside that PR's scope and stayed on `!= null`, so within one component the
+  `visible` gate asked `hasDeclaredVisibilityGate` while the `disabled` gate on the
+  next line asked `!= null` — two spellings of one question:
+
+  - `@object-ui/components` — `action:icon`, `action:group`'s inline button
+    (`InlineActionButton`) and dropdown item (`DropdownActionItem`), and
+    `action:menu`'s item (`ActionMenuItem`).
+  - `@object-ui/plugin-detail` — `record:quick_actions`' `QuickActionButton`.
+
+  Why the missing `!== ''` half is a defect on this key and not on `visible`:
+  `toPredicateInput('')` is `undefined` and `evaluateCondition(undefined)` is
+  `true`. On `visible` that `true` means SHOW, so an over-broad "declared" test and
+  a permissive empty predicate cancel out. On `disabled` it means DISABLE, so they
+  compound — `disabled: ''` (an empty predicate: nothing declared) rendered a
+  permanently greyed-out control, with nothing the author could write to un-grey
+  it. Unlike #3842's approvals inbox, these five are the general action face
+  (toolbars, dropdowns, record quick actions), so the reach is wider even though no
+  single high-value host owns them.
+
+  **Behaviour change surface, deliberately narrow.** Only `disabled: ''` changes —
+  from disabled to clickable, which is what "no predicate" asked for. `disabled:
+true` still disables, `disabled: false` and an absent `disabled` still do not, and
+  no expression-valued `disabled` changes verdict. On the four sites that also carry
+  the legacy non-spec `enabled` fallback, one consequence follows: an empty
+  `disabled` now falls THROUGH to that leg instead of short-circuiting on the empty
+  predicate, so an action spelling both (`disabled: ''` + `enabled: true`) becomes
+  clickable. `record:quick_actions` has no `enabled` leg, so its chain is the single
+  gate.
+
+  Routing those legacy `enabled` legs through the same definition is
+  behaviour-preserving by derivation rather than a fix: the leg is negated
+  (`disabled = !isEnabled`), so an empty predicate's `true` already arrived as "not
+  disabled" — the verdict "no gate declared" produces. #3842's four-shape derivation
+  table is reproduced next to the new pins, together with the statement that no
+  `enabled` case can go red by reverting that leg.
+
+  `hasDeclaredVisibilityGate` keeps its historic name (the objectui#3842 ruling): the
+  predicate is key-neutral, and one implementation behind two names is how a repo
+  grows dialects. The three `@object-ui/components` sites import it relatively;
+  `record:quick_actions` takes it from the package barrel, the cross-package route
+  objectui#3835 opened. Every call site says so in a comment.
+
+- 5bfaabd: `PageComponentSchema.dataSource` now reaches every object-bound block, not just
+  `list-view` — and `element:record_picker` stops discarding `view`
+  (objectstack#6953).
+
+  objectstack#5576 wired the spec's per-element data binding
+  (`dataSource: { object, view?, filter?, sort?, limit? }`) to `list-view` and left
+  the same declaration inert on every other page component. Two gaps remained, and
+  both were silent:
+
+  - **`element:record_picker` read four of the five keys and dropped `view`.** So
+    `dataSource: { object: 'account', view: 'hot' }` — the spec's own example —
+    built a picker over EVERY account instead of the rows the saved view selects.
+    Nothing threw and nothing rendered an error; the option list was simply wider
+    than what was authored, which also means a user could select a record the page
+    said was out of scope.
+  - **`object-grid` / `object-form` / `object-kanban` / `object-calendar` /
+    `object-chart` / `object-metric` / `record:related_list` read none of it.**
+    Each gates its fetch on its own `objectName`, and nothing mapped
+    `dataSource.object` onto it, so a page written the way the spec documents
+    rendered an empty grid / a field-less form / a board with no cards / an empty
+    month / an empty chart / a static metric number — with no request and no
+    diagnostic anywhere. Spec-valid metadata rendering nothing is the
+    objectstack#4413 shape.
+
+  Composition follows objectstack#5576's landed semantics unchanged on every block:
+  a named saved view supplies the baseline, a key written on the component itself
+  overrides it, an explicit binding key overrides both, `filter` AND-combines
+  ("additional filter criteria" — a binding can narrow a view, never widen it), and
+  a `view` name that does not resolve renders a configuration error instead of
+  degrading to the object's full scope.
+
+  - `@object-ui/react` — new `useElementDataSourceSchema(schema, mapping, dataSource?)`
+    and `ElementDataSourceGate` apply a resolved binding to the schema keys a given
+    block reads, plus `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel`
+    for the two non-final states. One precedence table for all blocks rather than
+    one copy per block — that copy is how "additional filter criteria" would have
+    become two dialects.
+  - A mapping names **only** keys its block genuinely reads. A composed value
+    written onto a key the block ignores would be accepted and dropped, which is
+    the defect being removed, one layer deeper — so a kanban's swimlane `columns`
+    never receive a view's field list, and a block with no row cap leaves `limit`
+    unmapped. The per-block coverage table, including two residual gaps that are
+    named rather than papered over, is in `content/docs/guide/data-source.md`.
+
+  No behaviour changes for a block that carries no `dataSource`: the binding-free
+  path returns the schema by reference, so nothing remounts and nothing refetches.
+
+- 7b3e048: `record:highlights` publishes the `readonly` entry key, so an AI author can discover it from the manifest
+
+  `readonly` on a `fields[]` entry has been enforced for a while — the renderer copies it
+  through normalization and `HeaderHighlight`'s editability gate refuses inline editing on a
+  chip carrying it (objectstack#5077) — and `@objectstack/spec` declares it on
+  `RecordHighlightsField` (objectstack#5176 / PR #5607). The block's own published authoring
+  surface never mentioned it: the `fields` input still spelled the entry shape
+  `{name,label?,icon?,type?}`, and since the registry `inputs` are what
+  `gen-manifest.ts` serializes into `sdui.manifest.json`, an author reading the manifest was
+  told the key did not exist. The `fields` description now states the full entry shape and
+  what `readonly` does, which is the discoverability the manifest is for.
+
+  `readonly` is documented **inside** the `fields` description rather than declared as an
+  input of its own, because that is where the contract puts it. The spec's
+  `RecordHighlightsProps` has exactly three top-level keys (`fields`, `layout`, `aria`) and
+  carries `readonly` per ENTRY. A top-level `{ name: 'readonly', type: 'boolean' }` input
+  would publish a key the platform silently discards: the generated `sdui.manifest.json` and
+  `sdui-intrinsics.d.ts` would advertise a `readonly` prop, the manifest gate validates
+  top-level props only and would raise no diagnostic, `RecordHighlightsProps` is a plain
+  `z.object` so the unknown key is stripped on parse without error, and the renderer — which
+  reads `field.readonly` per entry — would never see it. An author who trusted that surface
+  would be left with the machine-owned column still hand-editable and no diagnostic anywhere
+  explaining why. `ComponentInput` is flat by design, so an array-of-objects input publishes
+  its member keys in prose, as `record:path.stages` and `record:alert.action` already do.
+
+  A new spec-parity test derives both directions from `@objectstack/spec` at runtime instead
+  of restating today's key list: every key of `RecordHighlightsField`'s object arm must be
+  named in the `fields` description, and the block must declare no top-level input that
+  `RecordHighlightsProps` does not accept. Nothing previously cross-checked the registry
+  `inputs` against the spec, so both drift directions were silent. No runtime behaviour
+  changes.
+
+- aca561a: Four spec keys the renderers already honoured are now discoverable from the published `inputs`
+
+  `record:details.hideFields`, `record:related_list.relationshipValueField`,
+  `record:related_list.add` and `element:text_input.defaultValue` were declared by
+  `@objectstack/spec` and read by their renderers, while the registry `inputs` —
+  the surface `gen-manifest.ts` serializes into `sdui.manifest.json` and
+  `sdui-intrinsics.d.ts` — never mentioned them. Nothing anywhere reported the
+  mismatch, and every layer that reads a manifest said the opposite of the
+  runtime: the keys were in no designer panel and no generated `.d.ts`,
+  `sdui-parser`'s prop walk returned `unknown-prop` for an author who wrote one,
+  and the renderer honoured it regardless. That is objectui#3407's original
+  complaint (`readonly` was enforced and honoured, the description just never said
+  so) on four more keys.
+
+  Each description is derived from what the renderer actually does, not from
+  restating the spec's one-liner, because the two can differ and the published
+  text is what an AI author reads:
+
+  - `hideFields` documents bare field names only — the renderer tolerates
+    `{name}` / `{field}` entries but the spec is `z.array(z.string())` and rejects
+    them, so teaching that spelling would publish a dialect the contract refuses;
+  - `relationshipValueField` publishes the renderer's `'id'` default and says that
+    the resolved value drives the list filter, the Add-picker link value and the
+    pre-filled create form together;
+  - `add` publishes its member shape in prose (`ComponentInput` is flat and has no
+    member-shape slot) with each default taken from the renderer — including
+    `picker.labelField`, where the renderer defaults to `name` while the spec's
+    own wording says "the object title field". It also names `picker.filter` as a
+    KNOWN GAP rather than documenting it as a restriction: the spec declares it
+    and nothing reads it, so an author would otherwise believe their picker is
+    scoped when it offers every record (objectui#3831);
+  - `defaultValue` distinguishes the two behaviours an author can get — seeding a
+    bound page variable once while it is still empty, versus the native
+    uncontrolled initial value with no variable bound.
+
+  `element:text_input` is not in the public tier, so its gap was not in
+  `sdui.manifest.json` at all — it was in the JSX-page compiler's prop whitelist,
+  which `renderers/layout/page.tsx` builds from `getKnownTypes()` plus these same
+  `inputs`, making the undeclared `defaultValue` a live `unknown-prop` warning.
+
+  The repo-wide parity gate now runs in both directions over one covered set and
+  one exemption discipline, so neither direction can be forgotten again the way
+  the reverse half was after PR #3806. Nine spec keys stay deliberately
+  unpublished, each with a written reason and a tracking issue: two the renderers
+  do not read at all (objectui#3829), three retired upstream by ADR-0087
+  tombstones, `page:tabs.type` (a carrier collision, objectstack#6776), two
+  `targetVariable` declarative hints (objectui#3834), and
+  `element:record_picker.filter` (objectui#3830).
+
+- 6d762da: The five locale keys behind #3546's eight no-fallback `t()` call sites are now defined in all ten packs, so the built-in-view toasts, the activity-timeline source link, the wizard's required-field toast and the Gantt refresh button's accessible name are translated instead of falling back to English — or, on two surfaces, to the key itself (part of #3546).
+
+  `scripts/check-i18n-call-site-keys.mjs` measured 258 keys that a `t()` call site asks for and no pack defines. These five were the subset with no working inline default: `console.objectView.cannotEditMetaView`, `console.objectView.cannotDeleteMetaView`, `detail.viewSource`, `gantt.toolbar.refresh` and `wizard.missingRequired`. Adding a `defaultValue` is deliberately not the fix — that mechanism is what kept all 258 invisible for months.
+
+  **Two of the eight sites really did render the raw key**, and both go through a binding with nothing in front of i18next. `ObjectView.tsx` calls `useObjectTranslation()` directly, so five toasts read `console.objectView.cannotEditMetaView` / `cannotDeleteMetaView` on screen; the `|| 'Built-in views cannot be renamed.'` guards next to them were dead on every path, because i18next answers a miss with the key itself and a non-empty string never falls through `||`. Those four unreachable English strings are removed rather than repaired: one key served four call sites (rename / pin / set-as-default / configure), so the pack copy covers any change to a built-in view instead of naming one operation. `RecordActivityTimeline.tsx` fails the same way for a subtler reason — `useDetailTranslation` is `createSafeTranslation(..., 'detail.back')`, and because `detail.back` does resolve, the probe hands back i18next's `t` for every key and bypasses the defaults map wholesale, so `detail.viewSource` reached the user verbatim.
+
+  **The other two sites were not rendering a raw key**, contrary to the issue's description, and are fixed here as the milder "English in all ten languages" class. `wizard.missingRequired` is its own hook's probe key, so the probe failed and `createSafeTranslation` correctly served its English default. `gantt.toolbar.refresh` goes through `useGanttTranslation`, which deliberately does not use `createSafeTranslation` and falls back per key — so the refresh button's `aria-label` was "Refresh", in English, never the key. Screen-reader users heard an English word rather than an identifier; a `zh` session now hears 刷新.
+
+  Regression cover is provider-mounted on purpose: with no `I18nProvider` the defaults maps answer every one of these keys and the assertions pass while the console is broken, which is precisely the false-green the issue documents. For the two sites whose English output was already correct, `en` cannot discriminate before from after — the `zh` assertions are the ones that pin the fix.
+
+- 4178d5a: `record:details` 的 `sections` 输入说明改为从 spec 形状派生的对象形,不再教已被退役的「Section IDs」
+
+  `inputs` 不是文档,而是发布出去的编写契约:`gen-manifest.ts` 把它序列化进
+  `sdui.manifest.json`(保存门 + parser 白名单)和 `sdui-intrinsics.d.ts`。而
+  `record:details.sections` 的说明写的是 `Section IDs to show (required when layout
+is "custom")` —— 那是 17.x 以前的形状。pin 版 `@objectstack/spec@17.0.0-rc.5` 的
+  `RecordDetailsProps.sections` 是对象数组 `{ name?, label?, columns?, fields }`,
+  objectstack#5611 把 `z.array(z.string())` 那条拼法**删掉**而不是 union 进来(既无
+  producer 也无 consumer,一种形状而不是两套事实契约)。
+
+  照旧说明写 `sections: ['contact_info', 'address']` 的作者,在四层之间拿不到任何
+  诊断:`['a','b']` 对 manifest 门是合法 `array`(门只看顶层键名 + 粗类型),上游
+  `validateComponentProps` 是 advisory 级,spec 只在真的走 parse 的路径上才拒,而
+  `RecordDetailsRenderer` 对每个条目读 `s.name` / `s.label` / `s.fields` —— 字符串上
+  三者全 `undefined`,该 section 一个字段都不渲染。`layout: 'custom'` 时 sections 是
+  详情页正文的唯一来源,所以结果是一张没有报错的空白详情页。
+
+  新说明逐键派生自 spec 各成员的 `.describe()` 与渲染器实读:`fields` 必填、按序渲染;
+  `label` 是标题(省略即无标题、无边框);`name` 是 snake_case 稳定标识与 i18n 锚点
+  (标题走 `objects.{object}._sections.{name}.label`);`columns`(1-4)是本 section 的
+  字段栅格宽度,省略则由渲染器推导;并明确写出字符串条目不被接受。渲染器另外还认的
+  `title` / `showBorder` / `hideEmpty` **故意不写进说明** —— spec 的 section 对象没有
+  声明它们,parse 时会被静默剥掉,发布它们等于教作者写契约丢弃的键。
+
+  同时新增 `recordDetailsInputs.spec-parity.test.ts`:两个方向的断言都在运行时从 spec
+  schema 派生(每个 spec 成员键都能从说明里发现;本 block 不声明 spec 不接受的顶层
+  input),所以下一次 spec 变形会先让测试红,而不是又一次静默张开。仅说明文本变化,无
+  运行时行为改动。
+
+- 54233b1: Record detail pages: a header ⟳ that refreshes the record, its related lists and its tab counts in place — no browser reload
+
+  Concurrent-editing scenario from the shop floor (MES work orders): operator A sits on a record's detail page while operator B starts or reports the same order. A had no way to see the new state except F5, which throws away the open tab, the scroll position and any in-progress inline edit along with the stale data.
+
+  The pipeline for this already existed — the objectui#2269 invalidation bus refetches every mounted reader in place, and `RecordContext.refresh` had been declared for it — but nothing produced that field and no UI reached for it. Three changes give it a trigger:
+
+  - **`RecordDetailView` produces `RecordContext.refresh`**, publishing `notifyDataChanged({ objectName: '*' })`. The wildcard is deliberate: a user reaches for refresh because of a write made by SOMEONE ELSE, which this client never saw and therefore cannot attribute to particular objects. `'*'` marks everything mounted as stale, so the main record, every related child list and the tab-count badges all refetch — no remount, so tab / scroll / draft state survive. First phase covers the standalone record route; embedded hosts (list drawer, split-pane preview) keep their existing chrome unchanged.
+  - **`page:header` renders the ⟳** at the far end of the header row when — and only when — the host provides `refresh`. It is page chrome rather than a header action, so its position is the same on every record page regardless of which business actions the object declares, and it can never be collapsed into the `⋯` overflow. Styled as that `⋯` trigger's twin so the row reads as one button family. Its accessible name and tooltip come from the existing `common.refresh` key, so the icon-only button is not English-only in the other nine locales. The icon spins for a short floor after a click, because the bus is fire-and-forget and a warm backend would otherwise finish before the click looked like it landed.
+  - **`RelatedList` accepts the `'*'` wildcard** on the legacy `objectui:related-changed` event, matching what `dataChangeMatches` already does for the bus's own readers. This listener compared the payload's object name to its own, so a wildcard invalidation reached everything on the page except the related lists — a concrete foreign object name is still ignored.
+
+  Hosts that provide no `refresh` render exactly as before.
+
+- c2ecbae: 相关列表 Add 选择器兑现 `add.picker.filter`:作者限定的候选范围现在真的生效
+
+  `record:related_list.add.picker.filter` 被 spec 声明为「Restrict which records the picker offers」,但渲染器从未读过它 —— 挂 `RecordPickerDialog` 时不传任何 filter,对话框照样提供 `picker.object` 的全部记录,选中即建链接行或改父,`os validate` / `os build` 全绿、运行时零诊断。作者写下「只允许指派 active 的岗位」「只允许挂未过期的许可」,得到的是完整候选列表。
+
+  现在它按原样传给 `RecordPickerDialog` 的 `baseFilter` —— 不是 `lookupFilters`,后者会把条件渲染成用户可编辑的筛选栏行,等于把作者的硬性限制降级成建议。
+
+  `baseFilter` 因此接受两种形状,按结构判别(`Array.isArray`):
+
+  - **`QueryParams.$filter` 记录形式**(依赖型 lookup 链)保持原有的键覆盖语义逐字节不变 —— 级联父值必须**替换**同字段上过期的 `lookupFilters` 条目,而不是与之求交。
+  - **spec 的 `ViewFilterRule[]`** 经 `mergeFilterNodes`(仓内唯一的 filter 下沉口)下沉,19 个 operator 全部无损到达服务端,包括记录形式没有 `$op` 可用的 `before` / `after` / `is_empty` / `is_not_empty`。此处**不新增**第二份 operator 词汇表。
+
+  槽位类型同时从 `Record<string, any>` 收紧为 `unknown`:前者会接受规则数组(数组满足 `any` 的字符串索引),旧的对象展开再把它压成 `{"0": {...}}`,于是查询去过滤名为 `0` 的列 —— 类型全绿、查询错误、无任何诊断。
+
+- acc34c5: `record:related_list`: an `add` without `add.picker` no longer takes the whole related list down.
+
+  The Add-picker gate compared only `add` for truthiness and then read `add.picker.object` bare, so page metadata declaring `add` but omitting the (spec-required) `picker` threw during render and `SchemaRenderer` replaced the entire related list with a "Component failed to render" card whose message never mentioned `picker`. Both the Add button and the picker dialog now gate on the resolved `add.picker.object` — the list body renders as usual, only the unconfigured Add affordance is withheld, and a console hint names the missing key. Off-spec `add` still does nothing, so no lenient second dialect is introduced; producing-side validation of page metadata is tracked separately.
+
+- c4768a7: `record:related_list` — the declared `filter` reaches the query, and the Add button answers to the same gate as its dialog
+
+  - **`filter` is consumed** (objectstack#7118). The spec declares
+    `RecordRelatedListProps.filter` ("additional filter criteria") and this repo
+    published it as a registry input, but nothing read it: `RelatedList` built its
+    query from `{ [relationshipField]: parentId }` alone, so an authored filter was
+    accepted by every gate and silently dropped — the list answered with every child
+    of the parent. It is now AND-combined with the parent condition (never
+    substituted for it, so an additional criterion can only narrow), lowered through
+    the repo's single filter sink so the spec's `[{ field, operator, value }]`
+    vocabulary and a composed `dataSource` binding both work. With nothing authored
+    the query is unchanged. As a consequence a saved view named through
+    `dataSource: { object, view }` no longer contributes its columns/sort/limit while
+    its filter is discarded — the list can no longer be wider than the view it names.
+    On the legacy raw-URL fallback path, which cannot express an operator, a declared
+    filter is refused with a console explanation instead of dropped.
+  - **The Add button now requires `dataSource`** (objectui#3895), matching the picker
+    dialog and the add callback. In hosts that supply no `RecordContext` — Studio
+    designer previews, context-free embeds — the button rendered and did nothing at
+    all when clicked; the affordance is now withheld where the capability behind it
+    is absent.
+
+- Updated dependencies [7864f03]
+- Updated dependencies [f5f8744]
+- Updated dependencies [69becd2]
+- Updated dependencies [5e52495]
+- Updated dependencies [b750823]
+- Updated dependencies [ac2139c]
+- Updated dependencies [b14ab3a]
+- Updated dependencies [8c60819]
+- Updated dependencies [e64a52e]
+- Updated dependencies [844d17f]
+- Updated dependencies [4dcd52a]
+- Updated dependencies [42ae5c6]
+- Updated dependencies [6d762da]
+- Updated dependencies [f9faa7d]
+- Updated dependencies [33526fd]
+- Updated dependencies [32413ec]
+  - @object-ui/i18n@17.4.0
+
 ## 17.3.0
 
 ### Minor Changes
@@ -1544,6 +1849,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   objects+fields were editable in Studio; this reworks both surfaces.
 
   **Setup (assign + read-only):**
+
   - The six facets (`object_permissions`, `field_permissions`, `system_permissions`,
     `row_level_security`, `tab_permissions`, `admin_scope`) now render read-only on
     the `sys_permission_set` record page as a compact summary (counts, or capability
@@ -1558,6 +1864,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
 
   **Studio (design every facet):** the permission matrix editor gains structured
   editors for the facets that were JSON-only —
+
   - **System Capabilities**: a multi-select over the live `sys_capability` registry
     (scope-grouped, labelled chips).
   - **Row-Level Security**: per-policy rows (object · operation · enabled) with CEL
@@ -1992,6 +2299,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   unknown @-tokens. 9 unit tests.
 
   `@object-ui/app-shell` `RecordDetailView` now:
+
   1. Serializes the resolved mention ids into `sys_comment.mentions`
      (previously hard-coded `'[]'`, so servers had no idea who was being
      pinged).
@@ -2012,6 +2320,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   and the renderer also falls back to a value/label heuristic (matches
   `closed_lost`, `lost`, `failed`, `cancelled`, `失败`, `流失`, `丢单`, etc.)
   so existing CRM-style picklists get the treatment without migration.
+
   - **Lost** stages render in a visually separated group with a left
     border, destructive (red) tint, pill shape, and `✗` glyph — mirroring
     the Salesforce / HubSpot alt-terminus pattern that signals "this
@@ -2041,6 +2350,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   - Stage chevron (`record:path`): bump completed-stage contrast (emerald-800 text on emerald-500/15, was 700 on /10) and future-stage text from `foreground/70` to `foreground/85` for legibility.
   - i18n: add `notifications.emptyUnread`, `notifications.filterUnread`, `notifications.filterAll` (en + zh) so the InboxPopover Unread/All sub-filter renders in the active locale.
 - 5425608: CRM UX polish pass — calmer enterprise look across detail + kanban.
+
   - **plugin-kanban**: column headers now use a 2px muted accent stripe with
     neutral foreground titles + a quiet grey count pill instead of full
     rainbow gradient + colored title + colored count. Pipeline boards
@@ -2065,12 +2375,14 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
 - 5633edd: feat(detail,grid): tab + selection motion polish
 
   **plugin-detail**
+
   - `DetailTabs` and the auto-tabs path in `DetailView` (5 inline
     `<TabsContent>` instances: details, related, activity, discussion,
     history) now fade in when their tab becomes active, eliminating
     the harsh flash when switching tabs.
 
   **plugin-grid**
+
   - `BulkActionBar` slides in from the bottom + fades in when a
     selection is made, instead of popping into existence.
   - The "N items selected" counter re-animates on every count change
@@ -2099,6 +2411,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   `defaultCurrency` is set on the field/column, formatting is unchanged.
 
   Fixed call sites:
+
   - `@object-ui/fields`: `formatCurrency`, `formatCompactCurrency`, and
     `CurrencyCellRenderer` no longer default-param `'USD'`.
   - `@object-ui/i18n`: `formatCurrency()` falls back to `formatNumber`
@@ -2120,6 +2433,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
 - d1ec6a2: Fold inline-edit into the page-header overflow menu (HubSpot/Lightning
   pattern) and remove the orphan "Edit fields" toolbar row that previously
   floated between the tab strip and the first detail section.
+
   - `@object-ui/app-shell` `RecordDetailView`: injects a new `sys_inline_edit`
     system action that appears in the ⋯ overflow menu and dispatches a
     `objectui:record:inline-edit-toggle` window CustomEvent (filtered by
@@ -2136,6 +2450,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
     in `page:accordion` / `page:tabs` items.
 
 - cf30cc2: Polish Lightning record detail page layout.
+
   - `record:details` sections now render with Card chrome by default when a `title` is present, restoring visual grouping that was missing on pages like the opportunity detail page.
   - Section labels can be translated via the `{ns}.objects.{objectName}._sections.{name}.label` convention. Author each section with a stable `name` (e.g. `info`, `forecast`) and the renderer picks up the locale-specific label automatically. Falls back to the literal `label` when no translation exists.
   - The `page:header` action toolbar now collapses into a `⋯` overflow menu when more than two actions are present. The first business action stays inline; secondary system actions (Edit / Share / Delete) move into the menu, with destructive styling applied to Delete.
@@ -2150,6 +2465,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   `CONCURRENT_UPDATE`). `RecordDetailsRenderer` catches it and opens a
   new `<ConcurrentUpdateDialog>` showing the user's pending value next
   to the server's current value, with three resolution paths:
+
   - **Reload latest** — discard the pending edit and refetch.
   - **Overwrite anyway** — retry against the server's freshest version
     (still OCC-checked, but acknowledges "I've seen the newer version").
@@ -2165,6 +2481,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   backend support in `@objectstack/rest@>=4.2.0`.
 
 - 49b1760: Polish the ConcurrentUpdateDialog and add i18n.
+
   - Internationalise all dialog strings (title, body, button labels, "your edit" / "current value" headings, audit-trail line) through `useDetailTranslation`. Locale strings added to `@object-ui/i18n` for English and Chinese.
   - Replace the plain dialog header with an amber warning badge + `AlertTriangle` icon to communicate that this is a conflict, not a routine confirmation.
   - Visually differentiate the two value blocks: amber tint for the user's pending edit, sky tint for the server's current value. Both wrap long values cleanly.
@@ -2180,17 +2497,20 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
 - bd8447d: Three platform-wide detail polish items.
 
   **Tighter page rhythm**
+
   - Outer `PageRenderer` padding `p-4 md:p-6 lg:p-8` → `p-3 md:p-4 lg:p-6`
     and outer body wrap `space-y-8` → `space-y-6` so list / detail / home
     pages share the same edge rhythm. Cuts ~16px of edge slack on lg.
 
   **Highlights KPI treatment**
+
   - `HeaderHighlight` now renders numeric / currency / percent / decimal
     values as KPI numbers (`text-xl md:text-2xl font-semibold tabular-nums`)
     instead of the uniform `text-sm font-semibold`, so amount / probability
     / count fields read as headline stats — Salesforce-style key facts.
 
   **Discussion footer upgrade**
+
   - `RecordActivityTimeline` now uses `RichTextCommentInput` (bold / italic /
     list / code, `@`-mention autocomplete, preview toggle, Send) instead of
     a bare `<textarea>`.
@@ -2205,6 +2525,7 @@ pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and th
   accordion in flush mode dropped all per-item borders so the collapsed
   "Quotes / Products / Open Tasks" triggers stacked with zero visual
   separation.
+
   - `@object-ui/plugin-detail` `DetailSection`: override the `CardTitle`
     className to `text-base font-semibold tracking-tight`, slim down
     `CardHeader` padding (`py-3 px-4 sm:py-4 sm:px-6`) and `CardContent`
@@ -2219,6 +2540,7 @@ hover:no-underline` (Shadcn's hover-underline default looks busy on
     CRM-style related-list lists).
 
 - d51a577: feat(platform): Discussion attachments + @mention directory + Reference Rail aside
+
   - **Discussion attachments** — `RichTextCommentInput` now accepts an `extraSlot`
     and a `canSubmitEmpty` flag so hosts can mount the existing
     `CommentAttachment` composer beneath the editor without forking the toolbar.
@@ -2242,6 +2564,7 @@ hover:no-underline` (Shadcn's hover-underline default looks busy on
   custom `Page`. Catalog-style objects (Product, Task) ship with the rail
   off by default; hub objects (Account, Opportunity, Contact, Case) keep it
   on.
+
   - `RecordDetailView` now reads `(objectDef as any)?.detail?.hideReferenceRail`
     and `…?.hideRelatedTab` and threads them to `buildDefaultPageSchema`.
   - The Reference Rail renderer also accepts entries authored as either a
@@ -2292,6 +2615,7 @@ hover:no-underline` (Shadcn's hover-underline default looks busy on
   not only contacts of that account).
 
   Two coupled fixes:
+
   1. `RelatedList` now requires `parentId` + `referenceField` to auto-
      fetch. When both are present it calls `dataSource.find(api,
 { $filter: { [referenceField]: parentId } })`. When either is
@@ -2337,6 +2661,7 @@ hover:no-underline` (Shadcn's hover-underline default looks busy on
   default detail view. They were missing cross-cutting affordances and
   shipped with English-only tab labels and heavy bordered section cards
   even when the host locale was Chinese. Track 1 closes the visible gap:
+
   - **app-shell `RecordDetailView`**: the `assignedPage` branch now wears
     the same chrome as the default branch — lifecycle managed-by badge
     and presence avatars in the top-right, `MetadataPanel` debug panel,
@@ -2439,6 +2764,7 @@ hover:no-underline` (Shadcn's hover-underline default looks busy on
   layout — only the auto-inference default changed.
 
 - b14fe09: Phase P.0 + P.5: tighten record-detail header chrome.
+
   - `RecordTitleChip` collapses the title row to a single baseline-aligned line — H1, eyebrow object label, copy-id, favorite star — instead of the previous two-row title + subtitle layout.
   - `record:details` extends the highlight-field dedup set to also exclude the title field resolved from `objectSchema.primaryField` (or the standard `name`/`full_name`/`title`/`subject`/`display_name`/`label` fallbacks). Removes the duplicate row that previously echoed the H1 (e.g. "客户名称: Acme Corporation") inside the field grid.
 
@@ -2481,6 +2807,7 @@ populated` disclosure that expands on click. The expanded view shows
   result was visually noisy ("有的下划线，有的有边框，有的没边框").
 
   This change commits to a single design language:
+
   - **Highlights** (`HeaderHighlight`): drop the `Card`/`CardContent`
     wrapper. Render as a borderless `<section>` of stat cells with a
     subtle `border-b` separator. The tab strip below now carries the
@@ -2501,6 +2828,7 @@ populated` disclosure that expands on click. The expanded view shows
   by their tabular content. No internal package APIs changed.
 
 - 74962b0: feat(detail): record:discussion schema component + flush accordion variant
+
   - New `record:discussion` schema type lets authors place the record
     chatter feed anywhere in a custom Page schema. Wired through a
     shared `DiscussionContext` provider on the `assignedPage` branch
@@ -2514,6 +2842,7 @@ populated` disclosure that expands on click. The expanded view shows
     or `和` (e.g. `Notes & Attachments` → `备注与附件`).
 
 - 8b850b5: feat(detail): record:path chevron stepper + record:highlights surface refresh (Phase E)
+
   - `record:path` now renders Salesforce Lightning-style chevron segments
     (clip-path arrows + overlap) with a primary glow on the current step
     and a check mark on completed steps. On mobile (`<sm`) it falls back
@@ -2538,6 +2867,7 @@ populated` disclosure that expands on click. The expanded view shows
   accordion, discussion slot) that custom Lightning pages already enjoy.
 
   Changes:
+
   - `buildDefaultPageSchema` now emits `page:tabs.items` (correct shape
     for the renderer) rather than `tabs`.
   - `PageHeaderRenderer.resolvedTitle` honors `objectSchema.primaryField`
@@ -2561,6 +2891,7 @@ populated` disclosure that expands on click. The expanded view shows
   customize the header or one tab.
 
   **Slot menu (v1):**
+
   - `header` — replaces `page:header`
   - `actions` — replaces the `record:quick_actions` action bar
   - `highlights` — replaces the chips + chevron path strip
@@ -2588,6 +2919,7 @@ populated` disclosure that expands on click. The expanded view shows
   ```
 
   **API changes:**
+
   - `PageSchema` (in `@object-ui/types`): adds `kind?: 'full' | 'slotted'`
     (default `'full'`) and `slots?: PageSlotMap`.
   - `usePageAssignment` (in `@object-ui/react`): result now exposes a
@@ -2597,6 +2929,7 @@ populated` disclosure that expands on click. The expanded view shows
     `options.slots` map that overrides individual regions at synthesis time.
 
 - 34b66bf: feat(detail): synthesize Related / Activity / History tabs + record:quick_actions header (Track 3 Phase G slice 4)
+
   - `buildDefaultPageSchema` now accepts `headerActions`, `related`,
     `showActivity`, and `history` options. When provided, the synthesizer
     emits a `record:quick_actions` node after `page:header` and appends
@@ -2621,6 +2954,7 @@ populated` disclosure that expands on click. The expanded view shows
 
   Two regression fixes surfaced by the Phase J browser canary across CRM
   record detail pages:
+
   1. **`record:path` now localizes stage labels.** The renderer threads
      `useSafeFieldLabel().translateOptions` against the record-context's
      `objectName` + the schema's `statusField`, so picklist labels match the
@@ -2697,6 +3031,7 @@ populated` disclosure that expands on click. The expanded view shows
 - d714e85: Lookup display-name resolution now falls back through a Salesforce-style chain
   when an `$expand`'d reference object lacks a top-level `name`/`label`/
   `display_name`/`title` field:
+
   1. Standard display fields (existing behaviour)
   2. `salutation first_name last_name` composite — handles person records that
      only carry first/last name parts
@@ -2732,6 +3067,7 @@ Lin` and no `name` field now renders as `Bob Lin` everywhere — instead of
 ### Patch Changes
 
 - 0d8eb98: feat(detail): Salesforce-style record header + section field grid
+
   - `page:header` now renders an icon chip (resolves Lucide names via
     `LazyIcon`) plus subtitle, so detail pages can show
     "Name / Company" without an extra component.
@@ -2780,6 +3116,7 @@ Lin` and no `name` field now renders as `Bob Lin` everywhere — instead of
   detail view (`TypeError: titleFormat.replace is not a function`) and printed
   `Failed to evaluate expression: ${[object Object]}` for every action visibility
   predicate.
+
   - `@object-ui/core`: `ExpressionEvaluator.evaluate` / `evaluateCondition` now
     unwrap Expression envelopes transparently.
   - `@object-ui/react`: new `toPredicateInput()` helper to safely normalize
@@ -2831,6 +3168,7 @@ Lin` and no `name` field now renders as `Bob Lin` everywhere — instead of
   Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
 
   Specifically fixes:
+
   - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
   - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
   - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.
