@@ -18,6 +18,7 @@ import type { FormField, DataSource } from '@object-ui/types';
 import { cn } from '@object-ui/components';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
+import { seedCreateValues } from './schemaDefaults';
 import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
 import { useOccSave } from './occSave';
 
@@ -241,7 +242,10 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
     let cancelled = false;
     const fetchData = async () => {
       if (schema.mode === 'create' || !schema.recordId || !dataSource) {
-        setFormData(schema.initialData || schema.initialValues || {});
+        // Declared static defaults are this form's opening values (#4047) —
+        // see `schemaDefaults` for the create-only boundary and for why
+        // runtime defaults are left to the server.
+        setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues));
         setLoading(false);
         return;
       }

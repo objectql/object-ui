@@ -10,10 +10,12 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
+
+import { buildInitFiles } from '../commands/init.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI_BIN = resolve(__dirname, '../../dist/cli.js');
@@ -246,6 +248,78 @@ describe('@object-ui/cli bin', () => {
       expect(readFileSync(join(appDir, 'src/index.css'), 'utf-8')).toContain(
         `@import 'tailwindcss';`
       );
+    });
+
+    it('writes a src/App.tsx that fills the component registry', () => {
+      // objectui#4061, asserted where the user meets it. `SchemaRenderer` looks
+      // every node up in `ComponentRegistry` and renders "Unknown component
+      // type" on a miss; registration happens as a side effect of importing
+      // `@object-ui/components`, and `@object-ui/react` does not depend on that
+      // package — so before this the scaffold's whole visible output was error
+      // boxes for all three templates.
+      //
+      // `app-generator.test.ts` judges the file MAP structurally (declared vs
+      // imported, both directions); this asserts `init()` actually writes it,
+      // which is the half a unit test on the builder cannot see.
+      const app = readFileSync(join(appDir, 'src/App.tsx'), 'utf-8');
+      expect(app).toContain(`import '@object-ui/components';`);
+      expect(app).toContain(`import { SchemaRenderer } from '@object-ui/react';`);
+      // The manifest half was already there — the defect was that it was
+      // declared and never imported, so pin both ends together.
+      const manifest = JSON.parse(readFileSync(join(appDir, 'package.json'), 'utf-8')) as {
+        dependencies: Record<string, string>;
+      };
+      expect(manifest.dependencies['@object-ui/components']).toBeDefined();
+      // No plugin dependency is imported that the manifest does not declare:
+      // the three templates name only types `@object-ui/components` registers.
+      expect(app).not.toContain('@object-ui/plugin-');
+    });
+
+    it('writes a src/index.css that loads the library stylesheet', () => {
+      // objectui#4062. The theme utilities the templates lean on resolve through
+      // tokens declared in a `@theme` block that `files` does not publish, so an
+      // installed consumer can only get them from the prebuilt
+      // `@object-ui/components/style.css` — a real export
+      // (`"./style.css": "./dist/index.css"`), and per objectui#3884 a strict
+      // superset of anything a `node_modules` scan yields.
+      const css = readFileSync(join(appDir, 'src/index.css'), 'utf-8');
+      expect(css).toContain(`@import '@object-ui/components/style.css';`);
+      // Tailwind entry stays first (the assertion above must not be satisfied by
+      // a file that reordered the entrypoint).
+      expect(css.indexOf(`@import 'tailwindcss';`)).toBe(0);
+      // `@object-ui/fields` ships zero CSS at 17.3.0 and is not a dependency of
+      // this scaffold, so quick-start's second line is deliberately not copied
+      // (objectui#4059).
+      expect(css).not.toContain('@object-ui/fields');
+    });
+
+    it('writes exactly the file map buildInitFiles returns, byte for byte', () => {
+      // The equivalence the two structural gates in `app-generator.test.ts` rest
+      // on: they judge `buildInitFiles`, so a file `init()` wrote some other way
+      // would be judged by nothing. Every generated path and its bytes, both
+      // directions — an extra file on disk fails as loudly as a missing one.
+      //
+      // A failure here can also mean `dist/cli.js` is stale relative to
+      // `src/commands/init.ts` — `beforeAll` only builds when the bundle is
+      // absent. Rebuild the package before reading it as a real defect.
+      const files = buildInitFiles('sample-app', 'simple');
+
+      const walk = (dir: string, prefix = ''): string[] =>
+        readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+          entry.isDirectory()
+            ? walk(join(dir, entry.name), `${prefix}${entry.name}/`)
+            : [`${prefix}${entry.name}`],
+        );
+
+      expect(walk(appDir).sort()).toEqual(Object.keys(files).sort());
+      expect(
+        Object.fromEntries(
+          Object.keys(files).map((relativePath) => [
+            relativePath,
+            readFileSync(join(appDir, relativePath), 'utf-8'),
+          ]),
+        ),
+      ).toEqual(files);
     });
 
     it('versions the scaffold against the CLI that wrote it, not a literal', () => {

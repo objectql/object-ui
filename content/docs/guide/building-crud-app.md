@@ -236,6 +236,15 @@ Add a "New Task" button and handle row clicks to open the edit form:
 
 The form automatically renders the correct field widgets (text inputs, select dropdowns, date pickers) based on your `FieldMetadata` definitions. Validation rules like `required` are enforced out of the box.
 
+In **create** mode the form also opens with the `defaultValue`s your schema
+declares — the `status` and `priority` fields above start on `Todo` and
+`Medium`, already submittable, rather than empty next to a required marker.
+Only static defaults are seeded: a `defaultValue` that is a runtime token
+(`'NOW()'`, `'current_user'`) or a CEL expression is an instruction the server
+resolves at insert time, so the form leaves that field empty and lets it. In
+**edit** mode nothing is seeded — the form shows the record as stored. Values
+you pass as `initialData` / `initialValues` outrank a schema default.
+
 ## Step 7: Add Filters and Search
 
 Leverage the `active` list view you defined in Step 3, or add dynamic search:

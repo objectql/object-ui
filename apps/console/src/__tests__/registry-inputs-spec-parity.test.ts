@@ -225,7 +225,10 @@ const EXPECTED_COVERED = [
   'element:text_input',
   'page:accordion',
   'page:card',
+  'page:footer',
   'page:header',
+  'page:section',
+  'page:sidebar',
   'page:tabs',
   'record:activity',
   'record:chatter',
@@ -236,13 +239,21 @@ const EXPECTED_COVERED = [
 ];
 
 /**
- * Registered, spec-carried, and deliberately propless. `EmptyProps` blocks
- * (`page:footer`, `page:section`, `page:sidebar`, `nav:*`, `global:search`)
+ * Registered, spec-carried, and deliberately propless. `nav:*` / `global:search`
  * genuinely take no props; `element:image` / `element:metadata_viewer` /
  * `element:divider` / `ai:suggestion` are registered without an `inputs` list.
  * Either way there is no declaration for this gate to judge — but a block moving
  * OUT of `EXPECTED_COVERED` into here is an authoring surface that vanished, so
  * the list is pinned rather than derived-and-ignored.
+ *
+ * `page:footer` / `page:section` / `page:sidebar` LEFT this list in objectui#4027
+ * and are now in `EXPECTED_COVERED`. They were the "`EmptyProps` blocks that
+ * genuinely take no props" this comment used to name — a reading the pinned
+ * rc.5 still supports and the contract no longer does: objectstack#5775
+ * (PR objectstack#6281) replaced their `EmptyProps` entries with the shared
+ * `PageContainerProps`, whose one key is the `children` all three renderers have
+ * always rendered. Their `children` inputs are flagged by the forward direction
+ * below purely as a stale-pin artifact.
  */
 const EXPECTED_WITHOUT_INPUTS = [
   'ai:suggestion',
@@ -252,10 +263,26 @@ const EXPECTED_WITHOUT_INPUTS = [
   'global:search',
   'nav:breadcrumb',
   'nav:menu',
-  'page:footer',
-  'page:section',
-  'page:sidebar',
 ];
+
+/**
+ * Covered blocks whose spec props schema legitimately resolves to ZERO keys on
+ * the pinned `@objectstack/spec`, so the non-empty probe guard below must not
+ * judge them (objectui#4027).
+ *
+ * The guard exists to catch a BROKEN reader — a `specTopLevelKeys` that stopped
+ * resolving `.shape` and returned `[]` for everything. These three return `[]`
+ * for a real reason instead: rc.5 still maps them to `EmptyProps`, while
+ * objectstack#5775 / PR objectstack#6281 replaced that with the shared
+ * `PageContainerProps` upstream. Without this carve-out the guard would report
+ * "spec shape did not resolve" for a shape that resolved perfectly well and is
+ * simply empty — a false accusation against the probe.
+ *
+ * Self-clearing, and pinned as such by `the empty-shape carve-out still
+ * describes an empty shape` below: once the pin moves, `children` appears in
+ * each shape and that assertion fails until this list is deleted.
+ */
+const SPEC_SHAPE_EMPTY_ON_THE_PIN = ['page:footer', 'page:section', 'page:sidebar'];
 
 /**
  * Off-spec top-level inputs ACCEPTED for now, each with the reason.
@@ -343,6 +370,40 @@ const OFF_SPEC_EXEMPTIONS: Record<string, string> = {
     'Already declared upstream by objectstack#5775; flagged only because the pinned @objectstack/spec@17.0.0-rc.5 predates it. Delete this entry when the pin moves.',
   'element:record_picker.label':
     'Already declared upstream by objectstack#5775; flagged only because the pinned @objectstack/spec@17.0.0-rc.5 predates it. Delete this entry when the pin moves.',
+
+  // ── page container `children` — ALREADY settled upstream, stale pin only ───
+  // The other half of the same upstream issue as the record_picker trio above,
+  // and the same stale-pin shape (objectui#4027). objectstack#5775
+  // (PR objectstack#6281, merged 2026-08-07) declared `PageCardProps.children`
+  // as the canonical composition slot — retiring `body`, its second spelling —
+  // and gave `page:section` / `page:footer` / `page:sidebar` the shared
+  // `PageContainerProps`, whose one key is `children`, replacing the
+  // `EmptyProps` that had declared "zero props" for three components whose only
+  // job is to render a child list. Verified in that PR's merged diff
+  // (`packages/spec/src/ui/component.zod.ts`, `PageContainerProps` + the
+  // `ComponentPropsMap` entries), not from the issue's wording.
+  //
+  // The pinned `@objectstack/spec@17.0.0-rc.5` predates all of it: its
+  // `PageCardProps` still lists `body` and no `children`, and the three thin
+  // containers are still `EmptyProps` — so this gate reads four correct,
+  // contract-following declarations as off-spec. Nothing to do in either repo;
+  // the `no stale exemption` test below deletes these four for us, loudly, the
+  // moment the pin moves.
+  //
+  // Nothing about `children` moves a validation verdict either way, which is
+  // why publishing it ahead of the pin is safe: `validate.ts` lists `children`
+  // in `BASE_PROPS` (never an `unknown-prop`), and `codegen.ts:emitInterface`
+  // filters `slot` inputs out of the generated `.d.ts`, where
+  // `SduiBaseProps.children` already types it. The designer panel is the only
+  // surface that changes.
+  'page:card.children':
+    'Already declared upstream by objectstack#5775 / PR objectstack#6281 as the canonical card content slot (replacing the retired `body`); flagged only because the pinned @objectstack/spec@17.0.0-rc.5 predates it. objectui#4027. Delete this entry when the pin moves.',
+  'page:section.children':
+    'Already declared upstream by objectstack#5775 / PR objectstack#6281 via the shared `PageContainerProps` (this renderer has always rendered `schema.children`); flagged only because the pinned @objectstack/spec@17.0.0-rc.5 still maps this block to `EmptyProps`. objectui#4027. Delete this entry when the pin moves.',
+  'page:footer.children':
+    'Already declared upstream by objectstack#5775 / PR objectstack#6281 via the shared `PageContainerProps` (this renderer has always rendered `schema.children`); flagged only because the pinned @objectstack/spec@17.0.0-rc.5 still maps this block to `EmptyProps`. objectui#4027. Delete this entry when the pin moves.',
+  'page:sidebar.children':
+    'Already declared upstream by objectstack#5775 / PR objectstack#6281 via the shared `PageContainerProps` (this renderer has always rendered `schema.children`); flagged only because the pinned @objectstack/spec@17.0.0-rc.5 still maps this block to `EmptyProps`. objectui#4027. Delete this entry when the pin moves.',
 };
 
 /**
@@ -426,6 +487,30 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   'element:record_picker.multiple':
     'Retired upstream by objectstack#5775 (ADR-0087 D2 tombstone); declaring it would publish a key the spec rejects by name. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
 
+  // ── page:card.body — retired upstream, stale pin only (1 key) ─────────────
+  // The fourth ADR-0087 D2 tombstone from the same upstream issue as the three
+  // above, and it withdraws here for the same reason: objectstack#5775
+  // (PR objectstack#6281) replaced `PageCardProps.body` with `children`, the
+  // spelling every other container uses and the one this renderer reads
+  // (`containers.tsx`, `schema?.body ?? schema?.children`). Continuing to
+  // publish `body` was objectui#4027 — a designer teaching a key the contract
+  // rejects by name.
+  //
+  // The renderer's `body` READ deliberately survives the declaration's removal:
+  // documents stored under the old contract keep rendering until the ADR-0087 D2
+  // conversion rewrites the key at load time. A back-compat read is not an
+  // authoring surface, so it does not belong in `inputs` — the same split the
+  // `page-header-subtitle-alias` sequencing already established in
+  // `packages/layout`.
+  //
+  // Like the record_picker trio, this entry does NOT go stale when the pin
+  // moves: D2 retirement replaces the entry with `z.never().optional()` rather
+  // than deleting it, so `Object.keys(shape)` still reports `body` as declared.
+  // It resolves when objectui#3809's tombstone recognition narrows
+  // `specTopLevelKeys`.
+  'page:card.body':
+    'Retired upstream by objectstack#5775 / PR objectstack#6281 (ADR-0087 D2 tombstone, converging on the `children` this renderer reads and now publishes); declaring it would publish a key the spec rejects by name — objectui#4027. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
+
   // ── element:record_picker.filter — a real A-class gap, out of scope here ───
   // The renderer DOES read it (`record-picker.tsx:78`, `ds.filter ?? props.filter`,
   // into `query.$filter` at :103) and the spec DOES declare it, so by the bar
@@ -481,8 +566,24 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     // would return `[]`, every input would read as off-spec, and the failure
     // would look like a repo-wide regression instead of a broken probe. An
     // empty result here means "fix the reader", not "fix the inputs".
-    for (const type of covered) {
+    for (const type of covered.filter((t) => !SPEC_SHAPE_EMPTY_ON_THE_PIN.includes(t))) {
       expect(specTopLevelKeys(type).length, `${type} spec shape did not resolve`).toBeGreaterThan(0);
+    }
+  });
+
+  it('the empty-shape carve-out still describes an empty shape', () => {
+    // The carve-out above cannot be allowed to outlive its cause: these three
+    // resolve to `{}` because the PINNED rc.5 still maps them to `EmptyProps`,
+    // not because the probe is broken. The moment the pin carries
+    // `PageContainerProps`, `children` appears in the shape and this assertion
+    // fails — which is the instruction to delete the list and let the plain
+    // non-empty guard cover all three again.
+    for (const type of SPEC_SHAPE_EMPTY_ON_THE_PIN) {
+      expect(covered, `${type} no longer declares inputs — the carve-out is dead`).toContain(type);
+      expect(
+        specTopLevelKeys(type),
+        `${type}'s spec shape is no longer empty — delete it from SPEC_SHAPE_EMPTY_ON_THE_PIN`,
+      ).toEqual([]);
     }
   });
 

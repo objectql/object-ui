@@ -14,11 +14,13 @@
  *   - PageCardProps      -> page:card
  *   - PageAccordionProps -> page:accordion
  *   - PageHeaderProps    -> page:header
- *   - page:footer / page:sidebar / page:section thin wrappers
+ *   - PageContainerProps -> page:footer / page:sidebar / page:section
+ *                           (the thin wrappers; one shared `children` slot)
  */
 
 import React from 'react';
 import { ComponentRegistry, ExpressionEvaluator, evalRowPredicate, getRecordDisplayName, toPredicateRecord } from '@object-ui/core';
+import type { ComponentInput } from '@object-ui/core';
 import { actionRendersAt } from '@object-ui/types';
 import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
@@ -53,6 +55,41 @@ import {
 import { RecordTitleChip } from '../../custom/RecordTitleChip';
 import { useObjectLabel, useSafeFieldLabel, useObjectTranslation, useSafeTranslate, createSafeTranslation, pickLocalized } from '@object-ui/i18n';
 import { MoreHorizontal, RefreshCw } from 'lucide-react';
+
+/**
+ * The one authorable key the three thin containers publish — `page:section`,
+ * `page:footer`, `page:sidebar` (objectui#4027).
+ *
+ * `@objectstack/spec` declares all three through one shared `PageContainerProps`
+ * whose single key is `children` (objectstack#5775, PR objectstack#6281, merged
+ * 2026-08-07). They had been declared `EmptyProps` upstream — "this component
+ * takes zero props" — while their renderers have always rendered a child list;
+ * this side carried the mirror-image gap, registering all three with no `inputs`
+ * at all, so the designer had nothing to authorize and the generated
+ * `sdui.manifest.json` published them as propless.
+ *
+ * Declaring it as a `slot` is what makes this an AUTHORING-surface change and
+ * nothing else — no validation verdict moves in either direction:
+ *   - `sdui-parser/src/codegen.ts:emitInterface` filters `slot` inputs out of
+ *     `sdui-intrinsics.d.ts`, where `SduiBaseProps.children` already types it;
+ *   - `sdui-parser/src/validate.ts` lists `children` in `BASE_PROPS`, so it was
+ *     never an `unknown-prop` and does not become one;
+ *   - `isContainer: true` (already set on all three) is what authorizes children
+ *     to the parser's `not-a-container` check.
+ * What does move is the designer: an authorable slot on the components whose
+ * entire purpose is to render one.
+ *
+ * Shared rather than copied three times, mirroring the spec's own single
+ * `PageContainerProps` — three identical literals are three places to drift.
+ */
+const PAGE_CONTAINER_INPUTS: ComponentInput[] = [
+  {
+    name: 'children',
+    type: 'slot',
+    label: 'Content',
+    description: 'Child components rendered inside this container, in order',
+  },
+];
 
 /**
  * How long the header's manual-refresh icon keeps spinning after a click
@@ -672,9 +709,21 @@ const PageCardRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // page's per-plan name + price headings vanished in both locales.
   const title = pickLocalized(schema?.title, language);
   const bordered = schema?.bordered !== false;
-  // Accept `children` as well as `body` — every other container (grid/flex/
-  // section/tabs) renders `children`, so authors expect it to work here too.
-  // `body` kept first for back-compat with existing card schemas.
+  // `children` is the authorable spelling; `body` is a READ-ONLY back-compat
+  // fallback for documents already stored with it (objectui#4027).
+  //
+  // `body` was retired from the contract by objectstack#5775 (PR #6281, ADR-0087
+  // D2): it was a second spelling of the slot every other container — grid, flex,
+  // section, tabs items — calls `children`, and the spec now declares `children`
+  // on `PageCardProps` and rejects `body` by name. The registration below stopped
+  // publishing `body` in the same change, so nothing teaches it any more.
+  //
+  // The READ deliberately stays, and stays FIRST: a stored document written
+  // against the old contract still renders until the ADR-0087 D2 conversion
+  // rewrites `body` → `children` at load time. Order matters only for a document
+  // carrying both, which the conversion is what resolves; deleting the read
+  // before the conversion is live would blank an existing card's content
+  // silently — the `page-header-subtitle-alias` sequencing precedent, verbatim.
   const body = schema?.body ?? schema?.children;
   const footer = schema?.footer;
 
@@ -703,7 +752,14 @@ ComponentRegistry.register('card', PageCardRenderer, {
   inputs: [
     { name: 'title', type: 'string', label: 'Title', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
     { name: 'bordered', type: 'boolean', label: 'Bordered', defaultValue: true },
-    { name: 'body', type: 'slot', label: 'Body', description: 'Card content; plain `children` also render here' },
+    // The card's content slot, respelled from `body` to `children`
+    // (objectui#4027). One slot, one spelling: objectstack#5775 (PR #6281)
+    // retired `PageCardProps.body` and declared `children` in its place, so a
+    // designer that kept offering `body` was teaching a key the contract now
+    // rejects by name. The renderer still READS `body` for stored documents —
+    // see the comment at its read site above — but a back-compat read is not a
+    // second authorable spelling, and `inputs` is the authoring surface.
+    { name: 'children', type: 'slot', label: 'Content', description: 'Card content components, in order (the card body slot)' },
     { name: 'footer', type: 'slot', label: 'Footer' },
   ],
 });
@@ -816,6 +872,7 @@ ComponentRegistry.register('section', PageSectionRenderer, {
   label: 'Page Section',
   category: 'layout',
   isContainer: true,
+  inputs: PAGE_CONTAINER_INPUTS,
 });
 
 // ---------------------------------------------------------------------------
@@ -1615,6 +1672,7 @@ ComponentRegistry.register('footer', PageFooterRenderer, {
   label: 'Page Footer',
   category: 'layout',
   isContainer: true,
+  inputs: PAGE_CONTAINER_INPUTS,
 });
 
 // ---------------------------------------------------------------------------
@@ -1639,4 +1697,5 @@ ComponentRegistry.register('sidebar', PageSidebarRenderer, {
   label: 'Page Sidebar',
   category: 'layout',
   isContainer: true,
+  inputs: PAGE_CONTAINER_INPUTS,
 });

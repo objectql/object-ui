@@ -43,6 +43,9 @@ import './registerStudioComponents';
 // Register `account:*` component refs (My Profile, etc.).
 import './registerAccountComponents';
 
+// Register `approvals:*` component refs (the Approvals Inbox entry).
+import './registerApprovalsComponents';
+
 // (Per-type metadata-admin override for `object` was removed: the
 // `object` type now uses the same generic ResourceListPage as every
 // other metadata type for visual consistency. The visual ObjectManager
