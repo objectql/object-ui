@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -90,6 +91,16 @@ import {
  * is pinned on DECIDABLE HREFS and not only on file count — and the fixture
  * pair that keeps the row on the `disk` rule, since a package README is read on
  * npm and GitHub and never served by the site.
+ *
+ * objectui#4148 bought the two surfaces the script's header had been DOCUMENTING
+ * as unscanned — the app READMEs and the rest of the root-level markdown — and
+ * the final describe pins them. The live instance was two links in
+ * `apps/console/README.md` that had been dead for six months under a green gate.
+ * One test there is unlike every other in this file: it asserts over the REAL
+ * tree, requiring every tracked root-level markdown file to have a row. That is
+ * deliberate. The root has no glob spelling, so its completeness is a per-file
+ * list, and a list is exactly the thing that goes stale — the assertion is what
+ * makes "all of them" survive the next page someone adds.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -392,6 +403,12 @@ describe('the repo it guards', () => {
       'ROADMAP.md',
       'docs',
       'packages/*/README.md',
+      'apps/*/README.md',
+      'AGENTS.md',
+      'CHANGELOG.md',
+      'CLAUDE.md',
+      'LICENSE-THIRD-PARTY.md',
+      'QUICK_REFERENCE.md',
     ]);
     expect(scanned['README.md']).toBe(1);
     expect(scanned['CONTRIBUTING.md']).toBe(1);
@@ -404,6 +421,13 @@ describe('the repo it guards', () => {
     // expanding before anything is opened — so a floor here is also the floor
     // under `expandWildcard()`.
     expect(scanned['packages/*/README.md']).toBeGreaterThanOrEqual(35);
+    // objectui#4148. Both apps carry one today; the floor is 2 rather than the
+    // exact count because this row exists precisely so the NEXT app is scanned
+    // without anyone editing the table.
+    expect(scanned['apps/*/README.md']).toBeGreaterThanOrEqual(2);
+    for (const rootFile of ['AGENTS.md', 'CHANGELOG.md', 'CLAUDE.md', 'LICENSE-THIRD-PARTY.md', 'QUICK_REFERENCE.md']) {
+      expect(scanned[rootFile], `${rootFile} is a SCAN_ROOTS row that opened no file`).toBe(1);
+    }
   });
 
   it('pairs each scan root with the link semantics that root actually has', () => {
@@ -418,6 +442,13 @@ describe('the repo it guards', () => {
     // objectui#3622 added the package READMEs, `disk` for the same reason and
     // one more: they are read on **npm** as well, where a leading `/` is no
     // more this repo's root than it is on github.com.
+    //
+    // objectui#4148 added the app READMEs and the rest of the root-level
+    // markdown, every one `disk`. `@object-ui/console` is a published package,
+    // so its README is read in exactly the two places a package README is; the
+    // root files are read on GitHub. Nothing here is served by the site, and a
+    // row that quietly took the `docs` rule would re-judge a whole tree — which
+    // is why the table is pinned whole rather than by length.
     expect(SCAN_ROOTS).toEqual([
       { path: 'content/docs', rule: 'docs' },
       { path: 'examples', rule: 'disk' },
@@ -426,6 +457,12 @@ describe('the repo it guards', () => {
       { path: 'ROADMAP.md', rule: 'disk' },
       { path: 'docs', rule: 'disk' },
       { path: 'packages/*/README.md', rule: 'disk' },
+      { path: 'apps/*/README.md', rule: 'disk' },
+      { path: 'AGENTS.md', rule: 'disk' },
+      { path: 'CHANGELOG.md', rule: 'disk' },
+      { path: 'CLAUDE.md', rule: 'disk' },
+      { path: 'LICENSE-THIRD-PARTY.md', rule: 'disk' },
+      { path: 'QUICK_REFERENCE.md', rule: 'disk' },
     ]);
   });
 
@@ -1310,5 +1347,115 @@ describe('packages/*/README.md joined the disk surface — objectui#3622', () =>
 
     expect(decidable.length).toBeGreaterThanOrEqual(150);
     expect(siteAbsolute.length).toBeGreaterThanOrEqual(40);
+  });
+});
+
+describe('objectui#4148 — the app READMEs and the rest of the repo root', () => {
+  /**
+   * The two surfaces this gate's own header had DOCUMENTED as unscanned, bought
+   * together. The live instance was `apps/console/README.md`, which linked twice
+   * to a `./CONSOLE_ROADMAP.md` that left the directory in `c988277ff`: both
+   * links were dead for about six months while `pnpm docs:check-links` reported
+   * green on every push, because `apps/` matched no scan root.
+   *
+   * These tests are fixture-based rather than assertions about the real tree, so
+   * they keep failing for the right reason after the real dead links are gone.
+   * The one exception is the last test, which is deliberately about the real
+   * tree: it is what stops this surface from silently reopening.
+   */
+  it('judges a dead link in an app README, and accepts a live one', () => {
+    // The row's whole purpose, in both directions at once — a green here that
+    // came from the surface not being scanned would have to explain the red.
+    const repo = repoWith({
+      ...SITE_FIXTURE,
+      'ROADMAP.md': '# Roadmap',
+      'apps/console/README.md': '[roadmap](../../ROADMAP.md) and [gone](./CONSOLE_ROADMAP.md)',
+      'apps/site/README.md': '[roadmap](../../ROADMAP.md)',
+    });
+
+    expect(scan(repo).map((item) => [path.relative(repo, item.file), item.href, item.reason])).toEqual([
+      [path.join('apps', 'console', 'README.md'), './CONSOLE_ROADMAP.md', 'example-relative'],
+    ]);
+  });
+
+  it('takes only the READMEs under apps/, not the markdown beside them', () => {
+    // The unbought class is stated as a decision, not left to be discovered:
+    // per-app CHANGELOGs are out with the package-internal markdown. Mirrors the
+    // objectui#3622 test one directory over.
+    expect(
+      rejections({
+        'apps/console/README.md': '[gone](./NOWHERE.md)',
+        'apps/console/CHANGELOG.md': '[also gone](./NOWHERE.md)',
+        'apps/console/docs/UI_IMPROVEMENT_PROPOSAL.md': '[also gone](./NOWHERE.md)',
+      }),
+    ).toEqual([['./NOWHERE.md', 'example-relative']]);
+  });
+
+  it('keeps the docs rules off app READMEs — the contrast pair', () => {
+    // `@object-ui/console` is published, so its README is read on npm and on
+    // GitHub and never served by the site: `disk`, for the same reason as a
+    // package README. The discriminator is the extensionless spelling, which the
+    // docs rule accepts as a route and GitHub 404s.
+    const repo = repoWith({
+      ...SITE_FIXTURE,
+      'content/docs/guide/console.md': '# Console',
+      'apps/console/README.md':
+        '[guide](../../content/docs/guide/console.md) and [bare](../../content/docs/guide/console)',
+    });
+
+    expect(scan(repo).map((item) => [path.relative(repo, item.file), item.href, item.reason])).toEqual([
+      [path.join('apps', 'console', 'README.md'), '../../content/docs/guide/console', 'example-relative'],
+    ]);
+  });
+
+  it('judges a dead link in a root-level file the header used to list as unscanned', () => {
+    // objectui#4149 had resolved QUICK_REFERENCE.md's links inside its own pin
+    // test, explicitly as a stopgap until this row existed. This is the row; that
+    // block was deleted with it, so this is now the only thing making the claim.
+    expect(
+      rejections({
+        'QUICK_REFERENCE.md': '[gone](./NOWHERE.md)',
+        'CLAUDE.md': '[also gone](./NOWHERE.md)',
+        'CHANGELOG.md': '[also gone](./NOWHERE.md)',
+        'AGENTS.md': '[also gone](./NOWHERE.md)',
+        'LICENSE-THIRD-PARTY.md': '[also gone](./NOWHERE.md)',
+      }),
+    ).toEqual([
+      ['./NOWHERE.md', 'example-relative'],
+      ['./NOWHERE.md', 'example-relative'],
+      ['./NOWHERE.md', 'example-relative'],
+      ['./NOWHERE.md', 'example-relative'],
+      ['./NOWHERE.md', 'example-relative'],
+    ]);
+  });
+
+  it('scans EVERY tracked root-level markdown file — the invariant that replaces the list', () => {
+    // The reverse direction, and the reason `LICENSE-THIRD-PARTY.md` is a row
+    // even though it carries no links today: the header used to name four
+    // unscanned root files, and a list of names is a thing that goes stale the
+    // next time someone adds a page. "All of them" does not, provided something
+    // holds it — this is that something. A new root-level markdown file with no
+    // SCAN_ROOTS row fails here, which is the only moment anyone is thinking
+    // about the file.
+    //
+    // Tracked files only, via git rather than readdir: an untracked stray at the
+    // root (a scratch note, or a generated `AGENTS.md` of the kind objectui#4149
+    // found `next dev` writing into `apps/site/`) is not this gate's business and
+    // must not redden the suite.
+    const tracked = execFileSync('git', ['ls-files', '--', '*.md'], { cwd: repoRoot, encoding: 'utf8' })
+      .split('\n')
+      .filter((line) => line.trim() !== '' && !line.includes('/'))
+      .sort();
+
+    const rows = new Set((SCAN_ROOTS as { path: string }[]).map((item) => item.path));
+    expect(
+      tracked.filter((file) => !rows.has(file)),
+      'every root-level markdown file needs its own SCAN_ROOTS row — the root has no glob spelling ' +
+        '(`expandWildcard()` expands a whole path segment, never `*.md`), so completeness here is per-file',
+    ).toEqual([]);
+
+    // Floor under the floor: if `git ls-files` ever returned nothing, the
+    // assertion above would pass while proving nothing at all.
+    expect(tracked.length).toBeGreaterThanOrEqual(8);
   });
 });

@@ -195,7 +195,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 /**
  * The two surfaces objectui#3697 names. Both are read by humans looking for the
  * version they must install, and both are already walked by `check-doc-links.mjs`
- * (scan roots 1 and 7) — this gate adds a second question about the same files.
+ * (its `content/docs` and package-README rows — named rather than numbered, since
+ * that table has grown twice since) — this gate adds a second question about the
+ * same files.
  */
 const SCAN_ROOTS = ['content/docs', 'packages/*/README.md'] as const;
 

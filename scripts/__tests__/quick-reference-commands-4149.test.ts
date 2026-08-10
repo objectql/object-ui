@@ -37,9 +37,15 @@ import { fileURLToPath } from 'node:url';
  *
  * Pinned: everything with a machine anchor — script names (root `package.json`
  * `scripts`), workspace package names and their scripts (the `pnpm-workspace.yaml`
- * globs), filesystem paths, the published-package count, and the internal links (this
- * file sits outside every `SCAN_ROOTS` entry in `scripts/check-doc-links.mjs`, so
- * nothing else resolves them).
+ * globs), filesystem paths, and the published-package count.
+ *
+ * The internal links used to be pinned here too, and are not any more. That block was
+ * written as an explicit stopgap: this page sat outside every `SCAN_ROOTS` entry in
+ * `scripts/check-doc-links.mjs`, so nothing that could fail a build resolved its links.
+ * objectui#4148 added the row, and the stopgap was deleted with it — the real gate
+ * judges this page on every push now, under the same `disk` rule as every other
+ * GitHub-read markdown file, and two implementations of one check is one more than gets
+ * maintained.
  *
  * Not pinned, on purpose: the prose descriptions, the comment text after each command,
  * and the dev-server ports of the examples — a port lives in a `vite.config.ts`
@@ -403,28 +409,6 @@ describe('QUICK_REFERENCE.md — the published-package count is derived', () => 
       misnamed.map((p) => `${p.dir} → ${p.name}`),
       `${docRel}'s \`packages/*\` row calls the published packages \`@object-ui/*\`, but these are not`,
     ).toEqual([]);
-  });
-});
-
-describe('QUICK_REFERENCE.md — internal links resolve', () => {
-  /**
-   * Nothing else checks them. `scripts/check-doc-links.mjs` scans seven roots
-   * (`content/docs`, `examples`, `README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `docs`,
-   * and each package README) and this page is in none of them — the same hole
-   * objectui#4148 recorded for `apps/**`. Widening `SCAN_ROOTS` is that card's business;
-   * this keeps the page honest in the meantime, at the cost of four lines.
-   */
-  it('points every relative link at something in the tree', () => {
-    const dead: string[] = [];
-    for (const match of doc.matchAll(/\[[^\]]*\]\((\.[^)]+)\)/g)) {
-      const target = match[1].split('#')[0];
-      if (target === '') continue;
-      if (!fs.existsSync(path.join(repoRoot, target))) dead.push(target);
-    }
-
-    expect(dead, `${docRel} links to ${JSON.stringify(dead)}, which ${dead.length === 1 ? 'is' : 'are'} not in the tree`).toEqual(
-      [],
-    );
   });
 });
 
