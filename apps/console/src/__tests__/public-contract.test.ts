@@ -231,8 +231,16 @@ const DELIBERATELY_UNCURATED: Record<string, string> = {
  * separators. Listing them here (rather than exempting them ad hoc) keeps
  * "zero inputs" a reviewed decision: a block that grows a configurable surface
  * while sitting in this list fails the assertion below in the other direction.
+ *
+ * `page:section` / `page:footer` / `page:sidebar` left this list in
+ * objectui#4027, and the entry they left is the reason: "reads nothing beyond
+ * `children`" was doing double duty as "therefore declares nothing", and the
+ * child list is exactly what a designer has to be able to authorize. All three
+ * now publish that one slot, matching the shared `PageContainerProps`
+ * objectstack#5775 (PR objectstack#6281) gave them upstream. `element:divider`
+ * stays: it renders no children at all.
  */
-const PROP_LESS_CURATED = ['element:divider', 'page:section', 'page:footer', 'page:sidebar'];
+const PROP_LESS_CURATED = ['element:divider'];
 
 describe('PUBLIC_BLOCKS ↔ console coverage (reverse direction)', () => {
   const shippedBlocks = (ns: string): string[] =>
