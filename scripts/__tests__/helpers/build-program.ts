@@ -57,6 +57,24 @@ import { rel, repoRoot, type WorkspacePackage } from './turbo-inputs';
  *    `$TURBO_ROOT$/tsconfig.json` is earned many times over by the 14 packages
  *    whose build IS a tsc run. The narrowing changes which packages the guard
  *    NAMES, not which files the task hashes.
+ *  - POSTCSS CONFIG DISCOVERY IS NOT MODELLED, and this one is a KNOWN BLIND
+ *    SPOT rather than a safe narrowing, so it is written down here and filed
+ *    rather than left for the next reader to rediscover. Vite hands CSS to
+ *    `postcss-load-config`, which searches UPWARD from the Vite root — so a
+ *    package that processes CSS through Vite and has no `postcss.config.*` of
+ *    its own would read the repo-root `postcss.config.mjs`, outside its
+ *    directory and unhashed. Measured: no package does BOTH today. Every
+ *    vite-build package that processes CSS (`apps/console`, `packages/components`,
+ *    `packages/runner`, the two console examples) carries its own postcss
+ *    config, which stops the upward walk; `packages/fields` is the only one
+ *    without a config, and its single `src/index.css` never enters the Vite
+ *    graph — nothing imports it, because `scripts/build-css.mjs` compiles it
+ *    separately with an explicit plugin list. So the root config is genuinely
+ *    outside every build program right now, which is why no input entry is
+ *    owed for it. But that is a COINCIDENCE of two facts, not a structural
+ *    guarantee: adding one `import './index.css'` to `packages/fields/src`
+ *    would pull the root postcss config into the build program, turbo would not
+ *    hash it, and this guard would not notice.
  *  - NO FILE-VALUED OPTIONS. Unlike a Vitest config, nothing in this repo's
  *    build configs names a program file through a string literal: entries are
  *    spelled `resolve(__dirname, 'src/index.tsx')`, which is an expression, and
