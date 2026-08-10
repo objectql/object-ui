@@ -156,6 +156,129 @@ function findInteractiveDemoBlocks(mdx, tagNames = ['InteractiveDemo', 'Componen
   return blocks;
 }
 
+// ── import rewriting ─────────────────────────────────────────────────────────
+
+const DEMO_MODULE = '@/app/components/ComponentDemo';
+
+/**
+ * Every `import { … } from '@/app/components/ComponentDemo';` statement in `mdx`,
+ * with its local binding names and the exact source span it occupies.
+ *
+ * The span deliberately swallows ONE trailing blank line: an MDX import sits in
+ * the `---\n\n<import>\n\n<body>` shape every file under `content/docs/` uses, so
+ * dropping only the import line would leave a double blank behind.
+ */
+function findDemoImports(mdx) {
+  const re = new RegExp(
+    String.raw`^[ \t]*import\s*\{([^}]*)\}\s*from\s*['"]` +
+      DEMO_MODULE.replace(/[/]/g, String.raw`\/`) +
+      String.raw`['"]\s*;?[ \t]*\r?\n(\r?\n)?`,
+    'gm',
+  );
+  const found = [];
+  let m;
+  while ((m = re.exec(mdx)) !== null) {
+    const specifiers = m[1]
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => {
+        const parts = s.split(/\s+as\s+/);
+        // `Imported as Local` — the body references the LOCAL name.
+        return { imported: parts[0].trim(), local: (parts[1] ?? parts[0]).trim(), source: s };
+      });
+    found.push({ start: m.index, end: m.index + m[0].length, text: m[0], specifiers });
+  }
+  return found;
+}
+
+/**
+ * `mdx` with fenced code blocks and inline code spans blanked out.
+ *
+ * A `<ComponentDemo>` printed inside a ```plaintext fence is documentation about
+ * the component, not a use of it — MDX never compiles it to an element. Counting
+ * it would keep an import alive that nothing renders, which is exactly the class
+ * of stale import objectui#3788 is about.
+ */
+function stripCode(mdx) {
+  return mdx
+    .replace(/^([ \t]*)(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\2[^\n]*$/gm, '')
+    .replace(/`[^`\n]*`/g, '');
+}
+
+/**
+ * Rewrite the demo-module imports of `mdx` so the named imports are exactly the
+ * ones the file still USES — the point of objectui#3788.
+ *
+ * The old rewrite matched one spelling of the statement
+ * (`/import\s*\{\s*InteractiveDemo[^}]*\}\s*from\s*…/`) and swapped it wholesale
+ * for `import { SchemaExample } …`. Files written as
+ * `import { ComponentDemo, DemoGrid } …` therefore had their CONTENT migrated to
+ * `<SchemaExample>` while the import stayed put, and ~106 of them accumulated in
+ * `content/docs/`. Deciding on usage instead of on spelling is what stops the
+ * pile from regrowing.
+ *
+ * @param {string} mdx      MDX source, AFTER the demo blocks have been migrated.
+ * @param {object} [opts]
+ * @param {string[]} [opts.ensure]  Names to add to the import when the body uses
+ *   them but no import declares them yet (the migration inserts `<SchemaExample>`
+ *   tags, so it passes `['SchemaExample']`). A name that is NOT used is never
+ *   added — an "ensured" unused import would be the same bug in a new spelling.
+ * @returns {string}
+ */
+function rewriteDemoImports(mdx, { ensure = [] } = {}) {
+  const imports = findDemoImports(mdx);
+  if (imports.length === 0) return mdx;
+
+  // Usage is judged against the body ONLY: an import statement naming
+  // `ComponentDemo` must never count as a use of `ComponentDemo`.
+  let body = '';
+  let cursor = 0;
+  for (const imp of imports) {
+    body += mdx.slice(cursor, imp.start);
+    cursor = imp.end;
+  }
+  body += mdx.slice(cursor);
+  const searchable = stripCode(body);
+  const isUsed = (local) => new RegExp(String.raw`<\/?${local}\b`).test(searchable);
+
+  // One statement carries the survivors; any further statements from the same
+  // module collapse into it (they are duplicates of the same binding source).
+  const seen = new Set();
+  const keep = [];
+  for (const imp of imports) {
+    for (const spec of imp.specifiers) {
+      if (seen.has(spec.local) || !isUsed(spec.local)) continue;
+      seen.add(spec.local);
+      keep.push(spec.source);
+    }
+  }
+  for (const name of ensure) {
+    if (!seen.has(name) && isUsed(name)) {
+      seen.add(name);
+      keep.push(name);
+    }
+  }
+
+  // Reuse the first statement's own trailing shape, so a file whose import is
+  // not followed by a blank line does not gain one.
+  const trailer = /\r?\n\r?\n$/.test(imports[0].text) ? '\n\n' : '\n';
+  const replacement = keep.length
+    ? `import { ${keep.join(', ')} } from '${DEMO_MODULE}';${trailer}`
+    : '';
+
+  let out = '';
+  cursor = 0;
+  for (const [i, imp] of imports.entries()) {
+    out += mdx.slice(cursor, imp.start);
+    // Only the first statement is rewritten; the rest are dropped outright.
+    if (i === 0) out += replacement;
+    cursor = imp.end;
+  }
+  out += mdx.slice(cursor);
+  return out;
+}
+
 function main() {
   const [category, mdxPath] = process.argv.slice(2);
   if (!category || !mdxPath) {
@@ -253,11 +376,11 @@ function main() {
   }
   newMdx += mdx.slice(cursor);
 
-  // Swap the import (if present) so the file uses SchemaExample.
-  newMdx = newMdx.replace(
-    /import\s*\{\s*InteractiveDemo[^}]*\}\s*from\s*['"]@\/app\/components\/ComponentDemo['"];?/,
-    `import { SchemaExample } from '@/app/components/ComponentDemo';`,
-  );
+  // Rewrite the import so its named imports are exactly what the migrated file
+  // still uses (plus SchemaExample, which the migration just started using).
+  // objectui#3788: the previous rewrite matched only the `InteractiveDemo`
+  // spelling, so `import { ComponentDemo, DemoGrid } …` files kept a dead import.
+  newMdx = rewriteDemoImports(newMdx, { ensure: ['SchemaExample'] });
 
   const outMdx = abs + '.migrated';
   fs.writeFileSync(outMdx, newMdx);
@@ -286,4 +409,10 @@ function main() {
   }
 }
 
-main();
+export { DEMO_MODULE, findDemoImports, rewriteDemoImports, stripCode };
+
+// Only run the CLI when executed directly — the import rewriter above is
+// imported by scripts/__tests__/extract-mdx-demos.test.ts.
+const invokedDirectly =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invokedDirectly) main();
