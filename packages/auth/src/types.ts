@@ -166,7 +166,36 @@ export interface AuthPublicConfig {
   socialProviders?: AuthSocialProvider[];
   features?: {
     twoFactor?: boolean;
+    /**
+     * RESERVED — declared so the `/auth/config` payload types cleanly, and
+     * consumed by nothing in this repository. Enabling it server-side adds
+     * **no** passkey entry point to the login page, because there is no passkey
+     * sign-in or registration UI for it to gate. Contrast `sso`,
+     * `phoneNumberOtp` and `deviceAuthorization` below, which each gate a real
+     * surface.
+     *
+     * Building the flow is objectui#4179, filed unscheduled. This marking
+     * follows the maintainer's 2026-08-03 ruling on objectui#2514: document the
+     * flag as reserved now, build the UI when the login surface gets roadmap
+     * time (at which point it renders driven by this flag).
+     *
+     * Pinned by `__tests__/reserved-auth-features.test.ts`. That pin fails the
+     * moment a consumer appears, because the declaration, this doc comment and
+     * `README.md`'s reserved section have to retire in one PR — see the pin's
+     * docblock for the retirement checklist.
+     */
     passkeys?: boolean;
+    /**
+     * RESERVED — declared so the `/auth/config` payload types cleanly, and
+     * consumed by nothing in this repository. Enabling it server-side adds
+     * **no** "email me a sign-in link" entry point to the login page: there is
+     * neither a magic-link request step nor a route that consumes the emailed
+     * token.
+     *
+     * Same ruling, same follow-up card and same pin as `passkeys` above
+     * (objectui#2514 / objectui#4179 /
+     * `__tests__/reserved-auth-features.test.ts`).
+     */
     magicLink?: boolean;
     organization?: boolean;
     /**
