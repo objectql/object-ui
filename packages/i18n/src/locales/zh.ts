@@ -2631,6 +2631,8 @@ const zh = {
       title: '构建历史',
       description: '此应用的每一次变更，最新的在最前。撤销任一步骤即可回退 —— 无需确认发布。',
       loadFailed: '无法加载历史记录：',
+      loadFailedUnavailable:
+        '提交存储暂时不可达 —— 本次读取并未发生，因此不显示任何历史记录。请稍后重试。',
       loading: '正在加载历史记录…',
       empty: '此应用暂无历史记录。',
       revertLabel: '已撤销一处变更',
@@ -2640,6 +2642,8 @@ const zh = {
       revertAction: '撤销',
       reverted: '已撤销 —— 该变更已还原。',
       revertFailed: '撤销失败',
+      revertUnavailable:
+        '提交存储暂时不可达 —— 此次撤销可能尚未生效。请重新打开历史记录确认后再重试。',
     },
   },
   renderer: {

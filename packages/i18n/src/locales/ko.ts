@@ -3355,6 +3355,8 @@ const ko = {
       title: '빌드 기록',
       description: '이 앱의 모든 변경을 최신순으로 표시합니다. 어떤 단계든 되돌려 취소할 수 있습니다 — 게시 확인은 필요하지 않습니다.',
       loadFailed: '기록을 불러올 수 없습니다:',
+      loadFailedUnavailable:
+        '커밋 저장소에 일시적으로 연결할 수 없습니다 — 이번 읽기는 수행되지 않았으므로 기록이 표시되지 않습니다. 잠시 후 다시 시도하세요.',
       loading: '기록을 불러오는 중…',
       empty: '이 앱의 기록이 아직 없습니다.',
       revertLabel: '변경을 되돌렸습니다',
@@ -3364,6 +3366,8 @@ const ko = {
       revertAction: '되돌리기',
       reverted: '되돌렸습니다 — 변경이 취소되었습니다.',
       revertFailed: '되돌리기 실패',
+      revertUnavailable:
+        '커밋 저장소에 일시적으로 연결할 수 없습니다 — 되돌리기가 적용되지 않았을 수 있습니다. 이 기록을 다시 열어 확인한 후 재시도하세요.',
     },
   },
   filterBuilder: {

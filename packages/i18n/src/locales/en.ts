@@ -2717,6 +2717,11 @@ const en = {
       title: 'Build history',
       description: 'Every change to this app, newest first. Revert any step to undo it — no publish confirmation needed.',
       loadFailed: 'Could not load history:',
+      // objectui#3529 — the retryable class gets its own sentence: a 503 means
+      // the read never reached the commit store, which is a different operator
+      // disposition from a 404/500 and must not read as a bare status code.
+      loadFailedUnavailable:
+        'Commit store temporarily unreachable — this read did not happen, so no history is shown. Retry in a moment.',
       loading: 'Loading history…',
       empty: 'No history yet for this app.',
       revertLabel: 'Reverted a change',
@@ -2726,6 +2731,10 @@ const en = {
       revertAction: 'Revert',
       reverted: 'Reverted — the change has been undone.',
       revertFailed: 'Revert failed',
+      // The WRITE half of the same fact. Not "try again": the revert may have
+      // landed before the 503, and re-issuing appends a second revert commit.
+      revertUnavailable:
+        'Commit store temporarily unreachable — the revert may not have been applied. Reopen this history to check before retrying.',
     },
   },
   renderer: {

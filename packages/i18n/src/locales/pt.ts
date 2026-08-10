@@ -3355,6 +3355,8 @@ const pt = {
       title: 'Histórico de compilações',
       description: 'Todas as alterações deste app, as mais recentes primeiro. Desfaça qualquer etapa para revertê-la — não é necessário confirmar a publicação.',
       loadFailed: 'Não foi possível carregar o histórico:',
+      loadFailedUnavailable:
+        'Armazenamento de commits temporariamente inacessível — esta leitura não aconteceu, portanto nenhum histórico é exibido. Tente novamente em instantes.',
       loading: 'Carregando histórico…',
       empty: 'Ainda não há histórico para este app.',
       revertLabel: 'Uma alteração foi desfeita',
@@ -3364,6 +3366,8 @@ const pt = {
       revertAction: 'Desfazer',
       reverted: 'Desfeito — a alteração foi revertida.',
       revertFailed: 'Falha ao desfazer',
+      revertUnavailable:
+        'Armazenamento de commits temporariamente inacessível — a reversão pode não ter sido aplicada. Reabra este histórico para verificar antes de tentar novamente.',
     },
   },
   filterBuilder: {

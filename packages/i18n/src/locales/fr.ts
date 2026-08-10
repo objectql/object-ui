@@ -3356,6 +3356,8 @@ const fr = {
       title: 'Historique des générations',
       description: 'Toutes les modifications de cette application, les plus récentes d\'abord. Annulez n\'importe quelle étape — aucune confirmation de publication n\'est nécessaire.',
       loadFailed: 'Impossible de charger l\'historique :',
+      loadFailedUnavailable:
+        'Magasin de commits temporairement injoignable — cette lecture n\'a pas eu lieu, aucun historique n\'est donc affiché. Réessayez dans un instant.',
       loading: 'Chargement de l\'historique…',
       empty: 'Aucun historique pour cette application.',
       revertLabel: 'Modification annulée',
@@ -3365,6 +3367,8 @@ const fr = {
       revertAction: 'Annuler',
       reverted: 'Annulé — la modification a été retirée.',
       revertFailed: 'Échec de l\'annulation',
+      revertUnavailable:
+        'Magasin de commits temporairement injoignable — l\'annulation n\'a peut-être pas été appliquée. Rouvrez cet historique pour le vérifier avant de réessayer.',
     },
   },
   filterBuilder: {

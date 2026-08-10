@@ -3360,6 +3360,8 @@ const es = {
       title: 'Historial de compilaciones',
       description: 'Todos los cambios de esta aplicación, los más recientes primero. Deshaga cualquier paso para revertirlo — no hace falta confirmar la publicación.',
       loadFailed: 'No se pudo cargar el historial:',
+      loadFailedUnavailable:
+        'Almacén de commits temporalmente inaccesible — esta lectura no se produjo, por lo que no se muestra ningún historial. Vuelva a intentarlo en un momento.',
       loading: 'Cargando historial…',
       empty: 'Aún no hay historial para esta aplicación.',
       revertLabel: 'Se deshizo un cambio',
@@ -3369,6 +3371,8 @@ const es = {
       revertAction: 'Deshacer',
       reverted: 'Deshecho — el cambio se ha revertido.',
       revertFailed: 'Error al deshacer',
+      revertUnavailable:
+        'Almacén de commits temporalmente inaccesible — es posible que la reversión no se haya aplicado. Vuelva a abrir este historial para comprobarlo antes de reintentar.',
     },
   },
   filterBuilder: {

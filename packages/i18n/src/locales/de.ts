@@ -3356,6 +3356,8 @@ const de = {
       title: 'Build-Verlauf',
       description: 'Jede Änderung an dieser App, neueste zuerst. Machen Sie jeden Schritt rückgängig — eine Veröffentlichungsbestätigung ist nicht nötig.',
       loadFailed: 'Verlauf konnte nicht geladen werden:',
+      loadFailedUnavailable:
+        'Commit-Speicher vorübergehend nicht erreichbar — dieser Lesevorgang hat nicht stattgefunden, daher wird kein Verlauf angezeigt. Versuchen Sie es gleich erneut.',
       loading: 'Verlauf wird geladen…',
       empty: 'Für diese App gibt es noch keinen Verlauf.',
       revertLabel: 'Eine Änderung rückgängig gemacht',
@@ -3365,6 +3367,8 @@ const de = {
       revertAction: 'Rückgängig',
       reverted: 'Rückgängig gemacht — die Änderung wurde zurückgenommen.',
       revertFailed: 'Rückgängig machen fehlgeschlagen',
+      revertUnavailable:
+        'Commit-Speicher vorübergehend nicht erreichbar — das Rückgängigmachen wurde möglicherweise nicht angewendet. Öffnen Sie diesen Verlauf erneut, um dies zu prüfen, bevor Sie es noch einmal versuchen.',
     },
   },
   filterBuilder: {
