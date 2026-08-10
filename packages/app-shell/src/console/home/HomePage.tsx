@@ -291,7 +291,7 @@ export function HomePage() {
    *      last resort rather than a broken link.
    */
   const approvalsAppSegment =
-    appRouteSegment(matchAppBySegment(activeApps as any[], currentAppName)) ??
+    appRouteSegment(matchAppBySegment(activeApps, currentAppName)) ??
     appRouteSegment(activeApps[0]) ??
     'setup';
 

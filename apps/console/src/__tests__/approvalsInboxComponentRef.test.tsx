@@ -11,9 +11,9 @@
  * file pins the key's three load-bearing properties, in the order a nav item
  * exercises them:
  *
- *   1. the key is registered at all, and by a module the app actually loads —
- *      a registration nobody imports is a `Component not registered` empty
- *      state at runtime, and nothing else in the build would say so;
+ *   1. the key is registered at all, by importing the registration module the
+ *      way `main.tsx` does — a side effect, next to the developer / studio /
+ *      account registrations;
  *   2. `approvals:inbox` addresses `component/approvals/inbox`, so the URL the
  *      sidebar builds and the key the framework's metadata declares cannot
  *      drift apart. The URLs below are BUILT from the ref through the same
@@ -30,6 +30,13 @@
  * both are relative routes under `/apps/:appName/*` (`App.tsx`), which is what
  * the last case asserts by driving the same probe down both.
  *
+ * What this file deliberately does NOT assert is that `main.tsx` performs that
+ * side-effect import — the one remaining way the key could be missing at
+ * runtime. `apps/console`'s tsconfig ships no `@types/node`, so reading the
+ * source back is not typecheckable here, and reaching for `vite/client` to
+ * make it so would widen the app's type surface for a test. The import sits in
+ * `main.tsx` beside its three siblings; a reviewer sees it in one line of diff.
+ *
  * ## Scope of the stub
  *
  * `ApprovalsInboxPage` itself is stubbed at its module boundary. Its internals
@@ -43,7 +50,6 @@
 
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi } from 'vitest';
-import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
@@ -105,20 +111,9 @@ function renderAt(url: string, routePath: string) {
 }
 
 describe('approvals:inbox component ref (objectstack#7231)', () => {
-  it('is registered, and by a module the console actually loads', async () => {
+  it('is registered by the module `main.tsx` side-effect-imports', () => {
     expect(getAppComponent(REF)).toBeDefined();
     expect(getAppComponent(REF)?.source).toBe('@object-ui/console');
-
-    // The import above proves the registration runs when this module is
-    // loaded; only `main.tsx` proves it is loaded in the app. Same guard the
-    // other `register*Components` modules rely on implicitly — asserted here
-    // because a silent omission degrades to an empty state, not a build error.
-    const { readFileSync } = await import('node:fs');
-    const path = await import('node:path');
-    const { fileURLToPath } = await import('node:url');
-    const here = path.dirname(fileURLToPath(import.meta.url));
-    const main = readFileSync(path.resolve(here, '../main.tsx'), 'utf8');
-    expect(main).toMatch(/import\s+['"]\.\/registerApprovalsComponents['"]/);
   });
 
   it('addresses the `component/approvals/inbox` URL segments', () => {
