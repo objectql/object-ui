@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import ts from 'typescript';
+import { outOfPackageProgramFiles } from './config-program';
 import { rel, repoRoot, type WorkspacePackage } from './turbo-inputs';
 
 /**
@@ -29,7 +29,14 @@ import { rel, repoRoot, type WorkspacePackage } from './turbo-inputs';
  *     entry pulls in `apps/console/vitest.config.ts` and the two
  *     `scripts/vite-*.ts` plugins that one imports.
  *
- * ## Narrowings, stated so they are visible rather than assumed
+ * Steps 2 and 3 are the generic walk, shared with the ESLint and build
+ * derivations since objectui#4184 / objectui#4185: see `./config-program.ts`,
+ * whose docblock carries the narrowings all of them share (bare specifiers not
+ * followed, designation key-directed, unresolvable designated paths throw).
+ * What is specific to Vitest, and lives here, is only which file the walk
+ * STARTS from and which option names designate files.
+ *
+ * ## Narrowings specific to this derivation
  *
  *  - THE CONFIGURATION PROGRAM, not the module closure of the tests. Vitest
  *    resolves `@object-ui/*` through the root config's alias table straight to
@@ -39,22 +46,10 @@ import { rel, repoRoot, type WorkspacePackage } from './turbo-inputs';
  *    `dependsOn: ["^build"]` and per-package `$TURBO_DEFAULT$` already answer
  *    source. The failure being guarded is "change the SHARED TEST HARNESS, get
  *    a stale verdict", and the harness is exactly this program.
- *  - DESIGNATION IS KEY-DIRECTED, not every string in the file. A literal
- *    counts as a designated path only inside one of the file-valued options
- *    above. The root config also holds ~45 concrete test-file paths in
- *    `domTsTests` / `heavyDomTests`; those are `include` / `exclude` inputs to
- *    project definitions, covered by their own packages' inputs — not files
- *    this program reads. A literal under a designating key that LOOKS like a
- *    concrete source path and does not resolve throws rather than being
- *    skipped, so a renamed setup file cannot quietly leave the program.
- *  - BARE SPECIFIERS ARE NOT FOLLOWED. `vitest.setup.dom.tsx` imports
- *    `@object-ui/components` for its registration side effects; that is the
- *    alias closure of the first point, not a config file.
- *
- * Every narrowing errs the same way: toward requiring MORE files, and toward
- * throwing on a shape not understood. An approximation that comes out
- * "covered" is a file waved through while turbo does not hash it —
- * wrong-and-red is recoverable, wrong-and-green is the bug.
+ *  - The root config holds ~45 concrete test-file paths in `domTsTests` /
+ *    `heavyDomTests`; those are `include` / `exclude` inputs to project
+ *    definitions, covered by their own packages' inputs — not files this
+ *    program reads. That is the key-directed rule in action.
  */
 
 // ── Which config file Vitest actually loads ─────────────────────────────────
@@ -74,8 +69,8 @@ export const CONFIG_FILES = CONFIG_NAMES.flatMap((name) =>
   CONFIG_EXTENSIONS.map((extension) => name + extension),
 );
 
-/** Extensions tried, in order, when a relative specifier carries none. */
-export const RESOLVE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'];
+/** Re-exported for callers that used to import it from here. */
+export { RESOLVE_EXTENSIONS } from './config-program';
 
 /** Vitest options whose value names FILES rather than globs or data. */
 export const FILE_VALUED_OPTIONS = new Set(['setupFiles', 'globalSetup', 'projects', 'workspace']);
@@ -157,90 +152,6 @@ export function resolveConfigFile(invocation: VitestInvocation): string | null {
   }
 }
 
-// ── Walking the configuration program ───────────────────────────────────────
-
-/** Resolve a relative specifier to a file on disk, trying Vitest's extensions. */
-function resolveRelative(fromFile: string, specifier: string): string | null {
-  const base = path.resolve(path.dirname(fromFile), specifier);
-  const candidates = [
-    base,
-    ...RESOLVE_EXTENSIONS.map((extension) => base + extension),
-    ...RESOLVE_EXTENSIONS.map((extension) => path.join(base, `index${extension}`)),
-  ];
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate;
-  }
-  return null;
-}
-
-/** Does this literal look like a concrete source path rather than a glob or a name? */
-function looksLikeSourcePath(literal: string): boolean {
-  if (/[*?{}[\]]/.test(literal)) return false;
-  return RESOLVE_EXTENSIONS.some((extension) => literal.endsWith(extension));
-}
-
-/**
- * Every relative module specifier a source file imports, and every path it
- * designates through a file-valued Vitest option.
- *
- * Parsed with TypeScript's own parser rather than regexes — `.mts`, `.tsx` and
- * plain `.mjs` all land here, and a specifier inside a comment or a string must
- * not count.
- */
-export function programEdges(file: string): { imports: string[]; designated: string[] } {
-  const source = ts.createSourceFile(
-    file,
-    fs.readFileSync(file, 'utf8'),
-    ts.ScriptTarget.Latest,
-    /* setParentNodes */ true,
-    file.endsWith('x') ? ts.ScriptKind.TSX : undefined,
-  );
-
-  const imports: string[] = [];
-  const designated: string[] = [];
-
-  const literalValue = (node: ts.Node): string | null =>
-    ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) ? node.text : null;
-
-  /** Collect every literal under a file-valued option's value. */
-  const collectDesignated = (node: ts.Node): void => {
-    const value = literalValue(node);
-    if (value !== null) {
-      designated.push(value);
-      return;
-    }
-    node.forEachChild(collectDesignated);
-  };
-
-  const visit = (node: ts.Node): void => {
-    if (
-      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
-      node.moduleSpecifier !== undefined
-    ) {
-      const value = literalValue(node.moduleSpecifier);
-      if (value !== null) imports.push(value);
-    } else if (
-      ts.isCallExpression(node) &&
-      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-        (ts.isIdentifier(node.expression) && node.expression.text === 'require')) &&
-      node.arguments.length > 0
-    ) {
-      const value = literalValue(node.arguments[0]);
-      if (value !== null) imports.push(value);
-    } else if (
-      ts.isPropertyAssignment(node) &&
-      (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name)) &&
-      FILE_VALUED_OPTIONS.has(node.name.text)
-    ) {
-      collectDesignated(node.initializer);
-    }
-    node.forEachChild(visit);
-  };
-  visit(source);
-
-  return { imports, designated };
-}
-
 /**
  * Every file a package's Vitest configuration program reads from outside the
  * package directory, repo-relative and sorted.
@@ -248,51 +159,10 @@ export function programEdges(file: string): { imports: string[]; designated: str
 export function outOfPackageFiles(pkg: WorkspacePackage): string[] {
   const entry = resolveConfigFile(invocationFor(pkg.dir, pkg.script));
   if (entry === null) return [];
-
-  const found = new Set<string>();
-  const seen = new Set<string>();
-  const queue = [entry];
-
-  while (queue.length > 0) {
-    const file = queue.shift()!;
-    if (seen.has(file)) continue;
-    seen.add(file);
-    if (path.relative(pkg.dir, file).startsWith('..')) found.add(rel(file));
-
-    const { imports, designated } = programEdges(file);
-
-    for (const specifier of imports) {
-      // Bare specifiers are node_modules or workspace packages — the alias
-      // closure this guard deliberately does not follow (see the docblock).
-      if (!specifier.startsWith('.')) continue;
-      const resolved = resolveRelative(file, specifier);
-      if (resolved === null) {
-        throw new Error(
-          `${rel(file)} imports ${JSON.stringify(specifier)}, which resolves to no file on disk. ` +
-            `Teach resolveRelative() about it rather than letting the program shrink silently.`,
-        );
-      }
-      queue.push(resolved);
-    }
-
-    for (const literal of designated) {
-      // A designated path is spelled either relative to the designating file
-      // (`'../../vitest.setup.tsx'`) or as `path.resolve(<this file's dir>, …)`
-      // — `__dirname` / `import.meta.dirname`, which IS that directory. Both
-      // resolve the same way, so the base is the file, not the cwd.
-      const resolved = resolveRelative(file, literal);
-      if (resolved !== null) {
-        queue.push(resolved);
-        continue;
-      }
-      if (looksLikeSourcePath(literal)) {
-        throw new Error(
-          `${rel(file)} designates ${JSON.stringify(literal)} through a file-valued Vitest ` +
-            `option, and it resolves to no file on disk. A renamed setup file must go red here, ` +
-            `not drop out of the program.`,
-        );
-      }
-    }
-  }
-  return [...found].sort();
+  return outOfPackageProgramFiles({
+    tool: 'Vitest',
+    entries: [entry],
+    pkgDir: pkg.dir,
+    fileValuedOptions: FILE_VALUED_OPTIONS,
+  });
 }

@@ -109,13 +109,13 @@ export function packagesWithScript(script: string): WorkspacePackage[] {
 }
 
 /**
- * The `$TURBO_ROOT$`-anchored `inputs` of a task, as repo-relative globs.
+ * The declared `inputs` of a task, verbatim.
  *
- * Everything else in the list is package-relative and therefore cannot reach
- * outside the package directory — turbo has no `..` escape, which is why
- * `$TURBO_ROOT$` exists at all.
+ * A task with no `inputs` at all is not "unconfigured" — it is running on
+ * turbo's default, which is the defect all four guards exist to close, so the
+ * absence throws rather than reading as an empty list.
  */
-export function rootAnchoredInputs(task: string): string[] {
+export function taskInputs(task: string): string[] {
   const turbo = JSON.parse(fs.readFileSync(turboConfigPath, 'utf8')) as {
     tasks?: Record<string, { inputs?: string[] }>;
   };
@@ -123,8 +123,18 @@ export function rootAnchoredInputs(task: string): string[] {
   if (!definition) throw new Error(`turbo.json must define a \`${task}\` task`);
   const inputs = definition.inputs ?? [];
   if (inputs.length === 0) throw new Error(`turbo.json \`${task}\` must declare \`inputs\``);
+  return inputs;
+}
 
-  return inputs
+/**
+ * The `$TURBO_ROOT$`-anchored `inputs` of a task, as repo-relative globs.
+ *
+ * Everything else in the list is package-relative and therefore cannot reach
+ * outside the package directory — turbo has no `..` escape, which is why
+ * `$TURBO_ROOT$` exists at all.
+ */
+export function rootAnchoredInputs(task: string): string[] {
+  return taskInputs(task)
     .filter((entry) => entry.startsWith('$TURBO_ROOT$/'))
     .map((entry) => entry.slice('$TURBO_ROOT$/'.length));
 }

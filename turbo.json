@@ -11,7 +11,13 @@
         "**/*.tsbuildinfo",
         "!**/node_modules/**"
       ],
-      "env": ["NODE_ENV", "VITE_BASE_PATH", "OBJECTSTACK_CLIENT_DIST"]
+      "env": ["NODE_ENV", "VITE_BASE_PATH", "OBJECTSTACK_CLIENT_DIST"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tsconfig.json",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/scripts/vite-*.ts"
+      ]
     },
     "test": {
       "dependsOn": ["^build"],
@@ -42,7 +48,12 @@
     },
     "lint": {
       "outputs": [],
-      "cache": true
+      "cache": true,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/eslint.config.js",
+        "$TURBO_ROOT$/eslint-rules/*.js"
+      ]
     },
     "type-check": {
       "dependsOn": ["^build"],

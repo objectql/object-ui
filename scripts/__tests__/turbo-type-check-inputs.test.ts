@@ -1,7 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import fs from 'node:fs';
-import path from 'node:path';
-import ts from 'typescript';
 import {
   globToRegExp,
   packagesWithScript,
@@ -9,6 +6,7 @@ import {
   repoFilesOnDisk,
   rootAnchoredInputs,
 } from './helpers/turbo-inputs';
+import { outOfPackageFiles } from './helpers/tsc-program';
 
 /**
  * objectui#3514 — turbo's `type-check` `inputs` list is hand-maintained, and it
@@ -70,11 +68,19 @@ import {
  * The turbo-side plumbing this file used to carry inline — workspace discovery,
  * reading `$TURBO_ROOT$` entries out of `turbo.json`, and matching an input
  * glob — now lives in `./helpers/turbo-inputs.ts`, shared with the sibling
- * guard `turbo-test-inputs.test.ts` (objectui#4178, the same defect on the
- * `test` task). Only the DERIVATION differs between the two, and it differs in
- * kind: tsc programs here, Vitest configuration programs there. Two copies of a
- * glob matcher whose whole doctrine is "never approximate toward a match" is
- * exactly the drift neither guard would survive.
+ * guards `turbo-test-inputs.test.ts` (objectui#4178), `turbo-lint-inputs.test.ts`
+ * (objectui#4184) and `turbo-build-inputs.test.ts` (objectui#4185) — the same
+ * defect on the `test`, `lint` and `build` tasks. Only the DERIVATION differs
+ * between them, and it differs in kind: tsc programs here, Vitest configuration
+ * programs there, an ESLint flat-config program for `lint`, and a union of all
+ * of those for `build`. Two copies of a glob matcher whose whole doctrine is
+ * "never approximate toward a match" is exactly the drift none of them would
+ * survive.
+ *
+ * The tsc derivation itself moved out for the same reason when `build` came to
+ * need it: it is `./helpers/tsc-program.ts` now, and that module's docblock
+ * carries the mechanism and its narrowings. This file carries only the policy
+ * over the result.
  */
 
 /** The turbo task this guard is about. */
@@ -90,110 +96,6 @@ const TASK = 'type-check';
  * include objectui#3476 found in `apps/console/tsconfig.node.json`.
  */
 const INPUTS_NOT_DERIVABLE: ReadonlyMap<string, string> = new Map();
-
-// ── The type-check program, as the scripts actually drive it ─────────────────
-
-interface TscInvocation {
-  /** Absolute path of the tsconfig this segment compiles. */
-  readonly project: string;
-  /** `tsc -b` / `--build`, which also compiles the project's references. */
-  readonly build: boolean;
-}
-
-/**
- * The tsc projects a package's `type-check` script drives.
- *
- * Every shape in the repo today is a `&&` chain of `tsc` calls: a bare
- * `tsc --noEmit` (the package's own `tsconfig.json`), `tsc -p <config>` for the
- * `tsconfig.test.json` / `tsconfig.typetests.json` companions, and
- * `apps/console`'s `tsc -b tsconfig.node.json --force`. A segment that runs tsc
- * in a shape this parser cannot read throws rather than being skipped: an
- * unparsed segment is an unswept program.
- */
-function invocationsFor(pkgDir: string, script: string): TscInvocation[] {
-  const invocations: TscInvocation[] = [];
-  for (const segment of script.split('&&')) {
-    const command = segment.trim();
-    if (!/(?:^|\s)tsc(?:\s|$)/.test(command)) continue;
-
-    const build = /(?:^|\s)(?:-b|--build)(?:\s|$)/.test(command);
-    const named = command.match(/(?:^|\s)(?:-p|--project|-b|--build)\s+([^\s]+)/);
-    if (build && !named) {
-      throw new Error(
-        `${rel(pkgDir)}: \`${command}\` builds without naming a project. Teach ` +
-          `invocationsFor() how to resolve it.`,
-      );
-    }
-    const project = path.resolve(pkgDir, named ? named[1] : 'tsconfig.json');
-    if (!fs.existsSync(project)) {
-      throw new Error(`${rel(pkgDir)}: \`${command}\` drives ${rel(project)}, which does not exist.`);
-    }
-    invocations.push({ project, build });
-  }
-  return invocations;
-}
-
-/**
- * A tsconfig parsed the way `tsc` parses it, so `fileNames` is the real program
- * root set rather than a re-implementation of TypeScript's glob semantics.
- *
- * `readJsonConfigFile` (not `readConfigFile`) is what makes `extendedSourceFiles`
- * available — the `extends` chain, which is the half of "the program" that a
- * file-list-only reading misses.
- */
-function parseProject(configPath: string): { parsed: ts.ParsedCommandLine; extended: string[] } {
-  const sourceFile = ts.readJsonConfigFile(configPath, ts.sys.readFile);
-  const parsed = ts.parseJsonSourceFileConfigFileContent(
-    sourceFile,
-    ts.sys,
-    path.dirname(configPath),
-    undefined,
-    configPath,
-  );
-  const fatal = parsed.errors.find((e) => e.category === ts.DiagnosticCategory.Error);
-  expect(
-    fatal && `${rel(configPath)}: ${ts.flattenDiagnosticMessageText(fatal.messageText, ' ')}`,
-    `${rel(configPath)} must parse as a tsconfig`,
-  ).toBeFalsy();
-  return { parsed, extended: sourceFile.extendedSourceFiles ?? [] };
-}
-
-/**
- * Every file a package's type-check program reads from outside the package
- * directory, repo-relative and sorted.
- */
-function outOfPackageFiles(pkgDir: string, script: string): string[] {
-  const found = new Set<string>();
-  const seen = new Set<string>();
-  const queue = invocationsFor(pkgDir, script);
-
-  while (queue.length > 0) {
-    const { project, build } = queue.shift()!;
-    if (seen.has(project)) continue;
-    seen.add(project);
-
-    const { parsed, extended } = parseProject(project);
-    // The config file itself belongs to the program too — a referenced or
-    // extended config living outside the package is exactly as load-bearing as
-    // a source file, and just as invisible to `$TURBO_DEFAULT$`.
-    for (const file of [project, ...extended, ...parsed.fileNames]) {
-      if (path.relative(pkgDir, file).startsWith('..')) found.add(rel(file));
-    }
-
-    // `tsc -b` compiles referenced projects as well; `tsc -p` does not.
-    if (build) {
-      for (const reference of parsed.projectReferences ?? []) {
-        const target = reference.path.endsWith('.json')
-          ? reference.path
-          : path.join(reference.path, 'tsconfig.json');
-        queue.push({ project: target, build: true });
-      }
-    }
-  }
-  return [...found].sort();
-}
-
-// ── turbo.json inputs ────────────────────────────────────────────────────────
 
 // ── The derivation, computed once ────────────────────────────────────────────
 
