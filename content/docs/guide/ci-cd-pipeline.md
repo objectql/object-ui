@@ -199,10 +199,11 @@ This is a **real PR gate**, and it is easy to miss because it is not part of CI 
 **It gates errors, not warnings.** `--max-warnings` is deliberately unset: the repository carries
 thousands of warnings (overwhelmingly `no-explicit-any`, plus React Compiler rules the config
 downgrades on purpose), and failing on those would make the gate unusable. What must stay clean are
-the rules `eslint.config.js` sets to `error` — including the custom `object-ui/*` ratchets
-(ADR-0054 Phase 5, #2879, the `objectql.ts` ratchet, `no-dynamic-import-in-test-hook`). Until #2923
-this workflow was `workflow_dispatch`-only, so every one of those `error` ratchets was inert: each
-was written specifically to fail CI, and nothing ran them.
+the rules [`eslint.config.js`](https://github.com/objectstack-ai/objectui/blob/main/eslint.config.js)
+sets to `error` — including the custom `object-ui/*` ratchets, each of which carries the ADR or
+issue it came from in a comment beside the rule itself. Until #2923 this workflow was
+`workflow_dispatch`-only, so every one of those `error` ratchets was inert: each was written
+specifically to fail CI, and nothing ran them.
 
 ## Control Bytes (`control-bytes.yml`)
 
