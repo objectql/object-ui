@@ -513,7 +513,15 @@ describe('objectui#3546 slice seven — the ratchet residue', () => {
       ['common.record', 'home.recentApps.itemType.record'],
       ['common.retry', 'lookup.retry'],
       ['dashboard.loading', 'lookup.loading'],
-      ['detail.add', 'report.editor.fieldPickerAdd'],
+      // `['detail.add', 'report.editor.fieldPickerAdd']` stood here until
+      // objectui#4145 retired the whole `report.editor.*` namespace. The row is
+      // dropped rather than re-anchored because there is no longer anything to
+      // disagree with: `detail.add` is now the ONLY key in `en` whose value is
+      // "Add" (measured across the pack, not assumed), so the "one English
+      // string, two renderings" failure this list guards has no second site to
+      // occur at. Re-anchoring to a key with a different English string would
+      // have invented a premise instead of pinning one. Its translations were
+      // taken from the retired neighbour and are unchanged by that retirement.
       // The one family member that IS reused: `Pending` is rendered by a verb or
       // an invariant adjective in every pack (`ru` "Ожидает"), so unlike the
       // other four it carries no gender to disagree with.
@@ -562,9 +570,16 @@ describe('objectui#3546 slice seven — the ratchet residue', () => {
     expect(at(builtInLocales.ru, 'layout.systemNav.administration')).toBe('Администрирование');
 
     // `Datasources` — the plural nav label; the singular concept is already
-    // translated as a field label, and the sibling nav entries are plural.
-    expect(at(builtInLocales.en, 'report.editor.objectName')).toBe('Data source');
-    expect(at(builtInLocales.ru, 'report.editor.objectName')).toBe('Источник данных');
+    // translated elsewhere, and the sibling nav entries are plural.
+    //
+    // The singular anchor was `report.editor.objectName` until objectui#4145
+    // retired that namespace. `appDesigner.dataSource` replaces it and carries
+    // the premise unchanged: it is byte-identical to the retired key in all nine
+    // non-`en` packs (differing in `en` only as "Data Source" vs "Data source"),
+    // so the ru singular↔plural contrast this premise rests on is the same
+    // contrast, read from a key that still exists.
+    expect(at(builtInLocales.en, 'appDesigner.dataSource')).toBe('Data Source');
+    expect(at(builtInLocales.ru, 'appDesigner.dataSource')).toBe('Источник данных');
     expect(at(builtInLocales.ru, 'layout.systemNav.datasources')).toBe('Источники данных');
     expect(at(builtInLocales.ru, 'layout.systemNav.organizations')).toBe('Организации');
 
