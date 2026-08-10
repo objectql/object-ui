@@ -20,17 +20,12 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import { Card } from '@object-ui/components';
 import { AuthLayout } from './AuthLayout';
 import { followOauthAuthorize } from './followAuthorize';
+// Was a second module-private copy of LoginPage's helper; both now share one
+// implementation — objectui#4181. Behaviour here is unchanged.
+import { withConsoleBase } from '../../utils/consoleBase';
 
 function isSafeRedirect(target: string | null): target is string {
   return !!target && target.startsWith('/') && !target.startsWith('//');
-}
-
-/** Prefix a router-relative path with the Console basename for full-page
- * navigations (see LoginPage for the detailed rationale). */
-function withConsoleBase(path: string): string {
-  if (path.startsWith('/_')) return path;
-  const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
-  return base + (path.startsWith('/') ? path : `/${path}`);
 }
 
 function RouterLink(props: { href: string; className?: string; children: React.ReactNode }) {
