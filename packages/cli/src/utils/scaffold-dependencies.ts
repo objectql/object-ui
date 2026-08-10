@@ -143,5 +143,5 @@ export const SCAFFOLD_DEV_DEPENDENCIES: Record<string, string> = {
   postcss: '^8.5.26',
   tailwindcss: '^4.3.3',
   typescript: '^6.0.3',
-  vite: '^8.2.0'
+  vite: '^8.2.1'
 };

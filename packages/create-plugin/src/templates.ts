@@ -64,7 +64,7 @@ export const VITEST_SETUP_FILE = 'vitest.setup.ts';
  * | `@vitejs/plugin-react`      | `^6.0.5`  | every `packages/plugin-*` (not in root)    |
  * | `jsdom`                     | `^30.0.1` | repo root package.json                     |
  * | `typescript`                | `^6.0.3`  | repo root package.json                     |
- * | `vite`                      | `^8.2.0`  | repo root package.json                     |
+ * | `vite`                      | `^8.2.1`  | repo root package.json                     |
  * | `vite-plugin-dts`           | `^5.0.3`  | every `packages/plugin-*` (not in root)    |
  * | `vitest`                    | `^4.1.10` | repo root package.json                     |
  *
@@ -89,7 +89,7 @@ const DEV_DEPENDENCIES: Record<string, string> = {
   '@vitejs/plugin-react': '^6.0.5',
   jsdom: '^30.0.1',
   typescript: '^6.0.3',
-  vite: '^8.2.0',
+  vite: '^8.2.1',
   'vite-plugin-dts': '^5.0.3',
   vitest: '^4.1.10'
 };

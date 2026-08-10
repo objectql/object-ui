@@ -1079,7 +1079,14 @@ describe('generation onto disk', () => {
         if (!name.startsWith('@object-ui/')) continue;
         expect(range, `${name} in the written manifest`).toBe(`^${cliVersion}`);
       }
-      expect(manifest.dependencies?.['lucide-react']).toBe('^1.28.0');
+      // Anchored, not a literal. This line held `'^1.28.0'` hard-coded and so
+      // was a second, weaker copy of the anchor rule above pointing the other
+      // way: it went red the moment the template was moved onto the repo's real
+      // range, making a correct fix look like a regression (objectui#4098).
+      // A literal here is the very fossil generator this file exists to stop.
+      expect(manifest.dependencies?.['lucide-react']).toBe(
+        Object.keys(inRepoRangesOf('lucide-react')).sort()[0]
+      );
     });
   });
 });
