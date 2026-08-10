@@ -60,58 +60,24 @@ Components reference these tokens through Tailwind:
 <button className="bg-primary text-primary-foreground" />
 ```
 
-## Tailwind Configuration
+## Tailwind Setup
 
-Extend your `tailwind.config.js` to map tokens to Tailwind utilities:
+There is no `tailwind.config.js` step. ObjectUI is Tailwind 4, which is configured in CSS: the packages have no such file of their own, and consuming them does not need one on your side either.
 
-```js
-// tailwind.config.js
-export default {
-  darkMode: "class",
-  content: [
-    "./src/**/*.{ts,tsx}",
-    "./node_modules/@object-ui/components/dist/**/*.js",
-  ],
-  theme: {
-    extend: {
-      colors: {
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
-        },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
-        },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        border: "hsl(var(--border))",
-        ring: "hsl(var(--ring))",
-      },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-      },
-      fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui"],
-      },
-    },
-  },
-};
+Import the published stylesheets after your own Tailwind entry:
+
+```css
+/* src/index.css */
+@import "tailwindcss";
+@import "@object-ui/components/style.css";
+@import "@object-ui/fields/style.css";
 ```
+
+`style.css` is the stylesheet each package compiles at build time from its own sources — the subpath is a real export, mapped to the package's `dist/index.css`. It already carries every utility its components use **and** the `@theme` block those utilities are built on, so the whole Shadcn palette (`bg-background`, `bg-primary`, `border-input`, `ring-ring`) arrives with the import. You do not restate those tokens in a config of your own.
+
+Do **not** point Tailwind at the packages inside `node_modules` — neither with a v4 `@source` line nor a v3 `content` entry. Scanning the published files regenerates the shape-only utilities (`inline-flex`, `rounded-md`, `h-9`) that `style.css` already contains, and it cannot produce the themed ones at all: the `@theme` block they come from lives in the package's own source, which is not published. Your Tailwind entry goes on generating the classes *your* source uses, exactly as before.
+
+To recolour ObjectUI, override the token values rather than the utilities — either the `:root` custom properties shown above, or a `Theme` object handed to `ThemeProvider` (see below). Both re-theme every component without any scanning.
 
 ## Component Variants with `cva`
 
@@ -220,7 +186,7 @@ function ModeToggle() {
 }
 ```
 
-Ensure your Tailwind config uses `darkMode: "class"` so that `.dark` scoped utilities work correctly.
+There is no `darkMode` option to set on your side. ObjectUI declares the class-based dark variant in its own CSS — `@custom-variant dark (&:where(.dark, .dark *))` — so `.dark`-scoped utilities are already compiled into the stylesheet you import. What you do need is for the `dark` class to sit on an ancestor of your components; `ThemeProvider` puts it on `document.documentElement` for you.
 
 ## Custom Component Themes
 

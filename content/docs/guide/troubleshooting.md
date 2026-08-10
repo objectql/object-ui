@@ -44,25 +44,20 @@ npx objectui doctor
 
 **Symptom:** Tailwind utility classes are not applied. Components render without styling.
 
-**Cause:** The `content` paths in your Tailwind config do not include ObjectUI package files.
+**Cause:** You are not importing the stylesheet the ObjectUI packages publish. Their utilities — including every themed one, such as `bg-primary` and `border-input` — are compiled at build time into the package's `style.css`, and nothing in your own build can reproduce the themed ones.
 
-**Fix:** Update your `tailwind.config.ts` (or `postcss.config.mjs`) to scan ObjectUI packages inside `node_modules`:
+**Fix:** Import them in your main CSS file, after your own Tailwind entry:
 
-```typescript
-// tailwind.config.ts
-export default {
-  content: [
-    './src/**/*.{ts,tsx}',
-    './node_modules/@object-ui/components/**/*.{js,ts,tsx}',
-    './node_modules/@object-ui/fields/**/*.{js,ts,tsx}',
-    './node_modules/@object-ui/layout/**/*.{js,ts,tsx}',
-    './node_modules/@object-ui/plugin-*/**/*.{js,ts,tsx}',
-  ],
-  // ...
-};
+```css
+/* src/index.css */
+@import 'tailwindcss';
+@import '@object-ui/components/style.css';
+@import '@object-ui/fields/style.css';
 ```
 
-Also ensure `postcss.config.mjs` is present at the project root (see `postcss.config.mjs` in the monorepo root for reference).
+`@object-ui/components` and `@object-ui/fields` are the packages that publish a `style.css` subpath; the others carry no stylesheet of their own. Then check that the Tailwind 4 build plugin is actually installed and wired up — `@tailwindcss/postcss` in `postcss.config.mjs`, or `@tailwindcss/vite` in `vite.config.ts`. Without it, `@import 'tailwindcss'` is passed through as a plain CSS import and no utilities are generated at all.
+
+> **Do not** try to fix this by adding `node_modules` paths to a `content` array or an `@source` line. ObjectUI is Tailwind 4 and has no `tailwind.config.js`; Tailwind 4 does not load one unless you opt in with `@config`, so on most projects those paths do nothing whatsoever. Even when they are read, scanning the published files only regenerates the shape-only utilities (`inline-flex`, `rounded-md`, `h-9`) that `style.css` already contains — it can never produce the themed ones, because the `@theme` block declaring their tokens lives in the package's unpublished source. Missing theme colours are always the missing `style.css` import, never a missing path.
 
 ## 3. Missing Peer Dependencies
 
