@@ -19,7 +19,7 @@
  * nothing at jsdom's zero-size container.
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, waitFor } from '@testing-library/react';
 
 let lastSchema: any = null;
@@ -33,7 +33,44 @@ vi.mock('../ChartRenderer', () => ({
 
 import { ObjectChart } from '../ObjectChart';
 
+/**
+ * objectui#4106 — answer ObjectChart's option-color probe from a double.
+ *
+ * `objectName: 'deal'` makes ObjectChart resolve the category dimension's
+ * option colors via `GET /api/v1/meta/object/deal` on the GLOBAL `fetch`
+ * (ObjectChart.tsx:352) — under happy-dom a REAL request, 4 per run here (one
+ * per test). The effect swallows the rejection by design, so the suite stayed
+ * green while stderr filled with `connect ECONNREFUSED 127.0.0.1:3000`.
+ *
+ * `{}` reproduces that failure's observable outcome exactly: no options →
+ * `buildOptionColorMap` returns null, the state the catch branch already set.
+ * The compareTo assertions below are untouched by it.
+ */
+function installMetaFetchDouble(routes: Record<string, unknown> = {}) {
+  const calls: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown) => {
+      const url = String(
+        input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+      );
+      calls.push(url);
+      return { ok: true, json: async () => routes[url] ?? {} };
+    }),
+  );
+  return calls;
+}
+
+let metaCalls: string[] = [];
+
+beforeEach(() => {
+  metaCalls = installMetaFetchDouble();
+});
+
 afterEach(() => {
+  // Anything other than the option-color probe is a NEW escape — fail here.
+  expect(metaCalls.filter((u) => u !== '/api/v1/meta/object/deal')).toEqual([]);
+  vi.unstubAllGlobals();
   cleanup();
   lastSchema = null;
 });

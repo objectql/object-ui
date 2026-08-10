@@ -11,7 +11,7 @@
  * `buildChartSeries()`, so the lookup always fell back to the raw name.
  */
 import React from 'react';
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, cleanup, waitFor } from '@testing-library/react';
 
 vi.mock('recharts', async () => {
@@ -25,7 +25,50 @@ vi.mock('recharts', async () => {
 
 import { ObjectChart } from './ObjectChart';
 
-afterEach(cleanup);
+/**
+ * objectui#4106 — answer ObjectChart's dataset-definition probe from a double.
+ *
+ * A `dataset`-bound chart resolves its category dimension's option colors by
+ * first reading `GET /api/v1/meta/dataset/<dataset>` off the GLOBAL `fetch`
+ * (ObjectChart.tsx:344) to learn the underlying object. Under happy-dom that
+ * was a REAL request — 1 live escape per run from this file, failing
+ * fire-and-forget into `connect ECONNREFUSED 127.0.0.1:3000` while the test
+ * stayed green because the effect is best-effort by design.
+ *
+ * `{}` reproduces the failure's observable outcome exactly: with no `object`
+ * on the definition the effect returns early having set no colors and no
+ * dimension labels — the same state the swallowed rejection produced, and the
+ * same single request. The measure-label assertion below reads `queryDataset`'s
+ * `fields`, which this never touches. The two-hop path that a REAL definition
+ * unlocks is covered in `ObjectChart.optionColors.test.tsx`.
+ */
+function installMetaFetchDouble(routes: Record<string, unknown> = {}) {
+  const calls: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown) => {
+      const url = String(
+        input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+      );
+      calls.push(url);
+      return { ok: true, json: async () => routes[url] ?? {} };
+    }),
+  );
+  return calls;
+}
+
+let metaCalls: string[] = [];
+
+beforeEach(() => {
+  metaCalls = installMetaFetchDouble();
+});
+
+afterEach(() => {
+  // Anything other than the dataset-definition probe is a NEW escape.
+  expect(metaCalls.filter((u) => u !== '/api/v1/meta/dataset/showcase_task_metrics')).toEqual([]);
+  vi.unstubAllGlobals();
+  cleanup();
+});
 
 const makeDS = () => ({
   queryDataset: vi.fn().mockResolvedValue({

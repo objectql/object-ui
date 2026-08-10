@@ -20,7 +20,7 @@
  * segment click in jsdom would test the SVG geometry instead of the branch.
  */
 import React from 'react';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import { DrillNavigationProvider } from '@object-ui/react';
 
@@ -38,7 +38,56 @@ vi.mock('./ChartRenderer', () => ({
 
 import { ObjectChart } from './ObjectChart';
 
-afterEach(cleanup);
+/**
+ * objectui#4106 — answer ObjectChart's option-color probe from a double.
+ *
+ * Any schema carrying `objectName` makes ObjectChart resolve the category
+ * dimension's option colors, which reads `GET /api/v1/meta/object/<objectName>`
+ * off the GLOBAL `fetch` (ObjectChart.tsx:352). Under happy-dom that is a REAL
+ * request to the default origin, so this file fired 4 live requests per run —
+ * one per test. The effect swallows the rejection by design (best-effort: a
+ * failure just leaves the theme palette in place), which is why the suite
+ * stayed green while stderr filled with `connect ECONNREFUSED 127.0.0.1:3000`.
+ *
+ * The `{}` answer reproduces the failed request's observable outcome EXACTLY:
+ * `buildOptionColorMap(undefined)` returns null for a schema with no options,
+ * which is the same state the rejection's catch branch set. No assertion below
+ * changes meaning.
+ *
+ * Deliberately NOT a global error sink: it records every URL it is handed, so
+ * an escape to some OTHER endpoint fails the `afterEach` guard instead of
+ * vanishing into a swallowed rejection. The probe's own shape is asserted in
+ * `ObjectChart.optionColors.test.tsx`.
+ */
+function installMetaFetchDouble(routes: Record<string, unknown> = {}) {
+  const calls: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown) => {
+      const url = String(
+        input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+      );
+      calls.push(url);
+      return { ok: true, json: async () => routes[url] ?? {} };
+    }),
+  );
+  return calls;
+}
+
+let metaCalls: string[] = [];
+
+beforeEach(() => {
+  metaCalls = installMetaFetchDouble();
+});
+
+afterEach(() => {
+  // Every request this file makes must be the option-color probe. Anything
+  // else is a NEW escape to the real network — fail here rather than let it
+  // fail open into stderr noise again.
+  expect(metaCalls.filter((u) => u !== '/api/v1/meta/object/opportunity')).toEqual([]);
+  vi.unstubAllGlobals();
+  cleanup();
+});
 
 const schema = (drillDown: Record<string, unknown>) => ({
   type: 'object-chart',

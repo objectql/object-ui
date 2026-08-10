@@ -24,12 +24,57 @@
  * reads them.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, waitFor, cleanup } from '@testing-library/react';
 import React from 'react';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 // Registers `object-chart` via `ObjectChartBlock` (the wiring under test).
 import './index';
+
+/**
+ * objectui#4106 — answer ObjectChart's option-color probe from a double.
+ *
+ * Once `dataSource.object` maps onto `objectName`, ObjectChart resolves the
+ * category dimension's option colors via `GET /api/v1/meta/object/account` on
+ * the GLOBAL `fetch` (ObjectChart.tsx:352) — 3 live requests per run here (the
+ * unresolvable-`view` test never resolves an objectName, so it makes none).
+ *
+ * Note this file mounts a real `SchemaRendererProvider`: the host IS present
+ * and still does not intercept the probe, because ObjectChart reads the global
+ * `fetch` rather than the context's `apiFetch`. That gap is a product concern
+ * filed separately — this file only stops the escape.
+ *
+ * `{}` reproduces the failed request's observable outcome exactly (no options
+ * → `buildOptionColorMap` returns null, the same state the swallowed rejection
+ * produced), so no assertion below changes meaning.
+ */
+function installMetaFetchDouble(routes: Record<string, unknown> = {}) {
+  const calls: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown) => {
+      const url = String(
+        input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+      );
+      calls.push(url);
+      return { ok: true, json: async () => routes[url] ?? {} };
+    }),
+  );
+  return calls;
+}
+
+let metaCalls: string[] = [];
+
+beforeEach(() => {
+  metaCalls = installMetaFetchDouble();
+});
+
+afterEach(() => {
+  // Anything other than the option-color probe is a NEW escape — fail here.
+  expect(metaCalls.filter((u) => u !== '/api/v1/meta/object/account')).toEqual([]);
+  vi.unstubAllGlobals();
+  cleanup();
+});
 
 const HOT_VIEW = {
   name: 'hot',
