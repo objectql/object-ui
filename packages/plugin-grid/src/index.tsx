@@ -54,8 +54,10 @@ export type { SplitPaneGridProps } from './SplitPaneGrid';
  * The keys `ObjectGrid` reads for its own query — every one of them, which makes
  * this the only block where the spec's binding maps across without a gap.
  * `columns` is a FIELD list here (so a saved view's columns belong on it), the
- * filter and sort go straight to `$filter` / `$orderby`, and the row cap is read
- * as `pagination.pageSize` (`ObjectGrid.tsx`, `serverPageSize`).
+ * filter and sort reach `$filter` / `$orderby` (the filter via `toFilterNode`,
+ * the repo's single lowering hop before the wire — it passes the AST this gate
+ * composes through untouched), and the row cap is read as `pagination.pageSize`
+ * (`ObjectGrid.tsx`, `serverPageSize`).
  */
 const OBJECT_GRID_DATA_SOURCE: ElementDataSourceMapping = {
   columns: true,
@@ -86,15 +88,40 @@ export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> =
   );
 };
 
+/**
+ * The authoring surface for this block's query filter, in ONE spelling.
+ *
+ * It used to be published as plural `filters` while `ObjectGrid` read singular
+ * `schema.filter` and nothing anywhere read `schema.filters` (objectui#4041).
+ * Both halves were silent: `sdui-parser`'s save gate walks a node's props
+ * against these `inputs`, so `filters` was accepted and then dropped by the
+ * renderer — an author (very often an AI author) writing the published word got
+ * an unfiltered full-table answer with no error — while the spelling that
+ * actually works was reported as `unknown-prop`. The published vocabulary and
+ * the runtime read pointed at opposite keys.
+ *
+ * Resolved toward the implementation (maintainer ruling 2026-08-10, option A):
+ * the declaration is singular `filter`, aligned three ways — with the renderer's
+ * read point (`ObjectGrid.tsx`, `schema.filter`), with the sibling `list-view`
+ * block (`plugin-list/src/index.tsx`, `{ name: 'filter', … }`), and with the
+ * spec's own `filter` vocabulary. The plural is DELETED rather than taught to
+ * the renderer: it has zero read points on any ref, so no working in-the-wild
+ * usage depends on it, and reading it too would harden a misspelling into a
+ * second de-facto contract (AGENTS.md #0.1).
+ *
+ * Shared by both registrations below so the alias cannot drift from the block.
+ */
+const GRID_QUERY_INPUTS = [
+  { name: 'objectName', type: 'string', label: 'Object Name', required: true },
+  { name: 'columns', type: 'array', label: 'Columns' },
+  { name: 'filter', type: 'array', label: 'Filter' },
+] as const;
+
 ComponentRegistry.register('object-grid', ObjectGridRenderer, {
   namespace: 'plugin-grid',
   label: 'Object Grid',
   category: 'plugin',
-  inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'columns', type: 'array', label: 'Columns' },
-    { name: 'filters', type: 'array', label: 'Filters' },
-  ]
+  inputs: GRID_QUERY_INPUTS.map((i) => ({ ...i })),
 });
 
 // Alias for view namespace - this allows using { type: 'view:grid' } in schemas
@@ -107,11 +134,8 @@ ComponentRegistry.register('grid', ObjectGridRenderer, {
   skipFallback: true,
   label: 'Data Grid',
   category: 'view',
-  inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'columns', type: 'array', label: 'Columns' },
-    { name: 'filters', type: 'array', label: 'Filters' },
-  ]
+  // Same renderer, therefore the same declared surface — see GRID_QUERY_INPUTS.
+  inputs: GRID_QUERY_INPUTS.map((i) => ({ ...i })),
 });
 
 // Register import-wizard component
