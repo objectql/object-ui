@@ -52,10 +52,9 @@ npx objectui doctor
 /* src/index.css */
 @import 'tailwindcss';
 @import '@object-ui/components/style.css';
-@import '@object-ui/fields/style.css';
 ```
 
-`@object-ui/components` and `@object-ui/fields` are the packages that publish a `style.css` subpath; the others carry no stylesheet of their own. Then check that the Tailwind 4 build plugin is actually installed and wired up — `@tailwindcss/postcss` in `postcss.config.mjs`, or `@tailwindcss/vite` in `vite.config.ts`. Without it, `@import 'tailwindcss'` is passed through as a plain CSS import and no utilities are generated at all.
+`@object-ui/components` is the package that publishes a working `style.css`. (`@object-ui/fields` declares the same subpath, but its published package contains no stylesheet — see [#4059](https://github.com/objectstack-ai/objectui/issues/4059) — so importing it fails to resolve. Do not add it.) Then check that the Tailwind 4 build plugin is actually installed and wired up — `@tailwindcss/postcss` in `postcss.config.mjs`, or `@tailwindcss/vite` in `vite.config.ts`. Without it, `@import 'tailwindcss'` is passed through as a plain CSS import and no utilities are generated at all.
 
 > **Do not** try to fix this by adding `node_modules` paths to a `content` array or an `@source` line. ObjectUI is Tailwind 4 and has no `tailwind.config.js`; Tailwind 4 does not load one unless you opt in with `@config`, so on most projects those paths do nothing whatsoever. Even when they are read, scanning the published files only regenerates the shape-only utilities (`inline-flex`, `rounded-md`, `h-9`) that `style.css` already contains — it can never produce the themed ones, because the `@theme` block declaring their tokens lives in the package's unpublished source. Missing theme colours are always the missing `style.css` import, never a missing path.
 

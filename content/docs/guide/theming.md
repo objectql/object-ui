@@ -64,16 +64,15 @@ Components reference these tokens through Tailwind:
 
 There is no `tailwind.config.js` step. ObjectUI is Tailwind 4, which is configured in CSS: the packages have no such file of their own, and consuming them does not need one on your side either.
 
-Import the published stylesheets after your own Tailwind entry:
+Import the published stylesheet after your own Tailwind entry:
 
 ```css
 /* src/index.css */
 @import "tailwindcss";
 @import "@object-ui/components/style.css";
-@import "@object-ui/fields/style.css";
 ```
 
-`style.css` is the stylesheet each package compiles at build time from its own sources — the subpath is a real export, mapped to the package's `dist/index.css`. It already carries every utility its components use **and** the `@theme` block those utilities are built on, so the whole Shadcn palette (`bg-background`, `bg-primary`, `border-input`, `ring-ring`) arrives with the import. You do not restate those tokens in a config of your own.
+`style.css` is the stylesheet `@object-ui/components` compiles at build time from its own sources — the subpath is a real export, mapped to that package's `dist/index.css`. It already carries every utility its components use **and** the `@theme` block those utilities are built on, so the whole Shadcn palette (`bg-background`, `bg-primary`, `border-input`, `ring-ring`) arrives with the import. You do not restate those tokens in a config of your own.
 
 Do **not** point Tailwind at the packages inside `node_modules` — neither with a v4 `@source` line nor a v3 `content` entry. Scanning the published files regenerates the shape-only utilities (`inline-flex`, `rounded-md`, `h-9`) that `style.css` already contains, and it cannot produce the themed ones at all: the `@theme` block they come from lives in the package's own source, which is not published. Your Tailwind entry goes on generating the classes *your* source uses, exactly as before.
 

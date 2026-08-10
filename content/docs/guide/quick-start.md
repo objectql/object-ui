@@ -55,10 +55,9 @@ Add to your `src/index.css`:
 ```css
 @import "tailwindcss";
 @import "@object-ui/components/style.css";
-@import "@object-ui/fields/style.css";
 ```
 
-Each `style.css` is the stylesheet that package compiled from its own sources, and it already carries every utility its components use — the themed ones (`bg-primary`, `border-input`) included. That is the whole styling setup: you do not add `@source` lines for these packages, and pointing Tailwind at them inside `node_modules` only regenerates utilities the import already gave you.
+`style.css` is the stylesheet `@object-ui/components` compiled from its own sources, and it already carries every utility its components use — the themed ones (`bg-primary`, `border-input`) included. That is the whole styling setup: you do not add `@source` lines for the ObjectUI packages, and pointing Tailwind at them inside `node_modules` only regenerates utilities the import already gave you.
 
 ## Step 4: Render Your First Schema
 
