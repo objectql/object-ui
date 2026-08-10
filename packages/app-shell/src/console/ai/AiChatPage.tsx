@@ -100,6 +100,7 @@ import { LiveCanvas } from './LiveCanvas';
 import { artifactStudioPath } from './artifactStudioPath';
 import { BuildDebugDrawer } from './BuildDebugDrawer';
 import { isConversationZh } from './conversationLanguage';
+import { resolveOutboundAgentText, type OutboundAgentTextKey } from './outboundAgentText';
 
 const DEFAULT_AI_PATH = '/api/v1/ai';
 
@@ -1582,28 +1583,36 @@ export function ChatPane({
   // language, not the console UI locale: a Chinese thread under an English UI
   // was sending "Looks good — build it as proposed." into its own chat. The
   // gate (service-ai-studio) accepts both languages, so this is a cosmetic —
-  // but jarring — mismatch. Override the sent strings to Chinese when the
-  // conversation is Chinese; button LABELS stay on the UI locale.
+  // but jarring — mismatch. Button LABELS stay on the UI locale.
+  //
+  // That last clause is load-bearing: `planBuildingLabel` had drifted into this
+  // gate (#2632) and shipped the plan card's only Chinese word to English-UI
+  // readers while making the zh pack's `console.ai.planBuilding` unreachable for
+  // zh conversations (#3837). Nothing but OUTBOUND message text belongs below —
+  // a pin in `packages/i18n/src/__tests__/console-namespace-3546.test.tsx` fails
+  // if a `*Label` rejoins the gate.
+  //
+  // #3896 — the OTHER half of that rule. These sites used to read
+  // `convZh ? '<Chinese>' : t(key)`, and `t()` is the UI pack, so a zh console
+  // holding an English conversation sent Chinese into an English thread, and the
+  // ungated `planAnswerMessage` sent the UI locale in both directions.
+  // `outboundAgentText` resolves all four from the `zh`/`en` packs by
+  // conversation language and never consults the UI pack.
   const convZh = useMemo(
     () => isConversationZh(messages as ChatMessage[]) || isConversationZh(initialMessages),
     [messages, initialMessages],
   );
-  const planApproveMessage = convZh
-    ? '确认，开始搭建。'
-    : t('console.ai.planApproveMessage', { defaultValue: 'Looks good — build it as proposed.' });
-  const planApproveDefaultsMessage = convZh
-    ? '确认搭建，未决问题按你的合理假设和默认处理。'
-    : t('console.ai.planApproveDefaultsMessage', {
-        defaultValue: 'Build it with your best assumptions; use sensible defaults for the open questions.',
-      });
+  const outboundText = useCallback(
+    (key: OutboundAgentTextKey, vars?: Readonly<Record<string, string>>) =>
+      resolveOutboundAgentText(convZh, key, vars),
+    [convZh],
+  );
+  const planApproveMessage = outboundText('planApproveMessage');
+  const planApproveDefaultsMessage = outboundText('planApproveDefaultsMessage');
   // Same rule for the granular change-confirm card. It used to send a hard-coded
   // Chinese sentence regardless of the conversation, so an English user clicking
   // Confirm flipped the agent into Chinese for the rest of the thread (#2884).
-  const changesConfirmMessage = convZh
-    ? '确认修改，应用你刚才提议的改动。'
-    : t('console.ai.changesConfirmMessage', {
-        defaultValue: 'Confirm — apply the change you just proposed.',
-      });
+  const changesConfirmMessage = outboundText('changesConfirmMessage');
   // Verb column of the change rows. Unlike the message above these are LABELS,
   // so they follow the UI locale like every other label on the card.
   const changeVerbLabels = useMemo(
@@ -2191,9 +2200,7 @@ export function ChatPane({
         planApproveLabel={t('console.ai.planApprove', { defaultValue: 'Build it' })}
         planAdjustLabel={t('console.ai.planAdjust', { defaultValue: 'Adjust' })}
         planBuiltLabel={t('console.ai.planBuilt', { defaultValue: 'Built' })}
-        planBuildingLabel={
-          convZh ? '正在搭建…' : t('console.ai.planBuilding', { defaultValue: 'Building…' })
-        }
+        planBuildingLabel={t('console.ai.planBuilding', { defaultValue: 'Building…' })}
         planReadyLabel={t('console.ai.planReady', {
           defaultValue: 'The plan is ready. Build it now, or tell me what to adjust.',
         })}
@@ -2208,11 +2215,7 @@ export function ChatPane({
         changesConfirmMessage={changesConfirmMessage}
         changeVerbLabels={changeVerbLabels}
         planAnswerMessage={(question, option) =>
-          t('console.ai.planAnswerMessage', {
-            question,
-            option,
-            defaultValue: 'For "{{question}}", go with: {{option}}.',
-          })
+          outboundText('planAnswerMessage', { question, option })
         }
         // Self-use "magic moment": when the plan enables it, publish the drafted
         // app automatically the moment the agent finishes — no manual click; the

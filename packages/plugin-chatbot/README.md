@@ -55,7 +55,7 @@ function App() {
 ### AI Streaming Mode (service-ai)
 
 When `api` is set in the schema, the chatbot connects to a backend SSE endpoint
-using `@ai-sdk/react` v3 (Vercel UI Message Stream protocol) for streaming,
+using `@ai-sdk/react` v4 (Vercel UI Message Stream protocol) for streaming,
 tool-calling, and production-grade chat:
 
 ```tsx
@@ -210,17 +210,6 @@ const aiSchema = {
 | Tool calling | N/A | Supported via vercel/ai |
 | Stop/Reload | Stop cancels timer | Stop interrupts stream |
 | Backend | None required | service-ai (IAIService) |
-
-<!-- release-metadata:v3.3.0 -->
-
-## Compatibility
-
-- **React:** 18.x or 19.x
-- **Node.js:** ≥ 18
-- **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^3.3.0
-- **`@objectstack/client`:** ^3.3.0
-- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
 
 ## Links
 

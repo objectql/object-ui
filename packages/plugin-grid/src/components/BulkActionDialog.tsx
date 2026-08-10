@@ -586,7 +586,13 @@ const ParamField: React.FC<ParamFieldProps> = ({ param, multiple, value, onChang
       <div className="flex items-center justify-between">
         <Label htmlFor={id} className="text-xs">
           {param.label ?? param.name}
-          {param.required && <span className="text-destructive ml-0.5">*</span>}
+          {/* Visual-only (objectui#3299, aligned with app-shell's
+              `ActionParamDialog` in objectui#3967): the required STATE is
+              announced through `aria-required` on the control below. This
+              `*` sits inside a `<Label htmlFor>`, so without `aria-hidden`
+              accname folds it into the referenced control's name and every
+              required bulk param announces as "Label asterisk". */}
+          {param.required && <span className="text-destructive ml-0.5" aria-hidden="true">*</span>}
         </Label>
       </div>
       <Suspense fallback={<div className="h-9 w-full animate-pulse rounded-md bg-muted" aria-hidden="true" />}>
@@ -596,6 +602,18 @@ const ParamField: React.FC<ParamFieldProps> = ({ param, multiple, value, onChang
           value={value ?? null}
           onChange={onChange}
           field={field}
+          // Required is a STATE, so it rides the state channel to the control
+          // (objectui#3299) — deliberately NOT the native `required` attribute
+          // (#3290: that arms the browser's constraint bubble alongside this
+          // dialog's own `missing`/Next gating — two validators, one field).
+          // `param.required` is otherwise live only in the dialog's own
+          // pre-submit gate, so before this the control announced no required
+          // state at all. Widgets forward `aria-*` by prefix through their
+          // `toDomProps` whitelist, so it reaches the rendered control; none of
+          // them derives it from `field.required`. `|| undefined` keeps an
+          // optional param free of the attribute entirely (not `"false"`),
+          // matching `ActionParamDialog`.
+          aria-required={param.required || undefined}
           {...dataSourceProps}
         />
       </Suspense>

@@ -23,7 +23,7 @@ import {
   SelectItem 
 } from '../../ui/select';
 import { renderChildren } from '../../lib/utils';
-import { toControlValue, matchOptionValue } from './option-value';
+import { toControlValue, matchOptionValue, type OptionValue } from './option-value';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../../custom/resizable';
 import { Alert, AlertDescription } from '../../ui/alert';
@@ -231,7 +231,11 @@ const resolveWidgetType = (f: any): string => f?.widget || f?.field?.widget || f
 
 const BUILTIN_FIELD_TYPES = new Set(['input', 'textarea', 'checkbox', 'switch', 'select']);
 const DATA_SOURCE_FIELD_TYPES = new Set([
-  'lookup', 'master_detail', 'tree', 'capability-multiselect',
+  // `capability-multiselect` was listed here until objectui#3308 retired the
+  // widget name (ADR-0049 enforce-or-remove): no producer stamped the hint and
+  // `field:capability-multiselect` was never registered on the live path, so the
+  // entry could never match a resolvable widget.
+  'lookup', 'master_detail', 'tree',
   // Widget-hint pickers that resolve records / object catalogs and read sibling
   // field values — they need both `dataSource` and `dependentValues` threaded.
   'object-ref', 'filter-condition', 'recipient-picker',
@@ -317,6 +321,35 @@ function legacyConditionToCel(condition: FieldCondition | undefined): string | n
 
 function normalizeFieldType(type: string): string {
   return type.startsWith('field:') ? type.slice('field:'.length) : type;
+}
+
+/**
+ * How this field's label must be associated with what the widget renders
+ * (`ComponentMeta.labelling`, objectui#3961) — `'control'` for a labelable
+ * element (plain `<label for>`), `'group'` for a composite container or another
+ * non-labelable control (`aria-labelledby` by IDREF).
+ *
+ * The DECLARATION is authoritative; this function only resolves WHOSE
+ * declaration applies, and it mirrors `renderFieldComponent`'s resolution
+ * exactly so producer and consumer cannot disagree about which component will
+ * actually render:
+ *
+ *  - the builtin test is on the RAW type, exactly as there: a bare `select`
+ *    renders the builtin `<Select>` branch and the registry is never consulted,
+ *    while a `field:`-qualified `field:select` DOES resolve to the registered
+ *    widget. Normalizing before this test would let a widget's declaration
+ *    re-address the label of a builtin that renders in its place;
+ *  - only then is the `field:` prefix stripped, to the key `getMeta` stores.
+ *
+ * Anything undeclared — third-party widgets, bare-name SDUI components, an
+ * unregistered type — resolves to `'control'`: the single-control path, byte for
+ * byte what this renderer emitted before the declaration existed.
+ */
+function resolveFieldLabelling(type: string): 'control' | 'group' {
+  if (BUILTIN_FIELD_TYPES.has(type)) return 'control';
+  return ComponentRegistry.getMeta(normalizeFieldType(type), 'field')?.labelling === 'group'
+    ? 'group'
+    : 'control';
 }
 
 function stripRegisteredFieldProps(type: string, props: RenderFieldProps): RenderFieldProps {
@@ -504,6 +537,15 @@ function FullscreenTextarea({
 ComponentRegistry.register('form',
   ({ schema, className, onAction, ...props }: { schema: FormSchema; className?: string; onAction?: (action: any) => void; [key: string]: any }) => {
     const { t } = useSafeFormTranslation();
+    // Prefix for the label ids the GROUP-labelled fields need (objectui#3961).
+    // Owned here, not derived from `<FormItem>`'s own `useId()`: that id lives in
+    // a context published INSIDE `FormItem`, and this renderer builds the label
+    // element as a child of it — one render too early to read it. It is also the
+    // reason the fix needs no change to `ui/form.tsx` (AGENTS.md #7 no-touch):
+    // `<FormLabel>` spreads its props onto `Label` AFTER its own `htmlFor`, so
+    // both halves — give the label an `id`, take its `for` away — travel as
+    // ordinary props.
+    const labelIdPrefix = React.useId();
     const {
       defaultValues: authoredDefaultValues = {},
       // The persisted record being edited (absent ⇒ this is an insert). Binds
@@ -1572,6 +1614,22 @@ ComponentRegistry.register('form',
       // the form schema has no owning object.
       const fieldTestId = `field:${schema.objectName ? `${schema.objectName}.` : ''}${name}`;
 
+      // Group-labelled widget (objectui#3961)? Then the visible label is
+      // associated by IDREF instead of `for`: it gets an `id`, the widget gets
+      // `aria-labelledby`. `undefined` on the single-control path, and every use
+      // below is a conditional spread, so that path emits not one changed
+      // attribute — no second naming channel for the widgets that never needed
+      // one (the #3290 / #3222 / #3952 rule: one fact, one author).
+      //
+      // Whitespace is squeezed out of the field name because this id is consumed
+      // as an `aria-labelledby` IDREF, and that attribute is a SPACE-SEPARATED
+      // list: an id containing a space would silently resolve to two ids,
+      // neither of which exists.
+      const groupLabelId =
+        label && resolveFieldLabelling(resolvedType) === 'group'
+          ? `${labelIdPrefix}${String(name).replace(/\s+/g, '_')}-group-label`
+          : undefined;
+
       return (
         <FormField
           key={fieldKey}
@@ -1585,7 +1643,18 @@ ComponentRegistry.register('form',
               data-field={name}
             >
               {label && (
-                <FormLabel className="text-xs font-normal text-muted-foreground">
+                <FormLabel
+                  className="text-xs font-normal text-muted-foreground"
+                  // A group-labelled widget (objectui#3961) is named by IDREF:
+                  // publish the label's own `id` and drop the `for`. `htmlFor:
+                  // undefined` is not a no-op — `<FormLabel>` sets
+                  // `htmlFor={formItemId}` BEFORE spreading its props, so this
+                  // key removes the attribute. It has to go: a `for` naming a
+                  // `div` (or nothing at all) is inert HTML, and leaving it
+                  // beside the `aria-labelledby` would give one label two
+                  // association channels, one of which is broken.
+                  {...(groupLabelId ? { id: groupLabelId, htmlFor: undefined } : null)}
+                >
                   {label}
                   {required && (
                     // Purely visual redundancy now that `aria-required` rides
@@ -1712,6 +1781,19 @@ ComponentRegistry.register('form',
                   // UIs, one field. `aria-required` reports the state without
                   // triggering native validation.
                   'aria-required': required || undefined,
+                  // The IDREF half of the group-labelled association
+                  // (objectui#3961). Like `aria-required` this needs no new key
+                  // in the widget contract — `aria-*` is declared on it as
+                  // React's `AriaAttributes`, neither strip touches the prefix,
+                  // and `toDomProps` forwards the whole `aria-` family — so the
+                  // widget's existing spread carries it to the element it puts
+                  // the host's `id` on. The widgets that render a real composite
+                  // additionally answer with `role="group"`; `file`, whose single
+                  // control is a `div[role="button"]`, just takes the name.
+                  //
+                  // Spread conditionally so the single-control path receives no
+                  // such key at all: absent, not `undefined`.
+                  ...(groupLabelId ? { 'aria-labelledby': groupLabelId } : null),
                 })}
               </FormControl>
               {description && (
@@ -2116,6 +2198,101 @@ function BuiltinSelectEmptyState({
   );
 }
 
+/**
+ * The built-in (unregistered) `select` branch's control — objectui#3976.
+ *
+ * Radix's `Select.Root` renders NO DOM element of its own, so every prop it does
+ * not recognise is silently DROPPED instead of reaching an element. The branch
+ * used to spread its whole DOM pass-through onto that Root, which is where
+ * `<FormControl>`'s Slot puts the field's `id` / `aria-describedby` /
+ * `aria-invalid` and the call site puts `aria-required` — so a bare
+ * `{ type: 'select' }` rendered a visible `<FormLabel for="…-form-item">`
+ * pointing at an id NO element carried: the label was inert (clicking it did
+ * nothing) and the field had no accessible name, no error link and no required
+ * state at all.
+ *
+ * This is the exact mechanism objectui#3306 fixed on the WIDGET side
+ * (`SelectField` routes its pass-through to `SelectTrigger`); the built-in
+ * branch never followed, and the two `select` paths diverge because
+ * `BUILTIN_FIELD_TYPES` contains `'select'` — so a bare `type: 'select'` never
+ * consults the registry while an object-driven `field:select` does.
+ *
+ * A component (rather than inline JSX in the branch) is what makes the fix
+ * possible at all: the Slot injects into whatever ELEMENT the branch returns, so
+ * only a component boundary can receive those props and re-address them. Same
+ * reason `BuiltinSelectEmptyState` above is a component.
+ *
+ * The pass-through lands on `SelectTrigger` — the focusable
+ * `<button role="combobox">` the user and their screen reader actually interact
+ * with — with the same two deliberate exceptions #3306 kept on Root:
+ *
+ *  - `name`: the one key Root genuinely consumes — it forwards it to the hidden
+ *    native `<select>` that takes part in form submission. On the trigger it
+ *    would sit uselessly on a non-submitter `<button>`.
+ *  - `disabled`: Root is the single authority (it disables trigger, items and
+ *    the hidden select together), so the raw prop must not get a second author.
+ *
+ * `ref` rides the pass-through for the same reason the `aria-*` do: react-hook-form
+ * hands every field a `ref` and this branch dropped it on Root, so the built-in
+ * select was the one built-in control RHF could not focus. Forwarded here to the
+ * trigger, exactly like `input`/`textarea` hand theirs to a real element.
+ */
+type BuiltinSelectControlProps = {
+  options: SelectOption[];
+  placeholder?: string;
+  /** The AUTHORED value — stringified for Radix on the way in (#3090). */
+  value?: OptionValue | null;
+  /** Receives the AUTHORED option value, not Radix's string (#3090). */
+  onValueChange?: (next: OptionValue) => void;
+  disabled?: boolean;
+} & Omit<
+  React.ComponentPropsWithoutRef<typeof SelectTrigger>,
+  'value' | 'onValueChange' | 'disabled' | 'children'
+>;
+
+const BuiltinSelectControl = React.forwardRef<HTMLButtonElement, BuiltinSelectControlProps>(
+  function BuiltinSelectControl(
+    { options, placeholder, value, onValueChange, disabled, name, className, ...triggerDomProps },
+    ref,
+  ) {
+    return (
+      // Radix speaks strings: stringify going in, map the selection back to
+      // the AUTHORED option value coming out, so a numeric/boolean option
+      // round-trips typed instead of morphing to "2" in the payload (#3090).
+      <Select
+        name={name}
+        value={toControlValue(value)}
+        onValueChange={(v) => onValueChange?.(matchOptionValue(options, v))}
+        disabled={disabled}
+      >
+        <SelectTrigger
+          ref={ref}
+          {...triggerDomProps}
+          // `cn`-merged rather than spread-ordered: an authored `className` must
+          // be able to override the touch-target height without deleting it by
+          // accident, and this prop reached no element before the fix.
+          className={cn('min-h-[44px] sm:min-h-0', className)}
+        >
+          {/* No `|| 'Select an option'` — objectui#3272. The single call site
+              already supplies `t('common.selectOption')` for `select`, so the
+              literal was all but unreachable; the ONE stack that did reach it
+              was an authored `placeholder: ''` (the call site's `??` keeps an
+              empty string), where a second fallback overrode the author's
+              explicit blank with an untranslated English word. */}
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((opt: SelectOption) => (
+            <SelectItem key={String(opt.value)} value={String(opt.value)}>
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  },
+);
+
 function renderFieldComponent(type: string, props: RenderFieldProps) {
   // 1. Try to resolve specialized field widget from registry first.
   //    Form fields should always prefer the `field:<type>` namespace when
@@ -2290,33 +2467,19 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
         return <BuiltinSelectEmptyState emptyHint={emptyHint} />;
       }
 
+      // The DOM pass-through goes to the CONTROL, not to Radix's element-less
+      // Root (objectui#3976) — see `BuiltinSelectControl`. Spread first so the
+      // branch's own computations below win over anything the host forwarded,
+      // the #3222 discipline.
       return (
-        // Radix speaks strings: stringify going in, map the selection back to
-        // the AUTHORED option value coming out, so a numeric/boolean option
-        // round-trips typed instead of morphing to "2" in the payload (#3090).
-        <Select
-          value={toControlValue(selectValue)}
-          onValueChange={(v) => selectOnChange?.(matchOptionValue(options, v))}
-          disabled={selDisabled || readonly}
+        <BuiltinSelectControl
           {...selectProps}
-        >
-          <SelectTrigger className="min-h-[44px] sm:min-h-0">
-            {/* No `|| 'Select an option'` — objectui#3272. The single call site
-                already supplies `t('common.selectOption')` for `select`, so the
-                literal was all but unreachable; the ONE stack that did reach it
-                was an authored `placeholder: ''` (the call site's `??` keeps an
-                empty string), where a second fallback overrode the author's
-                explicit blank with an untranslated English word. */}
-            <SelectValue placeholder={placeholder} />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((opt: SelectOption) => (
-              <SelectItem key={String(opt.value)} value={String(opt.value)}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={options}
+          placeholder={placeholder}
+          value={selectValue}
+          onValueChange={selectOnChange}
+          disabled={selDisabled || readonly}
+        />
       );
     }
 

@@ -1,5 +1,12 @@
 {
-  "type": "image",
-  "name": "avatar",
-  "label": "Profile Picture"
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "avatar",
+      "label": "Profile Picture",
+      "type": "image"
+    }
+  ]
 }

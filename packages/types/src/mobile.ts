@@ -148,7 +148,21 @@ export type FetchCacheStrategy = 'cache-first' | 'network-first' | 'stale-while-
  * `useOffline` config, which keeps the spec's name (and its ledger entry,
  * objectui#3159) precisely because it IS that concept.
  *
- * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`.
+ * **The prefix is NOT reclaimable, unlike its two gesture siblings**
+ * (objectui#3363). `@objectstack/spec` did vacate `OfflineConfig` when
+ * `ui/offline` was deleted (objectstack#4988, PR objectstack#5321) — but the
+ * spec was never the only claimant. This rename was a CROSS-PACKAGE
+ * arbitration between two objectui packages, and `@object-ui/react` won it:
+ * `useOffline`'s config is the offline DATA model key for key, so it holds
+ * `OfflineConfig`. Since objectui#3560 that name is declared locally in
+ * `packages/react/src/hooks/useOffline.ts` rather than re-exported from the
+ * spec, so the retirement did not free it — it only changed who owns it.
+ * Taking it back here would put two different `OfflineConfig` shapes on the
+ * public surface of two packages that are routinely imported together, which
+ * is the exact ambiguity objectstack#4115 renamed this away from.
+ *
+ * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts` (both the spec side
+ * and the `@object-ui/react` owner, so neither reason can expire unnoticed).
  */
 export interface PWAOfflineConfig {
   /** Enable offline support */
@@ -188,35 +202,45 @@ export interface OfflineRoute {
 /**
  * Touch gesture types — objectui's **direction-fused** gesture vocabulary.
  *
- * Renamed off the spec's `GestureType` name (objectstack#4115): the spec models
- * a gesture and its direction separately (`swipe | pinch | long_press |
- * double_tap | drag | rotate | pan`, with direction inside
- * `GestureConfig.swipe.direction`), while objectui folds direction into the
- * name (`swipe-left`, `swipe-up`, …). The two unions therefore agree on only
- * three members, and neither is a subset of the other — objectui has `tap`, the
- * spec has `drag`.
+ * Held the prefixed name `TouchGestureType` from objectstack#4115 until
+ * objectui#3363: `@objectstack/spec` owned `GestureType`, and the two unions
+ * agree on only three members (the spec modelled gesture and direction
+ * separately — `swipe | pinch | long_press | double_tap | drag | rotate | pan`,
+ * with direction inside its `GestureConfig.swipe.direction` — while objectui
+ * folds direction into the name: `swipe-left`, `swipe-up`, …). Neither was a
+ * subset of the other; objectui has `tap`, the spec had `drag`.
  *
- * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`.
+ * `@objectstack/spec` 17.0.0-rc.3 deleted the whole `ui/touch` module
+ * (objectstack#4988, PR objectstack#5321), vacating the name, so the natural
+ * name is reclaimed here rather than letting the workaround outlive its reason
+ * (objectui#3169). The retired spec vocabulary still lives in this file, under
+ * the deliberately prefixed {@link SpecGestureType} — that prefix is what now
+ * carries the distinction the `Touch` prefix used to.
+ *
+ * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts` — it fails if the
+ * spec ever claims `GestureType` back.
  */
-export type TouchGestureType ='tap' | 'double-tap' | 'long-press' | 'swipe-left' | 'swipe-right' | 'swipe-up' | 'swipe-down' | 'pinch' | 'rotate' | 'pan';
+export type GestureType ='tap' | 'double-tap' | 'long-press' | 'swipe-left' | 'swipe-right' | 'swipe-up' | 'swipe-down' | 'pinch' | 'rotate' | 'pan';
 
 /**
- * Gesture handler configuration — binds one {@link TouchGestureType} to an
+ * Gesture handler configuration — binds one {@link GestureType} to an
  * action name.
  *
- * Renamed off the spec's `GestureConfig` name (objectstack#4115) for the same
- * reason as its `type` field: the spec's `GestureConfig` is a per-gesture
- * TUNING record (`{ type, label, enabled, swipe: { direction, threshold,
- * velocity }, pinch: { minScale, maxScale }, longPress: { duration,
- * moveTolerance } }`) with no notion of what the gesture DOES. This one is a
- * handler binding: flat, and its whole point is `action`, which the spec's has
- * no room for.
+ * Held the prefixed name `TouchGestureConfig` from objectstack#4115 until
+ * objectui#3363, for the same reason as its `type` field: the spec's
+ * `GestureConfig` was a per-gesture TUNING record (`{ type, label, enabled,
+ * swipe: { direction, threshold, velocity }, pinch: { minScale, maxScale },
+ * longPress: { duration, moveTolerance } }`) with no notion of what the gesture
+ * DOES. This one is a handler binding: flat, and its whole point is `action`,
+ * which the spec's had no room for. That shape did not go away — it is
+ * {@link SpecGestureConfig} below, now owned by this package — but the spec no
+ * longer exports the bare name, so the dialect takes it back.
  *
  * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`.
  */
-export interface TouchGestureConfig {
+export interface GestureConfig {
   /** Gesture type */
-  type: TouchGestureType;
+  type: GestureType;
   /** Action to execute */
   action: string;
   /** Minimum distance for swipe gestures (pixels) */
@@ -232,7 +256,7 @@ export interface TouchGestureConfig {
 /** Touch gesture context */
 export interface GestureContext {
   /** Gesture type that was detected */
-  type: TouchGestureType;
+  type: GestureType;
   /** Start position */
   startPosition: { x: number; y: number };
   /** End position */
@@ -258,7 +282,7 @@ export interface MobileComponentConfig {
   /** Mobile-specific overrides */
   mobileOverrides?: MobileOverrides;
   /** Touch gesture handlers */
-  gestures?: TouchGestureConfig[];
+  gestures?: GestureConfig[];
   /** Pull-to-refresh configuration */
   pullToRefresh?: {
     enabled: boolean;
@@ -271,4 +295,109 @@ export interface MobileComponentConfig {
     threshold?: number;
     loadMore?: string;
   };
+}
+
+// ============================================================================
+// Spec Touch Vocabulary (formerly `@objectstack/spec/ui`)
+// ============================================================================
+// `@objectstack/spec` 17.0.0-rc.3 deleted the whole `ui/touch` module along
+// with the four other interaction-config modules (objectstack#4988, PR
+// objectstack#5321). None of them had an authoring door — no metadata document
+// could ever carry a touch block — so the platform stopped publishing
+// vocabulary nothing could author, and a stack that parsed before the
+// retirement parses byte-for-byte the same after it.
+//
+// The declarations below are that vocabulary moved here verbatim: same keys,
+// same members, same optionality as the retired `z.infer` types this file's
+// consumers used to reach through the `@objectstack/spec/ui` re-export block in
+// `index.ts`. `@object-ui/mobile`'s `useSpecGesture` / `useTouchTarget` are the
+// only implementations of these semantics in the repo, so this package is now
+// their owner. Nothing about either hook's behaviour changes.
+//
+// The `Spec…` prefix on {@link SpecGestureConfig} is kept deliberately, and
+// objectui#3363 has now made it the ONLY thing carrying the distinction: the
+// sibling dialect above shed its own `Touch` prefix and is plain
+// {@link GestureConfig} / {@link GestureType}. The two are still a DIFFERENT
+// contract with different members (`swipe-left` vs `swipe` + a direction
+// array), so both prefixed names below stay exactly as they are — dropping
+// `Spec…` too would collapse the pair the rename just made legible.
+
+/**
+ * Gesture kinds the retired `ui/touch` vocabulary recognised.
+ *
+ * Declared as a runtime `as const` tuple, not a bare union, and that is
+ * deliberate. `@object-ui/mobile`'s `gesture-spec-parity.test.tsx` pinned
+ * `SPEC_GESTURE_TYPE_MAP` against `GestureTypeSchema.options` — a RUNTIME read
+ * of the spec's enum — in both directions: every declared type maps to a
+ * recogniser, and no renderer-local dialect sneaks in. A type-only union would
+ * have left that pin with nothing to read and it would have had to be deleted,
+ * which is how a retirement quietly takes working coverage with it. The tuple
+ * keeps the pin executable against the vocabulary's new owner.
+ */
+export const SPEC_GESTURE_TYPES = [
+  'swipe',
+  'pinch',
+  'long_press',
+  'double_tap',
+  'drag',
+  'rotate',
+  'pan',
+] as const;
+
+/** Gesture kinds the retired `ui/touch` vocabulary recognised. */
+export type SpecGestureType = (typeof SPEC_GESTURE_TYPES)[number];
+
+/** Swipe direction. */
+export type SpecSwipeDirection = 'left' | 'right' | 'up' | 'down';
+
+/** Swipe recogniser tuning. */
+export interface SwipeGestureConfig {
+  direction: SpecSwipeDirection[];
+  threshold?: number;
+  velocity?: number;
+}
+
+/** Pinch recogniser bounds. */
+export interface PinchGestureConfig {
+  minScale?: number;
+  maxScale?: number;
+}
+
+/** Long-press recogniser tuning. */
+export interface LongPressGestureConfig {
+  duration: number;
+  moveTolerance?: number;
+}
+
+/** A single gesture declaration. */
+export interface SpecGestureConfig {
+  type: SpecGestureType;
+  label?: string;
+  enabled: boolean;
+  swipe?: SwipeGestureConfig;
+  pinch?: PinchGestureConfig;
+  longPress?: LongPressGestureConfig;
+}
+
+/** Minimum touch target sizing (WCAG 2.5.5). */
+export interface TouchTargetConfig {
+  minWidth: number;
+  minHeight: number;
+  padding?: number;
+  hitSlop?: {
+    top?: number;
+    right?: number;
+    bottom?: number;
+    left?: number;
+  };
+}
+
+/** A component's whole touch-interaction declaration. */
+export interface TouchInteraction {
+  gestures?: SpecGestureConfig[];
+  touchTarget?: TouchTargetConfig;
+  hapticFeedback?: boolean;
+  ariaLabel?: string;
+  ariaDescribedBy?: string;
+  role?: string;
 }

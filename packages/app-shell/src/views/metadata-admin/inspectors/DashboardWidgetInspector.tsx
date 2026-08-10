@@ -259,6 +259,12 @@ export function DashboardWidgetInspector({
         </div>
         <Field id="widget-dataset" label={t('engine.inspector.widget.dataset', locale)}>
           <InspectorComboField
+            // `Field` above renders `<Label htmlFor="widget-dataset">`; the id
+            // has to reach the trigger or that `for` dangles (objectui#3997).
+            // Every other `Field` in this file already hands its id to the
+            // control it wraps (`Input id`, `SelectTrigger id`) — this one could
+            // not, because the combo took no id at all.
+            id="widget-dataset"
             value={datasetName}
             onCommit={(v) => patchWidget({ dataset: v || undefined } as Partial<DashboardWidgetSchema>)}
             options={datasetComboOptions}
@@ -346,6 +352,15 @@ export function DashboardWidgetInspector({
                   <div className="flex items-center gap-1">
                     <div className="min-w-0 flex-1">
                       <InspectorComboField
+                        // The filter's name above is a heading for the whole row
+                        // (it also captions the Apply checkbox) and disappears
+                        // from the association when the row is opted out, so the
+                        // trigger carries its own name rather than borrowing it
+                        // (objectui#3997). Includes the filter name because a
+                        // dashboard has several of these rows.
+                        ariaLabel={tFormat('engine.inspector.widget.filterBindingField', locale, {
+                          filter: def.label || def.name,
+                        })}
                         value={override}
                         onCommit={(v) => setBinding(v ? v : undefined)}
                         options={fieldComboOptions}

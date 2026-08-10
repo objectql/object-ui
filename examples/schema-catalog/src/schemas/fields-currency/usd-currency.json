@@ -1,7 +1,14 @@
 {
-  "type": "currency",
-  "name": "amount",
-  "label": "Amount",
-  "placeholder": "$0.00",
-  "currency": "USD"
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "amount",
+      "label": "Amount",
+      "type": "currency",
+      "placeholder": "$0.00",
+      "currency": "USD"
+    }
+  ]
 }

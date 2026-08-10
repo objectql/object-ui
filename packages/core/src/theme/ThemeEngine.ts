@@ -135,41 +135,34 @@ export function generateColorVars(colors: ColorPalette): Record<string, string> 
 /**
  * Generate CSS custom properties from a Theme's typography config.
  */
+// ----------------------------------------------------------------------------
+// RETIRED THEME BLOCKS — @objectstack/spec 17.0.0-rc.3 (objectstack#5021 option
+// 2, PR objectstack#5289), objectui#3361.
+//
+// `theme.animation`, `theme.zIndex` and five typography groups
+// (`fontSize` / `fontWeight` / `lineHeight` / `letterSpacing`, plus
+// `fontFamily.heading` / `fontFamily.mono`) became TOMBSTONES: the schema now
+// rejects them by name and their prescription points at `theme.customVars`, the
+// declared — and since #5021 the only — door for a custom property. A
+// `--z-modal` or a `--duration-fast` is authored there now, emitted verbatim as
+// `--<key>: <value>`.
+//
+// The emission code below them was therefore structurally dead: no author can
+// produce the input that would reach it. It is removed rather than left behind
+// a cast, because the tombstoned keys type as `never` and any cast that made
+// them compile would fossilize a shape the contract has withdrawn (AGENTS.md
+// #0.1). LIVE emission — `colors`, `borderRadius`, `shadows`,
+// `typography.fontFamily.base` (→ `--font-sans`) and `customVars` — is
+// untouched, byte for byte.
+// ----------------------------------------------------------------------------
+
 export function generateTypographyVars(typography: NonNullable<Theme['typography']>): Record<string, string> {
   const vars: Record<string, string> = {};
 
+  // `fontFamily.base` is the only surviving typography input — see the RETIRED
+  // THEME BLOCKS note above for where the other five groups went.
   if (typography.fontFamily?.base) {
     vars['--font-sans'] = typography.fontFamily.base;
-  }
-  if (typography.fontFamily?.heading) {
-    vars['--font-heading'] = typography.fontFamily.heading;
-  }
-  if (typography.fontFamily?.mono) {
-    vars['--font-mono'] = typography.fontFamily.mono;
-  }
-
-  if (typography.fontSize) {
-    for (const [key, value] of Object.entries(typography.fontSize)) {
-      if (value) vars[`--font-size-${key}`] = value;
-    }
-  }
-
-  if (typography.fontWeight) {
-    for (const [key, value] of Object.entries(typography.fontWeight)) {
-      if (value != null) vars[`--font-weight-${key}`] = String(value);
-    }
-  }
-
-  if (typography.lineHeight) {
-    for (const [key, value] of Object.entries(typography.lineHeight)) {
-      if (value) vars[`--line-height-${key}`] = value;
-    }
-  }
-
-  if (typography.letterSpacing) {
-    for (const [key, value] of Object.entries(typography.letterSpacing)) {
-      if (value) vars[`--letter-spacing-${key}`] = value;
-    }
   }
 
   return vars;
@@ -224,40 +217,6 @@ export function generateShadowVars(shadows: NonNullable<Theme['shadows']>): Reco
 }
 
 /**
- * Generate CSS custom properties from a Theme's animation config.
- */
-export function generateAnimationVars(animation: NonNullable<Theme['animation']>): Record<string, string> {
-  const vars: Record<string, string> = {};
-
-  if (animation.duration) {
-    for (const [key, value] of Object.entries(animation.duration)) {
-      if (value) vars[`--duration-${key}`] = value;
-    }
-  }
-
-  if (animation.timing) {
-    for (const [key, value] of Object.entries(animation.timing)) {
-      if (value) vars[`--timing-${key}`] = value;
-    }
-  }
-
-  return vars;
-}
-
-/**
- * Generate CSS custom properties from a Theme's z-index config.
- */
-export function generateZIndexVars(zIndex: NonNullable<Theme['zIndex']>): Record<string, string> {
-  const vars: Record<string, string> = {};
-
-  for (const [key, value] of Object.entries(zIndex)) {
-    if (value != null) vars[`--z-${key}`] = String(value);
-  }
-
-  return vars;
-}
-
-/**
  * Generate ALL CSS custom properties from a complete Theme.
  * This is the main entry point for theme → CSS conversion.
  */
@@ -280,16 +239,6 @@ export function generateThemeVars(theme: Theme): Record<string, string> {
   // Shadows
   if (theme.shadows) {
     Object.assign(vars, generateShadowVars(theme.shadows));
-  }
-
-  // Animation
-  if (theme.animation) {
-    Object.assign(vars, generateAnimationVars(theme.animation));
-  }
-
-  // Z-Index
-  if (theme.zIndex) {
-    Object.assign(vars, generateZIndexVars(theme.zIndex));
   }
 
   // Custom CSS variables (passthrough)
@@ -330,22 +279,6 @@ export function mergeThemes(parent: Theme, child: Partial<Theme>): Theme {
             ...parent.typography?.fontFamily,
             ...child.typography?.fontFamily,
           },
-          fontSize: {
-            ...parent.typography?.fontSize,
-            ...child.typography?.fontSize,
-          },
-          fontWeight: {
-            ...parent.typography?.fontWeight,
-            ...child.typography?.fontWeight,
-          },
-          lineHeight: {
-            ...parent.typography?.lineHeight,
-            ...child.typography?.lineHeight,
-          },
-          letterSpacing: {
-            ...parent.typography?.letterSpacing,
-            ...child.typography?.letterSpacing,
-          },
         }
       : undefined,
     // Deep-merge border radius
@@ -355,25 +288,6 @@ export function mergeThemes(parent: Theme, child: Partial<Theme>): Theme {
     // Deep-merge shadows
     shadows: child.shadows || parent.shadows
       ? { ...parent.shadows, ...child.shadows }
-      : undefined,
-    // Deep-merge animation
-    animation: child.animation || parent.animation
-      ? {
-          ...parent.animation,
-          ...child.animation,
-          duration: {
-            ...parent.animation?.duration,
-            ...child.animation?.duration,
-          },
-          timing: {
-            ...parent.animation?.timing,
-            ...child.animation?.timing,
-          },
-        }
-      : undefined,
-    // Deep-merge zIndex
-    zIndex: child.zIndex || parent.zIndex
-      ? { ...parent.zIndex, ...child.zIndex }
       : undefined,
     // Deep-merge customVars
     customVars: child.customVars || parent.customVars

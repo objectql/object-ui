@@ -21,10 +21,18 @@
  *   4. Predicate errors fail closed (action hidden), not open.
  *   5. `null`/`undefined`/`''`/`true` all mean "always visible".
  *   6. Literal `false` always hides.
+ *
+ * Since objectui#3957 the "is a gate declared?" half of that contract is not this
+ * filter's own any more: it reads core's one definition `hasDeclaredPredicate`
+ * (`evaluator/declaredPredicate.ts`, objectui#3850's ruling), the same one the
+ * action renderers, `SchemaRenderer` and `ActionRunner`'s execution gates ask. The
+ * suite at the bottom of this file is that convergence; rules 1-6 above are
+ * unchanged by it.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ActionEngine } from '../ActionEngine';
+import { hasDeclaredPredicate } from '../../evaluator/declaredPredicate';
 import type { ActionDef } from '../ActionRunner';
 
 function makeEngine(context: any) {
@@ -310,4 +318,180 @@ describe('ActionEngine.getActionsForLocation — visibility filter', () => {
     });
   });
 
+  /**
+   * objectui#3871 — the legacy `${…}` spelling on the engine's own filter.
+   *
+   * This filter normalizes with `toPredicateInput` and evaluates with
+   * `throwOnError: true`, so the double wrap did NOT read as truthy here: the
+   * unparseable `'${${…}}'` threw, the `catch` below fail-closed HID the action,
+   * and `warnHiddenPredicate` blamed the author's expression. Measured before
+   * the fix on this tree: BOTH actions below were dropped, including the one
+   * whose predicate holds — the direction the issue card mis-predicted (it
+   * expected a constant "visible" here, which is what the fail-SOFT renderer
+   * legs did).
+   *
+   * Reverse verification: restore the unconditional wrap and `tpl_true` goes red
+   * (it was hidden); `tpl_false` stays green, because "hidden because the
+   * predicate is false" and "hidden because the predicate could not be parsed"
+   * are indistinguishable from the outside. Hence both, and hence the warn
+   * assertion — a fail-closed hide is loud, so its ABSENCE is what separates the
+   * two reasons.
+   */
+  describe('the legacy `${…}` template spelling (objectui#3871)', () => {
+    const OPEN = { record: { status: 'open' } };
+
+    it('evaluates a `${…}` predicate to its real verdict on both polarities', () => {
+      const engine = new ActionEngine(OPEN);
+      engine.registerAction(
+        { name: 'tpl_true', type: 'api', visible: '${record.status === "open"}' } as any,
+        { locations: ['record_section'] },
+      );
+      engine.registerAction(
+        { name: 'tpl_false', type: 'api', visible: '${record.status === "closed"}' } as any,
+        { locations: ['record_section'] },
+      );
+      expect(engine.getActionsForLocation('record_section').map(a => a.name)).toEqual(['tpl_true']);
+    });
+
+    it('drops the false one WITHOUT the fail-closed warning (it is a verdict, not a fault)', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const engine = new ActionEngine(OPEN);
+        engine.registerAction(
+          { name: 'tpl_quiet', type: 'api', visible: '${record.status === "closed"}' } as any,
+          { locations: ['record_section'] },
+        );
+        expect(engine.getActionsForLocation('record_section')).toHaveLength(0);
+        // Before the fix this same call warned about `tpl_quiet` — the predicate
+        // faulted rather than answering. A genuine `false` is silent, so this is
+        // the assertion that distinguishes the two ways of being hidden.
+        expect(warn.mock.calls.filter(c => String(c[0]).includes('tpl_quiet'))).toHaveLength(0);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+  });
+
+});
+
+/**
+ * objectui#3957 — the engine filter was the LAST consumer answering "is a
+ * `visible` gate declared?" with a range of its own.
+ *
+ * It folded three empty spellings by hand (`raw == null || raw === '' || raw ===
+ * true`), passed an envelope with an empty `source` through
+ * `toPredicateInput`'s fold, and coerced everything else with `Boolean(raw)`. Two
+ * classes of value therefore got a different answer here than at every other
+ * entry:
+ *
+ *   value           | engine (before) | renderer face | shared definition
+ *   0 / NaN         | HIDDEN          | shown         | no gate → shown
+ *   '   ' (blank)   | HIDDEN          | shown         | no gate → shown
+ *   {} / ''         | shown           | shown         | no gate → shown
+ *   {cel, source:''}| shown           | shown         | no gate → shown
+ *
+ * `'   '` never even reached the `Boolean(raw)` branch: the normalizer wraps a
+ * blank string into `'${   }'`, which is not `undefined`, so it was EVALUATED and
+ * came out falsy. One value, two answers, which is the shape objectui#3314's
+ * invariant forbids — and it is fixed by deleting a range, not adding one: the
+ * filter now asks `hasDeclaredPredicate` and the `Boolean(raw)` branch is gone.
+ *
+ * Cross-face parity for the same values lives in
+ * `packages/react/src/hooks/__tests__/actionPredicate.parity.test.tsx`, which can
+ * see both faces; core cannot import the renderer packages.
+ *
+ * ## Reverse verification (direction predicted before running)
+ *
+ * Restoring the hand-rolled range (the three folded spellings + `return typeof raw
+ * === 'object' ? true : Boolean(raw)`) must turn RED exactly the rows this suite
+ * calls "no gate" that the old range answered differently — `0`, `NaN`, `'   '`,
+ * `'\t\n'`, and the blank-`source` envelopes — and leave GREEN every row the two
+ * ranges agreed on (`''`, `null`, `undefined`, `{}`, `[]`, the empty-`source`
+ * envelope) plus every anti-mutation row below. Nothing can go red in the other
+ * direction: this change only ever stops hiding an action.
+ */
+describe('ActionEngine `visible` reads the ONE declared-gate definition (objectui#3957)', () => {
+  const CTX = { record: { id: 'r1', status: 'open' }, user: { id: 'u1' } };
+
+  /** Does the filter surface an action carrying this `visible` value? */
+  function shows(visible: unknown): boolean {
+    const engine = new ActionEngine({ ...CTX });
+    engine.registerAction(
+      { name: 'probe', type: 'api', visible } as unknown as ActionDef,
+      { locations: ['record_section'] },
+    );
+    return engine.getActionsForLocation('record_section').length === 1;
+  }
+
+  /**
+   * Every shape the shared definition calls "nothing to evaluate". `changed`
+   * marks the ones the engine's own range answered differently — the rows
+   * objectui#3957 measured as divergent from the renderer face.
+   */
+  const NO_GATE: Array<{ label: string; value: unknown; changed: boolean }> = [
+    { label: 'undefined (no key)', value: undefined, changed: false },
+    { label: 'null', value: null, changed: false },
+    { label: "'' (empty predicate)", value: '', changed: false },
+    { label: "'   ' (blank predicate text)", value: '   ', changed: true },
+    { label: "'\\t\\n' (other blanks)", value: '\t\n', changed: true },
+    { label: '0 (not a predicate)', value: 0, changed: true },
+    { label: 'NaN (not a predicate)', value: NaN, changed: true },
+    { label: '{} (no source)', value: {}, changed: false },
+    { label: '[] (array)', value: [], changed: false },
+    { label: "{ dialect: 'cel' } (no source key)", value: { dialect: 'cel' }, changed: false },
+    { label: "{ dialect: 'cel', source: '' } (what `objectstack build` emits)", value: { dialect: 'cel', source: '' }, changed: false },
+    { label: "{ dialect: 'cel', source: '   ' } (blank source — objectui#3960)", value: { dialect: 'cel', source: '   ' }, changed: false },
+    { label: "{ source: '   ' } (blank source, no dialect)", value: { source: '   ' }, changed: true },
+  ];
+
+  it.each(NO_GATE)('visible: $label → no gate, so the action is surfaced', ({ value }) => {
+    // Both halves of the claim: the shared definition says "not declared", and
+    // this filter agrees. Asserting the definition here is what ties the row set
+    // to `hasDeclaredPredicate` instead of to a list that could drift from it.
+    expect(hasDeclaredPredicate(value)).toBe(false);
+    expect(shows(value)).toBe(true);
+  });
+
+  it('the rows whose verdict CHANGED are exactly the ones the engine used to answer alone', () => {
+    // Guards the report's per-value table; a later edit that widens the blast
+    // radius fails here rather than passing quietly.
+    expect(NO_GATE.filter(s => s.changed).map(s => s.label)).toEqual([
+      "'   ' (blank predicate text)",
+      "'\\t\\n' (other blanks)",
+      '0 (not a predicate)',
+      'NaN (not a predicate)',
+      "{ source: '   ' } (blank source, no dialect)",
+    ]);
+  });
+
+  it('a DECLARED gate is still evaluated in both directions (anti-mutation)', () => {
+    // "Surface everything" satisfies every case above. These refuse it.
+    expect(shows(true)).toBe(true);
+    expect(shows(false)).toBe(false);
+    expect(shows('record.status == "open"')).toBe(true);
+    expect(shows('record.status == "closed"')).toBe(false);
+    expect(shows({ dialect: 'cel', source: 'record.status == "open"' })).toBe(true);
+    expect(shows({ dialect: 'cel', source: 'record.status == "closed"' })).toBe(false);
+    // A blank source is "no gate", but one significant character is a predicate:
+    expect(shows({ dialect: 'cel', source: ' record.status == "closed" ' })).toBe(false);
+  });
+
+  it('a THROWING predicate still fails closed and still warns (the posture is untouched)', () => {
+    // The one place `visible` is deliberately fail-CLOSED, and the reason this
+    // change is not "the engine went fail-open": a predicate that FAULTED said
+    // something the evaluator could not answer, which is a different fact from a
+    // value that declares nothing. `throwOnError` + `warnHiddenPredicate` stay.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const engine = new ActionEngine({ record: { id: 'r1' } });
+      engine.registerAction(
+        { name: 'bare_field', type: 'api', visible: '!done' } as unknown as ActionDef,
+        { locations: ['record_section'] },
+      );
+      expect(engine.getActionsForLocation('record_section')).toHaveLength(0);
+      expect(warn.mock.calls.filter(c => String(c[0]).includes('bare_field'))).toHaveLength(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });

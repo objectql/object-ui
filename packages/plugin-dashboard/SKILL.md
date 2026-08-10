@@ -14,23 +14,67 @@ table, pivot, etc.) with drag/resize, drill-down, and async data binding.
 
 ## Period-over-period comparison (`compareTo`)
 
-Any dataset-bound widget (metric / gauge / chart) can opt into a
-period-over-period comparison by adding a `compareTo` field. The renderer
-issues a second dataset query against the comparison-period filter and:
+Any dataset-bound widget (metric / gauge / chart / table / pivot) can opt into a
+period-over-period comparison by adding a `compareTo` field. The dataset
+executor re-runs the same selection over the shifted window and attaches a
+`<measure>__compare` column to each row, which the widget shows as:
 
-- For **metric** & **gauge** widgets, computes a delta percentage and surfaces
-  it as a `trend` indicator (overrides any static `trend` prop).
+- For **metric** & **gauge** widgets, a delta percentage surfaced as a `trend`
+  indicator (overrides any static `trend` prop).
 - For **chart** widgets (line / area / bar / horizontal-bar / scatter / combo),
-  overlays a muted second series (dashed line, lower fill opacity). Pie,
-  donut, and funnel charts ignore `compareTo`.
+  a muted second series (dashed line, lower fill opacity). Pie, donut, and
+  funnel charts ignore `compareTo`.
+- For **table** widgets, a comparison column beside each compared measure.
+- For a **pivot** cross-tab (`type: 'pivot'` with ≥2 dimensions), the comparison
+  is stacked **inside** the cell — current value on top, comparison value and
+  delta beneath in smaller type — because those columns are already
+  `bucket × measure` and a comparison column would double the width. Row,
+  column and grand subtotals stack it the same way, and one caption names the
+  window for the whole table (objectui#3614).
 
-### Accepted values
+Nothing is opted into per render path: every path detects the comparison from
+the `<measure>__compare` column in the returned data, so a selection the
+executor sent no comparison for renders exactly as it does without `compareTo`.
 
-| Value | Meaning |
+**CSV export is data, not a picture of the table.** The export always emits a
+flat `<measure>__compare` column per compared measure — including the cross-tab,
+whose display stacks them — so exported cells stay bare numbers a spreadsheet
+can compute on.
+
+### Accepted value
+
+`compareTo` is an object — the analytics executor's own contract
+(`DatasetSelection.compareTo`, objectstack#5011). It is a plain **strict**
+object, so an unknown key is rejected rather than ignored:
+
+```ts
+{ kind: 'previousPeriod' | 'previousYear', dimension?: string }
+```
+
+| Key | Meaning |
 |---|---|
-| `'previousPeriod'` | Substitute `current_*` / `today` date macro tokens with `last_*` / `yesterday` (e.g. `current_quarter_start` → `last_quarter_start`). Best when the filter uses date macros. |
-| `'previousYear'` | Re-resolve macros against a `now` shifted back one calendar year. |
-| `{ offset: '7d' \| '4w' \| '1M' \| '1y' }` | Re-resolve macros against `now` shifted by the given duration. Units: `d`, `w`, `M`, `y`. |
+| `kind: 'previousPeriod'` | The equal-length window immediately before the current one. On the inline (non-dataset) path this substitutes `current_*` / `today` date macro tokens with `last_*` / `yesterday` (e.g. `current_quarter_start` → `last_quarter_start`), so it works best when the filter uses date macros. |
+| `kind: 'previousYear'` | The same window shifted back one calendar year. |
+| `dimension` | Optional. Names the dataset time dimension whose window is shifted. **Omit it** unless the widget's window covers more than one date field — the executor resolves it, and says so loudly (listing the candidates) when there is not exactly one. |
+
+The earlier spellings are retired: the bare strings `"previousPeriod"` /
+`"previousYear"` are now `{ "kind": "previousPeriod" }` / `{ "kind":
+"previousYear" }`, and the `{ "offset": "…" }` form is gone. `{ offset: '1y' }`
+is `{ kind: 'previousYear' }`; `'7d'` / `'1M'` have no faithful equivalent —
+state that window on the widget's own `filter` and ask for
+`{ kind: 'previousPeriod' }`.
+
+### The window has to be a bounded date range
+
+A period-over-period comparison is only defined against a **bounded** window,
+so the widget's `filter` must date the measure with both ends —
+`{ "$gte": …, "$lte": … }` on a date field (a date-macro pair, or the
+dashboard's own date-range filter bound to that widget). The renderer lowers
+that window into the dataset query's time dimension for the executor to shift.
+
+A half-open `{ "$gte": … }`, an exclusive `$lt`, or no date condition at all
+leaves nothing to shift, and the widget surfaces the executor's error instead of
+rendering a comparison that silently isn't one.
 
 ### Trend label i18n
 
@@ -44,9 +88,10 @@ without per-card configuration:
 | `{current_month_*}` / `{month_*}` | `dashboard.trend.vsLastMonth` |
 | `{current_week_*}` / `{week_*}` | `dashboard.trend.vsLastWeek` |
 | `{today}` | `dashboard.trend.vsYesterday` |
-| anything else / `offset` | `dashboard.trend.vsPreviousPeriod` |
+| anything else | `dashboard.trend.vsPreviousPeriod` |
 
-`previousYear` always uses `vsLastYear` regardless of the filter shape.
+`kind: 'previousYear'` always uses `vsLastYear` regardless of the filter shape;
+the sniffing above applies to `kind: 'previousPeriod'`.
 
 ### Metric example
 
@@ -62,7 +107,7 @@ without per-card configuration:
       "$lte": "{current_quarter_end}"
     }
   },
-  "compareTo": "previousPeriod"
+  "compareTo": { "kind": "previousPeriod" }
 }
 ```
 
@@ -86,7 +131,7 @@ measure — its aggregate, field, format, and currency — is declared once on t
       "$lte": "{current_year_end}"
     }
   },
-  "compareTo": "previousYear"
+  "compareTo": { "kind": "previousYear" }
 }
 ```
 
@@ -95,21 +140,23 @@ Renders a line of monthly order counts for the current year with a dashed,
 points are aligned to current-period buckets by groupBy value when possible,
 otherwise by sorted index (the common case for time series).
 
-### Sliding offset example
+### Naming the dimension (only when the window is ambiguous)
 
 ```json
-{ "compareTo": { "offset": "7d" } }
+{ "compareTo": { "kind": "previousYear", "dimension": "created_at" } }
 ```
 
-Use when "this week vs last week" is more meaningful than "this calendar
-week vs last calendar week".
+Needed only when the widget's filter dates more than one field, so the executor
+cannot tell which window to shift. With a single dated field, omit `dimension`
+— hard-coding one that the dataset does not date is how a comparison ends up
+running over a window nobody asked for.
 
 ### When NOT to use `compareTo`
 
-- Filters that do not include any date macros — for `previousPeriod` /
-  `previousYear` the comparison filter would be identical to the current
-  filter, producing a meaningless 0% delta. Prefer `{ offset: '...' }` in
-  this case, or omit `compareTo` entirely.
+- Filters with no bounded date range — there is no window to shift, and the
+  widget reports that instead of rendering a comparison. Date the widget (a
+  date-macro `$gte`/`$lte` pair, or a dashboard date-range filter bound to it)
+  or omit `compareTo` entirely.
 - Pie / donut / funnel charts — comparison overlays are not visually
   meaningful and are silently ignored.
 

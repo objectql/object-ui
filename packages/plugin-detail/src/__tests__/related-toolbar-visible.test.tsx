@@ -54,3 +54,35 @@ describe('RelatedList list_toolbar button — visible CEL', () => {
     expect(screen.getByTestId('related-toolbar-action-export')).toBeInTheDocument();
   });
 });
+
+/**
+ * objectui#3871 — the same gate, with the predicate written in the documented
+ * `${…}` template spelling. This leg does NOT opt into `throwOnError`, so the
+ * double wrap came back from the evaluator as the unparsed string and
+ * `Boolean(…)` read it as a constant `true`: the toolbar action was shown
+ * whatever its predicate said. `invite_user` is the live example in the prose
+ * above — spelled as a template it would have appeared with the org feature off.
+ *
+ * Reverse verification: restore the unconditional wrap and the "false hides"
+ * case goes red; the "true shows" case was green already (shown either way), so
+ * both are here and only one is the detector.
+ */
+describe('RelatedList list_toolbar button — `${…}` template `visible` (objectui#3871)', () => {
+  const TEMPLATE = '${features.organization !== false}';
+
+  it('hides a toolbar action whose template predicate is false (DETECTOR)', () => {
+    renderButton(
+      { name: 'invite_user', label: 'Invite User', visible: TEMPLATE },
+      { features: { organization: false } },
+    );
+    expect(screen.queryByTestId('related-toolbar-action-invite_user')).toBeNull();
+  });
+
+  it('shows a toolbar action whose template predicate is true', () => {
+    renderButton(
+      { name: 'invite_user', label: 'Invite User', visible: TEMPLATE },
+      { features: { organization: true } },
+    );
+    expect(screen.getByTestId('related-toolbar-action-invite_user')).toBeInTheDocument();
+  });
+});

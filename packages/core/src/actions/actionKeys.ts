@@ -304,3 +304,83 @@ export function warnOnUnknownActionKeys(action: object | null | undefined, where
       'still carries `[key: string]: any`, so the compiler cannot see this (objectstack#4075).',
   );
 }
+
+/**
+ * Keys a HOST stashes into an action's `params` for the runner's own plumbing,
+ * rather than an author writing them there as a request payload.
+ *
+ * {@link warnOnDeprecatedObjectParams} has to tell "the author put the payload in
+ * `params`" (the shape objectstack#5777 retires) apart from "a host stashed row
+ * context there" (a shape the runner itself asks for, and that is not going
+ * away). `DeclaredActionsBar` dispatches `params: { _rowRecord: record }`,
+ * `RelatedRecordActionsBridge` does the same, and `ObjectGrid` adds
+ * `_selectedIds`; the api handler lifts `recordId` out of the field values
+ * before it updates. Warning on those would fire on nearly every declared-action
+ * click and prescribe `bodyExtra`, which is the wrong home for all of them.
+ *
+ * The `_` prefix is the existing convention for the stash — `recordId` is its one
+ * unprefixed member, so it is listed rather than inferred.
+ */
+const HOST_STASHED_PARAM_KEYS: ReadonlySet<string> = new Set(['recordId']);
+
+const isAuthoredParamKey = (key: string): boolean =>
+  !key.startsWith('_') && !HOST_STASHED_PARAM_KEYS.has(key);
+
+/**
+ * Does this action carry the DEPRECATED object-form `params` — a static request
+ * payload written under the key that means "parameter definitions"?
+ *
+ * The discriminator is `Array.isArray` and the type guard is `api`, mirroring
+ * `@objectstack/spec`'s `inline-action-api-params-to-body-extra` conversion
+ * (ADR-0087 D2) key for key. Contract parity with the producer is the point: the
+ * conversion rewrites exactly this shape to `bodyExtra` at load, so the runner
+ * must recognize exactly the same shape as "the thing that got rewritten".
+ *
+ * The `api` guard is also what keeps the deprecation out of objectstack#6828's
+ * territory — object-form `params` on a `type: 'url'` action is a THIRD meaning
+ * (`interpolateTarget`'s `${param.X}` scope, `executeUrl`'s `params.newTab`) and
+ * `bodyExtra` is NOT its replacement. Do not widen this guard without that
+ * ruling.
+ */
+export function hasDeprecatedObjectParams(action: object | null | undefined): boolean {
+  if (!action || typeof action !== 'object') return false;
+  const { type, actionType, params } = action as {
+    type?: unknown; actionType?: unknown; params?: unknown;
+  };
+  if ((type ?? actionType) !== 'api') return false;
+  if (!params || typeof params !== 'object' || Array.isArray(params)) return false;
+  return Object.keys(params).some(isAuthoredParamKey);
+}
+
+/**
+ * Dev-mode only: name the object-form `params` that `@objectstack/spec` 17 already
+ * refuses at the authoring door, and prescribe `bodyExtra`.
+ *
+ * This is the audible half of the compat window the maintainer's 2026-08-06
+ * ruling on objectstack#5777 ordered (direction A — a separate key, no same-name
+ * union): the runner keeps READING a non-array `params` as the static payload for
+ * one version window, says so, and the arm is deleted at 18. The loud half lives
+ * at the producer, where it belongs — spec's `params` field refuses the object
+ * form outright with a message naming `bodyExtra`, and the ADR-0087 conversion
+ * rewrites sources that still carry it. So a warning is the correct severity
+ * HERE: by the time metadata reaches this runner the producer has already had its
+ * say, and what is left to catch is a host composing an ActionDef in code.
+ *
+ * Dev-only and warn-once, matching {@link warnOnUnknownActionKeys} — a warning
+ * that floods a production console is a warning that gets muted.
+ */
+export function warnOnDeprecatedObjectParams(action: object | null | undefined, where = 'ActionRunner'): void {
+  if (!isDev()) return;
+  if (!hasDeprecatedObjectParams(action)) return;
+  const name = (action as { name?: unknown; type?: unknown })?.name ?? '(unnamed)';
+  const memo = `deprecated-object-params:${String(name)}`;
+  if (warned.has(memo)) return;
+  warned.add(memo);
+  console.warn(
+    `[${where}] action "${String(name)}" carries a static request payload in \`params\`. ` +
+      '`params` is the parameter DEFINITION array (fields collected from the user before the ' +
+      'action runs), never a payload map — put the payload in `bodyExtra` instead ' +
+      '(objectstack#5777). Still read as the payload for one version window; the arm is ' +
+      'removed at 18. `bodyExtra` is merged LAST, so it overrides anything left here.',
+  );
+}

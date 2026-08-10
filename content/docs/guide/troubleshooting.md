@@ -44,25 +44,24 @@ npx objectui doctor
 
 **Symptom:** Tailwind utility classes are not applied. Components render without styling.
 
-**Cause:** The `content` paths in your Tailwind config do not include ObjectUI package files.
+**Cause:** You are not importing the stylesheets the ObjectUI packages publish. Their utilities — including every themed one, such as `bg-primary` and `border-input` — are compiled at build time into each package's `style.css`, and nothing in your own build can reproduce the themed ones.
 
-**Fix:** Update your `tailwind.config.ts` (or `postcss.config.mjs`) to scan ObjectUI packages inside `node_modules`:
+**Fix:** Import them in your main CSS file, after your own Tailwind entry, in this order:
 
-```typescript
-// tailwind.config.ts
-export default {
-  content: [
-    './src/**/*.{ts,tsx}',
-    './node_modules/@object-ui/components/**/*.{js,ts,tsx}',
-    './node_modules/@object-ui/fields/**/*.{js,ts,tsx}',
-    './node_modules/@object-ui/layout/**/*.{js,ts,tsx}',
-    './node_modules/@object-ui/plugin-*/**/*.{js,ts,tsx}',
-  ],
-  // ...
-};
+```css
+/* src/index.css */
+@import 'tailwindcss';
+@import '@object-ui/components/style.css';
+@import '@object-ui/fields/style.css';
 ```
 
-Also ensure `postcss.config.mjs` is present at the project root (see `postcss.config.mjs` in the monorepo root for reference).
+Two packages publish a `style.css`: `@object-ui/components` (the base sheet — theme tokens, base layer, its own utilities) and `@object-ui/fields` (a supplement carrying only what the field widgets add). The fields sheet is built by subtracting everything the components sheet already ships, so it must come **after** it; on its own it styles almost nothing.
+
+If field widgets specifically look wrong — tag and badge colours flat, the rating stars not reacting to hover, the signature pad showing the wrong cursor — the fields import is the one that is missing. Note that it genuinely did not exist before: every release up to and including 17.3.0 declared the `@object-ui/fields/style.css` subpath while shipping no stylesheet at all ([#4059](https://github.com/objectstack-ai/objectui/issues/4059)), so on those versions the import fails to resolve and breaks the build. Upgrade rather than adding scanning paths.
+
+Then check that the Tailwind 4 build plugin is actually installed and wired up — `@tailwindcss/postcss` in `postcss.config.mjs`, or `@tailwindcss/vite` in `vite.config.ts`. Without it, `@import 'tailwindcss'` is passed through as a plain CSS import and no utilities are generated at all.
+
+> **Do not** try to fix this by adding `node_modules` paths to a `content` array or an `@source` line. ObjectUI is Tailwind 4 and has no `tailwind.config.js`; Tailwind 4 does not load one unless you opt in with `@config`, so on most projects those paths do nothing whatsoever. Even when they are read, scanning the published files only regenerates the shape-only utilities (`inline-flex`, `rounded-md`, `h-9`) the two sheets already contain — it can never produce the themed ones, because the `@theme` block declaring their tokens lives in unpublished package source. Missing theme colours are always a missing `style.css` import, never a missing path.
 
 ## 3. Missing Peer Dependencies
 

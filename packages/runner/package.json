@@ -19,7 +19,7 @@
     "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run --root ../.. packages/runner/"
   },
   "dependencies": {
     "@object-ui/components": "workspace:*",
@@ -37,7 +37,7 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
-    "@objectstack/spec": "^17.0.0-rc.2",
+    "@objectstack/spec": "^17.0.0-rc.5",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",

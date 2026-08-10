@@ -185,9 +185,9 @@ pnpm publish
 ## 📚 Documentation
 
 - [Object UI Documentation](https://www.objectui.org)
-- [Schema Reference](https://www.objectui.org/docs/protocol/overview)
-- [Component Library](https://www.objectui.org/docs/api/components)
-- [Examples](https://www.objectui.org/examples)
+- [Schema Reference](https://www.objectui.org/docs/api/schema-reference)
+- [Component Library](https://www.objectui.org/docs/components)
+- [Examples](https://github.com/objectstack-ai/objectui/tree/main/examples)
 
 ## 🤝 Contributing
 
@@ -218,16 +218,6 @@ Built with:
 
 </div>
 
-<!-- release-metadata:v3.3.0 -->
-
-## Compatibility
-
-- **Node.js:** ≥ 18
-- **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^3.3.0
-- **`@objectstack/client`:** ^3.3.0
-- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
-
 ## Links
 
 - 📚 [Documentation](https://www.objectui.org/docs/utilities/vscode-extension)
@@ -239,4 +229,4 @@ Built with:
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT — see [LICENSE](https://github.com/objectstack-ai/objectui/blob/main/LICENSE).

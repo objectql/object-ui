@@ -1,6 +1,13 @@
 {
-  "type": "image",
-  "name": "gallery",
-  "label": "Photo Gallery",
-  "multiple": true
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "gallery",
+      "label": "Photo Gallery",
+      "type": "image",
+      "multiple": true
+    }
+  ]
 }

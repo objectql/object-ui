@@ -3,6 +3,7 @@ import { Input, Button, Label, EmptyValue } from '@object-ui/components';
 import { MapPin, Crosshair } from 'lucide-react';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
+import { toHostGroupProps } from './toHostGroupProps';
 
 /**
  * Geolocation data structure
@@ -23,7 +24,24 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
   // DOM pass-through (objectui#3318): the whitelist spread goes onto the FIRST
   // sub-input (latitude); the composite's validation state goes onto BOTH
   // focusable sub-inputs via `aria-invalid={!!error}`.
-  const domProps = toDomProps(props);
+  //
+  // `id` and `aria-labelledby` are held back and land on the group CONTAINER
+  // instead (objectui#3961) — they address the whole field, not the latitude box.
+  // The host `id` never reached the DOM before: it was overwritten one line later
+  // by `id={subId('latitude')}` (objectui#3343), leaving the form's group label
+  // pointing at nothing. And `aria-labelledby` on the latitude input would
+  // OVERRIDE its own "Latitude" label with the field name. `aria-describedby` and
+  // the rest stay on the first sub-input, where focus can reach them.
+  const {
+    id: _hostId,
+    'aria-labelledby': _hostLabelledBy,
+    ...domProps
+  } = toDomProps(props);
+  // The pair held back above, in the one spelling every group-labelled widget
+  // uses for it — and computed HERE, before the readonly early return below,
+  // because that return used to drop both keys on the floor: a published label
+  // id with no consumer in the document (objectui#3990). See `toHostGroupProps`.
+  const hostGroupProps = toHostGroupProps(props);
   // Sub-input ids (objectui#3343): `useId()` prefix + sub-field name — the
   // `groupId` paradigm of RadioField / CheckboxesField. Hardcoded literals
   // ("latitude" / "longitude") collide as soon as a form renders two
@@ -79,9 +97,13 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
   };
 
   if (readonly) {
+    // Readonly the composite collapses to the formatted coordinates (plus the
+    // "View on map" link), so THAT row is the surface the host label names
+    // (objectui#3990). The `EmptyValue` placeholder sits inside it, so it needs
+    // nothing of its own.
     const formatted = formatLocation(location);
     return (
-      <div className="flex items-center gap-2">
+      <div {...hostGroupProps} className="flex items-center gap-2">
         <MapPin className="w-4 h-4 text-muted-foreground" />
         {formatted ? <span className="text-sm">{formatted}</span> : <EmptyValue />}
         {location.latitude && location.longitude && (
@@ -100,7 +122,11 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
   }
 
   return (
-    <div className="space-y-3">
+    // `role="group"` only when a host actually named this container
+    // (objectui#3961); standalone rendering stays exactly as it was. That
+    // condition now lives in `toHostGroupProps` so this container and the
+    // readonly row above cannot answer differently (objectui#3990).
+    <div className="space-y-3" {...hostGroupProps}>
       <div className="flex items-center gap-2">
         <Button
           type="button"

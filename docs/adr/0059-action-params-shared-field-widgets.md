@@ -103,7 +103,7 @@ Follow-ups and objectui#2698 / #2710):
 | Param `type` (spelling → widget) | Emitted (POST) shape | Notes |
 |---|---|---|
 | `text` `textarea` `email` `phone` `url` `password`/`secret` `markdown` `html` `richtext` `code`/`json` `color` `avatar` `signature` `qrcode` | `string` | Free/encoded text, hex, or data-URL string. |
-| `date` `datetime` `time` | `string` | ISO-ish: `YYYY-MM-DD`, `…THH:mm`, `HH:mm`. |
+| `date` `datetime` `time` | `string` | `date` → `YYYY-MM-DD` (calendar day). `datetime` → an **ISO-8601 instant with an explicit zone** (`2026-08-10T07:00:00.000Z`), never the `datetime-local` control's zone-less wall clock — that shape is rejected by the dispatcher's param validation (`validateActionParams`, ADR-0104 D2) and 400'd every UI submission until objectstack#5061. `DateTimeField` converts on both sides (objectui#3127), so the dialog POSTs its value unchanged. `time` → `HH:mm`. |
 | `number` `currency` `percent` `slider` `rating` | `number` | A real number, **not** a string; `null` when cleared. |
 | `boolean`/`checkbox`/`toggle` | `boolean` | Rendered as the dialog's inline checkbox row. |
 | `select` | `string`, or **`string[]` when `multiple`** | `multiple` delegates to the chip picker (objectui#2709). |

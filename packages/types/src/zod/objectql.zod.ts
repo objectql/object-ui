@@ -23,7 +23,7 @@ import {
   CalendarConfigSchema as SpecCalendarConfigSchema,
   GalleryConfigSchema as SpecGalleryConfigSchema,
   TimelineConfigSchema as SpecTimelineConfigSchema,
-  HttpMethodSchema as SpecHttpMethodSchema,
+  HttpMethodSubsetSchema as SpecHttpMethodSubsetSchema,
   HttpRequestSchema as SpecHttpRequestSchema,
   ViewDataSchema as SpecViewDataSchema,
   ListColumnSchema as SpecListColumnSchema,
@@ -37,8 +37,14 @@ import { BaseSchema, specFieldsExcept } from './base.zod.js';
 /**
  * HTTP Method Schema — `@objectstack/spec/ui` schema re-exported by reference
  * (issue #2231; formerly a hand-written mirror).
+ *
+ * The spec renamed the 5-value subset to `HttpMethodSubsetSchema` in
+ * 17.0.0-rc.5 (objectstack#5832) to stop it colliding with the 7-value
+ * `HttpMethod` in the published JSON Schema. The runtime domain is unchanged,
+ * so this repo keeps exporting it under the `HttpMethodSchema` name — following
+ * the rename WITHOUT changing cross-package semantics (objectui#3499).
  */
-export const HttpMethodSchema = SpecHttpMethodSchema;
+export const HttpMethodSchema = SpecHttpMethodSubsetSchema;
 
 /**
  * HTTP Request Schema — `@objectstack/spec/ui` schema re-exported by reference

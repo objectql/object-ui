@@ -1,6 +1,13 @@
 {
-  "type": "text",
-  "name": "username",
-  "label": "Username",
-  "placeholder": "Enter username..."
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "username",
+      "label": "Username",
+      "type": "text",
+      "placeholder": "Enter username..."
+    }
+  ]
 }

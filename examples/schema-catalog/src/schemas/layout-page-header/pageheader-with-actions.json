@@ -1,49 +1,17 @@
 {
-  "type": "div",
-  "className": "space-y-6",
+  "type": "page-header",
+  "title": "Users",
+  "subtitle": "Manage your team members and permissions",
+  "icon": "users",
   "children": [
     {
-      "type": "div",
-      "className": "flex flex-col gap-4 pb-4",
-      "children": [
-        {
-          "type": "div",
-          "className": "flex items-center justify-between gap-4",
-          "children": [
-            {
-              "type": "div",
-              "className": "flex flex-col gap-1",
-              "children": [
-                {
-                  "type": "text",
-                  "content": "Users",
-                  "className": "text-2xl font-bold tracking-tight"
-                },
-                {
-                  "type": "text",
-                  "content": "Manage your team members and permissions",
-                  "className": "text-sm text-muted-foreground"
-                }
-              ]
-            },
-            {
-              "type": "div",
-              "className": "flex items-center gap-2",
-              "children": [
-                {
-                  "type": "button",
-                  "label": "Export",
-                  "variant": "outline"
-                },
-                {
-                  "type": "button",
-                  "label": "Add User"
-                }
-              ]
-            }
-          ]
-        }
-      ]
+      "type": "button",
+      "label": "Export",
+      "variant": "outline"
+    },
+    {
+      "type": "button",
+      "label": "Add User"
     }
   ]
 }

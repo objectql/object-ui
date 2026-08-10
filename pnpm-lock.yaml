@@ -35,8 +35,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.8.0(jiti@2.7.0))
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
@@ -100,9 +100,6 @@ importers:
       playwright:
         specifier: ^1.62.1
         version: 1.62.1
-      prettier:
-        specifier: ^3.9.6
-        version: 3.9.6
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -270,11 +267,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/client':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -359,6 +356,9 @@ importers:
       '@object-ui/fields':
         specifier: workspace:*
         version: link:../../packages/fields
+      '@object-ui/layout':
+        specifier: workspace:*
+        version: link:../../packages/layout
       '@object-ui/plugin-calendar':
         specifier: workspace:*
         version: link:../../packages/plugin-calendar
@@ -405,8 +405,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       fumadocs-core:
         specifier: 16.14.0
         version: 16.14.0(@mdx-js/mdx@3.1.1)(@tanstack/react-router@1.170.8(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.2.18)(lucide-react@1.28.0(react@19.2.8))(next@16.2.12(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react-router@7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)(zod@4.4.3)
@@ -630,12 +630,24 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
     devDependencies:
+      '@object-ui/components':
+        specifier: workspace:*
+        version: link:../../packages/components
       '@object-ui/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@object-ui/fields':
+        specifier: workspace:*
+        version: link:../../packages/fields
+      '@object-ui/layout':
+        specifier: workspace:*
+        version: link:../../packages/layout
       '@object-ui/react':
         specifier: workspace:*
         version: link:../../packages/react
+      '@object-ui/sdui-parser':
+        specifier: workspace:*
+        version: link:../../packages/sdui-parser
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -694,14 +706,14 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@objectstack/lint':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@sentry/react':
         specifier: ^10.69.0
         version: 10.69.0(react@19.2.8)
@@ -791,8 +803,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       better-auth:
         specifier: ^1.6.25
         version: 1.6.25(@opentelemetry/api@1.9.1)(better-sqlite3@12.9.0)(mongodb@7.2.0)(next@16.2.12(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10)
@@ -821,12 +833,18 @@ importers:
       '@object-ui/types':
         specifier: workspace:*
         version: link:../types
+      '@tailwindcss/postcss':
+        specifier: ^4.3.3
+        version: 4.3.3
       '@types/glob':
         specifier: ^9.0.0
         version: 9.0.0
       '@vitejs/plugin-react':
         specifier: ^6.0.5
         version: 6.0.5(vite@8.2.0(@types/node@26.1.2)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
+      autoprefixer:
+        specifier: ^10.5.4
+        version: 10.5.4(postcss@8.5.26)
       chalk:
         specifier: ^6.0.0
         version: 6.0.0
@@ -878,8 +896,8 @@ importers:
         version: link:../types
     devDependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -914,8 +932,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@radix-ui/react-accordion':
         specifier: ^1.2.20
         version: 1.2.20(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1098,11 +1116,11 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       lodash:
         specifier: ^4.18.1
         version: 4.18.1
@@ -1160,11 +1178,11 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/client':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
     devDependencies:
       tsup:
         specifier: ^8.5.1
@@ -1197,8 +1215,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -1224,6 +1242,9 @@ importers:
         specifier: ^3.6.0
         version: 3.6.0
     devDependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4.3.3
+        version: 4.3.3
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -1233,6 +1254,12 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.0.5
         version: 6.0.5(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
+      postcss:
+        specifier: ^8.5.26
+        version: 8.5.26
+      tailwindcss:
+        specifier: ^4.3.3
+        version: 4.3.3
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -1305,8 +1332,8 @@ importers:
         version: 3.6.0
     devDependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@vitejs/plugin-react':
         specifier: ^6.0.5
         version: 6.0.5(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
@@ -1330,8 +1357,8 @@ importers:
         version: link:../types
     devDependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -1505,8 +1532,8 @@ importers:
         version: 3.10.1(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react-is@19.2.6)(react@19.2.8)(redux@5.0.1)
     devDependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -1547,8 +1574,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@radix-ui/react-slot':
         specifier: ^1.3.3
         version: 1.3.3(@types/react@19.2.18)(react@19.2.8)
@@ -1662,9 +1689,12 @@ importers:
         specifier: ^3.6.0
         version: 3.6.0
     devDependencies:
+      '@object-ui/plugin-charts':
+        specifier: workspace:*
+        version: link:../plugin-charts
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@types/react-grid-layout':
         specifier: ^2.1.0
         version: 2.1.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1772,8 +1802,8 @@ importers:
         specifier: workspace:*
         version: link:../i18n
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       lucide-react:
         specifier: ^1.28.0
         version: 1.28.0(react@19.2.8)
@@ -1891,8 +1921,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       lucide-react:
         specifier: ^1.28.0
         version: 1.28.0(react@19.2.8)
@@ -1946,8 +1976,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       lucide-react:
         specifier: ^1.28.0
         version: 1.28.0(react@19.2.8)
@@ -2007,8 +2037,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@tanstack/react-virtual':
         specifier: ^3.14.9
         version: 3.14.9(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -2148,8 +2178,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -2187,8 +2217,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       lucide-react:
         specifier: ^1.28.0
         version: 1.28.0(react@19.2.8)
@@ -2245,8 +2275,8 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       mermaid:
-        specifier: ^11.16.0
-        version: 11.16.0
+        specifier: ^11.16.1
+        version: 11.16.1
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -2337,8 +2367,8 @@ importers:
         version: 3.6.0
     devDependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@types/node':
         specifier: ^26.1.2
         version: 26.1.2
@@ -2382,8 +2412,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2437,8 +2467,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       lucide-react:
         specifier: ^1.28.0
         version: 1.28.0(react@19.2.8)
@@ -2501,8 +2531,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2535,8 +2565,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -2569,8 +2599,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -2643,8 +2673,8 @@ importers:
         version: 1.0.7(tailwindcss@4.3.3)
     devDependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -2682,14 +2712,14 @@ importers:
         specifier: workspace:*
         version: link:../react
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
 
   packages/types:
     dependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.2
-        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.5
+        version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -3645,8 +3675,8 @@ packages:
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
 
-  '@iconify/utils@3.1.3':
-    resolution: {integrity: sha512-LPKOXPn/zV+zis1oOfGWogaXVpqUybF3ZS6SCZIsz8vg0ivVp9+fVqyYB7xq0aiST/VhUQYGO1qo6uoYSiEJqw==}
+  '@iconify/utils@3.1.4':
+    resolution: {integrity: sha512-b1S7B1k9ohZ+iNTi2ATxbRYG9fTrJmUT0rc46bvVnNxqNRGW7dyo/vRREwyniI5IRN2RSJHDcm+s3BjWrSAjHw==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -4036,26 +4066,26 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@objectstack/client@17.0.0-rc.2':
-    resolution: {integrity: sha512-tM4jm2R6UnR2+ymA94BSefco9DbrgeZFytL6b/mTVaUv7uy/joSZKWWrcEG5FiBzcyxJCevDvQixRHuiYzcHHg==}
+  '@objectstack/client@17.0.0-rc.5':
+    resolution: {integrity: sha512-E1wiOK90d6CbiYtbQ0157oA8BKTBnf6JfizZ0vcH7gh89rrCCeL6dIsmo4SQyOYh+ZWtBRJMttrhLCLm35LBXQ==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/core@17.0.0-rc.2':
-    resolution: {integrity: sha512-5hAtKmjBbzEWA7qWXCN8WB12+BhGZ8jZYg7Y5r8PHYH+jOf5ZLX4KkD3bQw6oTUBpBhWclLVREKSlah9truGRA==}
+  '@objectstack/core@17.0.0-rc.5':
+    resolution: {integrity: sha512-kw8A9ERMscZwEnOXGDFmnUW0QdYcEhvsiHW6H4HgBQYJEqkbWXjBaS0ujbWxbn/hT5A+pEAiVQc2RcDVx/yHYA==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/formula@17.0.0-rc.2':
-    resolution: {integrity: sha512-+4H3nESU3fH+pjjV4b1P8llvSPff/vQF0Th5/FdbZrYz0fKxoNNL+MtLBAzpu+ME3ZLFMwwsKRH7obPyCS9wmQ==}
+  '@objectstack/formula@17.0.0-rc.5':
+    resolution: {integrity: sha512-50DI3S/A8cyR4amwROxOcYD1r4om7bo/3Gf6MugEfWXfejzLpc9EUS3maIlYiW0orAmo20SHA81Q4cB+qGUxGw==}
 
-  '@objectstack/lint@17.0.0-rc.2':
-    resolution: {integrity: sha512-S571+BtsXhyBpfZSNh9Ic0ljH8cVKyhgaVbQjqPc0ICgzvwh9/b4PEB7ElbgWUvTNje2KOriLgCjgNGGnTGfuw==}
+  '@objectstack/lint@17.0.0-rc.5':
+    resolution: {integrity: sha512-0huaGN11ub7iqjuRzmiyUoh0Sju1U8tpVkp062ilOOF2bf0xzxgSVUdQrJlFNjV4+gzLJnkbqha1/4Y8Tr4dNA==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/sdui-parser@17.0.0-rc.2':
-    resolution: {integrity: sha512-Xc2ftxDFaDWyKmPWh+nAhgrMXmakKEXACdU/0fTrWertmfv9vRSrKomdCgFSvLksMxS/JcDT2O9EkMxGMQbj2g==}
+  '@objectstack/sdui-parser@17.0.0-rc.5':
+    resolution: {integrity: sha512-gi61YonxZnXQ5gPMa7CShz8d3Yg1ZGYC24jbDtOerbgOlBowc36Qrp3UKIL2JjW6PBQJJxUY+Y0h4lDwAEs/BA==}
 
-  '@objectstack/spec@17.0.0-rc.2':
-    resolution: {integrity: sha512-gvybztXuGTaqAlUzSOP4xeTpjl44ty2RZ67JQfiCma/engMG8pKqfv4/18nYitFktiWUVLsr2U6AquZAidmcRQ==}
+  '@objectstack/spec@17.0.0-rc.5':
+    resolution: {integrity: sha512-9AFBwdwCaFPUFxGAShRMvW3UQAW+Gz0ET1CEJEHL5f2Qh/Bu7hGMBT7NY8fhYqfajAroe08jZGx3JMOFgS2v5Q==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       ai: ^7.0.0
@@ -5697,8 +5727,8 @@ packages:
   '@types/d3-format@3.0.4':
     resolution: {integrity: sha512-fALi2aI6shfg7vM5KiR1wNJnZ7r6UuggVqtDA+xiEdPZQwy/trcQaHnwShLuLdta2rTymCNpxYTiMZX/e09F4g==}
 
-  '@types/d3-geo@3.1.0':
-    resolution: {integrity: sha512-856sckF0oP/diXtS4jNsiQw/UuK5fQG8l/a9VVLeSouf1/PPbBE1i1W852zVwKwYCBkFJJB7nCFTbk6UMEXBOQ==}
+  '@types/d3-geo@3.1.1':
+    resolution: {integrity: sha512-65Emv9fQiQQqphLlRkuQ5ypPsOmWPhtBGCMv61JDPEPMvsx+gzhGf74yw1a78xFKPj6zw4AgQICJoQv0vK9M2w==}
 
   '@types/d3-hierarchy@3.1.7':
     resolution: {integrity: sha512-tJFtNoYBtRtkNysX1Xq4sxtjK8YgoWUNpIiUee0/jHGRwqvzYxkq0hGVbbOGSz+JgFxxRu4K8nb3YpG3CMARtg==}
@@ -5715,8 +5745,8 @@ packages:
   '@types/d3-quadtree@3.0.6':
     resolution: {integrity: sha512-oUzyO1/Zm6rsxKRHA1vH0NEDG58HrT5icx/azi9MF1TWdtttWl0UIUsjEQBBh+SIkrpd21ZjEv7ptxWys1ncsg==}
 
-  '@types/d3-random@3.0.3':
-    resolution: {integrity: sha512-Imagg1vJ3y76Y2ea0871wpabqp613+8/r0mCLEBfdtqC7xMSfj9idOnmBYyMoULfHePJyxMAw3nWhJxzc+LFwQ==}
+  '@types/d3-random@3.0.4':
+    resolution: {integrity: sha512-UHYId5WTCx4L4YNel7NU00XUXXgvgpgZOvp10PuvsQENjMDXhh2RyFc0KBjO7B45ne4Ha1yVH7ii0vnzKkuzWA==}
 
   '@types/d3-scale-chromatic@3.1.0':
     resolution: {integrity: sha512-iWMJgwkK7yTRmWqRB5plb1kadXyQ5Sj8V/zYlFGMUBbIPKQScw+Dku9cAAMgJG+z5GYDoMjWGLVOvjghDEFnKQ==}
@@ -7196,9 +7226,6 @@ packages:
     resolution: {integrity: sha512-cgwlv/1iFQiFnU96XXgROh8xTeetsnJiDsTc7TYCLFd9+/WNkIqPTxiM/8pSd8VIrhXGTf1Ny1q1hquVqDJB5w==}
     engines: {node: '>= 4'}
 
-  dompurify@3.4.11:
-    resolution: {integrity: sha512-zhlUV12GsaRzMsf9q5M254YhA4+VuF0fG+QFqu6aYpoGlKtz+w8//jBcGVYBgQkR5GHjUomejY84AV+/uPbWdw==}
-
   dompurify@3.4.13:
     resolution: {integrity: sha512-2vmYIoqjze2d+kakP8S/nS5shfsl587kzwEjcGlTdiksUVgFHnFCsLYDVj/JNqJVOQZGSYBTmuycv0PodwmnMQ==}
 
@@ -7321,9 +7348,6 @@ packages:
   es-set-tostringtag@2.1.0:
     resolution: {integrity: sha512-j6vWzfrGVfyXxge+O0x5sh6cvxAog0a/4Rdd2K36zCMV5eJ+/+tOAngRO8cODMNWbVRdVlmGZQL2YS3yR8bIUA==}
     engines: {node: '>= 0.4'}
-
-  es-toolkit@1.49.0:
-    resolution: {integrity: sha512-G5iZ6Pc/FNRY/soKZHC+TxGDD83rHUDXxzaWhGCX44vAv/tMs56WMusnm/KMNK+luUPsgA9U28cGr4RDlSzL2g==}
 
   es-toolkit@1.50.0:
     resolution: {integrity: sha512-OyZKhUVvEep9ITEiwHn8GKnMRQIVqoSIX7WnRbkWgJkllCujilqP2rD0u979tkl8wqyc8ICwlc1UBVv/Sl1G6w==}
@@ -8882,6 +8906,9 @@ packages:
   mermaid@11.16.0:
     resolution: {integrity: sha512-Zvm3kbstgdpvIJPPItlL7fppIZ3kibvc1oZIGxdvk9t6UFz6flv+Jw7FtRGKwfcI8OckmH04LqG6LlS6X4B1pA==}
 
+  mermaid@11.16.1:
+    resolution: {integrity: sha512-TQsq6u22fAn3rek5VOubrhKPo1g5hwC3FXUN9hiyupTckcYiGuuKGkNQrKYwGJkXUxZdojwRG46gsSCFZMDp4g==}
+
   methods@1.1.2:
     resolution: {integrity: sha512-iclAHeNqNm68zFtnZ0e+1L2yUIdvzNoauKU4WBA3VvH/vPFieF7qfRlwUZU+DA9P9bPXIS90ulxoUoCH23sV2w==}
     engines: {node: '>= 0.6'}
@@ -9358,8 +9385,8 @@ packages:
   package-manager-detector@0.2.11:
     resolution: {integrity: sha512-BEnLolu+yuz22S56CU1SUKq3XC3PkwD5wv4ikR4MfGvnRVcmzXR9DwSlW2fEamyTPyXHomBJRzgapeuBvRNzJQ==}
 
-  package-manager-detector@1.7.0:
-    resolution: {integrity: sha512-xg1eHpwYL/D/HEdWw2goFZP6vV0FH7W+PZ5rFkGjdIDLtxq7EkzBUeT3m+lndYCt8wKbmofUu1MUdMCXkCk9ZQ==}
+  package-manager-detector@1.8.0:
+    resolution: {integrity: sha512-yQA4H19AmPEoMUeavPMDIe1higySl/gH/yaQrkT/s07Qp+7pp2hYz30N3z2l5BkjVkF9Ow6o0wjJamm2y7Sn0A==}
 
   pako@1.0.11:
     resolution: {integrity: sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw==}
@@ -9583,11 +9610,6 @@ packages:
   prettier@2.8.8:
     resolution: {integrity: sha512-tdN8qQGvNjw4CHbY+XXk0JgCXn9QiF21a55rBe5LJAU+kDyC4WQn4+awm2Xfk2lQMk5fKup9XgzTZtGkjBdP9Q==}
     engines: {node: '>=10.13.0'}
-    hasBin: true
-
-  prettier@3.9.6:
-    resolution: {integrity: sha512-OpN0zzVdiaiAhxpuuj5efpIS4sY9j7bY6uR5mnj5yPzGkdkjNKSJeUThPb60Jw29QuAZgA4o+/iB49kFiaBX6g==}
-    engines: {node: '>=14'}
     hasBin: true
 
   pretty-format@27.5.1:
@@ -11333,7 +11355,7 @@ snapshots:
 
   '@antfu/install-pkg@1.1.0':
     dependencies:
-      package-manager-detector: 1.7.0
+      package-manager-detector: 1.8.0
       tinyexec: 1.3.0
 
   '@asamuzakjp/css-color@6.0.5':
@@ -12224,7 +12246,7 @@ snapshots:
 
   '@iconify/types@2.0.0': {}
 
-  '@iconify/utils@3.1.3':
+  '@iconify/utils@3.1.4':
     dependencies:
       '@antfu/install-pkg': 1.1.0
       '@iconify/types': 2.0.0
@@ -12616,41 +12638,42 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@objectstack/client@17.0.0-rc.2(ai@7.0.44(zod@4.4.3))':
+  '@objectstack/client@17.0.0-rc.5(ai@7.0.44(zod@4.4.3))':
     dependencies:
-      '@objectstack/core': 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
-      '@objectstack/spec': 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+      '@objectstack/core': 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
+      '@objectstack/spec': 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/core@17.0.0-rc.2(ai@7.0.44(zod@4.4.3))':
+  '@objectstack/core@17.0.0-rc.5(ai@7.0.44(zod@4.4.3))':
     dependencies:
-      '@objectstack/spec': 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+      '@objectstack/spec': 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
       zod: 4.4.3
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/formula@17.0.0-rc.2(ai@7.0.44(zod@4.4.3))':
+  '@objectstack/formula@17.0.0-rc.5(ai@7.0.44(zod@4.4.3))':
     dependencies:
       '@marcbachmann/cel-js': 8.0.0
-      '@objectstack/spec': 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+      '@objectstack/spec': 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/lint@17.0.0-rc.2(ai@7.0.44(zod@4.4.3))':
+  '@objectstack/lint@17.0.0-rc.5(ai@7.0.44(zod@4.4.3))':
     dependencies:
-      '@marcbachmann/cel-js': 8.0.0
-      '@objectstack/formula': 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
-      '@objectstack/sdui-parser': 17.0.0-rc.2
-      '@objectstack/spec': 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+      '@objectstack/formula': 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
+      '@objectstack/sdui-parser': 17.0.0-rc.5
+      '@objectstack/spec': 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
+      ajv: 8.20.0
+      ajv-formats: 3.0.1(ajv@8.20.0)
       sucrase: 3.35.1
       typescript: 6.0.3
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/sdui-parser@17.0.0-rc.2': {}
+  '@objectstack/sdui-parser@17.0.0-rc.5': {}
 
-  '@objectstack/spec@17.0.0-rc.2(ai@7.0.44(zod@4.4.3))':
+  '@objectstack/spec@17.0.0-rc.5(ai@7.0.44(zod@4.4.3))':
     dependencies:
       zod: 4.4.3
     optionalDependencies:
@@ -14206,7 +14229,7 @@ snapshots:
 
   '@types/d3-format@3.0.4': {}
 
-  '@types/d3-geo@3.1.0':
+  '@types/d3-geo@3.1.1':
     dependencies:
       '@types/geojson': 7946.0.16
 
@@ -14222,7 +14245,7 @@ snapshots:
 
   '@types/d3-quadtree@3.0.6': {}
 
-  '@types/d3-random@3.0.3': {}
+  '@types/d3-random@3.0.4': {}
 
   '@types/d3-scale-chromatic@3.1.0': {}
 
@@ -14267,13 +14290,13 @@ snapshots:
       '@types/d3-fetch': 3.0.7
       '@types/d3-force': 3.0.10
       '@types/d3-format': 3.0.4
-      '@types/d3-geo': 3.1.0
+      '@types/d3-geo': 3.1.1
       '@types/d3-hierarchy': 3.1.7
       '@types/d3-interpolate': 3.0.4
       '@types/d3-path': 3.1.1
       '@types/d3-polygon': 3.0.2
       '@types/d3-quadtree': 3.0.6
-      '@types/d3-random': 3.0.3
+      '@types/d3-random': 3.0.4
       '@types/d3-scale': 4.0.9
       '@types/d3-scale-chromatic': 3.1.0
       '@types/d3-selection': 3.0.11
@@ -15771,10 +15794,6 @@ snapshots:
     dependencies:
       domelementtype: 2.3.0
 
-  dompurify@3.4.11:
-    optionalDependencies:
-      '@types/trusted-types': 2.0.7
-
   dompurify@3.4.13:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
@@ -15886,8 +15905,6 @@ snapshots:
       get-intrinsic: 1.3.0
       has-tostringtag: 1.0.2
       hasown: 2.0.4
-
-  es-toolkit@1.49.0: {}
 
   es-toolkit@1.50.0: {}
 
@@ -17702,7 +17719,7 @@ snapshots:
   mermaid@11.16.0:
     dependencies:
       '@braintree/sanitize-url': 7.1.2
-      '@iconify/utils': 3.1.3
+      '@iconify/utils': 3.1.4
       '@mermaid-js/parser': 1.2.0
       '@types/d3': 7.4.3
       '@upsetjs/venn.js': 2.0.0
@@ -17713,8 +17730,32 @@ snapshots:
       d3-sankey: 0.12.3
       dagre-d3-es: 7.0.14
       dayjs: 1.11.21
-      dompurify: 3.4.11
-      es-toolkit: 1.49.0
+      dompurify: 3.4.13
+      es-toolkit: 1.50.0
+      katex: 0.16.47
+      khroma: 2.1.0
+      marked: 16.4.2
+      roughjs: 4.6.6
+      stylis: 4.4.0
+      ts-dedent: 2.3.0
+      uuid: 11.1.1
+
+  mermaid@11.16.1:
+    dependencies:
+      '@braintree/sanitize-url': 7.1.2
+      '@iconify/utils': 3.1.4
+      '@mermaid-js/parser': 1.2.0
+      '@types/d3': 7.4.3
+      '@upsetjs/venn.js': 2.0.0
+      cytoscape: 3.34.0
+      cytoscape-cose-bilkent: 4.1.0(cytoscape@3.34.0)
+      cytoscape-fcose: 2.2.0(cytoscape@3.34.0)
+      d3: 7.9.0
+      d3-sankey: 0.12.3
+      dagre-d3-es: 7.0.14
+      dayjs: 1.11.21
+      dompurify: 3.4.13
+      es-toolkit: 1.50.0
       katex: 0.16.47
       khroma: 2.1.0
       marked: 16.4.2
@@ -18332,7 +18373,7 @@ snapshots:
     dependencies:
       quansync: 0.2.11
 
-  package-manager-detector@1.7.0: {}
+  package-manager-detector@1.8.0: {}
 
   pako@1.0.11: {}
 
@@ -18535,8 +18576,6 @@ snapshots:
   prelude-ls@1.2.1: {}
 
   prettier@2.8.8: {}
-
-  prettier@3.9.6: {}
 
   pretty-format@27.5.1:
     dependencies:

@@ -1,7 +1,14 @@
 {
-  "type": "text",
-  "name": "name",
-  "label": "Full Name",
-  "placeholder": "John Doe",
-  "required": true
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Full Name",
+      "type": "text",
+      "placeholder": "John Doe",
+      "required": true
+    }
+  ]
 }

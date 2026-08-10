@@ -16,12 +16,13 @@ import React, { forwardRef, useCallback, useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { ActionSchema } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
-import { useCondition, toPredicateInput } from '@object-ui/react';
+import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
 import { Button } from '../../ui';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui';
 import { cn } from '../../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
+import { hasDeclaredVisibilityGate } from './visibility-gate';
 
 export interface ActionIconProps {
   schema: ActionSchema & { type: string; className?: string };
@@ -36,18 +37,28 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
       'data-obj-id': dataObjId,
       'data-obj-type': dataObjType,
       style,
+      // The row `action:bar` forwards to its members. Destructured for TWO
+      // reasons: it is the predicate context below (objectui#4075 — this
+      // renderer evaluated `visible` / `disabled` / `enabled` against NOTHING,
+      // so not even the bare-field shorthand resolved, let alone the canonical
+      // `record.` root), and it must not reach `...rest`, which is spread onto
+      // the DOM button.
+      data,
       ...rest
     } = props;
 
     const { execute } = useAction();
     const [loading, setLoading] = useState(false);
 
-    const isVisible = useCondition(toPredicateInput(schema.visible));
+    // The row bound the three canonical ways — see `usePredicateRecordContext`.
+    const recordData = usePredicateRecordContext(data);
+
+    const isVisible = useCondition(toPredicateInput(schema.visible), recordData);
     // Spec `disabled` (boolean | CEL — disabled when TRUE) primary, legacy
     // non-spec `enabled` fallback (#1885 follow-through — only action-button
     // was wired; this renderer ignored a spec-authored `disabled`).
-    const isDisabledPred = useCondition(toPredicateInput((schema as any).disabled));
-    const isEnabled = useCondition(toPredicateInput(schema.enabled));
+    const isDisabledPred = useCondition(toPredicateInput((schema as any).disabled), recordData);
+    const isEnabled = useCondition(toPredicateInput(schema.enabled), recordData);
 
     const Icon = resolveIcon(schema.icon);
     const variant = schema.variant === 'primary' ? 'default' : (schema.variant || 'ghost');
@@ -65,6 +76,10 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
           endpoint: schema.endpoint,
           method: schema.method,
           params: schema.params as Record<string, any> | undefined,
+          // See action-button.tsx — the `type: 'api'` payload key (objectstack#6837).
+          bodyExtra: schema.bodyExtra,
+          // See action-button.tsx — the body-WRAPPING key (objectstack#6938).
+          bodyShape: schema.bodyShape,
           confirmText: schema.confirmText,
           successMessage: schema.successMessage,
           errorMessage: schema.errorMessage,
@@ -79,7 +94,11 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
       }
     }, [schema, execute, loading, localContext]);
 
-    if (schema.visible && !isVisible) return null;
+    // Same gate, same reachability as action-button.tsx (objectui#3823): an
+    // `action:icon` member of an `action:bar` gets the author's `visible`
+    // spread onto its own schema, and truthiness read a declared `false` as
+    // "no gate". See `hasDeclaredVisibilityGate`.
+    if (hasDeclaredVisibilityGate(schema.visible) && !isVisible) return null;
 
     const button = (
       <Button
@@ -88,10 +107,25 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
         variant={variant as any}
         size={size}
         className={cn('h-8 w-8', schema.className, className)}
+        // Is a `disabled` / `enabled` gate DECLARED? The same question the
+        // `visible` gate above asks, so it reads the same definition — the name
+        // is historic (objectui#3492 arrived through `visible`), the predicate
+        // is key-neutral: "declared" is `!= null && !== ''`. Deliberately NOT
+        // renamed or aliased (objectui#3842 ruling, applied here by #3849).
+        //
+        // `!= null` alone was a live defect on `disabled` in a way it is not on
+        // `visible`: the evaluation entry reads an empty predicate as "no
+        // condition → true", which means SHOW on `visible` (harmless) but
+        // DISABLE here — `disabled: ''` was a permanently greyed-out button.
+        // The legacy `enabled` leg is negated, so its `''` case already landed
+        // on "not disabled"; routing it through the same definition is
+        // behaviour-preserving (derivation table in
+        // `__tests__/action-disabled-declared-gate.test.tsx`) and leaves one
+        // spelling of "declared" on both legs.
         disabled={(
-          (schema as any).disabled != null
+          hasDeclaredVisibilityGate((schema as any).disabled)
             ? isDisabledPred
-            : schema.enabled != null
+            : hasDeclaredVisibilityGate(schema.enabled)
               ? !isEnabled
               : false
         ) || loading}

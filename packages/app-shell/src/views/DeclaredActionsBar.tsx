@@ -31,7 +31,7 @@
  */
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { Button, Separator, cn } from '@object-ui/components';
+import { Button, Separator, cn, hasDeclaredVisibilityGate } from '@object-ui/components';
 import {
   ActionProvider,
   useAction,
@@ -43,7 +43,16 @@ import { useObjectLabel, useObjectTranslation } from '@object-ui/i18n';
 import { Loader2 } from 'lucide-react';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
 import { useAdapter } from '../providers/AdapterProvider';
-import { useMetadataItem } from '../providers/MetadataProvider';
+// Straight from `@object-ui/react`, NOT through `../providers/MetadataProvider`
+// (which merely re-exports it). The provider module pulls in the console
+// metadata client factory, and that module builds its shared authenticated
+// fetch AT IMPORT TIME — so importing the hook by the convenient path drags an
+// eager side effect into the module graph of every host that renders this bar.
+// It surfaced when the record page started mounting the bar (objectui#3055):
+// two RecordDetailView suites died at import with `Cannot access
+// 'authFetchSpy' before initialization`, the side effect running inside the
+// hoisted `@object-ui/auth` mock factory before the spy existed.
+import { useMetadataItem } from '@object-ui/react';
 import { decisionOutputDefs, decisionOutputParams } from '../utils/decisionOutputParams';
 import { getIcon } from '../utils/getIcon';
 
@@ -113,10 +122,38 @@ const DeclaredActionButton: React.FC<{
   const { t } = useObjectTranslation();
 
   const recordData = record != null && typeof record === 'object' ? (record as Record<string, any>) : {};
+  /**
+   * The predicate scope, with the record bound the THREE ways the platform's
+   * row surfaces bind it (objectui#3055).
+   *
+   * The bar used to hand the row in as the bare context bag, so only the
+   * shorthand spelling — `status == "pending"` — resolved. The CANONICAL
+   * spelling is the `record.` root: it is what `ExpressionEvaluator`'s CEL path
+   * binds (`bag.record` as the record namespace), what `evalRowPredicate` binds
+   * on the record header and on list rows, and what the server itself
+   * enforces with. Under a root-only bag `record.viewer.can_act` does not read
+   * as false — it throws `record is not defined`, and `throwOnError` turns that
+   * into "hidden".
+   *
+   * Which is not hypothetical: EVERY declared action on `sys_approval_request`
+   * gates on `record.viewer.*` (framework#3310 / #3424), so the whole
+   * server-declared decision set was invisible on every surface this bar
+   * renders. The record page's two hand-written buttons were, in practice, the
+   * only decision UI that could still be reached — the fork objectui#3055 is
+   * about, kept alive by the "full" path being unable to evaluate its own gate.
+   *
+   * `record` / `data` are written AFTER the spread, so a row that happens to
+   * carry a field of either name cannot shadow the namespace a predicate means.
+   */
+  const predicateRecord = useMemo(
+    () => ({ ...recordData, record: recordData, data: recordData }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [record],
+  );
   // `visible` fails CLOSED on a throwing predicate — mirrors action:button and
   // ActionEngine.getActionsForLocation: a guard that can't be evaluated hides
   // the action rather than exposing one whose precondition is broken.
-  const isVisible = useCondition(toPredicateInput((action as any).visible), recordData, {
+  const isVisible = useCondition(toPredicateInput((action as any).visible), predicateRecord, {
     throwOnError: true,
     label: `declared action "${action.name ?? action.label ?? 'action'}" (visible)`,
   });
@@ -125,7 +162,7 @@ const DeclaredActionButton: React.FC<{
   // this bar ignored it, so a spec-authored `disabled` guard on a declared
   // action did nothing here. (No legacy `enabled` fallback: server-declared
   // actions are spec-shaped and never carried the non-spec key.)
-  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled), recordData);
+  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled), predicateRecord);
 
   const handleClick = useCallback(async () => {
     if (loading) return;
@@ -187,7 +224,25 @@ const DeclaredActionButton: React.FC<{
     }
   }, [action, execute, loading, objectName, record, actionLabel, actionConfirm, actionSuccess, t]);
 
-  if ((action as any).visible && !isVisible) return null;
+  // Does the action DECLARE a `visible` gate? `hasDeclaredVisibilityGate`
+  // (`!= null && !== ''`) is the one definition on the question, imported rather
+  // than re-spelled. This gate used to ask truthiness, which classified
+  // `visible: false` — the most explicit "never show this" an author can write —
+  // as "no gate declared", skipped the verdict, and rendered the action for
+  // everyone (objectui#3835, the fifth member of the objectui#3492 family).
+  //
+  // The stakes here are the highest of the family: the actions are
+  // SERVER-declared (`objectDef.actions[]`), so "the spec's `visible` has no
+  // boolean member, `objectstack build` cannot emit one" does not apply, and this
+  // bar is mounted as plain JSX by its hosts — `packages/react`'s
+  // `SchemaRenderer`, which hides a `visible`-carrying node before its component
+  // mounts, is not on this path. This is the only gate on it, in front of the
+  // approvals inbox's Approve / Reject buttons.
+  //
+  // The verdict stays with the evaluation entry above: `toPredicateInput` passes
+  // a boolean through untouched and `useCondition` short-circuits it instead of
+  // calling the expression engine, so a declared `false` is `false`.
+  if (hasDeclaredVisibilityGate((action as any).visible) && !isVisible) return null;
 
   const iconName = typeof (action as any).icon === 'string' ? (action as any).icon as string : undefined;
   // Map the spec's action `variant` enum (primary|secondary|danger|ghost|link)
@@ -209,7 +264,23 @@ const DeclaredActionButton: React.FC<{
       type="button"
       size="sm"
       variant={variant as any}
-      disabled={((action as any).disabled != null ? isDisabledPred : false) || loading}
+      // Is a `disabled` gate DECLARED? The same question the `visible` gate
+      // above asks, so it reads the same definition rather than re-spelling it.
+      // The name is historic — objectui#3492 arrived through `visible` — and the
+      // predicate is key-neutral: "declared" is `!= null && !== ''`, because an
+      // empty predicate is nothing to evaluate. Kept under that name
+      // deliberately (objectui#3842 ruling): one implementation behind two names
+      // is a dialect, not a clarification.
+      //
+      // `!= null` alone was a real defect here, and NOT for the reason it was on
+      // `visible`: the evaluation entry reads an empty predicate as "no
+      // condition → true", which on `visible` means SHOW (so an over-broad
+      // "declared" test cancels out and `''` renders either way), but here means
+      // DISABLE. A `disabled: ''` on a server-declared approval action rendered
+      // a permanently greyed-out Approve / Reject — the mirror image of
+      // objectui#3835 on the same surface, and equally impossible to tell from
+      // deliberate metadata by looking at it.
+      disabled={(hasDeclaredVisibilityGate((action as any).disabled) ? isDisabledPred : false) || loading}
       onClick={handleClick}
       data-testid={`declared-action-${action.name}`}
     >

@@ -3,6 +3,7 @@ import { Star } from 'lucide-react';
 import { cn } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
+import { toHostGroupProps } from './toHostGroupProps';
 
 /**
  * Rating field widget - provides a star rating input
@@ -19,8 +20,11 @@ export function RatingField({ value, onChange, field, readonly, className, error
   const displayValue = hoverValue !== null ? hoverValue : currentValue;
 
   if (readonly) {
+    // The readonly star row is the field's whole rendered surface, so it — not
+    // only the editable row below — consumes the host's group label
+    // (objectui#3990). See `toHostGroupProps`.
     return (
-      <div className={cn("flex items-center gap-1", className)}>
+      <div {...toHostGroupProps(props)} className={cn("flex items-center gap-1", className)}>
         {Array.from({ length: max }, (_, i) => (
           <Star
             key={i}
@@ -50,9 +54,18 @@ export function RatingField({ value, onChange, field, readonly, className, error
     name: _domName,
     ...groupDomProps
   } = toDomProps(props);
+  // When the host named this container by IDREF (`aria-labelledby`,
+  // objectui#3961) it IS the labelled group of stars, so it answers with the
+  // matching role; a `label for` pointing at this `div` was inert. Standalone
+  // (no host label) the markup is unchanged.
+  const isLabelledGroup = groupDomProps['aria-labelledby'] != null;
 
   return (
-    <div {...groupDomProps} className={cn("flex items-center gap-1", className)}>
+    <div
+      {...groupDomProps}
+      role={isLabelledGroup ? 'group' : undefined}
+      className={cn("flex items-center gap-1", className)}
+    >
       {Array.from({ length: max }, (_, i) => (
         <button
           key={i}

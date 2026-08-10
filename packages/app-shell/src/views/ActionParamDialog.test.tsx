@@ -22,6 +22,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ActionParamDef } from '@object-ui/core';
+import { validateActionParams } from '@objectstack/spec/ui';
 import { ActionParamDialog, filterVisibleParams, serializeParamValues } from './ActionParamDialog';
 import { expectedParamShape, classifyValueShape } from '../utils/paramValueShape';
 
@@ -124,6 +125,26 @@ describe('ActionParamDialog — shared field-widget rendering (ADR-0059)', () =>
     const resolve = openDialog([def({ name: 'force', type: 'boolean' })]);
     const checkbox = await screen.findByRole('checkbox');
     fireEvent.click(checkbox);
+    confirm();
+    await waitFor(() => expect(resolve).toHaveBeenCalledWith({ force: true }));
+  });
+
+  it('toggles the boolean param by clicking its visible label (objectui#3962)', async () => {
+    // The boolean branch renders `<Label htmlFor={param.name}>` beside the
+    // control and now hands the widget that same id explicitly, so the row's
+    // normal affordance — click the text — has to work off the host's own
+    // output rather than off `BooleanField`'s id fallback chain. Pinned as
+    // BEHAVIOR here; the naming half (one label, un-doubled accessible name)
+    // is pinned in ActionParamDialog.ariaRequired.test.tsx.
+    const resolve = openDialog([def({ name: 'force', label: 'Force It', type: 'boolean' })]);
+    const checkbox = await screen.findByRole('checkbox');
+    expect(checkbox).toHaveAttribute('aria-checked', 'false');
+
+    const label = document.querySelector('label[for="force"]') as HTMLLabelElement;
+    expect(label).not.toBeNull();
+    fireEvent.click(label);
+
+    await waitFor(() => expect(checkbox).toHaveAttribute('aria-checked', 'true'));
     confirm();
     await waitFor(() => expect(resolve).toHaveBeenCalledWith({ force: true }));
   });
@@ -235,7 +256,16 @@ describe('emitted value-shape parity (contract-tied render proofs, #2714)', () =
     expect(classifyValueShape(emitted)).toBe(expectedParamShape(param)); // 'number'
   });
 
-  it('datetime param emits an ISO-ish string matching its declared contract', async () => {
+  // objectstack#5061: this proof used to assert the emitted value was the
+  // control's own `2026-07-20T14:30` — the one shape `validateActionParams`
+  // rejects, so it was pinning a value that earned a 400 on every submission.
+  // It now drives the same real widget and asks the REAL platform validator
+  // whether the bag would be accepted, which is the fact the user cares about.
+  // Written to hold in EVERY timezone (the repo's rule for zone-shaped tests,
+  // see nativeDateValue.test.ts): never hardcode the expected instant — assert
+  // the shape the contract demands, and that it denotes the same instant as the
+  // local wall clock the user typed into the control.
+  it('datetime param emits a zoned ISO instant the platform validator accepts', async () => {
     const param = def({ name: 'when', type: 'datetime' });
     const resolve = openDialog([param]);
     const input = await screen.findByLabelText('Param One');
@@ -244,8 +274,17 @@ describe('emitted value-shape parity (contract-tied render proofs, #2714)', () =
     confirm();
     await waitFor(() => expect(resolve).toHaveBeenCalled());
     const emitted = resolve.mock.calls[0][0].when;
-    expect(emitted).toBe('2026-07-20T14:30');
+
+    // 1. The declared table shape is still `string` — the contract change is in
+    //    the string's FORM, which the shape tag can't see (so this line alone
+    //    would have stayed green through the bug; it is not the guard).
     expect(classifyValueShape(emitted)).toBe(expectedParamShape(param)); // 'string'
+    // 2. The guard: the exact validator that produced the 400 in the issue now
+    //    reports no issues for the bag the dialog resolved.
+    expect(validateActionParams([{ name: 'when', type: 'datetime' }], { when: emitted })).toEqual([]);
+    // 3. …and it is still the minute the user picked, read on the local basis
+    //    the control writes on.
+    expect(new Date(emitted as string).getTime()).toBe(new Date('2026-07-20T14:30').getTime());
   });
 
   it('time param emits a string matching its declared contract', async () => {
@@ -344,45 +383,82 @@ describe('serializeParamValues', () => {
     expect(out).toEqual({ attachments: 'f_1', comment: 'keep me' });
   });
 
-  // `DateTimeField` became ISO-canonical on both sides in objectui#3127 (a
-  // record's stored value arrives as an ISO instant, which the native control
-  // silently rejects, so read and write must share one basis). Action params
-  // have no stored value, so the endpoint contract stays the control's own
-  // zone-less local wall clock — converted back HERE rather than by weakening
-  // the widget, which would put the record form back on two bases.
-  describe('datetime params (objectui#3127 / contract pinned by #2714)', () => {
+  /**
+   * objectstack#5061 — the whole point of this block INVERTED.
+   *
+   * The previous version pinned the opposite behavior: it asserted the widget's
+   * ISO instant was converted BACK to `2026-07-20T14:30` on the way out. That
+   * assertion was green and the feature was still 100% broken, because the shape
+   * it pinned is the one shape the platform's `datetime` value contract rejects
+   * — so those cases were replaced rather than re-spelled. The oracle here is
+   * `validateActionParams` from `@objectstack/spec/ui`, i.e. the exact function
+   * the dispatcher runs before the handler (ADR-0104 D2) and the source of the
+   * 400 quoted in the issue. Pinning against the real validator instead of a
+   * re-spelled literal is what keeps this from re-pinning a shape nobody accepts.
+   *
+   * Zone-agnostic by construction: no expected instant is hardcoded (see
+   * `nativeDateValue.test.ts`'s note — a zone-shaped test that only holds in UTC
+   * goes green on CI while the defect is live for every user east or west of it).
+   */
+  describe('datetime params (objectstack#5061)', () => {
     const dtParam = (name: string): ActionParamDef =>
       ({ name, label: name, type: 'datetime' } as ActionParamDef);
+    /** The resolved declaration the dispatcher validates the bag against. */
+    const dtDecl = (name: string) => [{ name, type: 'datetime' }];
 
-    it('converts the widget ISO instant back to the local wall clock it POSTs', () => {
+    it('passes the widget ISO instant straight through, so the platform accepts it', () => {
+      // What DateTimeField hands the dialog: `fromDateTimeInputValue` → an ISO
+      // instant with an explicit zone, seconds and milliseconds included.
       const iso = new Date(2026, 6, 20, 14, 30).toISOString();
-      expect(serializeParamValues([dtParam('when')], { when: iso })).toEqual({
-        when: '2026-07-20T14:30',
-      });
+      const out = serializeParamValues([dtParam('when')], { when: iso });
+      expect(out).toEqual({ when: iso });
+      expect(validateActionParams(dtDecl('when'), out)).toEqual([]);
     });
 
-    it('leaves an already zone-less value untouched', () => {
-      expect(serializeParamValues([dtParam('when')], { when: '2026-07-20T14:30' })).toEqual({
-        when: '2026-07-20T14:30',
-      });
+    it('is idempotent for a value that already carries a zone — no second conversion', () => {
+      // A `+HH:MM` offset is as valid an instant as `Z` for the contract, and
+      // must survive byte-for-byte: re-deriving it would re-cut the seconds.
+      const offset = '2026-07-20T14:30:45.123+08:00';
+      expect(serializeParamValues([dtParam('when')], { when: offset })).toEqual({ when: offset });
+      expect(validateActionParams(dtDecl('when'), { when: offset })).toEqual([]);
+      // Applying the boundary twice changes nothing (the property, not a sample).
+      const once = serializeParamValues([dtParam('when')], { when: offset });
+      expect(serializeParamValues([dtParam('when')], once)).toEqual(once);
     });
 
-    it('leaves an empty / absent datetime alone', () => {
+    it('leaves an empty / unfilled datetime alone — no Invalid Date, no required error', () => {
       expect(serializeParamValues([dtParam('when')], { when: '' })).toEqual({ when: '' });
+      expect(serializeParamValues([dtParam('when')], { when: null })).toEqual({ when: null });
       expect(serializeParamValues([dtParam('when')], { other: 1 })).toEqual({ other: 1 });
+      // An optional param left blank is ABSENT to the validator, not invalid.
+      expect(validateActionParams(dtDecl('when'), { when: '' })).toEqual([]);
     });
 
-    it('keeps an unparseable value rather than blanking it', () => {
-      expect(serializeParamValues([dtParam('when')], { when: 'not-a-date' })).toEqual({
-        when: 'not-a-date',
-      });
-    });
-
-    it('does not touch a plain date param', () => {
+    it('does not touch a plain date param (its contract is the calendar day)', () => {
       const dateParam = { name: 'day', label: 'day', type: 'date' } as ActionParamDef;
-      expect(serializeParamValues([dateParam], { day: '2026-07-20' })).toEqual({
-        day: '2026-07-20',
-      });
+      const out = serializeParamValues([dateParam], { day: '2026-07-20' });
+      expect(out).toEqual({ day: '2026-07-20' });
+      // A `date` param must NOT become an instant — the calendar day is the
+      // value, and zoning it would move the day west of Greenwich.
+      expect(validateActionParams([{ name: 'day', type: 'date' }], out)).toEqual([]);
+    });
+
+    it('documents the shape that is still rejected: a zone-less authored default', () => {
+      // Deliberately NOT laundered here (see serializeParamValues' note): an
+      // authored `defaultValue: '2026-07-20T14:30'` is ambiguous metadata, and
+      // coercing it would make it pass in the UI while the same literal keeps
+      // 400ing from REST/MCP. This pins that the renderer does not hide it.
+      // The authoring-time rejection that SHOULD catch it is objectstack#6970.
+      const naive = '2026-07-20T14:30';
+      expect(serializeParamValues([dtParam('when')], { when: naive })).toEqual({ when: naive });
+      // Asserted structurally, plus the one phrase that identifies the rule.
+      // Pinning the validator's full sentence would couple this suite to a
+      // message owned by `@objectstack/spec`, so a reword there would red this
+      // repo's CI for a reason that has nothing to do with the renderer.
+      const issues = validateActionParams(dtDecl('when'), { when: naive });
+      expect(issues).toHaveLength(1);
+      expect(issues[0]).toMatchObject({ param: 'when', code: 'invalid_shape' });
+      expect(issues[0].message).toMatch(/explicit zone/);
     });
   });
 });

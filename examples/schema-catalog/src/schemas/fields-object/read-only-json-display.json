@@ -1,13 +1,22 @@
 {
-  "type": "object",
-  "name": "response",
-  "label": "API Response",
-  "value": {
-    "status": 200,
-    "data": {
-      "id": 123,
-      "name": "Test"
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "defaultValues": {
+    "response": {
+      "status": 200,
+      "data": {
+        "id": 123,
+        "name": "Test"
+      }
     }
   },
-  "readonly": true
+  "fields": [
+    {
+      "name": "response",
+      "label": "API Response",
+      "type": "object",
+      "readonly": true
+    }
+  ]
 }

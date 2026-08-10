@@ -21,7 +21,7 @@ import { ComponentRegistry } from '@object-ui/core';
 import type { ActionSchema, ActionGroup, ActionLocation } from '@object-ui/types';
 import { actionRendersAt } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
-import { useCondition, toPredicateInput } from '@object-ui/react';
+import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
 import { Button } from '../../ui';
 import {
   DropdownMenu,
@@ -33,6 +33,7 @@ import {
 import { cn } from '../../lib/utils';
 import { Loader2, ChevronDown } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
+import { hasDeclaredVisibilityGate } from './visibility-gate';
 
 export interface ActionGroupSchema {
   type: 'action:group';
@@ -67,15 +68,21 @@ const InlineActionButton: React.FC<{
   variant?: string;
   size?: string;
   onExecute: (action: ActionSchema) => Promise<void>;
-}> = ({ action, variant, size, onExecute }) => {
+  /** The row the group is mounted over — see `DropdownActionItem` (objectui#4075). */
+  record?: unknown;
+}> = ({ action, variant, size, onExecute, record }) => {
   const [loading, setLoading] = useState(false);
-  const isVisible = useCondition(toPredicateInput(action.visible));
+  // The row bound the three canonical ways — `record.status`, bare `status`,
+  // `data.status`. This leaf used to evaluate against nothing at all, so a
+  // row-scoped predicate faulted on its root (objectui#4075).
+  const recordData = usePredicateRecordContext(record);
+  const isVisible = useCondition(toPredicateInput(action.visible), recordData);
   // Spec field is `disabled` (boolean | CEL — disabled when TRUE). #1885 wired
   // it in action-button only; this leaf kept reading the legacy non-spec
   // `enabled`, so a spec-authored `disabled` guard did nothing here. `disabled`
   // is now the primary control; `enabled` stays as a deprecated fallback.
-  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled));
-  const isEnabled = useCondition(toPredicateInput(action.enabled));
+  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled), recordData);
+  const isEnabled = useCondition(toPredicateInput(action.enabled), recordData);
 
   const Icon = resolveIcon(action.icon);
   const btnVariant = (action.variant as string) === 'primary' ? 'default' : (action.variant || variant || 'outline');
@@ -91,7 +98,9 @@ const InlineActionButton: React.FC<{
     }
   }, [action, onExecute, loading]);
 
-  if (action.visible && !isVisible) return null;
+  // A DECLARED gate decides; truthiness would read `visible: false` as ungated
+  // and render it (objectui#3812) — see `hasDeclaredVisibilityGate`.
+  if (hasDeclaredVisibilityGate(action.visible) && !isVisible) return null;
 
   return (
     <Button
@@ -99,10 +108,19 @@ const InlineActionButton: React.FC<{
       variant={btnVariant as any}
       size={btnSize as any}
       className={action.className}
+      // Is a `disabled` / `enabled` gate DECLARED? Same question as the
+      // `visible` gate above, so it reads the same definition (historic name
+      // kept, not aliased — objectui#3842 ruling, applied here by #3849). On
+      // this key `!= null` alone was a live defect: an empty predicate reaches
+      // the evaluation entry as "no condition → true", which means DISABLE
+      // here, so `disabled: ''` greyed the button out forever. The legacy
+      // `enabled` leg is negated and therefore behaviour-preserving under the
+      // same definition — derivation in
+      // `__tests__/action-disabled-declared-gate.test.tsx`.
       disabled={(
-        (action as any).disabled != null
+        hasDeclaredVisibilityGate((action as any).disabled)
           ? isDisabledPred
-          : action.enabled != null
+          : hasDeclaredVisibilityGate(action.enabled)
             ? !isEnabled
             : false
       ) || loading}
@@ -132,17 +150,34 @@ export const DropdownActionItem: React.FC<{
   action: ActionSchema;
   index: number;
   onSelect: (action: ActionSchema) => void | Promise<void>;
-}> = ({ action, index, onSelect }) => {
-  const isVisible = useCondition(toPredicateInput(action.visible));
+  /**
+   * The row this group is mounted over, forwarded by the host. Optional: an
+   * object-level group genuinely has no row, and a predicate over an empty
+   * record is still evaluable (objectui#4075).
+   */
+  record?: unknown;
+}> = ({ action, index, onSelect, record }) => {
+  // Same three-way binding as `InlineActionButton` — one action cannot resolve
+  // its predicate in one display mode and fault in the other (objectui#4075,
+  // the binding half of the objectui#3812 / #3842 "one leaf, one answer" rule).
+  const recordData = usePredicateRecordContext(record);
+  const isVisible = useCondition(toPredicateInput(action.visible), recordData);
   // Spec `disabled` primary, legacy non-spec `enabled` fallback (see
   // InlineActionButton above — #1885 follow-through).
-  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled));
-  const isEnabled = useCondition(toPredicateInput(action.enabled));
-  if (action.visible && !isVisible) return null;
+  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled), recordData);
+  const isEnabled = useCondition(toPredicateInput(action.enabled), recordData);
+  // Same declared-gate rule as `InlineActionButton` above — one action cannot be
+  // hidden in one display mode and shown in the other (objectui#3812).
+  if (hasDeclaredVisibilityGate(action.visible) && !isVisible) return null;
   const Icon = resolveIcon(action.icon);
-  const isDisabled = (action as any).disabled != null
+  // Declared-gate test, same definition as `InlineActionButton` above: one
+  // action cannot be greyed out in one display mode and clickable in the other
+  // (objectui#3842 / #3849). `disabled: ''` is not a declared gate — an empty
+  // predicate is nothing to evaluate, and on this key the evaluation entry's
+  // "no condition → true" means DISABLE.
+  const isDisabled = hasDeclaredVisibilityGate((action as any).disabled)
     ? isDisabledPred
-    : action.enabled != null
+    : hasDeclaredVisibilityGate(action.enabled)
       ? !isEnabled
       : false;
   const showSeparator = action.tags?.includes('separator-before') && index > 0;
@@ -178,13 +213,21 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
       'data-obj-id': dataObjId,
       'data-obj-type': dataObjType,
       style,
+      // The row the host mounted this group over — the predicate context for
+      // this group's own `visible` AND for both display modes' leaves
+      // (objectui#4075). Also keeps `data` out of `...rest`, which is spread
+      // onto the DOM wrapper in inline mode.
+      data,
       ...rest
     } = props;
 
     const { execute } = useAction();
     const [dropdownLoading, setDropdownLoading] = useState(false);
 
-    const isVisible = useCondition(toPredicateInput(schema.visible));
+    // The row bound the three canonical ways — see `usePredicateRecordContext`.
+    const recordData = usePredicateRecordContext(data);
+
+    const isVisible = useCondition(toPredicateInput(schema.visible), recordData);
 
     // Placement is `actionRendersAt`'s call (objectui#3142) — this used to
     // show an action with `locations: undefined` while hiding one with
@@ -201,6 +244,10 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
           endpoint: action.endpoint,
           method: action.method,
           params: action.params as Record<string, any> | undefined,
+          // See action-button.tsx — the `type: 'api'` payload key (objectstack#6837).
+          bodyExtra: action.bodyExtra,
+          // See action-button.tsx — the body-WRAPPING key (objectstack#6938).
+          bodyShape: action.bodyShape,
           confirmText: action.confirmText,
           successMessage: action.successMessage,
           errorMessage: action.errorMessage,
@@ -261,6 +308,7 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
                 action={action}
                 index={index}
                 onSelect={handleDropdownSelect}
+                record={data}
               />
             ))}
           </DropdownMenuContent>
@@ -283,6 +331,7 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
             variant={schema.variant}
             size={schema.size}
             onExecute={handleExecute}
+            record={data}
           />
         ))}
       </div>

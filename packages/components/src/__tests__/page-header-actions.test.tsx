@@ -633,7 +633,7 @@ describe('PageHeaderRenderer — #2358 action visibility traps', () => {
   });
 
   describe('unified diagnostics: no more silent fail-closed hide', () => {
-    it('hides a throwing predicate AND warns once with the action name', () => {
+    it('hides an unevaluatable predicate AND warns once with the action name', () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       try {
         const schema = {
@@ -652,7 +652,15 @@ describe('PageHeaderRenderer — #2358 action visibility traps', () => {
         const matching = () =>
           warn.mock.calls.filter(c => String(c[0]).includes('bad_scope_2358'));
         expect(matching()).toHaveLength(1);
-        expect(String(matching()[0][0])).toMatch(/predicate threw/);
+        // Since objectui#3521 the fault report is written by the SAME warn-once
+        // machinery the row kebab and the selection bar use (`evalRowPredicate`
+        // with `warnOnError`), carrying the label this surface passes — so the
+        // wording is "failed to evaluate … treated as its safe default" rather
+        // than the header's former bespoke "predicate threw". What #2358 asked
+        // for is unchanged and still asserted here: the hidden button names
+        // itself, quotes its predicate, and says it once.
+        expect(String(matching()[0][0])).toMatch(/failed to evaluate/);
+        expect(String(matching()[0][0])).toContain('page:header');
         expect(String(matching()[0][0])).toContain('undeclared_var_2358 == 1');
         // Re-render must not spam the warning (deduped per action+predicate).
         unmount();
@@ -686,9 +694,18 @@ describe('PageHeaderRenderer — #2358 action visibility traps', () => {
         const hits = warn.mock.calls.filter(c =>
           String(c[0]).includes('hidden_field_gate_2358'),
         );
-        expect(hits).toHaveLength(1);
-        expect(String(hits[0][0])).toContain('secret_level_2358');
-        expect(String(hits[0][0])).toMatch(/not present in the record payload/);
+        // TWO diagnostics, one per fact, each once (objectui#3521): this local
+        // one names the missing field — a CAUSE only this surface can see, since
+        // the server strips `hidden: true` fields from detail payloads — and the
+        // shared `evalRowPredicate` report states the VERDICT (a CEL fault on an
+        // absent key, resolved to the fail-closed default). Before #3521 the
+        // legacy JS evaluator returned `undefined` for the absent key without
+        // faulting, so only the first line existed.
+        const missingField = hits.filter(c => /not present in the record payload/.test(String(c[0])));
+        const fault = hits.filter(c => /failed to evaluate/.test(String(c[0])));
+        expect(missingField).toHaveLength(1);
+        expect(fault).toHaveLength(1);
+        expect(String(missingField[0][0])).toContain('secret_level_2358');
       } finally {
         warn.mockRestore();
       }

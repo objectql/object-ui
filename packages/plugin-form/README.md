@@ -83,6 +83,38 @@ interface FormField {
 }
 ```
 
+### What a create form opens with
+
+A create form has no persisted record, so its opening values come from the
+object schema's declared field `defaultValue`s. Every object-form container
+(`ObjectForm`, `ModalForm`, `DrawerForm`, `TabbedForm`, `SplitForm`,
+`WizardForm`) resolves them the same way, through `schemaDefaults`:
+
+| Declared | Create form opens with | Why |
+|---|---|---|
+| `defaultValue: 'draft'` (any static literal) | `draft`, preselected and submittable | the value is known; making the user pick it is busywork, and on a status-like field every wrong option is one click away |
+| `defaultValue: 'NOW()'` / `'current_user'` (a runtime token) | empty | the token is an *instruction*, not a value. The server resolves it at insert — but only for fields that arrive empty, so seeding the literal text would suppress it |
+| `defaultValue: cel\`today()\`` (an Expression envelope) | empty | same reason: the server evaluates it per insert |
+| an option's `default: true` | empty | see below |
+| nothing | empty | no default is invented |
+
+`initialData` / `initialValues` passed by the caller always outrank a schema
+default — a lookup prefill or a "duplicate this record" seed is the more
+specific instruction.
+
+Only the **field-level** `defaultValue` is read, never a select option's
+`default: true`, even though `@objectstack/spec`'s `SelectOptionSchema` declares
+that key. The server's insert path resolves `defaultValue` and nothing else, so
+a form that also seeded from option-level `default` would preselect values the
+server would never have applied on its own — a renderer-side second default
+contract (AGENTS.md #0.1). If option-level `default` is meant to mean "the
+initial value", that belongs at the producer.
+
+**Edit forms are never seeded.** An edit form shows the row as the server holds
+it; folding a default in over a column the record leaves unset would arm a
+silent write of a value the user never chose, on the next save of any other
+field.
+
 ### Column width of a sectioned form
 
 A sectioned form renders as ONE grid, and two keys decide its shape:
@@ -356,17 +388,6 @@ The plugin includes these field components:
 - Radio group
 - Date picker
 - File upload
-
-<!-- release-metadata:v3.3.0 -->
-
-## Compatibility
-
-- **React:** 18.x or 19.x
-- **Node.js:** ≥ 18
-- **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^3.3.0
-- **`@objectstack/client`:** ^3.3.0
-- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
 
 ## Links
 

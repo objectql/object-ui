@@ -15,7 +15,12 @@ export interface MetadataLoader {
 
 /**
  * Strategy A: Local Bundle Loader (Vite Glob)
- * Used during local development via 'pnpm dev:crm'
+ *
+ * Reads metadata bundled at build time from `packages/runner/src/app-data/`.
+ * That directory is gitignored and absent from a fresh checkout, so the globs
+ * below compile to an empty map and every load returns null until something
+ * populates it — no script in this repo does. Use `NetworkLoader` to fetch the
+ * same metadata from an API instead.
  */
 export class LocalBundleLoader implements MetadataLoader {
   private appGlob = import.meta.glob('../app-data/app.json');

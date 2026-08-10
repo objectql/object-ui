@@ -50,6 +50,7 @@ import {
 } from './autoLayout';
 import { deriveFieldGroupSections } from './fieldGroups';
 import { sanitizeFormData } from './sanitize';
+import { seedCreateValues } from './schemaDefaults';
 import { usePermissions } from '@object-ui/permissions';
 import { useOccSave } from './occSave';
 
@@ -313,7 +314,12 @@ export const ModalForm: React.FC<ModalFormProps> = ({
     let cancelled = false;
     const fetchData = async () => {
       if (schema.mode === 'create' || !schema.recordId) {
-        setFormData(schema.initialData || schema.initialValues || {});
+        // No persisted record to show, so the object's declared static
+        // `defaultValue`s are the form's opening values (#4047) — caller-
+        // supplied initial values still win. See `schemaDefaults` for why
+        // runtime defaults (`NOW()`, `current_user`, CEL envelopes) are left
+        // to the server and why option-level `default` is not read here.
+        setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues));
         setLoading(false);
         return;
       }
@@ -395,7 +401,8 @@ export const ModalForm: React.FC<ModalFormProps> = ({
       generated.push({
         name,
         label: fieldLabel(schema.objectName, name, field.label || name),
-        type: mapFieldTypeToFormType(field.type),
+        // (type, multiple) decides the widget (objectui#3986) — see `sectionFields`.
+        type: mapFieldTypeToFormType(field.type, { multiple: field.multiple }),
         required: field.required || false,
         disabled: schema.readOnly || schema.mode === 'view' || field.readonly,
         placeholder: field.placeholder,

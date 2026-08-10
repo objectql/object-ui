@@ -9,14 +9,13 @@
   },
   "files": [
     "dist",
-    "templates",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "tsup",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "dev": "tsup --watch",
     "test": "vitest run",
     "lint": "eslint ."

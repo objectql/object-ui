@@ -3,6 +3,7 @@ import { Checkbox, Label, EmptyValue, Badge } from '@object-ui/components';
 import type { OptionLike } from '@object-ui/core';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
+import { toHostGroupProps } from './toHostGroupProps';
 import { OptionsEmptyState } from './OptionsEmptyState';
 import { useCascadingOptions } from './useCascadingOptions';
 
@@ -57,10 +58,22 @@ export function CheckboxesField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options, gated]);
 
+  // The host's group label has to be consumed on EVERY surface this widget can
+  // render, not only the editable one (objectui#3990): both branches below
+  // return before the editable container's `groupDomProps` spread, which is how
+  // a field-level `readonly: true` and a zero-option list ended up with a
+  // published label id and no consumer at all. See `toHostGroupProps`.
+  const hostGroupProps = toHostGroupProps(props);
+
   if (readonly) {
-    if (selected.length === 0) return <EmptyValue />;
+    // The readonly display of a checkbox set is the set of CHECKED labels — a
+    // set of values, so the same `group` answer as the editable list.
+    // `EmptyValue` is that surface with nothing in it; its own `aria-label`
+    // ("No value") is outranked by `aria-labelledby` per accname, and on the
+    // `generic` role that span carries it was never exposed anyway.
+    if (selected.length === 0) return <EmptyValue {...hostGroupProps} />;
     return (
-      <div className="flex flex-wrap gap-1">
+      <div {...hostGroupProps} className="flex flex-wrap gap-1">
         {selected.map((v) => {
           // Label from the raw set so a stored value hidden by `visibleWhen`
           // still renders its label rather than a bare id.
@@ -83,6 +96,9 @@ export function CheckboxesField({
         dependsOnFields={dependsOnFields}
         testId={fieldName ? `checkboxes-empty-${fieldName}` : undefined}
         className="min-h-9"
+        // This box IS the field in this state, so it is what the host label
+        // names (objectui#3990).
+        hostGroupProps={hostGroupProps}
       />
     );
   }
@@ -105,10 +121,19 @@ export function CheckboxesField({
     name: _domName,
     ...groupDomProps
   } = toDomProps(props);
+  // When the host associated its visible label with this container by IDREF
+  // (`aria-labelledby`, objectui#3961) the container IS the labelled group, so it
+  // answers with the matching role — without one, the name sits on a generic
+  // `div` and contributes nothing: `label for` pointing here was already inert
+  // (`HTMLLabelElement.control` is null for a div), which is the whole defect.
+  // Absent (standalone: the inline grid editor, a bare SDUI node) nothing is
+  // emitted and the markup is unchanged.
+  const isLabelledGroup = groupDomProps['aria-labelledby'] != null;
 
   return (
     <div
       {...groupDomProps}
+      role={isLabelledGroup ? 'group' : undefined}
       className={className}
       data-testid={fieldName ? `checkboxes-${fieldName}` : undefined}
     >

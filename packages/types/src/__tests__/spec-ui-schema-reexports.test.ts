@@ -9,9 +9,11 @@
  * value re-exports; consumers needing the runtime validators import
  * `@objectstack/spec/ui` directly.
  *
- * Note: dual type+value names (`Dashboard`, `DensityMode`, `ThemeMode`, …)
- * are intentionally re-exported type-only — only `…Schema`-suffixed zod
- * values are governed by this contract.
+ * Note: dual type+value names (`Dashboard`, `ThemeMode`, …) are intentionally
+ * re-exported type-only — only `…Schema`-suffixed zod values are governed by
+ * this contract. (`DensityMode` used to head that list; objectstack#3494 /
+ * PR objectstack#3516 retired it from the spec, so it is no longer an example
+ * of anything — same rot the ratchet below now catches for the deny-list.)
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -28,58 +30,28 @@ const SRC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 /**
  * The public names dropped in #2561 (previously value-erased `export type`
  * re-exports of spec/ui zod schemas, listed under their exported alias).
+ *
+ * Every entry must still be a live `@objectstack/spec/ui` export — the ratchet
+ * below enforces it. A row for a name the spec has retired guards nothing
+ * (nothing can re-export a name upstream no longer publishes), so it must be
+ * deleted rather than left to dilute the real guards (#3601).
  */
 const DROPPED_SCHEMA_EXPORTS = [
-  // Drag and Drop
-  'DndConfigSchema',
-  'DragItemSchema',
-  'DropZoneSchema',
-  'DragConstraintSchema',
-  'DragHandleSchema',
-  'DropEffectSchema',
-  // Focus & Keyboard Navigation
-  'FocusManagementSchema',
-  'FocusTrapConfigSchema',
-  'KeyboardNavigationConfigSchema',
-  'KeyboardShortcutSchema',
-  // Animation & Motion
-  'ComponentAnimationSchema',
-  'AnimationTriggerSchema',
-  'MotionConfigSchema',
-  'TransitionConfigSchema',
-  'TransitionPresetSchema',
-  'EasingFunctionSchema',
   // Notifications
-  'NotificationSchema',
-  'NotificationConfigSchema',
-  'NotificationActionSchema',
+  // `NotificationActionSchema` removed (objectui#3362 residue, closed out on
+  // objectui#3363): objectstack#5015 / PR objectstack#5300 RETIRED
+  // `NotificationAction` from the spec outright. A deny-list entry for a name
+  // the spec no longer publishes asserts nothing about this package's decision
+  // — nothing could re-export it — so the row passed as a tautology.
   'NotificationPositionSchema',
   'NotificationSeveritySchema',
   'NotificationTypeSchema',
-  // Gestures & Touch
-  'SpecGestureConfigSchema',
-  'SpecGestureTypeSchema',
-  'SwipeGestureConfigSchema',
-  'SwipeDirectionSchema',
-  'PinchGestureConfigSchema',
-  'LongPressGestureConfigSchema',
-  'TouchInteractionSchema',
-  'TouchTargetConfigSchema',
-  // Offline & Sync
-  'SpecOfflineConfigSchema',
-  'OfflineCacheConfigSchema',
-  'OfflineStrategySchema',
-  'SyncConfigSchema',
-  'ConflictResolutionSchema',
-  'PersistStorageSchema',
-  'EvictionPolicySchema',
   // View Enhancements
   'ColumnSummarySchema',
   'GalleryConfigSchema',
   'GroupingConfigSchema',
   'RowColorConfigSchema',
   'RowHeightSchema',
-  'DensityModeSchema',
   'TimelineConfigSchema',
   'NavigationConfigSchema',
   'ViewSharingSchema',
@@ -93,7 +65,9 @@ const DROPPED_SCHEMA_EXPORTS = [
   'WidgetColorVariantSchema',
   // Sharing & Embedding
   'SharingConfigSchema',
-  'EmbedConfigSchema',
+  // `EmbedConfigSchema` removed for the same reason as
+  // `NotificationActionSchema` above — `EmbedConfig` was retired by
+  // objectstack#5015 / PR objectstack#5300.
   // View Configuration
   'AddRecordConfigSchema',
   'AppearanceConfigSchema',
@@ -114,12 +88,8 @@ const DROPPED_SCHEMA_EXPORTS = [
   'SpecPageRegionSchema',
   'SpecPageTypeSchema',
   'SpecPageVariableSchema',
-  // Performance & Page Transitions
-  'PerformanceConfigSchema',
-  'PageTransitionSchema',
   // Accessibility
   'AriaPropsSchema',
-  'WcagContrastLevelSchema',
   // I18n
   'I18nLabelSchema',
   'I18nObjectSchema',
@@ -135,7 +105,47 @@ const DROPPED_SCHEMA_EXPORTS = [
   'ThemeModeSchema',
 ];
 
+/**
+ * Resolves a deny-list entry to the name `@objectstack/spec/ui` actually
+ * publishes, or `undefined` if the spec no longer publishes it under any
+ * spelling. Entries are listed under their @object-ui/types export alias; the
+ * `Spec`-prefixed ones (`SpecPageSchema`) carry that prefix only to dodge a
+ * local collision, so the fallback strips it — the same aliasing the list's
+ * own doc comment describes.
+ */
+function resolveSpecName(entry: string): string | undefined {
+  const candidates = entry.startsWith('Spec')
+    ? [entry, entry.slice('Spec'.length)]
+    : [entry];
+  return candidates.find((candidate) => candidate in SpecUI);
+}
+
 describe('spec/ui …Schema re-exports (#2561, decision (a))', () => {
+  // The ratchet (#3601). A deny-list row only asserts something while the spec
+  // still publishes the name; once upstream retires it, nothing can re-export
+  // it and the row below passes as a tautology. That had already happened to
+  // 37 of 82 entries before anyone measured — objectstack#4988 / PR #5321 (32,
+  // the five interaction-config modules), #4610 (2), #3494 / PR #3516 (2),
+  // #3896 (1) — diluting the 45 rows that do guard something. This makes the
+  // next upstream retirement announce itself here instead of waiting for an
+  // audit to trip over it.
+  //
+  // Collected rather than asserted per entry on purpose: retirements land as
+  // whole families (32 names in one PR above), and failing on the first would
+  // hide the other 31.
+  it('every deny-list entry is still a live @objectstack/spec/ui export', () => {
+    const retired = DROPPED_SCHEMA_EXPORTS.filter(
+      (name) => resolveSpecName(name) === undefined,
+    );
+    expect(
+      retired,
+      `@objectstack/spec/ui no longer publishes these DROPPED_SCHEMA_EXPORTS ` +
+        `entries: ${retired.join(', ')}. Nothing can re-export a name the spec ` +
+        `has retired, so each of these rows asserts nothing — delete it from ` +
+        `the list and record the upstream retirement in your PR body`,
+    ).toEqual([]);
+  });
+
   it('does not runtime-export the dropped …Schema names', () => {
     for (const name of DROPPED_SCHEMA_EXPORTS) {
       expect(

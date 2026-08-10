@@ -21,7 +21,6 @@ npm install @object-ui/auth
 
 **Peer Dependencies:**
 - `react` ^18.0.0 || ^19.0.0
-- `react-dom` ^18.0.0 || ^19.0.0
 
 ## Quick Start
 
@@ -207,20 +206,8 @@ function MyComponent() {
 
 > **⚠️ Security:** Preview mode should **never** be used in production environments.
 
-<!-- release-metadata:v3.3.0 -->
-
-## Compatibility
-
-- **React:** 18.x or 19.x
-- **Node.js:** ≥ 18
-- **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^3.3.0
-- **`@objectstack/client`:** ^3.3.0
-- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
-
 ## Links
 
-- 📚 [Documentation](https://www.objectui.org/docs/packages/auth)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/auth)
 - 📝 [Changelog](./CHANGELOG.md)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)

@@ -17,7 +17,34 @@
  * @packageDocumentation
  */
 
-import type { SharingConfig, EmbedConfig } from '@object-ui/types';
+import type { SharingConfig } from '@object-ui/types';
+
+// ============================================================================
+// Embed Vocabulary (formerly `@objectstack/spec/ui`)
+// ============================================================================
+// `EmbedConfig` / `EmbedConfigSchema` were RETIRED in `@objectstack/spec`
+// 17.0.0-rc.3 (objectstack#5015, PR objectstack#5300): they were published
+// `ui` vocabulary with NO AUTHORING DOOR, and no iframe route ever read an
+// embed config, so nothing ran to regress. `SharingConfig` is the SURVIVOR and
+// is still the spec's — public form sharing is unaffected and `FormView.sharing`
+// still gates the anonymous endpoints on `allowAnonymous` + `publicLink`.
+//
+// The declaration below is the retired shape moved here verbatim, so that
+// `resolveEmbedConfig` / `generateEmbedCode` keep the exact input contract they
+// had. Whether this bridge should exist at all now that the platform has
+// withdrawn the vocabulary is a product question for objectui#3362, not a
+// green-restoring one — this change deliberately keeps the surface intact.
+
+/** An iframe embed declaration. */
+export interface EmbedConfig {
+  enabled: boolean;
+  allowedOrigins?: string[];
+  width?: string;
+  height?: string;
+  showHeader?: boolean;
+  showNavigation?: boolean;
+  responsive?: boolean;
+}
 
 // ============================================================================
 // Resolved Types

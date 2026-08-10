@@ -97,17 +97,20 @@ vi.mock('../utils/consoleServerAction', () => ({
 
 // Capture the handler set each <ActionProvider> receives while KEEPING the
 // real provider (children still get a working action context). The record
-// page's own set is the only one carrying `approval`, so the capture below
-// selects it even if a nested surface mounts a provider of its own. The page
-// body itself is orthogonal here — SchemaRenderer is stubbed so the file
-// stays about the wiring, not the render tree.
-const capturedHandlers: Array<Record<string, (action: any) => Promise<any>>> = [];
+// page's own provider is the only one whose CONTEXT carries this page's
+// record, so the capture below selects it even if a nested surface mounts a
+// provider of its own (the approval decision bar mounts one — objectui#3055,
+// which is also why the old "the only set carrying `approval`" discriminator
+// is gone: the record page no longer registers a bespoke approval handler).
+// The page body itself is orthogonal here — SchemaRenderer is stubbed so the
+// file stays about the wiring, not the render tree.
+const captured: Array<{ handlers: Record<string, (action: any) => Promise<any>>; context: any }> = [];
 vi.mock('@object-ui/react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@object-ui/react')>();
   return {
     ...actual,
     ActionProvider: (props: any) => {
-      capturedHandlers.push(props.handlers);
+      captured.push({ handlers: props.handlers, context: props.context });
       return React.createElement(actual.ActionProvider as any, props);
     },
     SchemaRenderer: () => null,
@@ -170,9 +173,11 @@ function renderDetail() {
   );
 }
 
-/** The record page's OWN handler set — the only provider carrying `approval`. */
+/** The record page's OWN handler set — the only provider given this record. */
 function recordPageHandlers() {
-  return [...capturedHandlers].reverse().find((h) => h && 'approval' in h);
+  return [...captured]
+    .reverse()
+    .find((c) => c.handlers && c.context?.record?.id === RECORD_ID)?.handlers;
 }
 
 /** Render the view and hand back its ActionProvider handlers, spies cleared. */
@@ -190,7 +195,7 @@ async function mountAndCaptureHandlers() {
 
 beforeEach(() => {
   cleanup();
-  capturedHandlers.length = 0;
+  captured.length = 0;
   authFetchSpy.mockClear();
   serverActionSpy.mockClear();
   modalHandlerSpy.mockClear();

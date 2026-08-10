@@ -52,11 +52,14 @@ import { registerLayout, PageHeader } from '../index';
 /** Authorable keys of the spec node this renderer serves. */
 const specKeys = new Set(Object.keys(SpecPageHeaderProps.shape));
 
-const declaredInputNames = (type: string, namespace?: string): string[] => {
+const declaredInputs = (type: string, namespace?: string) => {
   const config = ComponentRegistry.getConfig(type, namespace);
   if (!config) throw new Error(`"${namespace ? `${namespace}:${type}` : type}" is not registered`);
-  return (config.inputs ?? []).map((input) => input.name);
+  return config.inputs ?? [];
 };
+
+const declaredInputNames = (type: string, namespace?: string): string[] =>
+  declaredInputs(type, namespace).map((input) => input.name);
 
 beforeAll(() => {
   registerLayout();
@@ -89,6 +92,81 @@ describe('the `page-header` registration declares the spec key, not a dialect', 
     const offSpec = declaredInputNames('page-header').filter((name) => !specKeys.has(name));
     expect(offSpec).toEqual([]);
   });
+});
+
+describe('the `page-header` registration declares the child slot it renders (objectui#3900)', () => {
+  // Same principle as the `inputs` narrowing above, other direction: the
+  // declaration face must not DENY a surface the component serves either.
+  // `PageHeader.tsx:182` deliberately renders `schema.children` into the
+  // right-hand slot, `content/docs/layout/page-header.mdx` publishes that slot's
+  // precedence, and the docs page's only live demo is exactly that shape — while
+  // the registration omitted `isContainer`, so `sdui-parser`'s `not-a-container`
+  // diagnostic fired on it. Nothing on the render path reads the flag, so the
+  // omission broke no rendering; it made the validator tell authors (AI authors
+  // especially) that a documented, demo-verified schema was invalid, which is
+  // how the true `not-a-container` reports lose their credibility.
+  //
+  // Not an extension of the spec's authoring surface: `children` is a base
+  // property of every node in objectui's JSON protocol (`BASE_PROPS` in
+  // `sdui-parser/src/validate.ts`), not a key of `PageHeaderProps` — hence the
+  // `specKeys` cross-check above neither covers nor contradicts this.
+  //
+  // The end-to-end half of this pin — the real demo JSON through the manifest
+  // the app actually builds, plus the control proving the diagnostic still fires
+  // for a genuinely childless component — lives in
+  // `examples/schema-catalog/test/pageheader-with-actions.test.tsx`, next to the
+  // fixture it validates.
+  it.each([
+    ['page-header', undefined],
+    ['page-header', 'layout'],
+  ])('marks %s (namespace: %s) as a container', (type, namespace) => {
+    expect(ComponentRegistry.getConfig(type, namespace)?.isContainer).toBe(true);
+  });
+});
+
+describe('the `page-header` registration declares the keys the renderer reads (objectui#3972)', () => {
+  // The `declares nothing @objectstack/spec does not` test above is ONE-WAY: it
+  // catches a declared key the spec rejects, and can never catch a spec key the
+  // renderer honours while `inputs` omits it. That omission is not a documentation
+  // gap — `sdui-parser/src/validate.ts:70-77` reports `unknown-prop` for any
+  // top-level key not in `inputs`, so the manifest gate warned authors off keys
+  // this component renders. `icon` was live on the repo's own documented demo.
+  //
+  // Both keys pass the same three-face test (renderer read point × spec key ×
+  // a `ManifestInputType` that can spell the value); the omissions below pin the
+  // audit's negative results, which is what keeps this from becoming "copy the
+  // spec's shape into `inputs`".
+  it.each([
+    ['icon', 'string'],
+    ['actions', 'array'],
+  ])('declares `%s` with type `%s`, on both registration keys', (name, type) => {
+    for (const namespace of [undefined, 'layout']) {
+      const input = declaredInputs('page-header', namespace).find((i) => i.name === name);
+      expect(input, `page-header (namespace: ${namespace}) does not declare \`${name}\``).toBeTruthy();
+      expect(input?.type).toBe(type);
+    }
+    // …and it is legal to declare only because the spec owns the key. If the spec
+    // ever drops it, this line fails here rather than as a mystery parity red.
+    expect(specKeys.has(name)).toBe(true);
+  });
+
+  it('does not declare `breadcrumb` — a spec key this renderer never reads', () => {
+    // The other direction of the same audit, and the reason it is not "declare
+    // every spec key": `PageHeader.tsx` has no `breadcrumb` read point at all
+    // (the word occurs only in a comment and an `aria-label`). Declaring it would
+    // publish configuration the component silently drops — objectui#3829's defect,
+    // which is the exact mistake this file's positive assertions could invite.
+    expect(specKeys.has('breadcrumb')).toBe(true);
+    expect(declaredInputNames('page-header')).not.toContain('breadcrumb');
+  });
+
+  it.each(['showBack', 'action', 'description'])(
+    'does not declare `%s` — read by the renderer, but no spec key exists',
+    (name) => {
+      expect(specKeys.has(name)).toBe(false);
+      expect(declaredInputNames('page-header')).not.toContain(name);
+    },
+  );
 });
 
 describe('the runtime `description` fallback stays until the conversion entry lands', () => {

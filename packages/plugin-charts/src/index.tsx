@@ -8,12 +8,12 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import { ChartBarRenderer, ChartRenderer } from './ChartRenderer';
-import { ObjectChart } from './ObjectChart';
+import { ObjectChartBlock } from './ObjectChart';
 
 // Export types for external use
 export type { BarChartSchema } from './types';
 export { ChartBarRenderer, ChartRenderer };
-export { ObjectChart } from './ObjectChart';
+export { ObjectChart, ObjectChartBlock } from './ObjectChart';
 
 // Standard Export Protocol - for manual integration
 export const chartComponents = {
@@ -55,7 +55,11 @@ ComponentRegistry.register(
 // `plugin-charts:chart` (ChartRenderer) registered below, which owns the bare
 // `type: 'chart'` schema keyword; this object/aggregate-query variant is
 // reached via `view:chart` only.
-ComponentRegistry.register('chart', ObjectChart, {
+// `ObjectChartBlock` (not the bare `ObjectChart`) so this alias consumes the
+// spec's per-element `dataSource` binding exactly as `object-chart` does —
+// one block reached under two keys must not be bound under only one of them
+// (objectstack#6953).
+ComponentRegistry.register('chart', ObjectChartBlock, {
   namespace: 'view',
   category: 'view',
   label: 'Chart',

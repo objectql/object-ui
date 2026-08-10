@@ -314,7 +314,7 @@ import { cn } from '@/lib/utils'
 
 ## Type Safety
 
-ObjectUI is built with **TypeScript 5.0+** in strict mode:
+ObjectUI is built with **TypeScript** in strict mode:
 
 ```typescript
 import type { ComponentSchema, ButtonSchema } from '@object-ui/types'

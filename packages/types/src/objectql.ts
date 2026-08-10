@@ -33,15 +33,22 @@ import type { ListViewInferred } from './zod/objectql.zod.js';
  * HTTP Method for API requests
  * Canonical definition from @objectstack/spec/ui.
  *
- * The spec renamed this export to `HttpMethodType` in 17.0.0 (objectstack#4691):
- * `HttpMethod` used to name two DIFFERENT types depending on the entry point —
- * the 7-value enum on `./shared` / `./api` (which adds `HEAD` / `OPTIONS`) and
- * the 5-value UI subset on `./ui`. We alias the `./ui` one back to `HttpMethod`
- * so `@object-ui/types`' public surface is unchanged and the shape stays
- * verbatim identical. Do NOT re-point this at `./shared`: that is the 7-value
- * enum, and `ApiDataSource` means the 5-value one.
+ * The spec renamed this export twice. `HttpMethod` used to name two DIFFERENT
+ * types depending on the entry point — the 7-value enum on `./shared` / `./api`
+ * (which adds `HEAD` / `OPTIONS`) and the 5-value UI subset on `./ui`. 17.0.0
+ * split them as `HttpMethodType` (objectstack#4691); 17.0.0-rc.5 renamed that
+ * again to `HttpMethodSubset` (objectstack#5832, PR objectstack#5976), because
+ * `schemaNameFromExportKey` strips the `Schema` suffix and both enums published
+ * as `shared/HttpMethod` — the later write won, so the emitted JSON Schema and
+ * reference page described only the 5-value one.
+ *
+ * The 5-value RUNTIME domain is unchanged by either rename; we alias it back to
+ * `HttpMethod` so `@object-ui/types`' public surface stays verbatim identical.
+ * Do NOT re-point this at the spec's bare `HttpMethod`: that is the 7-value
+ * enum, and `ApiDataSource` means the 5-value one. Widening it would let
+ * `method: 'HEAD'` compile and then throw in `HttpRequestSchema.parse()`.
  */
-export type { HttpMethodType as HttpMethod } from '@objectstack/spec/ui';
+export type { HttpMethodSubset as HttpMethod } from '@objectstack/spec/ui';
 
 /**
  * HTTP Request Configuration for API Provider
@@ -277,8 +284,34 @@ export interface BulkActionParam {
   required?: boolean;
   /** Default value applied when the dialog opens. */
   default?: unknown;
-  /** Static options for select-style fields. */
-  options?: Array<{ label: string; value: string | number | boolean }>;
+  /**
+   * Static options for select-style fields.
+   *
+   * The ENTRY is open for the same reason this interface is (see the catch-all
+   * at the bottom): `bulkParamToField` spreads each entry into the field
+   * metadata it hands the widget (`{ ...o, value: String(o.value) }`), so every
+   * extra key survives, and the option widgets read `color` / `icon` /
+   * `disabled` / `visibleWhen` beyond the declared pair (`SelectOptionMetadata`
+   * in `./field-types` declares them; `@object-ui/fields` reads them). While
+   * this entry was closed, the type was the ONLY layer rejecting a configuration
+   * the renderer honours — `@objectstack/spec`'s `BulkActionParamSchema` makes
+   * the same entry `.passthrough()` (objectstack#4001) — and an author (an AI
+   * author especially) trusts the type absolutely (objectui#3309).
+   *
+   * Structurally identical to `@object-ui/core`'s `ActionParamOption`
+   * (objectui#3559), deliberately restated inline rather than imported: this
+   * package is the protocol layer and takes no workspace dependency.
+   *
+   * Naming the two keys this layer itself uses and passing the rest through is
+   * NOT an invitation to author new option keys — the authoring gate is the
+   * spec's `SelectOptionSchema`, and it is strict.
+   */
+  options?: Array<{
+    label: string;
+    value: string | number | boolean;
+    /** Extra option config forwarded to the field widget as-is (see above). */
+    [key: string]: unknown;
+  }>;
   /** For lookup widgets — the related object name (e.g. 'user'). */
   object?: string;
   /**

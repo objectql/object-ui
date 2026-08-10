@@ -180,9 +180,22 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // Built-in pseudo-routes under /apps/* that are NOT metadata apps (create-app,
   // system/*, metadata/*, setup). They must keep working — and may fall back to
   // a default app — regardless of whether the segment resolves to an app.
+  // #3638 — `system` / `metadata` are matched as whole path SEGMENTS, not as
+  // substrings. `pathname.includes('/system')` was also true for any segment
+  // that merely STARTS with `system` (`system_log`, `system_setting`,
+  // `systems`), and likewise for `metadata` (`metadata_import`, …). That made
+  // `isSpecialRoute` true for an ordinary `/apps/:app/:objectName` URL whose
+  // object name happened to start that way — which suppressed
+  // `requestedAppMissing` below and let a MISTYPED app name silently render a
+  // DIFFERENT app (the exact failure the comment on the fallback describes).
+  // Every real pseudo-route spells them as full segments — `system/marketplace`,
+  // `system/metadata/:type`, `metadata/:type`, `component/metadata/resource` —
+  // so the segment test keeps all of them true (pinned in
+  // `__tests__/AppContent.pseudoRouteSegments.test.tsx`).
+  const pathSegments = location.pathname.split('/');
   const isCreateAppRoute = location.pathname.endsWith('/create-app');
-  const isSystemRoute = location.pathname.includes('/system');
-  const isMetadataRoute = location.pathname.includes('/metadata');
+  const isSystemRoute = pathSegments.includes('system');
+  const isMetadataRoute = pathSegments.includes('metadata');
   const isSetupRoute =
     location.pathname === '/apps/setup' || location.pathname.startsWith('/apps/setup/');
   const isSpecialRoute = isCreateAppRoute || isSystemRoute || isMetadataRoute || isSetupRoute;
@@ -573,10 +586,39 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
           {t('empty.noAppsConfiguredDescription')}
         </EmptyDescription>
         <div className="mt-4 flex flex-col sm:flex-row items-center gap-3">
-          <Button onClick={() => navigate('/create-app')} data-testid="create-first-app-btn">
+          {/* #3573 — target the APP-SCOPED route, not the host root. `create-app`
+              is declared by THIS component (the no-active-app branch just below,
+              and the with-app router further down), i.e. inside the
+              `/apps/:appName/*` subtree — never at the root. The former absolute
+              `/create-app` resolved against the HOST's root route tree, which
+              declares no such path, so the host's trailing catch-all silently
+              bounced the user back to the landing page: a dead first-screen CTA.
+              A plain relative `navigate('create-app')` does NOT fix it either —
+              react-router 7 resolves a relative `to` against the LEAF match's
+              FULL pathname, splat INCLUDED (`getResolveToMatches`), so from
+              `/apps/setup/<anything>` it builds `/apps/setup/<anything>/create-app`,
+              which matches no route and renders a blank screen. `/apps/<segment>`
+              is the platform's canonical app URL (ADR-0048) and is what every
+              other navigation in this file — and AppSidebar's own add-app entry —
+              builds, so build it here too. (This branch is only reachable under
+              `/apps/setup…`: it requires `isSetupRoute`, the one pseudo-route the
+              guard above does not exclude — so `appName` is always present here.) */}
+          <Button onClick={() => navigate(`/apps/${appName}/create-app`)} data-testid="create-first-app-btn">
             {t('empty.createFirstApp')}
           </Button>
-          <Button variant="outline" onClick={() => navigate('/apps/setup')} data-testid="go-to-settings-btn">
+          {/* #3590 — the system hub lives at `/apps/setup/system`, NOT at the
+              bare `/apps/setup`. Being inside the `/apps/:appName/*` subtree is
+              necessary but NOT sufficient: `isSystemRoute` keys on a `/system`
+              segment, so bare `/apps/setup` fails every pseudo-route test above
+              except `isSetupRoute` and falls straight back into THIS guard —
+              i.e. it is this empty state's own URL, and the click was a no-op
+              loop. `/apps/setup/system` flips `isSystemRoute`, which is exactly
+              the switch that mounts `extraRoutesNoApp` (the branch just below)
+              where the host declares `system` → SystemHubPage. Spelled the same
+              absolute way as the sidebar's whole `sys-*` cluster
+              (`/apps/setup/system/...`); `appName` is provably `setup` here, so
+              the two forms coincide. */}
+          <Button variant="outline" onClick={() => navigate('/apps/setup/system')} data-testid="go-to-settings-btn">
             {t('empty.systemSettings')}
           </Button>
         </div>
@@ -600,7 +642,35 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
           <Route path="metadata/:type/new" element={<MetadataResourceEditPage createMode />} />
           <Route path="metadata/:type/:name" element={<MetadataResourceEditPage />} />
           <Route path="metadata/:type/:name/history" element={<MetadataResourceHistoryPage />} />
+          {/* #3610 — the legacy metadata aliases, mirrored from the with-app
+              branch below. They are NOT a second copy of the page: both render
+              `LegacyMetadataRedirect`, which forwards onto the canonical
+              `metadata/:type…` routes declared just above. Declaring them here
+              is what stopped the zero-app console rendering a blank screen: the
+              fallback navigation then aimed `sys-datasources` at an alias, and
+              carried `sys-objects` onto one via the host's
+              `system/metadata/:type` rewrite. Both pass `isMetadataRoute` (a
+              `metadata` path segment — a substring test until #3638) and so land
+              in THIS branch, which declared no `component/…` route at all —
+              every one of them rendered a blank screen. #3610 mirrored the
+              routes rather than re-point that navigation, because inventing a
+              zero-app-only spelling would have given the alias a second
+              canonical destination. #3660 re-pointed `sys-datasources` anyway —
+              at the shared `metadata/:type` routes above, so no second spelling
+              was created — and #3739 did the same for `sys-objects` and the
+              home "Manage Objects" card, whose chain had already left these two
+              routes at #3658, when the host stopped rewriting onto the alias.
+              What is left for these two is bookmarks and external links: the
+              arrivals that can never be re-pointed. */}
+          <Route path="component/metadata/directory" element={<LegacyMetadataRedirect mode="directory" />} />
+          <Route path="component/metadata/resource/*" element={<LegacyMetadataRedirect mode="resource" />} />
           {extraRoutesNoApp}
+          {/* #3610 — same catch-all the with-app branch has carried all along.
+              A `<Routes>` with no match renders `null`, i.e. a blank page that
+              is indistinguishable from a crash: no 404, no error, nothing to
+              report. This branch is the one a zero-app deployment lives in, so
+              it is precisely where an unresolved URL most needs to say so. */}
+          <Route path="*" element={<RouteNotFound />} />
         </Routes>
       </Suspense>
     );

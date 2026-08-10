@@ -201,3 +201,113 @@ against backends that advertise the capability; older ones still save, but
 best-effort. See the
 [adapter README](https://github.com/objectstack-ai/objectui/blob/main/packages/data-objectstack/README.md#cross-object-atomic-batch-batchtransaction)
 for the full capability table and minimum-backend note.
+
+## Per-element data binding on a page (`dataSource`)
+
+A metadata page component carries its own data binding —
+`PageComponentSchema.dataSource`, the spec's `ElementDataSourceSchema` — so one
+page can show several objects without a page-level object context:
+
+```json
+{
+  "type": "list-view",
+  "dataSource": { "object": "account", "view": "hot", "limit": 10 }
+}
+```
+
+This is metadata, **not** the data-source adapter. The two share a name and are
+different things: the adapter is injected by the host (`SchemaRendererProvider`),
+while `dataSource` on a schema node is JSON describing *what to query*. A
+renderer therefore reads the binding off `schema.dataSource` and gets its adapter
+from context — never from a prop the schema could occupy. `SchemaRenderer` strips
+the binding from the props it spreads for exactly this reason.
+
+`view` names a **saved view** of that object; its columns, filter, sort and page
+size are applied to the render, so a page never has to keep a second copy of a
+view's configuration. `filter` is *additional* criteria — it AND-combines with the
+view's filter rather than replacing it — while `sort` and `limit` override the
+view's. A `view` name that does not resolve is reported as a configuration error;
+it never degrades into an unfiltered query for the object.
+
+`@object-ui/react` exposes `useElementDataSource(schema, dataSource?)` for
+renderers that need the same resolution, and `@object-ui/core` exposes the pure
+parts (`isElementDataSourceConfig`, `resolveSavedView`,
+`composeElementDataSource`).
+
+### Which blocks consume it, and which keys each one honours
+
+The binding is declared on every page component, but a component can only honour
+the keys it has a read site for — a calendar has no page to cap, a metric is one
+aggregated number, a form edits one record. Each block therefore maps the keys it
+reads and leaves the rest alone; a key written onto a schema slot the block
+ignores would be accepted and dropped, which is the defect this binding removes.
+
+| block | `object` | `view` | `filter` | `sort` | `limit` |
+|---|---|---|---|---|---|
+| `list-view` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `object-grid` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `element:record_picker` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `record:related_list` | ✅ | columns / filter / sort / limit | ✅ | ✅ | ✅ |
+| `object-calendar` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
+| `object-kanban` | ✅ | filter | ✅ | — no ordering | — fixed window |
+| `object-chart` | ✅ | filter | ✅ | — engine orders | — no page |
+| `object-metric` | ✅ | filter | ✅ | — single value | — single value |
+| `object-gantt` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
+| `object-map` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
+| `object-pivot` | ✅ | filter | ✅ | — grouping orders | — totals need all rows |
+| `object-timeline` | ✅ | filter / sort / limit | ✅ | ✅ | ✅ (`limit`) |
+| `object-form` | ✅ | error-checked only | — no collection query | — | — |
+| `embeddable-form` | ✅ | error-checked only | — no collection query | — | — |
+| `object-master-detail-form` | ✅ | error-checked only | — no collection query | — | — |
+| `record:line_items` | ✅ (`childObject`) | filter / sort / limit | ✅ (AND parent scope) | ✅ | ✅ (`limit`) |
+
+Reading the `view` column: it lists what a named saved view actually contributes
+on that block. A view name that does not resolve is reported as a configuration
+error on **every** block in the table, including the ones that take nothing else
+from the view — so a typo never passes silently, whatever the block.
+
+Reading the `object` column: it lands on the block's own object key, which is
+`objectName` everywhere except `record:line_items`, where the collection the panel
+lists, fetches and writes is `childObject`. Its `relationshipField` is *not* part
+of the binding and stays the author's — it has to name a field on the bound child
+object, so rebinding `object` without updating it is an authoring error the panel
+cannot paper over.
+
+On `record:related_list` and `record:line_items` the composed filter is
+AND-combined with the parent relationship condition, never substituted for it: a
+child panel is always scoped to the record it appears on, and an *additional*
+criterion can only narrow that set further. (Until objectstack#7118
+`record:related_list` declared `filter` without reading it, so a named view
+contributed its columns / sort / limit while its filter was dropped — the list
+could be wider than the view it named. That gap is closed; the `filter` cell above
+is what closed it.)
+
+`object-timeline` and `record:line_items` were the two residual gaps in this table
+until objectstack#7137. Neither had a `filter` / `sort` read site at all — the
+timeline's whole fetch was `find(objectName, { options: { $top: 100 } })` and the
+line-items panel's was the parent FK plus a fixed `$top: 500` — so a `view` named
+on either resolved (a typo reported) and then contributed nothing: the rendered
+rows could be **wider than the view they named**, with no error anywhere. Both now
+read `filter`, `sort` and `limit`, so the cells above are ✅. Two notes on what
+came with that:
+
+- The timeline's default window is `limit ?? 100` and it is now a real `$top`.
+  The old `{ options: { $top: 100 } }` nested the cap under a key that is not a
+  `QueryParams` field and that no adapter in this repo reads, so the intended cap
+  never reached the wire; a timeline over a large object fetched whatever the
+  server chose to return. Authoring `limit` (or a view's `pagination.pageSize`)
+  now sets it.
+- `record:line_items` still does **not** take a view's `columns`: they are editable
+  `GridColumn` objects (`{ field, type, … }`) rather than a field-name projection,
+  so a view's column list would be the wrong *shape*, not merely a wider answer.
+
+Remaining gap, recorded rather than papered over:
+
+- `object-form` / `embeddable-form` / `object-master-detail-form` resolve `view`
+  only to report an unresolvable name; a view that does resolve contributes
+  nothing, because a list view's columns are not a form layout. On the
+  master-detail form the bound object is the **parent**; child collections come
+  from `details[]`, by FK.
+
+Blocks not in the table (`dashboard`, the other `record:*` panels) do not consume
+the binding yet.

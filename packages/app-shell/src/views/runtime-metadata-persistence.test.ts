@@ -211,6 +211,14 @@ describe('runtime-metadata-persistence seam (ADR-0034)', () => {
       expect(env.config).not.toHaveProperty('label');
     });
 
+    // `pageSize` is deliberately NOT a spec key — the `object` arm of
+    // `ViewDataSchema` declares only `provider` + `object`, and is strict since
+    // objectstack#4001. It is used here precisely because it is undeclared: this
+    // asserts `viewEnvelope`'s pass-through MECHANICS, i.e. that it spreads
+    // whatever it is handed rather than whitelisting keys. Do not copy it as an
+    // example of a valid binding — the spec-validity contract is pinned in
+    // `runtime-metadata-persistence.viewItemSpec.test.ts`, where a fixture
+    // carrying this key is (correctly) refused by name.
     it('viewEnvelope preserves an existing config.data while stamping the object', () => {
       const env = viewEnvelope(
         'acct',

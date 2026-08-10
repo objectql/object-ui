@@ -159,6 +159,32 @@ slots: {
 },
 ```
 
+### The refresh button is chrome, not an action
+
+Past the `⋯` menu, at the far end of the row, a record page shows a **⟳
+refresh** button. It is deliberately *not* part of the action row:
+
+- **Nothing to author.** It appears when the page **host** supplies
+  `RecordContext.refresh` — the standalone record route does, so every
+  record page has it, in the same place, whatever actions the object
+  declares. There is no metadata key for it and no `locations` to write.
+- **Never collapsed.** Because it is outside the action list, it is not
+  part of the `maxVisible` budget and can never be pushed into the `⋯`
+  menu by an object that declares many actions.
+- **Not permission-gated.** Re-reading a record already on screen is not
+  a privileged operation, so it skips the `requiredPermissions` gate the
+  action pipeline applies.
+
+Clicking it invalidates data on the client bus (`notifyDataChanged` from
+`@object-ui/react`) with the wildcard scope `'*'`: the record, every
+related list and the tab-count badges refetch **in place**. Nothing
+remounts, so the open tab, the scroll position and any in-progress
+inline edit survive the refresh — the point of the button is to see
+another user's writes without an F5.
+
+A host that supplies no `refresh` (an embedded drawer, a designer
+preview, a non-record page) renders no button.
+
 ## Composing default + custom
 
 When you want "the default actions plus one custom button," you have

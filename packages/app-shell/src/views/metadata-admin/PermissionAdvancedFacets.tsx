@@ -33,10 +33,12 @@ import type { CelLintIssue } from './celAuthoring';
  * in Setup (PermissionFacetLink, P1). Each editor reads/writes the draft's
  * parsed camelCase field (`rowLevelSecurity` / `tabPermissions` / `adminScope`)
  * — tolerating a JSON string on load so legacy rows survive — and is persisted
- * by the editor's existing whole-record Save. Shapes mirror the framework spec
- * (sampled from live data): RLS policies `{name,object,operation,using,check,
- * enabled,priority}`; admin scope `{businessUnit,includeSubtree,manage*,
- * authorEnvironmentSets,assignablePermissionSets[]}`.
+ * by the editor's existing whole-record Save. The shapes below are the subset
+ * of the framework spec this editor authors, checked against the spec schemas
+ * rather than sampled from live data (objectstack#7130): RLS policies
+ * `{name,object,operation,using,check,enabled}`; admin scope
+ * `{businessUnit,includeSubtree,manage*,authorEnvironmentSets,
+ * assignablePermissionSets[]}`.
  */
 
 interface RlsPolicy {
@@ -46,7 +48,35 @@ interface RlsPolicy {
   using?: string;
   check?: string;
   enabled?: boolean;
-  priority?: number;
+}
+
+/**
+ * Keys this editor must never author onto an RLS policy, because the framework
+ * spec REJECTS them at parse time.
+ *
+ * `rowLevelSecurity[].priority` was removed in `@objectstack/spec` 17.0.0
+ * (objectstack#3896) and left as a `retiredKey` tombstone
+ * (`packages/spec/src/security/rls.zod.ts`): an authored value is refused with
+ * the upgrade prescription rather than ignored. Applicable policies OR-combine
+ * (most permissive wins), so the "conflict resolution" it promised cannot
+ * exist and there is nothing to preserve.
+ *
+ * Until objectstack#7130 this editor seeded `priority: 0` on every policy its
+ * Add button created, so drafts it wrote can still carry the key. `policies`
+ * below is the single value every write path spreads from, so stripping on
+ * load — not a data migration — is what makes an edit-and-save round-trip of
+ * such a policy come out parseable.
+ */
+const RETIRED_RLS_KEYS = ['priority'] as const;
+
+/** Drop {@link RETIRED_RLS_KEYS} from a policy read out of the draft. */
+function stripRetiredRlsKeys(policy: RlsPolicy): RlsPolicy {
+  if (!policy || typeof policy !== 'object') return policy;
+  const present = RETIRED_RLS_KEYS.filter((k) => k in policy);
+  if (present.length === 0) return policy;
+  const next: Record<string, unknown> = { ...policy };
+  for (const k of present) delete next[k];
+  return next as RlsPolicy;
 }
 
 interface AdminScope {
@@ -158,7 +188,10 @@ export function PermissionAdvancedFacets({
   onCelErrorsChange,
   t,
 }: PermissionAdvancedFacetsProps) {
-  const policies = React.useMemo<RlsPolicy[]>(() => asArray(draft.rowLevelSecurity), [draft.rowLevelSecurity]);
+  const policies = React.useMemo<RlsPolicy[]>(
+    () => asArray<RlsPolicy>(draft.rowLevelSecurity).map(stripRetiredRlsKeys),
+    [draft.rowLevelSecurity],
+  );
   const scope = React.useMemo<AdminScope>(() => asObject(draft.adminScope), [draft.adminScope]);
   const tabs = React.useMemo<TabPerms>(() => asObject(draft.tabPermissions), [draft.tabPermissions]);
 
@@ -365,7 +398,7 @@ export function PermissionAdvancedFacets({
               onClick={() =>
                 setPolicies([
                   ...policies,
-                  { name: '', object: '*', operation: 'all', using: '', enabled: true, priority: 0 },
+                  { name: '', object: '*', operation: 'all', using: '', enabled: true },
                 ])
               }
             >

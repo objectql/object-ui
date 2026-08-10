@@ -31,7 +31,13 @@ import { VALID_AST_OPERATORS, isFilterAST } from '@objectstack/spec/data';
 import { VIEW_FILTER_OPERATORS, VIEW_FILTER_OPERATOR_ALIASES } from '@objectstack/spec/ui';
 import { mapOperator, normalizeFilterCondition } from '../ListView';
 
-/** Operators this bridge deliberately resolves without reaching the AST gate. */
+/**
+ * Operators this bridge deliberately resolves without reaching the AST gate.
+ *
+ * Every token here must still be a member of `VIEW_FILTER_OPERATORS` — the
+ * ratchet below enforces it. Subtracting a name the spec has retired excuses
+ * nothing and must be deleted rather than left as a dead subtraction (#3628).
+ */
 const HANDLED_BEFORE_MAPPING = new Set([
   // convertFilterGroupToAST rewrites these to `[field, '=' | '!=', null]`
   // before mapOperator is consulted, so they never need an AST spelling.
@@ -43,6 +49,31 @@ describe('mapOperator bridges the spec view vocabulary onto the AST vocabulary',
     // Guards every assertion below against silently passing on an empty list.
     expect(VIEW_FILTER_OPERATORS.length).toBeGreaterThan(0);
     expect(VALID_AST_OPERATORS.size).toBeGreaterThan(0);
+  });
+
+  // The exclusion ratchet (#3628). The sweep below subtracts a hand-written set
+  // from a spec-derived vocabulary, and that subtraction only excuses something
+  // while the spec still lists the subtracted tokens. Once upstream retires or
+  // renames one, the sweep stays green (it is still total over what remains) but
+  // the row becomes dead weight, and its comment goes on telling the next reader
+  // that "the view layer rewrites this first" about an operator no author can
+  // declare any more. That is the shape that rotted 37 of 82 deny-list entries in
+  // #3601 with nothing to report it — a hand-written list beside a spec-derived
+  // vocabulary and no assertion that its members still exist in that vocabulary.
+  //
+  // Collected rather than asserted per entry on purpose (same call as PR #3623):
+  // vocabulary retirements land as whole families, and failing on the first entry
+  // would hide the rest.
+  it('every HANDLED_BEFORE_MAPPING token is still in the spec view vocabulary', () => {
+    const vocabulary = new Set<string>(VIEW_FILTER_OPERATORS);
+    const retired = [...HANDLED_BEFORE_MAPPING].filter((op) => !vocabulary.has(op));
+    expect(
+      retired,
+      `VIEW_FILTER_OPERATORS no longer lists these HANDLED_BEFORE_MAPPING tokens: `
+        + `${retired.join(', ')}. The spec has retired them, so subtracting them from `
+        + 'the sweep below excuses nothing — delete each from the set (with the comment '
+        + 'claiming the view layer rewrites it) rather than leaving a dead subtraction',
+    ).toEqual([]);
   });
 
   const bridged = VIEW_FILTER_OPERATORS.filter((op) => !HANDLED_BEFORE_MAPPING.has(op));

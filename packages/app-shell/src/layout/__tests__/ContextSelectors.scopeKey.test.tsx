@@ -93,6 +93,14 @@ const TWO_SELECTORS: ContextSelectorDef[] = [
   { id: 'active_env', label: 'Environment', optionsSource: { endpoint: ENVS_ENDPOINT } },
 ];
 
+// Same pair on the storage medium — the per-selector scope key has a
+// sessionStorage half too, and `persist: 'session'` is what selects it now
+// (objectstack#5994). Values are read back per `objectui-ctx-<app>-<id>`.
+const TWO_SESSION_SELECTORS: ContextSelectorDef[] = [
+  { id: 'active_package', label: 'Package', optionsSource: { endpoint: PACKAGES_ENDPOINT }, persist: 'session' },
+  { id: 'active_env', label: 'Environment', optionsSource: { endpoint: ENVS_ENDPOINT }, persist: 'session' },
+];
+
 /** Latest render's hook output plus the router's query string. */
 let snapshot: { contextValues: Record<string, string>; search: string };
 
@@ -179,26 +187,40 @@ describe('useAppContextSelectors — one URL scope key per selector', () => {
     expect(snapshot.contextValues.active_package).toBe('crm_core');
     expect(query().get('package')).toBe('crm_core');
     expect(query().get('active_env')).toBe('staging');
-    // The per-selector sessionStorage half was already correct; keep it pinned
-    // so the URL/session halves cannot drift apart again.
-    expect(sessionStorage.getItem('objectui-ctx-studio-active_env')).toBe('staging');
+    // Neither selector declares `persist`, so both are on the spec's `'query'`
+    // default and sessionStorage is not their medium (objectstack#5994). This
+    // assertion used to read `…-active_env` back as `'staging'`, from the
+    // unconditional storage mirror that made `'query'` and `'session'`
+    // indistinguishable; the mirror is gone, so both keys stay empty. The
+    // three-value matrix lives in `ContextSelectors.persist.test.tsx`.
+    expect(sessionStorage.getItem('objectui-ctx-studio-active_env')).toBeNull();
     expect(sessionStorage.getItem('objectui-ctx-studio-active_package')).toBeNull();
   });
 
-  it('re-applies each remembered scope under its own key', async () => {
+  it('restores each `session`-persisted scope from its own storage key', async () => {
+    // Replaces a case that pinned the deleted storage → URL bridge: it seeded
+    // both storage keys, mounted a param-less URL and expected the query string
+    // to gain both params (objectstack#5994 removed that bridge — storage is
+    // only `persist: 'session'`'s medium now, and it never writes the URL).
+    // The old case could not have reported that honestly either: `active_env`'s
+    // stored `'prod'` is ALSO its auto-selected first option, so that half would
+    // have stayed green while nothing was restored at all. Both values below are
+    // deliberately not the first option (`billing` / `prod`), and the surviving
+    // per-selector fact — two selectors, two independent scopes — is asserted on
+    // the storage keys instead.
     sessionStorage.setItem('objectui-ctx-studio-active_package', 'crm_core');
-    sessionStorage.setItem('objectui-ctx-studio-active_env', 'prod');
+    sessionStorage.setItem('objectui-ctx-studio-active_env', 'staging');
 
-    mount(TWO_SELECTORS, '/apps/studio');
+    mount(TWO_SESSION_SELECTORS, '/apps/studio');
+    await optionsReady('opt-crm_core', 'opt-staging');
 
-    await waitFor(() => {
-      expect(query().get('package')).toBe('crm_core');
-      expect(query().get('active_env')).toBe('prod');
-    });
     expect(snapshot.contextValues).toEqual({
       active_package: 'crm_core',
-      active_env: 'prod',
+      active_env: 'staging',
     });
+    // Restored into the values, never into the address bar.
+    expect(query().has('package')).toBe(false);
+    expect(query().has('active_env')).toBe(false);
   });
 
   it('publishes distinct nav template vars per selector id', async () => {

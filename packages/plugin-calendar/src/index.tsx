@@ -8,7 +8,11 @@
 
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
-import { useSchemaContext } from '@object-ui/react';
+import {
+  ElementDataSourceGate,
+  useSchemaContext,
+  type ElementDataSourceMapping,
+} from '@object-ui/react';
 import { ObjectCalendar } from './ObjectCalendar';
 import type { ObjectCalendarProps } from './ObjectCalendar';
 
@@ -23,10 +27,37 @@ export type { CalendarViewProps, CalendarEvent } from './CalendarView';
 // Import and register calendar-view renderer
 import './calendar-view-renderer';
 
+/**
+ * What `ObjectCalendar` reads for its own query: `objectName`, `filter` and
+ * `sort` (`ObjectCalendar.tsx` — `$filter: schema.filter`,
+ * `$orderby: convertSortToQueryParams(schema.sort)`).
+ *
+ * `columns` and a row cap are not mapped: a calendar projects the fields its
+ * `calendar` config names (start/end/title/color), and it fetches the whole
+ * window rather than a capped page, so neither key has a read site to write to.
+ */
+const OBJECT_CALENDAR_DATA_SOURCE: ElementDataSourceMapping = {
+  filter: true,
+  sort: true,
+};
+
 // Register object-calendar component
 export const ObjectCalendarRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
   const { dataSource } = useSchemaContext() || {};
-  return <ObjectCalendar schema={schema} dataSource={dataSource} {...props} />;
+  // The spec's `PageComponentSchema.dataSource` binding (objectstack#6953): a
+  // calendar authored with the binding and no `objectName` never fetched, and
+  // rendered an empty month with no error.
+  return (
+    <ElementDataSourceGate
+      schema={schema}
+      mapping={OBJECT_CALENDAR_DATA_SOURCE}
+      dataSource={dataSource}
+      testId="object-calendar"
+      errorTitle="This calendar’s data source could not be resolved"
+    >
+      {(bound) => <ObjectCalendar schema={bound} dataSource={dataSource} {...props} />}
+    </ElementDataSourceGate>
+  );
 };
 
 ComponentRegistry.register('object-calendar', ObjectCalendarRenderer, {

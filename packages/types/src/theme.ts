@@ -48,17 +48,18 @@ export type { BorderRadius } from '@objectstack/spec/ui';
  */
 export type { Shadow } from '@objectstack/spec/ui';
 
-/**
- * Animation Configuration
- * Canonical definition from @objectstack/spec/ui.
- */
-export type { Animation } from '@objectstack/spec/ui';
-
-/**
- * Z-Index Layer Configuration
- * Canonical definition from @objectstack/spec/ui.
- */
-export type { ZIndex } from '@objectstack/spec/ui';
+// `Animation` / `ZIndex` RETIRED in @objectstack/spec 17.0.0-rc.3
+// (objectstack#5021 option 2, PR objectstack#5289). `ThemeSchema.animation` and
+// `ThemeSchema.zIndex` became tombstones whose prescription points at
+// `customVars`, and the spec DELETED the two value schemas outright rather than
+// leave them standing beside the tombstones — an exported value schema with no
+// consumer reads as a capability to whoever finds it. A `--z-modal` or a
+// `--duration-fast` is authored through `theme.customVars` now.
+//
+// Removing the DEAD EMISSION side in `ThemeEngine.generateThemeVars()` is
+// objectui#3361 and deliberately NOT done here; this is only the type surface
+// that stopped compiling, which that card pre-declared would ride with the
+// dependency refresh.
 
 /**
  * Theme Mode

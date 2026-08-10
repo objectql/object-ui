@@ -12,9 +12,25 @@
  * Selecting an option therefore transparently scopes every child nav
  * item — no per-item wiring required.
  *
- * The active value also lives in the URL query string, under a key derived
- * per selector by {@link contextSelectorQueryKey} — see that helper for the
- * one grandfathered key (`active_package` → `?package=`) and its sunset.
+ * Where the active value LIVES is the author's choice, declared per selector by
+ * `persist` (`AppContextSelectorSchema`, default `'query'`) and honoured here
+ * as exactly ONE medium per value — the spec's own words are "Persist
+ * selection via URL query, sessionStorage, or not at all":
+ *
+ *   - `'query'`   → the URL query string only, under a key derived per selector
+ *                   by {@link contextSelectorQueryKey} (see that helper for the
+ *                   one grandfathered key, `active_package` → `?package=`, and
+ *                   its sunset);
+ *   - `'session'` → `sessionStorage` only, never the URL;
+ *   - `'none'`    → neither; the pick lives in memory for this mount only.
+ *
+ * The media are exclusive on BOTH sides: a `'session'` selector is never read
+ * back off the query string, and a `'query'` selector is never read back out of
+ * storage. Mirroring every pick into both stores is exactly what made
+ * `'session'` and `'query'` indistinguishable and let `'none'` persist anyway
+ * (objectstack#5994). A selector that wants URL reflection *and* a remembered
+ * fallback is asking for a new `persist` value in the spec — not for this
+ * renderer to write a second store the author never declared.
  *
  * @module
  */
@@ -99,6 +115,48 @@ const LEGACY_SCOPE_QUERY_KEYS: ReadonlyMap<string, string> = new Map([
  */
 export function contextSelectorQueryKey(selectorId: string): string {
   return LEGACY_SCOPE_QUERY_KEYS.get(selectorId) ?? selectorId;
+}
+
+/** The persistence media `AppContextSelectorSchema.persist` can name. */
+type PersistMode = NonNullable<ContextSelectorDef['persist']>;
+
+/**
+ * The selector's declared persistence medium.
+ *
+ * `persist` carries `.default('query')` in the spec, so an omitted key IS a
+ * declaration of `'query'` — resolving it here honours the spec's default, it
+ * does not tolerate under-specified metadata.
+ */
+function persistMode(sel: ContextSelectorDef): PersistMode {
+  return sel.persist ?? 'query';
+}
+
+/** sessionStorage key holding a `persist: 'session'` selector's active value. */
+function sessionScopeKey(appName: string, selectorId: string): string {
+  return `objectui-ctx-${appName}-${selectorId}`;
+}
+
+/**
+ * Active values of the `persist: 'session'` selectors, read back from storage.
+ *
+ * Only `'session'` selectors are read. `'query'` lives in the URL and `'none'`
+ * must not survive at all, so an `objectui-ctx-*` entry left behind by an older
+ * build — which mirrored EVERY selector into storage — is ignored rather than
+ * resurrected under a value that no longer names storage as its medium.
+ */
+function readSessionScopes(
+  appName: string,
+  list: ContextSelectorDef[],
+): Record<string, string> {
+  const seed: Record<string, string> = {};
+  for (const sel of list) {
+    if (persistMode(sel) !== 'session') continue;
+    try {
+      const saved = sessionStorage.getItem(sessionScopeKey(appName, sel.id));
+      if (saved) seed[sel.id] = saved;
+    } catch { /* storage disabled */ }
+  }
+  return seed;
 }
 
 /** Read a (possibly dotted) property path off a row, e.g. `manifest.id`. */
@@ -201,39 +259,70 @@ export function useAppContextSelectors(
   const navigate = useNavigate();
   const location = useLocation();
 
-  // The URL query string is the single source of truth for the active
-  // scope. Deriving the selected value from it (rather than a parallel
-  // useState) keeps the sidebar control in lock-step with the page — no
-  // more "sidebar says A while the list shows B" drift.
+  // For a `persist: 'query'` selector the query string IS the value. Deriving
+  // it from `location` (rather than a parallel useState) keeps the sidebar
+  // control in lock-step with the page — no "sidebar says A while the list
+  // shows B" drift.
   const params = new URLSearchParams(location.search);
 
-  // Re-apply a remembered scope whenever navigation drops the query param.
-  // The selector is mandatory for Studio: package-scoped pages should never
-  // sit at a blank package value just because a nav link omitted `?package=`.
+  // …and the non-URL media need a render source of their own. A bare
+  // `sessionStorage` read during render would never re-render on write — only
+  // the URL medium gets that for free, from `navigate` — so a `'session'` pick
+  // would sit invisible until something unrelated re-rendered the sidebar.
+  // State is that source: `'session'` seeds it from storage and mirrors writes
+  // back, `'none'` keeps it in memory and lets it die with the mount.
+  const [storedValues, setStoredValues] = React.useState<Record<string, string>>(
+    () => readSessionScopes(appName, list),
+  );
+
+  // Selectors can arrive after mount (app metadata loads async), so seed again
+  // when the list changes — only for ids not yet resolved, so a pick made in
+  // this mount is never overwritten by the storage read trailing behind it.
   React.useEffect(() => {
-    const p = new URLSearchParams(location.search);
-    let changed = false;
-    for (const sel of list) {
-      if (sel.persist === 'none') continue;
-      const key = contextSelectorQueryKey(sel.id);
-      if (p.get(key)) continue;
-      try {
-        const saved = sessionStorage.getItem(`objectui-ctx-${appName}-${sel.id}`);
-        if (saved) { p.set(key, saved); changed = true; }
-      } catch { /* storage disabled */ }
-    }
-    if (changed) {
-      navigate({ pathname: location.pathname, search: p.toString() }, { replace: true });
-    }
-  }, [appName, list, location.pathname, location.search, navigate]);
+    const seed = readSessionScopes(appName, list);
+    if (Object.keys(seed).length === 0) return;
+    setStoredValues((prev) => {
+      let next: Record<string, string> | undefined;
+      for (const [id, value] of Object.entries(seed)) {
+        if (prev[id] !== undefined) continue;
+        next ??= { ...prev };
+        next[id] = value;
+      }
+      return next ?? prev;
+    });
+  }, [appName, list]);
+
+  // NOTE — there is deliberately NO "repair the missing query param from
+  // storage" effect any more. It bridged storage → URL for every selector,
+  // which is precisely how `'query'` and `'session'` became indistinguishable:
+  // a `'query'` selector was silently backed by a second store its author never
+  // declared, and `'none'` only opted out of the re-apply while still writing
+  // both. With one medium per value there is nothing left to bridge — a
+  // `'query'` scope dropped by a param-less nav link is re-established by
+  // `SelectorControl`'s auto-select-first (so the surface is never left blank,
+  // which was the bridge's stated reason to exist), and an author who wants the
+  // pick remembered beyond the URL declares `persist: 'session'`.
 
   const setValue = React.useCallback((sel: ContextSelectorDef, raw: string) => {
     const value = raw === ALL_SENTINEL ? (sel.allValue ?? '') : raw;
-    try {
-      const key = `objectui-ctx-${appName}-${sel.id}`;
-      if (value) sessionStorage.setItem(key, value);
-      else sessionStorage.removeItem(key);
-    } catch { /* storage disabled */ }
+    const mode = persistMode(sel);
+
+    if (mode !== 'query') {
+      // `'session'` and `'none'` both render out of state and never touch the
+      // URL; they differ only in whether the write is ALSO mirrored to the
+      // durable store.
+      setStoredValues((prev) => (
+        prev[sel.id] === value ? prev : { ...prev, [sel.id]: value }
+      ));
+      if (mode === 'session') {
+        try {
+          const key = sessionScopeKey(appName, sel.id);
+          if (value) sessionStorage.setItem(key, value);
+          else sessionStorage.removeItem(key);
+        } catch { /* storage disabled */ }
+      }
+      return;
+    }
 
     // Reflect the scope onto the current page immediately, under THIS
     // selector's own query key — writing a shared key made a second selector
@@ -254,6 +343,11 @@ export function useAppContextSelectors(
     if (process.env.NODE_ENV === 'production') return;
     const owners = new Map<string, string>();
     for (const sel of list) {
+      // Only `'query'` selectors read and write the query string, so only they
+      // can mirror each other through it. A `'session'`/`'none'` selector whose
+      // id happens to derive the same key never touches it — warning about that
+      // pair would be a false positive.
+      if (persistMode(sel) !== 'query') continue;
       const key = contextSelectorQueryKey(sel.id);
       const owner = owners.get(key);
       if (owner) {
@@ -268,13 +362,16 @@ export function useAppContextSelectors(
     }
   }, [list]);
 
+  // Read side, same exclusivity as the write side: each selector resolves out
+  // of its declared medium and no other. Reading "URL ?? storage" for every
+  // selector is what let a `'session'` pick be shadowed by a shared link's
+  // query string and a `'query'` pick be answered by a store nobody declared.
   const contextValues: Record<string, string> = {};
   for (const sel of list) {
-    let saved = '';
-    try {
-      saved = sessionStorage.getItem(`objectui-ctx-${appName}-${sel.id}`) ?? '';
-    } catch { /* storage disabled */ }
-    contextValues[sel.id] = (params.get(contextSelectorQueryKey(sel.id)) ?? saved) || (sel.allValue ?? '');
+    const active = persistMode(sel) === 'query'
+      ? (params.get(contextSelectorQueryKey(sel.id)) ?? '')
+      : (storedValues[sel.id] ?? '');
+    contextValues[sel.id] = active || (sel.allValue ?? '');
   }
 
   const element = list.length === 0 ? null : (
@@ -326,7 +423,21 @@ function SelectorControl({
   // nothing). We never render an "All" row, and auto-select the first option
   // as soon as the list resolves when nothing concrete is selected yet.
   const hasConcrete = !!value && value !== (def.allValue ?? '');
-  React.useEffect(() => {
+  // A LAYOUT effect, deliberately — this one is not interchangeable with
+  // `useEffect` (objectstack#6979). As a passive effect the repair was queued
+  // for a task AFTER the commit that rendered the options, so it carried a
+  // closure captured before that gap: `hasConcrete` still `false`, and (via
+  // `onChange`) a `location.search` that predated anything the gap contained.
+  // A pick made inside the gap — a user clicking an option the instant it
+  // appears, on a loaded machine or a slow device — was therefore navigated
+  // away again by this effect firing second with `options[0]`, silently
+  // replacing the user's choice with the first row. Running in the commit phase
+  // closes the gap at its source: the repair lands in the same synchronous
+  // flush as the options it reacts to, so no event can be delivered in
+  // between, and the control is never painted with an empty value while
+  // options exist. Everything else is unchanged — same trigger, same deps, so
+  // a scope dropped later by a param-less nav link is still re-established.
+  React.useLayoutEffect(() => {
     if (hasConcrete) {
       return;
     }

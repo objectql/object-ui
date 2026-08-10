@@ -17,12 +17,53 @@
  * @packageDocumentation
  */
 
-import type {
-  KeyboardNavigationConfig,
-  KeyboardShortcut,
-  FocusManagement,
-  FocusTrapConfig,
-} from '@object-ui/types';
+// ============================================================================
+// Keyboard / Focus Vocabulary (formerly `@objectstack/spec/ui`)
+// ============================================================================
+// `@objectstack/spec` 17.0.0-rc.3 deleted the whole `ui/keyboard` module with
+// the four other interaction-config modules (objectstack#4988, PR
+// objectstack#5321) — none had an authoring door, so no metadata document could
+// ever carry a keyboard block. The declarations below are that vocabulary moved
+// here verbatim (same keys, same members, same optionality as the retired
+// `z.infer` types this module imported through `@object-ui/types`). This bridge
+// is the only consumer of the semantics and is now their owner; resolver
+// behaviour is unchanged. See `DndProtocol.ts` for the objectui#3363 premise
+// correction that applies to this file too.
+
+/** A single keyboard shortcut binding. */
+export interface KeyboardShortcut {
+  key: string;
+  action: string;
+  description?: string;
+  scope: 'global' | 'form' | 'modal' | 'view' | 'list';
+}
+
+/** Focus trap declaration for a modal-like region. */
+export interface FocusTrapConfig {
+  enabled: boolean;
+  initialFocus?: string;
+  returnFocus: boolean;
+  escapeDeactivates: boolean;
+}
+
+/** Focus management declaration. */
+export interface FocusManagement {
+  tabOrder: 'manual' | 'auto';
+  skipLinks: boolean;
+  focusVisible: boolean;
+  focusTrap?: FocusTrapConfig;
+  arrowNavigation: boolean;
+}
+
+/** Top-level keyboard navigation configuration. */
+export interface KeyboardNavigationConfig {
+  shortcuts?: KeyboardShortcut[];
+  focusManagement?: FocusManagement;
+  rovingTabindex: boolean;
+  ariaLabel?: string;
+  ariaDescribedBy?: string;
+  role?: string;
+}
 
 // ============================================================================
 // Resolved Types

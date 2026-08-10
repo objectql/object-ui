@@ -1,0 +1,664 @@
+#!/usr/bin/env node
+/**
+ * When a change touches the SOURCE of a package changesets versions, the same
+ * change must declare a `.changeset/*.md`. An EMPTY frontmatter counts.
+ *
+ * Run:  node scripts/check-changeset-presence.mjs
+ * Exit: 0 = nothing guarded changed, or a changeset was added
+ *       1 = guarded source changed with no declaration, or the inputs could not
+ *           be read (both are failures — see "Never silent" below)
+ *
+ * ## The gap this closes (objectui#3387)
+ *
+ * objectstack#4731 / #4843 made the DECLARED changesets the single criterion for
+ * "which frontend changes shipped": the platform reads this repository's
+ * `.changeset/*.md` and writes them into its own release notes. That criterion is
+ * only as true as the premise underneath it — *a change to published source
+ * carries a changeset* — and nothing enforced the premise.
+ *
+ * Measured over `7d9734d5e321..785b8a5d432c` (53 non-merge commits): 7 carried no
+ * changeset, and two of those changed published source in a user-visible way —
+ * `19716b5bf` `fix(charts): name the slices` (`plugin-charts`, `plugin-dashboard`)
+ * and `5e7ef1141` `fix(i18n): resolve qualified view ids` (`i18n`). Neither
+ * appears in a CHANGELOG, a version number, or any release note: both rode the
+ * next release out as anonymous cargo. A third landed after the issue was
+ * written — `0e50440` (#3518), 26 files across five packages and all ten locale
+ * packs — which is the point worth keeping in view: objectstack#4843 made the
+ * omission *audible* on the platform side, and it did not make it stop. Only a
+ * gate does.
+ *
+ * ## Why this is a second workflow and not a wider trigger on the first
+ *
+ * `.github/workflows/changeset-guard.yml` already exists and looks like the
+ * natural home. It is not: its trigger is `paths: ['.changeset/**']`, and that
+ * INVERSION is deliberate and documented in its own header — `ci.yml` and
+ * `lint.yml` both list `.changeset/**` under `paths-ignore`, so a PR that adds
+ * ONLY a changeset starts no other workflow at all, and that guard exists to see
+ * exactly that PR. A PR which forgot its changeset, by definition, does not touch
+ * `.changeset/**`: the one check that could notice is the one check guaranteed
+ * not to run. Widening its paths would break the case it was built for, so this
+ * gate is forward-triggered and lives alongside it.
+ *
+ * ## What is guarded, and why it is derived rather than listed
+ *
+ * `<pkg>/src/**` for every workspace package NAMED IN the `fixed` group of
+ * `.changeset/config.json`. That set is where the release actually is: changesets
+ * versions those packages (and writes their CHANGELOGs) as one family, so a
+ * source edit to any of them ships. Everything in the `ignore` list is skipped —
+ * changesets never versions it, so demanding a declaration would be demanding a
+ * declaration about nothing.
+ *
+ * Derived, not spelled out, and that is the load-bearing part. objectui#3387
+ * proposed the surface as one literal glob — `packages`, any one package, `src`,
+ * anything (not spelled out here: a glob whose star is followed by a slash closes
+ * this comment block early, the trap `tsconfig.scripts.json`'s header records) —
+ * which reads as
+ * exhaustive and is not: `@object-ui/console` — the single most-edited published
+ * package in this repository, and the one the platform's `bump-objectui.sh`
+ * writes a changeset FOR — lives at `apps/console`, outside that glob entirely.
+ * A hand-written surface would have shipped a gate that misses the package the
+ * whole criterion is mostly about. Reading `.changeset/config.json` instead means
+ * the guarded set follows the release configuration by construction, and
+ * `scripts/check-changeset-fixed.mjs` already fails when a workspace package is
+ * in neither `fixed` nor `ignore` — so the two gates compose into "every package
+ * is classified, and every classified-as-released package's source is declared".
+ *
+ * Two deliberate boundaries, stated so they are not mistaken for oversights:
+ *
+ *   - **`src/**` only.** A dependency bump in a package's `package.json` can be
+ *     just as user-visible, and this gate does not see it. Widening to whole
+ *     package directories would demand a changeset for `README` edits and test
+ *     fixtures outside `src`, which is friction with no release meaning.
+ *   - **No carve-out for test files under `src/`.** A change confined to
+ *     `src/__tests__/**` is answered by the empty-frontmatter exemption, in one
+ *     line. The alternative — teaching the gate which files "don't count" — is
+ *     where the holes live, and this gate asks for a sentence, not a release.
+ *
+ * ## The empty-frontmatter exemption
+ *
+ * A changeset whose frontmatter declares no package (`---` immediately followed
+ * by `---`) is a first-class pass. What is being demanded is a DECLARATION, once,
+ * by the person who still knows what the change does — not a release. So:
+ *
+ *     ---
+ *     ---
+ *
+ *     Internal refactor of the grid's column resolver; no behaviour change.
+ *
+ * is a complete, correct answer to this gate, and it leaves the reason in the
+ * repository where the next reader finds it.
+ *
+ * An added `.changeset/*.md` with NO frontmatter block at all does not count: it
+ * declares nothing, and changesets reads nothing out of it. That file is reported
+ * as ignored rather than accepted, so a gate satisfied by an empty gesture cannot
+ * be mistaken for a gate satisfied by a declaration.
+ *
+ * ## Never silent (objectui#4690, objectstack#4928)
+ *
+ * Every input this gate needs can be missing, and every one of them fails LOUD:
+ * an unresolvable base commit, a `git diff` that errors, a missing `.changeset/`
+ * directory, a changed source file belonging to a package that is in neither
+ * `fixed` nor `ignore`. A diff gate that cannot compute its diff and exits 0
+ * reports "declaration present" while having looked at nothing — which is the
+ * same shape of green-while-blind that objectstack#4928 named the filter
+ * contract, and the same one this gate exists to close one level up. Note the
+ * direction: for a filter deciding whether to RUN work, "cannot tell" means run;
+ * here the work IS the decision, so "cannot tell" means fail.
+ */
+
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * The separator `git -z` writes between paths, as a CODE POINT rather than a
+ * character literal.
+ *
+ * `scripts/check-control-bytes.mjs` spells it exactly this way, and the reason is
+ * the gate it implements: a raw control byte in a tracked file makes grep and
+ * ripgrep classify the whole file as binary and return no matches at all, so the
+ * file silently drops out of code search and out of every grep-based lint. Writing
+ * the byte into this source — which happens most easily in the file that talks
+ * about it — would take this gate out of every future grep, and a `.split()`
+ * argument is the one place it is invisible on inspection. objectstack#4890 landed
+ * a NUL in the very file that was documenting the rule against it.
+ */
+const NUL = 0x00;
+
+/** Workspace directories that hold one package per subdirectory. */
+export const PACKAGE_ROOTS = ['packages', 'apps'];
+
+/** `.changeset/README.md` is documentation, not a declaration. */
+export const NOT_A_CHANGESET = new Set(['README.md']);
+
+// -- git ----------------------------------------------------------------------
+
+/**
+ * `git` in `root`, stderr piped.
+ *
+ * Piped rather than inherited because `resolveBaseRef` probes refs that
+ * legitimately do not exist; git's "Not a valid object name" for a probe that was
+ * supposed to miss reads as a real error in a CI log. Every call that MUST
+ * succeed reports git's own message itself (see `changedFiles`).
+ */
+function git(root, args) {
+  return execFileSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
+function gitQuiet(root, args) {
+  try {
+    return git(root, args).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Which commit this change should be judged against.
+ *
+ * An explicitly NAMED base (`--base`, `OS_CHANGESET_BASE`) is authoritative and
+ * is the only thing consulted when given. Otherwise: the merge base with the pull
+ * request's own base branch (`GITHUB_BASE_REF`), then `origin/main`, then a local
+ * `main`. The merge base — rather than the target branch's tip — is what makes a
+ * branch answer for the edits IT made and not for whatever landed on `main` after
+ * it forked. `check-i18n-en-drift.mjs` resolves its base from the same sources.
+ *
+ * This chain is also what makes the gate event-agnostic. On `pull_request`,
+ * `GITHUB_BASE_REF` names the target branch; on a `merge_group` build there is no
+ * such variable and no `github.event.pull_request` payload, and the fallback —
+ * merge base with `origin/main` — resolves to the commit the queue built the
+ * group on, so the diff is exactly the queued pull requests' changes. No
+ * per-event YAML, and nothing to get wrong when a third event appears.
+ *
+ * A base that cannot be resolved is a HARD FAILURE, never a skip — and an
+ * explicit one that cannot be resolved does NOT fall through to the discovery
+ * candidates. That distinction was a real defect in the first draft of this gate,
+ * caught by its own tests: with the fallthrough, `--base <sha not in this clone>`
+ * silently judged the change against `main`'s tip instead and printed a
+ * confident green. "The base you named is missing" and "you named no base" are
+ * different facts, and only the second one may be answered by guessing. (The
+ * sibling gate `check-i18n-en-drift.mjs` inherited the fallthrough shape from
+ * this gate's first draft; it was fixed to match under objectui#3766, so the two
+ * resolvers are the same shape again — keep them that way.)
+ *
+ * @returns {{ ok: true, ref: string, how: string } | { ok: false, tried: string[], shallow: boolean, named: boolean }}
+ */
+export function resolveBaseRef(root, { explicit = null, env = process.env } = {}) {
+  const tried = [];
+  const verify = (ref) => gitQuiet(root, ['rev-parse', '--verify', `${ref}^{commit}`]);
+  const shallow = () => gitQuiet(root, ['rev-parse', '--is-shallow-repository']) === 'true';
+
+  const named = explicit
+    ? { how: `--base ${explicit}`, ref: explicit }
+    : env.OS_CHANGESET_BASE
+      ? { how: `OS_CHANGESET_BASE=${env.OS_CHANGESET_BASE}`, ref: env.OS_CHANGESET_BASE }
+      : null;
+
+  if (named) {
+    const resolved = verify(named.ref);
+    tried.push(`${named.how}${resolved ? '' : ' (unresolved)'}`);
+    return resolved
+      ? { ok: true, ref: resolved, how: named.how }
+      : { ok: false, tried, shallow: shallow(), named: true };
+  }
+
+  const attempt = (how, compute) => {
+    const value = compute();
+    tried.push(`${how}${value ? '' : ' (unresolved)'}`);
+    return value ? { ok: true, ref: value, how } : null;
+  };
+
+  const candidates = [
+    env.GITHUB_BASE_REF
+      ? () =>
+          attempt(`merge-base with origin/${env.GITHUB_BASE_REF}`, () =>
+            gitQuiet(root, ['merge-base', 'HEAD', `origin/${env.GITHUB_BASE_REF}`]),
+          )
+      : null,
+    () => attempt('merge-base with origin/main', () => gitQuiet(root, ['merge-base', 'HEAD', 'origin/main'])),
+    () => attempt('merge-base with main', () => gitQuiet(root, ['merge-base', 'HEAD', 'main'])),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    const hit = candidate();
+    if (hit) return hit;
+  }
+  return { ok: false, tried, shallow: shallow(), named: false };
+}
+
+/**
+ * `git diff --name-only` between `base` and `head`, or between `base` and the
+ * WORKING TREE when `head` is null.
+ *
+ * The working tree is the default "after" side on purpose, exactly as in
+ * `check-i18n-en-drift.mjs`: an author running this locally gets the answer
+ * before committing. In CI the checkout is clean, so the two coincide.
+ *
+ * `-z` rather than newline-delimited output: it removes git's path quoting from
+ * the picture entirely, so a non-ASCII or space-bearing path is read verbatim
+ * instead of arriving as an escaped string this parser would have to unescape.
+ * The NUL separator is written as an escape sequence and never as a raw byte
+ * (objectui#3388 / objectstack#4890 — one raw control byte makes grep treat the
+ * whole file as binary and every later grep over it silently returns nothing).
+ *
+ * Throws with git's own stderr on failure. The caller turns that into exit 1: a
+ * diff that cannot be computed is not an empty diff.
+ *
+ * @param {string[]} pathspecs extra pathspecs; `[]` means the whole tree
+ * @returns {string[]} repo-relative POSIX paths
+ */
+export function changedFiles(root, { base, head = null, filter = null, pathspecs = [] }) {
+  const args = ['diff', '--name-only', '-z'];
+  if (filter) args.push(`--diff-filter=${filter}`);
+  args.push(base);
+  if (head) args.push(head);
+  if (pathspecs.length > 0) args.push('--', ...pathspecs);
+
+  let out;
+  try {
+    out = git(root, args);
+  } catch (error) {
+    const stderr = typeof error?.stderr === 'string' ? error.stderr.trim() : '';
+    throw new Error(`\`git ${args.join(' ')}\` failed${stderr ? `:\n    ${stderr}` : ''}`);
+  }
+  return out.split(String.fromCharCode(NUL)).filter((path) => path !== '');
+}
+
+/**
+ * `.changeset/*.md` files that exist on disk but are not tracked yet.
+ *
+ * `git diff` against the working tree cannot see an untracked file, and
+ * `pnpm changeset` leaves precisely that: a brand-new, unstaged file. Without
+ * this, running the gate locally right after writing a changeset would report the
+ * changeset missing — a false red that teaches the author the gate is broken.
+ * Empty in CI, where the checkout has no untracked files.
+ */
+export function untrackedChangesets(root) {
+  const out = gitQuiet(root, [
+    'ls-files',
+    '--others',
+    '--exclude-standard',
+    '-z',
+    '--',
+    ':(glob).changeset/*.md',
+  ]);
+  return out === null ? [] : out.split(String.fromCharCode(NUL)).filter((path) => path !== '');
+}
+
+// -- the guarded surface ------------------------------------------------------
+
+/** Turns a changesets `ignore` entry (`@object-ui/example-*`) into a matcher. */
+function ignoreMatcher(patterns) {
+  const expressions = patterns.map(
+    (pattern) => new RegExp(`^${pattern.replace(/[.*+?^${}()|[\]\\]/g, (c) => (c === '*' ? '.*' : `\\${c}`))}$`),
+  );
+  return (name) => expressions.some((expression) => expression.test(name));
+}
+
+/**
+ * The release configuration, read from `.changeset/config.json`.
+ *
+ * A missing `.changeset/` directory or an unreadable config THROWS. objectui#3387
+ * names that case explicitly: the gate's whole job is to demand a declaration, so
+ * losing the ability to tell what a declaration would even be about must be a red
+ * build and not a quiet pass.
+ */
+export function readReleaseConfig(root) {
+  const dir = join(root, '.changeset');
+  if (!existsSync(dir)) {
+    throw new Error(
+      `${dir} does not exist. This gate reads \`.changeset/config.json\` to learn which ` +
+        'packages a release covers; without it there is nothing to check against.',
+    );
+  }
+  const configPath = join(dir, 'config.json');
+  let config;
+  try {
+    config = JSON.parse(readFileSync(configPath, 'utf8'));
+  } catch (error) {
+    throw new Error(`cannot read .changeset/config.json: ${error.message}`);
+  }
+  const versioned = new Set((config.fixed ?? []).flat());
+  if (versioned.size === 0) {
+    throw new Error(
+      '.changeset/config.json declares an empty `fixed` group, so this gate would guard nothing ' +
+        'and pass everything. That is a configuration error, not an empty guarded set.',
+    );
+  }
+  return { versioned, isIgnored: ignoreMatcher(config.ignore ?? []) };
+}
+
+/**
+ * `directory -> { name, versioned }` for every workspace package.
+ *
+ * Scans the same roots as `scripts/check-changeset-fixed.mjs` — one package per
+ * immediate subdirectory — so the two gates agree about what a package is.
+ *
+ * @returns {Map<string, { name: string, versioned: boolean, ignored: boolean }>}
+ */
+export function discoverPackages(root, { versioned, isIgnored }) {
+  const packages = new Map();
+  for (const parent of PACKAGE_ROOTS) {
+    let entries;
+    try {
+      entries = readdirSync(join(root, parent));
+    } catch {
+      continue; // a root that does not exist in this checkout
+    }
+    for (const entry of entries.sort()) {
+      const manifest = join(root, parent, entry, 'package.json');
+      try {
+        if (!statSync(manifest).isFile()) continue;
+      } catch {
+        continue;
+      }
+      const name = JSON.parse(readFileSync(manifest, 'utf8')).name;
+      if (!name) continue;
+      packages.set(`${parent}/${entry}`, {
+        name,
+        versioned: versioned.has(name),
+        ignored: isIgnored(name),
+      });
+    }
+  }
+  return packages;
+}
+
+/**
+ * Splits changed paths into the ones this gate demands a declaration for and the
+ * ones it cannot classify.
+ *
+ * `unclassified` is a changed source file under a package that appears in neither
+ * the `fixed` group nor `ignore`. It is a loud failure rather than a skip: the
+ * gate genuinely cannot tell whether that source ships, and guessing "no" would
+ * silently re-open the hole for exactly the newest package in the repository.
+ * `scripts/check-changeset-fixed.mjs` is the gate that owns the classification
+ * itself, and its message is the one to follow.
+ *
+ * @param {string[]} paths
+ * @param {Map<string, { name: string, versioned: boolean, ignored: boolean }>} packages
+ */
+export function classifyChangedPaths(paths, packages) {
+  const guarded = [];
+  const unclassified = [];
+  const skipped = [];
+
+  for (const path of paths) {
+    let owner = null;
+    for (const [directory, pkg] of packages) {
+      if (path.startsWith(`${directory}/src/`)) {
+        owner = { directory, pkg };
+        break;
+      }
+    }
+    if (owner === null) continue;
+    const entry = { file: path, pkg: owner.pkg.name, directory: owner.directory };
+    if (owner.pkg.versioned) guarded.push(entry);
+    else if (owner.pkg.ignored) skipped.push(entry);
+    else unclassified.push(entry);
+  }
+  return { guarded, unclassified, skipped };
+}
+
+// -- declarations -------------------------------------------------------------
+
+/**
+ * What a candidate changeset file declares.
+ *
+ * `kind: 'none'` means there is no `---` … `---` frontmatter block at all, so the
+ * file declares nothing and cannot serve as the declaration this gate demands.
+ * `entries` counts `name: bump` lines; zero of them is the empty-frontmatter
+ * exemption and is a valid pass.
+ *
+ * The frontmatter dialect is hand-parsed for the same reason as in
+ * `check-changeset-no-major.mjs`: this gate runs on a bare checkout with no
+ * `pnpm install`, so it may not import a YAML parser or `@changesets/*`.
+ *
+ * @returns {{ kind: 'none' } | { kind: 'frontmatter', entries: number }}
+ */
+export function describeDeclaration(source) {
+  const lines = source.split(/\r?\n/);
+  const open = lines.findIndex((line) => line.trim() === '---');
+  if (open === -1) return { kind: 'none' };
+  let entries = 0;
+  let closed = false;
+  for (let i = open + 1; i < lines.length; i++) {
+    const text = lines[i].trim();
+    if (text === '---') {
+      closed = true;
+      break;
+    }
+    if (text === '' || text.startsWith('#')) continue;
+    if (/^(?:"[^"]+"|'[^']+'|[^:]+?)\s*:\s*(?:major|minor|patch)\s*$/.test(text)) entries += 1;
+  }
+  return closed ? { kind: 'frontmatter', entries } : { kind: 'none' };
+}
+
+/**
+ * Every `.changeset/*.md` this change ADDS, with what each one declares.
+ *
+ * Added, not merely present: `.changeset/` accumulates until a release, so "a
+ * changeset exists in the tree" is satisfied by somebody else's pending
+ * declaration and would make the gate vacuous for every change that follows one.
+ *
+ * @returns {{ file: string, declaration: ReturnType<typeof describeDeclaration> }[]}
+ */
+export function addedDeclarations(root, { base, head = null }) {
+  const added = changedFiles(root, { base, head, filter: 'A', pathspecs: [':(glob).changeset/*.md'] });
+  const candidates = [...added, ...(head === null ? untrackedChangesets(root) : [])];
+
+  const seen = new Set();
+  const results = [];
+  for (const file of candidates) {
+    const name = file.slice(file.lastIndexOf('/') + 1);
+    if (NOT_A_CHANGESET.has(name) || seen.has(file)) continue;
+    seen.add(file);
+    // Added at `head`, so it is readable there — from disk when `head` is the
+    // working tree, out of the object store otherwise.
+    const source = head === null ? readFileSync(join(root, file), 'utf8') : gitQuiet(root, ['show', `${head}:${file}`]);
+    results.push({ file, declaration: source === null ? { kind: 'none' } : describeDeclaration(source) });
+  }
+  return results.sort((a, b) => a.file.localeCompare(b.file));
+}
+
+// -- the analysis -------------------------------------------------------------
+
+/**
+ * @typedef {object} Analysis
+ * @property {{ file: string, pkg: string, directory: string }[]} guarded
+ * @property {{ file: string, pkg: string, directory: string }[]} unclassified
+ * @property {{ file: string, pkg: string, directory: string }[]} skipped
+ * @property {{ file: string, declaration: { kind: string, entries?: number } }[]} declarations
+ * @property {number} changedFileCount
+ */
+
+/**
+ * The whole judgement for one repo root and one revision range. Throws on any
+ * unreadable input; the CLI below turns that into exit 1.
+ *
+ * @returns {Analysis}
+ */
+export function analyze(root, { base, head = null }) {
+  const config = readReleaseConfig(root);
+  const packages = discoverPackages(root, config);
+  const paths = changedFiles(root, { base, head });
+  const { guarded, unclassified, skipped } = classifyChangedPaths(paths, packages);
+  return {
+    guarded,
+    unclassified,
+    skipped,
+    declarations: addedDeclarations(root, { base, head }),
+    changedFileCount: paths.length,
+  };
+}
+
+/** The declarations that actually declare something (frontmatter present). */
+export const usableDeclarations = (analysis) => analysis.declarations.filter((d) => d.declaration.kind !== 'none');
+
+/**
+ * `0` when the change is either unguarded or declared, `1` otherwise.
+ *
+ * @param {Analysis} analysis
+ */
+export function verdict(analysis) {
+  if (analysis.unclassified.length > 0) return 1;
+  if (analysis.guarded.length === 0) return 0;
+  return usableDeclarations(analysis).length > 0 ? 0 : 1;
+}
+
+// -- CLI ----------------------------------------------------------------------
+
+const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+
+if (invokedDirectly) {
+  const argOf = (name) => {
+    const index = process.argv.indexOf(name);
+    return index > -1 ? process.argv[index + 1] : null;
+  };
+
+  // `--root` points the gate at another checkout — a worktree, or one of the
+  // throwaway repositories `check-changeset-presence.test.ts` builds to exercise
+  // these exit codes end to end. `--base` / `--head` name the two commits;
+  // both default to "this branch against its merge base with the target branch".
+  const root = resolve(argOf('--root') ?? resolve(scriptDir, '..'));
+  const head = argOf('--head');
+
+  const base = resolveBaseRef(root, { explicit: argOf('--base') });
+  if (!base.ok) {
+    console.error(
+      '❌  Cannot resolve the commit to compare against, so there is nothing to diff.\n' +
+        `    tried: ${base.tried.join(', ')}\n` +
+        (base.named
+          ? '    That base was named EXPLICITLY, so it is not guessed around: comparing against\n' +
+            '    some other commit instead would answer a question nobody asked, and answer it\n' +
+            '    confidently. Name a commit that exists in this clone, or pass none and let the\n' +
+            '    merge base with the target branch be found.\n'
+          : base.shallow
+            ? '    This clone is SHALLOW. In CI, give the checkout `fetch-depth: 0`; locally,\n' +
+              '    run `git fetch --no-tags origin main` (or `git fetch --unshallow`).\n'
+            : '    Fetch the base branch (`git fetch --no-tags origin main`) and re-run.\n') +
+        '    This is a failure, not a skip: a diff gate with no diff would report a\n' +
+        '    declaration present while having looked at nothing (objectstack#4928).',
+    );
+    process.exit(1);
+  }
+
+  let analysis;
+  try {
+    analysis = analyze(root, { base: base.ref, head });
+  } catch (error) {
+    console.error(
+      `❌  ${error.message}\n\n` +
+        '    Reported as a failure rather than a pass: this gate demands a declaration, so\n' +
+        '    losing an input means it cannot tell whether one is owed (objectui#4690).',
+    );
+    process.exit(1);
+  }
+
+  const usable = usableDeclarations(analysis);
+  const unreadable = analysis.declarations.filter((d) => d.declaration.kind === 'none');
+
+  console.log(
+    `Compared ${head ?? 'the working tree'} with ${base.ref.slice(0, 9)} (${base.how}): ` +
+      `${analysis.changedFileCount} file(s) changed, ${analysis.guarded.length} of them under the ` +
+      `src/ of a package the release covers, ${analysis.skipped.length} under a package changesets ` +
+      `ignores, ${analysis.declarations.length} changeset(s) added.`,
+  );
+
+  if (analysis.unclassified.length > 0) {
+    const packages = [...new Set(analysis.unclassified.map((entry) => `${entry.pkg} (${entry.directory})`))];
+    console.error(
+      `\n❌  ${analysis.unclassified.length} changed source file(s) belong to a package that is in ` +
+        'neither the `fixed` group nor `ignore` of .changeset/config.json:\n' +
+        packages.map((name) => `      • ${name}`).join('\n') +
+        '\n\n    So this gate cannot tell whether that source ships, and it will not guess "no" —\n' +
+        '    that would leave the newest package in the repository the one nothing guards.\n' +
+        '    Classify it: `node scripts/check-changeset-fixed.mjs` is the gate that owns this,\n' +
+        '    and its message says where to add the name.',
+    );
+    process.exit(1);
+  }
+
+  if (analysis.guarded.length === 0) {
+    console.log(
+      '✅  No source of a released package changed in this range, so no changeset is owed.' +
+        (analysis.skipped.length > 0
+          ? `\n    (${analysis.skipped.length} file(s) under a package changesets ignores were skipped.)`
+          : ''),
+    );
+    process.exit(0);
+  }
+
+  if (usable.length > 0) {
+    const releaseNothing = usable.every((d) => d.declaration.entries === 0);
+    console.log(
+      `✅  ${analysis.guarded.length} source file(s) of ${
+        new Set(analysis.guarded.map((entry) => entry.pkg)).size
+      } released package(s) changed, and this change declares ` +
+        `${usable.length} changeset(s): ${usable.map((d) => d.file).join(', ')}.` +
+        (releaseNothing
+          ? '\n    Every one of them has an EMPTY frontmatter — declared as releasing nothing, which\n' +
+            '    is the explicit exemption and a complete answer to this gate.'
+          : ''),
+    );
+    if (unreadable.length > 0) {
+      console.log(
+        `    Note: ${unreadable.length} added file(s) under .changeset/ have no frontmatter block ` +
+          `and declare nothing: ${unreadable.map((d) => d.file).join(', ')}.`,
+      );
+    }
+    process.exit(0);
+  }
+
+  const byPackage = new Map();
+  for (const entry of analysis.guarded) {
+    if (!byPackage.has(entry.pkg)) byPackage.set(entry.pkg, []);
+    byPackage.get(entry.pkg).push(entry.file);
+  }
+
+  console.error(
+    `\n❌  ${analysis.guarded.length} source file(s) of ${byPackage.size} released package(s) ` +
+      'changed, and this change adds no changeset:\n',
+  );
+  for (const [pkg, files] of [...byPackage].sort()) {
+    console.error(`      ${pkg}`);
+    for (const file of files.slice(0, 5)) console.error(`          ${file}`);
+    if (files.length > 5) console.error(`          … and ${files.length - 5} more`);
+  }
+  if (unreadable.length > 0) {
+    console.error(
+      `\n    ${unreadable.length} added file(s) under .changeset/ have no \`---\` frontmatter block, ` +
+        `so they declare nothing: ${unreadable.map((d) => d.file).join(', ')}.`,
+    );
+  }
+  console.error(`
+    Run \`pnpm changeset\` and describe the change. It is what puts this work into a
+    CHANGELOG, a version number and the platform's release notes: objectstack#4731 /
+    #4843 made the DECLARED changesets the only criterion for what shipped, so an
+    undeclared fix is invisible everywhere afterwards — objectui#3387 found three of
+    them, including a user-visible chart fix and an i18n fix that no release record
+    mentions.
+
+    If this change really should release nothing, say so — that is a pass, not a
+    workaround. Add .changeset/<name>.md with an EMPTY frontmatter:
+
+        ---
+        ---
+
+        Test-only change to the grid column resolver; no published behaviour changes.
+
+    Scored \`minor\` at most, never \`major\`: every package is in one fixed group, so
+    one major carries all of them off the @objectstack major this repo is pinned to
+    (AGENTS.md §版本号策略, enforced by scripts/check-changeset-no-major.mjs).
+
+    See the header of scripts/check-changeset-presence.mjs.`);
+  process.exit(1);
+}

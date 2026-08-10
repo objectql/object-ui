@@ -196,6 +196,23 @@ const DATA_SOURCE_METHODS = [
  * CONFIGURATION. It is also why {@link assertRendered} exists — a crash must
  * fail loudly rather than land in the "no difference" bucket and read as a
  * finding about the block.
+ *
+ * `add` is the FIFTH instance, and arrived the moment `record:related_list`
+ * started publishing it (objectui#3808). The generic `object` sample is `{}`,
+ * and `{}` is not a valid `add`: the spec makes `picker` required, so the sample
+ * has to carry `picker.object` or the fixture is exercising metadata no author
+ * could publish. Filled here rather than by loosening the generic `object`
+ * sample, which would put an unspecified bag on every future `object` input.
+ *
+ * That `{}` did not merely under-exercise the block, it CRASHED it —
+ * `RelatedList.tsx:1299` dereferenced `add.picker.object` where `:378` / `:390`
+ * optional-chain the same path — and the crash was filed as objectui#3838 rather
+ * than papered over here: this fixture's job is to be spec-valid, not to steer
+ * clear of the renderer's unguarded reads. #3838 has since tightened that gate
+ * to require the resolved `add.picker.object`, so the same `{}` now withholds
+ * the Add affordance behind a named console hint instead of taking the block
+ * down; the sample below stays spec-valid on its own merit, not as crash
+ * avoidance.
  */
 const SAMPLE_BY_INPUT: Readonly<Record<string, unknown>> = {
   // On `record:*` this names the RELATED object, not the page's object —
@@ -223,6 +240,11 @@ const SAMPLE_BY_INPUT: Readonly<Record<string, unknown>> = {
   visible: "record.stage === 'qualified'",
   title: 'Probe Alert',
   body: 'Probe alert body',
+  // `record:related_list.add` — spec-valid minimum, i.e. `picker.object` present.
+  // Points at the same child object the rest of this fixture uses, so the Add
+  // affordance is configured against something that exists rather than at a
+  // dangling name.
+  add: { picker: { object: PROBE_CHILD_OBJECT } },
 };
 
 /** Fill one declared input. */

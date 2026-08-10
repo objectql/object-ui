@@ -20,17 +20,36 @@
  *     "happen to" render.
  *
  * The only permitted exception is the outbound-message set below.
+ *
+ * ## What this test does NOT own
+ *
+ * Key sets and placeholder shape, and nothing about what a value SAYS. Two
+ * sibling gates split the rest, and the boundaries are load-bearing:
+ *
+ *   - `scripts/check-i18n-call-site-keys.mjs` (objectui#3530) — a key a `t()`
+ *     call site asks for that NO pack defines. Ten packs identically missing it
+ *     is full parity, so this file is green on it by construction.
+ *   - `scripts/check-i18n-en-drift.mjs` (objectui#3650) — when an `en` VALUE
+ *     changes, the nine translations must change in the same PR. This file was
+ *     green through objectui#3582 and objectui#3625, correctly: neither touched
+ *     a key set or a placeholder. Trying to make it red on those would be asking
+ *     a key-set test to judge meaning.
+ *
+ * That gate skips any key a pack does not define — including the four
+ * `OUTBOUND_KEYS` below — precisely because their key sets are this file's
+ * business, so the two cannot contradict each other on the same fact.
  */
 import { describe, it, expect } from 'vitest';
 import { builtInLocales } from '../locales';
 
 /**
  * Text the console SENDS to the agent rather than displays. These are absent
- * from the eight non-gate packs ON PURPOSE, so `t()` falls through to its
- * English default and the cloud confirm gate keeps recognising the message —
- * see `outbound-agent-messages.test.ts`, which owns that invariant and asserts
- * it in both directions. Excluded here so the two guards cannot contradict
- * each other.
+ * from the eight non-gate packs ON PURPOSE: the console resolves them from the
+ * `en`/`zh` packs by the CONVERSATION's language (objectui#3896), so a value in
+ * any other pack is unreachable, and the cloud confirm gate only recognises
+ * those two languages anyway — see `outbound-agent-messages.test.ts`, which owns
+ * that invariant and asserts it in both directions. Excluded here so the two
+ * guards cannot contradict each other.
  */
 const OUTBOUND_KEYS = new Set([
   'console.ai.planApproveMessage',

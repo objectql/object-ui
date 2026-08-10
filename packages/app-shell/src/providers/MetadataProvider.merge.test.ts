@@ -68,22 +68,85 @@ describe('mergeViewsIntoObjects', () => {
       formViews: { default: { type: 'simple' } },
     };
     const [obj] = mergeViewsIntoObjects(objects, [listAll, listCalendar, formDefault, container]);
-    // Only the canonical `<obj>.<key>` ids — the container's short `all`/`list`
-    // keys must NOT also appear (no double-listing).
+    // Only the two list ViewItems. Both gates key by the same canonical
+    // `<obj>.<key>` identity now (objectui#3770), so the container can no longer
+    // double-list them under short keys — but it still MUST be skipped: its own
+    // `list` is structurally distinct from `listViews.all`, so expanding it would
+    // add a third `crm_activity.default` list tab (and force the container's
+    // `formViews.default` into a `_2` rename), and the ViewItem rows are the
+    // authoritative ones the runtime heals personalization onto.
     expect(Object.keys(obj.listViews).sort()).toEqual(['crm_activity.all', 'crm_activity.calendar']);
   });
 
-  it('still consumes the legacy container for objects without ViewItems', () => {
-    const container = {
-      name: 'crm_activity',
-      list: { name: 'list', type: 'grid' },
-      listViews: { all: { type: 'grid' } },
-      formViews: { default: { type: 'simple' } },
-    };
-    const [obj] = mergeViewsIntoObjects(objects, [container]);
-    expect(Object.keys(obj.listViews).sort()).toEqual(['all', 'list']);
-    expect(obj.formViews.default).toBeTruthy();
-    expect(obj.formViews.list).toBeUndefined();
+  /**
+   * Container gate (objectui#3770). A stack-packaged container is served
+   * UNEXPANDED, so this merge asks `expandViewContainer` for each view's runtime
+   * identity instead of deriving one. The previous derivation was
+   * `list.name || 'list'` — a spelling no producer emits, which is why the
+   * default list's translation key never resolved (the composer, the framework
+   * loader and the i18n extractor all say `<object>.default`).
+   */
+  describe('aggregated container — identities come from the view composer', () => {
+    it('keys an unnamed default list by the composer identity `<object>.default`', () => {
+      const container = {
+        name: 'crm_activity',
+        // No `name` — the default `list` implicitly claims `<object>.default`.
+        list: { label: 'All Activities', type: 'grid', columns: [{ field: 'subject' }] },
+        listViews: { calendar: { type: 'calendar' } },
+      };
+      const [obj] = mergeViewsIntoObjects(objects, [container]);
+      expect(Object.keys(obj.listViews).sort()).toEqual([
+        'crm_activity.calendar',
+        'crm_activity.default',
+      ]);
+      // The retired dialect must be gone, not merely joined by the new key.
+      expect(obj.listViews.list).toBeUndefined();
+      // `name` is stamped so ObjectView's `view.name || view.id` — the argument
+      // `viewLabel` translates by — carries the composer identity.
+      expect(obj.list.name).toBe('crm_activity.default');
+      expect(obj.listViews['crm_activity.default'].isDefault).toBe(true);
+      expect(obj.listViews['crm_activity.default'].columns).toEqual([{ field: 'subject' }]);
+    });
+
+    it('honors an author-supplied `list.name` as the key', () => {
+      const container = {
+        name: 'crm_activity',
+        list: { name: 'my_list', type: 'grid', columns: [{ field: 'subject' }] },
+      };
+      const [obj] = mergeViewsIntoObjects(objects, [container]);
+      expect(Object.keys(obj.listViews)).toEqual(['crm_activity.my_list']);
+      expect(obj.list.name).toBe('crm_activity.my_list');
+    });
+
+    it('folds a `listViews` entry that merely restates `list` into ONE view', () => {
+      // The composer dedups by structural signature: `listViews.all` restating
+      // the default `list` collapses into `crm_activity.all`, which is then the
+      // default. Deriving the id locally could not know that — it would emit a
+      // second tab for the same view.
+      const restated = { type: 'grid', label: 'All', columns: [{ field: 'subject' }] };
+      const container = {
+        name: 'crm_activity',
+        list: restated,
+        listViews: { all: { ...restated } },
+      };
+      const [obj] = mergeViewsIntoObjects(objects, [container]);
+      expect(Object.keys(obj.listViews)).toEqual(['crm_activity.all']);
+      expect(obj.list.name).toBe('crm_activity.all');
+      expect(obj.listViews['crm_activity.all'].isDefault).toBe(true);
+    });
+
+    it('routes the container form family into formViews only', () => {
+      const container = {
+        name: 'crm_activity',
+        list: { type: 'grid', columns: [{ field: 'subject' }] },
+        formViews: { compact: { type: 'simple' } },
+      };
+      const [obj] = mergeViewsIntoObjects(objects, [container]);
+      expect(obj.formViews['crm_activity.compact']).toBeTruthy();
+      expect(obj.listViews['crm_activity.compact']).toBeUndefined();
+      // …and the list family is untouched by the form entry.
+      expect(Object.keys(obj.listViews)).toEqual(['crm_activity.default']);
+    });
   });
 });
 

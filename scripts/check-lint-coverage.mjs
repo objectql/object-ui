@@ -8,10 +8,21 @@
  * That is how `apps/console`, the largest surface in the repo, went unlinted
  * while carrying 14 ESLint errors that nobody had ever seen (#2923).
  *
- * The stakes are concrete: `eslint.config.js` sets three `object-ui/*` rules to
- * `error` specifically so a new violation fails CI (ADR-0054 Phase 5, #2879,
- * and the objectql.ts type-discipline ratchet). Those ratchets are worthless in
- * a package that never runs ESLint.
+ * The stakes are concrete: every `object-ui/*` rule that `eslint.config.js`
+ * sets to `error` is a ratchet — added specifically so a new violation fails
+ * CI. Those ratchets are worthless in a package that never runs ESLint.
+ *
+ * That sentence deliberately neither counts those rules nor lists where they
+ * came from. It used to do both, and it was wrong on the day it was written: a
+ * verbatim copy of the enumeration #3261 removed from
+ * `.github/workflows/lint.yml`, short by the same rule, left behind because
+ * that fix only touched the workflow (#3279). A hand-copied enumeration drifts
+ * by construction, and a stale one still reads as authoritative — so the next
+ * person deciding whether their new rule is inside this gate gets a confident,
+ * wrong answer. `eslint.config.js` is the only honest list, each rule carrying
+ * its own ADR/issue in the comment beside it, and
+ * `scripts/__tests__/lint-workflow.test.ts` fails if a count or a rule name
+ * reappears here.
  *
  * Run:  node scripts/check-lint-coverage.mjs
  * Exit: 0 = OK, 1 = coverage regressed or the list is stale

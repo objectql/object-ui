@@ -20,7 +20,6 @@ npm install @object-ui/collaboration
 
 **Peer Dependencies:**
 - `react` ^18.0.0 || ^19.0.0
-- `react-dom` ^18.0.0 || ^19.0.0
 
 ## Quick Start
 
@@ -116,20 +115,8 @@ Threaded comment component with @mentions:
 />
 ```
 
-<!-- release-metadata:v3.3.0 -->
-
-## Compatibility
-
-- **React:** 18.x or 19.x
-- **Node.js:** ≥ 18
-- **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^3.3.0
-- **`@objectstack/client`:** ^3.3.0
-- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
-
 ## Links
 
-- 📚 [Documentation](https://www.objectui.org/docs/packages/collaboration)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/collaboration)
 - 📝 [Changelog](./CHANGELOG.md)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)

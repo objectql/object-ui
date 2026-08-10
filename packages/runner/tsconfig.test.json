@@ -12,7 +12,12 @@
     // Drop the root tsconfig's source-tree `paths` so `@object-ui/*` and
     // `@objectstack/spec` resolve through the workspace dependency's built
     // `.d.ts` instead of pulling sibling sources in as program inputs (TS6059).
-    "paths": {}
+    "paths": {},
+    // Same ambient types as `tsconfig.json`. A test that imports `App.tsx`
+    // pulls `lib/MetadataLoader.ts` into this program, and that file calls
+    // `import.meta.glob` — declared by `vite/client`, which the root config
+    // this extends does not carry (it is not a Vite app).
+    "types": ["vite/client"]
   },
   "include": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

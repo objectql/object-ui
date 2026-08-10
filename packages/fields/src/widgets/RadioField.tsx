@@ -3,6 +3,7 @@ import { RadioGroup, RadioGroupItem, Label, EmptyValue } from '@object-ui/compon
 import { isValueStillOffered, type OptionLike } from '@object-ui/core';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
+import { toHostGroupProps } from './toHostGroupProps';
 import { OptionsEmptyState } from './OptionsEmptyState';
 import { useCascadingOptions } from './useCascadingOptions';
 
@@ -54,12 +55,24 @@ export function RadioField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options, gated]);
 
+  // The host's group label has to be consumed on EVERY surface this widget can
+  // render, not only the `RadioGroup` (objectui#3990): both branches below return
+  // before that spread, which is how a field-level `readonly: true` and a
+  // zero-option list ended up with a published label id and no consumer at all.
+  // See `toHostGroupProps` — note the role it emits is `group`, not the
+  // `radiogroup` the editable branch keeps: there is not one radio left in
+  // either of these surfaces.
+  const hostGroupProps = toHostGroupProps(props);
+
   if (readonly) {
-    if (value == null || value === '') return <EmptyValue />;
+    // `EmptyValue`'s own `aria-label` ("No value") is outranked by
+    // `aria-labelledby` per accname, and on the `generic` role that placeholder
+    // span carries it was never exposed as a name anyway.
+    if (value == null || value === '') return <EmptyValue {...hostGroupProps} />;
     // Label from the raw set so a stored value hidden by `visibleWhen` still
     // renders its label rather than a bare id.
     const opt = rawOptions.find((o) => o.value === value);
-    return <span className="text-sm">{opt?.label || String(value)}</span>;
+    return <span {...hostGroupProps} className="text-sm">{opt?.label || String(value)}</span>;
   }
 
   // No offered options is unfillable — surface a legible state instead of an
@@ -74,12 +87,23 @@ export function RadioField({
         dependsOnFields={dependsOnFields}
         testId={fieldName ? `radio-empty-${fieldName}` : undefined}
         className="min-h-9"
+        // This box IS the field in this state, so it is what the host label
+        // names (objectui#3990).
+        hostGroupProps={hostGroupProps}
       />
     );
   }
 
   return (
-    // DOM pass-through onto the radiogroup (objectui#3318). Unlike Radix
+    // DOM pass-through onto the radiogroup (objectui#3318). It also carries the
+    // host's group label: when the form renderer associates its `<FormLabel>` by
+    // IDREF (`aria-labelledby`, objectui#3961) that key rides in this same
+    // whitelist spread — `toDomProps` forwards the whole `aria-` family — so this
+    // widget needs no branch of its own. `radiogroup` is already a member of the
+    // group role family, so nothing here overrides it with `role="group"`: it is
+    // the more specific role AND the correct carrier of `aria-invalid` below.
+    //
+    // Unlike Radix
     // `Select.Root` (#3306) this Root IS a real DOM element — a
     // `<div role="radiogroup">` — and `radiogroup` is exactly the role
     // WAI-ARIA designates to carry `aria-invalid` for a set of radios

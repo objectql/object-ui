@@ -492,7 +492,11 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                         // animation to freeze at height 0 (#2756).
                         isAnimationActive: false,
                         drillDown: options.drillDown ?? defaultChartDrill(dispatch.chartType),
-                        compareTo: (widget as any).compareTo,
+                        // Passed through by value; its TYPE now comes from the
+                        // spec's converged `{ kind, dimension? }` (objectstack#5011),
+                        // which is what `CompareToConfig` projects — so the cast
+                        // that used to bridge the skew is gone.
+                        compareTo: widget.compareTo,
                         className: "h-[200px] sm:h-[250px] md:h-[300px]"
                     };
                 }

@@ -12,7 +12,13 @@
  */
 
 import React from 'react';
-import { useRecordContext, useSafeFieldLabel, useRelatedRecordActions } from '@object-ui/react';
+import {
+  ElementDataSourceGate,
+  useRecordContext,
+  useSafeFieldLabel,
+  useRelatedRecordActions,
+  type ElementDataSourceMapping,
+} from '@object-ui/react';
 import { useFieldPermissions, usePermissions } from '@object-ui/permissions';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { humanizeLabel } from '@object-ui/fields';
@@ -51,7 +57,7 @@ export interface RecordRelatedListRendererProps {
   [k: string]: any;
 }
 
-export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps> = ({
+const RecordRelatedListBody: React.FC<RecordRelatedListRendererProps> = ({
   schema = {} as any,
   className,
   ...props
@@ -182,6 +188,13 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
             : SPEC_DEFAULT_LIMIT
         }
         defaultSort={schema.sort}
+        // The list's own scope, ANDed with the parent relationship by
+        // `RelatedList` (spec `RecordRelatedListProps.filter`,
+        // objectstack#7118). When a `dataSource` binding is present this key
+        // already carries the composed component-AND-view-AND-binding filter —
+        // `ElementDataSourceGate` wrote it here, which is only legitimate now
+        // that the value is read.
+        filter={schema.filter}
         dataSource={ctx?.dataSource as any}
         add={
           (schema as any).add
@@ -237,6 +250,61 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
         }
       />
     </div>
+  );
+};
+
+/**
+ * What this block reads for its own query: `objectName`, `columns` (a FIELD
+ * list), `filter`, `sort` (`defaultSort`) and `limit` (`pageSize`).
+ *
+ * `filter` was the one key deliberately left unmapped when this wiring landed
+ * (objectstack#6953), because the block DECLARED it and no code read it: writing
+ * the composed filter onto a dead key would have reproduced the very defect that
+ * change removed, one layer deeper. objectstack#7118 gave it a read site —
+ * `RelatedList` now ANDs it with `{ [referenceField]: parentId }` — so the
+ * mapping follows, and with it the consequence recorded here as open: a saved
+ * view named on this block no longer contributes columns/sort/limit while its
+ * FILTER is dropped, i.e. the list can no longer be wider than the view it names.
+ */
+const RECORD_RELATED_LIST_DATA_SOURCE: ElementDataSourceMapping = {
+  columns: true,
+  filter: true,
+  sort: true,
+  limit: 'limit',
+};
+
+/**
+ * Stable stand-in for a missing `schema`. A fresh `{}` per render would give the
+ * body a new schema identity every time — the churn `useElementDataSourceSchema`
+ * avoids by returning the schema BY REFERENCE when there is no binding.
+ */
+const NO_SCHEMA = {} as RecordRelatedListRendererProps['schema'];
+
+/**
+ * `record:related_list` with the spec's per-element `dataSource` binding mapped
+ * onto the keys the body reads (objectstack#6953).
+ *
+ * The gate wraps the EXPORTED name rather than being added at the registration
+ * site, so a host that imports this renderer directly gets the binding too — a
+ * block bound under one entry point and unbound under another is the same
+ * "declared but not reached" shape in miniature.
+ */
+export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps> = (props) => {
+  // The record context's adapter, not the schema-renderer context's: this list
+  // reads its rows through `ctx.dataSource`, and resolving `view` against a
+  // different source than the rows come from could report a view as missing on
+  // a host that has it.
+  const ctx = useRecordContext();
+  return (
+    <ElementDataSourceGate
+      schema={props.schema ?? NO_SCHEMA}
+      mapping={RECORD_RELATED_LIST_DATA_SOURCE}
+      dataSource={ctx?.dataSource}
+      testId="record-related-list"
+      errorTitle="This related list’s data source could not be resolved"
+    >
+      {(bound) => <RecordRelatedListBody {...props} schema={bound as any} />}
+    </ElementDataSourceGate>
   );
 };
 

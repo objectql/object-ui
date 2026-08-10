@@ -22,6 +22,7 @@ import { createSafeTranslation } from '@object-ui/i18n';
 import { FormSectionContainer } from './FormSection';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
+import { seedCreateValues } from './schemaDefaults';
 import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
 import { resolveSuccessNavigate, isSameOriginUrl, type SubmitBehavior } from './successBehavior';
 import { useOccSave } from './occSave';
@@ -284,7 +285,10 @@ export const WizardForm: React.FC<WizardFormProps> = ({
     const fetchData = async () => {
       if (schema.mode === 'create' || !schema.recordId || !dataSource) {
         if (!seededRef.current) {
-          setFormData(schema.initialData || schema.initialValues || {});
+          // Declared static defaults are this wizard's opening values (#4047)
+          // — see `schemaDefaults` for the create-only boundary and for why
+          // runtime defaults are left to the server.
+          setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues));
           seededRef.current = true;
         }
         setLoading(false);
@@ -461,8 +465,10 @@ export const WizardForm: React.FC<WizardFormProps> = ({
               break;
             }
             case 'continue':
-              // Back to a fresh step 1 for the next entry.
-              setFormData({});
+              // Back to a fresh step 1 for the next entry — "fresh" means the
+              // same opening values the wizard had, defaults included (#4047),
+              // not a blank object the first entry never started from.
+              setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues));
               setCompletedSteps(new Set());
               setCurrentStep(0);
               setResetNonce((n) => n + 1);
@@ -490,8 +496,9 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           }
           toast.success(schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'));
           if (schema.resetOnSuccess && schema.mode === 'create') {
-            // Back to a fresh step 1 for the next entry.
-            setFormData({});
+            // Back to a fresh step 1 for the next entry — same opening values
+            // as the first entry, defaults included (#4047).
+            setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues));
             setCompletedSteps(new Set());
             setCurrentStep(0);
             setResetNonce((n) => n + 1);
@@ -510,7 +517,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
       // Move to next step
       goToStep(currentStep + 1);
     }
-  }, [formData, currentStep, isLastStep, schema, dataSource, missingRequiredByStep, t, saveWithOcc]);
+  }, [formData, currentStep, isLastStep, schema, objectSchema, dataSource, missingRequiredByStep, t, saveWithOcc]);
 
   // Navigation
   const goToStep = useCallback((step: number) => {

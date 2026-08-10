@@ -23,11 +23,13 @@ one has its own section below.
 
 | Workflow file | Appears as | Runs on | Blocks a PR? |
 |---|---|---|---|
-| `ci.yml` | CI | Push / PR to `main`, `develop` | **Yes** — every job but `test-coverage` (push only) runs on PRs |
-| `lint.yml` | Lint | Push / PR to `main`, `develop`; manual | **Yes** — ESLint **errors** only |
+| `ci.yml` | CI | Push / PR to `main`, `develop`; merge-queue builds | **Yes** — every job but `test-coverage` (push only) runs on PRs and on queue builds |
+| `lint.yml` | Lint | Push / PR to `main`, `develop`; merge-queue builds; manual | **Yes** — ESLint **errors** only |
 | `changeset-guard.yml` | Changeset Bump Policy | PR / push touching `.changeset/**` | **Yes** |
-| `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; manual | **Yes** |
-| `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; manual | **Yes** |
+| `changeset-presence.yml` | Changeset Declaration | PR to `main`, `develop` — **no path filter**; merge-queue builds | **Yes** — when a released package's `src/` changed and no changeset was added |
+| `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
+| `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
+| `skills-paths.yml` | Skill Guide Path Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a path stated in a `skills/` guide does not exist |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -43,18 +45,86 @@ one has its own section below.
 The path filters explain most "why did nothing run on my PR?" questions:
 
 - `ci.yml` and `lint.yml` both list `**/*.md`, `content/**`, `docs/**` and `.changeset/**` under
-  `paths-ignore` (`ci.yml` also ignores `apps/site/**`). A docs-only or changeset-only PR starts
-  neither of them.
+  `paths-ignore` (`ci.yml` also ignores `apps/site/**`) — but **only on their `push` trigger**.
+  Their `pull_request` trigger carries no filter at all since
+  [#3523](https://github.com/objectstack-ai/objectui/issues/3523): every pull request starts both workflows, and the same list decides *inside
+  each job* whether the expensive steps run. A docs-only PR therefore still installs nothing and
+  builds nothing, while **Lint**, **Type Check**, **Test (shard N/4)**, **Build & E2E** and
+  **Changeset Fixed Group Check** all appear in the checks list and all report. That difference is
+  the whole point: a check that is never *created* cannot be a required check — it leaves the PR
+  pending rather than failing it — so while the filter sat on the trigger, none of these could be
+  required at all.
 - `changeset-guard.yml` carries the inverse filter — it runs *only* when `.changeset/**` changes,
   which is precisely why it is a separate workflow instead of a job inside `ci.yml`.
+- `changeset-presence.yml` is that guard's mirror image and the reason there are two: a PR which
+  *forgot* its changeset does not touch `.changeset/**`, so the inverse filter guarantees the one
+  check that could notice never runs. It therefore carries **no** filter and decides from the diff
+  inside its script.
 - `control-bytes.yml` and `docs-links.yml` carry **no** filter of any kind, which is equally
   deliberate: both guard markdown, and a gate that a markdown-only PR cannot start is no gate on
   the change most likely to trip it. Both cost a checkout plus one `node` call.
 
+## Merge Queue
+
+`main` sits behind an **enforced merge queue**: a direct push is rejected with
+405 `Changes must be made through the merge queue`. The queue takes each approved pull request,
+rebuilds it on top of whatever `main` has become in the meantime, and merges it only if the
+checks it requires are green **on that rebuilt commit**. Those runs are a distinct event,
+`merge_group`, on a throwaway `gh-readonly-queue/**` branch — a workflow that does not subscribe
+to that event simply does not run there.
+
+Five workflows subscribe: `ci.yml`, `lint.yml`, `control-bytes.yml`, `docs-links.yml` and
+`changeset-presence.yml` (the last added with the gate itself, in
+[#3387](https://github.com/objectstack-ai/objectui/issues/3387) — a gate that carries no path
+filter reports on every pull request and is therefore requirable, which is exactly the property
+this list tracks). None of the first four did until
+[#3523](https://github.com/objectstack-ai/objectui/issues/3523), and the consequence was not subtle. A queue whose required set
+is empty validates nothing: it rebuilds the PR, sees no failing required check because there are
+no required checks, and merges. On 2026-08-07 three pull requests
+([#3503](https://github.com/objectstack-ai/objectui/issues/3503), [#3510](https://github.com/objectstack-ai/objectui/issues/3510), [#3516](https://github.com/objectstack-ai/objectui/issues/3516)) merged with **Type Check** at
+`conclusion=failure`, onto a `main` that [#3498](https://github.com/objectstack-ai/objectui/issues/3498) had left with a type error;
+[#3505](https://github.com/objectstack-ai/objectui/issues/3505) hot-fixed the result.
+
+**The three steps have to happen in this order**, and reversing them deadlocks the repository:
+
+1. Subscribe the workflows to `merge_group`. Pure addition — nothing about pull requests changes.
+2. Make the contexts report on *every* pull request, by moving path filtering out of
+   `on.pull_request.paths-ignore` and into the jobs.
+3. Only then may a maintainer add context names to the branch-protection and merge-queue required
+   sets. This is a **repository-settings** change; nothing in this repository can do it, and
+   nothing here can read the current state of it either.
+
+Step 3 before step 1 is the deadlock: a required context that never reports does not fail a queue
+build, it stalls it until the ruleset's 60-minute status-check timeout assumes failure — every
+queued PR burns an hour and fails, with nothing red to point at.
+
+Two things follow for anyone editing this directory:
+
+- **A workflow producing a context that could ever be required must subscribe `merge_group`.**
+  `scripts/__tests__/merge-queue-reporting.test.ts` holds the list, along with the reason each
+  entry is on it, and fails when one drops the trigger.
+- **Some contexts can never be required, structurally**, and no amount of triggering changes that:
+  **Changeset Bump Policy** (`changeset-guard.yml`, inverse path filter — absent unless the PR
+  touches `.changeset/**`), **Bundle Analysis** (`performance-budget.yml`, path filter),
+  **Live E2E (informational)** (`continue-on-error: true`, so it is green whatever happens — it
+  cannot serve as a guarantee of anything), and **Close issues referenced in other repositories**
+  (`cross-repo-issue-closer.yml`, which runs only *after* a merge).
+
 ## Core CI Workflow (`ci.yml`)
 
-**Triggers:** Push and PR to `main` and `develop`, unless the change touches only `**/*.md`,
-`content/**`, `docs/**`, `apps/site/**` or `.changeset/**` (`paths-ignore`).
+**Triggers:** **Every** PR to `main`/`develop` (no path filter), every merge-queue build
+(`merge_group`), and pushes to `main`/`develop` unless the change touches only `**/*.md`,
+`content/**`, `docs/**`, `apps/site/**` or `.changeset/**` (`paths-ignore`, kept on the push
+trigger only — see [#3523](https://github.com/objectstack-ai/objectui/issues/3523) and the **Merge Queue** section below).
+
+The path list did not go away, it moved. `type-check`, `test` and `e2e` each open with a
+`Decide whether this change needs a full run` step that diffs the PR against its merge base with
+exactly that list excluded, and every following step carries
+`if: steps.relevant.outputs.should_run == 'true'`. The job always runs and always reports; the
+paths decide only whether it does any work. The `docs` job has worked this way since
+[#3450](https://github.com/objectstack-ai/objectui/pull/3450) and is where the shape comes from.
+The gate fails **open** — if the diff cannot be computed the job runs everything, rather than
+reporting green having built nothing.
 
 Every job runs in parallel — there are no `needs:` edges between them. As with the workflow
 inventory above, this page states **no job count**: the table *is* the list, and
@@ -63,14 +133,21 @@ keys in both directions, so a job added or removed without touching this table i
 (This section used to open with a hard-coded count and list a seventh job, `dev-server`, that had
 been deleted three months earlier — [#3451](https://github.com/objectstack-ai/objectui/issues/3451).)
 
+The **What it runs** column is pinned one level further down, by command
+([#3653](https://github.com/objectstack-ai/objectui/issues/3653)): every first-party command a job
+runs — a `node scripts/*.mjs` invocation, a root `package.json` script, or a `turbo run` task — must
+be named in that job's row, and a row may not name one its job does not run. Until that pin landed
+this page was judged job by job only, so a `run:` step added to an existing job left every check on
+it green — which is how two of `type-check`'s gates came to be missing from this column.
+
 | Job key | Appears as | What it runs | When |
 |---|---|---|---|
 | `changeset-check` | Changeset Fixed Group Check | `scripts/check-changeset-fixed.mjs` — every workspace package must be in the changeset `fixed` group or explicitly ignored. It checks group *membership*; it does **not** check whether the PR added a changeset. | Every run |
-| `type-check` | Type Check | `scripts/check-type-check-coverage.mjs`, then `pnpm check:spec-symbols`, then `pnpm type-check:scripts`, then `pnpm type-check`, then `pnpm type-check:vitest-setup`. The coverage guard runs first because turbo silently skips packages that have no `type-check` script, so a package without one would otherwise read as passing (#2911). `pnpm type-check:scripts` (`tsconfig.scripts.json`) covers `scripts/**/*.ts`, which `pnpm type-check` cannot reach at all — `scripts/` has no package.json, so turbo never walks it, and the coverage guard decides coverage per *package*. Until [#3494](https://github.com/objectstack-ai/objectui/issues/3494) that left the pin tests in `scripts/__tests__/` — including the one pinning this very page — compiled by nothing. `pnpm type-check:vitest-setup` (`tsconfig.vitest-setup.json`) closes the same gap for the four repo-root `vitest.setup.*` files, uncovered until [#3515](https://github.com/objectstack-ai/objectui/issues/3515); it runs *last*, after `pnpm type-check`, because `vitest.setup.dom.tsx` side-effect-imports four `@object-ui/*` packages and resolves them through the declarations that turbo's `^build` produces. | Every run |
-| `test` | Test (shard N/4) | `pnpm test --shard=N/4` across a 4-runner matrix with `fail-fast: false`, so every shard reports its own failures. No coverage instrumentation — v8 adds 40–100% overhead. | **Pull requests only** |
+| `type-check` | Type Check | `scripts/check-type-check-coverage.mjs`, then `pnpm check:spec-symbols`, then `pnpm check:i18n-keys`, then `pnpm check:i18n-drift`, then `pnpm type-check:scripts`, then `pnpm type-check`, then `pnpm type-check:vitest-setup`. The coverage guard runs first because turbo silently skips packages that have no `type-check` script, so a package without one would otherwise read as passing (#2911). The two locale gates sit in the middle because both parse the sources with `typescript`: they need the install and nothing built. `pnpm check:i18n-keys` fails when a `t()` call site asks for a key the `en` pack does not define ([#3530](https://github.com/objectstack-ai/objectui/issues/3530)); `pnpm check:i18n-drift` fails when a change to an `en` string is not accompanied by the nine translation packs ([#3650](https://github.com/objectstack-ai/objectui/issues/3650)), and it is why this job's checkout sets `fetch-depth: 0` — it diffs against the merge base, which a depth-1 clone cannot resolve. `pnpm type-check:scripts` (`tsconfig.scripts.json`) covers `scripts/**/*.ts`, which `pnpm type-check` cannot reach at all — `scripts/` has no package.json, so turbo never walks it, and the coverage guard decides coverage per *package*. Until [#3494](https://github.com/objectstack-ai/objectui/issues/3494) that left the pin tests in `scripts/__tests__/` — including the one pinning this very page — compiled by nothing. `pnpm type-check:vitest-setup` (`tsconfig.vitest-setup.json`) closes the same gap for the four repo-root `vitest.setup.*` files, uncovered until [#3515](https://github.com/objectstack-ai/objectui/issues/3515); it runs *last*, after `pnpm type-check`, because `vitest.setup.dom.tsx` side-effect-imports four `@object-ui/*` packages and resolves them through the declarations that turbo's `^build` produces. | Every run; on a PR the steps short-circuit when only ignored paths changed |
+| `test` | Test (shard N/4) | `pnpm test --shard=N/4` across a 4-runner matrix with `fail-fast: false`, so every shard reports its own failures. No coverage instrumentation — v8 adds 40–100% overhead. | Pull requests and merge-queue builds (everything but `push`); steps short-circuit on a PR that changed only ignored paths |
 | `test-coverage` | Test (coverage) | One unsharded `pnpm test:coverage`, uploaded to Codecov. Nothing blocks on it, which is why it is not sharded. | **Push only** |
-| `e2e` | Build & E2E | Builds the console with `vite build` (`VITE_BASE_PATH=/console/`), verifies the artifact, then `pnpm test:e2e --project=chromium`. Uploads the Playwright report on failure. | Every run |
-| `docs` | Build Docs | `turbo run build --filter='@object-ui/site'`. On a PR it first diffs against the base and skips the build when nothing under `apps/site/` or `content/` changed. It does **not** check docs links any more — that moved to `docs-links.yml` (#3448), because this workflow's `paths-ignore` hides exactly the docs-only PRs a link check needs to see. | Every run (build itself conditional) |
+| `e2e` | Build & E2E | Builds the console with `vite build` (`VITE_BASE_PATH=/console/`), verifies the artifact, then `pnpm test:e2e --project=chromium`. Uploads the Playwright report on failure. | Every run; on a PR the steps short-circuit when only ignored paths changed |
+| `docs` | Build Docs | `turbo run build --filter='@object-ui/site'`. On a PR it first diffs against the base and skips the build when nothing under `apps/site/` or `content/` changed. It does **not** check docs links any more — that moved to `docs-links.yml` (#3448), because this workflow's `paths-ignore` then hid exactly the docs-only PRs a link check needs to see. #3523 has since removed that filter from the `pull_request` trigger, but the check stays in its own home: `docs-links.yml` still runs where this workflow does not (a docs-only push to `main`), and one gate with one home was the point of #3448. | Every run (build itself conditional) |
 
 Uses: Node 22.x, pnpm via `corepack`, `actions/cache` over `.turbo/cache`.
 
@@ -105,8 +182,11 @@ for them there is a dead end:
 
 ## Lint (`lint.yml`)
 
-**Triggers:** Push and PR to `main`/`develop` (same `paths-ignore` as `ci.yml`, minus
-`apps/site/**`), plus manual dispatch.
+**Triggers:** **Every** PR to `main`/`develop` (no path filter), every merge-queue build, pushes
+to `main`/`develop` under the same `paths-ignore` as `ci.yml` minus `apps/site/**`, plus manual
+dispatch. As in `ci.yml`, the path list moved into the job ([#3523](https://github.com/objectstack-ai/objectui/issues/3523)): the `Lint`
+context now reports on every pull request, and short-circuits to no install and no lint when only
+ignored paths changed.
 
 This is a **real PR gate**, and it is easy to miss because it is not part of CI — it is its own
 **Lint** entry in the checks list.
@@ -150,12 +230,17 @@ The two byte classes carry different harms and the report says which:
 Covering only U+0000 would reproduce a known miss: objectstack#5140 shipped a NUL *and* a U+0001
 fourteen bytes away, and the NUL-only scanner reported OK on the second one (objectstack#5157).
 
-**Why it is a separate workflow.** `ci.yml` and `lint.yml` both list `'**/*.md'`, `content/**`,
-`docs/**` and `.changeset/**` under `paths-ignore`, and GitHub has no per-job path filter. Markdown
+**Why it is a separate workflow.** `ci.yml` and `lint.yml` used to list `'**/*.md'`, `content/**`,
+`docs/**` and `.changeset/**` under `paths-ignore` on *every* trigger, and GitHub has no per-job
+path filter. Markdown
 is exactly the carrier the worst instance of this bug used — objectstack#4890 was a raw NUL in a
 `.claude/` skill file, emitted by the PR that was writing the rule forbidding it, leaving the agent
 instructions unfindable by `grep -r` with no signal that anything was missing. A path-filtered gate
-could not have seen that PR. `scripts/__tests__/check-control-bytes.test.ts` fails if a `paths` or
+could not have seen that PR. [#3523](https://github.com/objectstack-ai/objectui/issues/3523) has since taken that filter off their
+`pull_request` triggers, so a markdown-only PR does start them now — but their jobs short-circuit
+to nothing on such a change, and both keep the filter on `push`. This gate stays where it is, and
+its unfiltered trigger set is why it is one of only two contexts that audit found safe to make
+required today. `scripts/__tests__/check-control-bytes.test.ts` fails if a `paths` or
 `paths-ignore` key is ever added here.
 
 **If it fails:** write the escape sequence (backslash, lowercase `u`, four zeroes) instead of the
@@ -194,6 +279,14 @@ Exactly one bundle-size number in this repository is enforced — this one:
 - Builds the console app and measures bundle sizes.
 - Posts a PR comment with the budget report and pass/fail status — but **only when the bundle was actually measured**. A run that was cancelled (a second push supersedes the first via `cancel-in-progress`) posts nothing, and a run whose build never produced a bundle posts a neutral "not measured" note instead of a verdict. A `FAIL` verdict therefore always carries the measured size that exceeded the budget.
 - The comment is rendered by `scripts/render-budget-comment.mjs` (unit-tested), not by logic inlined in YAML.
+
+**If it fails:** the step prints `BUDGET EXCEEDED: Main entry is <n> KB gzip (limit: 350 KB)`
+and the PR comment carries the same two numbers, so the log already tells you the size and the
+overshoot. Read the package size report appended to that comment next: the entry chunk is
+`apps/console`'s own code plus everything it imports eagerly, so a jump usually traces to one
+new eager import pulling a dependency in. Fix it at that import. Raising `MAX_ENTRY_GZIP_KB`
+is a deliberate decision, not a workaround for a red check — and it cannot be done quietly,
+because the pin above fails until this page states the new number too.
 
 ### Package size report — advisory, not a gate
 
@@ -251,7 +344,8 @@ all**, which is the point of the workflow. It appears in the checks list as **In
 Check**.
 
 Runs `scripts/check-doc-links.mjs`, which walks every `.md` / `.mdx` file in the surfaces listed in
-its `SCAN_ROOTS` — `content/docs/`, `examples/` and the root `README.md` — and asks of each internal
+its `SCAN_ROOTS` — `content/docs/`, `examples/`, the root `README.md`, `CONTRIBUTING.md`,
+`ROADMAP.md`, the internal `docs/` tree and every package `README.md` — and asks of each internal
 markdown link whether its target is really there.
 
 **Two rules, because the two groups are read through different machinery** (objectui#3536). For
@@ -265,12 +359,54 @@ Four checks, by href shape:
 | absolute `/docs/...` | `content/docs/` as a **route** | no `foo.md`, `foo.mdx` or `foo/index.md*` backs it — a `.md`/`.mdx` suffix always fails, since that URL 404s whatever is on disk |
 | any other absolute (`/spec/...`, `/img/...`) | the **site itself**: route segments enumerated from `apps/site/app`, plus static files under `apps/site/public` | no route pattern or static file matches |
 
-`examples/` and the root `README.md` are read on **GitHub**, not served by the site, so a relative
-href there names a path on disk and is checked for existence only — a directory (`./packages/core`)
-or a non-markdown file (`./vite.config.ts`) is a perfectly good target, and there is no collection
-to escape. A leading `/` is rejected outright: GitHub resolves it against `github.com`, not against
-this repository. Applying the `content/docs/` rules to these files instead would reject 61 links
-that render correctly today.
+**Two href shapes are checked on _every_ surface, both rules included**, because they look external
+but are decidable offline:
+
+| Href shape | Resolved against | Rejected when |
+|---|---|---|
+| this repo's own `https://github.com/objectstack-ai/objectui/(blob\|tree)/main/...` (objectui#3536) | the path in the working tree | that path is not in the checkout. Only `main` and only this repo — other refs and repos cannot be answered offline |
+| this site's own `https://[www.]objectui.org/...` (objectui#3603) | the origin is stripped, and what remains goes through the two absolute rows above, unchanged | the resulting route does not resolve — so `…/docs/guide/foo.md` fails for exactly the reason `/docs/guide/foo.md` does |
+
+The second one had been invisible since the beginning: `judgeHref()` skipped every href carrying a
+scheme, so a route written with the site's own origin was never checked while the identical
+origin-less route was checked strictly. That blind spot was never confined to package READMEs —
+`content/docs/` writes 6 such URLs itself — which is why the fix strips the origin in `judgeHref()`
+rather than special-casing any surface. Measured before landing: 11 across the scanned tree, zero
+dead. Prefer the origin-less form (`/docs/guide/plugins`) in new prose: it survives a domain change,
+and both spellings are now checked identically.
+
+Every other surface — `examples/`, `README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `docs/` and the
+package READMEs — is read on **GitHub** (and, for the package READMEs, on **npm**), not served by
+the site, so a relative href there names a path on disk and is checked for existence only: a
+directory (`./packages/core`) or a non-markdown file (`./vite.config.ts`) is a perfectly good
+target, and there is no collection to escape. A leading `/` is rejected outright: GitHub resolves it
+against `github.com`, not against this repository. Applying the `content/docs/` rules to these files
+instead would reject 186 links that render correctly today.
+
+`CONTRIBUTING.md`, `ROADMAP.md` and `docs/` are objectui#3572. They cost one `SCAN_ROOTS` row each
+and no new rule, because "read on GitHub" already had one; their own backlog — three dead links —
+was cleared first and separately (objectui#3545), so the rows landed on a green tree.
+
+The package READMEs are objectui#3622, and the same shape: **one row, its backlog paid first**. That
+backlog was 11 dead links in seven packages — three `/api/<pkg>` routes the site has never served,
+four site URLs naming three `content/docs/` directories that have no index page (so fumadocs
+generates no route for them), a `/docs/types` tree that does not exist, an `/examples` route that
+does not either, and two disk paths that were simply absent. Each was repointed at a real page, or
+replaced with the repository URL that does exist, before the row went in. The row is also the table's only wildcard: `packages/*/README.md` stands for
+one file per package directory (38 of the 39 today), and only the README — a package's
+`CHANGELOG.md`, `TESTING.md` and its own `docs/` tree stay unscanned.
+
+**Package READMEs must keep the origin on site links.** Inside `content/docs/` the origin-less
+`/docs/guide/plugins` is preferred; in a README it would be wrong, because GitHub and npm both
+resolve a leading `/` against their own host, not against this site. Write
+`https://www.objectui.org/docs/guide/plugins` there — it is checked exactly as strictly.
+
+**One boundary, stated because it is easy to mistake for coverage:** links written inside a code
+fence are invisible to this check. `stripCode()` blanks fenced blocks and inline spans before
+scanning — required, since fenced code legitimately contains `[…](…)` that is not a link — so a
+dead route in an illustrative snippet is not reported. `CONTRIBUTING.md` carries 10 such links
+today against 15 outside fences, of which the gate judges one. Prose *about* links stays a human
+review item.
 
 One href shape is checked in **every** surface: a
 `https://github.com/objectstack-ai/objectui/(blob|tree)/main/<path>` URL points back into this
@@ -308,10 +444,71 @@ red check for one broken link, and a second place to forget.
 pull requests, must carry neither `paths` nor `paths-ignore`, and must remain the only workflow
 that runs the script.
 
+[#3523](https://github.com/objectstack-ai/objectui/issues/3523) removed `ci.yml`'s `pull_request` path filter, so the specific blindness above
+no longer exists there — but nothing moves back. `ci.yml` still filters its `push` lane, so it
+would miss a docs-only push to `main`; and this workflow is one of the two contexts that audit
+found safe to require today precisely because it has never had a filter to reason about.
+
 **If it fails:** it prints every offending `file -> href`. Either the link is misspelled, or the
 page it points at has moved or been renamed — fix the link, or restore the target. Links are
 checked as *routes*, so `/docs/guide/foo` is what belongs in the markdown, not
 `content/docs/guide/foo.md`. Run it locally with `pnpm docs:check-links`.
+
+## Skill Guide Paths (`skills-paths.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**, for the same reason as the two sections above: this gate's entire scan surface
+is markdown, and `ci.yml` still lists `'**/*.md'` under the `paths-ignore` of its `push` trigger. It
+appears in the checks list as **Skill Guide Path Check**.
+
+Runs `scripts/check-skills-paths.mjs`, which reads every markdown file under `skills/` and asks, of
+each in-repo path the prose states inside a backtick code span, whether it exists on disk. Those
+guides are a direct input to every agent that writes code in this repository, and their prose gives
+paths as coordinates.
+
+**Why a dead coordinate costs more than its size suggests:** the symbol named next to it is usually
+real and only the location is wrong, so nobody gets a compile error — an agent gets "file not found"
+from a `Read`, assumes its own search was clumsy, and spends a full lap re-locating something the
+guide claimed to have located for it. Two rounds were found by eye while reading:
+[#3713](https://github.com/objectstack-ai/objectui/issues/3713) (PR #3729) and
+[#3730](https://github.com/objectstack-ai/objectui/issues/3730) (PR #3734), the second one 13 real
+symbols at coordinates that did not exist. It also recurs by construction — the app-shell extraction
+commits moved code with nothing anywhere to say the guides had gone stale
+([#3735](https://github.com/objectstack-ai/objectui/issues/3735)).
+
+**What counts as a stated path:** a backtick span that opens with one of five top-level directories
+(`apps/`, `packages/`, `examples/`, `scripts/`, `content/`) and contains no whitespace. Three
+exclusions, each a *rule* rather than an exemption, because none of them claims that a file exists:
+
+| Excluded | Example in the guides today | Why |
+|---|---|---|
+| whitespace inside the span | a `grep -rn … packages/app-shell/src` self-check command line | prose, a command line or a type — not a path |
+| glob or placeholder segment | the protected-primitive glob under `packages/components/src/ui`, a schema path with a placeholder domain segment | a shape, not a location; `existsSync` on it would mean nothing |
+| fenced code blocks | a `bash` block that creates a file | a worked example may legitimately name a file the reader is about to create |
+
+Measured on `main@6422aa891`: 18 guide files, 91 candidate spans, 5 of them patterns — **86 stated
+paths, of which 85 resolve**.
+
+**The one exemption, and why it cannot rot.** `scripts/skills-path-baseline.json` lists paths a guide
+states *deliberately as absent*. Today there is exactly one: the Key contexts section of
+`console-development.md` exists to correct a recurring wrong guess and says there is no
+`apps/console/src/context/` directory at all. That entry is a ratchet, red in **both** directions —
+if the path ever appears on disk the gate fails and names it (the sentence has become false), and if
+the scan stops meeting the entry the gate fails too (the prose was rewritten, so the entry is dead
+weight). Entries are keyed by file and token, never by line number, because guide prose moves
+constantly.
+
+**Scope, stated so it is not mistaken for an oversight.** `content/docs/**` carries backtick paths
+too and is **not** scanned here. Widening a scan surface arrives with its own batch of red to clear,
+which `check-doc-links.mjs` learned three times over (#3479, #3490, #3545) — measure it first, in its
+own change. The five-prefix list is the same kind of decision: adding this repository's other five
+top-level directories was measured at +2 candidates and 0 new red, so it is cheap, but it stays
+deliberate rather than assumed.
+
+**If it fails:** it prints every `file:line — token`. Fix the prose. Add a baseline entry only when
+the sentence's whole point is that the path does not exist. Run it locally with
+`pnpm check:skills-paths`, or `node scripts/check-skills-paths.mjs --list` to see every candidate and
+how it was classified.
 
 ## Link Checking (`check-links.yml`)
 
@@ -322,7 +519,7 @@ There are **two** link checkers, and they cover different things (objectui#3213)
 
 | | Covers | Network | Runs |
 |---|---|---|---|
-| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), in `examples/` and the root `README.md` (as paths on disk), plus this repo's own `blob/main/` and `tree/main/` GitHub URLs everywhere | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
+| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), in `examples/`, `README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `docs/` and every package `README.md` (as paths on disk), plus this repo's own `blob/main/` and `tree/main/` GitHub URLs and this site's own `objectui.org` URLs everywhere — **except** anything inside a code fence | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
 | Lychee (this workflow) | **External** URLs, plus **relative** in-repo file links, in `content/docs/`, `docs/` and `README.md` | Yes | Weekly cron and manual dispatch |
 
 Lychee sweeps **both** documentation trees: `content/docs/` (the 183 pages the site publishes) and
@@ -373,8 +570,11 @@ Uses [Changesets](https://github.com/changesets/changesets) for automated versio
 ### Changeset Guard (`changeset-guard.yml`)
 
 **Trigger:** PR to `main`/`develop`, and push to `main`, **when `.changeset/**` changes** — the
-inverse of every other workflow's filter. `ci.yml` and `lint.yml` both list `'**/*.md'` and
-`.changeset/**` under `paths-ignore`, so a PR that adds only a changeset starts nothing else.
+inverse of every other workflow's filter. It was carved out of `ci.yml` because `ci.yml` and
+`lint.yml` listed `'**/*.md'` and `.changeset/**` under `paths-ignore`, so a PR that added only a
+changeset started nothing at all. Since [#3523](https://github.com/objectstack-ai/objectui/issues/3523) such a PR does start both — and every
+job in them short-circuits, because `.changeset/**` is still on the in-job ignore list. The check
+that has to read the changeset therefore still lives here.
 
 Runs `scripts/check-changeset-no-major.mjs`, which fails if any pending changeset declares a
 `major` bump. Every publishable package is in one `fixed` group (39 packages), so a single
@@ -386,11 +586,89 @@ The one release that legitimately bumps the major is the one following `@objects
 its major; it sets `OBJECTUI_ALLOW_MAJOR=1`. `pnpm test` asserts the same repository state, so
 the rule survives this workflow being skipped.
 
+> **A changeset IS now required, by `changeset-presence.yml` — but there is still no
+> `skip-changeset` label.** Until [#3387](https://github.com/objectstack-ai/objectui/issues/3387)
+> nothing in CI asked whether a PR had added one, and this note said so at length, because the
+> opposite had been documented for months: a second workflow inventory at `.github/WORKFLOWS.md`
+> — unpinned, therefore free to drift — gave a "Changeset Check" workflow its own numbered
+> section, failing any PR touching `packages/` without a `.changeset/*.md` and skippable with a
+> `skip-changeset` or `dependencies` label. None of it existed;
+> [#3724](https://github.com/objectstack-ai/objectui/issues/3724) deleted the page. The label
+> still does not exist (checked against the labels API, 2026-08-08 — of the two names only
+> `dependencies` exists, applied by the auto-labeler and read by no gate), and the real gate has
+> no label escape hatch by design: its exemption is a changeset with an **empty frontmatter**,
+> which lives in the repository where the next reader finds it, rather than a label that vanishes
+> from history.
+>
+> The three real things with adjacent names each do something different, and none of them
+> subsumes another. `changeset-guard.yml` reads pending changesets and rejects a `major` bump.
+> `ci.yml`'s `changeset-check` job (**Changeset Fixed Group Check**) checks `fixed`-group
+> *membership*. `changeset-presence.yml` asks whether this change declared anything at all.
+
+### Changeset Presence (`changeset-presence.yml`)
+
+**Trigger:** PR to `main`/`develop`, and merge-queue builds. **No path filter** — see below.
+**Blocks a PR:** yes, when a released package's `src/` changed and the PR added no changeset.
+
+Runs `scripts/check-changeset-presence.mjs`, which compares the change against its merge base with
+the target branch and asks one question: did anything under the `src/` of a package the release
+covers change, and if so, does this change **add** a `.changeset/*.md`?
+
+- **The exemption is an empty frontmatter.** What is demanded is a declaration, once, by the person
+  who still knows what the change does — not a release. A changeset whose frontmatter names no
+  package is a first-class pass:
+
+  ```md
+  ---
+  ---
+
+  Test-only change to the grid column resolver; no published behaviour changes.
+  ```
+
+- **The changeset must be ADDED by this change.** `.changeset/` accumulates until a release, so "a
+  changeset exists in the tree" would be satisfied by somebody else's pending declaration and make
+  the gate vacuous for every change that followed one.
+- **The guarded surface is derived, not written down.** Every workspace package named in the
+  `fixed` group of `.changeset/config.json` contributes its `src/`; everything in `ignore` is
+  skipped. That matters more than it sounds: `@object-ui/console` lives at `apps/console`, outside
+  `packages/`, and is both the most-edited published package here and the one the platform's
+  `bump-objectui.sh` writes a changeset for — a hand-written `packages/*/src/**` glob would have
+  missed it. A changed source file whose package is in *neither* list fails the check rather than
+  being assumed unreleased; `check-changeset-fixed.mjs` is the gate that owns that classification.
+- **Every missing input fails loudly.** An unresolvable base commit, a `git diff` that errors, a
+  missing `.changeset/` directory: all red, none a silent pass. Note the direction is the *opposite*
+  of the filter gates in `ci.yml` — those decide whether to run work, so "cannot tell" means run;
+  here the work *is* the decision, so "cannot tell" means fail. Both refuse to report green having
+  looked at nothing ([objectstack#4928](https://github.com/objectstack-ai/objectstack/issues/4928)).
+- **No path filter, deliberately**, and it is the point of the whole workflow. A `paths:` filter
+  skips the entire workflow, so the context is never created on a PR that does not match — and a
+  required context that is never created leaves the PR pending rather than failing it
+  ([#3523](https://github.com/objectstack-ai/objectui/issues/3523)). It would also be a second copy
+  of the guarded surface, free to drift from the config the script reads.
+
+**Why this is separate from `changeset-guard.yml`, which also polices changesets:** that workflow's
+trigger is `paths: ['.changeset/**']`, and the inversion is deliberate — a PR adding *only* a
+changeset starts no other workflow, and that guard exists to see it. A PR that **forgot** its
+changeset does not touch `.changeset/**` at all, so the one check able to notice was the one check
+guaranteed not to run. Widening those paths would have broken the case that guard was built for.
+Two workflows, opposite directions: one polices the *level* of a declaration that exists, the other
+the *existence* of a declaration at all.
+
+Why it exists: [objectstack#4731](https://github.com/objectstack-ai/objectstack/issues/4731) /
+[#4843](https://github.com/objectstack-ai/objectstack/issues/4843) made the declared changesets the
+single criterion for which frontend changes shipped, and the premise underneath — published source
+changed, so a changeset was written — was enforced by nothing. Replaying this gate over the 80
+commits before it landed reports 10 that would have failed, two of them user-visible fixes
+(`918888a30` `fix(fields)`, `dcff16e06` `fix(cli,create-plugin)`) that reached a release with no
+CHANGELOG line anywhere. `scripts/__tests__/check-changeset-presence.test.ts` pins the verdicts, the derived
+surface, and every loud-failure path.
+
 ### Changelog Generation (`changelog.yml`)
 
 **Trigger:** `release` event (when a GitHub Release is published), or manual dispatch.
 
-Uses [git-cliff](https://git-cliff.org/) with `cliff.toml` configuration to auto-generate `CHANGELOG.md` and commit it to the repository.
+Uses [git-cliff](https://git-cliff.org/) with `cliff.toml` configuration to auto-generate `CHANGELOG.md` and commit it to the repository. Because it commits back to a branch that may have
+moved, it configures the lockfile merge driver first (see **Lockfile Merge Driver** below).
 
 ## Repository Maintenance
 
@@ -433,12 +711,16 @@ and calls the issues API.
 
 **Trigger:** Daily at 00:00 UTC (cron), or manual dispatch.
 
-| Resource | Stale after | Close after |
-|----------|-------------|-------------|
-| Issues | 60 days | 7 days |
-| Pull Requests | 45 days | 14 days |
+| Resource | Stale after | Close after | Exempt labels |
+|----------|-------------|-------------|---------------|
+| Issues | 60 days | 7 days | `pinned`, `security`, `critical`, `bug`, `enhancement` |
+| Pull Requests | 45 days | 14 days | `pinned`, `security`, `in-progress`, `blocked` |
 
-Exempt labels: `pinned`, `security`, `critical`, `in-progress`.
+The two exemption lists are set separately (`exempt-issue-labels` and `exempt-pr-labels`) and
+neither is a subset of the other: `critical`, `bug` and `enhancement` exempt issues only,
+`in-progress` and `blocked` exempt pull requests only. This page used to state one merged list
+— `pinned`, `security`, `critical`, `in-progress` — which was wrong in both directions for
+both resources ([#3724](https://github.com/objectstack-ai/objectui/issues/3724)).
 
 ### Dependabot Auto-Merge (`dependabot-auto-merge.yml`)
 
@@ -455,6 +737,51 @@ Exempt labels: `pinned`, `security`, `critical`, `in-progress`.
 - Runs offline and online analysis of shadcn/ui components.
 - Creates or updates a GitHub issue if components need review or updating.
 - Uploads analysis artifacts for reference.
+
+## Lockfile Merge Driver
+
+`pnpm-lock.yaml` is never merged line by line — it is regenerated. `.gitattributes` asks for
+that:
+
+```
+pnpm-lock.yaml merge=pnpm-merge
+```
+
+Git does not ship a `pnpm-merge` driver, and an attribute naming a driver nothing defines falls
+back to an ordinary text merge. So every workflow that merges, rebases, or commits onto a branch
+that may have moved defines it immediately after checkout:
+
+```yaml
+- name: Configure Git merge driver for pnpm-lock.yaml
+  run: |
+    git config merge.pnpm-merge.name "pnpm-lock.yaml merge driver"
+    git config merge.pnpm-merge.driver "pnpm install --no-frozen-lockfile"
+```
+
+Three workflows carry that step, for three different reasons:
+
+| Workflow | Why it needs the driver |
+|---|---|
+| `changeset-release.yml` | version bumps rewrite the lockfile on the release branch |
+| `changelog.yml` | commits a regenerated `CHANGELOG.md` back to the branch |
+| `dependabot-auto-merge.yml` | squash-merges dependency PRs whose entire content is often a lockfile change |
+
+`scripts/__tests__/ci-cd-pipeline-doc.test.ts` pins that table against the workflows that
+actually configure `merge.pnpm-merge`, in both directions. It is pinned because the claim had
+already drifted two ways at once, and neither copy was checked by anything: this page named
+`changeset-release.yml` and `dependabot-auto-merge.yml`, while the deleted `.github/WORKFLOWS.md`
+named `changeset-release.yml` and `changelog.yml`. Each was missing a different one
+([#3724](https://github.com/objectstack-ai/objectui/issues/3724)).
+
+`--no-frozen-lockfile` is spelled out because Actions sets `CI=true`, under which pnpm refuses
+to modify the lockfile — a driver that cannot write the file it exists to rewrite would fail the
+merge it was installed to resolve. That default is off locally, which is why the same driver is
+configured with a plain `pnpm install` under **Configure Git Merge Driver for pnpm-lock.yaml** in
+`CONTRIBUTING.md`; contributors want it for the same reason CI does, on rebases of long-lived
+branches.
+
+Adding a workflow that merges or pushes? Add the step **after checkout and before the merge**,
+and add its row above — the pin fails otherwise.
 
 ## Adding a New Workflow
 

@@ -35,10 +35,35 @@ import { fileURLToPath } from 'node:url';
  * config. Keeping such a list is the thing this issue removed — the generic
  * phrasing ("the rules `eslint.config.js` sets to `error`") is always true, so
  * the only honest list is the config itself.
+ *
+ * ## The scan surface, and why it is a list (objectui#3279)
+ *
+ * That sentence existed a third time, verbatim, in the header docblock of
+ * `scripts/check-lint-coverage.mjs`: same hand-count, same parenthesised source
+ * list, short the same rule. #3261 rewrote only the workflow, so the copy
+ * outlived the fix and was found by someone reading the file for an unrelated
+ * reason (#3274) rather than by a gate. Both files are scanned now — the two
+ * assertions iterate a list of prose surfaces — so a fourth copy fails CI
+ * instead of waiting on the next accidental reading. Any future file arguing
+ * from the same facts belongs in that list, not in a copy of this test.
+ *
+ * The count pattern reads each file's explanatory comment only, never the whole
+ * file, and for the script that scoping is load-bearing rather than tidiness:
+ * its `Known gaps` comment legitimately counts *packages* ("the last two …, 14
+ * errors"), which the pattern would otherwise report as a rule count. The
+ * rule-name pattern does read the whole file — a rule name anywhere in either
+ * file is the same second copy of `eslint.config.js`, wherever it sits.
  */
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const workflowPath = path.join(repoRoot, '.github/workflows/lint.yml');
-const workflow = fs.readFileSync(workflowPath, 'utf8');
+
+const read = (relative: string): string => fs.readFileSync(path.join(repoRoot, relative), 'utf8');
+
+/** Repo-relative, so the same string labels the surface in failure messages. */
+const WORKFLOW = '.github/workflows/lint.yml';
+const COVERAGE_SCRIPT = 'scripts/check-lint-coverage.mjs';
+
+const workflow = read(WORKFLOW);
+const coverageScript = read(COVERAGE_SCRIPT);
 
 type FlatConfigEntry = { rules?: Record<string, unknown>; files?: string[] };
 
@@ -68,31 +93,66 @@ const objectUiErrorRules = eslintConfig
   .map(([name]) => name);
 
 /**
- * The `# …` prose block between `name:` and `on:` — the comment this issue is
- * about. Scoped so the assertions below read the explanation, not the YAML.
+ * The `# …` prose block between `name:` and `on:` — the workflow comment this
+ * issue is about. Scoped so the assertions below read the explanation, not the
+ * YAML.
  */
-function headerComment(): string {
+function workflowHeaderComment(): string {
   const start = workflow.indexOf('\n#');
   const end = workflow.indexOf('\non:');
-  expect(start, 'lint.yml must still carry a header comment above `on:`').toBeGreaterThan(-1);
-  expect(end, 'lint.yml must still have a top-level `on:` block').toBeGreaterThan(start);
+  expect(start, `${WORKFLOW} must still carry a header comment above \`on:\``).toBeGreaterThan(-1);
+  expect(end, `${WORKFLOW} must still have a top-level \`on:\` block`).toBeGreaterThan(start);
   return workflow.slice(start, end);
 }
 
 /**
- * The header comment as one continuous line: `#` markers stripped and wrapping
- * undone. Matching the raw block instead would miss the exact sentence that
- * caused #3261 — "sets three" ended a line and "`object-ui/*` rules" began the
- * next one, so any pattern spanning the two has to survive a `\n# ` in the
- * middle. Comment prose re-wraps whenever a word is edited, so the assertions
- * below must not depend on where the lines happen to break.
+ * The leading docblock of a `.mjs` script — its equivalent of the workflow's
+ * header comment. Scanning from the top of the file is right and not fragile:
+ * the file opens with a shebang and then this block, and a block-comment
+ * terminator cannot hide inside it — a star followed by a slash would have
+ * closed the comment for the JS parser long before this test read it.
  */
-function unwrappedHeaderComment(): string {
-  return headerComment()
-    .replace(/^[ \t]*#[ \t]?/gm, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+function leadingDocblock(source: string, label: string): string {
+  const open = source.indexOf('/**');
+  expect(open, `${label} must still carry a header docblock`).toBeGreaterThan(-1);
+  const close = source.indexOf('*/', open);
+  expect(close, `${label}'s header docblock must still be closed`).toBeGreaterThan(open);
+  return source.slice(open + '/**'.length, close);
 }
+
+/**
+ * Comment prose as one continuous line: line-leading comment markers stripped
+ * and wrapping undone. Matching the raw block instead would miss the exact
+ * sentence that caused #3261 — "sets three" ended a line and "`object-ui/*`
+ * rules" began the next one, so any pattern spanning the two has to survive the
+ * marker and indent in between (`\n# ` in YAML, a newline plus star in a
+ * docblock). Comment prose re-wraps whenever a word is edited, so the
+ * assertions below must not depend on where the lines happen to break.
+ */
+function unwrap(block: string, marker: RegExp): string {
+  return block.replace(marker, '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * The prose surfaces that argue from the `object-ui/*` error ratchets. Both
+ * explain a gate in terms of those rules, so both are held to the same two
+ * rules: `text` is the whole file, `prose` only the explanatory comment (the
+ * header records why the count pattern may not read the whole file).
+ */
+type ProseSurface = { label: string; text: string; prose: () => string };
+
+const SURFACES: ProseSurface[] = [
+  {
+    label: WORKFLOW,
+    text: workflow,
+    prose: () => unwrap(workflowHeaderComment(), /^[ \t]*#[ \t]?/gm),
+  },
+  {
+    label: COVERAGE_SCRIPT,
+    text: coverageScript,
+    prose: () => unwrap(leadingDocblock(coverageScript, COVERAGE_SCRIPT), /^[ \t]*\*[ \t]?/gm),
+  },
+];
 
 /**
  * The `on:` block, from the top-level `on:` key to the next top-level key.
@@ -106,60 +166,66 @@ function onBlock(): string {
   return next === -1 ? rest : rest.slice(0, next);
 }
 
-describe('lint.yml header comment — objectui#3261', () => {
-  it('never hand-counts the object-ui/* rules again', () => {
-    const comment = unwrappedHeaderComment();
+for (const surface of SURFACES) {
+  describe(`${surface.label} — the object-ui/* ratchet prose (objectui#3261, #3279)`, () => {
+    it('never hand-counts the object-ui/* rules again', () => {
+      const comment = surface.prose();
 
-    // `three \`object-ui/*\` rules`, `all four ratchets`, `4 object-ui rules`…
-    const counted = [
-      ...comment.matchAll(
-        /\b(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b[^.]{0,20}?(`?object-ui|ratchet)/gi,
-      ),
-    ].map((m) => m[0]);
+      // `three \`object-ui/*\` rules`, `all four ratchets`, `4 object-ui rules`…
+      const counted = [
+        ...comment.matchAll(
+          /\b(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b[^.]{0,20}?(`?object-ui|ratchet)/gi,
+        ),
+      ].map((m) => m[0]);
 
-    expect(
-      counted,
-      `lint.yml's header comment counts the \`object-ui/*\` error rules again:\n` +
-        counted.map((c) => `  - ${JSON.stringify(c)}`).join('\n') +
-        `\n\nDon't. The count was wrong within weeks last time (objectui#3261: the ` +
-        `comment said three, the config had four) and a stale count still reads as ` +
-        `authoritative to the next person deciding what this gate covers. Say "the ` +
-        `\`object-ui/*\` rules \`eslint.config.js\` sets to \`error\`" instead — always ` +
-        `true, never maintained. content/docs/guide/ci-cd-pipeline.md phrases it that ` +
-        `way for the same reason.`,
-    ).toEqual([]);
+      expect(
+        counted,
+        `${surface.label}'s explanatory comment counts the \`object-ui/*\` error rules again:\n` +
+          counted.map((c) => `  - ${JSON.stringify(c)}`).join('\n') +
+          `\n\nDon't. The count was wrong within weeks last time (objectui#3261: the ` +
+          `comment said three, the config had four) and it was still wrong in a second ` +
+          `copy months later (objectui#3279). A stale count reads exactly as ` +
+          `authoritative as a fresh one to the next person deciding what this gate ` +
+          `covers. Say "the \`object-ui/*\` rules \`eslint.config.js\` sets to \`error\`" ` +
+          `instead — always true, never maintained. ` +
+          `content/docs/guide/ci-cd-pipeline.md phrases it that way for the same reason.`,
+      ).toEqual([]);
+    });
+
+    it('never enumerates them by name either', () => {
+      // Same defect one level down: naming the rules is a list that has to be
+      // maintained in lockstep with the config, and nothing makes anyone do it.
+      const named = objectUiErrorRules.filter((rule) => surface.text.includes(rule));
+
+      expect(
+        named,
+        `${surface.label} names specific \`object-ui/*\` rules:\n` +
+          named.map((r) => `  - ${r}`).join('\n') +
+          `\n\nThat list is a second copy of eslint.config.js and will drift from it ` +
+          `(objectui#3261). This file explains why the gate matters; eslint.config.js ` +
+          `is where the rules are, with each rule's own comment giving its ADR/issue.`,
+      ).toEqual([]);
+    });
   });
+}
 
-  it('never enumerates them by name either', () => {
-    // Same defect one level down: naming the rules is a list that has to be
-    // maintained in lockstep with the config, and nothing makes anyone do it.
-    const named = objectUiErrorRules.filter((rule) => workflow.includes(rule));
-
+describe('the premise both comments rest on', () => {
+  it("eslint.config.js really does set object-ui/* rules to `error`", () => {
+    // Their shared premise. If every ratchet is downgraded or deleted, this
+    // fails — which is the moment both comments have to be rewritten rather
+    // than left describing a gate with nothing behind it.
     expect(
-      named,
-      `lint.yml names specific \`object-ui/*\` rules:\n` +
-        named.map((r) => `  - ${r}`).join('\n') +
-        `\n\nThat list is a second copy of eslint.config.js and will drift from it ` +
-        `(objectui#3261). The workflow explains why the gate exists; eslint.config.js ` +
-        `is where the rules are, with each rule's own comment giving its ADR/issue.`,
-    ).toEqual([]);
+      objectUiErrorRules,
+      `No \`object-ui/*\` rule is set to \`error\` in eslint.config.js, but ${WORKFLOW} ` +
+        `and ${COVERAGE_SCRIPT} both build their explanation entirely on the premise ` +
+        `that some are. Either a severity was downgraded by accident, or the ratchets ` +
+        `are genuinely gone and both comments now need rewriting (objectui#3261, ` +
+        `#3279).`,
+    ).not.toEqual([]);
   });
 });
 
-describe('lint.yml header comment — the claims it still makes', () => {
-  it("eslint.config.js really does set object-ui/* rules to `error`", () => {
-    // The comment's premise. If every ratchet is downgraded or deleted, this
-    // fails — which is the moment the comment has to be rewritten rather than
-    // left describing a gate with nothing behind it.
-    expect(
-      objectUiErrorRules,
-      `No \`object-ui/*\` rule is set to \`error\` in eslint.config.js, but lint.yml's ` +
-        `header comment is built entirely on the premise that some are. Either a ` +
-        `severity was downgraded by accident, or the ratchets are genuinely gone and ` +
-        `that comment now needs rewriting (objectui#3261).`,
-    ).not.toEqual([]);
-  });
-
+describe('lint.yml — the trigger claims its header comment still makes', () => {
   it('still runs on pull requests, so those rules are not inert again (#2923)', () => {
     const on = onBlock();
 
@@ -172,15 +238,31 @@ describe('lint.yml header comment — the claims it still makes', () => {
     ).toMatch(/^\s{2}pull_request:/m);
   });
 
-  it('does not paths-ignore the TypeScript sources those rules lint', () => {
+  it('does not skip the TypeScript sources those rules lint', () => {
     // A narrow tripwire, not a glob engine (the repo has no glob matcher at the
     // root, and vendoring one for this would cost more than it protects). The
     // realistic way to un-gate the ratchets without touching the triggers above
-    // is adding a TypeScript pattern to `paths-ignore`; today's entries are all
+    // is adding a TypeScript pattern to the ignore list; today's entries are all
     // markdown, `content/**`, `docs/**` and `.changeset/**`.
-    const ignored = [...onBlock().matchAll(/^\s*-\s*'([^']+)'/gm)].map((m) => m[1]);
+    //
+    // That list now lives in TWO places and both have to be read, which is the
+    // objectui#3523 change: `paths-ignore` stayed on the `push` trigger, but for
+    // pull requests it moved INTO the job, as `:(exclude,glob)…` pathspecs in
+    // the `Decide whether this change needs a full run` step. Reading only the
+    // `on:` block would have gone on passing while a `**/*.ts` exclusion was
+    // added to the job — the gate reporting green having linted nothing.
+    // `merge-queue-reporting.test.ts` pins the two lists to each other and pins
+    // why the trigger may not filter pull requests at all; this one stays on its
+    // own question, which is what may be in the list.
+    const ignored = [
+      ...[...onBlock().matchAll(/^\s*-\s*'([^']+)'/gm)].map((m) => m[1]),
+      ...[...workflow.matchAll(/':\(exclude,glob\)([^']+)'/g)].map((m) => m[1]),
+    ];
 
-    expect(ignored.length, 'lint.yml must still declare `paths-ignore` entries').toBeGreaterThan(0);
+    expect(
+      ignored.length,
+      'lint.yml must still declare an ignore list — on the `push` trigger, in the job, or both',
+    ).toBeGreaterThan(0);
 
     const swallowsSource = ignored.filter((pattern) => /\.tsx?$/.test(pattern));
     expect(
@@ -189,7 +271,8 @@ describe('lint.yml header comment — the claims it still makes', () => {
         swallowsSource.map((p) => `  - ${p}`).join('\n') +
         `\n\nEvery \`object-ui/*\` rule \`eslint.config.js\` sets to \`error\` only gates ` +
         `a PR because this workflow lints the .ts/.tsx it touches. Excluding them is the ` +
-        `pre-#2923 inert state with extra steps.`,
+        `pre-#2923 inert state with extra steps — and since objectui#3523 it is the quieter ` +
+        `version of it, because the \`Lint\` check still reports, green.`,
     ).toEqual([]);
   });
 });

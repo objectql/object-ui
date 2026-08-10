@@ -24,14 +24,51 @@ import type { SchemaFormIssue } from './SchemaForm';
 import { lintCelPredicate } from './celAuthoring';
 import { readFields } from './previews/object-fields-io';
 
+/**
+ * The structural slice of a Zod issue this module reads.
+ *
+ * `code` and `errors` are optional so the `ZodLikeSchema` contract stays
+ * satisfiable by anything shaped like a Zod schema; every real Zod 4 issue
+ * carries `code`, and only `invalid_union` carries `errors`.
+ */
+type ZodLikeIssue = {
+  path?: Array<string | number>;
+  message: string;
+  /** Zod 4 issue discriminator (`invalid_type`, `invalid_union`, …). */
+  code?: string;
+  /**
+   * Present only on `invalid_union`: ONE issue group per union member, in the
+   * union's own member order. Zod reports a union failure as a single root
+   * issue and buries every member's real diagnostics here.
+   */
+  errors?: ZodLikeIssue[][];
+};
+
 type ZodLikeSchema = {
   safeParse: (value: unknown) => {
     success: boolean;
-    error?: { issues: Array<{ path: Array<string | number>; message: string }> };
+    error?: { issues: ZodLikeIssue[] };
   };
 };
 
-type SchemaLoader = () => Promise<ZodLikeSchema | undefined>;
+/**
+ * Which door a draft came through — the two are validated by different gates
+ * (objectstack#5316).
+ *
+ *  - `create` — the draft is being AUTHORED in this admin. It is judged by the
+ *    authoring schema, which is the strict one: a key the authoring contract
+ *    does not declare is a mistake the author should see now.
+ *  - `edit` — the draft is a body that came back OUT of storage. It is judged by
+ *    the same WIRE schema the server's `saveMetaItem` runs, because the platform
+ *    itself writes keys into stored bodies that the authoring contract has no
+ *    reason to declare.
+ *
+ * Only `view` currently distinguishes the two; every other loader ignores the
+ * mode and returns the one schema it has always returned.
+ */
+export type DraftMode = 'create' | 'edit';
+
+type SchemaLoader = (mode: DraftMode) => Promise<ZodLikeSchema | undefined>;
 
 /**
  * The `view` metadata type has TWO spec-declared shapes, and the backend serves
@@ -60,14 +97,386 @@ type SchemaLoader = () => Promise<ZodLikeSchema | undefined>;
  * strictly against its own schema. Which of the two should be the single
  * authorable shape is a real open question, tracked in objectui#3312.
  */
+/**
+ * The `view` discriminant, in ONE place: `viewKind` is what makes a record a
+ * ViewItem rather than the aggregated container, and it is the same test
+ * `MetadataProvider.isViewItem()` applies on the read side.
+ *
+ * Both the create gate's schema dispatch (`viewSchemaForDraft`) and the edit
+ * gate's union-diagnostic selection (`viewUnionMemberIndex`) read it here, so
+ * the two can never drift apart into two different notions of "is a ViewItem".
+ */
+function isViewItemDraft(value: unknown): boolean {
+  return !!value && typeof value === 'object' && 'viewKind' in (value as object);
+}
+
 function viewSchemaForDraft(item: ZodLikeSchema, container: ZodLikeSchema): ZodLikeSchema {
   return {
-    safeParse: (value: unknown) => {
-      const isViewItem =
-        !!value && typeof value === 'object' && 'viewKind' in (value as object);
-      return (isViewItem ? item : container).safeParse(value);
-    },
+    safeParse: (value: unknown) => (isViewItemDraft(value) ? item : container).safeParse(value),
   };
+}
+
+/**
+ * ── Union-failure diagnostics for the `view` gates (objectui#3606, #3626, #3678) ──
+ *
+ * PRESENTATION ONLY. Nothing below can change a verdict: it runs strictly
+ * inside the final issue→`SchemaFormIssue` mapping, after `ok` has already been
+ * decided by the one gate (`ViewMetadataSchema` on edit, the authoring schemas
+ * on create) and after every issue filter has run. Same input set, same `ok`;
+ * only the rendered `path`/`message` move.
+ *
+ * Three rules live here. This first block is the ROOT rule (#3606, edit gate
+ * only — neither authoring schema has a union at its root); the two NESTED
+ * rules follow below — the content rule for `config.columns` (#3626) and the
+ * sole-candidate rule (#3678). The two nested rules read disjoint cells of one
+ * partition; `nestedUnionMemberIndex` states and proves that.
+ *
+ * The edit gate is `z.preprocess(stripViewConsoleDecorations, z.union([…]))`.
+ * Zod reports a union failure as a SINGLE root issue — `code: 'invalid_union'`,
+ * `path: []`, `message: 'Invalid input'` — and buries each member's real
+ * diagnostics in `issue.errors`, one group per member, in member order. Mapping
+ * that root issue literally is what collapsed every field-level diagnostic on
+ * the edit path into one un-addressable "Invalid input": `SchemaForm` highlights
+ * by `path` and Monaco locates by `path`, so an empty path points at nothing,
+ * and the guided messages the spec wrote for these rejections (#4001) never
+ * reached the user.
+ *
+ * Selection is by the draft's OWN discriminant — the same `isViewItemDraft` the
+ * create gate dispatches on — never by a heuristic over the groups. "Fewest
+ * issues / deepest path" was measured and picks wrong: for a container carrying
+ * an unknown key, the ViewItem group reports a deeper `viewKind` discriminator
+ * error that is the wrong message entirely. We show ONLY the selected member's
+ * issues; showing all four would put "this is not a container" in front of
+ * someone editing a ViewItem.
+ *
+ * Measured member layout of `ViewMetadataSchema`'s union (@objectstack/spec
+ * 17.0.0-rc.5):
+ *
+ *   [0] `ViewItemWireSchema`  — the stored ViewItem record (itself a
+ *       discriminated union on `viewKind`; a valid discriminator resolves
+ *       straight through, so its issues arrive flat and field-addressed).
+ *   [1] the aggregated container — same shape as the exported `ViewSchema`.
+ *   [2] flattened list-view overlay.
+ *   [3] flattened form-view overlay.
+ *
+ * This indexes members POSITIONALLY, which couples to a spec-internal detail.
+ * That coupling is deliberate and it is guarded, not hoped for: reading the
+ * groups the failing gate itself produced is the only way the diagnostics
+ * cannot describe a schema other than the one that judged. The alternative —
+ * re-parsing with the exported member schemas — was measured and rejected: the
+ * container member is NOT the exported `ViewSchema` object (equal shape today,
+ * a resemblance maintained by hand), and a re-parse would also have to
+ * re-apply `stripViewConsoleDecorations` itself, reconstructing the spec's
+ * pipeline composition in a second place that can drift. The positional read
+ * is pinned by the CANARY tests in `clientValidation.viewDiagnostics.test.ts`:
+ * they assert the selected member's exact `path` + `message` for known bodies,
+ * so reordering, adding or removing a union member turns them red instead of
+ * silently mis-selecting.
+ */
+const VIEW_UNION_MEMBERS = { wireItem: 0, container: 1 } as const;
+
+function viewUnionMemberIndex(draft: unknown): number {
+  return isViewItemDraft(draft) ? VIEW_UNION_MEMBERS.wireItem : VIEW_UNION_MEMBERS.container;
+}
+
+/**
+ * ── NESTED unions: the array-variant rule (objectui#3626) ──
+ *
+ * #3606 expanded the union at the ROOT only. `config.columns` is a union too —
+ * `string[] | ColumnDef[]`, no discriminant — and it collapsed the same way, on
+ * BOTH gates: create reported `config.columns` / `Invalid input` as a top-level
+ * issue, edit reported it one level down inside the selected root member. The
+ * user was taken to the right field and told nothing about it: not which
+ * column, not which key, not what was expected.
+ *
+ * The discriminant here is the value's OWN CONTENT, which is the same class of
+ * rule as the root's `viewKind` — a fact about what the author wrote, not a
+ * comparison across error groups. A `columns` array is a list of field NAMES or
+ * a list of column OBJECTS, and its first element says which. ("Fewest issues /
+ * deepest path" remains banned: it ranks the groups against each other, and
+ * #3606 measured it picking wrong.)
+ *
+ * Applying that naively to every nested union would mis-select, so the rule is
+ * narrowed to unions that really are "an array of A or an array of B". Measured
+ * over the whole `view` family (@objectstack/spec 17.0.0-rc.5), 16 nested
+ * discriminant-less unions exist and `columns` is the only one whose members
+ * are BOTH arrays. The neighbour that would break a naive rule is `config.sort`
+ * (`string | ColumnSort[]`): for `sort: ['name']` the first element is a string,
+ * so first-element-typeof alone would select the plain-`string` member and
+ * report "expected string, received array" — technically true, and the wrong
+ * thing to say to someone who correctly wrote an array. So a member that
+ * rejected the value's TYPE at the union node itself (a bare `invalid_type` at
+ * its own relative root) is not a candidate: it never looked at the contents,
+ * so contents cannot be evidence for it. That single categorical test — asked
+ * of each group on its own, never group-vs-group — is what keeps `sort`,
+ * `filter[].value`, `gantt.tooltipFields[]` and the rest out of THIS rule.
+ * (It kept them collapsed entirely until #3678, which reads the same test as a
+ * census and answers the unions where it leaves exactly one member standing.
+ * The narrowing above is unchanged and still load-bearing: delete the
+ * `groups.some(memberRejectedNodeType)` line and the content rule elects the
+ * plain-`string` member for `sort: ['name']` again.)
+ *
+ * Boundaries, all measured rather than assumed:
+ *
+ *  - `columns: []` is VALID under both members, so the empty array never
+ *    reaches this code — the union succeeds and there is no issue to expand.
+ *    The "what do we do with an empty array" question is structurally moot.
+ *  - `columns: [42]` / `[null]` — the first element names neither variant, so
+ *    nothing is selected and the node keeps Zod's own message. Both members
+ *    reject it identically anyway; picking one would be inventing a preference.
+ *  - `columns: 'nope'` — not an array, nothing to discriminate on. (Both
+ *    members do agree here, but "all members said the same thing so promote it"
+ *    is a different mechanism — issue #3626's direction 1 — not this one.)
+ *  - Mixed arrays are the interesting case and they come out right: for
+ *    `['name', {field: 1}]` the first element elects `string[]`, which reports
+ *    `config.columns.1` — the element that actually broke the list the author
+ *    was writing — instead of the object member's two rejections of the shape
+ *    they never chose.
+ *
+ * Like the root rule this indexes members POSITIONALLY and is pinned the same
+ * way: the CANARY tests assert the exact `path` + `message` of the selected
+ * member, so a spec-side reorder of the `columns` union's two members goes red
+ * instead of silently reporting the other variant's complaint.
+ */
+const ARRAY_VARIANT_MEMBERS = { ofStrings: 0, ofObjects: 1 } as const;
+
+/**
+ * Did this member reject the value's TYPE at the union node itself, without
+ * ever looking at its contents? Asked of one group in isolation — never
+ * group-vs-group — so it is a categorical fact about one member, not a ranking.
+ *
+ * This single test is the basis of BOTH nested rules (see
+ * `nestedUnionMemberIndex`): #3626 uses it to decide which unions the content
+ * rule may speak about, #3678 counts it to find a union with exactly one
+ * candidate. A member that answers `true` here never read the value, so nothing
+ * about the value can be evidence for or against it.
+ *
+ * Only `invalid_type` counts, and objectui#3694 MEASURED that this is the right
+ * line rather than an implementation detail that leaked into the semantics.
+ *
+ * Zod answers `invalid_value` — not `invalid_type` — whenever an enum or a
+ * literal rejects, whatever the input's type. Across the whole `view` family
+ * exactly two union sites ever produce `invalid_value` at a member's own root:
+ * `columns[].summary` (`enum | {type, field}`) and `sections[].columns`
+ * (`enum | 1 | 2 | 3 | 4`). Widening this predicate to count `invalid_value`
+ * as a node-level rejection was measured over 51 shapes and is NOT an
+ * improvement — it is a TRADE on one union:
+ *
+ *   summary is an OBJECT (`{type:'bogus'}`, `{}`, `{type,field}`)
+ *     today k=2 → collapsed `…summary` / `Invalid input`
+ *     widened k=1 → `…summary.type` / the option list          ← 5 shapes GAINED
+ *   summary is a non-enum SCALAR (`42`, `true`, `null`, `[]`, `['count']`, …)
+ *     today k=1 → the enum is the sole candidate, `…summary` / the option list
+ *     widened k=0 → `…summary` / `Invalid input`               ← 8 shapes LOST
+ *
+ * The loss includes the #3678 CANARY `summary: 'bogus'`. A type-aware variant
+ * (categorical only when no allowed literal shares the value's `typeof`) was
+ * measured too and merely re-cuts the same trade: 6 gained, 6 lost. So neither
+ * qualification of `invalid_value` dominates, and #3694 declined both. Both
+ * directions are pinned in the test file's #3694 block, so an attempt to widen
+ * this predicate goes red on the shapes it would damage instead of shipping
+ * them silently — four of them are pinned nowhere else.
+ *
+ * Measured with the same run: widening cannot move the CONTENT rule's reach at
+ * all. That rule needs two members AND a non-empty array value, and at the one
+ * shape satisfying both (`summary: ['count']`) the object member answers
+ * `invalid_type`, so `groups.some(memberRejectedNodeType)` is already true and
+ * stays true. The whole question lives in the sole-candidate rule.
+ *
+ * The contract-first fix remains spec-side (objectstack#6391): a union that
+ * declares its own discriminant needs none of this census.
+ */
+function memberRejectedNodeType(group: ZodLikeIssue[]): boolean {
+  return group.some((i) => i.code === 'invalid_type' && (i.path ?? []).length === 0);
+}
+
+/** Read the draft value a union node's absolute path addresses, or `undefined`. */
+function valueAtPath(draft: unknown, path: Array<string | number>): unknown {
+  let cursor: unknown = draft;
+  for (const seg of path) {
+    if (cursor === null || typeof cursor !== 'object') return undefined;
+    cursor = (cursor as Record<string | number, unknown>)[seg];
+  }
+  return cursor;
+}
+
+/**
+ * The `array<A> | array<B>` rule described above. Returns the member index the
+ * value's first element elects, or `null` when this union is not of that shape
+ * or the content elects nothing.
+ *
+ * The value is read from the ORIGINAL draft while the paths come from a parse
+ * of the PREPROCESSED one. That is exact for this purpose, measured rather than
+ * assumed: `stripViewConsoleDecorations` only deletes `id` keys from `filter` /
+ * `sort` rows — it maps arrays element-wise and never reorders or drops one, so
+ * no index a path carries can shift.
+ */
+function arrayVariantMemberIndex(groups: ZodLikeIssue[][], value: unknown): number | null {
+  if (groups.length !== 2) return null;
+  if (!Array.isArray(value) || value.length === 0) return null;
+  if (groups.some(memberRejectedNodeType)) return null;
+  const first = value[0];
+  if (typeof first === 'string') return ARRAY_VARIANT_MEMBERS.ofStrings;
+  if (first !== null && typeof first === 'object' && !Array.isArray(first))
+    return ARRAY_VARIANT_MEMBERS.ofObjects;
+  return null;
+}
+
+/**
+ * ── NESTED unions: the sole-candidate rule (objectui#3678) ──
+ *
+ * #3626's narrowing left a gap, and #3678 is that gap: when the categorical
+ * test above leaves EXACTLY ONE member standing, naming it is not a heuristic
+ * and not a preference — it is the only member that ever read the value, so it
+ * is the only member whose complaint can be about what the author wrote. The
+ * other members objected to the value's TYPE and stopped there; showing their
+ * complaints would describe a shape the author never chose.
+ *
+ * `config.sort` (`string | ColumnSort[]`) is the case that motivated it. For
+ * `sort: [{field: 'n', order: 'bogus'}]` the plain-`string` member rejects the
+ * array outright and the `ColumnSort[]` member reports
+ * `[0].order` / `Invalid option: expected one of "asc"|"desc"` — the spec's own
+ * guided message (#4001), which until now was thrown away and rendered as
+ * `config.sort` / `Invalid input`.
+ *
+ * This rule does NOT index members positionally: the index is derived from the
+ * census of the groups the failing gate itself produced, so a spec-side reorder
+ * of a union's members cannot mis-select. What a spec change CAN do is move a
+ * union between cells — adding a third `sort` member that also accepts arrays
+ * would take the census from one candidate to two and collapse the node back to
+ * `Invalid input`. That is why the #3678 anchors pin exact paths + messages:
+ * the loss shows up as a red test rather than as a quietly worse message.
+ *
+ * Reach, measured over the `view` family rather than assumed — this is WIDER
+ * than issue #3678 estimated. #3678's "范围" paragraph expected only
+ * scalar-or-array two-member unions such as `sort` to be reachable, and read
+ * `filter[].value` / `sections[].fields[]` as rejecting wholesale. They do
+ * reject wholesale for a scalar value, but not for an ARRAY value, where the
+ * array member is the sole candidate:
+ *
+ *   `filter[0].value: [{}]`        → `config.filter.0.value.0` (was `…value`)
+ *   `sections[0].fields: [{}]`     → `config.sections.0.fields.0.field`
+ *   `columns[0].summary: 'bogus'`  → same path, now the enum's option list
+ *
+ * All three are strict improvements — a nearer path, or a named expectation
+ * instead of `Invalid input` — and each is pinned below. Two of them supersede
+ * NARROWING pins #3626 wrote (see the test file's #3678 block); those pins were
+ * asserting that no rule spoke there, which is exactly what this rule changes.
+ */
+function soleTypeAcceptingMember(groups: ZodLikeIssue[][]): number | null {
+  let sole: number | null = null;
+  for (let i = 0; i < groups.length; i++) {
+    if (memberRejectedNodeType(groups[i])) continue;
+    if (sole !== null) return null; // two or more candidates — ambiguous, not ours
+    sole = i;
+  }
+  return sole; // stays `null` when every member rejected the type
+}
+
+/**
+ * The two NESTED rules, and the relationship between them.
+ *
+ * Census the members with `memberRejectedNodeType` and let `k` be how many
+ * ACCEPTED the value's type. That single number partitions every nested union
+ * into three cells, and the two rules live in different ones:
+ *
+ *   k === 1                 → #3678 names the sole candidate.
+ *   k === groups.length      → every member read the value, so the value's own
+ *     (i.e. k === 0 rejected)  CONTENT decides — #3626's `array<A> | array<B>`
+ *                              rule, which declines unless the union really is
+ *                              of that shape.
+ *   otherwise (k === 0, or  → no rule. Nothing about the value distinguishes
+ *    0 < k < groups.length     the members, and #3626 already ruled that
+ *    with k !== 1)             inventing a preference is not ours to do.
+ *
+ * So they cannot both want to select: `k === 1` and `k === groups.length`
+ * coincide only at `groups.length === 1`, a one-member "union" the schema does
+ * not produce — and even there both rules agree on index 0, since #3626's rule
+ * requires `groups.length === 2` and returns `null`. The content rule is NOT a
+ * special case of the sole-candidate rule and the sole-candidate rule is NOT a
+ * fallback for it; they answer different questions in disjoint cells. #3678's
+ * dispatch asked for this to be measured before implementing, and it was: the
+ * census in the test block below covers every nested union shape the `view`
+ * family produces, and no shape lands in two cells.
+ *
+ * Order below is therefore unobservable while both guards hold — and it is
+ * written content-first ON PURPOSE, so that #3626's narrowing guard stays the
+ * thing that fails when it is removed. Deleting
+ * `if (groups.some(memberRejectedNodeType)) return null;` from
+ * `arrayVariantMemberIndex` still resurrects the exact `sort` mis-selection
+ * #3626 measured, and the #3678 sort anchor goes red on it. Hoisting that guard
+ * into this function would have made it dead code.
+ */
+function nestedUnionMemberIndex(groups: ZodLikeIssue[][], value: unknown): number | null {
+  const byContent = arrayVariantMemberIndex(groups, value);
+  if (byContent !== null) return byContent;
+  return soleTypeAcceptingMember(groups);
+}
+
+/**
+ * Pick the union member whose issues should be shown for one `invalid_union`,
+ * or `null` for "nothing better than the union node's own message".
+ *
+ * `absPath` is the union node's DRAFT-ABSOLUTE path — the root union's is `[]`,
+ * which is what selects between the two rules. A member issue's own `path` is
+ * relative to its union node, which is why the caller composes prefixes on the
+ * way down instead of trusting `issue.path` to be absolute below the root.
+ */
+function selectViewUnionGroup(
+  issue: ZodLikeIssue,
+  absPath: Array<string | number>,
+  draft: unknown,
+): ZodLikeIssue[] | null {
+  if (issue.code !== 'invalid_union') return null;
+  const groups = issue.errors;
+  if (!Array.isArray(groups)) return null;
+  const index =
+    absPath.length === 0
+      ? viewUnionMemberIndex(draft)
+      : nestedUnionMemberIndex(groups, valueAtPath(draft, absPath));
+  if (index === null) return null;
+  const group = groups[index];
+  if (!Array.isArray(group) || group.length === 0) return null;
+  return group;
+}
+
+/**
+ * Rewrite a `view` gate's issues into draft-absolute, field-addressed ones.
+ *
+ * Every issue is emitted with `prefix ++ issue.path`; a union whose member the
+ * rules above can name is replaced by that member's issues, recursively, with
+ * the union node's own path becoming their prefix. A union no rule can speak
+ * for is emitted unchanged — which is the pre-#3606 behaviour, so nothing can
+ * be lost. Each expansion descends into strictly-contained sub-issues of a
+ * finite tree and only ever yields a non-empty group, so this terminates and a
+ * rejected draft always renders at least one issue.
+ *
+ * There is no depth counter, and #3678 is why there must not be one: the
+ * descent is bounded by the rules having nothing to say, not by a level count.
+ * A union whose members ALL rejected the value's type ends it — nothing
+ * distinguishes them — and so does one where two or more members read the value
+ * but the content rule declines. Measured examples of each bound:
+ *
+ *  - `columns[0].summary` (`enum | {type, field}`) handed an OBJECT: both
+ *    members read it, the content rule declines a non-array, descent stops with
+ *    Zod's own message now addressed to `config.columns.0.summary`.
+ *  - `filter[0].value: [{}]` descends TWO levels — the array member is the sole
+ *    candidate, and the element union beneath it is rejected by every member —
+ *    ending at `config.filter.0.value.0`. Before #3678 the claim here was "in
+ *    the measured schema that is exactly one nested level"; that was true only
+ *    while the content rule was the only nested rule, and it is now false.
+ */
+function expandViewIssues(
+  issues: ZodLikeIssue[],
+  prefix: Array<string | number>,
+  draft: unknown,
+): ZodLikeIssue[] {
+  return issues.flatMap((issue) => {
+    const absPath = [...prefix, ...(issue.path ?? [])];
+    const group = selectViewUnionGroup(issue, absPath, draft);
+    if (!group) return [{ ...issue, path: absPath }];
+    return expandViewIssues(group, absPath, draft);
+  });
 }
 
 // Map metadata-type name → loader for that type's root Zod schema.
@@ -98,8 +507,43 @@ const LOADERS: Record<string, SchemaLoader> = {
   analytics_cube: async () => (await import('@objectstack/spec/data')).CubeSchema as unknown as ZodLikeSchema,
 
   // ui
-  view: async () => {
-    const { ViewItemSchema, ViewSchema } = await import('@objectstack/spec/ui');
+  //
+  // `view` is the one type whose two doors need two gates (objectstack#5316).
+  //
+  // CREATE — the authoring gate, unchanged: `viewSchemaForDraft` dispatches on
+  // the record's own `viewKind` discriminant to `ViewItemSchema` (what
+  // `createBuildBody` emits) or `ViewSchema` (the container). #5074 made these
+  // strict on purpose and this admin's create path passes them cleanly.
+  //
+  // EDIT — the WIRE gate. The editor opens a body that came back out of
+  // `sys_metadata`, and a stored view body carries keys the PLATFORM wrote:
+  // `isPinned` (the view switcher's pin action, `ObjectView.tsx:882`),
+  // `sortOrder` (the reorder write, `ObjectView.tsx:931`), and — nested —
+  // the console filter/sort builders' per-row `id`. `updateView` GETs the
+  // stored item and PUTs `{ ...current, ...partial }`; `saveMetaItem` persists
+  // the accepted body verbatim (ADR-0005 §Validation). So the server ACCEPTS
+  // this body — it validates against `ViewMetadataSchema` — while the authoring
+  // gate rejects it. Judging a stored body by the authoring schema made the
+  // client strictly stricter than the server; that is the inversion #5316 fixes.
+  //
+  // Why `ViewMetadataSchema` and not the narrower `ViewItemWireSchema`, which
+  // also declares `isPinned`/`sortOrder`: two measured reasons.
+  //   1. It is the schema the `view` metadata type registers, i.e. literally
+  //      the one `saveMetaItem` runs — so client and server accept the same
+  //      set by construction rather than by a maintained resemblance.
+  //   2. `ViewItemWireSchema` covers only the ViewItem record. It rejects the
+  //      container and the flattened overlay, and — measurably — still rejects
+  //      `config.filter[].id` with `unrecognized_keys`, because that decoration
+  //      is stripped by `ViewMetadataSchema`'s `z.preprocess`, which runs ahead
+  //      of every union member and reaches nested blocks a member-level
+  //      `.strip()` cannot.
+  //
+  // NOT a "try both, pass if either passes" fallback: each mode has exactly ONE
+  // gate and a rejection is final. The last pins in
+  // `clientValidation.viewShapes.test.ts` guard that.
+  view: async (mode) => {
+    const { ViewItemSchema, ViewSchema, ViewMetadataSchema } = await import('@objectstack/spec/ui');
+    if (mode === 'edit') return ViewMetadataSchema as unknown as ZodLikeSchema;
     return viewSchemaForDraft(
       ViewItemSchema as unknown as ZodLikeSchema,
       ViewSchema as unknown as ZodLikeSchema,
@@ -247,22 +691,25 @@ async function validateObjectFieldRules(draft: unknown): Promise<SchemaFormIssue
   return issues;
 }
 
+// Keyed by mode AND type — `view` resolves to a different schema per mode, so
+// caching by type alone would hand the create gate whichever mode asked first.
 const SCHEMA_CACHE = new Map<string, ZodLikeSchema | null>();
 
-async function getSchemaForType(type: string): Promise<ZodLikeSchema | null> {
-  if (SCHEMA_CACHE.has(type)) return SCHEMA_CACHE.get(type) ?? null;
+async function getSchemaForType(type: string, mode: DraftMode): Promise<ZodLikeSchema | null> {
+  const key = `${mode}:${type}`;
+  if (SCHEMA_CACHE.has(key)) return SCHEMA_CACHE.get(key) ?? null;
   const loader = LOADERS[type];
   if (!loader) {
-    SCHEMA_CACHE.set(type, null);
+    SCHEMA_CACHE.set(key, null);
     return null;
   }
   try {
-    const schema = await loader();
+    const schema = await loader(mode);
     const value = (schema && typeof schema.safeParse === 'function') ? schema : null;
-    SCHEMA_CACHE.set(type, value);
+    SCHEMA_CACHE.set(key, value);
     return value;
   } catch {
-    SCHEMA_CACHE.set(type, null);
+    SCHEMA_CACHE.set(key, null);
     return null;
   }
 }
@@ -301,8 +748,16 @@ export async function validateMetadataDraft(
    * per-change shim (cf. `FORWARD_COMPAT_FLOW_NODE_TYPES`).
    */
   serverSchema?: { required?: unknown },
+  /**
+   * Which door the draft came through (objectstack#5316). Defaults to
+   * `'create'` — the AUTHORING gate, which is the strict one — so a call site
+   * that omits it can only ever over-report, never silently widen the door.
+   * Callers that open a STORED body must say `{ mode: 'edit' }`.
+   */
+  options?: { mode?: DraftMode },
 ): Promise<ValidateResult> {
-  const schema = await getSchemaForType(type);
+  const mode: DraftMode = options?.mode ?? 'create';
+  const schema = await getSchemaForType(type, mode);
   if (!schema) return { ok: true, issues: [] };
 
   // CEL lint for object field conditional rules — additive to the Zod shape
@@ -348,10 +803,15 @@ export async function validateMetadataDraft(
   }
   if (rawIssues.length === 0 && celIssues.length === 0) return { ok: true, issues: [] };
 
+  // Presentation only — see `expandViewIssues`. `ok` is already `false` here
+  // and `rawIssues` is already final; this only decides what gets RENDERED for
+  // each of them, so the verdict cannot move (pinned by the parity test in
+  // `clientValidation.viewDiagnostics.test.ts`).
+  const renderable = type === 'view' ? expandViewIssues(rawIssues, [], draft) : rawIssues;
   const issues: SchemaFormIssue[] = [
-    ...rawIssues.map((i) => ({
-      path: (i.path ?? []).map((seg) => String(seg)).join('.'),
-      message: i.message,
+    ...renderable.map((issue) => ({
+      path: (issue.path ?? []).map((seg) => String(seg)).join('.'),
+      message: issue.message,
     })),
     ...celIssues,
   ];

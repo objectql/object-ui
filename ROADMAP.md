@@ -822,21 +822,21 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Navigate to Create App / Edit App pages
 - [x] Navigate to app home
 
-**Permission Management Page (`/system/permissions`):**
-- [x] CRUD grid for `sys_permission` object
-- [x] Search/filter permissions
-- [x] Admin-only create/delete controls
+**Permission Management Page (`/system/permissions`):** _(Retired — the page was deleted; the successor surface is pending maintainer decision, see #3655)_
+- [x] CRUD grid for `sys_permission` object — shipped, then deleted when `apps/console` was slimmed for third-party customisation. `sys_permission` is not a framework object name: plugin-security registers `sys_capability` (the definition registry) and `sys_permission_set` (the grant container)
+- [x] Search/filter permissions — went with the page
+- [x] Admin-only create/delete controls — went with the page
 
-**ObjectView-Driven System Pages (P1.12.2):**
-- [x] Shared `SystemObjectViewPage` component using `ObjectView` from `@object-ui/plugin-view`
-- [x] User Management (`/system/users`) driven by `sys_user` metadata via ObjectView
-- [x] Organization Management (`/system/organizations`) driven by `sys_org` metadata via ObjectView
-- [x] Role Management (`/system/roles`) driven by `sys_role` metadata via ObjectView
-- [x] Permission Management (`/system/permissions`) driven by `sys_permission` metadata via ObjectView
-- [x] Audit Log (`/system/audit-log`) driven by `sys_audit_log` metadata via ObjectView (read-only)
-- [x] Admin-only CRUD operations controlled via ObjectView `operations` config
-- [x] Automatic search, sort, filter, pagination from ObjectView capabilities
-- [x] 22 system page tests passing
+**ObjectView-Driven System Pages (P1.12.2):** _(Retired — the console's wrapper pages are gone; these objects are contributed by framework plugins and reached through the Setup app's generic object route)_
+- [x] Shared `SystemObjectViewPage` component, and the hand-copied `systemObjects` definitions behind it — deleted as dead code once nothing in the repo referenced them (PR #3699)
+- [x] User Management (`/system/users`) — page gone; the URL survives as a redirect onto the framework's `sys_user` object route (PR #3673)
+- [x] Organization Management (`/system/organizations`) — page gone; the URL redirects to `sys_organization` (PR #3673). The `sys_org` named here was never a framework object
+- [x] Role Management (`/system/roles`) — page gone; the URL redirects to `sys_position` (PR #3673), ADR-0090 D3 having renamed `sys_role` → `sys_position`
+- [ ] Permission Management (`/system/permissions`) — no route is declared for it. The framework splits this surface into `sys_capability` and `sys_permission_set`, so binding the URL to either would pick for the maintainer; left undeclared pending that decision, see #3655
+- [x] Audit Log (`/system/audit-log`) — the route still resolves, but to `AuditLogPage`, a standalone read-only page that queries `sys_audit_log` over REST and renders its own table, filters, pagination and detail sheet; ObjectView is not involved
+- [x] Admin-only CRUD operations — were the `operations` config on `SystemObjectViewPage`'s own schema, and went with the component (PR #3699)
+- [x] Automatic search, sort, filter, pagination — likewise; what serves these objects today is the framework's Setup app route, not this repo's
+- [x] System page test suite — retired with the pages; `pages/system/__tests__/` now covers `SystemHubPage` only
 
 **Sidebar & Navigation Updates:**
 - [x] Settings button → `/system/` hub (was `/system/profile`)
@@ -854,22 +854,22 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 **Routes:**
 - [x] `/system/` → SystemHubPage
 - [x] `/system/apps` → AppManagementPage
-- [x] `/system/permissions` → PermissionManagementPage
-- [x] `/system/metadata/:metadataType` → MetadataManagerPage (generic, registry-driven)
+- [ ] `/system/permissions` — no route is declared at this URL; the `PermissionManagementPage` it named was deleted when `apps/console` was slimmed for third-party customisation (commit cccdf84d), and the successor surface is pending maintainer decision, see #3655
+- [x] `/system/metadata/:metadataType` — the URL still resolves, but as a legacy alias: its route element is `MetadataRedirect` (`apps/console/src/AppContent.tsx`), which forwards in one hop to the metadata-admin engine's own `metadata/:type`. The `MetadataManagerPage` named here has zero files and zero references under `apps/console/src/`; the generic, registry-driven list that route lands on is `MetadataResourceListPage` (`packages/app-shell/src/views/metadata-admin/ResourceListPage.tsx`), mounted by `packages/app-shell/src/console/AppContent.tsx` (#3639)
 
 **Unified Metadata Management (P1.12.3):**
-- [x] Metadata type registry (`config/metadataTypeRegistry.ts`) — centralized config for all metadata types
-- [x] Generic `MetadataManagerPage` for listing/managing items of any registered type
-- [x] SystemHubPage auto-generates metadata type cards from registry (dashboard, page, report)
-- [x] Dynamic `/system/metadata/:metadataType` routes in all route contexts
+- [x] Metadata type registry (`config/metadataTypeRegistry.ts`) — centralized config for all metadata types. That file did ship, at `apps/console/src/config/metadataTypeRegistry.ts`, and was deleted in commit ff9a0d9e9 ("remove studio app and migrate to metadata-admin engine"); `metadataTypeRegistry` has zero hits anywhere in the tree today. The live registry is the metadata-admin engine's own `MetadataResourceRegistry` (`packages/app-shell/src/views/metadata-admin/registry.ts`): its per-type row is `MetadataResourceConfig`, filled in by `registerMetadataResource()`. It is not centralized config in the old sense either — a type needs no entry at all to be listed and edited, an entry only overrides the defaults
+- [x] Generic `MetadataManagerPage` for listing/managing items of any registered type — shipped, then deleted when `apps/console` was slimmed for third-party customisation. The generic list is now `MetadataResourceListPage` (`packages/app-shell/src/views/metadata-admin/ResourceListPage.tsx`), driven by the engine's own `MetadataResourceRegistry` (`registry.ts` in that directory) rather than by a console-side config, and it covers every registered metadata type from one shell
+- [x] SystemHubPage auto-generates metadata type cards from registry (dashboard, page, report) — nothing is generated and none of those three types has a card: `metadataTypeCards` in `apps/console/src/pages/system/SystemHubPage.tsx` is a hand-written literal (Applications, Metadata, Datasources), and the comment directly above it records why the per-type cards went away — the engine started auto-listing every type, so a card per type stopped paying for itself. What enumerates types from the registry today is the engine's own type directory, `MetadataDirectoryPage`, which the hand-written "Metadata" card links to
+- [x] Dynamic `/system/metadata/:metadataType` routes in all route contexts — this spelling is declared only in the console host fragment (`apps/console/src/AppContent.tsx`, in three arities: bare, `/:metadataType`, `/:metadataType/:itemName`) and is not a page in any of them: the route element is `MetadataRedirect`, a `<Navigate>` onto the engine's route. The dynamic route that renders is the engine's `metadata/:type` in `packages/app-shell/src/console/AppContent.tsx` — and that one *is* declared in both route contexts, the with-app branch and the zero-app branch, which is the half of this claim that survives (#3639)
 - [x] Generic `MetadataService` methods: `getItems()`, `saveMetadataItem()`, `deleteMetadataItem()`
-- [x] Types with custom pages (`app`, `object`) link to existing dedicated routes
+- [x] Types with custom pages (`app`, `object`) link to existing dedicated routes — still true of `app` (`system/apps` renders `AppManagementPage`, `apps/console/src/AppContent.tsx`), no longer true of `object`: it has no dedicated page or route of its own. The engine's generic shell lists and edits it, configured by `registerMetadataResource({ type: 'object', … })` in `packages/app-shell/src/services/builtinComponents.tsx` and in `views/metadata-admin/anchors.ts` — list columns, searchable fields, create-form fields and anchor groups, and no component override. The only shell pages any type replaces are `permission`'s `EditPage` and `datasource`'s `ListPage`
 - [x] Legacy routes preserved — no breaking changes
-- [x] 40+ new tests (registry, MetadataManagerPage, MetadataService generic, SystemHubPage registry)
+- [x] New tests for the registry-driven metadata surface — no total is carried here, because none of the four suites named survives in that form: the `MetadataManagerPage` and `config/metadataTypeRegistry.ts` suites went with the code they covered, `MetadataService` has no test file in the tree at all, and `SystemHubPage`'s remaining suites test its two hand-written cards, not registry-generated ones. What covers this surface today is the metadata-admin engine's own tests under `packages/app-shell/src/views/metadata-admin/`, plus the console's hub-card and legacy-redirect suites under `apps/console/src/`
 
 **Tests:**
-- [x] 11 new tests (SystemHubPage, AppManagementPage, PermissionManagementPage)
-- [x] Total: 20 system page tests passing
+- [x] New tests for the system pages — of the three suites named here, only `SystemHubPage`'s is still in the tree; nothing tests `AppManagementPage` today, and `PermissionManagementPage` has no tests because the page itself is gone (commit cccdf84d)
+- [x] The system page suites that remain are green — no total is carried here: "system page tests" has no fixed referent, the suites being split across `apps/console` and `packages/app-shell`, and the count this line used to state matched neither the narrow reading (`apps/console/src/pages/system/__tests__/`) nor the wide one (that directory plus the console's system-hub route suite). Measure the group you mean instead of trusting a number written down once, see #3712
 
 ### P1.13 Airtable Grid/List UX Optimization ✅
 
@@ -984,10 +984,10 @@ Enterprise-grade visual designers for managing object definitions and configurin
 - [x] Enhanced object properties card with separated concern sections
 
 **Metadata Manager Grid Mode:**
-- [x] `listMode: 'grid' | 'table' | 'card'` configuration on MetadataTypeConfig
-- [x] Professional table rendering with column headers and action buttons in grid mode
-- [x] Report type configured with grid mode by default
-- [x] Reusable `MetadataGrid` component extracted for cross-page reuse
+- [x] `listMode: 'grid' | 'table' | 'card'` configuration on MetadataTypeConfig — neither the option nor the interface exists: `listMode` and `MetadataTypeConfig` both have zero hits in the tree. The engine's per-type row is `MetadataResourceConfig` (`packages/app-shell/src/views/metadata-admin/registry.ts`) and it carries no rendering-mode key at all; what it exposes for list shape is `listColumns`, plus `ListPage` to replace the shell page outright
+- [x] Professional table rendering with column headers and action buttons in grid mode — the table rendering is real, but it is not a mode you select: `MetadataResourceListPage` (`packages/app-shell/src/views/metadata-admin/ResourceListPage.tsx`) renders a single `<table>` whose `<thead>` is built from `listColumns` (falling back to an inferred primary + label pair) for every type unconditionally. There is no branch to switch on, so there is no "grid mode" to be in
+- [x] Report type configured with grid mode by default — `report` does have a registry entry, `registerMetadataResource({ type: 'report', … })` in `packages/app-shell/src/views/metadata-admin/anchors.ts`, but nothing in it selects a rendering mode, because there is none to select. What it configures is the object anchor group and the create-form seeds (`createFields`, `createDerive`, `createDefaults`); its list is the same unconditional table every other type gets
+- [x] Reusable `MetadataGrid` component extracted for cross-page reuse — `MetadataGrid` has zero hits in the tree; it went with the console-side manager page it was extracted from. Cross-type reuse is no longer achieved by importing a grid component per page: every type's list is the one shell page reached through the engine's `metadata/:type` route
 
 **MetadataFormDialog Enhancements:**
 - [x] `number` field type — renders HTML number input
@@ -996,9 +996,9 @@ Enterprise-grade visual designers for managing object definitions and configurin
 **MetadataDetailPage & Provider Enhancements:**
 - [x] Auto-redirect for custom page types (object → `/system/objects/:name`) — removed; object now uses metadata pipeline
 - [x] `getItemsByType(type)` method on MetadataProvider for dynamic registry access
-- [x] Object type merged into MetadataManagerPage pipeline — `ObjectManagerPage` removed, replaced by `ObjectManagerListAdapter` via `listComponent` extension point
-- [x] `listComponent` extension point on MetadataTypeConfig for injecting custom list UIs
-- [x] All entry points (sidebar, QuickActions, hub cards) unified to `/system/metadata/object`
+- [x] Object type merged into the generic metadata pipeline — `ObjectManagerPage` removed (only stale docblock mentions of it remain, in the two `utils/metadataConverters.ts`). Neither vehicle named here survived the move onto the metadata-admin engine: `ObjectManagerListAdapter` has zero hits, and `object` needs no custom list at all — it is listed by the engine's generic shell, configured by `registerMetadataResource({ type: 'object', … })` in `packages/app-shell/src/services/builtinComponents.tsx`
+- [x] Per-type override slot for injecting a custom list UI — `listComponent` on `MetadataTypeConfig` went with that console-side registry (both names have zero hits today). The engine's equivalent is `ListPage` on `MetadataResourceConfig` (`packages/app-shell/src/views/metadata-admin/registry.ts`), which bypasses the generic shell for one type; `datasource` is the only type overriding it
+- [x] All entry points (sidebar, QuickActions, hub cards) unified to `/system/metadata/object` — judged per entry, none of the three aims there today, and they left for different reasons. The hub cards carry no object card at all: `SystemHubPage`'s hand-written cards aim at the engine's type directory and at `metadata/datasource`. The sidebars' `sys-objects` item (in both `AppSidebar` and `UnifiedSidebar`) and the home page's `manage-objects` quick action were re-pointed at the engine's canonical `/apps/setup/metadata/object` (#3739), because the `system/…` spelling is not a page: `MetadataRedirect` serves it with a `<Navigate>` onto exactly that URL, so aiming at it charged every click a redundant hop plus a re-render. What is unified is the destination, not this spelling of it — the alias routes stay declared for bookmarks and external links
 
 **Technical Debt Cleanup:**
 - [x] Unified icon resolver — consolidated 3 duplicated ICON_MAP/resolveIcon into shared `getIcon` utility
@@ -1889,7 +1889,7 @@ All 313 `@object-ui/fields` tests pass.
 
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — Contribution guidelines
 - [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) — Developer quick reference
-- [Plugin Development Guide](./content/docs/guide/plugin-development.mdx)
+- [Plugin Development Guide](./content/docs/guide/plugin-development.md)
 
 ---
 

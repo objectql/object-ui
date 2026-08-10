@@ -177,6 +177,33 @@ describe('ci-cd-pipeline.md — workflow inventory', () => {
     }
   });
 
+  /**
+   * objectui#3724: this page was not the only workflow inventory. `.github/WORKFLOWS.md`
+   * held a second one — hand-maintained, linked from nowhere, and pinned by nothing —
+   * which had drifted to documenting 5 workflows that did not exist (including a
+   * changeset gate skippable with a `skip-changeset` label; neither the workflow nor the
+   * label was ever real) while omitting 9 that did, `lint.yml` among them. That is #3212
+   * verbatim, on a page no test could see.
+   *
+   * A duplicate inventory is a drift generator by construction: the pins above make *this*
+   * page track `.github/workflows/` in both directions, and a second copy inherits none of
+   * that while reading just as authoritative. So the resolution was deletion, not a second
+   * ratchet, and this asserts the deletion holds.
+   *
+   * Scope, stated so it is not mistaken for more: it pins the one path that existed. A new
+   * inventory under a different name evades it — the durable protection is that adding a
+   * workflow already forces an edit *here*, so a second page earns nothing.
+   */
+  it('keeps this page as the only workflow inventory', () => {
+    expect(
+      fs.existsSync(path.join(repoRoot, '.github/WORKFLOWS.md')),
+      '`.github/WORKFLOWS.md` is back. It was deleted by objectui#3724 because an unpinned ' +
+        'second copy of the workflow inventory drifts to 5 phantom workflows and 9 omissions ' +
+        'while nothing checks it. Document workflows in content/docs/guide/ci-cd-pipeline.md, ' +
+        'which the tests in this file hold to `.github/workflows/` in both directions.',
+    ).toBe(false);
+  });
+
   it('does not resurrect the never-existent size-check.yml', () => {
     // Checked over the whole file, fences included — the stale claim lived in the
     // ASCII overview box as well as in its own section. (The page may still say
@@ -184,6 +211,106 @@ describe('ci-cd-pipeline.md — workflow inventory', () => {
     // must never do again is name the file.)
     expect(doc).not.toMatch(/size-check\.yml/);
     expect(workflowFiles).not.toContain('size-check.yml');
+  });
+});
+
+/**
+ * objectui#3724: the `pnpm-lock.yaml` merge driver is repository configuration
+ * (`.gitattributes`) that only works where a workflow defines the driver, so "which
+ * workflows define it" is a claim about three files at once — and it was wrong in both
+ * copies that made it. This page named `changeset-release.yml` and
+ * `dependabot-auto-merge.yml`; the deleted `.github/WORKFLOWS.md` named
+ * `changeset-release.yml` and `changelog.yml`. Each omitted a different third, and both
+ * read as complete.
+ *
+ * The content survived the deletion — the `.gitattributes` half and the add-it-to-a-new-
+ * workflow half existed nowhere else — so it moved onto this page. Moving an already-drifted
+ * hand-maintained list into unpinned prose would just relocate the drift generator, which is
+ * the whole reason #3724 chose deletion over a second copy. Hence this pin: both directions,
+ * so a workflow that gains the step without a row is as red as a row whose workflow lost it.
+ */
+describe('ci-cd-pipeline.md — lockfile merge driver', () => {
+  /** Workflows that actually configure the driver, by grepping for the git config key. */
+  function workflowsConfiguringDriver(): string[] {
+    return fs
+      .readdirSync(workflowDir)
+      .filter((f) => f.endsWith('.yml'))
+      .filter((f) => /merge\.pnpm-merge/.test(fs.readFileSync(path.join(workflowDir, f), 'utf8')))
+      .sort();
+  }
+
+  const DRIVER_TABLE_HEADER = '| Workflow | Why it needs the driver |';
+
+  /**
+   * The workflows named in that section's table. Scoped to the table rows on purpose: the
+   * surrounding prose names all three again while recounting the drift, and a set built from
+   * the whole section would stay green after the table itself was gutted.
+   */
+  function workflowsNamedInDoc(): string[] {
+    const start = doc.indexOf('## Lockfile Merge Driver');
+    expect(start, 'the page must keep a "## Lockfile Merge Driver" section').toBeGreaterThan(-1);
+    const rest = doc.slice(start + 2);
+    const next = rest.search(/^## /m);
+    const section = next === -1 ? rest : rest.slice(0, next);
+
+    const at = section.indexOf(DRIVER_TABLE_HEADER);
+    expect(at, `that section must keep the table header \`${DRIVER_TABLE_HEADER}\``).toBeGreaterThan(-1);
+
+    const named = new Set<string>();
+    for (const line of section.slice(at).split('\n').slice(1)) {
+      if (!line.startsWith('|')) break;
+      if (/^\|[\s|:-]+\|$/.test(line)) continue; // separator
+      for (const m of line.matchAll(/([a-z0-9][a-z0-9-]*\.yml)\b/g)) named.add(m[1]);
+    }
+    return [...named].sort();
+  }
+
+  it('lists exactly the workflows that configure merge.pnpm-merge — in both directions', () => {
+    const configuring = workflowsConfiguringDriver();
+    // A grep that matched nothing would make both directions vacuously green — the failure
+    // mode the retired `dev-server` job demonstrated for the job table below.
+    expect(
+      configuring.length,
+      'no workflow appears to configure `merge.pnpm-merge` — if the driver was genuinely ' +
+        'retired, delete the "Lockfile Merge Driver" section and the `.gitattributes` line ' +
+        'with it rather than leaving a page describing a mechanism nothing installs',
+    ).toBeGreaterThan(0);
+
+    const named = workflowsNamedInDoc();
+    const missing = configuring.filter((f) => !named.includes(f));
+    const phantom = named.filter((f) => !configuring.includes(f));
+
+    expect(
+      missing,
+      `these workflows configure the pnpm-lock.yaml merge driver but have no row in the ` +
+        `"Lockfile Merge Driver" table of content/docs/guide/ci-cd-pipeline.md:\n` +
+        missing.map((f) => `  - ${f}`).join('\n') +
+        `\n\nAdd a row saying why that workflow merges. An incomplete list is how this claim ` +
+        `was wrong on two pages at once before objectui#3724.`,
+    ).toEqual([]);
+
+    expect(
+      phantom,
+      `the "Lockfile Merge Driver" table names workflows that do NOT configure ` +
+        `\`merge.pnpm-merge\`:\n` +
+        phantom.map((f) => `  - ${f}`).join('\n') +
+        `\n\nEither the step was dropped from that workflow — in which case its lockfile ` +
+        `conflicts are being resolved as a text merge, and that is the bug — or the row is ` +
+        `stale and should go.`,
+    ).toEqual([]);
+  });
+
+  it('keeps the .gitattributes half of the mechanism true', () => {
+    // The driver only ever runs because an attribute asks for it. Half the mechanism living
+    // in a file the workflows do not mention is exactly why this was documented nowhere
+    // complete; if the attribute goes, the section is describing dead configuration.
+    const attributes = fs.readFileSync(path.join(repoRoot, '.gitattributes'), 'utf8');
+    expect(
+      attributes,
+      '.gitattributes no longer routes pnpm-lock.yaml through the `pnpm-merge` driver, so the ' +
+        '"Lockfile Merge Driver" section on content/docs/guide/ci-cd-pipeline.md now describes ' +
+        'a driver nothing invokes — the workflows would be configuring it for nothing.',
+    ).toMatch(/^pnpm-lock\.yaml\s+merge=pnpm-merge\s*$/m);
   });
 });
 
@@ -268,18 +395,18 @@ describe('ci-cd-pipeline.md — ci.yml job table', () => {
 
   const JOB_TABLE_HEADER = '| Job key | Appears as | What it runs | When |';
 
-  /** First column of the job table, in page order. */
-  function docJobRows(): { key: string; appearsAs: string }[] {
+  /** The job table's rows in page order: job key, `Appears as`, `What it runs`. */
+  function docJobRows(): { key: string; appearsAs: string; runs: string }[] {
     const section = coreCiSection();
     const at = section.indexOf(JOB_TABLE_HEADER);
     expect(at, `the job table must keep the header \`${JOB_TABLE_HEADER}\``).toBeGreaterThan(-1);
     const lines = section.slice(at).split('\n').slice(1);
-    const rows: { key: string; appearsAs: string }[] = [];
+    const rows: { key: string; appearsAs: string; runs: string }[] = [];
     for (const line of lines) {
       if (!line.startsWith('|')) break;
       if (/^\|[\s|:-]+\|$/.test(line)) continue; // separator
       const cells = line.split('|').slice(1, -1).map((c) => c.trim());
-      rows.push({ key: cells[0].replace(/`/g, '').trim(), appearsAs: cells[1] ?? '' });
+      rows.push({ key: cells[0].replace(/`/g, '').trim(), appearsAs: cells[1] ?? '', runs: cells[2] ?? '' });
     }
     return rows;
   }
@@ -373,5 +500,167 @@ describe('ci-cd-pipeline.md — ci.yml job table', () => {
         'job with no row; this catches a restored job whose row was added while this paragraph ' +
         'still denies it (objectui#3451).',
     ).toBe(true);
+  });
+
+  /**
+   * objectui#3653: every pin above judges `ci.yml` at JOB granularity — the set of
+   * job keys, the `name:` each one reports under, the absence of a count. None of
+   * them reads what a job *runs*, so a `run:` step added to an existing job left
+   * this whole file green. Two such steps had landed unlisted: `pnpm
+   * check:i18n-keys` (objectui#3530, PR #3547) and `pnpm check:i18n-drift`
+   * (objectui#3650, PR #3659) both ran in the `type-check` job while its row on the
+   * page still listed five commands.
+   *
+   * Both directions are asserted, because the column is a claim in both: a command
+   * the job runs and the row omits is a contributor who cannot learn from this page
+   * that a gate exists; a command the row names and the job does not run is the
+   * objectui#3451 shape one level down — a page advertising a guardrail that is not
+   * there.
+   *
+   * What counts as a command is deliberately narrower than "every step", and the
+   * boundary is *derived* rather than hand-listed: a step counts when it names
+   * something this repository owns — a `scripts/*.mjs` file, a script in the root
+   * `package.json`, or a `turbo run` task. Environment setup drops out on its own
+   * because it names none of those (`corepack enable`, `pnpm --version`, `pnpm
+   * install --frozen-lockfile`, `pnpm exec playwright install`, `pnpm --filter …
+   * exec vite build`), which keeps this column a summary of the gates rather than a
+   * transcript of the YAML: the `e2e` job's artifact check and Playwright cache are
+   * real steps that no reader of this page needs enumerated.
+   *
+   * The hole that leaves, stated so nobody mistakes it for coverage: a gate written
+   * as an inline shell block names no first-party command and is invisible here.
+   * Gates in this repository land as a root `package.json` script or a
+   * `scripts/*.mjs` file — both covered — and that is the only reason the narrower
+   * rule is enough.
+   *
+   * Steps are read from `run:` values only, never from the surrounding YAML. The
+   * `type-check` job's comments alone mention `pnpm type-check`, `turbo run
+   * type-check` and `pnpm check:i18n-drift`; a scan of the raw block would take all
+   * three for steps and this pin would then be describing its own comments.
+   *
+   * Whether a given step still EXISTS in `ci.yml` is pinned where that step was
+   * introduced — `check-i18n-call-site-keys.test.ts` and
+   * `check-i18n-en-drift.test.ts` each hold their own, as do
+   * `scripts-type-check.test.ts` and `vitest-setup-type-check.test.ts`. This block
+   * does not repeat those assertions; it pins the *pairing* between the YAML and
+   * this page, which is the part nothing owned.
+   */
+  describe('what each job runs', () => {
+    const rootScripts = new Set(
+      Object.keys(
+        (
+          JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as {
+            scripts: Record<string, string>;
+          }
+        ).scripts,
+      ),
+    );
+
+    /** One job's YAML block, from its key line up to the next thing at that indent. */
+    function jobBlock(key: string): string {
+      const body = ciWorkflow.slice(ciWorkflow.search(/^jobs:[ \t]*$/m));
+      const at = body.search(new RegExp(`^ {2}${key}:[ \\t]*$`, 'm'));
+      expect(at, `ci.yml must still define a \`${key}:\` job`).toBeGreaterThan(-1);
+      const rest = body.slice(at + 1);
+      // A job's own comments are indented four spaces or more; the two-space ones
+      // introduce the *next* job, so stopping at any two-space line is right.
+      const next = rest.search(/^ {2}\S/m);
+      return next === -1 ? rest : rest.slice(0, next);
+    }
+
+    /** Every `run:` step body in a job block — single-line and block scalar alike. */
+    function runSteps(block: string): string[] {
+      const lines = block.split('\n');
+      const steps: string[] = [];
+      for (let i = 0; i < lines.length; i++) {
+        const at = lines[i].indexOf('run:');
+        // `run:` must be the key of the line, not text inside another value.
+        if (at === -1 || !/^[\s-]*$/.test(lines[i].slice(0, at))) continue;
+        const value = lines[i].slice(at + 'run:'.length).trim();
+        if (!/^[|>][-+]?$/.test(value)) {
+          steps.push(value);
+          continue;
+        }
+        const body: string[] = [];
+        for (let j = i + 1; j < lines.length; j++) {
+          if (lines[j].trim() === '') continue;
+          if (lines[j].search(/\S/) <= at) break;
+          body.push(lines[j].trim());
+        }
+        steps.push(body.join('\n'));
+      }
+      return steps;
+    }
+
+    /**
+     * The first-party commands named in a piece of text — applied to a job's `run:`
+     * bodies on one side and to its `What it runs` cell on the other, so the two
+     * sides are compared by the same rule rather than by two spellings of it.
+     */
+    function firstPartyCommands(text: string): Set<string> {
+      const found = new Set<string>();
+      // A gate that lives in this repo's `scripts/` tree. The `node ` prefix is not
+      // required: ci.yml writes `node scripts/x.mjs`, the page writes the path.
+      for (const m of text.matchAll(/scripts\/[\w./-]+\.mjs/g)) found.add(m[0]);
+      // A root `package.json` script. `install`, `--version`, `exec` and `--filter`
+      // are not scripts, so the setup steps need no exemption list.
+      for (const m of text.matchAll(/\bpnpm\s+([\w:.-]+)/g)) {
+        if (rootScripts.has(m[1])) found.add(`pnpm ${m[1]}`);
+      }
+      // The build graph, invoked through the task runner instead of a script.
+      for (const m of text.matchAll(/\bturbo\s+run\s+([\w:-]+)/g)) found.add(`turbo run ${m[1]}`);
+      return found;
+    }
+
+    /** `job key -> commands it actually runs`, and the same from the page's table. */
+    function commandsByJob(): { key: string; ran: Set<string>; named: Set<string> }[] {
+      return docJobRows().map((row) => ({
+        key: row.key,
+        ran: firstPartyCommands(runSteps(jobBlock(row.key)).join('\n')),
+        named: firstPartyCommands(row.runs),
+      }));
+    }
+
+    it('names every first-party command the job actually runs', () => {
+      const jobs = commandsByJob();
+
+      // A parser that matched nothing would make both directions vacuously green —
+      // the exact failure the `dev-server` job demonstrated one level up.
+      const ran = jobs.reduce((n, j) => n + j.ran.size, 0);
+      expect(ran, 'the ci.yml `run:` parse found implausibly few first-party commands').toBeGreaterThan(8);
+
+      const missing = jobs.flatMap((j) => [...j.ran].filter((c) => !j.named.has(c)).map((c) => `${j.key}: ${c}`));
+
+      expect(
+        missing,
+        `.github/workflows/ci.yml runs commands that the job table in ` +
+          `content/docs/guide/ci-cd-pipeline.md does not name:\n` +
+          missing.map((m) => `  - ${m}`).join('\n') +
+          `\n\nAdd each one to that job's "What it runs" cell, in the order ci.yml runs it. ` +
+          `A gate nobody wrote down is a build failure contributors meet without knowing what ` +
+          `produced it — objectui#3653: two locale gates ran in \`type-check\` unlisted, because ` +
+          `the pins on this page read job keys and job names but never read the steps.`,
+      ).toEqual([]);
+    });
+
+    it('credits no job with a first-party command it does not run', () => {
+      const jobs = commandsByJob();
+
+      const named = jobs.reduce((n, j) => n + j.named.size, 0);
+      expect(named, 'the job table parse found implausibly few commands in "What it runs"').toBeGreaterThan(8);
+
+      const phantom = jobs.flatMap((j) => [...j.named].filter((c) => !j.ran.has(c)).map((c) => `${j.key}: ${c}`));
+
+      expect(
+        phantom,
+        `content/docs/guide/ci-cd-pipeline.md's job table credits jobs with commands that ` +
+          `.github/workflows/ci.yml does not run there:\n` +
+          phantom.map((p) => `  - ${p}`).join('\n') +
+          `\n\nEither the step was removed and the cell is stale, or the command runs in a ` +
+          `different job and belongs in that row. A "What it runs" cell reads as this job's ` +
+          `gate list, so naming a command for contrast inside it makes the page claim a ` +
+          `guardrail — the objectui#3451 mistake, one level down.`,
+      ).toEqual([]);
+    });
   });
 });

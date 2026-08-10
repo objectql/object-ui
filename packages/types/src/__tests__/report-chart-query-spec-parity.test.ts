@@ -179,10 +179,19 @@ describe('DashboardWidgetSchema derives from the spec', () => {
     expect(localKeys.filter((k) => !specKeys.includes(k))).toEqual(['component']);
   });
 
-  it('stops stripping the twelve spec keys the hand copy dropped', () => {
+  it('stops stripping the spec keys the hand copy dropped', () => {
     // Every one of these survived `objectui validate` with its value deleted
     // before the derivation — including the capability gates, which the
     // dashboard renderer honours at runtime.
+    //
+    // Four of the original twelve are gone: `actionUrl` / `actionType` /
+    // `actionIcon` and `aria` were retired in @objectstack/spec 17.0.0-rc.3
+    // (objectstack#5010, ADR-0049 enforce-or-remove). A dashboard widget has no
+    // action button and never had one — every action the dashboard dispatches
+    // comes from `header.actions[]` — and no renderer ever applied the widget
+    // `aria`, so it promised accessibility compliance it did not deliver. They
+    // move to the negative-control block below: this fixture would now be
+    // REFUSED rather than parsed, which is the opposite of what it asserts.
     const parsed = DashboardWidgetSchema.parse({
       id: 'w1',
       type: 'bar',
@@ -190,11 +199,7 @@ describe('DashboardWidgetSchema derives from the spec', () => {
       colorVariant: 'blue',
       requiresObject: 'opportunity',
       requiresService: 'analytics',
-      actionUrl: '/opportunities',
-      actionType: 'url',
-      actionIcon: 'chart',
       suppressWarnings: ['no-data'],
-      aria: { ariaLabel: 'Pipeline' },
       dataset: 'pipeline',
       dimensions: ['stage'],
       values: ['amount'],
@@ -205,13 +210,30 @@ describe('DashboardWidgetSchema derives from the spec', () => {
     expect(parsed.colorVariant).toBe('blue');
     expect(parsed.requiresObject).toBe('opportunity');
     expect(parsed.requiresService).toBe('analytics');
-    expect(parsed.actionUrl).toBe('/opportunities');
-    expect(parsed.actionType).toBe('url');
-    expect(parsed.actionIcon).toBe('chart');
     expect(parsed.suppressWarnings).toEqual(['no-data']);
-    expect(parsed.aria).toEqual({ ariaLabel: 'Pipeline' });
     expect(parsed.layout).toEqual({ x: 0, y: 0, w: 6, h: 4 });
     expect(parsed.filterBindings).toEqual({ dateRange: 'closed_at' });
+  });
+
+  it('REFUSES the four keys objectstack#5010 retired, by name', () => {
+    // Not "strips" — refuses. That distinction is the whole point of
+    // ADR-0049 enforce-or-remove: a stale dashboard carrying `actionUrl` gets
+    // told where the affordance moved (`header.actions[]`) instead of silently
+    // losing it, which is what the pre-derivation hand copy did.
+    for (const key of ['actionUrl', 'actionType', 'actionIcon', 'aria'] as const) {
+      const result = DashboardWidgetSchema.safeParse({
+        id: 'w1',
+        type: 'bar',
+        dataset: 'pipeline',
+        dimensions: ['stage'],
+        values: ['amount'],
+        [key]: key === 'aria' ? { ariaLabel: 'Pipeline' } : 'x',
+      });
+      expect(result.success, `'${key}' must be refused, not accepted`).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.some((i) => i.path[0] === key)).toBe(true);
+      }
+    }
   });
 });
 

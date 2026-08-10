@@ -83,6 +83,71 @@ export function usePredicateScope(): Record<string, any> {
 export { toPredicateInput } from '@object-ui/core';
 
 /**
+ * Build the predicate context for a **row record** — the bag to hand
+ * {@link useCondition} when the thing being gated is scoped to one record.
+ *
+ * The row is bound the THREE ways the platform's row surfaces bind it:
+ * `record.status` (spec/canonical), bare `status` (row-action shorthand), and
+ * `data.status` (legacy). This is not three dialects; it is one rule, and it is
+ * `evalRowPredicate`'s rule (`core/evaluator/listConditional.ts` — the record
+ * header, list rows, the row kebab and conditional formatting all evaluate
+ * through it), restated here for the `useCondition` tier so both tiers answer
+ * an author's `visible:` the same way.
+ *
+ * ## Why a helper and not "just spread the row" (objectui#4075)
+ *
+ * `useCondition` evaluates on `new ExpressionEvaluator({ ...scope, ...context })`,
+ * so a caller that passes the row spread flat resolves the shorthand spelling
+ * and NOTHING else. The canonical spelling is the `record.` root — it is what
+ * `ExpressionEvaluator`'s CEL path binds (`bag.record` as the record
+ * namespace), what `evalRowPredicate` binds, and what the server enforces
+ * with. Under a root-only bag `record.viewer.can_act` does not read as `false`:
+ * the evaluator throws `record is not defined`, and a fail-closed `visible`
+ * turns that throw into "hidden". A correctly-authored predicate then deletes
+ * its own button, indistinguishably from the gate having said no.
+ *
+ * That was live, not theoretical: every declared action on framework's
+ * `sys_approval_request` gates on `record.viewer.*` (framework#3310 / #3424),
+ * so the whole server-declared approval decision set was invisible wherever
+ * `DeclaredActionsBar` rendered until objectui#4077 bound the row this way —
+ * and the four generic action renderers carried the same root-only binding
+ * until objectui#4075.
+ *
+ * `record` and `data` are written AFTER the spread deliberately: a row that
+ * happens to carry a field literally named `record` or `data` must not shadow
+ * the root every predicate is written against. Same precedence as
+ * `evalRowPredicate`.
+ *
+ * This is the BINDING rule only. It deliberately does not touch the evaluation
+ * entry — `useCondition` / `toPredicateInput` / `hasDeclaredVisibilityGate`
+ * keep their pinned semantics (objectui#3492 / #3842 / #3850 / #3871), and each
+ * caller keeps its own error policy (fail-closed `visible` vs the fail-soft
+ * legs). Binding the row is a different question from what to do when the
+ * predicate faults.
+ *
+ * ## No row → bind NOTHING, do not bind an empty one
+ *
+ * `null` / `undefined` / a non-object returns an EMPTY bag, not
+ * `{ record: {}, data: {} }`. The difference is load-bearing: `useCondition`
+ * merges this context OVER the ambient predicate scope, so binding an empty
+ * record would blank out a `record` that a host had put in the scope itself —
+ * which is exactly how `action:group`'s dropdown leaf is driven in
+ * `action-group-dropdown-visible.test.tsx`, and it is a legitimate way for a
+ * host to supply the row. "This surface has no row of its own" must stay
+ * distinct from "this surface's row is empty"; only the latter is entitled to
+ * shadow the scope.
+ *
+ * @param record The row, or nothing.
+ */
+export function usePredicateRecordContext(record: unknown): Record<string, any> {
+  return useMemo(() => {
+    if (record == null || typeof record !== 'object' || Array.isArray(record)) return {};
+    const row = record as Record<string, any>;
+    return { ...row, record: row, data: row };
+  }, [record]);
+}
+
+/**
  * Hook for evaluating expressions with dynamic context
  * 
  * @example

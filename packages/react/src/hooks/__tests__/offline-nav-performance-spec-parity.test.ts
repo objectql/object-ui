@@ -50,15 +50,7 @@ import type {
 } from '../useOffline';
 import type { NavigationConfig } from '../useNavigationOverlay';
 import type { SpecAuthoredInput } from '../../spec-input';
-import type {
-  OfflineStrategy as SpecOfflineStrategy,
-  ConflictResolution as SpecConflictResolution,
-  OfflineCacheConfig as SpecOfflineCacheConfig,
-  OfflineCacheConfigSchema,
-  OfflineConfigSchema,
-  NavigationConfigSchema,
-  SyncConfigSchema,
-} from '@objectstack/spec/ui';
+import type { NavigationConfigSchema } from '@objectstack/spec/ui';
 import type { ConflictResolutionStrategy as SpecMergeConflictStrategy } from '@objectstack/spec/api';
 
 /** Every name `@objectstack/spec` exports from any subpath — types AND values. */
@@ -106,20 +98,42 @@ describe('the spec export-name probe itself works', () => {
   });
 
   it('sees TYPE-only exports, not just runtime values', () => {
-    // `OfflineCacheConfig` is a type alias — invisible to a runtime `import()`.
-    expect(SPEC_NAMES.has('OfflineCacheConfig')).toBe(true);
+    // `SharingConfig` is a type alias — invisible to a runtime `import()`. It
+    // replaced `OfflineCacheConfig` as the witness here when objectstack#4988
+    // retired the whole `ui/offline` module; the probe must still prove it can
+    // see erased exports, or every `.has(...)` assertion below would pass
+    // vacuously for the wrong reason.
+    expect(SPEC_NAMES.has('SharingConfig')).toBe(true);
   });
 });
 
 /**
- * The rename here is unusual: the local symbol did not move to a LOCAL dialect
- * name, it moved to the spec's own name for the union it always was. So the
- * ratchet is the other way round — `ConflictResolution` must stay a spec export
- * (it is a re-export), while the name it left must stay taken by something else.
+ * This pin's direction INVERTED at `@objectstack/spec` 17.0.0-rc.3, and the
+ * inversion is the honest result rather than a failure to adapt.
+ *
+ * It used to read: the local symbol did not move to a LOCAL dialect name, it
+ * moved to the spec's own name for the union it always was — so
+ * `ConflictResolution` must STAY a spec export, because this package merely
+ * re-exported it. objectstack#4988 (PR objectstack#5321) then deleted the whole
+ * `ui/offline` module, and with it that name. The spec's own retirement ledger
+ * prescribes the remedy by name: "If you consumed the bare `ConflictResolution`
+ * from `@objectstack/spec/ui` as a TYPE for your own offline code, declare that
+ * union locally — it is your client's policy, not the platform's."
+ *
+ * So `useOffline` now DECLARES it, and the first assertion below flips from
+ * `true` to `false`. What does NOT change is the half that made the rename
+ * load-bearing in the first place: `ConflictResolutionStrategy` is still a spec
+ * export meaning something else entirely, so the old name is still not free to
+ * take back.
  */
 describe('the ConflictResolutionStrategy rename is load-bearing', () => {
-  it('the spec owns `ConflictResolution` — this package re-exports it', () => {
-    expect(SPEC_NAMES.has('ConflictResolution')).toBe(true);
+  it('the spec has VACATED `ConflictResolution` — this package declares it', () => {
+    expect(
+      SPEC_NAMES.has('ConflictResolution'),
+      '@objectstack/spec exports `ConflictResolution` again. `useOffline` declares its ' +
+        'own, which is a fork the moment the spec owns the name. Re-triage it ' +
+        '(objectstack#4115) — derive, rename, or ALLOW with a reason.',
+    ).toBe(false);
   });
 
   it('`ConflictResolutionStrategy` is still a DIFFERENT spec export', () => {
@@ -146,24 +160,37 @@ type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ?
   ? true
   : false;
 
-describe('the offline unions ARE the spec bindings', () => {
+describe('the offline unions keep the members the hook dispatches on', () => {
   it('is pinned at compile time', () => {
-    type _StrategyNotAny = Assert<Equal<IsAny<SpecOfflineStrategy>, false>>;
-    type _ResolutionNotAny = Assert<Equal<IsAny<SpecConflictResolution>, false>>;
+    type _StrategyNotAny = Assert<Equal<IsAny<OfflineStrategy>, false>>;
+    type _ResolutionNotAny = Assert<Equal<IsAny<ConflictResolution>, false>>;
 
-    type _StrategyIsSpec = Assert<Equal<OfflineStrategy, SpecOfflineStrategy>>;
-    type _ResolutionIsSpec = Assert<Equal<ConflictResolution, SpecConflictResolution>>;
-
-    // The union this hook uses is NOT the one the old name pointed at. If these
-    // ever became the same, the rename would no longer be load-bearing.
+    // The spec-identity halves (`OfflineStrategy` / `ConflictResolution` ARE the
+    // spec's bindings) are gone with the `ui/offline` module (objectstack#4988).
+    // What survives is the distinction that made the original rename
+    // load-bearing, and it is still checkable because the OTHER side of it —
+    // `@objectstack/spec/api`'s `ConflictResolutionStrategy`, the metadata-MERGE
+    // policy — was NOT retired. If these ever became the same union, a reader
+    // would again have a symbol whose name points at one policy and whose value
+    // is another, which is the whole reason this hook does not use that name.
     type _NotTheMergePolicy = Assert<
-      Equal<Equal<SpecConflictResolution, SpecMergeConflictStrategy>, false>
+      Equal<Equal<ConflictResolution, SpecMergeConflictStrategy>, false>
     >;
     type _NoOverlapAtAll = Assert<
-      Equal<Extract<SpecConflictResolution, SpecMergeConflictStrategy>, never>
+      Equal<Extract<ConflictResolution, SpecMergeConflictStrategy>, never>
     >;
 
     expect(true).toBe(true);
+  });
+
+  it('still carries the four conflict policies, and only those', () => {
+    const all: ConflictResolution[] = [
+      'manual',
+      'client_wins',
+      'server_wins',
+      'last_write_wins',
+    ];
+    expect(all).toHaveLength(4);
   });
 
   it('still carries the five strategies the hook dispatches on', () => {
@@ -178,26 +205,25 @@ describe('the offline unions ARE the spec bindings', () => {
   });
 });
 
-describe('OfflineCacheConfig derives from the schema INPUT side', () => {
-  it('keeps the defaulted keys authorable (the z.input vs z.infer trap)', () => {
-    type _SpecNotAny = Assert<Equal<IsAny<SpecOfflineCacheConfig>, false>>;
-
-    // `persistStorage` / `evictionPolicy` carry `.default()`, so the OUTPUT type
-    // makes them required. Deriving from `z.infer` would forbid omitting them —
-    // i.e. forbid using the defaults at all.
-    type _OutputRequiresThem = Assert<
-      Equal<undefined extends SpecOfflineCacheConfig['persistStorage'] ? true : false, false>
-    >;
+describe('OfflineCacheConfig keeps its defaulted keys authorable', () => {
+  it('preserves the z.input side the retired schema had', () => {
+    // The spec-side halves are gone with the `ui/offline` module
+    // (objectstack#4988), but the property they protected is the hook's own and
+    // is still worth pinning: `persistStorage` / `evictionPolicy` carried
+    // `.default()`, so a `z.infer`-shaped copy would have made them REQUIRED and
+    // forbidden the omissions the defaults exist for. The local declaration
+    // deliberately keeps them optional; this is the check that it stays that way.
     type _WeKeepThemOptional = Assert<
       Equal<undefined extends OfflineCacheConfig['persistStorage'] ? true : false, true>
     >;
-
-    // …while still being the spec's vocabulary, not a copy of the members.
-    type _SameMembers = Assert<
-      Equal<NonNullable<OfflineCacheConfig['persistStorage']>, SpecOfflineCacheConfig['persistStorage']>
+    type _EvictionOptionalToo = Assert<
+      Equal<undefined extends OfflineCacheConfig['evictionPolicy'] ? true : false, true>
     >;
-    type _IsTheSchemaInput = Assert<
-      Equal<OfflineCacheConfig, SpecAuthoredInput<typeof OfflineCacheConfigSchema>>
+
+    // The members themselves, pinned so the storage backends the hook documents
+    // cannot drift silently now that no schema enumerates them.
+    type _StorageMembers = Assert<
+      Equal<NonNullable<OfflineCacheConfig['persistStorage']>, 'sqlite' | 'indexeddb' | 'localstorage'>
     >;
 
     expect(true).toBe(true);
@@ -277,19 +303,27 @@ describe('PerformanceConfig no longer collides — the spec retired the name', (
  * This hook's config IS the spec's concept, key for key, so it takes the spec's
  * binding — a plain derivation, no dialect.
  */
-describe('OfflineConfig and OfflineSyncConfig derive from the schema INPUT side', () => {
+describe('OfflineConfig and OfflineSyncConfig keep the retired schema shape', () => {
   it('is pinned at compile time', () => {
-    type SpecOfflineInput = SpecAuthoredInput<typeof OfflineConfigSchema>;
-    type SpecSyncInput = SpecAuthoredInput<typeof SyncConfigSchema>;
-    type _SpecNotAny = Assert<Equal<IsAny<SpecOfflineInput>, false>>;
-    type _SpecNotUnknown = Assert<Equal<IsUnknown<SpecOfflineInput>, false>>;
+    type _NotAny = Assert<Equal<IsAny<OfflineConfig>, false>>;
+    type _NotUnknown = Assert<Equal<IsUnknown<OfflineConfig>, false>>;
 
-    type _IsTheSchemaInput = Assert<Equal<OfflineConfig, SpecOfflineInput>>;
-    type _SyncIsTheSchemaInput = Assert<Equal<OfflineSyncConfig, SpecSyncInput>>;
-
-    // Nothing invented, nothing dropped.
-    type _NoLocalOnlyKeys = Assert<Equal<Exclude<keyof OfflineConfig, keyof SpecOfflineInput>, never>>;
-    type _NoMissingKeys = Assert<Equal<Exclude<keyof SpecOfflineInput, keyof OfflineConfig>, never>>;
+    // The `Equal<local, SpecAuthoredInput<typeof Schema>>` pins are gone with
+    // the schemas themselves (objectstack#4988). The key inventory they
+    // protected is pinned directly instead, so the local declaration cannot
+    // quietly gain or lose a key now that no schema enumerates them.
+    type _OfflineKeys = Assert<
+      Equal<
+        keyof OfflineConfig,
+        'enabled' | 'strategy' | 'cache' | 'sync' | 'offlineIndicator' | 'offlineMessage' | 'queueMaxSize'
+      >
+    >;
+    type _SyncKeys = Assert<
+      Equal<
+        keyof OfflineSyncConfig,
+        'strategy' | 'conflictResolution' | 'retryInterval' | 'maxRetries' | 'batchSize'
+      >
+    >;
 
     expect(true).toBe(true);
   });

@@ -1,8 +1,17 @@
 {
-  "type": "auto_number",
-  "name": "invoice_id",
-  "label": "Invoice ID",
-  "format": "INV-{0000}",
-  "readonly": true,
-  "value": "INV-1234"
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "defaultValues": {
+    "invoice_id": "INV-1234"
+  },
+  "fields": [
+    {
+      "name": "invoice_id",
+      "label": "Invoice ID",
+      "type": "auto_number",
+      "format": "INV-{0000}",
+      "readonly": true
+    }
+  ]
 }

@@ -194,7 +194,8 @@ Available values:
 
 ## PageHeader Component
 
-The `PageHeader` provides consistent page headers with title, breadcrumbs, and actions.
+The `PageHeader` provides consistent page headers with a title, an optional subtitle,
+an icon chip, and an action row.
 
 ### Usage
 
@@ -202,50 +203,59 @@ The `PageHeader` provides consistent page headers with title, breadcrumbs, and a
 {
   "type": "page-header",
   "title": "Customer Details",
-  "description": "View and edit customer information",
-  "breadcrumbs": [
-    { "label": "Home", "href": "/" },
-    { "label": "Customers", "href": "/customers" },
-    { "label": "John Doe" }
-  ],
-  "actions": [
-    {
-      "type": "button",
-      "text": "Edit",
-      "variant": "default",
-      "icon": "pencil"
-    },
-    {
-      "type": "button",
-      "text": "Delete",
-      "variant": "destructive",
-      "icon": "trash"
-    }
-  ]
+  "subtitle": "View and edit customer information",
+  "icon": "users",
+  "actions": ["edit", "delete"]
 }
 ```
+
+`title` and `subtitle` both interpolate `{field.path}` tokens against the surrounding
+record context, so `"title": "{first_name} {last_name}"` resolves on a record page.
+Unresolvable tokens collapse to an empty string rather than leaking the raw template.
 
 ### Schema API
 
 ```typescript
 {
   type: 'page-header',
-  
-  title: string,
-  description?: string,
-  icon?: string,
-  
-  breadcrumbs?: Array<{
-    label: string,
-    href?: string,
-    icon?: string
-  }>,
-  
-  actions?: ComponentSchema[],
-  
-  className?: string
+
+  title: string,                     // required; {field.path} tokens interpolated
+  subtitle?: string,                 // secondary line; {field.path} tokens interpolated
+  icon?: string,                     // Lucide icon name, rendered in a chip left of the title
+  actions?: Array<string | ActionDef>, // action ids, or inline ActionDef objects
+  showBack?: boolean,                // back arrow; inferred from record context when omitted
+  children?: ComponentSchema[],      // rendered into the right-aligned slot; `actions` takes precedence
+  className?: string,
+
+  description?: string               // legacy alias of `subtitle` — do not author, see below
 }
 ```
+
+`showBack` defaults to `true` when a record context carrying a `recordId` is in scope and
+the header is not rendered inside embedded chrome (drawer / modal, which already provide
+their own Close control), and `false` otherwise. Pass it explicitly to override.
+
+`actions` is handed to the `record:quick_actions` widget with
+`location: 'record_header'`. Its entries are **action ids** — resolved from the object's
+own `actions` metadata, which keeps the definitions in one place — or inline `ActionDef`
+objects. They are **not** `ComponentSchema` nodes: a `{ "type": "button", … }` entry
+renders nothing here.
+
+> **Write `subtitle`, not `description`.** `@objectstack/spec/ui`'s `PageHeaderProps` —
+> the contract for the canonical `page:header` node — declares
+> `title / subtitle / icon / breadcrumb / actions / aria` and has **no** `description`,
+> and `page-header`'s registration declares only `title` and `subtitle` as authorable
+> inputs. `description` is still accepted in two places: protocol 17's ADR-0087 D2
+> conversion `page-header-subtitle-alias` rewrites it to `subtitle` on header nodes as the
+> stack loads, and this renderer reads it directly as a legacy alias (`subtitle` wins when
+> both are set) for nodes that reach it without passing through that loader. `subtitle` is
+> the only spelling that renders on **every** path, and the alias is on its way out
+> (objectui#3789) — see the [PageHeader reference](/docs/layout/page-header).
+
+> **There is no `breadcrumbs` array.** The component reads no breadcrumb property of any
+> kind, in either spelling. The spec's `breadcrumb` is singular and a **boolean** — a
+> display toggle on the canonical `page:header` node (see
+> [Slotted pages](/docs/guide/slotted-pages)), not a list of links.
 
 ## SidebarNav Component
 

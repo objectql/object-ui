@@ -36,7 +36,7 @@ import {
   RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, listViewPredicates, isProjectableField, isExpandableFieldType } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, listViewPredicates, isProjectableField, isExpandableFieldType, toFilterNode } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
@@ -437,7 +437,31 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const effectiveApiOps = objectName ? getObjectApiOperations(objectName) : undefined;
   const schemaFields = schema.fields;
   const schemaColumns = schema.columns;
-  const schemaFilter = schema.filter;
+  // The view's declared filter, lowered ONCE through the repo's single filter
+  // sink for both consumers below (the fetch and the server-side export).
+  //
+  // The lowering is what makes the authoring surface honest rather than merely
+  // reachable (objectui#4041). Until this block published `filter`, the only
+  // thing that could arrive here was an ObjectQL AST synthesized by
+  // `ElementDataSourceGate`, and passing that through verbatim was right. An
+  // AUTHOR writes the spec's view vocabulary instead — `ViewFilterRule[]`,
+  // `[{ field, operator, value }]` — and that shape byte-copied onto `$filter`
+  // is refused on the wire: `isFilterAST` is false for an array of objects and
+  // the data API answers `400 INVALID_FILTER` (measured against a real backend
+  // in objectui#3431). Declaring the key without this hop would have traded a
+  // silent wrong answer for a guaranteed failure, which is not a fix.
+  //
+  // `toFilterNode` is that hop by design — the last stop before the wire, where
+  // a value legitimately leaves the spec's view vocabulary and becomes an AST
+  // (see its doc for why the fold cannot live at the producer). It passes AST
+  // nodes through untouched, so the `ElementDataSourceGate` path is unchanged;
+  // it also collects the MongoDB-style object shape, and returns `undefined`
+  // for an absent or empty source so we skip `$filter` rather than sending an
+  // empty array. `plugin-list`'s `buildEffectiveFilter` and `plugin-view`'s
+  // `ObjectView` already reach the wire through this same sink; this read point
+  // was the last consumer on the chain that did not.
+  const schemaFilterSource = schema.filter;
+  const schemaFilter = useMemo(() => toFilterNode(schemaFilterSource), [schemaFilterSource]);
   const schemaSort = schema.sort;
   const schemaPagination = schema.pagination;
   const schemaPageSize = schema.pageSize;
@@ -610,8 +634,14 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
             $skip: (serverPage - 1) * serverPageSize,
           };
 
-          // Support new filter format
-          if (schemaFilter && Array.isArray(schemaFilter)) {
+          // The block's declared `filter` input, already lowered to an AST at
+          // the read point above. `undefined` means "no filter declared" —
+          // including a declared-but-empty array, which `toFilterNode` folds
+          // away so an empty `$filter` never goes out. The `Array.isArray` guard
+          // this replaces predates the lowering and was itself a silent drop:
+          // it read false for the MongoDB-style object shape, so such a filter
+          // went missing and the grid answered with every record.
+          if (schemaFilter !== undefined) {
             params.$filter = schemaFilter;
           } else if (schema.defaultFilters) {
             // Legacy support
@@ -1414,6 +1444,10 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       const cols = generateColumns().filter((c: any) => c.accessorKey !== '_actions');
       const fields = cols.map((c: any) => c.accessorKey).filter(Boolean);
 
+      // Same lowered value the fetch above sends, which is what keeps the
+      // downloaded file agreeing with the screen: both read `schemaFilter`
+      // AFTER `toFilterNode`, so an authored `ViewFilterRule[]` cannot reach
+      // the wire as bare rule objects on one path and as AST on the other.
       const filter = Array.isArray(schemaFilter) ? schemaFilter : undefined;
       const sort = Array.isArray(schemaSort)
         ? schemaSort

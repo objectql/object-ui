@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { InstantValueSchema } from '@objectstack/spec/data';
 import {
   toDateInputValue,
   toDateTimeInputValue,
@@ -92,5 +93,23 @@ describe('fromDateTimeInputValue', () => {
   it('returns an unparseable value untouched rather than blanking it', () => {
     expect(fromDateTimeInputValue('garbage')).toBe('garbage');
     expect(fromDateTimeInputValue('')).toBe('');
+  });
+
+  /**
+   * The producer side of objectstack#5061. This function's output is not just
+   * "an ISO string" by convention — it IS the platform's `datetime` value
+   * contract, and `ActionParamDialog` now relies on that: it POSTs the widget's
+   * value with no conversion of its own, so a change here that dropped the zone
+   * (or emitted the control's naive wall clock) would make every datetime action
+   * param 400 again. Pinned against the real schema rather than a regex so the
+   * two cannot drift.
+   */
+  it('emits a value the platform datetime contract accepts (InstantValueSchema)', () => {
+    expect(InstantValueSchema.safeParse(fromDateTimeInputValue('2026-06-17T14:30')).success).toBe(true);
+    // The control may include seconds; those must survive into the instant.
+    expect(InstantValueSchema.safeParse(fromDateTimeInputValue('2026-06-17T14:30:45')).success).toBe(true);
+    // The shape the contract rejects — what the control itself hands us, and so
+    // exactly what must NOT come back out of this function.
+    expect(InstantValueSchema.safeParse('2026-06-17T14:30').success).toBe(false);
   });
 });

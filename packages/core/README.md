@@ -141,21 +141,11 @@ This allows the core types and logic to be used in:
 
 ## API Reference
 
-See [full documentation](https://objectui.org/api/core) for detailed API reference.
-
-<!-- release-metadata:v3.3.0 -->
-
-## Compatibility
-
-- **Node.js:** ≥ 18
-- **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^3.3.0
-- **`@objectstack/client`:** ^3.3.0
-- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
+See [full documentation](https://objectui.org/docs/api) for detailed API reference.
 
 ## Links
 
-- 📚 [Documentation](https://www.objectui.org/docs/core)
+- 📚 [Documentation](https://www.objectui.org/docs/guide/architecture)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/core)
 - 📝 [Changelog](./CHANGELOG.md)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)

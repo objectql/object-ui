@@ -1,7 +1,14 @@
 {
-  "type": "number",
-  "name": "price",
-  "label": "Price",
-  "placeholder": "0.00",
-  "precision": 2
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "price",
+      "label": "Price",
+      "type": "number",
+      "placeholder": "0.00",
+      "precision": 2
+    }
+  ]
 }

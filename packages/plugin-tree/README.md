@@ -44,3 +44,7 @@ It registers two component types via the `ComponentRegistry`:
 
 Records whose parent is missing (or points outside the result set) are kept as
 roots, so nothing is silently dropped.
+
+## License
+
+MIT — see [LICENSE](./LICENSE).

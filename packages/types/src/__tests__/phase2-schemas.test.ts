@@ -128,10 +128,12 @@ describe('Phase 2: ThemeComponentSchema Zod Validation', () => {
             background: '#ffffff',
             text: '#0f172a',
           },
+          // `fontSize` / `lineHeight` dropped: retired in @objectstack/spec
+          // 17.0.0-rc.3 (objectstack#5021), so a theme declaring them is now
+          // REFUSED rather than accepted-and-stripped. `fontFamily.base` is the
+          // surviving typography key; `customVars` is the door for the rest.
           typography: {
             fontFamily: { base: 'Inter, sans-serif' },
-            fontSize: { base: '1rem' },
-            lineHeight: { normal: '1.5' },
           },
           borderRadius: {
             base: '0.5rem',

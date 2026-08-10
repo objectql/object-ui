@@ -30,6 +30,10 @@ import { FILTER_OPERATOR_ALIASES } from './index';
 /**
  * View operators this adapter is not the bridge for — the value-shape ones the
  * view layer resolves to a null comparison before an operator is ever emitted.
+ *
+ * Every token here must still be a member of `VIEW_FILTER_OPERATORS` — the
+ * ratchet below enforces it. Subtracting a name the spec has retired excuses
+ * nothing and must be deleted rather than left as a dead subtraction (#3628).
  */
 const NOT_THIS_ADAPTERS_JOB = new Set(['is_empty', 'is_not_empty']);
 
@@ -37,6 +41,33 @@ describe('FILTER_OPERATOR_ALIASES lands inside the spec AST vocabulary', () => {
   it('reads both vocabularies from the spec', () => {
     expect(VIEW_FILTER_OPERATORS.length).toBeGreaterThan(0);
     expect(VALID_AST_OPERATORS.size).toBeGreaterThan(0);
+  });
+
+  // The exclusion ratchet (#3628). The coverage sweep further down subtracts a
+  // hand-written set from a spec-derived vocabulary, and that subtraction only
+  // excuses something while the spec still lists the subtracted tokens. Once
+  // upstream retires or renames one, the sweep stays green (it is still total
+  // over what remains) but the row becomes dead weight, and its comment goes on
+  // telling the next reader that the view layer resolves this one to a null
+  // comparison — about an operator no author can declare any more. That is the
+  // shape that rotted 37 of 82 deny-list entries in #3601 with nothing to report
+  // it: a hand-written list beside a spec-derived vocabulary and no assertion
+  // that its members still exist in that vocabulary.
+  //
+  // Collected rather than asserted per entry on purpose (same call as PR #3623):
+  // vocabulary retirements land as whole families, and failing on the first entry
+  // would hide the rest.
+  it('every NOT_THIS_ADAPTERS_JOB token is still in the spec view vocabulary', () => {
+    const vocabulary = new Set<string>(VIEW_FILTER_OPERATORS);
+    const retired = [...NOT_THIS_ADAPTERS_JOB].filter((op) => !vocabulary.has(op));
+    expect(
+      retired,
+      `VIEW_FILTER_OPERATORS no longer lists these NOT_THIS_ADAPTERS_JOB tokens: `
+        + `${retired.join(', ')}. The spec has retired them, so subtracting them from `
+        + 'the coverage sweep below excuses nothing — delete each from the set (with '
+        + 'the comment claiming the view layer resolves it) rather than leaving a dead '
+        + 'subtraction',
+    ).toEqual([]);
   });
 
   it('every alias target is an operator the AST gate accepts', () => {

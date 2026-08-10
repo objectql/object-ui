@@ -2,7 +2,11 @@
   "name": "@object-ui/layout",
   "version": "17.3.0",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/index.js",
+    "./dist/index.umd.cjs",
+    "./src/index.ts"
+  ],
   "main": "dist/index.umd.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -38,7 +42,7 @@
     "react-router-dom": "^6.0.0 || ^7.0.0"
   },
   "devDependencies": {
-    "@objectstack/spec": "^17.0.0-rc.2",
+    "@objectstack/spec": "^17.0.0-rc.5",
     "@vitejs/plugin-react": "^6.0.5",
     "react-router-dom": "^7.18.2",
     "vite": "^8.2.0",

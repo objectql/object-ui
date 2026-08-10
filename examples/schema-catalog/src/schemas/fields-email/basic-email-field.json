@@ -1,6 +1,13 @@
 {
-  "type": "email",
-  "name": "email",
-  "label": "Email Address",
-  "placeholder": "you@example.com"
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "email",
+      "label": "Email Address",
+      "type": "email",
+      "placeholder": "you@example.com"
+    }
+  ]
 }

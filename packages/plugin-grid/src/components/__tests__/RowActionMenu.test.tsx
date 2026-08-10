@@ -14,9 +14,17 @@
  * the leftmost ("Open") overflowed the fixed-width cell and was clipped to a
  * sliver. Only the first `maxInlineActions` primaries now stay inline; the rest
  * fold into the "⋮" overflow menu.
+ *
+ * The budget counts the primaries that SURVIVE their own `visible` for the row
+ * (objectui#3762). Every fixture in this file is ungated, so declared order and
+ * surviving order coincide and these cases pin the same behavior as before —
+ * which is the point of leaving them untouched: the fix must not move the
+ * clipping regression this suite exists for. The gated cases live in
+ * `RowActionMenu.emptyGuard.test.tsx`.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { PredicateScopeProvider } from '@object-ui/react';
@@ -194,5 +202,77 @@ describe('BuiltinRowActionItem per-record CEL predicates (#2614)', () => {
     } finally {
       warn2.mockRestore();
     }
+  });
+});
+
+/**
+ * objectui#3758 — a DECLARED boolean `visible` is a verdict, not a missing gate.
+ *
+ * Both of this component's custom-action surfaces read one gate
+ * (`isCustomRowActionVisible`), and that gate used to ask truthiness: `visible:
+ * false` — the most explicit way to say "never show this" — answered "no gate
+ * declared" and the action rendered for everyone. Declaration is detected by
+ * `!= null && !== ''`, the invariant objectui#3492 already established for the
+ * selection bar (`hasVisibilityGate`) and the one the built-in `visibleWhen`
+ * gate has always used, so a boolean reaches the evaluator and decides.
+ *
+ * The `visible: true` and undeclared cases are asserted alongside on purpose:
+ * they are what separates "detect the declaration" from "hide unconditionally",
+ * a rewrite that would satisfy every `visible: false` assertion on its own.
+ */
+describe('declared boolean `visible` on a custom row action (objectui#3758)', () => {
+  const UNGATED = { name: 'archive', label: 'Archive', variant: 'secondary' as const };
+  const GHOST = { name: 'ghost', label: 'Ghost', variant: 'secondary' as const, visible: false };
+
+  // --- surface 1: the "⋮" overflow menu item -------------------------------
+  // A second, UNGATED action rides along so the "⋮" trigger survives its own
+  // #3562 emptiness guard — otherwise a passing assertion could not tell "the
+  // item was suppressed" from "the whole menu disappeared".
+
+  it('visible:false → the overflow menu item does not render', async () => {
+    renderMenu({ rowActionDefs: [GHOST, UNGATED] });
+    await userEvent.click(screen.getByTestId('row-action-trigger'));
+    expect(screen.getByTestId('row-action-archive')).toBeInTheDocument();
+    expect(screen.queryByTestId('row-action-ghost')).not.toBeInTheDocument();
+  });
+
+  it('visible:true → the overflow menu item renders', async () => {
+    renderMenu({ rowActionDefs: [{ ...GHOST, name: 'always', label: 'Always', visible: true }, UNGATED] });
+    await userEvent.click(screen.getByTestId('row-action-trigger'));
+    expect(screen.getByTestId('row-action-always')).toBeInTheDocument();
+  });
+
+  it('no `visible` at all → the overflow menu item renders (ungated stays ungated)', async () => {
+    renderMenu({ rowActionDefs: [UNGATED] });
+    await userEvent.click(screen.getByTestId('row-action-trigger'));
+    expect(screen.getByTestId('row-action-archive')).toBeInTheDocument();
+  });
+
+  // --- surface 2: the inline `variant:'primary'` button --------------------
+  // Always mounted, so it needs no menu interaction to observe.
+
+  it('visible:false → the inline primary button does not render', () => {
+    renderMenu({ rowActionDefs: [{ ...OPEN, visible: false }] });
+    expect(screen.queryByTestId('row-action-inline-open')).not.toBeInTheDocument();
+  });
+
+  it('visible:true → the inline primary button renders', () => {
+    renderMenu({ rowActionDefs: [{ ...OPEN, visible: true }] });
+    expect(screen.getByTestId('row-action-inline-open')).toBeInTheDocument();
+  });
+
+  it('no `visible` at all → the inline primary button renders (ungated stays ungated)', () => {
+    renderMenu({ rowActionDefs: [OPEN] });
+    expect(screen.getByTestId('row-action-inline-open')).toBeInTheDocument();
+  });
+
+  // --- the other half of "declared": empty string is NOT a gate ------------
+  // `hasVisibilityGate` excludes `''` for the selection bar; the row surfaces
+  // match it, so an action whose predicate compiled away to an empty string is
+  // not silently hidden from everyone.
+
+  it('an empty-string `visible` is not a declared gate — the action still renders', () => {
+    renderMenu({ rowActionDefs: [{ ...OPEN, visible: '' }] });
+    expect(screen.getByTestId('row-action-inline-open')).toBeInTheDocument();
   });
 });

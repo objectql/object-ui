@@ -21,7 +21,7 @@ The console opens at **http://localhost:5180** (the port is fixed in `apps/conso
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-App Switcher** | Switch between apps defined in `objectstack.config.ts`. |
+| **Multi-App Switcher** | Switch between the apps discovered from the connected server. |
 | **Dynamic Navigation** | Sidebar renders from the app's `navigation` tree (objects, groups, URLs, pages). |
 | **Object Views** | List / Grid / Kanban / Calendar — backed by `@object-ui/plugin-view`. |
 | **CRUD Dialogs** | Create & edit records via schema-driven forms. |
@@ -54,37 +54,25 @@ published from the top-bar **Publish** flow.
 
 ## Configuration
 
-The console reads its configuration from `objectstack.config.ts`:
+**The console has no configuration file.** It declares no apps, objects or views of its own —
+it renders whatever the server it is pointed at publishes. There are only two inputs:
 
-```ts
-import { defineStack } from '@objectstack/spec';
-import { ObjectSchema, App, Field } from '@objectstack/spec';
+**1. `VITE_SERVER_URL` — which backend to talk to.** A build-time Vite variable, and the only
+setting the console itself owns. It seeds the data adapter's base URL and the runtime-config
+fetch; `apps/console/.env.development` defaults it to `http://localhost:3000`, and an empty
+value means same origin. See [Running with a Real Backend](#running-with-a-real-backend).
 
-export default defineStack({
-  apps: [
-    App.create({
-      name: 'crm',
-      label: 'CRM',
-      icon: 'briefcase',
-      navigation: [
-        { type: 'object', objectName: 'contacts', label: 'Contacts', icon: 'users' },
-        { type: 'object', objectName: 'deals', label: 'Deals', icon: 'dollar-sign' },
-      ],
-      branding: { primaryColor: '#3B82F6' },
-    }),
-  ],
-  objects: [
-    ObjectSchema.create({
-      name: 'contacts',
-      label: 'Contacts',
-      fields: [
-        Field.text('name', { label: 'Name', required: true }),
-        Field.email('email', { label: 'Email' }),
-      ],
-    }),
-  ],
-});
-```
+**2. Server-pushed runtime config — everything else.** Before React mounts, the console
+resolves `/api/v1/runtime/config` from that server and applies it: product branding, feature
+flags (marketplace, AI Studio, SSO, custom domain), and the cloud URL. Operators configure
+these on the **server**, not in the SPA, which is why changing them needs no console rebuild.
+
+Apps, objects and views themselves are metadata fetched over HTTP — discovered at connect
+time and loaded on demand. To change what the console shows, change the metadata on the
+server: author it in the ObjectStack server project (`objectstack.config.ts` lives **there**,
+not here) or edit and publish it from Studio. See
+[ObjectOS Integration](/docs/guide/objectos-integration) for the server-side configuration
+shape.
 
 ## Running with a Real Backend
 

@@ -10,7 +10,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { DataSource, TimelineSchema, ListViewTimelineConfig } from '@object-ui/types';
 import { useDataScope, useNavigationOverlay, useObjectLabel } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
-import { extractRecords, buildExpandFields } from '@object-ui/core';
+import { extractRecords, buildExpandFields, convertSortToQueryParams } from '@object-ui/core';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { z } from 'zod';
 import { TimelineRenderer } from './renderer';
@@ -36,6 +36,17 @@ const OBJECT_LABEL_FALLBACK = {
 function useSafeObjectLabel() {
   return useObjectLabel() ?? OBJECT_LABEL_FALLBACK;
 }
+
+/**
+ * Rows fetched when the author declared no `limit`.
+ *
+ * The number is the one this component has always intended: before
+ * objectstack#7137 the fetch passed `{ options: { $top: 100 } }`, and `options`
+ * is not a `QueryParams` key — no adapter in this repo reads it, so the cap never
+ * reached the wire and the timeline fetched whatever the server chose to return.
+ * The window is now real, and authorable.
+ */
+export const DEFAULT_TIMELINE_LIMIT = 100;
 
 const TimelineMappingSchema = z.object({
   title: z.string().optional(),
@@ -67,6 +78,28 @@ export interface ObjectTimelineProps {
      * has always declared on it, and that this renderer now actually reads.
      */
     timeline?: ListViewTimelineConfig;
+    /**
+     * Query filter for the object fetch, in any shape `toFilterNode` accepts
+     * (spec `ViewFilterRule[]`, ObjectQL AST nodes, or a MongoDB-style object).
+     *
+     * Read here, not merged here: when a `dataSource` binding is present,
+     * `ElementDataSourceGate` has already AND-combined this key with the view's
+     * filter and the binding's own before the schema reaches this component
+     * (objectstack#7137) — the same single sink every other object-bound block
+     * composes through.
+     */
+    filter?: any[] | Record<string, any>;
+    /**
+     * Query ordering — the legacy `"name desc"` clause or the spec's
+     * `SortConfig[]`, both lowered through `convertSortToQueryParams`.
+     */
+    sort?: string | Array<{ field?: string; order?: 'asc' | 'desc' }>;
+    /**
+     * Row cap for the fetch. Defaults to {@link DEFAULT_TIMELINE_LIMIT}; a
+     * timeline renders one rail with no pagination control, so this is the
+     * author's window rather than a page size.
+     */
+    limit?: number;
     /** @deprecated Use timeline.titleField instead */
     titleField?: string;
     /** @deprecated Use timeline.startDateField instead */
@@ -145,6 +178,13 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
     return () => { isMounted = false; };
   }, [schema.objectName, dataSource]);
 
+  // Content keys, not identities. `filter` / `sort` are fetch inputs from here on
+  // (objectstack#7137), and an inline array on a schema node is a NEW object every
+  // render — depending on identity would refetch the whole object on every render.
+  // Same reason `RelatedList` keys its own scope filter on content.
+  const filterKey = JSON.stringify(schema.filter ?? null);
+  const sortKey = JSON.stringify(schema.sort ?? null);
+
   useEffect(() => {
     const fetchData = async () => {
         if (!dataSource || typeof dataSource.find !== 'function' || !schema.objectName) {
@@ -156,8 +196,17 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
         try {
             // Auto-inject $expand for lookup/master_detail fields
             const expand = buildExpandFields(objectDef?.fields);
+            // The authored scope reaches the query (objectstack#7137). Before this,
+            // the fetch was `{ options: { $top: 100 } }` — no `$filter`, no
+            // `$orderby`, and `options` is not a `QueryParams` key, so even the cap
+            // was inert. A `dataSource.view` therefore resolved (a typo still
+            // reported) and then contributed nothing: the rail could be wider than
+            // the view it named. `filter` arrives already AND-composed by
+            // `ElementDataSourceGate`, so there is nothing to merge here.
             const results = await dataSource.find(schema.objectName, {
-                options: { $top: 100 },
+                $filter: schema.filter,
+                $orderby: convertSortToQueryParams(schema.sort),
+                $top: schema.limit ?? DEFAULT_TIMELINE_LIMIT,
                 ...(expand.length > 0 ? { $expand: expand } : {}),
             });
             const data = extractRecords(results);
@@ -176,7 +225,8 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
         // Have inline / bound items — won't fetch; clear loading.
         setLoading(false);
     }
-  }, [schema.objectName, dataSource, boundData, schema.items, (props as any).data, refreshKey, objectDef]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `schema.filter`/`schema.sort` are tracked by CONTENT (filterKey/sortKey) on purpose; see above
+  }, [schema.objectName, dataSource, boundData, schema.items, (props as any).data, refreshKey, objectDef, filterKey, sortKey, schema.limit]);
 
   const rawData = (props as any).data || boundData || fetchedData;
   const { t } = useTimelineTranslation();

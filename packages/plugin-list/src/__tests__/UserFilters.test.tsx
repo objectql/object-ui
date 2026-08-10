@@ -269,3 +269,136 @@ describe('UserFilters — i18n resolver overrides an explicit author label (regr
     expect(screen.getByTestId('filter-badge-project_type').textContent).toContain('项目类型');
   });
 });
+
+describe('UserFilters — every button declares type="button" (objectstack#6952, objectui#3344 family)', () => {
+  // An HTML <button> defaults to `type="submit"` INSIDE a <form>, so an untyped
+  // filter control submits the enclosing form on every click — objectui#3344's
+  // shape, applied to the three UserFilters buttons that predated it.
+  //
+  // The three were NOT equally at risk, and the difference is measured, not
+  // assumed. Reverting the fix leaves the chip (`filter-badge-*`) and the
+  // overflow (`user-filters-more`) triggers reading `type="button"` anyway:
+  // both are `PopoverTrigger asChild` children, and Radix's PopoverTrigger
+  // renders `Primitive.button type="button"`, which its Slot merges onto a
+  // child that declares no `type` of its own. Only the preset tab button is a
+  // plain button — reverting makes it read `null`, i.e. submit. So the fix is
+  // one real (dormant) defect plus two contracts moved from an upstream
+  // implementation detail into local source, exactly the reasoning #3344 wrote
+  // down on the Combobox trigger.
+  //
+  // Dormant, not live: the only mount point today (ListView's toolbar) is not
+  // inside a form. These assertions keep it that way when composition changes,
+  // and they pin the Radix behaviour so an upstream change surfaces here rather
+  // than in a user's form.
+  const noopSubmit = (e: React.FormEvent) => e.preventDefault();
+
+  const tabsConfig = {
+    element: 'tabs' as const,
+    tabs: [
+      { name: 'all', label: 'All', isDefault: true },
+      { name: 'urgent', label: 'Urgent', filter: [{ field: 'priority', operator: 'equals', value: 'urgent' }] },
+    ],
+  };
+
+  // Radix-supplied today; the assertion pins the rendered contract either way.
+  it('dropdown chip trigger declares type="button" and does not submit an enclosing form', () => {
+    const onSubmit = vi.fn(noopSubmit);
+    render(
+      <form onSubmit={onSubmit}>
+        <UserFilters
+          config={{ element: 'dropdown', fields: [{ field: 'status' }] }}
+          objectDef={objectDef}
+          data={[]}
+          onFilterChange={() => {}}
+        />
+      </form>,
+    );
+
+    const chip = screen.getByTestId('filter-badge-status');
+    expect(chip.getAttribute('type')).toBe('button');
+    fireEvent.click(chip);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('the chip clear affordance does not submit the enclosing form either', () => {
+    // The × lives INSIDE the chip button and only stopPropagation()s, which
+    // does not cancel a submit button's activation behaviour — so the chip's
+    // own `type` is what keeps a clear click from submitting.
+    const onSubmit = vi.fn(noopSubmit);
+    render(
+      <form onSubmit={onSubmit}>
+        <UserFilters
+          config={{ element: 'dropdown', fields: [{ field: 'status' }] }}
+          objectDef={objectDef}
+          data={[]}
+          onFilterChange={() => {}}
+          initialSelections={{ status: ['todo'] }}
+        />
+      </form>,
+    );
+
+    fireEvent.click(screen.getByTestId('filter-clear-status'));
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  // Radix-supplied today, like the chip.
+  it('the "More" overflow trigger declares type="button" and does not submit an enclosing form', () => {
+    const onSubmit = vi.fn(noopSubmit);
+    render(
+      <form onSubmit={onSubmit}>
+        <UserFilters
+          config={{ element: 'dropdown', fields: [{ field: 'status' }, { field: 'points' }] }}
+          objectDef={objectDef}
+          data={[]}
+          onFilterChange={() => {}}
+          maxVisible={1}
+        />
+      </form>,
+    );
+
+    const more = screen.getByTestId('user-filters-more');
+    expect(more.getAttribute('type')).toBe('button');
+    fireEvent.click(more);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  // The one that genuinely rendered as submit before this change.
+  it('preset tab buttons declare type="button" and do not submit an enclosing form', () => {
+    const onSubmit = vi.fn(noopSubmit);
+    render(
+      <form onSubmit={onSubmit}>
+        <UserFilters config={tabsConfig} objectDef={objectDef} data={[]} onFilterChange={() => {}} />
+      </form>,
+    );
+
+    const preset = screen.getByTestId('filter-tab-urgent');
+    expect(preset.getAttribute('type')).toBe('button');
+    expect(screen.getByTestId('filter-tab-all').getAttribute('type')).toBe('button');
+    fireEvent.click(preset);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('no rendered UserFilters button is left at the submit default (sweep, both modes)', () => {
+    // A sweep rather than three named checks: a future button added to this
+    // file is caught here without anyone remembering to extend the list.
+    const { container: dropdownContainer } = render(
+      <UserFilters
+        config={{ element: 'dropdown', fields: [{ field: 'status' }, { field: 'points' }] }}
+        objectDef={objectDef}
+        data={[]}
+        onFilterChange={() => {}}
+        maxVisible={1}
+      />,
+    );
+    const dropdownButtons = Array.from(dropdownContainer.querySelectorAll('button'));
+    expect(dropdownButtons.length).toBeGreaterThan(0);
+    expect(dropdownButtons.map(b => b.getAttribute('type'))).toEqual(dropdownButtons.map(() => 'button'));
+
+    const { container: tabsContainer } = render(
+      <UserFilters config={tabsConfig} objectDef={objectDef} data={[]} onFilterChange={() => {}} />,
+    );
+    const tabButtons = Array.from(tabsContainer.querySelectorAll('button'));
+    expect(tabButtons.length).toBeGreaterThan(0);
+    expect(tabButtons.map(b => b.getAttribute('type'))).toEqual(tabButtons.map(() => 'button'));
+  });
+});

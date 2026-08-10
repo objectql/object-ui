@@ -8,7 +8,11 @@
 
 import React, { Suspense } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
-import { useSchemaContext } from '@object-ui/react';
+import {
+  ElementDataSourceGate,
+  useSchemaContext,
+  type ElementDataSourceMapping,
+} from '@object-ui/react';
 import { Skeleton } from '@object-ui/components';
 import { createSafeTranslation } from '@object-ui/i18n';
 import type { KanbanConditionalFormattingRule } from '@object-ui/types';
@@ -355,10 +359,40 @@ ComponentRegistry.register(
   }
 );
 
+/**
+ * What `ObjectKanban` reads for its own query: `objectName` and `filter`
+ * (`ObjectKanban.tsx`, the `dataSource.find` call — `$filter: schema.filter`).
+ *
+ * `columns` is deliberately NOT mapped. A board's `columns` are its SWIMLANES
+ * (`{ id, title }` per `groupBy` value), not a field projection — writing a
+ * saved view's field list there would render a board with one empty lane per
+ * field name. Nor is `sort` or `limit`: the board fetches with a fixed
+ * `$top: 100` and no ordering, so there is no key to write them to. Mapping
+ * either onto something plausible would re-create the defect this wiring
+ * removes — a value accepted and dropped — one layer deeper.
+ */
+const OBJECT_KANBAN_DATA_SOURCE: ElementDataSourceMapping = {
+  filter: true,
+};
+
 // Register object-kanban for ListView integration
 export const ObjectKanbanRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
   const { dataSource } = useSchemaContext() || {};
-  return <ObjectKanban schema={schema} dataSource={dataSource} {...props} />;
+  // The spec's `PageComponentSchema.dataSource` binding (objectstack#6953):
+  // before this, a board authored with `dataSource: { object, view }` and no
+  // `objectName` never fetched — the effect is gated on `schema.objectName` —
+  // so it rendered its declared lanes with no cards and no error.
+  return (
+    <ElementDataSourceGate
+      schema={schema}
+      mapping={OBJECT_KANBAN_DATA_SOURCE}
+      dataSource={dataSource}
+      testId="object-kanban"
+      errorTitle="This board’s data source could not be resolved"
+    >
+      {(bound) => <ObjectKanban schema={bound} dataSource={dataSource} {...props} />}
+    </ElementDataSourceGate>
+  );
 };
 
 ComponentRegistry.register(

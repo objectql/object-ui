@@ -19,6 +19,50 @@ import { LayoutRenderer } from './LayoutRenderer';
 import { LocalBundleLoader, NetworkLoader, MetadataLoader } from './lib/MetadataLoader';
 
 /**
+ * Build the URL an in-app navigation to `to` should push, carrying the query
+ * string that is currently in the address bar along with it (objectui#3578).
+ *
+ * The Runner keeps addressable state (ADR-0054 C3) in the query string, and
+ * more than one kind of it: `?api=<base>` selects the metadata loader below,
+ * and `@object-ui/core`'s `?__debug…` flags are read straight off
+ * `window.location.search` by the tree this app renders. Preserving the whole
+ * string rather than re-emitting a single known parameter keeps both working —
+ * and keeps working for whatever else starts reading the query later.
+ *
+ * `to` normally is a bare path from the app's navigation metadata, in which
+ * case the current query string is carried over verbatim (no re-encoding, so
+ * the address bar keeps exactly what the user typed). A target that declares
+ * its own query keeps it and wins on collision; the remaining current
+ * parameters are merged in behind it, so the result is never the malformed
+ * `path?a=1?b=2` that plain concatenation would produce. That merge rebuilds
+ * the query through `URLSearchParams`, so values come out canonically
+ * percent-encoded — the same parameters, spelled the standard way.
+ */
+function withPreservedQuery(to: string, currentSearch: string): string {
+  if (!currentSearch || currentSearch === '?') return to;
+
+  const hashIndex = to.indexOf('#');
+  const hash = hashIndex === -1 ? '' : to.slice(hashIndex);
+  const pathAndQuery = hashIndex === -1 ? to : to.slice(0, hashIndex);
+  const queryIndex = pathAndQuery.indexOf('?');
+
+  if (queryIndex === -1) {
+    const search = currentSearch.startsWith('?') ? currentSearch : `?${currentSearch}`;
+    return `${pathAndQuery}${search}${hash}`;
+  }
+
+  const merged = new URLSearchParams(pathAndQuery.slice(queryIndex + 1));
+  // Snapshot the target's own keys first: appending while testing `merged.has`
+  // would swallow the second value of a repeated preserved parameter.
+  const ownKeys = new Set(merged.keys());
+  for (const [key, value] of new URLSearchParams(currentSearch)) {
+    if (!ownKeys.has(key)) merged.append(key, value);
+  }
+  const search = merged.toString();
+  return `${pathAndQuery.slice(0, queryIndex)}${search ? `?${search}` : ''}${hash}`;
+}
+
+/**
  * Root component of the standalone SDUI runner: loads an app config plus the
  * page for the current path and hands both to `<SchemaRenderer>`.
  *
@@ -71,7 +115,9 @@ export default function RunnerApp() {
 
   // --- 2. Route Handling ---
   const handleNavigate = useCallback((to: string) => {
-    window.history.pushState({}, '', to);
+    // The route is `to`; the query string rides along so that reloading or
+    // sharing the resulting URL still resolves the same backend (#3578).
+    window.history.pushState({}, '', withPreservedQuery(to, window.location.search));
     setCurrentPath(to);
     window.scrollTo(0, 0);
   }, []);

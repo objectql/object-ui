@@ -1,7 +1,16 @@
 {
-  "type": "datetime",
-  "name": "created_at",
-  "label": "Created At",
-  "value": "2024-03-15T10:30",
-  "readonly": true
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "defaultValues": {
+    "created_at": "2024-03-15T10:30"
+  },
+  "fields": [
+    {
+      "name": "created_at",
+      "label": "Created At",
+      "type": "datetime",
+      "readonly": true
+    }
+  ]
 }

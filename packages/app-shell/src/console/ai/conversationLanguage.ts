@@ -2,9 +2,15 @@
 //
 // The language an AI CONVERSATION is being held in — distinct from the console
 // UI locale. A user chatting in Chinese under an English console must get
-// Chinese canned messages, progress labels and confirm-card send text, not
-// have English spliced into their thread (cloud#772). The conversation's own
-// language wins; the UI locale is the fallback until a thread establishes one.
+// Chinese canned messages and confirm-card SEND text, not have English spliced
+// into their thread (cloud#772). The conversation's own language wins; the UI
+// locale is the fallback until a thread establishes one.
+//
+// Scope, narrowly: this probe governs text that LEAVES the console for the
+// agent. It does not govern anything RENDERED — labels, badges and progress
+// chips follow the UI locale like the rest of the console, which is where every
+// pack's translation of them becomes reachable (objectui#3837 removed the one
+// label that had drifted in here).
 
 /** A message shape both the floating panel and the full-page chat can supply. */
 interface LangProbeMessage {

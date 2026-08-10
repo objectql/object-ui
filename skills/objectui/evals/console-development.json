@@ -3,17 +3,20 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "I need to add a new 'Workflow' metadata type to the console admin panel. It should show in the system hub, have a list page with name/status/trigger columns, and a create dialog with name and trigger object fields.",
-      "expected_output": "Provides MetadataTypeRegistry configuration with columns, formFields, icon. Shows where to add the registration and how it automatically appears in SystemHubPage and MetadataManagerPage.",
+      "prompt": "I need to add a new 'Workflow' metadata type to the console admin panel. It should be reachable from the admin navigation, list items with name/status/trigger-object columns, and ask for name plus trigger object when creating one.",
+      "expected_output": "Explains that the metadata-admin engine already delivers list/create/edit/history once the type exists in the framework's spec and type registry, so the UI-side work is an optional registerMetadataResource() override supplying listColumns and createFields. Points at packages/app-shell/src/views/metadata-admin/registry.ts, and reaches the surface through the app's navigation rather than a bespoke card or page.",
       "files": [],
       "assertions": {
         "must_contain": [
-          "MetadataTypeRegistry",
-          "columns",
-          "formFields",
-          "SystemHubPage"
+          "registerMetadataResource",
+          "listColumns",
+          "createFields",
+          "metadata-admin",
+          "navigation"
         ],
         "must_not_contain": [
+          "registerMetadataType",
+          "pageSchemaFactory",
           "new standalone page",
           "/system/objects"
         ]
@@ -22,16 +25,18 @@
     {
       "id": 2,
       "prompt": "I want to create a custom detail page for the 'workflow' metadata type that has tabs for Settings, Steps, and History, similar to how object detail pages work.",
-      "expected_output": "Provides pageSchemaFactory function, custom widget components for each tab, registerWidgets file, and MetadataTypeRegistry wiring with pageSchemaFactory.",
+      "expected_output": "Provides a PageSchema factory, self-contained widget components for each tab registered in ComponentRegistry, and an EditPage component that renders the factory's schema through SchemaRenderer — wired to the type by registerMetadataResource({ type: 'workflow', EditPage }). Mirrors apps/console/src/schemas/objectDetailPageSchema.ts plus components/schema/registerObjectDetailWidgets.ts.",
       "files": [],
       "assertions": {
         "must_contain": [
-          "pageSchemaFactory",
-          "registerWidgets",
-          "MetadataDetailPage",
-          "tabs"
+          "ComponentRegistry",
+          "SchemaRenderer",
+          "EditPage",
+          "registerMetadataResource"
         ],
-        "must_not_contain": []
+        "must_not_contain": [
+          "pageSchemaFactory"
+        ]
       }
     },
     {

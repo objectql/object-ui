@@ -78,10 +78,18 @@ describe('ObjectStackAdapter.onMutation', () => {
   });
 
   it('emits a delete event only when the server confirms deletion', async () => {
+    // `success`, not `deleted` (objectstack#5638). This mock is why the bug it
+    // fixed was invisible here: `DeleteDataResult` DECLARED a `deleted` key that
+    // no schema has ever declared and no server path has ever returned, and this
+    // fixture faithfully reproduced the declaration rather than the wire. So the
+    // adapter read `result.deleted`, got `undefined` against a real server —
+    // emitting no event and resolving `undefined` from a `Promise<boolean>` —
+    // while this test stayed green against the fiction. Pinning the shape the
+    // server actually sends is what makes the assertion mean anything.
     const del = vi
       .fn()
-      .mockResolvedValueOnce({ deleted: true })
-      .mockResolvedValueOnce({ deleted: false });
+      .mockResolvedValueOnce({ object: 'showcase_project', id: 'r1', success: true })
+      .mockResolvedValueOnce({ object: 'showcase_project', id: 'r2', success: false });
     const ds = makeDS({ delete: del });
     const events: DataSourceMutationEvent[] = [];
     ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
@@ -92,6 +100,25 @@ describe('ObjectStackAdapter.onMutation', () => {
     expect(events).toEqual([
       { type: 'delete', resource: 'showcase_project', id: 'r1' },
     ]);
+  });
+
+  // REVERSE PIN for objectui#3412 / objectstack#5638. The bug was not that the
+  // guard was missing — it was that the guard read a key the wire never carries,
+  // so it was dead while looking alive. A response spelling the old `deleted`
+  // must therefore emit NOTHING: if someone re-introduces a tolerant
+  // `result.success ?? result.deleted` read, this goes red. Reading both keys is
+  // exactly what contract-first forbids (AGENTS.md #0.1) and what objectstack#5638's
+  // own triage ruled out — the producer has one shape, so the consumer gets one.
+  it('emits nothing for a response carrying the retired `deleted` key', async () => {
+    const del = vi.fn().mockResolvedValue({ object: 'showcase_project', id: 'r1', deleted: true });
+    const ds = makeDS({ delete: del });
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
+
+    const returned = await ds.delete('showcase_project', 'r1');
+
+    expect(events).toEqual([]);
+    expect(returned).toBeUndefined();
   });
 
   it('emits a single bulk event per bulkUpdate call (not per id)', async () => {

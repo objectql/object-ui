@@ -131,6 +131,17 @@ ComponentRegistry.register('text_input', ElementTextInputRenderer, {
   skipFallback: true,
   label: 'Text Input',
   category: 'input',
+  // `defaultValue` is DECLARED, not merely honoured (objectui#3808). The
+  // renderer has read it since the seeding effect landed, and the spec declares
+  // it (`ElementTextInputProps.defaultValue`, `string | number`) — but while it
+  // was missing from this list an author could not discover it, and every layer
+  // that reads a manifest said the opposite: `page.tsx`'s JSX-page compiler
+  // builds its prop whitelist from `getKnownTypes()` + these `inputs`, so
+  // `<element-text-input defaultValue="acme">` came back as an `unknown-prop`
+  // warning on a key the renderer then went on to honour. That is objectui#3407
+  // in the same shape as `readonly` — enforced, undiscoverable — and the
+  // reverse half of the parity gate in
+  // `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts`.
   inputs: [
     { name: 'label', type: 'string', label: 'Label' },
     { name: 'placeholder', type: 'string', label: 'Placeholder' },
@@ -140,6 +151,30 @@ ComponentRegistry.register('text_input', ElementTextInputRenderer, {
       label: 'Type',
       enum: ['text', 'email', 'number', 'tel', 'url', 'password'],
       defaultValue: 'text',
+    },
+    {
+      name: 'defaultValue',
+      // The spec's type is the union `string | number`, which `ComponentInput`
+      // has no way to spell — its `type` is one coarse control kind. `'string'`
+      // is the arm chosen here (a text input's ordinary case, and the DOM value
+      // is `String(...)`-coerced anyway) and the number arm is named in the
+      // description, following the same call made for the inline-translation
+      // shapes on `page:header.title` / `record:alert.title`. It is a real
+      // narrowing, not a free choice: `sdui-parser`'s `checkType` warns
+      // `type-mismatch` on `defaultValue={42}`, a value the spec accepts. The
+      // limit is `ComponentInput`'s, tracked separately — it is the union twin
+      // of the member-shape limit PR #3795 left open.
+      type: 'string',
+      label: 'Default Value',
+      // Description taken from what the renderer DOES with the key (the seeding
+      // effect above, and the native `defaultValue` pass-through at the
+      // `<Input>`), not from restating the spec's one-liner — the two
+      // behaviours differ depending on whether a page variable targets this
+      // input, and an author who only knew "initial value" would not know which
+      // one they get. No `defaultValue` on this entry: the value IS the default,
+      // so a default-for-the-default would be meaningless.
+      description:
+        'Initial value (string or number). With a page variable bound to this input — a variable whose `source` is this component id — it is pushed into that variable ONCE on mount, and only while the variable is still empty, so `page.<var>` and the submit body carry it before the user types; a variable that declares its own defaultValue wins. With no bound variable it becomes the native input\'s uncontrolled initial value and nothing else reads it.',
     },
     { name: 'required', type: 'boolean', label: 'Required' },
     { name: 'disabled', type: 'boolean', label: 'Disabled' },

@@ -243,11 +243,56 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
   label: 'Record Details',
   icon: 'FileText',
   // Designer inputs mirror @objectstack/spec RecordDetailsProps (component.zod).
+  //
+  // `sections` publishes its ENTRY shape in prose, derived from the spec's own
+  // `.describe()` on each member key — `ComponentInput` is flat by design and
+  // has no slot for a member shape, so an array-of-objects input can only
+  // document its elements here (same as `record:highlights.fields`,
+  // `record:path.stages`, `record:alert.action`). It says "object, not string"
+  // out loud because the string spelling is exactly what this text used to
+  // teach: until 17.x the spec declared `sections: z.array(z.string())` and
+  // this description read "Section IDs to show". objectstack#5611 deleted that
+  // arm rather than unioning it in (no producer, no consumer — one shape, not
+  // two de-facto contracts), and nothing in the four layers between the
+  // manifest and the screen reports a leftover ID list: the manifest gate
+  // checks top-level prop names and coarse types only (`['a','b']` is a valid
+  // `array`), `validateComponentProps` upstream is advisory, and
+  // `RecordDetailsRenderer` maps every entry as an object (`s.name` /
+  // `s.label` / `s.fields`), so a string entry contributes no fields at all.
+  // With `layout: 'custom'` sections are the ONLY source of the body, so the
+  // author who trusted the old text got a blank detail page. objectui#3807.
+  //
+  // Documented member keys are exactly the spec's four (`name`, `label`,
+  // `columns`, `fields`) — deliberately NOT the extras `RecordDetailsRenderer`
+  // also honours on a section (`title`, `showBorder`, `hideEmpty`). Those are
+  // undeclared upstream, so the spec's section object STRIPS them on parse:
+  // publishing them here would advertise keys the contract throws away, the
+  // same trap as declaring a top-level `readonly` on `record:highlights`
+  // below. The renderer tolerating them is not a licence to teach them.
   inputs: [
     { name: 'columns', type: 'enum', label: 'Columns', enum: ['1', '2', '3', '4'], defaultValue: '2', description: 'Number of columns for field layout (1-4)' },
     { name: 'layout', type: 'enum', label: 'Layout', enum: ['auto', 'custom'], defaultValue: 'auto', description: 'auto uses the object highlightFields; custom uses explicit sections' },
-    { name: 'sections', type: 'array', label: 'Sections', description: 'Section IDs to show (required when layout is "custom")' },
+    { name: 'sections', type: 'array', label: 'Sections', description: 'Field groups rendered as the detail body, in order. Every entry is an OBJECT — `{ name?, label?, columns?, fields }` — a bare section-id string is NOT accepted (the spec retired that spelling in objectstack#5611, and the renderer reads name/label/fields off each entry, so a string entry renders no fields at all). `fields` (required) are the field names shown in this section, in order. `label` is the section heading; omit it for an untitled, borderless section. `name` is a stable snake_case identifier and the i18n anchor — the heading resolves through objects.<object>._sections.<name>.label, so a section without a name shows its authored label in every locale. `columns` (1-4) is THIS section\'s field-grid width; omit it and the renderer derives the width. Required when layout is "custom", where sections are the only source of the detail body.' },
     { name: 'fields', type: 'array', label: 'Fields', description: 'Explicit field list (overrides highlightFields)' },
+    // `hideFields` is DECLARED, not merely honoured (objectui#3808). The spec
+    // declares it (objectstack#5611) and `RecordDetailsRenderer` has read it
+    // since the highlight-dedup phase (`renderers/record-details.tsx:147`), but
+    // it was missing here — so an author reading the manifest could not
+    // discover it, and every layer that reads the manifest said the opposite:
+    // `sdui.manifest.json` / `sdui-intrinsics.d.ts` omitted it and
+    // `sdui-parser`'s prop walk reported `unknown-prop` on a key the renderer
+    // then honoured. Same failure as `readonly` in objectui#3407.
+    //
+    // Bare field NAMES only. The renderer also tolerates `{name}` / `{field}`
+    // entries (`typeof n === 'string' ? n : fieldName(n)` at the read site), but
+    // `hideFields` is `z.array(z.string())` in the spec and rejects those values
+    // on parse — teaching them here would publish a second dialect the contract
+    // refuses, the same fence `fields` above is held to.
+    //
+    // The "hiding every field drops the section" sentence is read off
+    // `DetailSection.tsx:439` (`visibleFields.length === 0 &&
+    // emptyCount === section.fields.length` returns null), not assumed.
+    { name: 'hideFields', type: 'array', label: 'Hide Fields', description: 'Field names to omit from the body — applied to the top-level `fields` list AND to every section\'s `fields`. Bare field names only. Authors rarely need it: the synth pipeline fills it with the fields already shown in `record:highlights`, and hand-authored pages get the same dedup live from HighlightFieldsContext, so its purpose is suppressing a field you do not want repeated (the page H1 title field is dropped for you too). Hiding every field of a section leaves that section out entirely.' },
   ],
 });
 
@@ -258,16 +303,58 @@ ComponentRegistry.register('related_list', RecordRelatedListRenderer, {
   label: 'Related List',
   icon: 'List',
   // Mirrors @objectstack/spec RecordRelatedListProps.
+  //
+  // `relationshipValueField` and `add` are DECLARED, not merely honoured
+  // (objectui#3808). Both are spec keys this renderer has read all along —
+  // `renderers/record-related-list.tsx:95` and `:186` — while `inputs` omitted
+  // them, so the published surface and the runtime disagreed in the direction
+  // nothing reports: `sdui.manifest.json` / `sdui-intrinsics.d.ts` never
+  // mentioned them, `sdui-parser`'s prop walk raised `unknown-prop` on an
+  // author who wrote one anyway, and the renderer honoured it regardless. `add`
+  // in particular is not cosmetic — without it declared, the ONLY published way
+  // to build a junction-assignment list was to write an undiscoverable key.
   inputs: [
     { name: 'objectName', type: 'string', label: 'Related Object', required: true, description: 'Related object name (e.g. "task")' },
     { name: 'relationshipField', type: 'string', label: 'Relationship Field', required: true, description: 'Field on the related object pointing back to this record' },
+    { name: 'relationshipValueField', type: 'string', label: 'Relationship Value Field', defaultValue: 'id', description: 'Which field OF THIS PARENT record `relationshipField` stores. Defaults to "id"; set it to the field a name-keyed junction points at (e.g. "name" when sys_user_position.position holds sys_position.name). The resolved value drives three things at once — the list filter, the Add-picker link value, and the pre-filled create form — so they cannot drift apart. While the parent record is still loading, a non-"id" field resolves to null and the list holds its fetch rather than querying on an empty value.' },
     { name: 'columns', type: 'array', label: 'Columns', required: true, description: 'Fields to display in the related list' },
     { name: 'sort', type: 'array', label: 'Sort' },
     { name: 'limit', type: 'number', label: 'Limit', defaultValue: 5, description: 'Records to display initially' },
-    { name: 'filter', type: 'array', label: 'Filter', description: 'Additional filter criteria' },
+    // `type: 'array'` matches the spec (`RecordRelatedListProps.filter` is
+    // `z.array(ViewFilterRuleSchema)`), and the description now names the MEMBER
+    // shape for the reason `add`'s does: `ComponentInput` is flat, so an array
+    // input can document its element vocabulary nowhere else — and this key is
+    // one an AI author reaches for often. It also states the combining rule,
+    // which is the part a wrong guess makes dangerous rather than merely broken:
+    // an author who reads "filter" as "the list's whole filter" would expect it
+    // to be able to widen past the parent record, and it cannot (objectstack#7118).
+    { name: 'filter', type: 'array', label: 'Filter', description: 'Additional filter criteria, as spec `ViewFilterRule` entries (`[{ field, operator, value }]`). AND-combined with the parent relationship condition, never a replacement for it: it can only narrow this record\'s children. Also the key a per-element `dataSource` binding\'s composed filter lands on.' },
     { name: 'title', type: 'string', label: 'Title' },
     { name: 'showViewAll', type: 'boolean', label: 'Show "View All"', defaultValue: true },
     { name: 'actions', type: 'array', label: 'Actions', description: 'Action IDs available for related records' },
+    // `add` publishes its MEMBER shape in prose for the reason the sibling
+    // array-of-objects inputs do (`record:details.sections`,
+    // `record:highlights.fields`, `record:path.stages`): `ComponentInput` is flat
+    // by design and has no slot for a member shape, so an `object` input can
+    // only document its members here.
+    //
+    // Documented members are exactly the spec's — `picker.object`,
+    // `picker.valueField`, `picker.labelField`, `linkField`, `label` — with each
+    // default taken from the RENDERER, which is where an author's expectation
+    // gets settled: `RelatedList.tsx:724` defaults `picker.valueField` to `id`
+    // (matching the spec's own default) but `:390` defaults `picker.labelField`
+    // to `name`, NOT to the object's title field as the spec's `.describe()`
+    // says. Publishing the spec's wording there would have been a description
+    // the platform does not honour.
+    //
+    // `picker.filter` IS documented as working since #3831 wired it: it reaches
+    // `RecordPickerDialog`'s `baseFilter` verbatim (`RelatedList.tsx`, at the
+    // dialog mount), which is the un-editable slot — not `lookupFilters`, whose
+    // entries become filter-bar rows the user can widen back out. It carried a
+    // KNOWN GAP sentence here until then, on the
+    // `record:activity.showSubscriptionToggle` precedent; the sentence went away
+    // with the gap, not before it.
+    { name: 'add', type: 'object', label: 'Add Existing', description: 'Adds an "Add" button that assigns EXISTING records instead of creating one — the m2m/junction case. Shape: `{ picker: { object, valueField?, labelField?, filter? }, linkField?, label? }`. `picker.object` (required) is the object whose records the dialog offers. `picker.valueField` is the field of the picked record used as the link value (default "id"); `picker.labelField` is the column shown in the picker rows (default "name", and the other columns are derived from that object\'s schema). With `linkField` set, selecting records CREATES rows in this list\'s own object as `{ [relationshipField]: parentValue, [linkField]: pickedId }` — the junction case; omit `linkField` and the picked child is RE-PARENTED instead, by setting its own `relationshipField` to this parent. `label` is the button text (default "Add", localizable inline). Setting `add` also enables generic link removal on rows when no host delete handler is wired. `picker.filter` restricts which records the dialog offers — a list of `{ field, operator, value }` rules in the same vocabulary as this list\'s own `filter`, applied as a hard constraint the user cannot widen (it never appears as an editable filter row).' },
   ],
 });
 
@@ -278,8 +365,26 @@ ComponentRegistry.register('highlights', RecordHighlightsRenderer, {
   label: 'Highlights Panel',
   icon: 'Star',
   // Mirrors @objectstack/spec RecordHighlightsProps.
+  //
+  // `readonly` is documented INSIDE the `fields` description, not declared as
+  // an input of its own, because that is where the contract puts it: the spec's
+  // `RecordHighlightsField` carries `readonly` on each ENTRY, while
+  // `RecordHighlightsProps` has exactly three top-level keys (fields, layout,
+  // aria). A top-level `{ name: 'readonly', type: 'boolean' }` here would look
+  // like the fix for "the manifest never mentions readonly" and would instead
+  // publish a key the platform silently discards: the generated
+  // `sdui.manifest.json` and `sdui-intrinsics.d.ts` would advertise
+  // `<RecordHighlights readonly>`, the manifest gate validates top-level props
+  // only and would raise no diagnostic, the spec strips the unknown key on
+  // parse without error, and the renderer — which reads `field.readonly` per
+  // entry — would never see it. An author who trusted that surface would be
+  // left with the machine-owned column still hand-editable and nothing
+  // anywhere saying why. `ComponentInput` is flat by design (`name` = "must
+  // match schema property"), so an array-of-objects input publishes its member
+  // keys in prose, the same way `record:path.stages` and `record:alert.action`
+  // do. objectui#3407 / objectstack#5176.
   inputs: [
-    { name: 'fields', type: 'array', label: 'Fields', required: true, description: 'Key fields to highlight (1-7), bare names or {name,label?,icon?,type?}' },
+    { name: 'fields', type: 'array', label: 'Fields', required: true, description: 'Key fields to highlight (1-7), bare names or {name,label?,icon?,type?,readonly?}. Set readonly: true on an entry to render that chip read-only — it suppresses the inline-edit affordance and the HeaderHighlight editability gate enforces it. Use it for hook/automation-maintained columns that must not be hand-edited from the record header; marking the OBJECT field readonly instead would also strip the hook\'s own write-back.' },
     { name: 'layout', type: 'enum', label: 'Layout', enum: ['horizontal', 'vertical'], defaultValue: 'horizontal', description: 'Layout orientation for highlight fields' },
   ],
 });

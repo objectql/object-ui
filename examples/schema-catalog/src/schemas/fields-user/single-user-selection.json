@@ -1,5 +1,12 @@
 {
-  "type": "user",
-  "name": "assigned_to",
-  "label": "Assigned To"
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "assigned_to",
+      "label": "Assigned To",
+      "type": "user"
+    }
+  ]
 }

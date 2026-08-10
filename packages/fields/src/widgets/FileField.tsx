@@ -5,6 +5,7 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import { Upload, X, File as FileIcon, ImageIcon, Camera, Loader2 } from 'lucide-react';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
+import { toHostGroupProps } from './toHostGroupProps';
 import { useUploadingSignal } from './useUploadingSignal';
 import {
   fileValueForSubmit,
@@ -184,10 +185,18 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
   }, [accept, processFiles]);
 
   if (readonly) {
-    if (!value) return <EmptyValue />;
+    // Readonly there is no dropzone: the field's whole rendered surface is the
+    // list of file names, so THAT is what the host's group label names
+    // (objectui#3990). The role is therefore `group` here and `button` (the
+    // dropzone) while editable — the same widget, two different surfaces. See
+    // `toHostGroupProps`; `EmptyValue`'s own `aria-label` ("No value") is
+    // outranked by `aria-labelledby` per accname, and on the `generic` role that
+    // placeholder span carries it was never exposed as a name anyway.
+    const hostGroupProps = toHostGroupProps(props);
+    if (!value) return <EmptyValue {...hostGroupProps} />;
 
     return (
-      <div className="flex flex-wrap gap-2">
+      <div {...hostGroupProps} className="flex flex-wrap gap-2">
         {views.map((file, idx) => (
           <span key={idx} className="text-sm truncate max-w-xs">
             {file.name}
@@ -240,7 +249,17 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
             keyboard path to the hidden file input), so the DOM pass-through
             and the validation state land here (objectui#3318). `name` is
             withheld: only DOM-legal on form controls, and on this div it is
-            exactly the leak #3291 sweeps for. */}
+            exactly the leak #3291 sweeps for.
+
+            It also carries the host's label. This widget is declared
+            `labelling: 'group'` (objectui#3961) NOT because it is composite — it
+            has exactly one control — but because that one control is a
+            `div[role="button"]`, which no `<label for>` can reach. So the form
+            renderer names it by IDREF instead, and `aria-labelledby` arrives in
+            the same whitelist spread (`toDomProps` forwards the whole `aria-`
+            family). Deliberately no extra `role="group"` wrapper: there is no
+            group here, and adding one would announce a container that holds a
+            single button. */}
         <div
           {...dropzoneDomProps}
           onDragOver={handleDragOver}

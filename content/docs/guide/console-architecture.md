@@ -18,10 +18,12 @@ from a path.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  objectstack.config.ts                                  │
-│  (defineStack → apps, objects, views)                   │
+│  ObjectStack server  (owns apps, objects, views)        │
+│  • metadata is authored and stored server-side          │
+│  • the console reads it over HTTP — it has no local     │
+│    metadata file of its own                             │
 └────────────────────┬────────────────────────────────────┘
-                     │ ObjectStack server  (HTTP, VITE_SERVER_URL)
+                     │ HTTP  (base URL from VITE_SERVER_URL)
                      ▼
 ┌─────────────────────────────────────────────────────────┐
 │  ObjectStackAdapter  (@object-ui/data-objectstack)      │
@@ -52,14 +54,49 @@ from a path.
 └─────────────────────────────────────────────────────────┘
 ```
 
+### What the console boots from
+
+The console has **no metadata file of its own** — nothing in `apps/console` declares apps,
+objects or views. Everything above the adapter is fetched. Its entire local configuration is
+one build-time Vite variable:
+
+- **`VITE_SERVER_URL`** — the only setting that picks a backend. It seeds both the adapter's
+  `baseUrl` and the runtime-config fetch. Empty means same origin, which is what a server that
+  serves the console itself wants.
+- **Server-pushed runtime config** — before React mounts, the entry point resolves
+  `/api/v1/runtime/config` (branding, feature flags, cloud URL) through `@object-ui/app-shell`,
+  so first paint already shows operator branding instead of the static defaults.
+- **Discovery + metadata** — `AdapterProvider` (`@object-ui/app-shell`) constructs the
+  `ObjectStackAdapter`, `connect()`s it (one `/api/v1/discovery` probe, cached per base URL),
+  and the metadata provider pulls apps, objects and views from the server's metadata API on
+  demand.
+
+Apps and objects **are** authored declaratively — but in the ObjectStack **server** project
+(`objectstack.config.ts` there, or through Studio), not in this repo. The console is a pure
+consumer of whatever that server publishes; see
+[ObjectOS Integration](/docs/guide/objectos-integration) for the server-side shape.
+
 ## Routing
 
 Routing is React Router DOM v7. `apps/console` mounts the per-app subtree at
 `/apps/:appName/*`; the routes below are declared inside it by the console shell
 (`@object-ui/app-shell`). Every component in the table is exported by `@object-ui/app-shell`,
 except `CreateAppPage` / `EditAppPage`, which are lazy-loaded from `@object-ui/plugin-designer`.
-These are the object-facing routes — the shell declares more (record create/edit, the metadata
-admin subtree), and `apps/console` adds the unauthenticated auth surfaces outside this subtree.
+
+**The table below is a curated subset, not an inventory.** It covers the object-facing routes
+— the ones you need to understand how metadata becomes a page. The real tree is several times
+larger and is declared in exactly two places, which are the source of truth when you need the
+full list:
+
+- the **console's own route tree** (`apps/console`) — the unauthenticated auth surfaces
+  (login, register, password reset, verify-email, setup, OAuth consent, invitations), plus
+  home, Studio, AI, organizations, docs and the shared/public record pages;
+- the **shell's app-content route tree** (`@object-ui/app-shell`) — everything under
+  `/apps/:appName/*`: record create and edit, dashboards, pages, reports, search, the
+  marketplace, and the whole metadata-admin subtree.
+
+Read those two route trees in the source rather than trusting a hand-copied table to stay
+current.
 
 | Route Pattern | Component | Purpose |
 |---------------|-----------|---------|
@@ -126,10 +163,20 @@ routes.
 - **Create App** — `CreateAppPage` at `/apps/:appName/create-app`. Passes metadata objects as `availableObjects`, handles `onComplete` (converts draft via `wizardDraftToAppSchema()`, navigates to new app), `onCancel` (navigate back), and `onSaveDraft` (localStorage persistence).
 - **Edit App** — `EditAppPage` at `/apps/:appName/edit-app/:editAppName`. Loads existing app config as `initialDraft` and updates on completion.
 
-**Entry Points:**
-- Sidebar app switcher → "Add App" / "Edit App" buttons
-- CommandPalette (⌘+K) → "Create New App" command in Actions group
-- Empty state CTA → "Create Your First App" button when no apps are configured
+**How users get there.** Manual app creation is **deprecated in favour of the AI-first
+builder**, and the menu entries that used to launch it are gone. Today:
+
+- **Build with AI** — the primary path. The console home (`/home`) offers it whenever the
+  server reports a deployed build agent, and it opens the AI build surface rather than the
+  4-step wizard.
+- **Studio** — the authoring surface for a package and the apps inside it (`/studio`, and the
+  design surface per package). This is where app structure is edited by hand now.
+- **The wizard routes themselves** — `create-app` / `edit-app/:editAppName` stay mounted and
+  reachable as direct (legacy) deep links, which is why the pages above still ship.
+
+Do not re-document the old sidebar / command-palette entries: the "Add App" and "Edit App"
+items exist only in `AppSidebar`, which the console no longer mounts (`ConsoleLayout` renders
+`UnifiedSidebar`), and the command palette never registered a create-app command.
 
 ### 5. Branding
 

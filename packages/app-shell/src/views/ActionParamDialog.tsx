@@ -32,7 +32,7 @@ import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ActionParamDef } from '@object-ui/core';
 import { ExpressionEvaluator } from '@object-ui/core';
 import { usePredicateScope } from '@object-ui/react';
-import { getLazyFieldWidget, fileIdOf, toDateTimeInputValue } from '@object-ui/fields';
+import { getLazyFieldWidget, fileIdOf } from '@object-ui/fields';
 import { paramToField } from '../utils/paramToField';
 
 export interface ParamDialogState {
@@ -85,43 +85,49 @@ export function filterVisibleParams(
  * returned as-is. Pure + exported so the mapping is unit-testable without the
  * dialog render tree.
  *
- * `datetime` params are converted back to the control's zone-less local wall
- * clock (`YYYY-MM-DDTHH:mm`) — the shape this endpoint contract pins (#2714).
- * `DateTimeField` is ISO-canonical on both sides since objectui#3127: it has to
- * be, because a record's stored value arrives as an ISO instant and the control
- * silently rejects that shape, so read and write must share one basis or a
- * UTC+8 user picking 08:33 would store `08:33Z`. Action params have no stored
- * value to read, so that widget-level basis is invisible here — but its ISO
- * output would still reach endpoints that were built against the naive string.
- * Converting at this boundary keeps the widget coherent AND the wire shape
- * byte-identical; moving action params onto ISO is a contract change of its own
- * and belongs in its own ticket, not in a display-bug fix.
+ * `datetime` params pass through here untouched, and that is the fix for
+ * objectstack#5061 — the previous version of this function converted them back
+ * to the control's zone-less local wall clock (`YYYY-MM-DDTHH:mm`), which is
+ * the one shape the platform's `datetime` value contract REJECTS. Since 17.0
+ * the dispatcher validates a params bag against the action's declaration before
+ * the handler runs (ADR-0104 D2, `validateActionParams` →
+ * `InstantValueSchema`), and that contract is an ISO-8601 instant with an
+ * explicit zone. A zone-less wall clock earned a 400 on every UI submission, so
+ * no value a user could pick could pass: the renderer and the validator wanted
+ * disjoint shapes.
+ *
+ * No conversion is needed at this boundary, because `DateTimeField` is already
+ * ISO-canonical on both sides (objectui#3127/#3565): it takes the record's ISO
+ * instant in, and hands an ISO instant back out — seconds and milliseconds
+ * included, zone explicit. #3565 added the back-conversion to keep the wire
+ * shape byte-identical while it fixed a display bug, and said so: moving action
+ * params onto ISO is a contract change of its own. objectstack#5061 is that
+ * change, and it only removes the conversion — every param value the dialog can
+ * hold is already zoned (widget output, or a `defaultFromRow` seed read from a
+ * stored instant). Deliberately NOT normalized here: an authored
+ * `defaultValue` written as a zone-less wall clock. That value is ambiguous
+ * metadata (whose zone?), the spec types it `unknown` so nothing rejects it at
+ * authoring time yet, and coercing it in the renderer would make it "work" in
+ * the UI while the identical literal still 400s from REST/MCP — the worst split
+ * to debug. It stays loud until the spec validates a param default against the
+ * param's own value contract (objectstack#6970).
  */
 export function serializeParamValues(
   params: ActionParamDef[],
   values: Record<string, any>,
 ): Record<string, any> {
   const uploadNames = new Set<string>();
-  const datetimeNames = new Set<string>();
   for (const p of params) {
     const t = paramToField(p).type;
     if (t === 'file' || t === 'image') uploadNames.add(p.name);
-    else if (t === 'datetime') datetimeNames.add(p.name);
   }
-  if (uploadNames.size === 0 && datetimeNames.size === 0) return values;
+  if (uploadNames.size === 0) return values;
   const toId = (item: any) => fileIdOf(item) ?? item;
   const out: Record<string, any> = { ...values };
   for (const name of uploadNames) {
     const v = out[name];
     if (v == null) continue;
     out[name] = Array.isArray(v) ? v.map(toId) : toId(v);
-  }
-  for (const name of datetimeNames) {
-    const v = out[name];
-    if (v == null || v === '') continue;
-    // An unconvertible value is left intact rather than blanked — the same
-    // failure-visible rule the upload branch above follows.
-    out[name] = toDateTimeInputValue(v) || v;
   }
   return out;
 }
@@ -250,6 +256,21 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
                   <div className="flex items-start gap-2">
                     <Suspense fallback={<div className="size-4 mt-0.5 animate-pulse rounded-sm bg-muted" aria-hidden="true" />}>
                       <Widget
+                        // The HOST owns the control id (objectui#3962), exactly
+                        // as the generic branch below does. Omitting it made
+                        // this branch's `<Label htmlFor>` association IMPLICIT:
+                        // it only resolved because `BooleanField`'s id fallback
+                        // chain reaches `config.name`, which `paramToField`
+                        // seeds from `param.name` — a host living off another
+                        // package's fallback. Worse, a widget that receives no
+                        // host id cannot know the host already rendered a label,
+                        // so it emitted its own `sr-only` copy too, and two
+                        // label elements referencing one control CONCATENATE
+                        // into the accessible name (accname §2D): the checkbox
+                        // announced "Confirm This Confirm This". Passing the id
+                        // makes the association explicit and suppresses the
+                        // duplicate (PR #3959's `emitOwnLabel = !hostId`).
+                        id={param.name}
                         value={values[param.name] === true}
                         onChange={(checked: unknown) => updateValue(param.name, checked === true)}
                         field={field}

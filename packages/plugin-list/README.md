@@ -180,6 +180,42 @@ interface ListViewSchema {
 }
 ```
 
+## Page binding — `dataSource` (referencing a saved view by name)
+
+On a metadata page, a `list-view` component can bind its data through the spec's
+per-element data source (`PageComponentSchema.dataSource`,
+`ElementDataSourceSchema`) instead of spelling `objectName` and inlining the
+view's configuration:
+
+```json
+{
+  "type": "list-view",
+  "dataSource": { "object": "account", "view": "hot", "limit": 10 }
+}
+```
+
+`view` names a **saved view** of that object — either one embedded in the object
+definition (`listViews`) or one created in the UI (the metadata overlay an
+adapter serves from `listViews()`). Its `columns`, `filter`, `sort`, page size
+and view kind are applied to the render, so a page no longer has to keep a second
+copy of a view's configuration in sync with the view itself. Both the short key
+(`hot`) and the qualified id (`account.hot`) resolve.
+
+**Precedence.** `dataSource.*` keys are authoritative — the author wrote them on
+this placement, and they beat the component's own same-named key. Values that
+come from the named view are a *baseline*: a key written on the component itself
+is more specific than the view it points at, so the component's key wins
+(an empty `columns: []` counts as "not authored"). `filter` is the exception —
+the spec calls `dataSource.filter` "additional filter criteria", so the
+component's filter, the view's filter and the binding's filter all AND together.
+A binding can narrow what the view selects, never widen it.
+
+**An unresolvable `view` is an error, not an empty table.** If the named view
+does not exist, the block renders a configuration error listing the object's
+actual views, and issues no query. It deliberately does not fall back to the
+object's default view: that would turn a typo into a silently *wider* answer on a
+page that still looks like it works.
+
 ## Sorting (and why relational columns are not offered)
 
 The toolbar sort becomes a server `$orderby` on the **flat field name**, so the
@@ -203,17 +239,6 @@ that label (see `getSortValue` in `@object-ui/core`).
 ## View Persistence
 
 The ListView automatically persists the user's view type preference in localStorage using the key `listview-{objectName}-view`.
-
-<!-- release-metadata:v3.3.0 -->
-
-## Compatibility
-
-- **React:** 18.x or 19.x
-- **Node.js:** ≥ 18
-- **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^3.3.0
-- **`@objectstack/client`:** ^3.3.0
-- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
 
 ## Links
 

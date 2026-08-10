@@ -1,7 +1,14 @@
 {
-  "type": "html",
-  "name": "description",
-  "label": "Description",
-  "placeholder": "Enter HTML content...",
-  "rows": 8
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "description",
+      "label": "Description",
+      "type": "html",
+      "placeholder": "Enter HTML content...",
+      "rows": 8
+    }
+  ]
 }

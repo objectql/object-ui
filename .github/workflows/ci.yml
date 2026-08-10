@@ -9,14 +9,46 @@ on:
       - 'docs/**'
       - 'apps/site/**'
       - '.changeset/**'
+  # No `paths-ignore` here any more (objectui#3523, step 2). It skipped the
+  # whole workflow on a docs-only / changeset-only PR, so every context this
+  # file produces was simply absent there and none of them could be made
+  # required. The path decision now lives inside the jobs — see the
+  # `Decide whether this change needs a full run` step in `type-check`. `push`
+  # above deliberately keeps its copy: nothing judges a push to `main`.
   pull_request:
     branches: [main, develop]
-    paths-ignore:
-      - '**/*.md'
-      - 'content/**'
-      - 'docs/**'
-      - 'apps/site/**'
-      - '.changeset/**'
+  # ── Merge queue (objectui#3523) ────────────────────────────────────────
+  # The merge queue is ENFORCED on this repository by a ruleset — a direct push
+  # to `main` returns 405 `Changes must be made through the merge queue`
+  # (measured in #3243). Until this trigger landed, not one of the repository's
+  # workflows subscribed `merge_group`: repo-wide `event=merge_group` runs stood
+  # at total_count = 0, historically. A queue with nothing subscribed to it can
+  # only have an EMPTY required-check set, so it rebuilt each PR on the current
+  # `main` and let it through without validating anything.
+  #
+  # That is not a theoretical hole; it was cashed in on 2026-08-07. #3498 landed
+  # a `scripts/` type gate, itself fully green, that left a TS2578 on `main`;
+  # #3503, #3510 and #3516 then merged between 02:11Z and 02:15Z with `Type
+  # Check` at conclusion=failure, and #3505 hot-fixed the result. objectstack
+  # went through the same frames (objectstack#6067 -> #5615).
+  #
+  # `types:` is spelled out although `checks_requested` is the ONLY activity
+  # type GitHub defines for `merge_group` today — the two spellings are
+  # equivalent right now (objectstack's `ci.yml` and `lint.yml` use the bare
+  # `merge_group:` form and produce queue builds normally, 3552 of them). Naming
+  # the type means a second activity type added later cannot silently start
+  # queue builds this workflow was never written for.
+  #
+  # `concurrency` below needs no merge-queue special case, and that was checked
+  # rather than assumed: on `merge_group` the `github.event.pull_request` half of
+  # the group expression is null, so the group falls back to `github.ref`, which
+  # on a queue build is the queue's own generation — measured on objectstack,
+  # `gh-readonly-queue/main/pr-6594-251e888ac9ace8226f3a8450951e5b40a0a84c2c`.
+  # It can collide with neither a pull-request group (a bare PR number) nor a
+  # push group (`refs/heads/main`), so a queue build and the PR build it came
+  # from never cancel each other.
+  merge_group:
+    types: [checks_requested]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -54,14 +86,85 @@ jobs:
         uses: actions/checkout@v7
         with:
           submodules: true
+          # `pnpm check:i18n-drift` (below) compares the locale packs on this
+          # branch against the packs at its MERGE BASE with the target branch,
+          # so it needs history — and checkout's default is a depth-1 clone,
+          # where `git merge-base` has nothing to find. The gate treats an
+          # unresolvable base as a hard failure rather than a skip, so getting
+          # this wrong is a red build rather than a silent pass; it is spelled
+          # out here so it stays that way. Pinned by
+          # `scripts/__tests__/check-i18n-en-drift.test.ts`.
+          fetch-depth: 0
+
+      # ── Always report; run only when it matters (objectui#3523) ──────────
+      # This context used to be invisible on a docs-only or changeset-only pull
+      # request, because `on.pull_request.paths-ignore` skips the WHOLE workflow
+      # when every changed file matches — GitHub has no per-job path filter. No
+      # workflow means no check run, and a REQUIRED check that never reports
+      # does not fail the PR, it leaves it pending forever; in the merge queue
+      # it fails on the ruleset's 60-minute status-check timeout instead. So
+      # these contexts could not be required while the filter lived on the
+      # trigger, which is the second half of the #3523 P0 (#3509 measured a
+      # docs-only PR starting zero of them).
+      #
+      # The filter therefore moved from the trigger into the job: the job always
+      # runs and always reports, and the paths decide only whether the expensive
+      # steps execute. This is the shape the `docs` job below has used since
+      # #3450 — `should_run` plus a per-step `if:` — not a new mechanism.
+      #
+      # The exclusion list below IS the `paths-ignore` it replaced, unchanged,
+      # so which pull requests pay for a full run is exactly as before. The
+      # `push` trigger keeps its `paths-ignore`: branch protection and the merge
+      # queue judge pull requests and queue builds, never pushes to `main`, so
+      # filtering the push lane at the trigger costs nothing there and saves a
+      # full run on every docs merge.
+      #
+      # A failure inside this step means RUN, never SKIP. objectstack#4928 named
+      # that the filter contract, after a filter job that skipped when it could
+      # not tell produced a fully green, zero-gate pull request. Every gate in
+      # this workflow is spelled that way — including the `docs` job below, whose
+      # capture swallowed its own failure into an empty result until
+      # objectui#3723. `scripts/__tests__/merge-queue-reporting.test.ts` holds
+      # every `CHANGED=$(git diff …)` in this file and in `lint.yml` to the
+      # fail-open form, so a new gate cannot be added in the closed spelling.
+      - name: Decide whether this change needs a full run
+        id: relevant
+        run: |
+          if [ "${{ github.event_name }}" != 'pull_request' ]; then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo 'Not a pull request: push is filtered at the trigger, and a merge_group build is the last validation before main. Running everything.'
+            exit 0
+          fi
+          if ! CHANGED=$(git diff --name-only \
+            '${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}' -- \
+            . \
+            ':(exclude,glob)**/*.md' \
+            ':(exclude,glob)content/**' \
+            ':(exclude,glob)docs/**' \
+            ':(exclude,glob)apps/site/**' \
+            ':(exclude,glob).changeset/**'); then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo 'Could not diff against the merge base. Running everything rather than skipping silently.'
+            exit 0
+          fi
+          if [ -n "$CHANGED" ]; then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo "$CHANGED"
+          else
+            echo 'should_run=false' >> "$GITHUB_OUTPUT"
+            echo 'Only ignored paths changed. Skipping the steps below; this check still reports.'
+          fi
 
       - name: Enable Corepack
+        if: steps.relevant.outputs.should_run == 'true'
         run: corepack enable
 
       - name: Verify pnpm version
+        if: steps.relevant.outputs.should_run == 'true'
         run: pnpm --version
 
       - name: Setup Node.js
+        if: steps.relevant.outputs.should_run == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: '22.x'
@@ -70,9 +173,11 @@ jobs:
       # Every package must be either type-checked or explicitly declared as a
       # known gap. Runs before install: it only reads package.json files.
       - name: Verify type-check coverage
+        if: steps.relevant.outputs.should_run == 'true'
         run: node scripts/check-type-check-coverage.mjs
 
       - name: Install dependencies
+        if: steps.relevant.outputs.should_run == 'true'
         run: pnpm install --frozen-lockfile
 
       # A local type/const declared under a `@objectstack/spec` export's NAME reads
@@ -81,6 +186,7 @@ jobs:
       # the install (it reads the spec's own `.d.ts`) but not the build, so it runs
       # before the expensive steps.
       - name: Verify spec-named symbols are derived, not hand-written
+        if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:spec-symbols
 
       # A key a component asks `t()` for must exist in the `en` pack.
@@ -91,7 +197,21 @@ jobs:
       # the step above: it imports `typescript` to parse the sources, so it
       # needs the install, but nothing built.
       - name: Verify t() call-site keys exist in the en locale pack
+        if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:i18n-keys
+
+      # The step above and `all-locales-key-parity.test.ts` both read KEYS. When
+      # an `en` VALUE changes and the nine translations do not, every key-shaped
+      # gate stays green — objectui#3582 and objectui#3625 were eight packs each
+      # serving a retired sentence, the second one as idiomatic native-script
+      # translations that no mechanical judgement can distinguish from healthy.
+      # This gate judges the event instead of the state: `en` changed here, the
+      # translations must change here too. Needs the install (it parses the
+      # packs with `typescript`) and the `fetch-depth: 0` above (it diffs
+      # against the merge base), but nothing built.
+      - name: Verify changed en strings were followed by the nine translations
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:i18n-drift
 
       # `scripts/` is not a workspace package, so `pnpm type-check` (i.e.
       # `turbo run type-check`, which walks package.json `scripts`) structurally
@@ -109,9 +229,11 @@ jobs:
       # fast. `scripts/__tests__/scripts-type-check.test.ts` pins that premise,
       # this step's presence, and its position after the install.
       - name: Type-check scripts/
+        if: steps.relevant.outputs.should_run == 'true'
         run: pnpm type-check:scripts
 
       - name: Turbo Cache
+        if: steps.relevant.outputs.should_run == 'true'
         uses: actions/cache@v6
         with:
           path: .turbo/cache
@@ -123,6 +245,7 @@ jobs:
       # `type-check` dependsOn `^build`, so this builds workspace dependencies
       # first: the checked packages resolve their deps through built `.d.ts`.
       - name: Run type-check
+        if: steps.relevant.outputs.should_run == 'true'
         run: pnpm type-check
 
       # The four repo-root `vitest.setup.*` files were in ZERO tsc programs
@@ -149,6 +272,7 @@ jobs:
       # lesson); running this one directly sidesteps that class of half-armed
       # gate entirely, exactly as `type-check:scripts` does.
       - name: Type-check repo-root vitest setup files
+        if: steps.relevant.outputs.should_run == 'true'
         run: pnpm type-check:vitest-setup
 
   # PRs run the suite split across 4 runners. The suite is dominated by fixed
@@ -167,7 +291,14 @@ jobs:
     name: Test (shard ${{ matrix.shard }}/4)
     # Coverage instrumentation (v8 adds 40-100% overhead) is skipped on PRs;
     # the `test-coverage` job below keeps Codecov current on push.
-    if: github.event_name == 'pull_request'
+    #
+    # Written as "not push" rather than "is pull_request" (objectui#3523): the
+    # third event this workflow now sees is `merge_group`, and a queue build
+    # that runs no tests is the hole this repository just paid for. `push` is
+    # still excluded because `test-coverage` below is the push lane, unsharded
+    # so Codecov receives one complete report. PR and push behaviour is
+    # unchanged — only the previously impossible third case moves.
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     # Bound the job so a stalled runner / non-exiting test worker fails fast and
     # is retryable, instead of hanging up to GitHub's 6h default.
@@ -184,20 +315,59 @@ jobs:
         uses: actions/checkout@v7
         with:
           submodules: true
+          # `fetch-depth: 0` for the gate step below (objectui#3523): it diffs
+          # against the merge base, which a depth-1 clone cannot resolve.
+          fetch-depth: 0
+
+      # Always report; run only when it matters — see the full note on the
+      # `type-check` job above (objectui#3523). The exclusion list must stay
+      # identical across the gated jobs of this workflow;
+      # `scripts/__tests__/merge-queue-reporting.test.ts` fails if it drifts.
+      - name: Decide whether this change needs a full run
+        id: relevant
+        run: |
+          if [ "${{ github.event_name }}" != 'pull_request' ]; then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo 'Not a pull request: push is filtered at the trigger, and a merge_group build is the last validation before main. Running everything.'
+            exit 0
+          fi
+          if ! CHANGED=$(git diff --name-only \
+            '${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}' -- \
+            . \
+            ':(exclude,glob)**/*.md' \
+            ':(exclude,glob)content/**' \
+            ':(exclude,glob)docs/**' \
+            ':(exclude,glob)apps/site/**' \
+            ':(exclude,glob).changeset/**'); then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo 'Could not diff against the merge base. Running everything rather than skipping silently.'
+            exit 0
+          fi
+          if [ -n "$CHANGED" ]; then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo "$CHANGED"
+          else
+            echo 'should_run=false' >> "$GITHUB_OUTPUT"
+            echo 'Only ignored paths changed. Skipping the steps below; this check still reports.'
+          fi
 
       - name: Enable Corepack
+        if: steps.relevant.outputs.should_run == 'true'
         run: corepack enable
 
       - name: Verify pnpm version
+        if: steps.relevant.outputs.should_run == 'true'
         run: pnpm --version
 
       - name: Setup Node.js
+        if: steps.relevant.outputs.should_run == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: '22.x'
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: steps.relevant.outputs.should_run == 'true'
         run: pnpm install --frozen-lockfile
 
       # Run the canonical root Vitest project once. Running `turbo run test`
@@ -205,6 +375,7 @@ jobs:
       # intentionally inherit the root monorepo project list, so CI ends up
       # repeating large chunks of the suite and can starve slower plugin tests.
       - name: Run tests (shard ${{ matrix.shard }}/4)
+        if: steps.relevant.outputs.should_run == 'true'
         run: pnpm test --shard=${{ matrix.shard }}/4
 
   # Push to main/develop: one unsharded run so Codecov still receives a single
@@ -260,23 +431,63 @@ jobs:
         uses: actions/checkout@v7
         with:
           submodules: true
+          # `fetch-depth: 0` for the gate step below (objectui#3523): it diffs
+          # against the merge base, which a depth-1 clone cannot resolve.
+          fetch-depth: 0
+
+      # Always report; run only when it matters — see the full note on the
+      # `type-check` job above (objectui#3523). The exclusion list must stay
+      # identical across the gated jobs of this workflow;
+      # `scripts/__tests__/merge-queue-reporting.test.ts` fails if it drifts.
+      - name: Decide whether this change needs a full run
+        id: relevant
+        run: |
+          if [ "${{ github.event_name }}" != 'pull_request' ]; then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo 'Not a pull request: push is filtered at the trigger, and a merge_group build is the last validation before main. Running everything.'
+            exit 0
+          fi
+          if ! CHANGED=$(git diff --name-only \
+            '${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}' -- \
+            . \
+            ':(exclude,glob)**/*.md' \
+            ':(exclude,glob)content/**' \
+            ':(exclude,glob)docs/**' \
+            ':(exclude,glob)apps/site/**' \
+            ':(exclude,glob).changeset/**'); then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo 'Could not diff against the merge base. Running everything rather than skipping silently.'
+            exit 0
+          fi
+          if [ -n "$CHANGED" ]; then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo "$CHANGED"
+          else
+            echo 'should_run=false' >> "$GITHUB_OUTPUT"
+            echo 'Only ignored paths changed. Skipping the steps below; this check still reports.'
+          fi
 
       - name: Enable Corepack
+        if: steps.relevant.outputs.should_run == 'true'
         run: corepack enable
 
       - name: Verify pnpm version
+        if: steps.relevant.outputs.should_run == 'true'
         run: pnpm --version
 
       - name: Setup Node.js
+        if: steps.relevant.outputs.should_run == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: '22.x'
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: steps.relevant.outputs.should_run == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Build Console for E2E
+        if: steps.relevant.outputs.should_run == 'true'
         # Pin VITE_BASE_PATH so the E2E suite (which mounts the SPA at
         # /console/) gets an absolute-base build whose asset URLs resolve
         # under that prefix. The default ('./') is correct for embedded
@@ -291,6 +502,7 @@ jobs:
         run: pnpm --filter @object-ui/console exec vite build
 
       - name: Verify build artifacts
+        if: steps.relevant.outputs.should_run == 'true'
         run: |
           if [ ! -f "apps/console/dist/index.html" ]; then
             echo "Console build failed"
@@ -299,10 +511,12 @@ jobs:
           echo "Console build artifact is ready"
 
       - name: Get Playwright version
+        if: steps.relevant.outputs.should_run == 'true'
         id: playwright-version
         run: echo "version=$(pnpm list @playwright/test --depth=0 --json | jq -r '.[0].devDependencies["@playwright/test"].version')" >> $GITHUB_OUTPUT
 
       - name: Cache Playwright browsers
+        if: steps.relevant.outputs.should_run == 'true'
         uses: actions/cache@v6
         id: playwright-cache
         with:
@@ -310,19 +524,20 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        if: steps.relevant.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Install Playwright system dependencies
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        if: steps.relevant.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm exec playwright install-deps chromium
 
       - name: Run E2E tests
+        if: steps.relevant.outputs.should_run == 'true'
         run: pnpm test:e2e --project=chromium
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() && failure() }}
+        if: ${{ steps.relevant.outputs.should_run == 'true' && !cancelled() && failure() }}
         with:
           name: playwright-report
           path: playwright-report/
@@ -340,23 +555,46 @@ jobs:
           fetch-depth: 0
           submodules: true
 
+      # Fails OPEN: if the diff cannot be computed the job builds the site,
+      # rather than reporting green having built nothing (objectstack#4928).
+      # Until objectui#3723 this step swallowed a failed `git diff` into an empty
+      # result (`2>/dev/null || echo ""`), which is indistinguishable from
+      # "nothing docs-related changed" — a checkout that did not fetch deep
+      # enough, a transient git failure or a malformed sha skipped the whole
+      # site build and the job still reported success. Measured against a
+      # fixture repository: on an unreachable base sha the old spelling yielded
+      # `should_run=false`, this one yields `true`; on a reachable base sha both
+      # agree, so which pull requests pay for a site build is unchanged.
       - name: Check for docs changes
         id: docs-changes
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          # `!= pull_request` covers `push` and `merge_group` alike
+          # (objectui#3523). A queue build has no `github.event.pull_request`,
+          # so the diff below would run on an empty revision range — and that
+          # case is NOT caught by failing open: git reads a bare `...` as
+          # `HEAD...HEAD` and exits 0 with no output (measured), so it would
+          # skip the site build on the last check before `main`. This early
+          # return is what covers it.
+          if [ "${{ github.event_name }}" != 'pull_request' ]; then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo 'Not a pull request: push is filtered at the trigger, and a merge_group build is the last validation before main. Building the site.'
+            exit 0
+          fi
+          if ! CHANGED=$(git diff --name-only \
+            '${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}' -- \
+            'apps/site/' \
+            'content/'); then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo 'Could not diff against the merge base. Building the site rather than skipping silently.'
+            exit 0
+          fi
+          if [ -n "$CHANGED" ]; then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo 'Docs-related files changed:'
+            echo "$CHANGED"
           else
-            # Check if docs-related files changed in this PR
-            CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} -- \
-              'apps/site/' 'content/' 2>/dev/null || echo "")
-            if [ -n "$CHANGED" ]; then
-              echo "should_run=true" >> "$GITHUB_OUTPUT"
-              echo "Docs-related files changed:"
-              echo "$CHANGED"
-            else
-              echo "should_run=false" >> "$GITHUB_OUTPUT"
-              echo "No docs-related files changed, skipping build"
-            fi
+            echo 'should_run=false' >> "$GITHUB_OUTPUT"
+            echo 'No docs-related files changed. Skipping the steps below; this check still reports.'
           fi
 
       - name: Enable Corepack

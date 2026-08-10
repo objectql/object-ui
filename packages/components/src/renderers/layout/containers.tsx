@@ -14,11 +14,13 @@
  *   - PageCardProps      -> page:card
  *   - PageAccordionProps -> page:accordion
  *   - PageHeaderProps    -> page:header
- *   - page:footer / page:sidebar / page:section thin wrappers
+ *   - PageContainerProps -> page:footer / page:sidebar / page:section
+ *                           (the thin wrappers; one shared `children` slot)
  */
 
 import React from 'react';
-import { ComponentRegistry, ExpressionEvaluator, getRecordDisplayName, toPredicateRecord } from '@object-ui/core';
+import { ComponentRegistry, ExpressionEvaluator, evalRowPredicate, getRecordDisplayName, toPredicateRecord } from '@object-ui/core';
+import type { ComponentInput } from '@object-ui/core';
 import { actionRendersAt } from '@object-ui/types';
 import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
@@ -45,10 +47,61 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from '../../ui';
 import { RecordTitleChip } from '../../custom/RecordTitleChip';
 import { useObjectLabel, useSafeFieldLabel, useObjectTranslation, useSafeTranslate, createSafeTranslation, pickLocalized } from '@object-ui/i18n';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, RefreshCw } from 'lucide-react';
+
+/**
+ * The one authorable key the three thin containers publish — `page:section`,
+ * `page:footer`, `page:sidebar` (objectui#4027).
+ *
+ * `@objectstack/spec` declares all three through one shared `PageContainerProps`
+ * whose single key is `children` (objectstack#5775, PR objectstack#6281, merged
+ * 2026-08-07). They had been declared `EmptyProps` upstream — "this component
+ * takes zero props" — while their renderers have always rendered a child list;
+ * this side carried the mirror-image gap, registering all three with no `inputs`
+ * at all, so the designer had nothing to authorize and the generated
+ * `sdui.manifest.json` published them as propless.
+ *
+ * Declaring it as a `slot` is what makes this an AUTHORING-surface change and
+ * nothing else — no validation verdict moves in either direction:
+ *   - `sdui-parser/src/codegen.ts:emitInterface` filters `slot` inputs out of
+ *     `sdui-intrinsics.d.ts`, where `SduiBaseProps.children` already types it;
+ *   - `sdui-parser/src/validate.ts` lists `children` in `BASE_PROPS`, so it was
+ *     never an `unknown-prop` and does not become one;
+ *   - `isContainer: true` (already set on all three) is what authorizes children
+ *     to the parser's `not-a-container` check.
+ * What does move is the designer: an authorable slot on the components whose
+ * entire purpose is to render one.
+ *
+ * Shared rather than copied three times, mirroring the spec's own single
+ * `PageContainerProps` — three identical literals are three places to drift.
+ */
+const PAGE_CONTAINER_INPUTS: ComponentInput[] = [
+  {
+    name: 'children',
+    type: 'slot',
+    label: 'Content',
+    description: 'Child components rendered inside this container, in order',
+  },
+];
+
+/**
+ * How long the header's manual-refresh icon keeps spinning after a click
+ * (objectui#3460).
+ *
+ * The refresh itself is fire-and-forget — it publishes on the #2269
+ * invalidation bus and every mounted reader refetches in place, so there is no
+ * completion signal to spin until. Against a warm backend the whole round trip
+ * can finish inside one frame, which would render the click as "nothing
+ * happened". This floor makes the click visibly land.
+ */
+const MANUAL_REFRESH_SPIN_MS = 650;
 
 /**
  * Copy for the `page:tabs` count badge (objectstack#5506).
@@ -656,9 +709,21 @@ const PageCardRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // page's per-plan name + price headings vanished in both locales.
   const title = pickLocalized(schema?.title, language);
   const bordered = schema?.bordered !== false;
-  // Accept `children` as well as `body` — every other container (grid/flex/
-  // section/tabs) renders `children`, so authors expect it to work here too.
-  // `body` kept first for back-compat with existing card schemas.
+  // `children` is the authorable spelling; `body` is a READ-ONLY back-compat
+  // fallback for documents already stored with it (objectui#4027).
+  //
+  // `body` was retired from the contract by objectstack#5775 (PR #6281, ADR-0087
+  // D2): it was a second spelling of the slot every other container — grid, flex,
+  // section, tabs items — calls `children`, and the spec now declares `children`
+  // on `PageCardProps` and rejects `body` by name. The registration below stopped
+  // publishing `body` in the same change, so nothing teaches it any more.
+  //
+  // The READ deliberately stays, and stays FIRST: a stored document written
+  // against the old contract still renders until the ADR-0087 D2 conversion
+  // rewrites `body` → `children` at load time. Order matters only for a document
+  // carrying both, which the conversion is what resolves; deleting the read
+  // before the conversion is live would blank an existing card's content
+  // silently — the `page-header-subtitle-alias` sequencing precedent, verbatim.
   const body = schema?.body ?? schema?.children;
   const footer = schema?.footer;
 
@@ -687,7 +752,14 @@ ComponentRegistry.register('card', PageCardRenderer, {
   inputs: [
     { name: 'title', type: 'string', label: 'Title', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
     { name: 'bordered', type: 'boolean', label: 'Bordered', defaultValue: true },
-    { name: 'body', type: 'slot', label: 'Body', description: 'Card content; plain `children` also render here' },
+    // The card's content slot, respelled from `body` to `children`
+    // (objectui#4027). One slot, one spelling: objectstack#5775 (PR #6281)
+    // retired `PageCardProps.body` and declared `children` in its place, so a
+    // designer that kept offering `body` was teaching a key the contract now
+    // rejects by name. The renderer still READS `body` for stored documents —
+    // see the comment at its read site above — but a back-compat read is not a
+    // second authorable spelling, and `inputs` is the authoring surface.
+    { name: 'children', type: 'slot', label: 'Content', description: 'Card content components, in order (the card body slot)' },
     { name: 'footer', type: 'slot', label: 'Footer' },
   ],
 });
@@ -800,6 +872,7 @@ ComponentRegistry.register('section', PageSectionRenderer, {
   label: 'Page Section',
   category: 'layout',
   isContainer: true,
+  inputs: PAGE_CONTAINER_INPUTS,
 });
 
 // ---------------------------------------------------------------------------
@@ -841,23 +914,18 @@ export function cleanupTitleSeparators(s: string): string {
 
 /**
  * One-time diagnostics for header-action `visible` / `hidden` predicates
- * (#2358). Both warn-once per (action, predicate) pair so re-renders don't
- * spam the console, mirroring ActionEngine's `warnHiddenPredicate` (#2183).
+ * (#2358). Warn-once per (action, predicate) pair so re-renders don't spam the
+ * console, mirroring ActionEngine's `warnHiddenPredicate` (#2183).
+ *
+ * The *fault* half of these diagnostics is no longer written here: since
+ * objectui#3521 the predicates run through `evalRowPredicate`, whose own
+ * warn-once machinery reports a faulting predicate under the label this file
+ * passes (`page:header action "…" visible`) — one report per broken predicate,
+ * identical in wording to the row kebab and the selection bar. What stays local
+ * is the missing-field diagnostic below, which explains a *cause* the engine
+ * cannot see (fields stripped from the payload server-side).
  */
 const _warnedHeaderPredicates = new Set<string>();
-
-/** Warn when a predicate THREW — the action is fail-closed hidden. */
-function warnHeaderActionPredicate(name: unknown, source: string, err: unknown): void {
-  const key = `throw::${String(name)}::${source}`;
-  if (_warnedHeaderPredicates.has(key)) return;
-  _warnedHeaderPredicates.add(key);
-  const msg = err instanceof Error ? err.message : String(err);
-  console.warn(
-    `[page:header] action "${String(name)}" hidden: its predicate threw — ${msg}. ` +
-    `Predicate: ${source}. Header-action predicates evaluate against ` +
-    `{ record, user, os.user, ctx.user, app, features, <record fields> }.`,
-  );
-}
 
 /**
  * Warn when a predicate references `record.<field>` keys that are absent from
@@ -914,6 +982,31 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // the SAME key `action:menu`'s overflow trigger already reads, so the two
   // `⋯` buttons a record page can show cannot read differently per locale.
   const tt = useSafeTranslate();
+  // ── Manual refresh (objectui#3460) ────────────────────────────────────────
+  // Rendered as page CHROME at the far end of the header row, NOT as a header
+  // action: business/system actions come and go per object and record state,
+  // while refresh has to sit in the same place on every record page. Keeping it
+  // out of the action pipeline also keeps it out of that pipeline's capability
+  // gating and `maxVisible` overflow budget — reading a record you are already
+  // looking at is not a permissioned operation, and the button must never be
+  // the one that gets collapsed into `⋯`.
+  //
+  // The host opts in by providing `RecordContext.refresh`; hosts that don't
+  // (previews, embedded drawers, non-record pages) render exactly as before.
+  const hostRefresh = ctx?.refresh;
+  const [manualRefreshing, setManualRefreshing] = React.useState(false);
+  const refreshSpinTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  React.useEffect(() => () => clearTimeout(refreshSpinTimer.current), []);
+  const handleManualRefresh = React.useCallback(() => {
+    if (!hostRefresh) return;
+    void hostRefresh();
+    setManualRefreshing(true);
+    clearTimeout(refreshSpinTimer.current);
+    refreshSpinTimer.current = setTimeout(
+      () => setManualRefreshing(false),
+      MANUAL_REFRESH_SPIN_MS,
+    );
+  }, [hostRefresh]);
   // Spec bridge may either inline `properties.*` onto the node or preserve
   // the raw bag (see record:quick_actions for the same pattern). Read from
   // both so a `{ properties: { title } }` schema is rendered correctly.
@@ -956,37 +1049,53 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // synthesised. Authored pages may opt out by omitting them at the host
   // or by adding a name-clashing action of their own.
   const hostSystemActions = (ctx as any)?.headerSystemActions as any[] | undefined;
-  const headerActions = React.useMemo<any[]>(() => {
-    const recordData: any = ctx?.data;
-    // Spread record fields as top-level bindings so author-friendly CEL like
-    // `status == "active"` or `is_default != true` resolves directly. Without
-    // this, bare identifiers fall through to the JS global scope and silently
-    // resolve to e.g. `window.status` (empty string), causing every action
-    // with a `visible` expression to be filtered out.
-    // Carry the ambient host scope (user / app / features) and expose the
-    // canonical `ctx.*` namespace so `ctx.user.isPlatformAdmin`-style
-    // predicates resolve — alongside the record fields spread for bare
-    // `status`/`is_default` CEL.
+
+  // ── Action predicates: ONE dialect, ONE entry (objectui#3521) ──────────────
+  //
+  // `visible` / `hidden` / `disabled` on a header action are evaluated by
+  // `evalRowPredicate` — the SAME entry the row kebab (`RowActionMenu`), the
+  // selection bar (`partitionBulkRows`) and conditional formatting have used
+  // since objectui#1584 / ADR-0058. A bare string is therefore CEL, which is
+  // what `@objectstack/spec` types `ActionSchema.visible` as and what the
+  // server enforces with, so the CEL-only constructs an author writes once
+  // (`record.tags.size() > 0`, `'"red" in record.f_multiselect'`,
+  // `record.f_date < today()`) now reach a verdict here instead of throwing in
+  // a JS parser and fail-closed hiding the button. Before this, the header was
+  // the last surface still handing EVERY predicate to the legacy JS evaluator,
+  // so one piece of metadata meant two different things depending on whether
+  // the reader was a list row or a record page.
+  //
+  // A legacy-dialect string (`${…}`, `===`/`!==`, `?.`, `??`, JS-only methods
+  // like `.includes()`) still routes to the legacy evaluator inside
+  // `evalRowPredicate` via `isLegacyDialectSource`, with its one-time
+  // deprecation warning — existing authored pages do not regress.
+  //
+  // Fail-closed and warn-once come from that same entry (`fallback: false`,
+  // `warnOnError: true`), so a broken predicate hides its button here exactly
+  // as it does on the other surfaces, and says so once.
+  const headerPredicateFields = headerObjectSchema?.fields;
+  const headerPredicateScope = React.useMemo(() => {
     const scopeUser = (predicateScope as any)?.user;
     // Relation fields bind as the FOREIGN KEY the server stores, not as the
-    // record `$expand` substituted for them: the detail fetch expands every
-    // relation it can, so `record.owner == os.user.id` — the spelling that
-    // works server-side and in a bare list — could only ever be false here,
-    // while `record.owner.id` throws on any record whose lookup is empty. See
-    // `toPredicateRecord`. Display (`interpolate` above) still reads the raw
-    // `ctx.data`, which is what renders the related record's NAME.
-    // `toPredicateRecord` passes a null/undefined record straight through, so
-    // "no record loaded yet" stays distinguishable from "an empty record" —
-    // spreading either into `evalCtx` is a no-op.
-    const predicateRecord = toPredicateRecord(recordData, headerObjectSchema?.fields);
-    const evalCtx = {
-      ...predicateRecord,
-      record: predicateRecord,
-      data: predicateRecord,
+    // record `$expand` substituted for them (objectui#3501): the detail fetch
+    // expands every relation it can, so `record.owner == os.user.id` — the
+    // spelling that works server-side and in a bare list — could only ever be
+    // false here, while `record.owner.id` faults on an empty lookup. The
+    // top-level `record` / bare-field / `data.*` bindings get this same
+    // normalization from `evalRowPredicate`'s `fields` option below; this copy
+    // is for the `ctx.*` namespace, which the engine does not build. Display
+    // (`interpolate` above) still reads the raw `ctx.data`, which is what
+    // renders the related record's NAME.
+    const predicateRecord = toPredicateRecord(ctx?.data, headerPredicateFields);
+    return {
+      // The ambient host scope (`features` / `app` / `current_user` / …) binds
+      // top-level, the way it does for a row predicate — the header used to
+      // expose it only under `ctx.*`.
+      ...(predicateScope && typeof predicateScope === 'object' ? predicateScope : {}),
       user: scopeUser,
       // Server-CEL-parity identity alias (#2358 trap 1): the spec's canonical
       // CEL identity scope is `os.user.*`, so a predicate authored against the
-      // server dialect resolves here too instead of throwing (fail-closed).
+      // server dialect resolves here too instead of faulting (fail-closed).
       os: (predicateScope as any)?.os ?? { user: scopeUser },
       ctx: {
         user: scopeUser,
@@ -996,20 +1105,38 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
         features: (predicateScope as any)?.features,
       },
     };
-    const evaluator = new ExpressionEvaluator(evalCtx);
-    // Fail-closed BUT diagnosable (#2358): a throwing `visible`/`hidden`
-    // predicate still hides the action, but now warns once (action name +
-    // predicate + reason) instead of silently swallowing the error — a
-    // predicate that throws is almost always an authoring bug (wrong scope
-    // variable, bare field reference), not a real precondition.
-    const evalExpr = (src: string, actionName: unknown): any => {
-      try {
-        return evaluator.evaluateExpression(src);
-      } catch (err) {
-        warnHeaderActionPredicate(actionName, src, err);
-        return undefined;
-      }
-    };
+  }, [predicateScope, ctx?.data, headerPredicateFields]);
+
+  /**
+   * Evaluate one header-action predicate. `label` is the locator carried into
+   * the fault warning, so a hidden button names itself in the console.
+   *
+   * `fallback: false` is what preserves both historical fail directions: a
+   * faulting `visible`/`disabled` hides/enables nothing new (fail-closed), and
+   * a faulting `hidden` leaves the action rendered exactly as the old
+   * `catch → undefined` did.
+   */
+  const evalHeaderPredicate = React.useCallback(
+    (pred: unknown, label: string): boolean =>
+      evalRowPredicate(pred as never, ctx?.data ?? {}, {
+        fallback: false,
+        scope: headerPredicateScope,
+        fields: headerPredicateFields,
+        warnOnError: true,
+        label,
+      }),
+    [ctx?.data, headerPredicateScope, headerPredicateFields],
+  );
+
+  const headerActions = React.useMemo<any[]>(() => {
+    const recordData: any = ctx?.data;
+    // The record binds three ways inside `evalRowPredicate` — `record.status`
+    // (spec/canonical), bare `status` (the row-action shorthand) and
+    // `data.status` (legacy) — so no authoring convention silently falls
+    // through to the JS global scope the way a bare identifier used to
+    // (`window.status`, an empty string, filtering the action out). The host
+    // scope and the `ctx.*` / `os.user` namespaces come from
+    // `headerPredicateScope` above. See `evalHeaderPredicate`.
     const filterAction = (a: any): boolean => {
       // [ADR-0066 D4 / framework#3923] Capability gate — the UI half of the
       // dual-surface `requiredPermissions` contract.
@@ -1043,10 +1170,15 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
                 : null;
           if (src) {
             warnMissingRecordFields(a?.name, src, recordData);
-            const result = evalExpr(src, a?.name);
-            // On evaluation error (undefined), hide the action rather than
-            // risk surfacing a destructive button in the wrong state.
-            if (!result) return false;
+            // The predicate is handed over WHOLE, not as its `source`: a
+            // `{ dialect: 'cel' }` envelope is authoritative CEL and must not
+            // be flattened onto a dialect guess — the same rule the row kebab
+            // applies by passing `def.visible` through untouched.
+            // On a fault (`fallback: false`) the action hides rather than risk
+            // surfacing a destructive button in the wrong state.
+            if (!evalHeaderPredicate(v, `page:header action "${String(a?.name)}" visible`)) {
+              return false;
+            }
           }
         }
       }
@@ -1064,8 +1196,12 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
                 : null;
           if (src) {
             warnMissingRecordFields(a?.name, src, recordData);
-            const result = evalExpr(src, a?.name);
-            if (result) return false;
+            // `fallback: false` keeps `hidden`'s historical fail direction: a
+            // predicate that cannot be evaluated does NOT hide the action (the
+            // old `catch → undefined` read as "not hidden").
+            if (evalHeaderPredicate(h, `page:header action "${String(a?.name)}" hidden`)) {
+              return false;
+            }
           }
         }
       }
@@ -1121,7 +1257,10 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       const bp = b?.variant === 'primary' ? 0 : 1;
       return ap - bp; // equal → stable sort preserves registration order
     });
-  }, [rawHeaderActions, hostSystemActions, ctx?.data, predicateScope]);
+    // `evalHeaderPredicate` closes over `predicateScope` (via
+    // `headerPredicateScope`) and the object's fields, so it replaces the raw
+    // scope in this list rather than adding to it.
+  }, [rawHeaderActions, hostSystemActions, ctx?.data, evalHeaderPredicate]);
 
   // Dispatch shape for record-page header actions (objectui#3391) — the same
   // shape ObjectGrid row actions, RelatedRecordActionsBridge, and
@@ -1204,46 +1343,31 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       ...moreOnlyActions,
     ];
     const useOverflow = overflowActions.length > 0;
-    // Resolve a `disabled` predicate against the record. Mirrors the `visible`
-    // evaluation above — a boolean OR a CEL expression (`'record.status == …'`
-    // or the `{ dialect, source }` envelope). Without this a CEL `disabled`
-    // silently did nothing (only boolean was honoured).
-    // Same relation normalization the `visible` evaluation above applies, so a
-    // `disabled` predicate over a lookup reaches the same verdict (and the same
-    // one the server would) instead of throwing on `record.owner.id`.
-    const dRecord: any = toPredicateRecord(ctx?.data, headerObjectSchema?.fields);
-    const dScopeUser = (predicateScope as any)?.user;
-    const dEvaluator = new ExpressionEvaluator({
-      ...(dRecord && typeof dRecord === 'object' ? dRecord : {}),
-      record: dRecord,
-      data: dRecord,
-      // Same identity scope as the `visible` evaluation above so a
-      // user-gated `disabled` predicate resolves instead of faulting.
-      user: dScopeUser,
-      os: (predicateScope as any)?.os ?? { user: dScopeUser },
-      ctx: {
-        user: dScopeUser,
-        record: dRecord,
-        data: dRecord,
-        app: (predicateScope as any)?.app,
-        features: (predicateScope as any)?.features,
-      },
-    });
-    const resolveDisabled = (d: any): boolean => {
+    // Resolve a `disabled` predicate against the record — a boolean OR an
+    // expression (`'record.status == …'` or the `{ dialect, source }`
+    // envelope). Without this a CEL `disabled` silently did nothing (only
+    // boolean was honoured).
+    //
+    // Same entry, same bindings and same fail direction as `visible` above:
+    // ONE evaluator for this surface, so a `disabled` predicate cannot speak a
+    // different dialect from the `visible` predicate sitting next to it in the
+    // same action (objectui#3521). A faulting predicate still leaves the button
+    // enabled (`fallback: false`), it just says so once now.
+    const resolveDisabled = (d: any, actionName: unknown): boolean => {
       if (d === undefined || d === null) return false;
       if (typeof d === 'boolean') return d;
       const src = typeof d === 'string'
         ? d
         : (d && typeof d === 'object' && typeof (d as any).source === 'string' ? (d as any).source : undefined);
       if (!src) return false;
-      try { return !!dEvaluator.evaluateExpression(src); } catch { return false; }
+      return evalHeaderPredicate(d, `page:header action "${String(actionName)}" disabled`);
     };
     // A live inline-edit session disables actions the host flagged with
     // `disableDuringInlineEdit` (objectui#2572 item 4) — see `inlineEditing`
     // at the top of the renderer.
     const isActionDisabled = (action: any): boolean =>
       (inlineEditing && action?.disableDuringInlineEdit === true) ||
-      resolveDisabled(action?.disabled);
+      resolveDisabled(action?.disabled, action?.name ?? action?.id);
     const renderButton = (action: any, idx: number) => {
       const label = resolveLabel(action, idx);
       // `variant: 'primary'` is valid ActionSchema but not a Shadcn Button
@@ -1323,6 +1447,60 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
             </DropdownMenuContent>
           </DropdownMenu>
         )}
+      </div>
+    );
+  };
+
+  /**
+   * The ⟳ button (objectui#3460), or `null` when the host provides no
+   * `refresh`.
+   *
+   * Styled as the `⋯` overflow trigger's twin — same `outline` variant, same
+   * `size="sm"`, same padding — so the whole row reads as ONE button family
+   * (`[Start][Expedite][Edit][⋯][⟳]`). A bare ghost icon next to a row of
+   * bordered pills read as detached from it.
+   */
+  const renderRefreshButton = (): React.ReactNode => {
+    if (!hostRefresh) return null;
+    const refreshLabel = tt('common.refresh', 'Refresh');
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 px-2"
+              onClick={handleManualRefresh}
+              aria-label={refreshLabel}
+              data-page-refresh
+            >
+              <RefreshCw className={cn('h-4 w-4', manualRefreshing && 'animate-spin')} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{refreshLabel}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
+  /**
+   * The header's trailing slot: the action row (or the empty layout slot that
+   * stands in for it) followed by the refresh chrome.
+   *
+   * Both header layouts below funnel through this so the ⟳ keeps the same
+   * position whether or not the record chip is rendered — including the first
+   * paint of a record page, before `ctx.data` lands. When no host provides
+   * `refresh` the slot is returned untouched, byte for byte what it was.
+   */
+  const renderHeaderTail = (emptySlot: React.ReactNode): React.ReactNode => {
+    const actions = renderHeaderActions() ?? emptySlot;
+    const refreshButton = renderRefreshButton();
+    if (!refreshButton) return actions;
+    return (
+      <div className="flex items-center gap-2 shrink-0">
+        {actions}
+        {refreshButton}
       </div>
     );
   };
@@ -1420,7 +1598,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
             <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
           )}
         </div>
-        {renderHeaderActions() ?? <div data-page-actions-slot className="shrink-0" />}
+        {renderHeaderTail(<div data-page-actions-slot className="shrink-0" />)}
       </header>
     );
   }
@@ -1442,7 +1620,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
           )}
           {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
         </div>
-        {renderHeaderActions() ?? <div data-page-actions-slot />}
+        {renderHeaderTail(<div data-page-actions-slot />)}
       </div>
     </header>
   );
@@ -1494,6 +1672,7 @@ ComponentRegistry.register('footer', PageFooterRenderer, {
   label: 'Page Footer',
   category: 'layout',
   isContainer: true,
+  inputs: PAGE_CONTAINER_INPUTS,
 });
 
 // ---------------------------------------------------------------------------
@@ -1518,4 +1697,5 @@ ComponentRegistry.register('sidebar', PageSidebarRenderer, {
   label: 'Page Sidebar',
   category: 'layout',
   isContainer: true,
+  inputs: PAGE_CONTAINER_INPUTS,
 });

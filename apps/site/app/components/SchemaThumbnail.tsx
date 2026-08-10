@@ -19,6 +19,8 @@ import React, {
 import { SchemaRenderer, SchemaRendererContext } from '@object-ui/react';
 import { SidebarProvider } from '@object-ui/components';
 import type { SchemaNode } from '@object-ui/core';
+// Registers `page-header` & friends — see the module header (objectui#3787).
+import './registerLayoutBlocks';
 
 const defaultCtx = { dataSource: {} };
 
@@ -112,6 +114,17 @@ export function SchemaThumbnail({
           }
         >
           <div
+            // `inert`, not just `pointer-events: none`: the preview renders the
+            // example's own controls, and this frame is `aria-hidden`. A
+            // focusable node inside an `aria-hidden` subtree is itself a
+            // violation (axe `aria-hidden-focus`), and because the preview
+            // precedes the card's open button in DOM order, a keyboard user
+            // otherwise tabs through every example's internal buttons before
+            // reaching the card (measured: Tab from card 1 stopped on Submit,
+            // Save Draft, Delete, Cancel — objectui#3903). `inert` removes the
+            // subtree from focus order and hit-testing, which is what makes the
+            // "non-interactive preview" in this component's contract true.
+            inert
             className="pointer-events-none absolute left-0 top-0 origin-top-left select-none"
             style={{
               width: `${viewportWidth}px`,

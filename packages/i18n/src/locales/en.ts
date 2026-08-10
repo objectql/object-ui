@@ -22,6 +22,34 @@ const en = {
       studio_access: 'Studio Access',
     },
   },
+  // objectui#3546 slice six — the read-only facet summary + Studio deep-link a
+  // `sys_permission_set` record shows for its six authorization facets
+  // (ADR-0056 P1, plugin-detail's PermissionFacetLink).
+  //
+  // The four count labels are plural families. `_one` is the singular; the BASE
+  // key (no suffix) is the form every OTHER CLDR plural category resolves to,
+  // which is what keeps `ru` (few/many) and `ar` (two/few/many/zero) in their own
+  // language instead of falling through to English — i18next only looks up the
+  // one suffix a language's rules ask for, and falls back to the base key when
+  // that suffix is absent. `perm-home-namespace-3546.test.tsx` renders every
+  // language at counts 1/2/3/5/11/21/100 to hold this.
+  perm: {
+    facet: {
+      none: 'None',
+      more: '+{{count}} more',
+      objects: '{{count}} objects',
+      objects_one: '{{count}} object',
+      fields: '{{count}} field rules',
+      fields_one: '{{count}} field rule',
+      rls: '{{count}} RLS policies',
+      rls_one: '{{count}} RLS policy',
+      tabs: '{{count}} tab rules',
+      tabs_one: '{{count}} tab rule',
+      adminScope: 'Delegated admin configured',
+      designInStudio: 'Design in Studio →',
+      designInStudioHint: 'Design in Studio',
+    },
+  },
   lookup: {
     recentlyUsed: 'Recently used',
     allResults: 'All results',
@@ -93,6 +121,10 @@ const en = {
     itemCountOne: '{{count}} item',
     toggleSidebar: 'Toggle sidebar',
     package: 'Package',
+    done: 'Done',
+    editInStudio: 'Edit in studio',
+    record: 'Record',
+    retry: 'Retry',
   },
   actions: {
     decisionOutput: {
@@ -626,6 +658,7 @@ const en = {
     noCards: 'No cards',
     cardTitlePlaceholder: 'Enter card title...',
     uncategorized: 'Uncategorized',
+    columns: 'columns',
   },
   timeline: {
     bucket: {
@@ -664,6 +697,7 @@ const en = {
       exportPng: 'Export as PNG',
       exportPdf: 'Export PDF',
       saveLayout: 'Save layout',
+      refresh: 'Refresh',
       undo: 'Undo',
       redo: 'Redo',
     },
@@ -710,6 +744,10 @@ const en = {
       ss: 'Start → Start',
       ff: 'Finish → Finish',
       sf: 'Start → Finish',
+    },
+    linkEnd: {
+      start: 'start',
+      end: 'end',
     },
     conflict: {
       title: 'Schedule conflict',
@@ -816,6 +854,7 @@ const en = {
     concurrentUpdateReload: 'Reload latest',
     concurrentUpdateOverwrite: 'Overwrite anyway',
     concurrentUpdateCancel: 'Cancel',
+    concurrentUpdateRecordLabel: 'this record',
     openInNewTab: 'Open in new tab',
     share: 'Share',
     duplicate: 'Duplicate',
@@ -862,12 +901,15 @@ const en = {
     copyToClipboard: 'Copy to clipboard',
     copied: 'Copied!',
     deleteConfirmation: 'Are you sure you want to delete this record?',
+    deleted: 'Record deleted',
     editRecord: 'Edit record',
     viewAll: 'View All',
     new: 'New',
+    add: 'Add',
     emptyValue: '—',
     activity: 'Activity',
     history: 'History',
+    historyEmpty: 'No history yet',
     editRow: 'Edit',
     deleteRow: 'Delete',
     deleteRowConfirmation: 'Are you sure you want to delete this record?',
@@ -962,6 +1004,7 @@ const en = {
     loadMore: 'Load more',
     edited: '(edited)',
     via: 'via {{source}}',
+    viewSource: 'View source',
     // Replies
     replyCount: '{{count}} reply',
     replyCountPlural: '{{count}} replies',
@@ -1195,6 +1238,7 @@ const en = {
     noDataAvailable: 'No data available',
     noDataSourceFor: 'No data source available for',
     noRows: 'No rows',
+    loading: 'Loading…',
     pickMeasures: 'Pick measures (values) for this dataset widget.',
     datasetUnsupported: 'This data source does not support dataset queries.',
     details: 'Details',
@@ -1509,6 +1553,7 @@ const en = {
         general: 'General',
         navigation: 'Navigation',
         dataViews: 'Data Views',
+        aiChat: 'AI assistant',
         preferences: 'Preferences',
       },
       openCommandPalette: 'Open command palette',
@@ -1519,6 +1564,8 @@ const en = {
       createRecord: 'Create new record',
       refreshData: 'Refresh data',
       editRecord: 'Edit selected record',
+      newChat: 'New chat',
+      toggleChatsList: 'Toggle conversations list',
       toggleDarkMode: 'Toggle dark mode',
     },
     commandPalette: {
@@ -1706,6 +1753,57 @@ const en = {
           addAutomation: 'Add an automation — an approval, a status flow, or a notification.',
         },
       },
+      // objectui#3546 slice four — the AI console surfaces: the /ai chat page's app switcher,
+      // connection banner and plan/publish cards, the ChatDock chrome, and the
+      // conversation-list date buckets. `group.*` is the template-key family
+      // `console.ai.group.${key}` (ConversationsSidebar), enumerated from the
+      // ConversationGroupKey union — all five members, no wildcard.
+      collapseToDock: 'Collapse to side panel',
+      switchApp: 'Switch app',
+      switchAppLabel: 'Build conversations by app',
+      newApp: 'New app',
+      connectionWaiting: 'Waiting for server…',
+      connectionStalled: 'Still working…',
+      connectionOffline: 'Connection lost — reconnecting…',
+      designingPlan: 'Designing your app…',
+      designingPlanHint: {
+        data: 'Mapping out the data you’ll track…',
+        objects: 'Shaping objects and their fields…',
+        relations: 'Connecting related records…',
+        lookups: 'Setting up relationships and lookups…',
+        views: 'Planning the screens and views…',
+        forms: 'Laying out forms and lists…',
+        defaults: 'Adding sensible defaults and validations…',
+        dashboard: 'Sketching a dashboard to track it…',
+        review: 'Double-checking the structure hangs together…',
+        finalize: 'Pulling the plan together…',
+      },
+      planBuilding: 'Building…',
+      planBuilt: 'Built',
+      planDeferred: 'Not yet built',
+      planReady: 'The plan is ready. Build it now, or tell me what to adjust.',
+      published: 'Published',
+      publishFailed: 'Publish failed',
+      unavailableTitle: 'AI assistant unavailable',
+      unavailableDescription: "This deployment doesn't have an AI assistant enabled. Everything else works as usual.",
+      unavailableError: "Couldn't reach the AI service. It may be temporarily offline — try again, or head back home.",
+      unavailableRetry: 'Try again',
+      unavailableHome: 'Back to home',
+      dock: {
+        title: 'Assistant',
+        description: 'AI assistant chat',
+        resize: 'Resize chat',
+        collapse: 'Collapse chat',
+        maximize: 'Open full page',
+        open: 'Open assistant',
+      },
+      group: {
+        today: 'Today',
+        yesterday: 'Yesterday',
+        previous7Days: 'Previous 7 days',
+        previous30Days: 'Previous 30 days',
+        older: 'Older',
+      },
     },
     errors: {
       somethingWentWrong: 'Something went wrong',
@@ -1713,6 +1811,12 @@ const en = {
       tryAgain: 'Try Again',
       goHome: 'Go Home',
       errorDetails: 'Error Details (dev only)',
+    },
+    // objectui#3546 slice four — the console's catch-all route (AppContent `RouteNotFound`).
+    notFound: {
+      title: 'Page not found',
+      description: 'The URL you followed does not match any view in this app.',
+      back: 'Go back',
     },
     theme: {
       toggle: 'Toggle theme',
@@ -1754,6 +1858,11 @@ const en = {
       filterOrNotSavable: 'This filter uses OR between conditions, which a saved view cannot store yet. It still applies to this list — remove the OR grouping to save it to the view.',
       filterNestedNotSavable: 'This filter uses nested condition groups, which a saved view cannot store. Flatten it to a single list of conditions to save it to the view.',
       systemViewReadonly: 'System view defined in code — read-only.',
+      // ObjectView.tsx references ONE edit-denied key from four call sites
+      // (rename / pin / set-as-default / configure), so the copy has to cover
+      // any change to a built-in view rather than name one operation.
+      cannotEditMetaView: 'This view is built in and defined in code — it cannot be changed.',
+      cannotDeleteMetaView: 'This view is built in and defined in code — it cannot be deleted.',
       expandToPage: 'Open as full page',
       allRecords: 'All Records',
       exitDesignMode: 'Exit Design Mode',
@@ -1978,6 +2087,20 @@ const en = {
       signUpText: 'Sign up',
       signingIn: 'Signing you in…',
       ssoHandoff: 'Continue to {{target}}',
+      // Phone/OTP sign-in labels. `LoginForm` interpolates `{seconds}` with a
+      // literal `.replace()` of its own (packages/auth/src/LoginForm.tsx:429),
+      // so those SINGLE braces must survive translation — i18next never sees
+      // them.
+      emailOrPhoneLabel: 'Email or phone number',
+      emailOrPhonePlaceholder: 'name@example.com or +1 555 000 0000',
+      phoneLabel: 'Phone number',
+      phonePlaceholder: '+1 555 000 0000',
+      otpCodeLabel: 'Verification code',
+      otpCodePlaceholder: '6-digit code',
+      sendOtpButton: 'Get code',
+      resendOtpCountdownText: 'Resend in {seconds}s',
+      usePhoneOtpText: 'Sign in with verification code',
+      usePasswordSignInText: 'Sign in with password instead',
       devAdminHint: {
         title: 'Development instance',
         body: 'Sign in with the seeded dev admin:',
@@ -2030,6 +2153,22 @@ const en = {
       backToSignInText: 'Back to sign in',
       rememberPasswordText: 'Remember your password?',
       signInText: 'Sign in',
+      // The SMS branch of the same form: request an OTP, then set the new
+      // password inline instead of following an emailed link. `{seconds}` is
+      // ForgotPasswordForm's own hole (packages/auth/src/ForgotPasswordForm.tsx:367).
+      phoneLabel: 'Phone number',
+      phonePlaceholder: '+1 555 000 0000',
+      otpCodeLabel: 'Verification code',
+      otpCodePlaceholder: '6-digit code',
+      sendOtpButton: 'Get code',
+      resendOtpCountdownText: 'Resend in {seconds}s',
+      newPasswordLabel: 'New password',
+      newPasswordPlaceholder: 'Enter a new password',
+      resetButton: 'Reset Password',
+      usePhoneResetText: 'Reset via SMS code',
+      useEmailResetText: 'Reset via email instead',
+      phoneSuccessTitle: 'Password reset',
+      phoneSuccessDescription: 'Your password has been reset. You can now sign in with your new password.',
     },
     resetPassword: {
       title: 'Set a new password',
@@ -2064,6 +2203,8 @@ const en = {
       resentSuccess: 'Verification email sent!',
       resentDescription: 'Please check your inbox and click the verification link.',
       resendFailed: 'Cannot resend verification email',
+      resendUnavailable:
+        'Email delivery may not be configured for this environment. Contact support if this persists.',
       signInLink: 'Go to sign in',
       backToSignIn: 'Back to sign in',
       backToLogin: 'Back to login',
@@ -2105,6 +2246,11 @@ const en = {
       denyFailed: 'Failed to deny request',
       invalidTitle: 'Invalid device link',
       invalidDescription: 'No device code was provided in the URL.',
+      // Shown when the deployment has the device-authorization plugin off, so
+      // the endpoints 404 (framework#2874 / objectui#2513).
+      disabledTitle: 'Device authorization not enabled',
+      disabledDescription:
+        'This deployment does not have device authorization enabled, so this device cannot be approved here.',
       loading: 'Loading…',
       cancel: 'Cancel',
     },
@@ -2165,6 +2311,56 @@ const en = {
         invalidCode: 'Invalid code. Try again.',
       },
     },
+  },
+  // The OAuth authorization-code consent screen (`/oauth/consent`). A third
+  // party asks for scopes and the signed-in user grants or denies them, so
+  // every string here is a security decision the user must read in their own
+  // language — objectui#3546 slice three.
+  oauth: {
+    consent: {
+      // `{{appName}}` is the client's registered name, or `unknownApp` when the
+      // client metadata carries none. `{{suffix}}` is the parenthesised account
+      // hint the page passes (empty when no user is loaded), so it must stay
+      // attached to the sentence's last word.
+      title: '{{appName}} wants to access your account',
+      request: '{{appName}} is requesting permission{{suffix}}.',
+      unknownApp: 'an application',
+      willAllow: 'This app will be able to:',
+      // Only the four scopes the page maps by name; anything else renders the
+      // raw scope string, which is why there is no generic entry here.
+      scope: {
+        openid: 'Confirm your identity',
+        profile: 'Read your basic profile (name, picture)',
+        email: 'Read your email address',
+        offlineAccess: 'Stay signed in (refresh access)',
+      },
+      deny: 'Deny',
+      authorize: 'Authorize',
+      submitting: 'Authorizing…',
+      granted: 'Access granted',
+      denied: 'Access denied',
+      noRedirect: 'No redirect URL returned by the server.',
+      failed: 'Consent failed',
+      footer: 'You can revoke access at any time from your account settings.',
+    },
+  },
+  // The console's own `/accept-invitation/:invitationId` page. Distinct from
+  // `organization.accept.*`, which belongs to app-shell's richer page for the
+  // same route (it fetches the invitation and shows org/role/expiry). Two
+  // components, two namespaces — see the note in the slice-three test.
+  acceptInvitation: {
+    title: 'Accept organization invitation',
+    description: "You've been invited to join an organization.",
+    accept: 'Accept invitation',
+    accepting: 'Accepting…',
+    accepted: 'Invitation accepted',
+    acceptFailed: 'Could not accept',
+    decline: 'Decline',
+    declining: 'Declining…',
+    declined: 'Invitation declined',
+    declineFailed: 'Could not decline',
+    invalidTitle: 'Invalid invitation link',
+    invalidDescription: 'The invitation id is missing from the URL.',
   },
   profile: {
     title: 'Profile',
@@ -2228,6 +2424,7 @@ const en = {
     invite: 'Invite member',
     members: 'Members',
     settings: 'Workspace settings',
+    multiOrgDisabled: 'Creating new organizations is disabled on this instance.',
   },
   help: {
     onThisPage: 'On this page',
@@ -2331,6 +2528,15 @@ const en = {
       publishing: 'Publishing…',
       published: 'Published! Your changes are live.',
       publishFailed: 'Publish failed',
+      // objectui#3546 slice six — the rest of `usePublishAllDrafts`'s toasts
+      // (the ADR-0038 L3 probe / seed health report and the ADR-0066 ⑨
+      // capability-reference lint). Same banner, same publish button, so they
+      // live beside the five keys above rather than in a namespace of their own.
+      nothing: 'Nothing to publish.',
+      probeWarn: 'Published, but verification found problems.',
+      seedWarn: 'Published, but some sample data failed to load.',
+      publishedVerified: 'Published & verified — {{count}} sample row(s) live.',
+      capabilityWarn: 'Authoring check: {{count}} capability reference(s) resolve nowhere.',
     },
     createFirstApp: 'Create app manually',
     systemSettings: 'System Settings',
@@ -2389,6 +2595,9 @@ const en = {
       roles: 'Roles',
       configuration: 'Configuration',
       createApp: 'Create App',
+      administration: 'Administration',
+      datasources: 'Datasources',
+      documentation: 'Documentation',
     },
     activityFeed: {
       title: 'Recent Activity',
@@ -2436,6 +2645,7 @@ const en = {
   empty: {
     objectNotFound: 'Object Not Found',
     objectNotFoundDescription: 'Object "{{name}}" definition missing. Check your configuration or navigate back to select a valid object.',
+    interfacePageSourceMissing: 'This interface page references "{{name}}", which is not available.',
     recordNotFound: 'Record not found',
     recordNotFoundDescription: 'The record you are looking for does not exist or may have been deleted.',
     pageNotFound: 'Page Not Found',
@@ -2446,6 +2656,8 @@ const en = {
     reportNotFoundDescription: 'The report "{{name}}" could not be found. It may have been removed or renamed.',
     noAppsConfigured: 'No Apps Configured',
     noAppsConfiguredDescription: 'No applications have been registered. Create your first app or visit System Settings to configure your environment.',
+    appNotAvailable: 'App not available',
+    appNotAvailableDescription: 'This app is not available yet — it may still be publishing. Try again in a moment.',
     createFirstApp: 'Create Your First App',
     systemSettings: 'System Settings',
     back: 'Back',
@@ -2488,6 +2700,32 @@ const en = {
       detailChangedKeys: 'Also changed:',
       confirmNote: 'Publishing releases all {{count}} pending drafts of this package atomically.',
       publishConfirm: 'Publish all',
+    },
+    // ADR-0045 — the materialized-but-unlisted app banner
+    // (UnpublishedAppBar.tsx), sibling of draftBar above.
+    unpublishedBar: {
+      message: 'Unpublished app — fully functional, but only builders can see it. Publish to make it visible to your users.',
+      publish: 'Publish',
+      publishing: 'Publishing…',
+      published: 'Published! The app is now visible to your users.',
+      publishFailed: 'Publish failed',
+    },
+    // ADR-0067 — the append-only build/revert timeline (CommitTimeline.tsx);
+    // `button` is the banner's entry point into it.
+    history: {
+      button: 'History',
+      title: 'Build history',
+      description: 'Every change to this app, newest first. Revert any step to undo it — no publish confirmation needed.',
+      loadFailed: 'Could not load history:',
+      loading: 'Loading history…',
+      empty: 'No history yet for this app.',
+      revertLabel: 'Reverted a change',
+      applyLabel: 'Build change',
+      revert: 'revert',
+      items: 'item(s)',
+      revertAction: 'Revert',
+      reverted: 'Reverted — the change has been undone.',
+      revertFailed: 'Revert failed',
     },
   },
   renderer: {
@@ -2592,6 +2830,126 @@ const en = {
     emptyDescription: 'Create your first workspace to get started.',
     noMatches: 'No workspaces match your search.',
   },
+  // Organization MANAGEMENT (packages/app-shell/src/console/organizations/**
+  // plus the workspace switcher). Distinct from `organizations` above, which
+  // is the org PICKER — same domain, different surface, and the singular /
+  // plural spelling is the only thing telling them apart at a call site.
+  organization: {
+    backToList: 'Back to organizations',
+    notFound: 'Organization not found',
+    notFoundDescription: 'This organization does not exist or you do not have access.',
+    tabs: {
+      members: 'Members',
+      invitations: 'Invitations',
+      settings: 'Settings',
+    },
+    members: {
+      title: 'Members',
+      inviteMember: 'Invite member',
+      removeMember: 'Remove member',
+      removeConfirmTitle: 'Remove member?',
+      removeConfirmDescription: 'This will remove {{name}} from the organization. They will lose access immediately.',
+      removeConfirmAction: 'Remove',
+      memberRemoved: 'Member removed',
+      removeFailed: 'Failed to remove member',
+      roleUpdated: 'Role updated',
+      roleUpdateFailed: 'Failed to update role',
+    },
+    invitations: {
+      title: 'Invitations',
+      empty: 'No invitations found.',
+      expiresAt: 'Expires',
+      linkCopied: 'Invitation link copied',
+      copyFailed: 'Failed to copy link',
+      canceled: 'Invitation canceled',
+      cancelFailed: 'Failed to cancel invitation',
+      cancelTitle: 'Cancel invitation?',
+      cancelDescription: 'The invitation for {{email}} will be revoked.',
+      cancelAction: 'Cancel invitation',
+      inviteTitle: 'Invite a member',
+      inviteDescription: 'They will receive an invitation to join this organization.',
+      emailLabel: 'Email',
+      roleLabel: 'Role',
+      // Placement = business unit + positions applied to the invitee on
+      // accept. The lists are already filtered to what the inviter may
+      // delegate.
+      placementLabel: 'Placement (optional)',
+      placementDescription: 'Applied when the invitation is accepted. Only units and positions you may delegate are listed.',
+      businessUnitLabel: 'Business unit',
+      businessUnitPlaceholder: 'No placement',
+      positionsLabel: 'Positions',
+      sendInvite: 'Send invite',
+      sentTitle: 'Invitation created',
+      sentDescription: 'Share the link below with the invitee. They will need to sign in to accept.',
+      linkLabel: 'Accept link',
+      invitedAs: '{{email}} invited as {{role}}',
+      status: {
+        all: 'All',
+        pending: 'Pending',
+        accepted: 'Accepted',
+        rejected: 'Rejected',
+        canceled: 'Canceled',
+      },
+    },
+    settings: {
+      generalTitle: 'General',
+      generalDescription: 'Update your organization information.',
+      readOnlyNote: 'Only owners can change settings.',
+      nameLabel: 'Organization name',
+      // The org's URL segment. `deleteConfirmSlugLabel` asks the user to
+      // retype it, so the two must keep naming the same thing.
+      slugLabel: 'Slug',
+      logoLabel: 'Logo',
+      logoUpload: 'Upload',
+      logoReplace: 'Replace',
+      logoClear: 'Remove',
+      logoUploaded: 'Logo uploaded — save to apply',
+      logoUploadFailed: 'Failed to upload logo',
+      save: 'Save changes',
+      saved: 'Settings saved',
+      saveFailed: 'Failed to save settings',
+      leaveTitle: 'Leave organization',
+      leaveDescription: 'You will lose access to this organization.',
+      leaveAction: 'Leave',
+      leaveConfirmTitle: 'Leave organization?',
+      leaveConfirmDescription: 'Are you sure you want to leave {{name}}? You will lose access immediately.',
+      leaveConfirmAction: 'Leave',
+      leftOrg: 'You have left the organization',
+      leaveFailed: 'Failed to leave organization',
+      dangerZone: 'Danger zone',
+      deleteTitle: 'Delete organization',
+      deleteDescription: 'Permanently delete this organization and all its data.',
+      deleteAction: 'Delete',
+      deleteConfirmTitle: 'Delete organization?',
+      deleteConfirmDescription: 'This action is irreversible. All data will be permanently deleted. Type the organization slug to confirm.',
+      deleteConfirmSlugLabel: 'Type "{{slug}}" to confirm',
+      deleteConfirmAction: 'Delete organization',
+      deleted: 'Organization deleted',
+      deleteFailed: 'Failed to delete organization',
+    },
+    accept: {
+      title: 'You have been invited',
+      description: 'You have been invited to join {{orgName}} as {{role}}.',
+      errorTitle: 'Invitation unavailable',
+      goToOrgs: 'Go to organizations',
+      loading: 'Loading invitation…',
+      organization: 'Organization',
+      role: 'Role',
+      expiresAt: 'Expires',
+      accept: 'Accept invitation',
+      accepted: 'Invitation accepted',
+      acceptFailed: 'Failed to accept invitation',
+      decline: 'Decline',
+      declined: 'Invitation declined',
+      declineFailed: 'Failed to decline invitation',
+    },
+    switcher: {
+      label: 'Switch organization',
+      groupLabel: 'Working organization',
+      groupHint: 'New records are created here. Views show data from all your organizations.',
+      manageMembers: 'Manage members',
+    },
+  },
   notifications: {
     regionLabel: 'Notifications',
     empty: 'No notifications',
@@ -2608,6 +2966,12 @@ const en = {
     viewApprovals: 'View approvals',
     noPendingApprovals: 'No pending approvals',
     openApprovalsInbox: 'Open Approvals Inbox',
+    // Bell-badge breakdown (#7233): the badge sums unread notification topics
+    // and pending approvals, then clamps at "9+". These three spell the sum
+    // out inside the popover so the number is explainable.
+    badgeTotal: '{{total}} total',
+    badgeNotifications: '{{unread}} notifications',
+    badgeApprovals: '{{approvals}} pending approvals',
   },
   publicForm: {
     submit: 'Submit',
@@ -2891,6 +3255,7 @@ const en = {
         dismiss: 'Dismiss',
         openOnCloud: 'Open on cloud',
         backHome: 'Back to home',
+        updateTo: 'Update',
       },
       install: {
         dialogTitle: 'Install {{name}}',
@@ -2907,6 +3272,37 @@ const en = {
         localManifestConflict: '{{message}}\nTip: a local app already owns this manifest_id. Remove it from objectstack.config.ts first.',
         localUnauthorized: 'Sign in to this runtime first, then try again.',
         localMarketplaceUnavailable: 'This runtime has no OS_CLOUD_URL configured, so the marketplace catalog is unreachable.',
+        updateTo: 'Update → v{{version}}',
+        installedVersion: 'Installed v{{version}}',
+      },
+      // objectui#3546 — the MarketplacePage "Your organization" strip.
+      org: {
+        heading: 'Your organization',
+        install: 'Install',
+        installed: 'Installed {{name}}',
+        installedBadge: 'Installed',
+        installing: 'Installing…',
+      },
+      // ADR-0025 PD4 §3.5/§3.11 — the pre-install consent panel
+      // (PluginDisclosure.tsx). `runtime` is a CLOSED enum: spec
+      // PluginRuntimeSchema = z.enum(['node', 'sandbox', 'worker']).
+      disclosure: {
+        containsCode: 'This package contains code',
+        reviewed: 'Reviewed & approved',
+        unreviewed: 'Not yet reviewed',
+        signed: 'Signed',
+        grantsIntro: 'On install, this package will be granted:',
+        services: 'Platform services',
+        hooks: 'Lifecycle hooks',
+        network: 'Network access',
+        fs: 'Filesystem access',
+        noPermissions: 'Requests no special permissions.',
+        acknowledge: 'I understand this package runs code and grants the permissions above.',
+        runtime: {
+          node: 'In-process · full trust',
+          sandbox: 'Sandboxed',
+          worker: 'Out-of-process',
+        },
       },
       // ADR-0090 D5/D9 — a package's isDefault permission set is an
       // install-time suggestion to bind it to the everyone/guest position;
@@ -3252,6 +3648,11 @@ const en = {
     statusActive: 'active',
     statusIdle: 'idle',
     statusAway: 'away',
+  },
+  // Multi-step form (plugin-form's WizardForm). `{{fields}}` is a
+  // comma-joined, already-truncated label list built at the call site.
+  wizard: {
+    missingRequired: 'Please complete the required fields: {{fields}}',
   },
 } as const;
 

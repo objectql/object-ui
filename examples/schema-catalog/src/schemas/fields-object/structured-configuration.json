@@ -1,10 +1,17 @@
 {
-  "type": "object",
-  "name": "config",
-  "label": "Configuration",
-  "schema": {
-    "api_key": "string",
-    "timeout": "number",
-    "enabled": "boolean"
-  }
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "config",
+      "label": "Configuration",
+      "type": "object",
+      "schema": {
+        "api_key": "string",
+        "timeout": "number",
+        "enabled": "boolean"
+      }
+    }
+  ]
 }

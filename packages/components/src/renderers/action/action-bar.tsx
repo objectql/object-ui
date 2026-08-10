@@ -238,6 +238,12 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
           variant: schema.variant || 'ghost',
           size: schema.size || 'sm',
         }}
+        // The row, same as the inline members below. Without it an action's
+        // `visible` / `disabled` predicate answered a different question purely
+        // because the action had spilled past `maxVisible` — and on mobile
+        // `maxVisible` defaults to 1, so which actions lose their row is a
+        // function of the viewport (objectui#4075).
+        data={data}
       />
     ) : null;
 

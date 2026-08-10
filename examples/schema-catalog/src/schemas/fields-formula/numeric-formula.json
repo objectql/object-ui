@@ -1,8 +1,15 @@
 {
-  "type": "formula",
-  "name": "total",
-  "label": "Total Amount",
-  "formula": "quantity * price",
-  "return_type": "number",
-  "readonly": true
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "total",
+      "label": "Total Amount",
+      "type": "formula",
+      "formula": "quantity * price",
+      "return_type": "number",
+      "readonly": true
+    }
+  ]
 }

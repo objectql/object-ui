@@ -21,11 +21,12 @@ import React, { forwardRef, useCallback, useEffect, useRef, useState } from 'rea
 import { ComponentRegistry } from '@object-ui/core';
 import type { ActionSchema } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
-import { useCondition, toPredicateInput } from '@object-ui/react';
+import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
 import { Button } from '../../ui';
 import { cn } from '../../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
+import { hasDeclaredVisibilityGate } from './visibility-gate';
 
 export interface ActionButtonProps {
   schema: ActionSchema & { type: string; className?: string; actionType?: string };
@@ -48,8 +49,12 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
     const { execute } = useAction();
     const [loading, setLoading] = useState(false);
 
-    // Record data may be passed from SchemaRenderer (e.g. DetailView passes record data)
-    const recordData = data != null && typeof data === 'object' ? data as Record<string, any> : {};
+    // Record data may be passed from SchemaRenderer (e.g. DetailView passes
+    // record data), bound the three canonical ways — `record.status`, bare
+    // `status`, `data.status` (objectui#4075). This used to be the row spread
+    // flat, so the CANONICAL `record.` root threw `record is not defined` and
+    // the fail-closed `visible` below turned that into "hidden".
+    const recordData = usePredicateRecordContext(data);
 
     // Evaluate visibility and disabled conditions with record data context.
     // `visible` fails CLOSED on a throwing predicate (mirrors ActionEngine's
@@ -102,6 +107,18 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
           endpoint: schema.endpoint,
           method: schema.method,
           ...paramsPayload,
+          // Static request body of a `type: 'api'` action, merged last by the
+          // runner. Separate key from `params` by the objectstack#5777 ruling —
+          // dropping it here left a declared action whose payload lives only in
+          // `bodyExtra` POSTing nothing (objectstack#6837).
+          bodyExtra: schema.bodyExtra,
+          // How that body is SHAPED — `'flat'` or `{ wrap: key }`. Read
+          // unconditionally by the console apiHandler and by the runner's own
+          // executeAPI, so dropping it here did not fail: the action POSTed a
+          // flat body while its declaration said `{ wrap: 'data' }`
+          // (objectstack#6938). Sibling of `bodyExtra` above, same whitelist,
+          // same failure mode.
+          bodyShape: schema.bodyShape,
           confirmText: schema.confirmText,
           successMessage: schema.successMessage,
           errorMessage: schema.errorMessage,
@@ -145,7 +162,12 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
       // this once-only regardless, so it's safe to depend on it.
     }, [autoTrigger, handleClick]);
 
-    if (schema.visible && !isVisible) return null;
+    // A declared boolean `visible: false` is a verdict, not a missing gate —
+    // truthiness classified it as "ungated" and rendered the action for
+    // everyone (objectui#3823). Reachable because `action:bar` bypasses
+    // `SchemaRenderer` and spreads the whole member action onto this schema, so
+    // this gate is the only one on that path. See `hasDeclaredVisibilityGate`.
+    if (hasDeclaredVisibilityGate(schema.visible) && !isVisible) return null;
 
     return (
       <Button
@@ -154,10 +176,30 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
         variant={variant as any}
         size={size as any}
         className={cn(schema.className, className)}
+        // Is a `disabled` / `enabled` gate DECLARED? Same question as the
+        // `visible` gate above, so it reads the same definition — the name is
+        // historic (objectui#3492 arrived through `visible`); the predicate is
+        // key-neutral: "declared" means `!= null && !== ''`, an empty predicate
+        // is nothing to evaluate and therefore no gate. Deliberately NOT
+        // renamed or aliased for this call site (objectui#3842 ruling): one
+        // implementation under two names is how a repo grows dialects.
+        //
+        // `!= null` alone was a live defect here in a way it is not on
+        // `visible` (objectui#3842). The evaluation entry reads an empty
+        // predicate as "no condition → true"; on `visible` that `true` means
+        // SHOW, so an over-broad "declared" test cancels out, while here it
+        // means DISABLE — `disabled: ''` was a permanently greyed-out button.
+        //
+        // The legacy `enabled` leg is negated (`!isEnabled`), so its `''` case
+        // already landed on "not disabled" by double negation; routing it
+        // through the same definition is behaviour-preserving for all four
+        // shapes (derivation table in
+        // `__tests__/action-disabled-declared-gate.test.tsx`) and keeps one
+        // spelling of "declared" on both legs.
         disabled={(
-          (schema as any).disabled != null
+          hasDeclaredVisibilityGate((schema as any).disabled)
             ? isDisabled
-            : schema.enabled != null
+            : hasDeclaredVisibilityGate(schema.enabled)
               ? !isEnabled
               : false
         ) || loading}

@@ -59,6 +59,19 @@ export interface UseHitlInChatOptions {
    * Optional callback fired after a decision completes (regardless of
    * success/failure). Useful for refreshing the inbox view if it is also
    * mounted on the same page.
+   *
+   * `outcome` is the spec decision response as the endpoint returned it, so
+   * read it by side: `result` / `error` on approve, `id` on reject
+   * (objectui#3783 — the previous local types promised `id` on BOTH, and the
+   * approve response has never carried one). `pendingActionId` is available
+   * from `ContinueContext` and from the row you decided on; do not fish it out
+   * of an approve outcome.
+   *
+   * One honest caveat: on a transport error or non-2xx there IS no decision
+   * response, and this callback is still invoked — with an envelope the hook
+   * synthesizes locally (`{ status: 'failed', error }`). That case is not
+   * modelled by this parameter's type; narrowing it is a public-contract
+   * decision tracked in objectui#3790.
    */
   onDecided?: (toolCallId: string, outcome: ApproveOutcome | RejectOutcome) => void;
   /**
@@ -80,7 +93,12 @@ export interface ContinueContext {
   toolCallId: string;
   pendingActionId: string;
   decision: 'approved' | 'rejected';
-  /** Raw REST payload — `{ status, result?, error?, … }`. */
+  /**
+   * Raw REST payload — the spec decision response: `{ status: 'executed' |
+   * 'failed', result?, error? }` on approve, `{ status: 'rejected', id }` on
+   * reject (objectui#3783). Note `id` is on the REJECT side only; use
+   * `pendingActionId` above, which is populated for both decisions.
+   */
   outcome: ApproveOutcome | RejectOutcome;
   /** Tool name as it appeared in the message part (e.g. `action_delete_task`). */
   toolName?: string;
@@ -206,6 +224,14 @@ export function useHitlInChat(options: UseHitlInChatOptions): UseHitlInChatRetur
               ? payload.error
               : `Approval failed: HTTP ${response.status}`;
           setDecision(toolCallId, { state: 'error', message });
+          // Not a wire response: on a non-2xx there IS no decision response, so
+          // this envelope is synthesized locally to notify `onDecided`. The
+          // `id` stays on it deliberately — it has been part of what consumers
+          // receive on this path since the callback shipped, and objectui#3783
+          // is a type-only correction (`ApproveOutcome` no longer DECLARES
+          // `id`, because the approve wire never carried one). What the
+          // callback SHOULD be handed on transport/HTTP failure is a public
+          // contract question, filed as objectui#3790, not settled here.
           onDecided?.(toolCallId, {
             id,
             status: 'failed',

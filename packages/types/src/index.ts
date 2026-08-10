@@ -562,11 +562,32 @@ export type {
   FetchCacheStrategy,
   PWAOfflineConfig,
   OfflineRoute,
-  TouchGestureType,
-  TouchGestureConfig,
+  // `GestureType` / `GestureConfig` reclaimed their natural names in
+  // objectui#3363 once `@objectstack/spec` deleted `ui/touch`
+  // (objectstack#4988). `PWAOfflineConfig` above deliberately did NOT — see
+  // its note in `./mobile`; `@object-ui/react`'s `useOffline` owns that name.
+  GestureType,
+  GestureConfig,
   GestureContext,
   MobileComponentConfig,
+  // The retired `@objectstack/spec/ui` touch vocabulary, now owned here —
+  // see the "Spec Touch Vocabulary" note in `./mobile` (objectstack#4988).
+  // `SPEC_GESTURE_TYPES` is its runtime witness and is exported as a VALUE
+  // below, outside this `export type` block.
+  SpecGestureType,
+  SpecSwipeDirection,
+  SpecGestureConfig,
+  SwipeGestureConfig,
+  PinchGestureConfig,
+  LongPressGestureConfig,
+  TouchTargetConfig,
+  TouchInteraction,
 } from './mobile';
+
+// Runtime witness for the retired touch vocabulary — a VALUE, so it must not
+// sit inside the `export type` block above (#2561: inside one it is
+// value-erased and resolves to `undefined` at runtime).
+export { SPEC_GESTURE_TYPES } from './mobile';
 
 // ============================================================================
 // Visual Designer Types (Q2 2026)
@@ -662,8 +683,8 @@ export type {
   Typography,
   BorderRadius,
   Shadow,
-  Animation,
-  ZIndex,
+  // `Animation` / `ZIndex` retired with `theme.animation` / `theme.zIndex` in
+  // @objectstack/spec 17.0.0-rc.3 (objectstack#5021) — see `./theme`.
   ThemeSwitcherSchema,
   ThemePreviewSchema,
   // Legacy aliases
@@ -984,38 +1005,19 @@ export type {
 // ----------------------------------------------------------------------------
 
 // ============================================================================
-// v2.0.7 Spec UI Types — Drag and Drop
+// v2.0.7 Spec UI Types — Drag and Drop / Focus & Keyboard / Animation & Motion
 // ============================================================================
-export type {
-  DndConfig,
-  DragItem,
-  DropZone,
-  DragConstraint,
-  DragHandle,
-  DropEffect,
-} from '@objectstack/spec/ui';
-
-// ============================================================================
-// v2.0.7 Spec UI Types — Focus & Keyboard Navigation
-// ============================================================================
-export type {
-  FocusManagement,
-  FocusTrapConfig,
-  KeyboardNavigationConfig,
-  KeyboardShortcut,
-} from '@objectstack/spec/ui';
-
-// ============================================================================
-// v2.0.7 Spec UI Types — Animation & Motion
-// ============================================================================
-export type {
-  ComponentAnimation,
-  AnimationTrigger,
-  MotionConfig,
-  TransitionConfig,
-  TransitionPreset,
-  EasingFunction,
-} from '@objectstack/spec/ui';
+// RETIRED in @objectstack/spec 17.0.0-rc.3 (objectstack#4988, PR objectstack#5321):
+// the five `ui/` interaction-config modules (touch / dnd / keyboard / animation /
+// offline) were deleted whole — 32 defs, 64 exports. None of these blocks had an
+// authoring door: no metadata document could ever carry one, so a stack that
+// parsed before the retirement parses byte-for-byte the same after it, and the
+// re-exports below were type-only surface with no runtime half to lose.
+//
+// The `DndConfig` / `KeyboardShortcut` names still live in this repo as LOCAL
+// declarations in `@object-ui/core`'s `DndProtocol.ts` / `KeyboardProtocol.ts`.
+// Those never imported the spec — the collision is a naming coincidence, not a
+// coupling, and they are deliberately untouched (objectui#3363).
 
 // ============================================================================
 // v2.0.7 Spec UI Types — Notifications
@@ -1036,40 +1038,30 @@ export type {
  * The live objectui equivalent of the removed config is
  * `NotificationSystemConfig` in `@object-ui/react`'s `NotificationContext`,
  * which is declared locally and is what every surface actually reads.
+ *
+ * `NotificationAction` left the same way in 17.0.0-rc.3 (objectstack#5015, PR
+ * objectstack#5300): no notification action was ever parsed from metadata, so
+ * nothing regressed at runtime. The three PRESENTATION enums below survive and
+ * are the toaster vocabulary this repo actually reads.
  */
 export type {
-  NotificationAction,
   NotificationPosition,
   NotificationSeverity,
   NotificationType,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
-// v2.0.7 Spec UI Types — Gestures & Touch
+// v2.0.7 Spec UI Types — Gestures & Touch / Offline & Sync
 // ============================================================================
-export type {
-  GestureConfig as SpecGestureConfig,
-  GestureType as SpecGestureType,
-  SwipeGestureConfig,
-  SwipeDirection,
-  PinchGestureConfig,
-  LongPressGestureConfig,
-  TouchInteraction,
-  TouchTargetConfig,
-} from '@objectstack/spec/ui';
-
-// ============================================================================
-// v2.0.7 Spec UI Types — Offline & Sync
-// ============================================================================
-export type {
-  OfflineConfig as SpecOfflineConfig,
-  OfflineCacheConfig,
-  OfflineStrategy,
-  SyncConfig,
-  ConflictResolution,
-  PersistStorage,
-  EvictionPolicy,
-} from '@objectstack/spec/ui';
+// RETIRED with the same objectstack#4988 / PR objectstack#5321 deletion as the
+// interaction blocks above. `@object-ui/react`'s `useOffline` is the real owner
+// of the offline semantics and now declares its own types locally, which is the
+// remediation the spec's own retirement ledger prescribes for a client that
+// consumed these as types: "it is your client's policy, not the platform's".
+//
+// Note `@objectstack/spec/integration`'s `ConnectorConflictResolution` and
+// `@objectstack/spec/api`'s `ConflictResolutionStrategy` are DIFFERENT concepts
+// and are untouched — do not re-point the deleted `ConflictResolution` at them.
 
 // ============================================================================
 // v2.0.7 Spec UI Types — View Enhancements
@@ -1103,10 +1095,12 @@ export type {
 // ============================================================================
 // v3.0.8 Spec UI Types — Sharing & Embedding (P2.3)
 // ============================================================================
-export type {
-  SharingConfig,
-  EmbedConfig,
-} from '@objectstack/spec/ui';
+// `EmbedConfig` RETIRED in 17.0.0-rc.3 (objectstack#5015, PR objectstack#5300):
+// no iframe route ever read an embed config, so nothing ran to regress.
+// `SharingConfig` is the SURVIVOR and stays — public form sharing is unaffected,
+// `FormView.sharing` still gates the anonymous endpoints on `allowAnonymous` +
+// `publicLink`.
+export type { SharingConfig } from '@objectstack/spec/ui';
 
 // ============================================================================
 // v3.0.8 Spec UI Types — View Configuration (P2.4)
@@ -1179,10 +1173,10 @@ export type {
 // key, and its value schema had no other consumer, so it went with it. Nothing
 // in this repo bound to the spec type — `@object-ui/react`'s `usePerformance`
 // declares its own `PerformanceConfig` interface and is untouched.
-export type {
-  PageTransition,
-  PageComponentType,
-} from '@objectstack/spec/ui';
+//
+// `PageTransition` went the same way one rc later, as part of the `ui/animation`
+// module deletion (objectstack#4988, PR objectstack#5321).
+export type { PageComponentType } from '@objectstack/spec/ui';
 
 // ============================================================================
 // v2.0.7 Spec UI Types — Accessibility

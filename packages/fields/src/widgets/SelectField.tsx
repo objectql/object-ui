@@ -21,11 +21,31 @@ import { useCascadingOptions } from './useCascadingOptions';
  *
  * A field declared `multiple: true` selects zero-or-more values (spec:
  * `multiple` is valid on `select`), so it renders the multi-value chip picker
- * — the same widget the `multiselect` type uses. Delegating here (rather than
- * only at a type-resolution layer) means every surface that renders the
- * `select` widget — the object form, the inline grid editor, and
- * `ActionParamDialog` — inherits multi-select identically, with no drift
- * between them. Single-value selects keep the cascading dropdown below.
+ * — the same widget the `multiselect` type uses. Single-value selects keep the
+ * cascading dropdown below.
+ *
+ * The FORM no longer arrives here with `multiple` (objectui#3986):
+ * `mapFieldTypeToFormType` now resolves a `select` + `multiple: true` field to
+ * `field:multiselect`, so the object-form path renders `MultiSelectField`
+ * directly under its own registry id — which is what carries the
+ * `labelling: 'group'` declaration the host label needs. Deciding the widget at
+ * the type-resolution layer is what keeps the declaration and the render from
+ * disagreeing; a delegation invisible to the resolver could not.
+ *
+ * The branch below stays because it is NOT dead — measured entrances that reach
+ * it with `multiple` set, none of which consult that resolver:
+ *
+ *  - **the inline grid editor** — `FieldEditWidget` looks `select` up in its own
+ *    `EDIT_WIDGETS` table, which SHORT-CIRCUITS before the alias map is
+ *    consulted, and forwards the whole metadata object as `field`;
+ *  - **`ActionParamDialog`** — `paramToField` resolves through
+ *    `resolveFormWidgetType`, which likewise returns `select` from
+ *    `fieldWidgetMap` before reaching the alias map, and carries
+ *    `multiple: param.multiple` on the field it builds;
+ *  - **hand-written SDUI** — a `{ type: 'field:select' }` node whose metadata
+ *    declares `multiple`, which addresses this widget by name.
+ *
+ * All three then inherit multi-select from here identically, with no drift.
  *
  * Both branches resolve per-option `visibleWhen` cascading / role-gating through
  * the shared {@link useCascadingOptions} hook (#2715), so single and multi stay

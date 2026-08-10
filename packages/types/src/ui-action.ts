@@ -429,7 +429,47 @@ export interface ActionSchema {
    * checkbox instead of being treated as an instruction.
    */
   params?: ActionParam[];
-  
+
+  /**
+   * Static request-body fields for a `type: 'api'` action, merged into the
+   * outgoing body **last** so constants always win over user-collected params
+   * and over `recordIdParam`.
+   *
+   * This — not {@link params} — is where a payload goes. The two are different
+   * concepts that shared one name until objectstack#5777: `params` describes
+   * fields to COLLECT (an `ActionParam[]` definition array), `bodyExtra` is data
+   * to SEND. The maintainer's 2026-08-06 ruling took direction A (a separate
+   * key, no same-name union), so `@objectstack/spec` 17 refuses an object under
+   * `params` by name and rewrites sources that still carry it via the
+   * `inline-action-api-params-to-body-extra` conversion (ADR-0087 D2).
+   *
+   * Declared here so the action renderers can forward it off a typed
+   * `ActionSchema` rather than through an `as any` cast — the renderers are the
+   * consumers this field exists for (objectstack#6837). Typed off the spec
+   * rather than restated, so the shape cannot drift from the contract.
+   */
+  bodyExtra?: SpecAction['bodyExtra'];
+
+  /**
+   * Request-body WRAPPING for a `type: 'api'` action: `'flat'` (the default —
+   * collected params ride at the top level) or `{ wrap: key }` to nest the
+   * collected params under `key` (better-auth `organization/update` is the
+   * shape it exists for).
+   *
+   * Per the spec's own wording the wrap covers the **collected params only** —
+   * `recordIdParam` and every other top-level key stay flat, {@link bodyExtra}
+   * among them. Both console read-sites (`useConsoleActionRuntime.apiHandler`,
+   * `RecordDetailView.apiHandler`) and the runner's own `executeAPI` implement
+   * exactly that, so the key has one meaning everywhere it is honoured.
+   *
+   * Declared here for the same reason as {@link bodyExtra}: the action
+   * renderers forward it off a typed `ActionSchema` instead of an `as any`
+   * cast, and dropping it from those whitelists is what made a declared wrap
+   * degrade silently to a flat body (objectstack#6938). Typed by derivation
+   * from the spec so the union cannot drift from the contract.
+   */
+  bodyShape?: SpecAction['bodyShape'];
+
   // === Feedback ===
   
   /** Confirmation text to show before execution */

@@ -7,7 +7,7 @@
  */
 
 import * as React from 'react';
-import { cn, Button, Popover, PopoverContent, PopoverTrigger, LookupValuePicker } from '@object-ui/components';
+import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, LookupValuePicker } from '@object-ui/components';
 import { ChevronDown, X, Plus } from 'lucide-react';
 import type { ListViewSchema } from '@object-ui/types';
 import { normalizeFilterOperator } from '@objectstack/spec/ui';
@@ -509,6 +509,13 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
       <Popover key={f.field}>
         <PopoverTrigger asChild>
           <button
+            // Inside a <form> a bare <button> defaults to type="submit", so an
+            // untyped trigger would submit the enclosing form on every click
+            // (objectui#3344). Radix's PopoverTrigger happens to supply
+            // type="button" via its Slot today, but that is an upstream
+            // implementation detail — declare the contract locally, exactly as
+            // the Combobox trigger does.
+            type="button"
             data-testid={`filter-badge-${f.field}`}
             className={cn(
               'inline-flex items-center gap-1 h-7 px-2 text-xs transition-colors shrink-0 rounded-md',
@@ -670,6 +677,10 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
             <Popover>
               <PopoverTrigger asChild>
                 <button
+                  // Same as the chip trigger above: Radix supplies type="button"
+                  // via its Slot today, but the contract is declared locally
+                  // (objectui#3344).
+                  type="button"
                   data-testid="user-filters-more"
                   className="inline-flex items-center gap-1 h-7 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0 rounded-md"
                 >
@@ -708,6 +719,16 @@ interface TabFiltersProps {
   onSelectionsChange?: (selections: Record<string, Array<string | number | boolean>>) => void;
 }
 
+/**
+ * A tab the END USER added at runtime through `allowAddTab` — never an
+ * authored preset, never metadata. See {@link TabFilters} for the scope rules.
+ */
+interface SessionTab {
+  id: string;
+  label: string;
+  filters: any[];
+}
+
 function TabFilters({ tabs, showAllRecords, allowAddTab, onFilterChange, className, initialTab, onSelectionsChange }: TabFiltersProps) {
   const [activeTab, setActiveTab] = React.useState<string>(() => {
     // URL-restored tab wins over the author's default.
@@ -718,18 +739,49 @@ function TabFilters({ tabs, showAllRecords, allowAddTab, onFilterChange, classNa
     return defaultTab?.id || (showAllRecords ? '__all__' : tabs[0]?.id || '');
   });
 
+  /**
+   * User-added tabs (`allowAddTab`), held in **component state only**.
+   *
+   * ADR-0047 scopes an end user's filter choices to the session and forbids
+   * them ever becoming metadata, so this renderer stays a metadata READER:
+   * adding a tab writes no `sys_metadata`, calls no API, and touches no
+   * storage. Component state (not `sessionStorage`) is the deliberate pick —
+   * `UserFilters` receives no object/view identity, so a shared
+   * `sessionStorage` key would surface one list's ad-hoc tabs on another
+   * list's bar in the same browser tab. Persistence beyond the mount, if it
+   * is ever wanted, belongs to the host that already owns the session channel
+   * for filter selections (`onSelectionsChange` → `uf_*` URL params) and can
+   * key it by view.
+   */
+  const [sessionTabs, setSessionTabs] = React.useState<SessionTab[]>([]);
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [draftLabel, setDraftLabel] = React.useState('');
+
+  /**
+   * Conditions currently applied for `tabId` — the preset's filters, the
+   * session tab's snapshot, or `[]` for the synthetic "All records" tab (and
+   * for an id nothing answers to, which is how a stale restored `_tab`
+   * degrades). In tabs mode this IS the whole filter state of the bar: the
+   * component owns no other filter surface.
+   */
+  const filtersForTab = React.useCallback(
+    (tabId: string): any[] => {
+      if (tabId === '__all__') return [];
+      // `normalizeTabPresets` guarantees `id` on every preset it emits.
+      const preset = tabs.find(t => t.id === tabId);
+      if (preset) return preset.filters || [];
+      return sessionTabs.find(t => t.id === tabId)?.filters || [];
+    },
+    [tabs, sessionTabs],
+  );
+
   const handleTabChange = React.useCallback(
     (tabId: string) => {
       setActiveTab(tabId);
-      if (tabId === '__all__') {
-        onFilterChange([]);
-      } else {
-        const tab = tabs.find(t => t.id === tabId);
-        onFilterChange(tab?.filters || []);
-      }
+      onFilterChange(filtersForTab(tabId));
       onSelectionsChange?.({ _tab: [tabId] });
     },
-    [tabs, onFilterChange, onSelectionsChange],
+    [filtersForTab, onFilterChange, onSelectionsChange],
   );
 
   const allTabs = React.useMemo(() => {
@@ -739,6 +791,60 @@ function TabFilters({ tabs, showAllRecords, allowAddTab, onFilterChange, classNa
     }
     return result;
   }, [tabs, showAllRecords]);
+
+  /**
+   * Confirm the naming input: snapshot the conditions currently applied under
+   * the typed label and select the new tab.
+   *
+   * The snapshot source is the active tab's conditions because that is the
+   * entire filter state tabs mode carries (see {@link filtersForTab}) — the
+   * new tab therefore reproduces exactly the rows the user is looking at when
+   * they press Add. Each condition is copied so a later preset change cannot
+   * alias into the session tab.
+   *
+   * The synthetic id is reported through `onSelectionsChange` like any other
+   * tab switch, so the host's mirror stays truthful. A host that persists it
+   * (`uf__tab` in the URL) hands it back as `initialTab` on the next mount,
+   * where the existing id check finds no such tab and falls back to the
+   * author's default — a session tab cannot outlive the mount by the back door.
+   */
+  const handleAddTab = React.useCallback(() => {
+    const label = draftLabel.trim();
+    if (!label) return;
+    // Synthetic, session-only id. `__…__` mirrors the "__all__" spelling this
+    // component already uses for the tab it invents; the loop keeps it clear
+    // of author-defined preset ids.
+    const taken = new Set<string>([
+      ...tabs.map(t => t.id ?? t.name ?? ''),
+      ...sessionTabs.map(t => t.id),
+    ]);
+    let seq = sessionTabs.length + 1;
+    while (taken.has(`__session_${seq}__`)) seq += 1;
+    const id = `__session_${seq}__`;
+    const snapshot = filtersForTab(activeTab).map(c => (Array.isArray(c) ? [...c] : c));
+    setSessionTabs(prev => [...prev, { id, label, filters: snapshot }]);
+    setActiveTab(id);
+    setDraftLabel('');
+    setAddOpen(false);
+    onFilterChange(snapshot);
+    onSelectionsChange?.({ _tab: [id] });
+  }, [draftLabel, tabs, sessionTabs, filtersForTab, activeTab, onFilterChange, onSelectionsChange]);
+
+  /**
+   * Drop a session tab. Removing the ACTIVE one re-selects the author's
+   * default with the same precedence the initial mount uses, so the bar is
+   * never left with no active tab while the removed tab's conditions stay
+   * applied. Presets have no remove affordance — they are metadata.
+   */
+  const handleRemoveTab = React.useCallback(
+    (tabId: string) => {
+      setSessionTabs(prev => prev.filter(t => t.id !== tabId));
+      if (activeTab !== tabId) return;
+      const defaultTab = tabs.find(t => t.default);
+      handleTabChange(defaultTab?.id || (showAllRecords ? '__all__' : tabs[0]?.id || ''));
+    },
+    [activeTab, tabs, showAllRecords, handleTabChange],
+  );
 
   // Emit the initially-active tab's filters on mount (restored tab or
   // author default — `activeTab` already resolved the precedence).
@@ -759,6 +865,12 @@ function TabFilters({ tabs, showAllRecords, allowAddTab, onFilterChange, classNa
         return (
           <button
             key={tabId}
+            // A plain button, NOT a Radix trigger — nothing supplied a type, so
+            // this one really did render as type="submit" and clicking a preset
+            // tab inside a <form> submitted it (objectui#3344 family;
+            // objectstack#6952 measured it: the two triggers above already read
+            // `button`, this one read `null`).
+            type="button"
             data-testid={`filter-tab-${tabId}`}
             onClick={() => handleTabChange(tabId)}
             className={cn(
@@ -772,14 +884,93 @@ function TabFilters({ tabs, showAllRecords, allowAddTab, onFilterChange, classNa
           </button>
         );
       })}
+      {/* User-added tabs, in the same bar as the presets. They carry a remove
+          affordance (presets don't — those are metadata), so the pill is a
+          wrapper around two buttons rather than one button. */}
+      {sessionTabs.map(tab => {
+        const isActive = activeTab === tab.id;
+        return (
+          <span
+            key={tab.id}
+            className={cn(
+              'inline-flex items-center h-7 rounded-md transition-colors shrink-0',
+              isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
+            )}
+          >
+            <button
+              type="button"
+              data-testid={`filter-tab-${tab.id}`}
+              onClick={() => handleTabChange(tab.id)}
+              className="inline-flex items-center h-7 pl-3 pr-1 text-xs font-medium rounded-l-md"
+            >
+              {tab.label}
+            </button>
+            <button
+              type="button"
+              data-testid={`filter-tab-remove-${tab.id}`}
+              onClick={() => handleRemoveTab(tab.id)}
+              title="Remove tab"
+              aria-label={`Remove tab ${tab.label}`}
+              className="inline-flex items-center h-7 pl-0.5 pr-2 rounded-r-md opacity-60 hover:opacity-100"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        );
+      })}
       {allowAddTab && (
-        <button
-          className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
-          data-testid="filter-tab-add"
-          title="Add filter tab"
+        <Popover
+          open={addOpen}
+          onOpenChange={open => {
+            setAddOpen(open);
+            if (!open) setDraftLabel('');
+          }}
         >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
+          <PopoverTrigger asChild>
+            <button
+              // Same as the chip trigger: Radix supplies type="button" via its
+              // Slot today, but the contract is declared locally (objectui#3344).
+              // (Corrected from "a Radix trigger keeps the HTML default of
+              // submit" — objectstack#6952 measured that it does not.)
+              type="button"
+              className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
+              data-testid="filter-tab-add"
+              title="Add filter tab"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-64 p-2 space-y-2" data-testid="filter-tab-add-content">
+            <p className="text-xs text-muted-foreground">
+              Name this tab. It keeps the filters applied right now, and lives in this session only.
+            </p>
+            <Input
+              autoFocus
+              value={draftLabel}
+              onChange={e => setDraftLabel(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddTab();
+                }
+              }}
+              placeholder="Tab name"
+              className="h-7 text-xs"
+              data-testid="filter-tab-add-input"
+            />
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                className="h-7 px-2 text-xs"
+                disabled={!draftLabel.trim()}
+                data-testid="filter-tab-add-confirm"
+                onClick={handleAddTab}
+              >
+                Add tab
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
       )}
     </div>
   );

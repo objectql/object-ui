@@ -56,8 +56,14 @@ export interface UseRecordQueryOptions {
    * `$filter` — already merged by the caller (base `lookup_filters`, dependent
    * lookup chain, candidate hygiene like `banned != true`, …). Compared by
    * value, so a referentially-new-but-equal object each render will not loop.
+   *
+   * Either the `QueryParams.$filter` record form or a lowered ObjectQL AST node
+   * (an array), since the picker's merge now produces both (#3831). Typed
+   * `unknown` rather than `Record< string, any >` so an array cannot slip
+   * through a type that silently accepts it; emptiness is decided by
+   * {@link hasFilter}, not by `Object.keys`.
    */
-  filter?: Record<string, any>;
+  filter?: unknown;
   /** `$expand` — related entities to include (e.g. `['primary_business_unit_id']`). */
   expand?: string[];
   /** `$searchFields` — narrow the server searchable set (ADR-0061). */
@@ -97,6 +103,22 @@ export interface UseRecordQueryResult {
   refetch: () => void;
 }
 
+/**
+ * Is this filter source worth sending as `$filter` at all?
+ *
+ * Array-aware on purpose. The picker's merge yields either the
+ * `QueryParams.$filter` record form or a lowered ObjectQL AST node (#3831), and
+ * `Object.keys` on an array returns its INDICES — so the record-only test read
+ * `['0','1','2']` for an AST node and was right only by accident. An empty array
+ * is "no filter" for the same reason an empty object is.
+ */
+function hasFilter(filter: unknown): boolean {
+  if (filter === null || filter === undefined) return false;
+  if (Array.isArray(filter)) return filter.length > 0;
+  if (typeof filter !== 'object') return false;
+  return Object.keys(filter as object).length > 0;
+}
+
 export function useRecordQuery(options: UseRecordQueryOptions): UseRecordQueryResult {
   const {
     dataSource,
@@ -123,7 +145,7 @@ export function useRecordQuery(options: UseRecordQueryOptions): UseRecordQueryRe
   // Stable signatures for object/array inputs so the fetch effect keys on their
   // *value*, not a fresh reference every render.
   const filterSignature = useMemo(
-    () => (filter && Object.keys(filter).length ? JSON.stringify(filter) : ''),
+    () => (hasFilter(filter) ? JSON.stringify(filter) : ''),
     [filter],
   );
   const expandSignature = useMemo(() => (expand?.length ? expand.join(',') : ''), [expand]);
@@ -150,7 +172,12 @@ export function useRecordQuery(options: UseRecordQueryOptions): UseRecordQueryRe
         if (searchTerm && searchTerm.trim()) params.$search = searchTerm.trim();
         if (searchFields && searchFields.length > 0) params.$searchFields = searchFields;
         if (sortArg) params.$orderby = { [sortArg.field]: sortArg.direction };
-        if (filter && Object.keys(filter).length > 0) params.$filter = filter;
+        // `QueryParams.$filter` is declared `Record< string, any >`, which the
+        // AST-array form does not describe — the cast is at this ONE assignment
+        // rather than widening a shared type that several other producers
+        // (plugin-list's `buildEffectiveFilter`, plugin-view's ObjectView)
+        // already feed arrays through.
+        if (hasFilter(filter)) params.$filter = filter as Record<string, any>;
         if (expand && expand.length > 0) params.$expand = expand;
 
         const result = await dataSource.find(objectName, params);

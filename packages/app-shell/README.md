@@ -156,6 +156,14 @@ guarded by `paramValueShape.test.ts` (#2714): `number`→number, `boolean`→boo
 `date`/`datetime`/`time`→string, `select`→string (`string[]` when `multiple`),
 `lookup`/`user`→id string(s), `file`/`image`→fileId string(s) (via
 `serializeParamValues`, #2698/#2710), `object`/`address`→object, `grid`→object[].
+
+For `datetime` the string is an **ISO-8601 instant with an explicit zone**
+(`2026-08-10T07:00:00.000Z`) — not the `datetime-local` control's zone-less wall
+clock. That is the platform's own `datetime` value contract, enforced by the
+dispatcher before the handler runs (`validateActionParams`, ADR-0104 D2), so the
+naive shape earned a 400 on every submission until objectstack#5061.
+`DateTimeField` already converts on both sides (objectui#3127), so the dialog
+POSTs its value unchanged — no zone handling lives at the dialog boundary.
 See the full table in [ADR-0059](../../docs/adr/0059-action-params-shared-field-widgets.md#value-shapes-the-emitted-shape-contract).
 
 ## Metadata designers
@@ -197,9 +205,14 @@ Studio as browse-only.
 ### Studio package scope
 
 Studio treats the selected package as the authoring scope. The package selector
-is mandatory, and Studio repairs missing `?package=` query parameters from the
-last selected package or the first project package so scoped pages do not drift
-out of sync with the sidebar. The Studio home overview, quick-create links,
+is mandatory, and Studio repairs a missing `?package=` query parameter from the
+first project package so scoped pages do not drift out of sync with the sidebar.
+It is *not* repaired from the last selected package any more: Studio declares
+`persist: 'query'`, and each `persist` value now names exactly one medium — the
+URL for `'query'`, `sessionStorage` for `'session'`, neither for `'none'`
+(objectstack#5994). An app that wants its scope remembered beyond the URL
+declares `persist: 'session'`, which keeps it out of the address bar in
+exchange. The Studio home overview, quick-create links,
 metadata counts, and diagnostics all follow that active package. The dedicated
 package-management page remains the global place to create, import, publish,
 enable, or disable packages; direct `/metadata/package` links redirect there.
@@ -613,8 +626,6 @@ pins (20) each have an independent cap. See the guide below for details.
 See [User-Scoped State Persistence](../../content/docs/guide/user-state-persistence.md)
 for the adapter contract, backend schema, and how to plug in your own backend.
 
-<!-- release-metadata:v3.3.0 -->
-
 ## Command palette (⌘K)
 
 `<ConsoleShell>` mounts a global ⌘K command palette for cross-app navigation and
@@ -770,15 +781,6 @@ import { PreviewBadge, getPlatformStage } from '@object-ui/app-shell';
 ```
 
 Labels are localized under `topbar.stage.*` (`@object-ui/i18n`).
-
-## Compatibility
-
-- **React:** 18.x or 19.x
-- **Node.js:** ≥ 18
-- **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^3.3.0
-- **`@objectstack/client`:** ^3.3.0
-- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
 
 ## Links
 

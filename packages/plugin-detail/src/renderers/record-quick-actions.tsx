@@ -19,7 +19,7 @@ import React from 'react';
 import { useRecordContext, useActionEngine, useMetadataItem, useCondition, toPredicateInput, useSafeFieldLabel } from '@object-ui/react';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
-import { Button, cn } from '@object-ui/components';
+import { Button, cn, hasDeclaredVisibilityGate } from '@object-ui/components';
 import { Loader2 } from 'lucide-react';
 import type { ActionDef, ActionLocation } from '@object-ui/core';
 
@@ -205,7 +205,17 @@ function QuickActionButton({
   // engine. The previous `typeof === 'string'` split dropped the envelope, so
   // a spec-authored `disabled` never disabled anything on this surface.
   const isDisabledPred = useCondition(toPredicateInput((action as any).disabled), recordCtx);
-  const isDisabled = ((action as any).disabled != null ? isDisabledPred : false) || running;
+  // Is a `disabled` gate DECLARED? Read from the one definition on the action
+  // face rather than re-spelled here (objectui#3842 ruling, applied to this
+  // site by #3849 — the historic `visible`-flavoured name is kept on purpose;
+  // the predicate is key-neutral, "declared" is `!= null && !== ''`).
+  //
+  // `!= null` alone was a live defect on this key: `toPredicateInput('')` is
+  // `undefined` and `evaluateCondition(undefined)` is `true`, which on
+  // `disabled` means DISABLE — so `disabled: ''` (an empty predicate, i.e.
+  // nothing declared) greyed this quick action out permanently, with no way for
+  // the author to un-grey it. There is no legacy `enabled` leg on this surface.
+  const isDisabled = (hasDeclaredVisibilityGate((action as any).disabled) ? isDisabledPred : false) || running;
   return (
     <Button
       variant={variant}

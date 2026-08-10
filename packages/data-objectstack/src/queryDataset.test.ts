@@ -7,6 +7,17 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type {
+  AnalyticsQuery as SpecAnalyticsQuery,
+  AnalyticsResult as SpecAnalyticsResult,
+  DatasetCompareTo as SpecDatasetCompareTo,
+  DatasetSelection as SpecDatasetSelection,
+} from '@objectstack/spec/contracts';
+import type { PercentScale as SpecPercentScale } from '@objectstack/spec/data';
+// The shared drill-filter builder + its range type (objectui#3813): the date
+// sidecar's only consumer, imported rather than reproduced so the assertions
+// below are about the SAME code the dashboard widget and report renderer run.
+import { buildDatasetDrillFilter, type DatasetDrillRange } from '@object-ui/core';
 import {
   ObjectStackAdapter,
   clearSharedDiscoveryCache,
@@ -128,5 +139,405 @@ describe('ObjectStackAdapter.queryDataset', () => {
       expect(isAnalyticsNotInstalledError(err)).toBe(false);
       expect(String(err.message)).toContain('relationship not declared');
     });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* objectui#3613 — the `selection` parameter IS the spec type, not a copy.      */
+/*                                                                             */
+/* Compile-time pins. A violation is a `tsc --noEmit` error, not a runtime      */
+/* failure: this package's tsconfig.json includes its whole `src/**` (tests     */
+/* included), so these are checked by `pnpm --filter @object-ui/data-objectstack*/
+/* type-check` with no separate tsconfig.typetests.json — the same property     */
+/* spec-symbol-batch6.test.ts documents and relies on.                          */
+/* -------------------------------------------------------------------------- */
+
+type Assert<T extends true> = T;
+type IsAny<T> = 0 extends 1 & T ? true : false;
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+  ? true
+  : false;
+type HasKey<T, K extends PropertyKey> = K extends keyof T ? true : false;
+
+/** The declared type of `queryDataset`'s second parameter, read off the method. */
+type SelectionParam = Parameters<ObjectStackAdapter['queryDataset']>[1];
+
+describe('queryDataset(selection) is @objectstack/spec DatasetSelection itself', () => {
+  it('is pinned at compile time', () => {
+    type _SpecNotAny = Assert<Equal<IsAny<SpecDatasetSelection>, false>>;
+
+    // THE pin. `Equal` rather than a two-way `extends` on purpose: a
+    // restatement that merely *overlaps* the contract satisfies mutual
+    // assignability in the drifted direction too (a required `dimension` is
+    // still assignable TO an optional one). Structural identity is the only
+    // assertion a hand copy cannot pass while drifting.
+    type _IsTheSpecType = Assert<Equal<SelectionParam, SpecDatasetSelection>>;
+
+    expect(true).toBe(true);
+  });
+
+  // The three drifts the deleted copy had accumulated, named individually so a
+  // future reader learns what a restatement costs — not just that one existed.
+  it('pins compareTo as the spec DatasetCompareTo, with dimension OPTIONAL', () => {
+    type CompareTo = NonNullable<SelectionParam['compareTo']>;
+    type _IsSpecCompareTo = Assert<Equal<CompareTo, SpecDatasetCompareTo>>;
+
+    // objectstack#5011 made `dimension` optional BECAUSE the executor resolves
+    // it (exactly one dated time dimension → that one; zero or several → a loud
+    // error listing the candidates). The copy declared it required, so the
+    // compiler demanded from every typed caller precisely the consumer-side
+    // dimension guess that change forbids — turning a loud executor error into
+    // a silently wrong comparison window.
+    type _DimensionOptional = Assert<Equal<CompareTo['dimension'], string | undefined>>;
+    type _DimensionWasNotRequired = Assert<Equal<Equal<CompareTo['dimension'], string>, false>>;
+    // …and the shape with no `dimension` at all is a legal authoring surface.
+    type _KindOnlyIsValid = Assert<
+      { kind: 'previousPeriod' } extends CompareTo ? true : false
+    >;
+
+    expect(true).toBe(true);
+  });
+
+  it('pins timeDimensions at the spec shape, not `unknown[]`', () => {
+    type _IsSpecTimeDimensions = Assert<
+      Equal<SelectionParam['timeDimensions'], SpecAnalyticsQuery['timeDimensions']>
+    >;
+    type _NotUnknownArray = Assert<
+      Equal<Equal<SelectionParam['timeDimensions'], unknown[] | undefined>, false>
+    >;
+    // The entry shape the executor's compareTo resolution reads (`dateRange`
+    // present ⇒ shiftable) — invisible through `unknown[]`.
+    type Entry = NonNullable<SelectionParam['timeDimensions']>[number];
+    type _EntryHasDimension = Assert<Equal<Entry['dimension'], string>>;
+    type _EntryHasDateRange = Assert<HasKey<Entry, 'dateRange'>>;
+
+    expect(true).toBe(true);
+  });
+
+  it('pins runtimeFilter as a FilterCondition and carries dateGranularity', () => {
+    // The copy widened `runtimeFilter` to `Record<string, unknown>`, which
+    // erases the `$and`/`$or`/`$not` vocabulary the server parses.
+    type _RuntimeFilterNarrowed = Assert<
+      Equal<Equal<SelectionParam['runtimeFilter'], Record<string, unknown> | undefined>, false>
+    >;
+    type _RuntimeFilterKnowsLogicalOps = Assert<
+      HasKey<NonNullable<SelectionParam['runtimeFilter']>, '$and'>
+    >;
+
+    // `dateGranularity` (framework#3588) is the drift nobody had noticed: the
+    // copy never grew the key, so a typed caller could not bucket a trend by
+    // month at all. A restatement does not only drift on the fields it has — it
+    // also stops at whatever the contract looked like the day it was written.
+    type _HasDateGranularity = Assert<HasKey<SelectionParam, 'dateGranularity'>>;
+    type _DateGranularityEnum = Assert<
+      Equal<
+        SelectionParam['dateGranularity'],
+        'day' | 'week' | 'month' | 'quarter' | 'year' | undefined
+      >
+    >;
+
+    expect(true).toBe(true);
+  });
+
+  // The runtime half of the same fact: the adapter must forward `compareTo`
+  // VERBATIM. If it ever "helpfully" filled a `dimension` in to satisfy its own
+  // old declaration, the executor would stop resolving and every caller's
+  // comparison window would depend on the adapter's guess.
+  it('forwards a dimension-less compareTo to the server untouched', async () => {
+    const { fetchImpl, calls } = makeFetch({ ok: true, body: { rows: [], fields: [] } });
+    const adapter = new ObjectStackAdapter({ baseUrl: 'http://localhost:3000', autoReconnect: false, fetch: fetchImpl as any });
+
+    await adapter.queryDataset('sales', {
+      dimensions: ['region'],
+      measures: ['revenue'],
+      timeDimensions: [{ dimension: 'closedAt', granularity: 'month', dateRange: ['2026-01-01', '2026-03-31'] }],
+      compareTo: { kind: 'previousPeriod' },
+    });
+
+    const post = calls.find((c) => c.url.includes('/analytics/dataset/query'))!;
+    const sent = JSON.parse(post.init.body);
+    expect(sent.selection.compareTo).toEqual({ kind: 'previousPeriod' });
+    expect(sent.selection.compareTo).not.toHaveProperty('dimension');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* objectui#3752 — the RESULT's `fields` element is the spec type, not a copy.  */
+/*                                                                             */
+/* Same drift family as #3613 above, on the other side of the call: the return  */
+/* type hand-listed five keys and had already stopped at the contract of the    */
+/* day it was written — no `percentScale`. Compile-time pins, checked by        */
+/* `pnpm --filter @object-ui/data-objectstack type-check` for the reason that   */
+/* section documents (this package's tsconfig.json compiles its own tests).     */
+/* -------------------------------------------------------------------------- */
+
+/** What `queryDataset` RESOLVES to, read off the method. */
+type DatasetEnvelope = Awaited<ReturnType<ObjectStackAdapter['queryDataset']>>;
+/** …and the declared shape of one result column. */
+type ResultField = DatasetEnvelope['fields'][number];
+
+describe('queryDataset result fields ARE @objectstack/spec AnalyticsResult fields', () => {
+  it('is pinned at compile time', () => {
+    type _SpecNotAny = Assert<Equal<IsAny<SpecAnalyticsResult>, false>>;
+
+    // THE pin: structural identity with the spec's element, so the declaration
+    // cannot lag the contract again. `Equal` rather than `extends` for the
+    // #3613 reason — a narrower copy stays assignable while drifting.
+    type _IsTheSpecField = Assert<Equal<ResultField, SpecAnalyticsResult['fields'][number]>>;
+
+    // The single key the deleted copy was missing, named so a reader learns
+    // WHICH omission cost something rather than merely that one existed.
+    type _HasPercentScale = Assert<HasKey<ResultField, 'percentScale'>>;
+    type _PercentScaleIsTheSpecUnion = Assert<
+      Equal<ResultField['percentScale'], SpecPercentScale | undefined>
+    >;
+    // …and not a widened `string`: 'fraction' | 'whole' is the whole point —
+    // a renderer branches on it instead of guessing from the value (#3136).
+    type _PercentScaleIsNotString = Assert<
+      Equal<Equal<ResultField['percentScale'], string | undefined>, false>
+    >;
+
+    // The exact shape this replaced, kept as a NEGATIVE pin: restoring the
+    // hand-written five keys turns this red, so the sabotage direction is
+    // recorded in the test rather than in a commit message.
+    type _NotTheFiveKeyCopy = Assert<
+      Equal<
+        Equal<ResultField, { name: string; type: string; label?: string; format?: string; currency?: string }>,
+        false
+      >
+    >;
+
+    expect(true).toBe(true);
+  });
+
+  // Why only `fields` is spec-owned and the envelope is not (objectui#3752
+  // direction B). The REST route answers `AnalyticsResult` PLUS ADR-0021 D2
+  // drill sidecars, but this method rebuilds its own object from the payload
+  // and never copies `sql` — so declaring the envelope as `AnalyticsResult &
+  // {…}` would advertise a key the adapter structurally cannot return.
+  it('pins the envelope as NOT an AnalyticsResult (no `sql`)', () => {
+    type _NoSql = Assert<Equal<HasKey<DatasetEnvelope, 'sql'>, false>>;
+    // The drill sidecars the spec type does not carry stay locally declared.
+    type _HasDrillObject = Assert<HasKey<DatasetEnvelope, 'object'>>;
+    type _HasDimensionFields = Assert<HasKey<DatasetEnvelope, 'dimensionFields'>>;
+    type _HasDrillRawRows = Assert<HasKey<DatasetEnvelope, 'drillRawRows'>>;
+    type _HasDrillRanges = Assert<HasKey<DatasetEnvelope, 'drillRanges'>>;
+
+    expect(true).toBe(true);
+  });
+
+  // The runtime half: a column's `percentScale` must reach the caller verbatim.
+  // The adapter passes `fields` through untouched, so this guards against a
+  // future "normalisation" quietly dropping the key the declaration now shows.
+  it('returns a percentage column with its percentScale untouched', async () => {
+    const { fetchImpl } = makeFetch({
+      ok: true,
+      body: {
+        rows: [{ region: 'NA', winRate: 1 }],
+        fields: [
+          { name: 'region', type: 'string', label: 'Region' },
+          { name: 'winRate', type: 'number', label: 'Win rate', format: '0.0%', percentScale: 'fraction' },
+        ],
+      },
+    });
+    const adapter = new ObjectStackAdapter({ baseUrl: 'http://localhost:3000', autoReconnect: false, fetch: fetchImpl as any });
+
+    const result = await adapter.queryDataset(inlineDataset as any, selection);
+
+    // Read through the DECLARED type, not `as any`: this line is the reason the
+    // issue was filed — before the fix it did not compile.
+    const winRate = result.fields.find((f) => f.name === 'winRate')!;
+    expect(winRate.percentScale).toBe('fraction');
+    const region = result.fields.find((f) => f.name === 'region')!;
+    expect(region.percentScale).toBeUndefined();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* objectui#3813 — the date-range drill sidecar reaches the caller.            */
+/*                                                                             */
+/* Third instance of the same family as #3613/#3752, this time on the RUNTIME   */
+/* face: `queryDataset` rebuilds its result by hand-picking keys off the        */
+/* payload, and `drillRanges` was never in the list — so the server's #1752     */
+/* date-bucket drill scope was silently dropped by the only real adapter, and   */
+/* a date-only dashboard/report lost its entire drill entry point (`canDrill`   */
+/* can only be true via these ranges when no equality drill dim exists).        */
+/*                                                                             */
+/* The envelopes below are the SHAPES THE SERVER ACTUALLY SENDS, not idealised  */
+/* ones — that distinction is why the existing consumer tests could not see the */
+/* bug (they mock a data source and feed `drillRanges` in directly):            */
+/*   - `POST /analytics/dataset/query` answers `res.json(result)` — a BARE      */
+/*     result, no `{ success, data }` wrapper (objectstack `rest-server.ts`);    */
+/*   - it carries `sql`, which this adapter deliberately does not return;       */
+/*   - for a DATE-ONLY grouping the server sets `object` + `drillRanges` and    */
+/*     NOTHING else drill-related: `service-analytics` excludes date dims from  */
+/*     `drillDims`, so `dimensionFields` / `drillRawRows` are absent entirely.  */
+/* -------------------------------------------------------------------------- */
+
+/** Sales bucketed by month only — no non-date dimension, so no equality drill. */
+const monthlyDataset = {
+  name: 'sales_by_month', label: 'Sales by month', object: 'opportunity',
+  dimensions: [{ name: 'closed_month', field: 'close_date', type: 'date', dateGranularity: 'month' }],
+  measures: [{ name: 'revenue', aggregate: 'sum', field: 'amount' }],
+};
+const monthlySelection = { dimensions: ['closed_month'], measures: ['revenue'] };
+
+/**
+ * `DatasetWidget`'s drill predicate, reproduced from the widget rather than
+ * restated: `drillDims` is `dimensions.filter((d) => d in dimensionFields)` and
+ * `canDrill = !!drillObject && (drillDims.length > 0 || !!drillRanges?.length)`
+ * (`packages/plugin-dashboard/src/DatasetWidget.tsx:590-593`; the report
+ * renderer's per-row `hasRange` gate at `DatasetReportRenderer.tsx:431` and its
+ * pivot twin at `:855` are the same fact per row). Fed straight from the
+ * adapter's return so the assertion is about what the ADAPTER produced.
+ */
+function consumerDrillView(
+  result: Awaited<ReturnType<ObjectStackAdapter['queryDataset']>>,
+  dimensions: string[],
+) {
+  const drillDims = result.dimensionFields ? dimensions.filter((d) => d in result.dimensionFields!) : [];
+  return {
+    drillDims,
+    canDrill: !!result.object && (drillDims.length > 0 || !!result.drillRanges?.length),
+  };
+}
+
+describe('queryDataset passes the server drillRanges sidecar through (#1752)', () => {
+  beforeEach(() => clearSharedDiscoveryCache());
+
+  it('keeps drillRanges verbatim for a DATE-ONLY grouping, so canDrill is true', async () => {
+    const { fetchImpl } = makeFetch({
+      ok: true,
+      // The real envelope: bare (no success/data wrapper), with `sql`, with
+      // `object` re-set by the range block, and WITHOUT dimensionFields /
+      // drillRawRows — the server emits none of those for a date-only grouping.
+      body: {
+        rows: [
+          { closed_month: '2026-05', revenue: 100 },
+          { closed_month: '2026-06', revenue: 250 },
+        ],
+        fields: [
+          { name: 'closed_month', type: 'date', label: 'Closed month' },
+          { name: 'revenue', type: 'number', label: 'Revenue', format: '$0,0' },
+        ],
+        sql: 'SELECT date_trunc(...) AS closed_month, SUM(amount) AS revenue FROM opportunity GROUP BY 1',
+        object: 'opportunity',
+        drillRanges: [
+          { closed_month: { field: 'close_date', gte: '2026-05-01', lt: '2026-06-01' } },
+          { closed_month: { field: 'close_date', gte: '2026-06-01', lt: '2026-07-01' } },
+        ],
+      },
+    });
+    const adapter = new ObjectStackAdapter({ baseUrl: 'http://localhost:3000', autoReconnect: false, fetch: fetchImpl as any });
+
+    const result = await adapter.queryDataset(monthlyDataset as any, monthlySelection);
+
+    // (1) The key arrives at the caller, untouched and row-aligned. Read through
+    // the DECLARED type, not `as any` — before the fix this line did not compile.
+    expect(result.drillRanges).toEqual([
+      { closed_month: { field: 'close_date', gte: '2026-05-01', lt: '2026-06-01' } },
+      { closed_month: { field: 'close_date', gte: '2026-06-01', lt: '2026-07-01' } },
+    ]);
+    expect(result.drillRanges).toHaveLength(result.rows.length);
+
+    // (2) The mock really is the server's date-only shape, not a convenient one:
+    // if these ever become defined, the fixture stopped exercising the case
+    // where `drillRanges` is the ONLY thing that can make a widget drillable.
+    expect(result.dimensionFields).toBeUndefined();
+    expect(result.drillRawRows).toBeUndefined();
+
+    // (3) The issue's acceptance anchor, evaluated with the consumers' own
+    // predicate: a date-only chart is drillable again.
+    const { drillDims, canDrill } = consumerDrillView(result, monthlySelection.dimensions);
+    expect(drillDims).toEqual([]);
+    expect(canDrill).toBe(true);
+
+    // (4) …and the drilled filter really scopes to the CLICKED bucket, built by
+    // the shared `buildDatasetDrillFilter` the widget and the report both call.
+    expect(buildDatasetDrillFilter(result.drillRawRows?.[1], drillDims, result.dimensionFields ?? {}, undefined, result.drillRanges?.[1]))
+      .toEqual({ close_date: { $gte: '2026-06-01', $lt: '2026-07-01' } });
+  });
+
+  it('keeps BOTH sidecars for a mixed date + non-date grouping (no superset drill)', async () => {
+    const { fetchImpl } = makeFetch({
+      ok: true,
+      body: {
+        rows: [{ region: 'North America', closed_month: '2026-06', revenue: 250 }],
+        fields: [
+          { name: 'region', type: 'string', label: 'Region' },
+          { name: 'closed_month', type: 'date', label: 'Closed month' },
+          { name: 'revenue', type: 'number', label: 'Revenue' },
+        ],
+        object: 'opportunity',
+        // Equality sidecars cover the non-date dim only (and carry the RAW value
+        // `NA`, not the row's resolved label "North America"); the date dim gets
+        // a range instead.
+        dimensionFields: { region: 'account.region' },
+        drillRawRows: [{ region: 'NA' }],
+        drillRanges: [{ closed_month: { field: 'close_date', gte: '2026-06-01', lt: '2026-07-01' } }],
+      },
+    });
+    const adapter = new ObjectStackAdapter({ baseUrl: 'http://localhost:3000', autoReconnect: false, fetch: fetchImpl as any });
+
+    const result = await adapter.queryDataset(monthlyDataset as any, { dimensions: ['region', 'closed_month'], measures: ['revenue'] });
+
+    const { drillDims, canDrill } = consumerDrillView(result, ['region', 'closed_month']);
+    expect(canDrill).toBe(true);
+    expect(drillDims).toEqual(['region']);
+
+    // Both halves in one filter. Without the range the drill was a SUPERSET —
+    // clicking June's bar opened every month for that region.
+    expect(buildDatasetDrillFilter(result.drillRawRows?.[0], drillDims, result.dimensionFields ?? {}, { stage: 'won' }, result.drillRanges?.[0]))
+      .toEqual({
+        stage: 'won',
+        'account.region': 'NA',
+        close_date: { $gte: '2026-06-01', $lt: '2026-07-01' },
+      });
+  });
+
+  it('leaves drillRanges undefined when the server sends none (non-date grouping)', async () => {
+    const { fetchImpl } = makeFetch({
+      ok: true,
+      body: {
+        rows: [{ region: 'NA', revenue: 100 }],
+        fields: [{ name: 'revenue', type: 'number' }],
+        object: 'opportunity',
+        dimensionFields: { region: 'account.region' },
+        drillRawRows: [{ region: 'NA' }],
+      },
+    });
+    const adapter = new ObjectStackAdapter({ baseUrl: 'http://localhost:3000', autoReconnect: false, fetch: fetchImpl as any });
+
+    const result = await adapter.queryDataset(inlineDataset as any, selection);
+
+    // Absent stays absent — the passthrough must not invent an empty array,
+    // which would flip `canDrill`'s `!!drillRanges?.length` reasoning nowhere
+    // but would make the two sidecars' index alignment meaningless.
+    expect(result.drillRanges).toBeUndefined();
+    expect(consumerDrillView(result, ['region']).canDrill).toBe(true);
+  });
+
+  it('is pinned at compile time as the SHARED DatasetDrillRange, not a restatement', () => {
+    type DrillRanges = NonNullable<DatasetEnvelope['drillRanges']>;
+    type RangeEntry = DrillRanges[number][string];
+
+    // THE pin. `@object-ui/core`'s `DatasetDrillRange` is the single in-repo
+    // declaration of this shape — it is what `buildDatasetDrillFilter` accepts
+    // and what `DatasetWidget` / `DatasetReportRenderer` type their state with.
+    // Nothing in `@objectstack/spec` owns it yet (the producer's own
+    // `AnalyticsResultWithDrill` is local to `service-analytics`), so identity
+    // with the shared interface is the strongest available contract pin: a local
+    // `{ field: string; gte: string; lt: string }` copy — the shape a reader is
+    // most tempted to write here — fails this line, per #3613's lesson that a
+    // restatement stays assignable while it drifts.
+    type _IsTheSharedType = Assert<Equal<RangeEntry, DatasetDrillRange>>;
+    type _SharedTypeNotAny = Assert<Equal<IsAny<DatasetDrillRange>, false>>;
+
+    // Row-aligned array of dimension NAME → range, mirroring `drillRawRows`.
+    type _IsRowAlignedArray = Assert<Equal<DrillRanges, Array<Record<string, DatasetDrillRange>>>>;
+    // Optional, because the server omits it whenever no date dim was bucketed.
+    type _IsOptional = Assert<Equal<DatasetEnvelope['drillRanges'], DrillRanges | undefined>>;
+
+    expect(true).toBe(true);
   });
 });

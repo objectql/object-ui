@@ -27,7 +27,7 @@ pnpm shadcn:check
 pnpm shadcn:update button --backup
 ```
 
-**📚 See [SHADCN_SYNC.md](../../docs/SHADCN_SYNC.md) for the complete guide.**
+**📚 See [README_SHADCN_SYNC.md](./README_SHADCN_SYNC.md) for the complete guide.**
 
 ## Installation
 
@@ -38,33 +38,36 @@ npm install @object-ui/components @object-ui/react @object-ui/core
 **Peer Dependencies:**
 - `react` ^18.0.0 || ^19.0.0
 - `react-dom` ^18.0.0 || ^19.0.0
-- `tailwindcss` ^3.0.0
+- `tailwindcss` ^4.2.1
 
 ## Setup
 
-### 1. Configure Tailwind
+There is no `tailwind.config.js` step. This package is Tailwind 4, which is
+configured in CSS: it has no such file of its own, and consuming it does not need
+one on your side either.
 
-Add to your `tailwind.config.js`:
+### 1. Import Styles
 
-```js
-module.exports = {
-  content: [
-    './src/**/*.{js,jsx,ts,tsx}',
-    './node_modules/@object-ui/components/**/*.{js,ts,jsx,tsx}'
-  ],
-  // ... your config
-}
-```
-
-### 2. Import Styles
-
-Add to your main CSS file:
+Add to your main CSS file, after your own Tailwind entry:
 
 ```css
-@import '@object-ui/components/dist/style.css';
+@import 'tailwindcss';
+@import '@object-ui/components/style.css';
 ```
 
-### 3. Register Components
+`style.css` is the stylesheet this package compiles at build time from its own
+sources. It already carries every utility its components use **and** the theme
+tokens those utilities are built on — `bg-primary`, `border-input`, `ring-ring`
+and the rest of the Shadcn palette — so importing it is the whole of the styling
+setup.
+
+You do **not** add a `@source` line for `node_modules/@object-ui/components`.
+Pointing Tailwind at the published files generates the shape-only utilities a
+second time and still cannot produce the themed ones, because the `@theme` block
+they come from lives in this package's unpublished source. Your own Tailwind
+entry goes on generating the classes your own source uses, as it always did.
+
+### 2. Register Components
 
 ```tsx
 import { registerDefaultRenderers } from '@object-ui/components'
@@ -209,18 +212,7 @@ registerRenderer('custom-button', CustomButton)
 
 ## API Reference
 
-See [full documentation](https://objectui.org/api/components) for detailed API reference.
-
-<!-- release-metadata:v3.3.0 -->
-
-## Compatibility
-
-- **React:** 18.x or 19.x
-- **Node.js:** ≥ 18
-- **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^3.3.0
-- **`@objectstack/client`:** ^3.3.0
-- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
+See [full documentation](https://objectui.org/docs/components) for detailed API reference.
 
 ## Links
 

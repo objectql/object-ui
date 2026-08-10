@@ -8,6 +8,7 @@
 
 import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from '@objectstack/client';
 import type { DroppedFieldsEvent } from '@objectstack/spec/data';
+import type { AnalyticsResult, DatasetSelection } from '@objectstack/spec/contracts';
 import type {
   DataSource,
   BatchTransactionOperation,
@@ -32,6 +33,7 @@ import {
   convertFiltersToAST,
   emulateBatchTransaction,
   normalizeSchemaReferenceKeys,
+  type DatasetDrillRange,
 } from '@object-ui/core';
 import { MetadataCache } from './cache/MetadataCache';
 import { MetadataClient } from './metadata-client';
@@ -640,17 +642,78 @@ export function normaliseClientError(error: unknown): unknown {
 }
 
 /**
- * Build a Logger compatible with @objectstack/client that demotes expected
- * 404 noise to console.debug. The client logs every non-2xx response with
- * `logger.error("HTTP request failed", undefined, { status, error })`, but
- * 404s on optional collections (sys_presence, sys_activity, …) are part of
+ * Fold an @objectstack/client HTTP-failure `meta` bag into the log MESSAGE.
+ *
+ * The client already hands us everything worth knowing —
+ * `logger.error("HTTP request failed", undefined, { method, url, status, error })`
+ * — but it hands it as the THIRD argument. Everything that flattens a console
+ * record to text (a headless/CDP console capture, a log shipper, a copied
+ * DevTools line) keeps only the message and renders the rest as `[object
+ * Object]` / `Object`, so a wall of failures carried no method, no URL and no
+ * status: the reporter of objectui#4042 had to diff the network panel by hand
+ * to find out that 30 red lines were all one benign pre-login burst.
+ *
+ * So the identifying fields go into the string itself, and the structured bag
+ * is STILL passed alongside for DevTools to expand — text for the flatteners,
+ * object for the inspectors, neither at the other's expense.
+ *
+ * Exported for tests. Returns `null` when `meta` carries none of the three
+ * fields, so callers keep the original message rather than printing a husk.
+ */
+export function formatHttpFailureMessage(
+  message: string,
+  meta?: Record<string, any>,
+): string | null {
+  if (!meta || typeof meta !== 'object') return null;
+  const method = typeof meta.method === 'string' && meta.method ? meta.method : undefined;
+  const url = typeof meta.url === 'string' && meta.url ? meta.url : undefined;
+  const status =
+    typeof meta.status === 'number'
+      ? meta.status
+      : typeof meta.statusCode === 'number'
+        ? meta.statusCode
+        : undefined;
+  if (!method && !url && status === undefined) return null;
+
+  // `code` is the ADR-0112 semantic error code. The client puts the parsed
+  // body under `meta.error`; some call sites hoist the code to the top level.
+  const errBody = meta.error && typeof meta.error === 'object' ? meta.error : undefined;
+  const rawCode =
+    (typeof meta.code === 'string' && meta.code) ||
+    (errBody && typeof (errBody as Record<string, unknown>).code === 'string'
+      ? ((errBody as Record<string, string>).code)
+      : undefined);
+
+  const parts = [method ?? 'GET', url ?? '<unknown url>'];
+  parts.push(`-> ${status ?? 'no status'}`);
+  if (rawCode) parts.push(`[${rawCode}]`);
+  return `${message}: ${parts.join(' ')}`;
+}
+
+/**
+ * Build a Logger compatible with @objectstack/client that (a) spells every
+ * request failure out in the message — see {@link formatHttpFailureMessage} —
+ * and (b) demotes expected 404 noise to console.debug. The client logs every
+ * non-2xx response with
+ * `logger.error("HTTP request failed", undefined, { method, url, status, error })`,
+ * but 404s on optional collections (sys_presence, sys_activity, …) are part of
  * normal degraded operation when those plugins aren't installed on the
  * server — they should not surface as errors in the browser DevTools.
  *
+ * NOTE the asymmetry, and keep it: 404-on-an-optional-collection is demoted
+ * because it is an EXPECTED outcome of a request we still mean to make. No
+ * other status is demoted — a 401 that survives the console's session gate
+ * (objectui#4042: a mid-session expiry, say) is a real event and must stay a
+ * visible, fully-identified error. The cure for doomed requests is not issuing
+ * them, never hiding them once issued.
+ *
  * Returned object is loosely typed because the spec's Logger interface lives
  * in a transitive package; using `any` keeps us decoupled.
+ *
+ * Exported so the console's log contract is testable, and so an app wiring its
+ * own `ObjectStackClient` gets the same identified failures.
  */
-function createQuietHttpLogger(): any {
+export function createQuietHttpLogger(): any {
   const isExpected404 = (meta?: Record<string, any>): boolean => {
     if (!meta || typeof meta !== 'object') return false;
     if (meta.status === 404 || meta.statusCode === 404) return true;
@@ -670,13 +733,16 @@ function createQuietHttpLogger(): any {
       console.warn(message, meta ?? ''),
     error: (message: string, error?: Error, meta?: Record<string, any>) => {
       if (isExpected404(meta)) {
-        console.debug(`[ObjectStack] ${message} (suppressed expected 404)`, meta);
+        console.debug(
+          `[ObjectStack] ${formatHttpFailureMessage(message, meta) ?? message} (suppressed expected 404)`,
+          meta,
+        );
         return;
       }
-      console.error(message, error ?? '', meta ?? '');
+      console.error(formatHttpFailureMessage(message, meta) ?? message, error ?? '', meta ?? '');
     },
     fatal: (message: string, error?: Error, meta?: Record<string, any>) =>
-      console.error(message, error ?? '', meta ?? ''),
+      console.error(formatHttpFailureMessage(message, meta) ?? message, error ?? '', meta ?? ''),
     log: (message: string, ...args: any[]) => console.log(message, ...args),
     child: () => logger,
     withTrace: () => logger,
@@ -828,6 +894,33 @@ function withoutNoOpDrops(
     if (kept.length > 0) out.push({ ...e, fields: kept });
   }
   return out;
+}
+
+/**
+ * Resolve which object a `type='view'` metadata item belongs to.
+ *
+ * The metadata index is name-only, not field-typed: `GET /api/v1/meta/view`
+ * accepts `?package=` and `?preview=draft` and nothing else (measured on
+ * framework `packages/rest/src/rest-server.ts` — the `GET /meta/:type`
+ * handler — and on `client.meta.getItems(type, { packageId })`). So every
+ * reader of the view namespace enumerates `type='view'` once and narrows to
+ * one object HERE, client-side.
+ *
+ * ONE spelling, one place, deliberately: {@link ObjectStackAdapter.listViews}
+ * and {@link ObjectStackAdapter.listViewOverrides} read the same rows out of
+ * the same namespace, and two private copies of "which object is this?" is a
+ * drift waiting to happen — the switcher showing a view whose override the
+ * grid cannot find, or the reverse.
+ *
+ * `object` is the identity field the write path stamps (and that the
+ * framework's overlay heals onto identity-less personalization rows —
+ * objectstack#2555); `data.object` is the config's data-provider target and
+ * `objectName` the legacy artifact spelling.
+ */
+function viewItemObjectName(item: any): string | undefined {
+  // Handle both bare view spec and `{list: {...}}` artifact wrapper
+  const spec = item?.list ?? item;
+  return spec?.data?.object ?? spec?.object ?? spec?.objectName;
 }
 
 /**
@@ -1518,10 +1611,21 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         String(id),
         opts?.ifMatch ? { ifMatch: opts.ifMatch } : undefined,
       );
-      if (result.deleted) {
+      // `success`, not `deleted` (objectstack#5638). `DeleteDataResult.deleted`
+      // was a key no schema ever declared and no server path ever returned on
+      // `DELETE /data/:object/:id` — the client's interface was a wrong CLAIM
+      // about the response body, and `@objectstack/client` 17.0.0-rc.5
+      // corrected it to the schema's `success`.
+      //
+      // This was live here, not cosmetic: `result.deleted` compiled and read
+      // `undefined` at runtime, so the guard below never fired — a successful
+      // delete emitted NO mutation event, leaving every subscriber's cache
+      // stale — and this method, declared `Promise<boolean>`, actually resolved
+      // `undefined`. Following the rename is what restores both.
+      if (result.success) {
         this.emitMutation({ type: 'delete', resource, id });
       }
-      return result.deleted;
+      return result.success;
     } catch (err) {
       throw normaliseClientError(err);
     }
@@ -2606,40 +2710,63 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   /**
    * Batch-fetch all persisted view overrides for an object.
    *
-   * Per-view runtime overrides (density, column widths, sort, …) are
-   * stored in the metadata registry under key `<objectName>/<viewName>`.
-   * Loading them per-view fires N HTTP GETs that return 404 for views
-   * the user has never customized — generates console noise on every
-   * page load. This batch method performs a single
-   * `GET /api/v1/meta/<objectName>` (returns `{type, items}`) and
-   * returns a `{viewName: override}` map. Returns an empty map if the
-   * server doesn't expose the listing or returns no items.
+   * Per-view runtime overrides (density, column widths, sort, hidden
+   * columns, inlineEdit …) live in the SAME metadata namespace the
+   * write path uses: `type='view'`, `name=<viewId>` (see
+   * {@link updateViewConfig}). Loading them per-view fires N HTTP GETs
+   * that 404 for every view the user never customized — console noise on
+   * every page load. This batch method performs a single
+   * `GET /api/v1/meta/view` (returns `{type, items}`) and narrows the
+   * result to `objectName` client-side, exactly as {@link listViews}
+   * does over the same rows (shared accessor: {@link viewItemObjectName}).
+   *
+   * objectui#3774 — this used to enumerate `GET /api/v1/meta/<objectName>`,
+   * putting the OBJECT name in the metadata TYPE slot. That key space is
+   * disjoint from the one the write path lands in, so the batch map came
+   * back empty for every object, forever, and every saved personalization
+   * read back as "setting didn't save".
+   *
+   * FAILURES REJECT — they are not answered as `{}`. An empty map is an
+   * authoritative "this object has no overrides" (callers may trust it and
+   * skip the per-view reads); a transport/permission failure is "I could
+   * not tell", and reporting the two as the same value is what made
+   * ObjectView's per-view {@link getView} fallback unreachable code. When
+   * we cannot tell, we do not pretend we can. Rejections are not cached
+   * (the cache stores on success only), so a transient failure does not
+   * pin an empty answer for the TTL.
    *
    * Result is cached identically to {@link getView}; saving a view via
    * {@link updateViewConfig} invalidates the cache.
    *
    * @param objectName - Object name (e.g. 'lead')
    * @returns Map keyed by view name with the persisted override config
+   * @throws whatever the metadata transport throws — callers that have a
+   *   per-view fallback should catch and use it.
    */
   async listViewOverrides(objectName: string): Promise<Record<string, any>> {
     await this.connect();
 
-    try {
-      const cacheKey = `view-overrides:${objectName}`;
-      return await this.metadataCache.get(cacheKey, async () => {
-        const result: any = await this.client.meta.getItems(objectName);
-        const items: any[] = Array.isArray(result?.items) ? result.items : [];
-        const out: Record<string, any> = {};
-        for (const it of items) {
-          if (!it || typeof it !== 'object') continue;
-          const key = it.name ?? it.id ?? it._name;
-          if (typeof key === 'string' && key) out[key] = it;
-        }
-        return out;
-      });
-    } catch {
-      return {};
-    }
+    const cacheKey = `view-overrides:${objectName}`;
+    return await this.metadataCache.get(cacheKey, async () => {
+      const result: any = await this.client.meta.getItems('view');
+      const items: any[] = Array.isArray(result?.items)
+        ? result.items
+        : Array.isArray(result) ? result : [];
+      const out: Record<string, any> = {};
+      for (const it of items) {
+        if (!it || typeof it !== 'object') continue;
+        if (viewItemObjectName(it) !== objectName) continue;
+        // Keyed by the item's canonical `name` — the SAME identity
+        // `updateViewConfig` writes under and `getView` reads back by, which
+        // is what makes this a drop-in substitute for the per-view fetch.
+        // No `?? id ?? _name` alias chain: those are not view identities on
+        // any route (`/meta/view/:name` is name-addressed), and a batch map
+        // keyed by something no caller can ask for is dead weight.
+        const key = it.name;
+        if (typeof key === 'string' && key) out[key] = it;
+      }
+      return out;
+    });
   }
 
   /**
@@ -2722,8 +2849,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * match the view spec shape.
    *
    * Returns view spec objects with their canonical `name` as identifier.
-   * Filters by `data.object === objectName` (or top-level `object`)
-   * client-side because the metadata index is name-only, not field-typed.
+   * Narrows to one object client-side via {@link viewItemObjectName} —
+   * the metadata index is name-only, not field-typed, so the route has no
+   * `?object=` to push the filter down into. {@link listViewOverrides}
+   * reads the same rows through the same accessor.
    */
   async listViews(
     objectName: string,
@@ -2762,8 +2891,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         if (!v) return false;
         // Handle both bare view spec and `{list: {...}}` artifact wrapper
         const spec = v.list ?? v;
-        const obj = spec?.data?.object ?? spec?.object ?? spec?.objectName;
-        if (obj !== objectName) return false;
+        if (viewItemObjectName(v) !== objectName) return false;
         const viewKind = v.viewKind ?? spec?.viewKind;
         return !(viewKind && FORM_FAMILY.has(viewKind));
       }).map((v: any) => {
@@ -3179,36 +3307,70 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * silently returning wrong numbers.
    *
    * @param dataset - An inline dataset definition (draft) OR a saved dataset name.
-   * @param selection - Dimension/measure names to project + runtime directives.
+   * @param selection - The spec's {@link DatasetSelection} — dimension/measure
+   *   names to project plus runtime directives. This parameter IS the spec type
+   *   by reference, never a local restatement of it (objectui#3613): a hand
+   *   copy of a contract is a second dialect of it, and the copy this replaced
+   *   had already drifted three ways from `@objectstack/spec` — it required
+   *   `compareTo.dimension` (optional since objectstack#5011, and resolved by
+   *   the EXECUTOR, so requiring it pushed callers into exactly the
+   *   consumer-side dimension guess AGENTS.md #0.1 forbids), it widened
+   *   `timeDimensions` to `unknown[]` and `runtimeFilter` to
+   *   `Record<string, unknown>`, and it had never grown `dateGranularity` at
+   *   all. Pinned in `queryDataset.test.ts`.
    */
   async queryDataset(
     dataset: Record<string, unknown> | string,
-    selection: {
-      dimensions?: string[];
-      measures: string[];
-      runtimeFilter?: Record<string, unknown>;
-      timeDimensions?: unknown[];
-      compareTo?: { kind: 'previousPeriod' | 'previousYear'; dimension: string };
-      order?: Record<string, 'asc' | 'desc'>;
-      limit?: number;
-      offset?: number;
-      timezone?: string;
-      /** Marginal-aggregate groupings (e.g. `[rows, [colDim], []]`) — server
-       *  computes each subtotal with the measure's TRUE aggregate (never client
-       *  re-derived). `[]` is the grand total. */
-      totals?: { groupings: string[][] };
-    },
+    selection: DatasetSelection,
   ): Promise<{
     rows: Array<Record<string, unknown>>;
-    /** Column metadata: a display `label` (dimensions and measures), and a
-     *  measure's numeral `format` + declared `currency` for value formatting. */
-    fields: Array<{ name: string; type: string; label?: string; format?: string; currency?: string }>;
+    /**
+     * Column metadata — the spec's `AnalyticsResult.fields[]` element BY
+     * REFERENCE, never a local restatement of it (objectui#3752). Read
+     * `@objectstack/spec` for what a column carries; this comment deliberately
+     * does not re-list the keys, because the enumeration it replaced was the
+     * bug: it named five (`name`/`type`/`label`/`format`/`currency`) and stopped
+     * at the contract of the day it was written, so it never grew
+     * `percentScale` — the server's answer to whether a percentage column is a
+     * 0–1 fraction or already percentage points. The spec says a renderer that
+     * receives it "must scale by it instead of guessing from the value"
+     * (objectui#3136), so a declaration that hides the key steers a typed
+     * consumer into exactly the guess-by-magnitude the issue banned. Pinned in
+     * `queryDataset.test.ts`.
+     *
+     * Only this element is spec-owned: the envelope around it (`object` /
+     * `dimensionFields` / `drillRawRows`) is ADR-0021 D2 drill metadata the REST
+     * route adds on top of `AnalyticsResult`, and this method never returns the
+     * result's `sql`, so the whole envelope is NOT an `AnalyticsResult`.
+     */
+    fields: Array<AnalyticsResult['fields'][number]>;
     /** ADR-0021 D2 drill-through: the dataset's base object (records to drill into). */
     object?: string;
     /** Drillable dimension NAME → underlying object FIELD name. */
     dimensionFields?: Record<string, string>;
     /** Raw grouped values per row (aligned to `rows` by index) for drill filters. */
     drillRawRows?: Array<Record<string, unknown>>;
+    /**
+     * Half-open date-range drill scope per row (framework#1752), aligned to
+     * `rows` by index: dimension NAME → the field and `[gte, lt)` bounds of that
+     * row's time bucket. The RANGE companion to `drillRawRows`, which handles
+     * equality dims only — a `dateGranularity` dimension groups a SPAN of
+     * records into one bucket, so the server excludes date dims from
+     * `dimensionFields`/`drillRawRows` and sends this sidecar instead.
+     *
+     * The entry type is `@object-ui/core`'s `DatasetDrillRange` BY REFERENCE,
+     * not a local restatement of it (objectui#3613/#3752 discipline): the same
+     * declaration is what `buildDatasetDrillFilter` — the single consumer that
+     * turns these bounds into an ObjectQL `{ $gte, $lt }` — accepts, and what
+     * `DatasetWidget` / `DatasetReportRenderer` type their state with. Nothing
+     * in `@objectstack/spec` owns this shape yet (the server's own
+     * `AnalyticsResultWithDrill` is local to `service-analytics`), so the shared
+     * in-repo interface is the one contract available; restating it here would
+     * make a third dialect of it. Like `drillRawRows`, only the ARRAY is
+     * validated below — the bounds are unvalidated payload, which is exactly why
+     * `DatasetDrillRange` declares them `unknown`.
+     */
+    drillRanges?: Array<Record<string, DatasetDrillRange>>;
     /** Server-computed marginal aggregates, one entry per requested grouping. */
     totals?: Array<{ dimensions: string[]; rows: Array<Record<string, unknown>> }>;
   }> {
@@ -3275,8 +3437,16 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         ? ((data as any).dimensionFields as Record<string, string>)
         : undefined;
     const drillRawRows = Array.isArray((data as any)?.drillRawRows) ? (data as any).drillRawRows : undefined;
+    // framework#1752 — the date-range sidecar. Dropping it here (objectui#3813)
+    // made date-bucket drill-through impossible through the only real adapter:
+    // a widget grouped ONLY by a date dimension gets no `dimensionFields` (the
+    // server excludes date dims from the equality drill), so `drillRanges` is
+    // the ONLY thing that can make `canDrill` true — with the key hand-picked
+    // away, the whole drill entry point disappeared, and a mixed grouping
+    // drilled to a superset (every bucket, not the clicked one).
+    const drillRanges = Array.isArray((data as any)?.drillRanges) ? (data as any).drillRanges : undefined;
     const totals = Array.isArray((data as any)?.totals) ? (data as any).totals : undefined;
-    return { rows, fields, object, dimensionFields, drillRawRows, totals };
+    return { rows, fields, object, dimensionFields, drillRawRows, drillRanges, totals };
   }
 
   /** Client-side aggregation fallback */

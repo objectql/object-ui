@@ -308,17 +308,50 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   // Fallback system navigation when no active app exists — routes into the Setup app.
   // The marketplace entry is hidden from non-admin members (install is gated to
   // owner/admin on the server, so non-admins have no reason to see it).
+  //
+  // #3590 — `sys-settings` targets `/apps/setup/system` (the system hub), not the
+  // bare `/apps/setup`. This whole cluster renders ONLY when `activeApp` is falsy,
+  // and `activeApp` (above) is `matched || activeApps[0]` — falsy only when the
+  // deployment has zero active+visible apps. In exactly that case bare
+  // `/apps/setup` renders `AppContent`'s "No Apps Configured" empty state (its
+  // `isSystemRoute` guard needs a `/system` segment), so the cluster's head entry
+  // was a dead link in the one situation the cluster exists for. Every sibling
+  // below already spelled `/apps/setup/system/...` — the two metadata-admin
+  // entries excepted, and only since: they name the engine's canonical
+  // `/apps/setup/metadata/:type` routes (#3660, #3739), because for THOSE two
+  // the `system/...` spelling is a redirect rather than a page. Consistency of
+  // prefix is not the invariant here; naming the route that actually renders
+  // is.
   const systemFallbackNavigation: NavigationItem[] = React.useMemo(() => {
     const items: NavigationItem[] = [
-      { id: 'sys-settings', label: t('layout.systemNav.systemSettings', { defaultValue: 'System Settings' }), type: 'url' as const, url: '/apps/setup', icon: 'settings' },
+      { id: 'sys-settings', label: t('layout.systemNav.systemSettings', { defaultValue: 'System Settings' }), type: 'url' as const, url: '/apps/setup/system', icon: 'settings' },
       { id: 'sys-apps', label: t('layout.systemNav.applications', { defaultValue: 'Applications' }), type: 'url' as const, url: '/apps/setup/system/apps', icon: 'layout-grid' },
     ];
     if (isWorkspaceAdmin) {
       items.push({ id: 'sys-marketplace', label: t('layout.systemNav.appMarketplace', { defaultValue: 'App Marketplace' }), type: 'url' as const, url: '/apps/setup/system/marketplace', icon: 'store' });
     }
     items.push(
-      { id: 'sys-objects', label: t('layout.systemNav.objectManager', { defaultValue: 'Object Manager' }), type: 'url' as const, url: '/apps/setup/system/metadata/object', icon: 'database' },
-      { id: 'sys-datasources', label: t('layout.systemNav.datasources', { defaultValue: 'Datasources' }), type: 'url' as const, url: '/apps/setup/component/metadata/resource?type=datasource', icon: 'database' },
+      // #3739 — `sys-objects` names the metadata-admin engine's CANONICAL route
+      // `/apps/setup/metadata/object`, not the legacy
+      // `…/system/metadata/object` alias it used to carry. That alias is not a
+      // page either: `apps/console`'s host fragment declares it as
+      // `MetadataRedirect`, which `<Navigate>`s onto exactly the URL spelled
+      // here, so every click paid a redundant hop plus a re-render — the same
+      // defect #3660 fixed one line below, on the entry immediately after this
+      // one, and the same remedy. The alias routes stay declared in the host
+      // (bookmarks and external links still arrive on them) — we simply stop
+      // aiming our own navigation at them.
+      { id: 'sys-objects', label: t('layout.systemNav.objectManager', { defaultValue: 'Object Manager' }), type: 'url' as const, url: '/apps/setup/metadata/object', icon: 'database' },
+      // #3660 — `sys-datasources` names the metadata-admin engine's CANONICAL
+      // route `/apps/setup/metadata/datasource`, not the legacy
+      // `…/component/metadata/resource?type=datasource` alias it used to carry.
+      // That alias is not a page: its route element is `LegacyMetadataRedirect`,
+      // which `<Navigate>`s onto exactly the URL spelled here, so every click
+      // paid a redundant hop plus a re-render. The alias route stays declared in
+      // BOTH `AppContent` branches (bookmarks and external links still arrive on
+      // it, and #3610 added it to the zero-app branch precisely because this
+      // entry fed it) — we simply stop aiming our own navigation at it.
+      { id: 'sys-datasources', label: t('layout.systemNav.datasources', { defaultValue: 'Datasources' }), type: 'url' as const, url: '/apps/setup/metadata/datasource', icon: 'database' },
       { id: 'sys-users', label: t('layout.systemNav.users', { defaultValue: 'Users' }), type: 'url' as const, url: '/apps/setup/system/users', icon: 'users' },
       { id: 'sys-orgs', label: t('layout.systemNav.organizations', { defaultValue: 'Organizations' }), type: 'url' as const, url: '/apps/setup/system/organizations', icon: 'building-2' },
       { id: 'sys-roles', label: t('layout.systemNav.roles', { defaultValue: 'Roles' }), type: 'url' as const, url: '/apps/setup/system/roles', icon: 'shield' },
@@ -442,7 +475,14 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
             /* No-app fallback header */
             <SidebarMenuButton
               size="lg"
-              onClick={() => navigate('/apps/setup')}
+              /* #3611 — the system hub is `/apps/setup/system`, not the bare
+                 `/apps/setup`. This header renders ONLY when `activeApp` is
+                 falsy, i.e. exactly on the zero-app deployment where
+                 `/apps/setup` is the "No Apps Configured" empty state's own
+                 URL — so the bare target sent the user back to the screen
+                 they were already looking at. Same fix as the `sys-settings`
+                 entry above (#3590). */
+              onClick={() => navigate('/apps/setup/system')}
               data-testid="system-sidebar-header"
             >
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -671,8 +711,12 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
+                  {/* #3611 — "Settings" means the system hub. The bare
+                      `/apps/setup` resolves to the "No Apps Configured" empty
+                      state on a zero-app deployment, so this entry looped in
+                      place there. */}
                   <DropdownMenuItem
-                    onClick={() => navigate('/apps/setup')}
+                    onClick={() => navigate('/apps/setup/system')}
                   >
                     <Settings className="mr-2 h-4 w-4" />
                     {t('user.settings', { defaultValue: 'Settings' })}

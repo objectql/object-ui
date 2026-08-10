@@ -10,21 +10,34 @@
  * `APPROVAL_RE`) decides whether that text counts as approval. It recognises
  * Chinese and English. Nothing else.
  *
- * So `AiChatPage` picks them by the language of the CONVERSATION, not the UI:
+ * So `AiChatPage` picks them by the language of the CONVERSATION, not the UI —
+ * since objectui#3896 through one resolver
+ * (`packages/app-shell/src/console/ai/outboundAgentText.ts`) that reads the two
+ * gate packs directly and never calls `t()` for these four keys:
  *
- *     const planApproveMessage = convZh
- *       ? '确认，开始搭建。'                                   // matches the gate
- *       : t('console.ai.planApproveMessage', { defaultValue: … });
+ *     zh conversation -> the `zh` pack's value        // matches the gate
+ *     anything else   -> the `en` pack's value        // matches the gate
  *
- * That `t()` call is expected to MISS in every non-Chinese pack and fall
- * through to its English `defaultValue`. Add a German translation and a German
- * user's "Build it" click starts sending German, the gate stops matching, and
- * the agent re-proposes instead of building — the button looks inert while
- * nothing visibly errors. objectui#2900 shipped exactly that for
- * `changesConfirmMessage`; this test is why it can't happen twice.
+ * ## What this test guarantees, stated as what it asserts
  *
- * If the gate ever learns more languages, delete the offending entry here in
- * the same change that teaches it — not before.
+ * Exactly two packs define these keys: `en` and `zh`. That is the whole claim.
+ * It is NOT "a `t()` lookup MISSes in every non-Chinese pack" — the wording this
+ * header carried until #3896, which was false for `zh` and was the premise the
+ * bug hid behind: `zh` defines all four, so the `t()` fallback HIT and a zh
+ * console sent `确认，开始搭建。` into an English thread.
+ *
+ * ## Why the claim still earns its keep after #3896
+ *
+ * A translation added to a ninth pack is now DEAD rather than dangerous — the
+ * resolver never reads that pack, so the value can never be sent, and an
+ * unreachable pack value is its own defect class (objectui#3837). Before #3896
+ * it was actively harmful: the value WAS sent, the gate stopped matching, the
+ * agent re-proposed instead of building, and the button merely looked inert
+ * while nothing visibly errored. objectui#2900 shipped exactly that for
+ * `changesConfirmMessage`.
+ *
+ * If the gate ever learns more languages, teach the resolver in the same change
+ * that deletes the offending entry here — not before.
  */
 import { describe, it, expect } from 'vitest';
 import { en, zh, ja, ko, de, fr, es, pt, ru, ar } from '../locales';
@@ -47,7 +60,7 @@ function lookup(pack: unknown, dotted: string): unknown {
 
 describe('outbound agent messages stay on gate-recognised languages', () => {
   it.each(Object.keys(NON_GATE_LOCALES))(
-    'the %s pack defines none of them, so t() falls through to the English default',
+    'the %s pack defines none of them — a value there could never be sent',
     (lang) => {
       const offenders = OUTBOUND_KEYS.filter(
         (k) => lookup(NON_GATE_LOCALES[lang], k) !== undefined,
@@ -57,6 +70,9 @@ describe('outbound agent messages stay on gate-recognised languages', () => {
   );
 
   it.each(Object.keys(GATE_LOCALES))('the %s pack defines all of them', (lang) => {
+    // Both halves are load-bearing since #3896: the resolver reads `zh` for a
+    // Chinese conversation and `en` for every other one, so a key missing from
+    // either pack drops that language onto the resolver's fallback table.
     for (const k of OUTBOUND_KEYS) {
       expect(typeof lookup(GATE_LOCALES[lang], k)).toBe('string');
     }

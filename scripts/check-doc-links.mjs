@@ -154,11 +154,15 @@
  * `https://github.com/objectstack-ai/objectui/(blob|tree)/main/<path>` is an
  * in-repo reference wearing an external URL's clothes, and it fell between the
  * two gates (#3507): this script skipped it by scheme, and lychee — the only
- * thing that would resolve it — is a weekly cron with `continue-on-error`, so
- * it gates nothing. Two such links stayed dead for about three months. The
- * backlog was cleared to zero by PR #3509 (25 distinct targets swept, exactly
- * the 2 dead), and PR #3506 then introduced 8 more of the shape with nothing
- * checking them. This closes that: `<path>` must exist in the working tree.
+ * thing that would resolve it — is a `schedule` + `workflow_dispatch` workflow
+ * with no PR trigger, so it blocks nobody. (It is `fail: true`, not a
+ * soft-failing job: what keeps it off pull requests is the absent trigger, not
+ * a tolerated failure. #3213 ruling B says keep it that way — uncommenting
+ * `pull_request:` would turn it into a hard gate over the network.) Two such
+ * links stayed dead for about three months. The backlog was cleared to zero by
+ * PR #3509 (25 distinct targets swept, exactly the 2 dead), and PR #3506 then
+ * introduced 8 more of the shape with nothing checking them. This closes that:
+ * `<path>` must exist in the working tree.
  *
  * It applies to **every** surface, `content/docs` included — the shape is
  * decidable wherever it is written, and the `escapes-collection` hint above
@@ -177,14 +181,144 @@
  *     and the `workflows/<name>/badge.svg` badge URLs in the root README are
  *     github.com web routes, not paths in this tree, and stay skipped.
  *
+ * ## Why this file changed again (objectui#3572)
+ *
+ * The section that stood here, "Still not bought", named the next surface and
+ * its entry price: `CONTRIBUTING.md`, `ROADMAP.md` and the internal `docs/`
+ * tree were unscanned, and adding them was "one `SCAN_ROOTS` row each — plus
+ * fixing what that turns red". Both halves came due, in that order.
+ *
+ * The red was paid first and separately (#3545 / PR #3571): three dead links,
+ * two in `CONTRIBUTING.md` and one in `ROADMAP.md`. So this change is the three
+ * rows and nothing else — measured at 70 links across the three surfaces, of
+ * which 52 are decidable here, and **zero** dead the day it landed. That is the
+ * shape an extension should have; contrast #3479 (16 dead targets) and #3490
+ * (18), where the gate and its own backlog arrived together.
+ *
+ * `docs/**` is the one of the three nothing had ever measured. Lychee's scope
+ * does list it, but that workflow is `schedule` + `workflow_dispatch` only —
+ * `push` and `pull_request` are commented out on purpose (#3213 ruling B: an
+ * external link check goes over the network and would redden PRs their authors
+ * cannot fix), so it blocks nobody. 47 of its 49 links had therefore never been
+ * resolved by anything that could fail a build.
+ *
+ * All three take the `disk` rule, and correctly: they are read on GitHub, like
+ * `examples/**` and the root `README.md`. No new rule class, no new reason
+ * string, no new hint.
+ *
+ * ### The boundary this does NOT cover: links inside code fences
+ *
+ * Stated because the alternative is implying total coverage. `stripCode()`
+ * blanks fenced blocks and inline spans before the scan (see the section below
+ * — it is what makes the relative-link check safe at all), so **a link written
+ * inside a fence is invisible to this gate, dead or not**.
+ *
+ * That is not hypothetical on the very surface being added. `CONTRIBUTING.md`
+ * carries 25 markdown links; 10 sit inside fences, and this gate judges exactly
+ * **one** of the remaining 15 (the other 14 are `#anchors` and external URLs).
+ * Those 10 are objectui#3570's instance class — a fenced block illustrating
+ * docs-link conventions whose "correct example" routes (`/guide/quick-start`,
+ * `/api/core`, `/spec/component`, …) are themselves dead. A reader copies them;
+ * this script never sees them. Fixing that text is #3570's job; noticing that
+ * no gate can reach it is this comment's.
+ *
+ * Widening `stripCode()` is not the repair, and the two false positives it was
+ * built for are why: fenced code legitimately contains `[…](…)` that is not a
+ * link. A gate for prose *about* links inside fences would need to tell an
+ * illustrative route from an executable one, which is a different gate.
+ *
+ * (A "Still not bought" list closed this section, naming `QUICK_REFERENCE.md`,
+ * `AGENTS.md`, `CLAUDE.md` and `CHANGELOG.md`. It has moved to the end of the
+ * objectui#3622 section below, which is the current one; those four are still
+ * on it.)
+ *
+ * ## Why this file changed again (objectui#3603)
+ *
+ * A second scheme-bearing shape that is decidable here, and the exact mirror of
+ * the self-repo blob URLs above: **this site's own absolute URLs**.
+ *
+ * `judgeHref()` skipped every href carrying a scheme (`EXTERNAL_HREF_RE`), with
+ * `SELF_REPO_BLOB_RE` as the single exception. So
+ * `https://www.objectui.org/docs/guide/plugins` — a route on the very site this
+ * repo publishes, whose whole route table is already enumerated above to serve
+ * the `/docs/...` and `/...` branches — was never resolved, while the identical
+ * route written `/docs/guide/plugins` was checked strictly. The origin is the
+ * only difference between the two, and it is the one part of a URL this script
+ * can be certain about.
+ *
+ * **Not a package-README special case, and deliberately not written as one.**
+ * The blind spot lives in `judgeHref()`, so it was never confined to any
+ * surface: `content/docs` carries 6 site-absolute URLs of its own and the root
+ * `README.md` 5, and all 11 were unchecked until now. Stripping the origin and
+ * handing the rest to `routeExists()` fixes the class everywhere at once, which
+ * is also why it needs no new rule and no new scan root.
+ *
+ * Both host spellings are live in this tree (`www.objectui.org` and bare
+ * `objectui.org`), so both are accepted; every other origin stays external and
+ * remains lychee's problem. Because what survives the strip is an ordinary
+ * absolute site path, it inherits BOTH branches of `routeExists()` unchanged —
+ * `/docs` strictness included. `https://www.objectui.org/docs/guide/plugins.md`
+ * is rejected for precisely the reason `/docs/guide/plugins.md` is.
+ *
+ * Measured before landing: 11 site-absolute URLs across today's surfaces, zero
+ * dead. The #3572 shape again — the check arrives green, its backlog already
+ * paid.
+ *
+ * ## Why this file changed again (objectui#3622): the package READMEs, bought
+ *
+ * The section that stood here was headed "Measured and NOT bought". It recorded
+ * the price of objectui#3603's other half — growing the scan surface by the 38
+ * package READMEs, which is where the 9 dead links that prompted that card lived
+ * — and refused to add the row until that price was paid, per this file's rule
+ * from #3572. It is paid, so the row is in the table above.
+ *
+ * (Note kept for whoever edits that row: a glob naming each package README
+ * cannot be spelled inside this block comment, because the star-slash in it
+ * closes the comment. It is described in prose here and written out only in the
+ * table below, which is code.)
+ *
+ * The price was **11 more** dead links, none of them among #3603's 9. They sit
+ * in seven packages: five that card never opened, plus two where it had already
+ * fixed a different line. `/api/core`, `/api/react` and `/api/components` (no
+ * such routes — the class #3490 swept); `/docs/core`, `/docs/fields` and
+ * `/docs/layout`, twice (real directories with no index page, so no route);
+ * `/docs/types` and `/examples` (neither exists); and two disk paths that were
+ * simply absent (a `docs/SHADCN_SYNC.md` that has never existed, and a
+ * per-package `LICENSE` that `packages/vscode-extension` does not have).
+ *
+ * All eleven were repointed at a page or path that does exist, in the same PR as
+ * this row — none had to be dropped, unlike #3603's 9, where 6 assumed a whole
+ * `/docs/packages/...` namespace that was never written. So the row arrives on a
+ * green tree, the #3572 shape.
+ *
+ * Three of those deserve naming, because objectui#3603's own verification
+ * script scored them GREEN: it accepted a bare DIRECTORY as a fumadocs
+ * candidate. This gate does not, and is right not to — `routeCandidates()` has
+ * no such spelling, and the pinned test "rejects a relative link to a directory
+ * that has no index page" is that decision. `content/docs/core/` really has no
+ * index page, so `/docs/core` really does 404. The class was 20 links, not 9.
+ *
+ * **The rule is `disk`, and that is not a coin toss.** A package README is read
+ * on npm and on GitHub, never served by the site, so its relative hrefs are
+ * paths on disk exactly like `examples/`, the root `README.md`,
+ * `CONTRIBUTING.md`, `ROADMAP.md` and `docs/`: `./CHANGELOG.md` is a file next
+ * to it, not a route. The same reading forbids the origin-less `/docs/...`
+ * spelling this file prefers inside `content/docs` — GitHub and npm resolve a
+ * leading `/` against their own host — which is why the site links repaired
+ * above all keep the `https://[www.]objectui.org/...` origin, and are still
+ * checked as strictly as the origin-less form (see the section above).
+ *
+ * The one thing the row does need is a wildcard segment in the scan-root path,
+ * since the surface is one file per package directory rather than a tree.
+ * `expandWildcard()` is that, and no more than that.
+ *
  * ### Still not bought
  *
- * The other root-level markdown (`CONTRIBUTING.md`, `ROADMAP.md`,
- * `QUICK_REFERENCE.md`, `AGENTS.md`) and the internal `docs/` tree remain
- * unscanned. That is a surface, not an oversight: the scan found real dead
- * links in two of those files while this was being written, filed separately
- * rather than folded in. Adding them is a matter of one `SCAN_ROOTS` row each
- * — plus fixing what that turns red.
+ * `QUICK_REFERENCE.md`, `AGENTS.md`, `CLAUDE.md` and `CHANGELOG.md` remain
+ * unscanned, along with the non-README markdown inside packages (`CHANGELOG.md`,
+ * `TESTING.md`, `MIGRATION.md`, per-package `docs/` trees). Same one-row price,
+ * same caveat — measure the surface first, pay its backlog separately, then add
+ * the row.
  *
  * ## Code spans are stripped before scanning
  *
@@ -222,6 +356,15 @@ const ROUTE_ENTRY_RE = /^(?:page|route)\.(?:js|jsx|ts|tsx|md|mdx)$/;
  * treats owner and repo that way; the captured path is used as written.
  */
 const SELF_REPO_BLOB_RE = /^https:\/\/github\.com\/objectstack-ai\/objectui\/(?:blob|tree)\/main\/(.+)$/i;
+/**
+ * This site's own origin — the second decidable scheme-bearing shape
+ * (objectui#3603). Both host spellings are in use in this tree, and the site
+ * serves the same routes under each. Anchored at both ends so a lookalike host
+ * (`objectui.org.example.com`) cannot match; the captured group is the absolute
+ * site path, which `routeExists()` then judges exactly as if it had been
+ * written without the origin.
+ */
+const SITE_ORIGIN_RE = /^https?:\/\/(?:www\.)?objectui\.org(\/[^\s]*)?$/i;
 /** Never markdown sources of ours, and huge — walking them wastes the scan. */
 const UNSCANNED_DIRS = new Set(['node_modules', 'dist', 'build', '.next', '.turbo', '.git']);
 
@@ -233,12 +376,27 @@ const UNSCANNED_DIRS = new Set(['node_modules', 'dist', 'build', '.next', '.turb
  * `disk` — files read on GitHub: an href names a PATH in this repository.
  *
  * The split is the point (objectui#3536). See the header for why applying the
- * docs rules to the second group would reject links that render perfectly well.
+ * docs rules to the second group would reject links that render perfectly well:
+ * over today's `disk` surface it would reject 186 links that all render — 111
+ * of them before objectui#3622 widened that surface, 75 in the package READMEs
+ * it added.
+ *
+ * Adding a surface is one row. Adding one that is read on GitHub needs no new
+ * rule class at all — which is why objectui#3572 could take the last three for
+ * the price of the table entry, and objectui#3622 the package READMEs.
+ *
+ * A row's `path` is a directory to walk, a single markdown file, or a pattern
+ * whose one wildcard SEGMENT stands for every directory at that level — see
+ * `expandWildcard()` below, which is all the glob syntax this table has.
  */
 export const SCAN_ROOTS = [
   { path: 'content/docs', rule: 'docs' },
   { path: 'examples', rule: 'disk' },
   { path: 'README.md', rule: 'disk' },
+  { path: 'CONTRIBUTING.md', rule: 'disk' },
+  { path: 'ROADMAP.md', rule: 'disk' },
+  { path: 'docs', rule: 'disk' },
+  { path: 'packages/*/README.md', rule: 'disk' },
 ];
 
 const blank = (text) => text.replace(/[^\n]/g, ' ');
@@ -263,8 +421,49 @@ export function walk(dir, files = []) {
   return files;
 }
 
-/** One scan root, which may be a directory to walk or a single markdown file. */
+/**
+ * Expands the leftmost wildcard segment of a scan root into one path per
+ * directory at that level, sorted so the scan order — and therefore the report
+ * order — does not depend on the filesystem's (objectui#3622). `collectFiles`
+ * recurses, so a later wildcard segment expands on the next pass.
+ *
+ * Deliberately not a glob library: a whole segment that is exactly `*`, and
+ * nothing else. Anything richer THROWS rather than quietly matching nothing,
+ * because a scan root that expands to zero paths is a surface silently dropped
+ * — the one failure mode this gate must not have (same stance as the missing
+ * route table in `routeExists()`).
+ */
+function expandWildcard(pattern) {
+  const segments = pattern.split(path.sep);
+  const index = segments.findIndex((segment) => segment.includes('*'));
+  if (segments[index] !== '*') {
+    throw new Error(
+      `A SCAN_ROOTS path may only use a wildcard as a whole path segment, and got "${pattern}". ` +
+        'Widen the row to the directory above, or add the paths one row each.',
+    );
+  }
+
+  const parent = segments.slice(0, index).join(path.sep);
+  const rest = segments.slice(index + 1);
+  let entries;
+  try {
+    entries = readdirSync(parent, { withFileTypes: true });
+  } catch {
+    return []; // the parent is not here — same contract as a missing scan root
+  }
+
+  return entries
+    .filter((entry) => entry.isDirectory() && !UNSCANNED_DIRS.has(entry.name))
+    .map((entry) => [parent, entry.name, ...rest].join(path.sep))
+    .sort();
+}
+
+/**
+ * One scan root, which may be a directory to walk, a single markdown file, or a
+ * wildcard pattern standing for one path per directory at that level.
+ */
 export function collectFiles(root) {
+  if (root.includes('*')) return expandWildcard(root).flatMap((expanded) => collectFiles(expanded));
   try {
     if (statSync(root).isFile()) return /\.(md|mdx)$/.test(root) ? [root] : [];
   } catch {
@@ -348,6 +547,23 @@ function hrefPath(href) {
 export function selfRepoPath(href) {
   const match = SELF_REPO_BLOB_RE.exec(hrefPath(href));
   return match ? match[1].replace(/\/+$/, '') : null;
+}
+
+/**
+ * The absolute site path a site-absolute URL names, or `null` if this href is
+ * not one (objectui#3603). The fragment and query are stripped — anchors are
+ * out of scope here for the same reason they are for `selfRepoPath` — but the
+ * path is NOT decoded: `routeExists()` does that itself, and decoding twice
+ * would corrupt a legitimately escaped `%25`.
+ *
+ * `https://www.objectui.org` with no path at all names the site root, so it
+ * resolves to `/` rather than to the empty string (which `routeExists()` reads
+ * as a pure in-page anchor and waves through).
+ */
+export function siteAbsoluteRoute(href) {
+  const match = SITE_ORIGIN_RE.exec(href.split('#')[0].split('?')[0].trim());
+  if (!match) return null;
+  return match[1] || '/';
 }
 
 /**
@@ -541,13 +757,21 @@ function classifyBrokenDisk(href) {
  * @returns {string | null} the failing check's name, or `null` when it resolves
  */
 function judgeHref(href, context) {
-  // The self-repo URL check runs FIRST and in every rule: it is the one
-  // external-looking shape this script can decide, so it must be reached
-  // before the by-scheme skip below waves it through (objectui#3536).
+  // The two external-LOOKING shapes this script can actually decide run FIRST,
+  // and in every rule: both must be reached before the by-scheme skip below
+  // waves them through (objectui#3536, objectui#3603).
   const selfPath = selfRepoPath(href);
   if (selfPath !== null) {
     const target = path.resolve(context.repoRoot, selfPath);
     return isInside(context.repoRoot, target) && pathExists(target) ? null : 'self-repo-url';
+  }
+  // A URL on this site is an internal route wearing an origin. Strip the origin
+  // and judge what is left with the same `routeExists()` every absolute href
+  // goes through — so `/docs` strictness and the `apps/site` route table apply
+  // here too, on every surface, `content/docs` included.
+  const siteRoute = siteAbsoluteRoute(href);
+  if (siteRoute !== null) {
+    return routeExists(siteRoute, context) ? null : 'site-absolute-url';
   }
   if (EXTERNAL_HREF_RE.test(href)) return null;
 
@@ -615,7 +839,8 @@ const HINTS = {
     ' `https://github.com/objectstack-ai/objectui/blob/main/...` URL instead' +
     ' (the "Package README" form used throughout content/docs/plugins/).',
   'example-relative':
-    'Outside content/docs (examples/**, the root README) a relative link is a' +
+    'Outside content/docs (examples/**, README.md, CONTRIBUTING.md, ROADMAP.md,' +
+    ' docs/** and each package README) a relative link is a' +
     ' PATH IN THIS REPO, resolved by GitHub against the linking file — so it' +
     ' must name something that exists and lives inside the repository. A' +
     ' directory or a non-markdown file is fine; an extensionless spelling of a' +
@@ -626,6 +851,13 @@ const HINTS = {
     ' https://github.com/packages/core. Write the repo path relative to the' +
     ' file (`./packages/core`), or, if a github.com URL really was meant,' +
     ' write it in full with the scheme.',
+  'site-absolute-url':
+    'A `https://www.objectui.org/...` URL is a route on this project OWN site,' +
+    ' so the origin is stripped and the rest is checked exactly like the' +
+    ' equivalent absolute href — this one does not resolve. Fix the route, or' +
+    ' drop the link if no such page exists. Inside content/docs prefer the' +
+    ' origin-less form (`/docs/guide/plugins`): it survives a domain change,' +
+    ' and both spellings are checked identically.',
   'self-repo-url':
     'A `https://github.com/objectstack-ai/objectui/(blob|tree)/main/...` URL' +
     ' points into this repository, so its path is checked against the working' +

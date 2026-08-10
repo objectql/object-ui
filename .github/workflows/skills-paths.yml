@@ -1,0 +1,70 @@
+name: Skills Paths
+
+# Why this is its own workflow instead of a step in `ci.yml` or `lint.yml`: this
+# gate's ENTIRE scan surface is markdown (`skills/**`, guide prose), and both of
+# those workflows list `'**/*.md'`, `content/**` and `docs/**` under the
+# `paths-ignore` of their `push` trigger, with no per-job path filter available in
+# GitHub Actions. A push that only edits a guide would therefore start neither —
+# and editing only a guide is the single most likely way a stated path goes dead.
+#
+# This is the fourth instance of the shape in this repo, and the reasoning is
+# borrowed rather than invented: `docs-links.yml`'s header records that the link
+# check spent from #3213 to #3448 inside `ci.yml`'s `docs` job, unable to see the
+# one class of PR most likely to break a link, and `control-bytes.yml`'s header
+# names the consequence — a gate that cannot see a markdown-only change
+# "rebuilds the hole it exists to close". `changeset-guard.yml` is the third.
+#
+# Hence: no `paths` and no `paths-ignore` here, deliberately.
+# `scripts/__tests__/check-skills-paths.test.ts` fails if either is ever added,
+# and fails too if a second workflow starts running the same script — one gate,
+# one home.
+#
+# It needs no install and no build — a checkout plus one `node` call over 18
+# markdown files, a couple of seconds — so keep it that way if you add checks to
+# it.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  # Merge queue (objectui#3523 — see `ci.yml`'s trigger block for the full note
+  # and the measurements behind it). A required check that does not report on a
+  # queue build stalls the queue until the ruleset's 60-minute timeout fails it,
+  # so an unfiltered gate that could become required subscribes here from the
+  # start. `types:` is named although `checks_requested` is currently the only
+  # activity type GitHub defines for `merge_group`.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: skills-paths-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  skills-paths:
+    name: Skill Guide Path Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+
+      # The guides under `skills/` are a direct input to every agent that writes
+      # code here, and their prose gives in-repo paths as coordinates. A dead one
+      # produces no compile error — just "file not found" from a Read, and a
+      # wasted lap re-locating a symbol that does exist (#3713 and #3730 were
+      # 13+ of these in one guide, both rounds found by eye). Reads the checkout
+      # and nothing else, so no install is required.
+      - name: Check paths stated in the skill guides
+        run: node scripts/check-skills-paths.mjs

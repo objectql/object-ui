@@ -17,9 +17,27 @@ pnpm add @object-ui/layout
 ```
 
 **Peer Dependencies:**
-- `react` >= 18.0.0
-- `react-dom` >= 18.0.0
-- `react-router-dom` >= 6.0.0
+- `react` ^18.0.0 || ^19.0.0
+- `react-dom` ^18.0.0 || ^19.0.0
+- `react-router-dom` ^6.0.0 || ^7.0.0
+
+## Registration
+
+Importing this package registers its component keys (`page-header`, `page:card`,
+`app-shell`, `responsive-grid`, `navigation-renderer`, `app-schema-renderer`) on
+the `ComponentRegistry` as a module load side effect, so the side-effect-only
+import is enough:
+
+```typescript
+import '@object-ui/layout';
+```
+
+That is a supported entry point, not an accident of the build: `package.json`
+declares the registering modules in `sideEffects`, which is what stops a bundler
+from tree-shaking a side-effect-only import away (objectui#3899 — the manifest
+used to say `"sideEffects": false`, and a bundler honouring it dropped the
+registration silently). `registerLayout()` is also exported for hosts that
+prefer to register explicitly.
 
 ## Components
 
@@ -119,22 +137,11 @@ All components accept `className` prop for Tailwind customization:
 
 ## API Reference
 
-For detailed API documentation, visit the [Object UI Documentation](https://www.objectui.org/docs/layout).
-
-<!-- release-metadata:v3.3.0 -->
-
-## Compatibility
-
-- **React:** 18.x or 19.x
-- **Node.js:** ≥ 18
-- **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^3.3.0
-- **`@objectstack/client`:** ^3.3.0
-- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
+For detailed API documentation, visit the [Object UI Documentation](https://www.objectui.org/docs/layout/app-shell).
 
 ## Links
 
-- 📚 [Documentation](https://www.objectui.org/docs/layout)
+- 📚 [Documentation](https://www.objectui.org/docs/guide/layout)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/layout)
 - 📝 [Changelog](./CHANGELOG.md)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)

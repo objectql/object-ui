@@ -672,10 +672,21 @@ export interface DashboardWidgetLayout {
  */
 export interface DashboardWidgetSchema
   extends Omit<Partial<SpecDashboardWidget>, 'type' | 'options' | 'chartConfig' | 'filter' | 'responsive'> {
-  // `id`, `title`, `description`, `colorVariant`, `actionUrl`, `actionType`,
-  // `actionIcon`, `dataset`, `dimensions`, `values`, `filterBindings`,
-  // `requiresObject`, `requiresService`, `compareTo`, `aria`, … all flow in from
-  // the spec through the `extends` above — do not restate them here.
+  // `id`, `title`, `description`, `colorVariant`, `dataset`, `dimensions`,
+  // `values`, `filterBindings`, `requiresObject`, `requiresService`,
+  // `compareTo`, … all flow in from the spec through the `extends` above — do
+  // not restate them here.
+  //
+  // `actionUrl`, `actionType`, `actionIcon` and `aria` flow in too, but as
+  // RETIRED keys: @objectstack/spec 17.0.0-rc.3 (objectstack#5010, ADR-0049 D2)
+  // turned them into `retiredKey` tombstones, so the spec types them `never`
+  // and the Zod twin refuses any value. They inherit as `?: never` — authoring
+  // one is a tsc error here and a parse error at validation. Reading one still
+  // type-checks (`never | undefined`), which is how objectui's widget config
+  // panel kept producing `actionUrl` until objectstack#7129. A dashboard
+  // widget's click-through affordance lives in `header.actions[]`, whose own
+  // `actionUrl` is unrelated and still live.
+  // Pinned by `__tests__/report-chart-query-spec-parity.test.ts`.
   /** Component schema (legacy format) — objectui-only, no spec counterpart. */
   component?: SchemaNode;
   layout?: DashboardWidgetLayout;

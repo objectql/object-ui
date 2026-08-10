@@ -19,6 +19,7 @@ import {
   debugTimeEnd,
   DebugCollector,
   validateSchema,
+  hasDeclaredPredicate,
   hasResponsiveStyles,
   scopeClassFor,
   compileScopedStyles,
@@ -305,10 +306,28 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
       if (newSchema.visibility !== undefined) {
         return !evaluator.evaluateCondition(newSchema.visibility);
       }
-      if (newSchema.hidden !== undefined) {
+      // Ask "is a `hidden` gate DECLARED?" — not "is the key present?"
+      // (objectui#3955). These two legs are the only ones in this chain whose
+      // verdict is NOT negated, so the evaluator's single default for "there is
+      // nothing to evaluate" (`true`, meaning *visible/enabled*) arrives here
+      // meaning HIDE: `hidden: ''` / `null` (`null !== undefined`) / a
+      // whitespace-only string / the `{ dialect, source: '' }` envelope
+      // `objectstack build` emits for an empty predicate each made the node
+      // VANISH, on the generic path, for a value the metadata never used to say
+      // anything. Harder to diagnose than its `disabled` twin below
+      // (objectui#3862): a greyed-out control is still on screen, a node that
+      // never rendered is indistinguishable from metadata that meant it.
+      //
+      // `hasDeclaredPredicate` is the repo's one definition of "declared"
+      // (core's `evaluator/declaredPredicate.ts`) — a local `&& !== ''` here
+      // would have been the Nth dialect of one question. The verdict still reads
+      // the RAW value; only the gate in front of it narrowed. Not an
+      // equivalence, and pinned as a behaviour change: an UNDECLARED `hidden` no
+      // longer short-circuits, so a declared `hiddenOn` is finally consulted.
+      if (hasDeclaredPredicate(newSchema.hidden)) {
         return evaluator.evaluateCondition(newSchema.hidden);
       }
-      if (newSchema.hiddenOn !== undefined) {
+      if (hasDeclaredPredicate(newSchema.hiddenOn)) {
         return evaluator.evaluateCondition(newSchema.hiddenOn);
       }
       return false;
@@ -319,11 +338,41 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
     }
 
     // Evaluate disabled: disabled / disabledOn
+    //
+    // Ask "is a `disabled` gate DECLARED?" — not "is the key present?"
+    // (objectui#3862). `!== undefined` was the widest of the three spellings this
+    // question used to have, and this is the key where breadth is not free: the
+    // evaluation entry answers an empty predicate with `true`, meaning "no
+    // condition → visible/enabled", and on `disabled` that `true` means GREYED
+    // OUT. So `disabled: ''`, `disabled: null` (`null !== undefined`), a
+    // whitespace-only string and the `{ dialect, source: '' }` envelope
+    // `objectstack build` emits for an empty predicate each disabled the node —
+    // on the GENERIC path, since this block runs for every schema type, and not
+    // as an internal flag either: `_disabled` is forwarded below as a real
+    // `disabled` prop.
+    //
+    // The `visible` / `visibleWhen` / `visibleOn` / `visibility` legs above keep
+    // `!== undefined` deliberately: their `true` is NEGATED, so an empty predicate
+    // already lands on "shown", which is what "no gate" means anyway, and
+    // narrowing them would change ALIAS PRECEDENCE rather than fix anything. The
+    // `hidden` / `hiddenOn` legs were the exception — not negated, so they carried
+    // this same defect with the polarity that makes the node VANISH — and they now
+    // read this same definition (objectui#3955).
+    //
+    // `hasDeclaredPredicate` is the one definition of "declared" (core's
+    // `evaluator/declaredPredicate.ts`, objectui#3850's ruling — read there for
+    // the scope), shared with the action renderers' `hasDeclaredVisibilityGate`
+    // and `ActionRunner`'s execution gates. A local `&& !== ''` here would have
+    // been a fourth dialect of one question, which is what objectui#3842 /
+    // objectui#3849 spent two PRs merging away. The verdict still reads the RAW
+    // value, exactly as before — only the gate in front of it narrowed. An
+    // undeclared `disabled` now falls through to `disabledOn` instead of
+    // short-circuiting on an empty predicate.
     const isDisabled = (() => {
-      if (newSchema.disabled !== undefined) {
+      if (hasDeclaredPredicate(newSchema.disabled)) {
         return evaluator.evaluateCondition(newSchema.disabled);
       }
-      if (newSchema.disabledOn !== undefined) {
+      if (hasDeclaredPredicate(newSchema.disabledOn)) {
         return evaluator.evaluateCondition(newSchema.disabledOn);
       }
       return false;
@@ -407,6 +456,18 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
     hiddenOn: _hiddenOn,
     disabled: _disabled,
     disabledOn: _disabledOn,
+    // stripped: `PageComponentSchema.dataSource` is the spec's per-element data
+    // BINDING (`{ object, view, filter, sort, limit }`) — schema metadata, like
+    // `visibleWhen` above, not a visual prop. Renderers that consume it read
+    // `schema.dataSource` (element:record_picker, list-view); it must not be
+    // spread as a React prop, because several data-bound blocks take the
+    // injected data-source ADAPTER under that very name. Spreading it shadowed
+    // the adapter with a plain `{ object, view }` object, so the first
+    // `dataSource.find(…)` threw `dataSource.find is not a function` and the
+    // block reported "Couldn't load records" — writing the binding the spec
+    // documents BROKE the component (objectstack#5576). An explicit React
+    // `dataSource` prop is unaffected: it arrives via `...props`, spread last.
+    dataSource: _dataSource,
     _hidden: __hidden,    // stripped: internal visibility flag
     _disabled: __disabled, // stripped: internal disabled flag
     responsiveStyles: _responsiveStyles, // stripped: compiled to scoped CSS, not a DOM prop

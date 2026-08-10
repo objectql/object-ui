@@ -1,16 +1,25 @@
 /**
  * useRecordApprovals
  *
- * Resolves the approval state for a single record so the detail-view header
- * can surface a status badge and — when the current user is a pending
- * approver — "Approve" / "Reject" actions.
+ * Resolves the approval state for a single record — the READ half only: the
+ * status badge, the record lock (`lock_record`), and the request rows the
+ * record page's approvals panel renders.
  *
  * Since ADR-0019 an approval is a **flow node** (`type: 'approval'`), not a
  * standalone process: the flow opens the request when it reaches the node,
- * and a decision resumes the run down its `approve` / `reject` edge. There is
- * therefore no manual "submit" or "recall" from the record header — those
- * endpoints were removed. This hook reads the record's requests and lets a
- * pending approver record a decision.
+ * and a decision resumes the run down its `approve` / `reject` edge.
+ *
+ * ⛔ This hook does NOT decide (objectui#3055). It used to own a second,
+ * hand-written decision path — an `approve()` / `reject()` pair plus a
+ * CLIENT-side `canDecide` (`pending_approvers.includes(currentUserId)`) — that
+ * the record page injected as two hard-coded header buttons. That fork covered
+ * two of the nine approval routes: reassign / send-back / request-info had zero
+ * entry point on a business record, decision attachments were impossible, and
+ * the copy was maintained separately from the approvals list's. Decisions now
+ * go through the SAME server-declared `sys_approval_request` actions the
+ * approvals list runs (`DeclaredActionsBar`), gated by the server-computed
+ * `viewer` block rather than by a second client-side opinion — so a new
+ * decision action is metadata, not console code.
  *
  * Talks directly to the framework REST endpoints under
  * `/api/v1/approvals/*`. Fails open: if the approvals plugin is not installed
@@ -182,25 +191,18 @@ interface UseRecordApprovalsResult {
    * node the flow has reached (and per ADR-0044 revision round), so a
    * multi-level flow accumulates several. The record page's approval panel
    * renders them all (objectui#3461); `pendingRequest` / `latestRequest`
-   * remain the derived single-row reads the header actions consume.
+   * remain the derived single-row reads the status badge and the decision
+   * bar's record consume.
    */
   requests: ApprovalRequestLite[];
+  /**
+   * The one still-`pending` request, enriched by `getRequest` — so it carries
+   * the server-computed `viewer` block the declared decision actions gate on
+   * (objectui#3055) as well as the `decision_progress` tally.
+   */
   pendingRequest: ApprovalRequestLite | null;
   latestRequest: ApprovalRequestLite | null;
-  /** The current user is among the pending approvers and may record a decision. */
-  canDecide: boolean;
-  approve: (input?: DecisionInput) => Promise<ApprovalRequestLite | undefined>;
-  reject: (input?: DecisionInput) => Promise<ApprovalRequestLite | undefined>;
   refresh: () => Promise<void>;
-}
-
-/**
- * What an approver submits with a decision: the free-text comment, plus the
- * node's declared decision outputs keyed by their declared `key` (objectui#2955).
- */
-export interface DecisionInput {
-  comment?: string;
-  outputs?: Record<string, any>;
 }
 
 function apiBase() {
@@ -290,10 +292,17 @@ export async function remindApprovalRequest(
   return out ?? {};
 }
 
+/**
+ * ⛔ No `currentUserId` parameter (objectui#3055). It existed only to feed the
+ * retired client-side `canDecide`; every remaining question about the viewer —
+ * may they act, are they the submitter, may they override — is answered by the
+ * server on the row itself (`viewer`, framework#3310 / #3424). A surface that
+ * still needs the signed-in id for a pre-`viewer` fallback (the panel's remind)
+ * reads it from `useAuth()` where it renders.
+ */
 export function useRecordApprovals(
   objectName: string | undefined,
   recordId: string | undefined,
-  currentUserId?: string | null,
 ): UseRecordApprovalsResult {
   const [loading, setLoading] = useState(false);
   const [available, setAvailable] = useState(true);
@@ -351,36 +360,11 @@ export function useRecordApprovals(
 
   const latestRequest = sortedRequests[0] ?? null;
 
-  const canDecide = !!pendingRequest && !!currentUserId
-    && (pendingRequest.pending_approvers ?? []).includes(currentUserId);
-
-  const decide = useCallback(
-    async (decision: 'approve' | 'reject', input?: DecisionInput) => {
-      if (!pendingRequest) throw new Error('No pending request');
-      const outputs = input?.outputs && Object.keys(input.outputs).length > 0 ? input.outputs : undefined;
-      const out = await fetchJson<{ request?: ApprovalRequestLite }>(
-        `/approvals/requests/${encodeURIComponent(pendingRequest.id)}/${decision}`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            ...(currentUserId ? { actorId: currentUserId } : {}),
-            ...(input?.comment ? { comment: input.comment } : {}),
-            // The node's declared decision outputs, under the same nested key
-            // the Approval Center's `type:'api'` decide actions post
-            // (objectui#2955). Omitted entirely when nothing was collected, so
-            // a node without `decisionOutputs` posts the body it always did.
-            ...(outputs ? { outputs } : {}),
-          }),
-        },
-      );
-      await refresh();
-      return out?.request;
-    },
-    [pendingRequest, currentUserId, refresh],
-  );
-
-  const approve = useCallback((input?: DecisionInput) => decide('approve', input), [decide]);
-  const reject = useCallback((input?: DecisionInput) => decide('reject', input), [decide]);
+  // ⛔ No `canDecide` / `approve` / `reject` here (objectui#3055). Whether the
+  // viewer may act is the SERVER's answer (`pendingRequest.viewer`), read by
+  // the declared actions' own `visible` gate; recording the decision is the
+  // declared `type:'api'` action's POST. A client-side second opinion on the
+  // same question is what let the record page and the approvals list disagree.
 
   return {
     loading,
@@ -388,9 +372,6 @@ export function useRecordApprovals(
     requests: sortedRequests,
     pendingRequest,
     latestRequest,
-    canDecide,
-    approve,
-    reject,
     refresh,
   };
 }

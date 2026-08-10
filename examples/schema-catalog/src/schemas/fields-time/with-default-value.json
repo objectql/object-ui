@@ -1,6 +1,15 @@
 {
-  "type": "time",
-  "name": "office_hours",
-  "label": "Office Hours",
-  "value": "09:00"
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "defaultValues": {
+    "office_hours": "09:00"
+  },
+  "fields": [
+    {
+      "name": "office_hours",
+      "label": "Office Hours",
+      "type": "time"
+    }
+  ]
 }

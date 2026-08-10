@@ -29,6 +29,7 @@ packages/plugin-my-plugin/
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
+├── vitest.setup.ts         # Registers the jest-dom matchers
 └── README.md
 ```
 
@@ -37,7 +38,8 @@ packages/plugin-my-plugin/
 - ✅ TypeScript support out of the box
 - ✅ Vite build configuration
 - ✅ Component registration with ComponentRegistry
-- ✅ Test setup with Vitest
+- ✅ Runnable Vitest setup — jsdom environment, Testing Library and the jest-dom
+  matchers are all declared, so `pnpm test` is green on the first run
 - ✅ Proper package.json with workspace dependencies
 - ✅ README template
 - ✅ Type definitions
@@ -82,16 +84,6 @@ pnpm create @object-ui/plugin my-plugin --description "My awesome plugin" --auth
    ```bash
    pnpm test
    ```
-
-<!-- release-metadata:v3.3.0 -->
-
-## Compatibility
-
-- **Node.js:** ≥ 18
-- **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^3.3.0
-- **`@objectstack/client`:** ^3.3.0
-- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
 
 ## Links
 

@@ -169,6 +169,22 @@ const AI_QUOTA_CODES = new Set<string>([
   'ai_allowance_exhausted',
 ]);
 
+/** The value as a recognized quota code, or undefined for anything else. */
+function asAiQuotaCode(value: unknown): AiQuotaCode | undefined {
+  return typeof value === 'string' && AI_QUOTA_CODES.has(value)
+    ? (value as AiQuotaCode)
+    : undefined;
+}
+
+/**
+ * The value as non-empty text, or undefined — so an empty string falls through
+ * to the next candidate source instead of winning as the message (the
+ * `{ error: '', code: … }` dialect emits exactly that).
+ */
+function asText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
 /**
  * Recognize the cloud AI token guardrail's 429 quota refusals so the chat UI can
  * show a friendly upgrade / top-up CTA instead of a generic "response failed".
@@ -176,7 +192,36 @@ const AI_QUOTA_CODES = new Set<string>([
  * The ai-sdk chat transport throws a plain Error whose `message` is the response
  * body text (no HTTP status is preserved), so the only signal is the JSON body:
  * strip the same retry/format prefixes summarizeChatError handles, locate the
- * JSON object, and match its `error` code. Returns null for anything else.
+ * JSON object, and find the code in it. Returns null for anything else.
+ *
+ * ## Three dialects, one code set
+ *
+ * The two cloud 429 producers fill the same `error` key in OPPOSITE ways, and
+ * ADR-0112 declares a third shape they are converging on (objectui#3491,
+ * cloud#944). All three are read here so the consumer is ready BEFORE the
+ * producers move (cloud#1168) — the alternative is a silent misfit at the
+ * moment they converge:
+ *
+ * | dialect                      | shape                                          |
+ * |------------------------------|------------------------------------------------|
+ * | declared envelope (ADR-0112) | `{ success: false, error: { code, message } }`  |
+ * | flat guardrail               | `{ error: CODE, message, upgrade, topUp }`     |
+ * | service-ai sibling key       | `{ error: PROSE, code: CODE }`                 |
+ *
+ * Only the code's LOCATION widens; the recognized code set is unchanged, so an
+ * unknown shape still degrades to today's behavior (null). Note that a
+ * spec-conformant `error.code` must be an `ErrorCode` ledger member
+ * (SCREAMING_SNAKE) and none of these three codes is registered today, so the
+ * nested branch matches the legacy vocabulary only — aligning the vocabulary is
+ * cloud#1168's call and needs a follow-up here, not a guess now.
+ *
+ * ## Parse priority (a total order, deliberately)
+ *
+ * `declared envelope > flat guardrail > sibling code key`. A payload that
+ * satisfies two dialects at once — a transitional producer double-emitting the
+ * new envelope alongside the legacy top-level keys is the realistic case — must
+ * have ONE defined outcome, so the most-declared position wins, and the legacy
+ * limbs remain reachable when the nested code is absent or unrecognized.
  */
 export function parseAiQuotaError(err: unknown): AiQuotaError | null {
   const raw = err instanceof Error ? err.message : String(err ?? '');
@@ -194,13 +239,33 @@ export function parseAiQuotaError(err: unknown): AiQuotaError | null {
   } catch {
     return null;
   }
-  if (!body || typeof body.error !== 'string' || !AI_QUOTA_CODES.has(body.error)) {
-    return null;
-  }
+  if (!body || typeof body !== 'object') return null;
+
+  // The declared envelope's nested error object, when `error` carries one.
+  const nested =
+    body.error && typeof body.error === 'object'
+      ? (body.error as Record<string, unknown>)
+      : undefined;
+
+  const flatCode = asAiQuotaCode(body.error);
+  const code = asAiQuotaCode(nested?.code) ?? flatCode ?? asAiQuotaCode(body.code);
+  if (!code) return null;
+
   return {
-    code: body.error as AiQuotaCode,
-    message: typeof body.message === 'string' ? body.message : '',
-    messageEn: typeof body.messageEn === 'string' ? body.messageEn : undefined,
+    code,
+    message:
+      asText(nested?.message) ??
+      asText(body.message) ??
+      // The service-ai dialect puts prose in `error`. Read it as text only when
+      // `error` is not itself the code slot, or the flat dialect would surface
+      // its own code ('ai_allowance_exhausted') to the user as the message.
+      (flatCode ? undefined : asText(body.error)) ??
+      '',
+    // Companion fields keep their established top-level read. Their position in
+    // the declared envelope is NOT presumed here (`error.details.upgrade`? a
+    // sibling of `error.code`?) — cloud#1168 decides the real shape, and
+    // inventing a nested key now would fossilize a contract nobody agreed to.
+    messageEn: asText(body.messageEn),
     upgrade: body.upgrade === true,
     topUp: body.topUp === true,
   };

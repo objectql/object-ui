@@ -17,7 +17,7 @@ import React, { forwardRef, useCallback, useMemo, useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { ActionSchema } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
-import { useCondition, toPredicateInput } from '@object-ui/react';
+import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Button } from '../../ui';
 import {
@@ -30,6 +30,7 @@ import {
 import { cn } from '../../lib/utils';
 import { Loader2, MoreHorizontal } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
+import { hasDeclaredVisibilityGate } from './visibility-gate';
 
 function useMoreActionsLabel(): string {
   // useObjectTranslation is provider-safe (never throws); no try/catch, which
@@ -59,21 +60,39 @@ export interface ActionMenuSchema {
   [key: string]: any;
 }
 
-const ActionMenuItem: React.FC<{
+/**
+ * One action inside an `action:menu`. Exported for its pin tests only (it is
+ * not re-exported from the package index) — mirrors `DropdownActionItem` in
+ * `action-group.tsx`, whose gate is the same one.
+ */
+export const ActionMenuItem: React.FC<{
   action: ActionSchema;
   onExecute: (action: ActionSchema) => Promise<void>;
-}> = ({ action, onExecute }) => {
+  /**
+   * The row this menu is mounted over, forwarded by the host. Optional: an
+   * object-level menu genuinely has no row, and a predicate over an empty
+   * record is still evaluable (objectui#4075 — the failure being fixed is a
+   * predicate that FAULTS on an unbound root, not one that reads a missing
+   * field).
+   */
+  record?: unknown;
+}> = ({ action, onExecute, record }) => {
+  // The row bound the three canonical ways — `record.status`, bare `status`,
+  // `data.status`. This item used to pass `undefined`, i.e. no record at all,
+  // so every row-scoped predicate an author wrote here faulted on its root
+  // (objectui#4075). See `usePredicateRecordContext`.
+  const recordData = usePredicateRecordContext(record);
   // Fails CLOSED on a throwing predicate — mirrors ActionEngine's
   // getActionsForLocation contract (see action-button.tsx for rationale).
-  const isVisible = useCondition(toPredicateInput(action.visible), undefined, {
+  const isVisible = useCondition(toPredicateInput(action.visible), recordData, {
     throwOnError: true,
     label: `action "${action.name ?? action.label ?? 'action:menu item'}" (visible)`,
   });
   // Spec `disabled` (boolean | CEL — disabled when TRUE) primary, legacy
   // non-spec `enabled` fallback (#1885 follow-through — only action-button
   // was wired; this renderer ignored a spec-authored `disabled`).
-  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled));
-  const isEnabled = useCondition(toPredicateInput(action.enabled));
+  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled), recordData);
+  const isEnabled = useCondition(toPredicateInput(action.enabled), recordData);
 
   const iconElement = useMemo(() => {
     const Icon = resolveIcon(action.icon);
@@ -81,13 +100,24 @@ const ActionMenuItem: React.FC<{
     return Icon ? <Icon className="mr-2 h-4 w-4" /> : null;
   }, [action.icon]);
 
-  if (action.visible && !isVisible) return null;
+  // A DECLARED gate decides; truthiness would read `visible: false` as ungated
+  // and render it (objectui#3812) — the same gate `action:group`'s two member
+  // leaves read. `false` short-circuits at the evaluation entry, so the
+  // `throwOnError` posture above still only applies to real predicates.
+  if (hasDeclaredVisibilityGate(action.visible) && !isVisible) return null;
 
   return (
     <DropdownMenuItem
-      disabled={(action as any).disabled != null
+      // Declared-gate test, the same definition the `visible` gate above reads
+      // and the same one `action:group`'s two leaves read (objectui#3842 ruling
+      // applied here by #3849 — historic name kept, no alias). `disabled: ''`
+      // is not a gate: the evaluation entry reads an empty predicate as "no
+      // condition → true", which on this key means DISABLE, so `!= null` alone
+      // greyed the item out forever. The negated legacy `enabled` leg is
+      // behaviour-preserving under the same definition.
+      disabled={hasDeclaredVisibilityGate((action as any).disabled)
         ? isDisabledPred
-        : action.enabled != null
+        : hasDeclaredVisibilityGate(action.enabled)
           ? !isEnabled
           : false}
       onSelect={(e) => {
@@ -113,6 +143,11 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
       'data-obj-id': dataObjId,
       'data-obj-type': dataObjType,
       style,
+      // The row the host mounted this menu over — the predicate context for
+      // this menu's own `visible` AND for every item in it (objectui#4075).
+      // Also keeps `data` out of `...rest`, which is spread onto the DOM
+      // trigger button.
+      data,
       ...rest
     } = props;
 
@@ -120,9 +155,12 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
     const [loading, setLoading] = useState(false);
     const moreActionsLabel = useMoreActionsLabel();
 
+    // The row bound the three canonical ways — see `usePredicateRecordContext`.
+    const recordData = usePredicateRecordContext(data);
+
     // Fails CLOSED on a throwing predicate — mirrors ActionEngine's
     // getActionsForLocation contract (see action-button.tsx for rationale).
-    const isVisible = useCondition(toPredicateInput(schema.visible), undefined, {
+    const isVisible = useCondition(toPredicateInput(schema.visible), recordData, {
       throwOnError: true,
       label: `action:menu "${schema.label ?? schema.icon ?? 'menu'}" (visible)`,
     });
@@ -148,6 +186,10 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
             endpoint: action.endpoint,
             method: action.method,
             params: action.params as Record<string, any> | undefined,
+            // See action-button.tsx — the `type: 'api'` payload key (objectstack#6837).
+            bodyExtra: action.bodyExtra,
+            // See action-button.tsx — the body-WRAPPING key (objectstack#6938).
+            bodyShape: action.bodyShape,
             confirmText: action.confirmText,
             successMessage: action.successMessage,
             errorMessage: action.errorMessage,
@@ -208,7 +250,7 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
             return (
               <React.Fragment key={action.name || index}>
                 {showSeparator && <DropdownMenuSeparator />}
-                <ActionMenuItem action={action} onExecute={handleExecute} />
+                <ActionMenuItem action={action} onExecute={handleExecute} record={data} />
               </React.Fragment>
             );
           })}

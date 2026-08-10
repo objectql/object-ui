@@ -38,6 +38,10 @@ import {
   X,
 } from 'lucide-react';
 import type { DataSource, LookupColumnDef, LookupFilterDef } from '@object-ui/types';
+// The repo's single filter sink (`packages/core/src/utils/filter-converter.ts`)
+// — shared with plugin-list's `buildEffectiveFilter` and plugin-view's
+// ObjectView, so a spec `ViewFilterRule[]` lowers in exactly one place.
+import { mergeFilterNodes } from '@object-ui/core';
 import { useSafeFieldLabel } from '@object-ui/i18n';
 import { useFieldTranslation } from './useFieldTranslation';
 import { useRecordQuery } from './useRecordQuery';
@@ -360,13 +364,39 @@ export interface RecordPickerDialogProps {
   lookupFilters?: LookupFilterDef[];
 
   /**
-   * Hard filter constraints applied to every query, in QueryParams.$filter
-   * record form. Unlike `lookupFilters`, entries here never surface in the
-   * filter bar and cannot be overridden by user filter input — used for the
-   * dependent (cascading) lookup chain, where the parent field's value MUST
-   * scope the candidate set (#2215).
+   * Hard filter constraint applied to every query. Unlike `lookupFilters`,
+   * entries here never surface in the filter bar and cannot be overridden by
+   * user filter input.
+   *
+   * Two shapes, discriminated STRUCTURALLY (`Array.isArray`), because the two
+   * callers speak two legitimate vocabularies and neither should be bent into
+   * the other:
+   *
+   * - **`QueryParams.$filter` record form** (`{ account: 'a1' }`) — the
+   *   dependent (cascading) lookup chain, where the parent field's value MUST
+   *   scope the candidate set (#2215). Merged by KEY OVERWRITE, so a cascaded
+   *   value REPLACES a stale `lookupFilters` entry on the same field instead of
+   *   intersecting with it. That precedence is load-bearing: an `and` of both
+   *   would ask for `account = 'stale' AND account = 'a1'` and return nothing.
+   * - **A spec `ViewFilterRule[]`** (`[{ field, operator, value? }]`) — an
+   *   author's `record:related_list.add.picker.filter`, handed over VERBATIM
+   *   (#3831). Lowered by `mergeFilterNodes`, the repo's single filter sink, so
+   *   all 19 `VIEW_FILTER_OPERATORS` reach the wire — including the four
+   *   (`before`, `after`, `is_empty`, `is_not_empty`) the record form has no
+   *   `$op` for. No second operator vocabulary is introduced here: two already
+   *   exist (the spec's `AST_OPERATOR_MAP`, data-objectstack's
+   *   `FILTER_OPERATOR_ALIASES`) and #3948 is what a third costs.
+   *
+   * The discriminator is exact rather than heuristic — every AST node is an
+   * ARRAY and a rule is a plain OBJECT, the same predicate `toFilterNode` uses.
+   *
+   * Typed `unknown` rather than `Record< string, any >` on purpose: that type
+   * ACCEPTED a rule array (TypeScript lets an array satisfy a string index of
+   * `any`), the old object-spread merge then flattened it to
+   * `{"0": {...}, "1": {...}}`, and the query filtered on columns literally
+   * named `0`/`1` — type-check green, wrong query, no diagnostic anywhere.
    */
-  baseFilter?: Record<string, any>;
+  baseFilter?: unknown;
 
   /**
    * Cell renderer resolver function.
@@ -586,18 +616,34 @@ export function RecordPickerDialog({
     });
   }, [baseFilterColumns, fieldsMeta, objectName, translateOptions]);
 
-  // Merge base lookup_filters with user filter bar values. The hard
-  // `baseFilter` constraint (dependent-lookup chain, #2215) is spread LAST so
-  // user filter-bar input can never widen it back out.
-  const mergedFilter = useMemo<Record<string, any> | undefined>(() => {
+  // Merge base lookup_filters with user filter bar values, then apply the hard
+  // `baseFilter` constraint BY SHAPE (see the prop's own doc for why the two
+  // shapes exist):
+  //
+  //   record form → spread LAST, exactly as this merge has always done, so
+  //                 user filter-bar input can never widen it back out and a
+  //                 cascaded parent value replaces a stale same-field
+  //                 `lookupFilters` entry (#2215).
+  //   rule array  → its OWN `and` child via `mergeFilterNodes`, the shared
+  //                 sink, so a spec `ViewFilterRule[]` lowers losslessly
+  //                 (#3831) instead of being spread into `{0: rule}`.
+  //
+  // When BOTH are in play the record side is still built first and lowered as
+  // one node, so its key-overwrite precedence survives the conjunction.
+  const mergedFilter = useMemo<unknown>(() => {
     const lookupBase = lookupFilters?.length
       ? lookupFiltersToRecord(lookupFilters)
       : {};
     const userFilter = effectiveFilterColumns?.length
       ? filterValuesToRecord(filterValues, effectiveFilterColumns)
       : {};
-    const combined = { ...lookupBase, ...userFilter, ...(baseFilter ?? {}) };
-    return Object.keys(combined).length > 0 ? combined : undefined;
+    const rules = Array.isArray(baseFilter) ? baseFilter : undefined;
+    const recordBase = rules
+      ? undefined
+      : (baseFilter as Record<string, any> | undefined);
+    const combined = { ...lookupBase, ...userFilter, ...(recordBase ?? {}) };
+    const record = Object.keys(combined).length > 0 ? combined : undefined;
+    return rules ? mergeFilterNodes(record, rules) : record;
   }, [lookupFilters, effectiveFilterColumns, filterValues, baseFilter]);
 
   // Shared query kernel: builds params, fetches, and owns records/loading/error/

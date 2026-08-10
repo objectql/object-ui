@@ -1,8 +1,15 @@
 {
-  "type": "formula",
-  "name": "due_date",
-  "label": "Due Date",
-  "formula": "created_at + 30 days",
-  "return_type": "date",
-  "readonly": true
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "due_date",
+      "label": "Due Date",
+      "type": "formula",
+      "formula": "created_at + 30 days",
+      "return_type": "date",
+      "readonly": true
+    }
+  ]
 }

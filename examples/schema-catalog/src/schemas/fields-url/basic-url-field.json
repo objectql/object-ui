@@ -1,6 +1,13 @@
 {
-  "type": "url",
-  "name": "website",
-  "label": "Website",
-  "placeholder": "https://example.com"
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "website",
+      "label": "Website",
+      "type": "url",
+      "placeholder": "https://example.com"
+    }
+  ]
 }

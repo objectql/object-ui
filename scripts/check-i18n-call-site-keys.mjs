@@ -23,6 +23,20 @@
  * the class, not the instance: the first full run over `main` found
  * 258 more.
  *
+ * ## Division of labour with the other two i18n gates
+ *
+ * All three read the same ten packs, and each is blind to what the next owns:
+ *
+ *   - THIS gate: call site -> `en`. Does the key a component asks for exist?
+ *   - `packages/i18n/src/__tests__/all-locales-key-parity.test.ts`: pack vs pack
+ *     KEY SETS, plus placeholder shape.
+ *   - `scripts/check-i18n-en-drift.mjs` (objectui#3650): the only one that reads
+ *     VALUES, and only as an event — when an `en` string CHANGES, the nine
+ *     translations must change in the same PR (or be waived). Neither key gate
+ *     can see a value go stale: objectui#3582 and objectui#3625 were eight packs
+ *     serving a retired sentence at full key parity, the second one in idiomatic
+ *     native script that every value-shaped heuristic also reads as healthy.
+ *
  * ## What is IN scope, and why the answer is not "every `t(`"
  *
  * A naive grep for `t('...')` scores 3485 call sites in this repo and would be

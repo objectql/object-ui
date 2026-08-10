@@ -21,16 +21,28 @@
  *   and keyed positions in hyphens — all under comments claiming alignment;
  * - `useNavigationOverlay` read only the deprecated `width`, so an authored
  *   `size` bucket was ignored by every host except app-shell.
+ *
+ * ## Three of the five spec anchors are gone (17.0.0-rc.3)
+ *
+ * `TransitionPresetSchema` and `EasingFunctionSchema` left with the whole
+ * `ui/animation` module (objectstack#4988, PR objectstack#5321), and
+ * `NotificationActionSchema` with objectstack#5015 (PR objectstack#5300) —
+ * published `ui` vocabulary with NO AUTHORING DOOR in every case. objectui#3363
+ * and objectui#3362 both pre-declared this file as one that would go red on the
+ * dependency refresh that brought them in.
+ *
+ * The two-way parity assertions for those three cannot survive: parity needs
+ * two sides. What CAN survive — and is what actually protected the #2942 bugs —
+ * is the render half: every supported preset must produce classes, and every
+ * supported easing must produce valid CSS rather than leaking a raw underscore
+ * token. Those loops are re-pointed at the local `SUPPORTED_*` sets, which are
+ * the vocabulary's owner now. The two notification enums the spec KEPT
+ * (`NotificationTypeSchema` / `NotificationPositionSchema`) still carry their
+ * full two-way parity, and that half is deliberately untouched.
  */
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import {
-  TransitionPresetSchema,
-  EasingFunctionSchema,
-  NotificationActionSchema,
-  NotificationTypeSchema,
-  NotificationPositionSchema,
-} from '@objectstack/spec/ui';
+import { NotificationTypeSchema, NotificationPositionSchema } from '@objectstack/spec/ui';
 import {
   useAnimation,
   SUPPORTED_TRANSITION_PRESETS,
@@ -61,12 +73,19 @@ function assertParity(specNames: string[], implemented: ReadonlySet<string>, wha
 }
 
 describe('react hooks cover the spec animation/notification vocabularies', () => {
-  it('transition presets match TransitionPresetSchema both ways', () => {
-    assertParity(options(TransitionPresetSchema), SUPPORTED_TRANSITION_PRESETS, 'transition preset');
-  });
-
-  it('easing functions match EasingFunctionSchema both ways', () => {
-    assertParity(options(EasingFunctionSchema), SUPPORTED_EASING_FUNCTIONS, 'easing');
+  // The `TransitionPresetSchema` / `EasingFunctionSchema` two-way parity tests
+  // are REMOVED, not re-pointed at the local set: comparing `SUPPORTED_*`
+  // against itself is a tautology that would report green forever. The vocabulary
+  // is pinned by content instead, so it cannot drift silently now that no schema
+  // enumerates it, and the render loops below are what keep it honest.
+  it('the animation vocabulary is pinned by content (objectstack#4988)', () => {
+    expect([...SUPPORTED_TRANSITION_PRESETS].sort()).toEqual([
+      'fade', 'flip', 'none', 'rotate', 'scale',
+      'slide_down', 'slide_left', 'slide_right', 'slide_up',
+    ]);
+    expect([...SUPPORTED_EASING_FUNCTIONS].sort()).toEqual([
+      'ease', 'ease_in', 'ease_in_out', 'ease_out', 'linear', 'spring',
+    ]);
   });
 
   it('notification display types match NotificationTypeSchema both ways', () => {
@@ -80,25 +99,23 @@ describe('react hooks cover the spec animation/notification vocabularies', () =>
   // `NotificationActionButton.variant` was the shadcn Button vocabulary
   // (`default | destructive | outline`) under a spec-shaped name — a fork of
   // `NotificationActionSchema.variant`, and the one notification vocabulary
-  // this guard did not cover.
-  it('notification action variants match NotificationActionSchema both ways', () => {
-    // `variant` carries `.default('primary')`, so the enum sits one wrapper
-    // down: reading `.options` off the field itself returns nothing, which
-    // would make this guard pass by finding no spec values at all (the empty
-    // assertion in assertParity is what catches that).
-    const field = (NotificationActionSchema as { shape?: Record<string, unknown> })
-      .shape?.variant as { def?: { innerType?: unknown } } | undefined;
-    assertParity(
-      options(field?.def?.innerType),
-      SUPPORTED_NOTIFICATION_ACTION_VARIANTS,
-      'notification action variant',
-    );
+  // this guard did not cover. objectstack#5015 (PR objectstack#5300) then
+  // retired `NotificationActionSchema` outright: no notification action was
+  // ever parsed from metadata, so nothing ran to regress.
+  //
+  // `NotificationActionButton` is objectui's OWN interface and still exists, so
+  // its vocabulary is pinned by content here — the same disposition as the two
+  // animation enums above, and for the same reason (objectui#3362).
+  it('notification action variants are pinned by content (objectstack#5015)', () => {
+    expect([...SUPPORTED_NOTIFICATION_ACTION_VARIANTS].sort()).toEqual([
+      'link', 'primary', 'secondary',
+    ]);
   });
 });
 
-describe('useAnimation renders every spec preset and easing', () => {
-  it('every spec preset except none resolves to non-empty classes', () => {
-    for (const preset of options(TransitionPresetSchema)) {
+describe('useAnimation renders every supported preset and easing', () => {
+  it('every supported preset except none resolves to non-empty classes', () => {
+    for (const preset of SUPPORTED_TRANSITION_PRESETS) {
       const { result } = renderHook(() => useAnimation({ preset: preset as never }));
       if (preset === 'none') {
         expect(result.current.className).toBe('');
@@ -108,8 +125,8 @@ describe('useAnimation renders every spec preset and easing', () => {
     }
   });
 
-  it('every spec easing resolves to valid CSS (never the raw underscore token)', () => {
-    for (const easing of options(EasingFunctionSchema)) {
+  it('every supported easing resolves to valid CSS (never the raw underscore token)', () => {
+    for (const easing of SUPPORTED_EASING_FUNCTIONS) {
       const { result } = renderHook(() => useAnimation({ preset: 'fade', easing: easing as never }));
       const value = result.current.style.animationTimingFunction;
       expect(value, `easing '${easing}' must map to CSS`).toBeTruthy();

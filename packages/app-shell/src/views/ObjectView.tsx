@@ -63,6 +63,7 @@ import { importTargetFields } from './importTargetFields';
 import { useExpressionContext } from '../providers/ExpressionProvider';
 import { resolveManagedByEmptyState } from '../utils/managedByEmptyState';
 import { resolveViewId } from '../utils/resolveViewId';
+import { defaultListViewId } from '../utils/viewIdentity';
 import { warnSuppressedListNav } from '../utils/warnSuppressedListNav';
 import { useObjectActions } from '../hooks/useObjectActions';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
@@ -130,6 +131,36 @@ function substituteFilterTokens(filter: any, scope: FilterTokenScope): any {
  * persisted into saved view metadata (a saved view must not fossilize a
  * posture-dependent column set).
  */
+/**
+ * The `options.timeline` config this page hands to `ListView`.
+ *
+ * Deliberately does NOT resolve the date axis. `ListView.resolveTimelineDateBinding`
+ * is the single read-site that decides which field a timeline buckets by, and it
+ * reads the calendar binding when the view carries no timeline one. This face used
+ * to fabricate `startDateField: 'due_date'` for every object view — a field name
+ * the view never declared and most objects do not have — which both looked like a
+ * real binding downstream and, because it is always present, shadowed the calendar
+ * fallback entirely. The result on a calendar-bound view was a Timeline the
+ * switcher offered and the renderer bucketed wholly into "No date" (objectui#3129).
+ *
+ * What stays here is the one thing this layer knows and `ListView` does not: the
+ * object's declared `titleField`.
+ *
+ * Exported for the regression suite.
+ */
+export function timelineViewOptions(viewDef: any, objectDef: any): Record<string, unknown> {
+    const declaredStart = viewDef?.timeline?.startDateField || viewDef?.timeline?.dateField;
+    return {
+        // Spread the full view-defined timeline config first so the spec fields
+        // (startDateField/endDateField/groupByField/colorField/scale) survive.
+        ...(viewDef?.timeline || {}),
+        // Only ever restate a binding the view actually declared.
+        ...(declaredStart ? { startDateField: declaredStart } : {}),
+        titleField: viewDef?.timeline?.titleField || objectDef?.titleField || 'name',
+        descriptionField: viewDef?.timeline?.descriptionField,
+    };
+}
+
 export function defaultListColumnsFromObject(
     objectDef: any,
     limit = 5,
@@ -153,6 +184,67 @@ export function defaultListColumnsFromObject(
         );
     }
     return [];
+}
+
+/**
+ * Read the persisted per-view overrides (density, column widths, sort, hidden
+ * columns, inlineEdit …) for `ids`, preferring the adapter's one-request batch
+ * enumeration and falling back to a per-view `getView`.
+ *
+ * Extracted from the effect below so the three-way branch is pinnable on its
+ * own (objectui#3774) — the file's existing precedent for this is
+ * {@link defaultListColumnsFromObject}.
+ *
+ * The batch/fallback choice hangs entirely on how `listViewOverrides` ANSWERS,
+ * so the two are spelled out:
+ *
+ * - RESOLVES (including to an empty map) → authoritative. The adapter looked
+ *   and reports what exists; an object whose views were never customized
+ *   legitimately has no overrides, and we take that answer and skip N GETs.
+ *   That is the whole point of the batch call — do not "helpfully" re-probe
+ *   per view on an empty map, that reinstates the 404 flurry it removes.
+ * - REJECTS → the adapter could not tell, which is NOT the same fact as
+ *   "nothing is there". Fall through to the per-view reads.
+ *
+ * An adapter that swallows its own failures into `{}` collapses those two into
+ * the authoritative branch and makes the fallback below unreachable code —
+ * that was objectui#3774's second half, fixed in `@object-ui/data-objectstack`.
+ */
+export async function loadViewOverrides(
+    dataSource: any,
+    objectName: string,
+    ids: string[],
+): Promise<Record<string, any>> {
+    if (typeof dataSource?.listViewOverrides === 'function') {
+        try {
+            const all = await dataSource.listViewOverrides(objectName);
+            if (all && typeof all === 'object') {
+                const map: Record<string, any> = {};
+                for (const id of ids) {
+                    if (all[id]) map[id] = all[id];
+                }
+                return map;
+            }
+        } catch {
+            // fall through to per-view fetch
+        }
+    }
+    if (typeof dataSource?.getView !== 'function') return {};
+    const entries = await Promise.all(
+        ids.map(async (id) => {
+            try {
+                const v = await dataSource.getView(objectName, id);
+                return [id, v] as const;
+            } catch {
+                return [id, null] as const;
+            }
+        })
+    );
+    const map: Record<string, any> = {};
+    for (const [id, v] of entries) {
+        if (v && typeof v === 'object') map[id] = v;
+    }
+    return map;
 }
 
 export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: any) {
@@ -542,11 +634,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // `dataSource.updateViewConfig` and read back here so toggle preferences
     // survive a hard reload. Keyed by viewId → partial view config to merge.
     //
-    // Use the batch listViewOverrides() when available — fires one HTTP
-    // GET per object instead of N (one per defined view), avoiding a flurry
-    // of 404s for objects whose views have never been customized. Falls
-    // back to per-view getView() for adapters that don't support the batch
-    // method.
+    // Reading strategy (batch first, per-view fallback) lives in the exported
+    // `loadViewOverrides` above so it can be pinned directly — see its doc for
+    // why an empty batch result is authoritative but a rejected one is not.
     const [viewOverrides, setViewOverrides] = useState<Record<string, any>>({});
     useEffect(() => {
         let cancelled = false;
@@ -556,51 +646,17 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         }
         const definedViews = (objectDef.listViews || objectDef.list_views || {}) as Record<string, any>;
         const ids = Object.keys(definedViews);
-        // Include the primary view id so overrides apply to it too.
-        const primary = (objectDef as any).list;
-        if (primary && typeof primary === 'object') {
-            const primaryId = primary.name || 'list';
-            if (!ids.includes(primaryId)) ids.unshift(primaryId);
-        }
+        // Include the primary view id so overrides apply to it too. Its identity
+        // comes from the view composer (objectui#3770) — the same id the override
+        // was persisted under, since `persistViewPatch` writes by view id.
+        const primaryId = defaultListViewId(objectDef.name, (objectDef as any).list);
+        if (primaryId && !ids.includes(primaryId)) ids.unshift(primaryId);
         if (ids.length === 0) {
             setViewOverrides({});
             return;
         }
 
-        const loadBatch = async (): Promise<Record<string, any>> => {
-            if (typeof (dataSource as any).listViewOverrides === 'function') {
-                try {
-                    const all = await (dataSource as any).listViewOverrides(objectName);
-                    if (all && typeof all === 'object') {
-                        const map: Record<string, any> = {};
-                        for (const id of ids) {
-                            if (all[id]) map[id] = all[id];
-                        }
-                        return map;
-                    }
-                } catch {
-                    // fall through to per-view fetch
-                }
-            }
-            if (typeof dataSource.getView !== 'function') return {};
-            const entries = await Promise.all(
-                ids.map(async (id) => {
-                    try {
-                        const v = await dataSource.getView!(objectName, id);
-                        return [id, v] as const;
-                    } catch {
-                        return [id, null] as const;
-                    }
-                })
-            );
-            const map: Record<string, any> = {};
-            for (const [id, v] of entries) {
-                if (v && typeof v === 'object') map[id] = v;
-            }
-            return map;
-        };
-
-        loadBatch().then((map) => {
+        loadViewOverrides(dataSource, objectName, ids).then((map) => {
             if (!cancelled) setViewOverrides(map);
         });
         return () => { cancelled = true; };
@@ -635,9 +691,14 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         // ViewSchema). MetadataProvider mirrors it into `listViews` so it's
         // already in `viewList` above; promote it to the front and mark it as
         // the default so `defaultViewId` picks it over secondary listViews.
+        //
+        // Its id is the composer's runtime identity (objectui#3770), which is
+        // what the tab label / description / emptyState are translated under:
+        // `viewLabel` reads `objects.<object>._views.<bare key>.label`, and for a
+        // default list declared without a `name` that bare key is `default`.
         const primary = (objectDef as any).list;
-        if (primary && typeof primary === 'object') {
-            const primaryId = primary.name || 'list';
+        const primaryId = defaultListViewId(objectDef.name, primary);
+        if (primaryId) {
             const idx = viewList.findIndex(v => v.id === primaryId);
             if (idx >= 0) {
                 const [entry] = viewList.splice(idx, 1);
@@ -851,7 +912,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
 
     const handleRenameView = useCallback(async (vid: string, newName: string) => {
         if (!isSavedView(vid)) {
-            toast.error(t('console.objectView.cannotEditMetaView') || 'Built-in views cannot be renamed.');
+            toast.error(t('console.objectView.cannotEditMetaView'));
             return;
         }
         try {
@@ -869,7 +930,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const handleDeleteView = useCallback(async (vid: string) => {
         if (!dataSource) return;
         if (!isSavedView(vid)) {
-            toast.error(t('console.objectView.cannotDeleteMetaView') || 'Built-in views cannot be deleted.');
+            toast.error(t('console.objectView.cannotDeleteMetaView'));
             return;
         }
         const targetView = views.find((v: any) => v.id === vid);
@@ -903,7 +964,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const handlePinView = useCallback(async (vid: string, pinned: boolean) => {
         if (!dataSource) return;
         if (!isSavedView(vid)) {
-            toast.error(t('console.objectView.cannotEditMetaView') || 'Built-in views cannot be pinned.');
+            toast.error(t('console.objectView.cannotEditMetaView'));
             return;
         }
         try {
@@ -919,10 +980,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const handleSetDefaultView = useCallback(async (vid: string) => {
         if (!dataSource) return;
         if (!isSavedView(vid)) {
-            toast.error(
-                t('console.objectView.cannotEditMetaView')
-                || 'System view — it cannot be set as a default.',
-            );
+            toast.error(t('console.objectView.cannotEditMetaView'));
             return;
         }
         try {
@@ -972,10 +1030,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         // ViewConfigPanel against one would let the user save changes that
         // never persist.
         if (!isSavedView(vid)) {
-            toast.error(
-                t('console.objectView.cannotEditMetaView')
-                || 'System view — it cannot be edited.',
-            );
+            toast.error(t('console.objectView.cannotEditMetaView'));
             return;
         }
         if (vid !== activeViewId) handleViewChange(vid);
@@ -1519,17 +1574,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     allDayField: viewDef.calendar?.allDayField,
                     defaultView: viewDef.calendar?.defaultView,
                 },
-                timeline: {
-                    // Spread the full view-defined timeline config first so the spec
-                    // fields (startDateField/endDateField/groupByField/colorField/scale)
-                    // survive; then layer the defaults. (Mirrors the gallery and gantt
-                    // branches — a bare whitelist here was dropping every spec key and
-                    // pinning the axis to the legacy `dateField` fallback.)
-                    ...(viewDef.timeline || {}),
-                    startDateField: viewDef.timeline?.startDateField || viewDef.timeline?.dateField || 'due_date',
-                    titleField: viewDef.timeline?.titleField || objectDef.titleField || 'name',
-                    descriptionField: viewDef.timeline?.descriptionField,
-                },
+                // The date axis is resolved once, in ListView — this face only
+                // forwards what the view declared plus the object's title field
+                // (objectui#3129). See `timelineViewOptions`.
+                timeline: timelineViewOptions(viewDef, objectDef),
                 map: {
                     locationField: viewDef.map?.locationField,
                     titleField: viewDef.map?.titleField || objectDef.titleField || 'name',

@@ -12,6 +12,7 @@ import {
   diskPathExists,
   routeExists,
   selfRepoPath,
+  siteAbsoluteRoute,
   siteUrlExists,
   stripCode,
 } from '../check-doc-links.mjs';
@@ -58,6 +59,37 @@ import {
  *     main/<path>` is now resolved against the working tree in every surface —
  *     an in-repo reference that had been skipped by scheme, and sat dead for
  *     three months between two gates (#3507).
+ *
+ * objectui#3572 added the three surfaces #3536 had listed as "still not
+ * bought": `CONTRIBUTING.md`, `ROADMAP.md` and the internal `docs/` tree, all
+ * under the existing `disk` rule. Their backlog was paid first and separately
+ * (#3545 / PR #3571 — three dead links), so the rows arrived at zero. Two
+ * things in that describe are worth reading before editing it: the pair that
+ * keeps `docs/` and `content/docs/` on opposite rules, and the pair that pins
+ * the FENCE BOUNDARY — `stripCode()` hides a link inside a code fence from this
+ * gate, dead or not, and that limit is pinned as a decision rather than left to
+ * be discovered as coverage that was never there (#3570 is the live instance).
+ *
+ * objectui#3603 closed the second half of the by-scheme skip, and the last
+ * describe pins it: a URL on this project's OWN site
+ * (`https://www.objectui.org/docs/...`) is an internal route wearing an origin,
+ * and `judgeHref()` waved every one of them through. It is now stripped to an
+ * absolute site path and handed to the same `routeExists()` — so the tests that
+ * matter most there are the INHERITANCE ones: a `.md` extension is rejected
+ * because the `/docs` branch is strict, and a non-`/docs` path is judged by the
+ * `apps/site` route table. Neither behaviour is re-implemented, and these tests
+ * fail if either is.
+ *
+ * That card's OTHER half — adding the package READMEs to SCAN_ROOTS — was
+ * deliberately not bought at the time, because measuring it first turned up 11
+ * more dead links in packages the card never touched. objectui#3622 paid those
+ * 11 and added the row, and the last describe pins it. Two things there are
+ * worth reading before editing it: the scan root carries the table's only
+ * wildcard segment, so `collectFiles` has an expansion step whose failure mode
+ * is a surface that silently expands to nothing — which is why the row's floor
+ * is pinned on DECIDABLE HREFS and not only on file count — and the fixture
+ * pair that keeps the row on the `disk` rule, since a package README is read on
+ * npm and GitHub and never served by the site.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -338,6 +370,13 @@ describe('the repo it guards', () => {
     // returns [] for a root that is not there, so a typo in SCAN_ROOTS, or a
     // rename of `examples/`, would silently drop a whole surface and leave the
     // test above green about a tree it never opened.
+    //
+    // objectui#3572 — the per-root COUNT lines are the half that does not
+    // extend itself. The `Object.keys` assertion below fails loudly on a new
+    // row (it did, which is how this test was found to need work), but a row
+    // whose count nobody pins is still a surface that could go empty — a typo
+    // in `docs` would then leave the whole tree unopened and every test above
+    // green. Every root carries its own floor for that reason.
     const scanned = Object.fromEntries(
       SCAN_ROOTS.map((root: { path: string; rule: string }) => [
         root.path,
@@ -345,20 +384,73 @@ describe('the repo it guards', () => {
       ]),
     );
 
-    expect(Object.keys(scanned)).toEqual(['content/docs', 'examples', 'README.md']);
+    expect(Object.keys(scanned)).toEqual([
+      'content/docs',
+      'examples',
+      'README.md',
+      'CONTRIBUTING.md',
+      'ROADMAP.md',
+      'docs',
+      'packages/*/README.md',
+    ]);
     expect(scanned['README.md']).toBe(1);
+    expect(scanned['CONTRIBUTING.md']).toBe(1);
+    expect(scanned['ROADMAP.md']).toBe(1);
     expect(scanned['examples']).toBeGreaterThanOrEqual(4);
+    expect(scanned['docs']).toBeGreaterThanOrEqual(15);
     expect(scanned['content/docs']).toBeGreaterThanOrEqual(100);
+    // objectui#3622. 38 of the 39 package directories carry a README today
+    // (`sdui-parser` does not), and this row is the only one whose path needs
+    // expanding before anything is opened — so a floor here is also the floor
+    // under `expandWildcard()`.
+    expect(scanned['packages/*/README.md']).toBeGreaterThanOrEqual(35);
   });
 
   it('pairs each scan root with the link semantics that root actually has', () => {
     // The rule split is the design decision of objectui#3536, so it is pinned
     // as data: `examples/**` and the root README are read on GitHub (disk
     // paths), `content/docs` is served by fumadocs (site routes).
+    //
+    // objectui#3572 added the last three, all `disk` — they are read on GitHub
+    // like the first two. The table is the whole configuration surface, so it
+    // is pinned whole: a row silently changing rule would re-judge a tree.
+    //
+    // objectui#3622 added the package READMEs, `disk` for the same reason and
+    // one more: they are read on **npm** as well, where a leading `/` is no
+    // more this repo's root than it is on github.com.
     expect(SCAN_ROOTS).toEqual([
       { path: 'content/docs', rule: 'docs' },
       { path: 'examples', rule: 'disk' },
       { path: 'README.md', rule: 'disk' },
+      { path: 'CONTRIBUTING.md', rule: 'disk' },
+      { path: 'ROADMAP.md', rule: 'disk' },
+      { path: 'docs', rule: 'disk' },
+      { path: 'packages/*/README.md', rule: 'disk' },
+    ]);
+  });
+
+  it('keeps `docs/` and `content/docs/` apart — same href, two rules', () => {
+    // objectui#3572. The two roots differ by one path segment and are judged by
+    // opposite rules, so a prefix-matching slip would hand one tree the other's
+    // semantics. `../packages/core/README.md` is the discriminator: out of
+    // `docs/` it is an ordinary GitHub path (accepted), out of `content/docs/`
+    // it leaves the fumadocs page index (rejected) — even though the same file
+    // backs both.
+    const repo = repoWith({
+      ...SITE_FIXTURE,
+      'docs/ARCHITECTURE.md': '[core](../packages/core/README.md) and [gone](./NOWHERE.md)',
+      'content/docs/guide/a.md': '[core](../../../packages/core/README.md)',
+      'packages/core/README.md': '# Core',
+    });
+
+    // The second `docs/` link is a control, for the reason the fence test spells
+    // out below: an expectation naming only the `content/docs` rejection would
+    // hold just as well if `docs/` were never scanned at all, so it would prove
+    // nothing about the half it exists to test. One rejection from EACH tree
+    // cannot pass that way.
+    expect(scan(repo).map((item) => [path.relative(repo, item.file), item.href, item.reason])).toEqual([
+      [path.join('content', 'docs', 'guide', 'a.md'), '../../../packages/core/README.md', 'escapes-collection'],
+      [path.join('docs', 'ARCHITECTURE.md'), './NOWHERE.md', 'example-relative'],
     ]);
   });
 
@@ -667,11 +759,132 @@ describe('examples/** and the root README are scanned as DISK paths — objectui
   });
 });
 
+describe('CONTRIBUTING.md, ROADMAP.md and docs/** joined the disk surface — objectui#3572', () => {
+  it('reports the #3545 shape: the dead links CONTRIBUTING.md really carried', () => {
+    // The two CONTRIBUTING.md links PR #3571 fixed were of exactly this shape —
+    // a relative path to a file that is not there. Nothing could have caught
+    // them: the file sat outside SCAN_ROOTS, and lychee does not gate.
+    expect(
+      rejections({
+        'CONTRIBUTING.md': '[architecture](./content/docs/guide/architecture.md) and [gone](./docs/NOWHERE.md)',
+        'content/docs/guide/architecture.md': '# Architecture',
+      }),
+    ).toEqual([['./docs/NOWHERE.md', 'example-relative']]);
+  });
+
+  it('reports the third one: a dead link in ROADMAP.md', () => {
+    expect(
+      rejections({
+        'ROADMAP.md': '[adr](./docs/adr/0001-master-detail-subform.md) and [gone](./docs/adr/9999-nope.md)',
+        'docs/adr/0001-master-detail-subform.md': '# ADR 1',
+      }),
+    ).toEqual([['./docs/adr/9999-nope.md', 'example-relative']]);
+  });
+
+  it('walks docs/ recursively, not just its top level', () => {
+    // 13 of the tree's 15 files are under `docs/adr/` and `docs/audits/`. A
+    // scan that opened only `docs/*.md` would report nothing and look green.
+    expect(
+      rejections({
+        'docs/ARCHITECTURE.md': '[fine](./adr/0001-a.md)',
+        'docs/adr/0001-a.md': '[gone](./0002-missing.md)',
+        'docs/audits/2026-06-ui-testability.md': '[gone](../nowhere/x.md)',
+      }),
+    ).toEqual([
+      ['./0002-missing.md', 'example-relative'],
+      ['../nowhere/x.md', 'example-relative'],
+    ]);
+  });
+
+  it('accepts a docs/ link that leaves docs/ — there is no collection to escape', () => {
+    // The disk rule's whole point, on the new tree: ADRs cite package sources
+    // and published docs pages, and GitHub renders every one of them.
+    expect(
+      rejections({
+        'docs/adr/0054-ui-testability-contract.md': [
+          '[shell](../../packages/app-shell/src/console/ConsoleShell.tsx)',
+          '[lookup](../../content/docs/fields/lookup.mdx)',
+          '[roadmap](../../ROADMAP.md)',
+          '[dir](../../packages/core)',
+        ].join('\n\n'),
+        'packages/app-shell/src/console/ConsoleShell.tsx': 'export {}',
+        'content/docs/fields/lookup.mdx': '# Lookup',
+        'ROADMAP.md': '# Roadmap',
+        'packages/core/index.ts': 'export {}',
+      }),
+    ).toEqual([]);
+  });
+
+  it('rejects an extensionless markdown spelling and an absolute /... href here too', () => {
+    // Same two rules as examples/**, since it is the same `disk` rule class —
+    // this pins that the new rows really got it, and did not quietly land on
+    // the docs rule (which accepts the extensionless form).
+    expect(
+      rejections({
+        'docs/ARCHITECTURE.md': '[adr](./adr/0001-a) and [abs](/packages/core)',
+        'docs/adr/0001-a.md': '# ADR 1',
+        'packages/core/index.ts': 'export {}',
+      }),
+    ).toEqual([
+      ['./adr/0001-a', 'example-relative'],
+      ['/packages/core', 'example-absolute'],
+    ]);
+  });
+
+  it('does NOT see a dead link inside a code fence — the boundary, pinned deliberately', () => {
+    // objectui#3572's stated limit, and objectui#3570's instance class:
+    // `stripCode()` blanks fences before the scan, so an illustrative route in
+    // a fenced block is invisible to this gate whether or not it is dead. Real
+    // `CONTRIBUTING.md` carries 10 such links today.
+    //
+    // This test exists so the boundary is a DECISION with a name, not a silent
+    // gap someone later reads as coverage. If `stripCode()` is ever narrowed,
+    // this goes red and the two false positives it was built for come back.
+    //
+    // The CONTROL link matters more than the fenced ones: an `toEqual([])` here
+    // would also pass if CONTRIBUTING.md were dropped from SCAN_ROOTS entirely
+    // — green because nothing was scanned, which is the failure mode this whole
+    // file exists to prevent. Asserting "exactly the prose link, and none of
+    // the three fenced ones" cannot pass vacuously: delete the scan row and the
+    // control disappears too, turning this red.
+    expect(
+      rejections({
+        'CONTRIBUTING.md': [
+          'Link docs pages like this:',
+          FENCE + 'md',
+          '[Quick Start](/guide/quick-start)',
+          '[Core API](/api/core)',
+          FENCE,
+          'and inline: `[Spec](/spec/component)`',
+          '',
+          'See [the guide](./docs/GONE.md).',
+        ].join('\n'),
+      }),
+    ).toEqual([['./docs/GONE.md', 'example-relative']]);
+  });
+
+  it('leaves the anchors and external URLs these files are mostly made of alone', () => {
+    // CONTRIBUTING.md is 15 visible links, of which this gate judges exactly
+    // one — the rest are its own table-of-contents anchors and external URLs.
+    expect(
+      rejections({
+        'CONTRIBUTING.md': [
+          '[Getting Started](#getting-started)',
+          '[Commit Guidelines](#commit-guidelines)',
+          '[Conventional Commits](https://www.conventionalcommits.org/)',
+          '[Changesets](https://github.com/changesets/changesets)',
+        ].join('\n\n'),
+      }),
+    ).toEqual([]);
+  });
+});
+
 describe("this repo's own GitHub blob/tree URLs are resolved offline — objectui#3536 extension 2", () => {
   it('reports the #3507 shape: a tree/main URL to a deleted example', () => {
     // `examples/crm` and `examples/todo` were deleted in 12b287d8b and the two
     // links to them stayed dead about three months: this script skipped them by
-    // scheme, and lychee (weekly cron, continue-on-error) gates nothing.
+    // scheme, and lychee (`schedule` + `workflow_dispatch`, no PR trigger) blocks
+    // nobody.
     expect(
       rejections({
         ...SITE_FIXTURE,
@@ -759,9 +972,10 @@ describe("this repo's own GitHub blob/tree URLs are resolved offline — objectu
 });
 
 describe('every failure carries the reason that rejected it', () => {
-  it('labels all seven checks distinctly', () => {
-    // The #3490 test of the same name, extended with objectui#3536's three.
-    // Every reason here must have a HINTS entry — the next test pins that.
+  it('labels all eight checks distinctly', () => {
+    // The #3490 test of the same name, extended with objectui#3536's three and
+    // objectui#3603's one. Every reason here must have a HINTS entry — the next
+    // test pins that.
     const repo = repoWith({
       ...SITE_FIXTURE,
       'content/docs/guide/a.md': [
@@ -770,6 +984,7 @@ describe('every failure carries the reason that rejected it', () => {
         '[docs](/docs/guide/a.md)',
         '[rel](./nowhere.md)',
         '[self](https://github.com/objectstack-ai/objectui/blob/main/packages/gone/README.md)',
+        '[origin](https://www.objectui.org/docs/guide/gone)',
       ].join('\n\n'),
       'examples/README.md': '[disk](./nowhere.md) and [abs](/packages/core)',
     });
@@ -780,6 +995,7 @@ describe('every failure carries the reason that rejected it', () => {
       'docs-route',
       'relative',
       'self-repo-url',
+      'site-absolute-url',
       'example-relative',
       'example-absolute',
     ]);
@@ -801,7 +1017,298 @@ describe('every failure carries the reason that rejected it', () => {
       'example-relative',
       'relative',
       'self-repo-url',
+      'site-absolute-url',
       'site-route',
     ]);
+  });
+});
+
+describe("this site's own absolute URLs are resolved as internal routes — objectui#3603", () => {
+  it('reports the shape all 9 package-README links had: a full site URL to no page', () => {
+    // The assertion that dies if `if (EXTERNAL_HREF_RE.test(href)) return null;`
+    // is ever allowed to reach a site-absolute URL again. `/docs/packages/*` is
+    // the namespace 7 package READMEs invented; it has never existed.
+    expect(
+      brokenHrefs({
+        'guide/a.md': '[docs](https://www.objectui.org/docs/packages/auth)',
+      }),
+    ).toEqual(['https://www.objectui.org/docs/packages/auth']);
+  });
+
+  it('accepts the same URL once it names a real page', () => {
+    expect(
+      brokenHrefs({
+        'guide/a.md': '[renderer](https://www.objectui.org/docs/core/schema-renderer)',
+        'core/schema-renderer.mdx': '# SchemaRenderer',
+      }),
+    ).toEqual([]);
+  });
+
+  it('judges both host spellings — this tree really carries www and bare', () => {
+    // 109 `www.objectui.org` against 9 bare `objectui.org` on main. Accepting
+    // only the majority spelling would leave the other 9 in the blind spot the
+    // whole change exists to close.
+    expect(
+      brokenHrefs({
+        'guide/a.md': [
+          '[www dead](https://www.objectui.org/docs/gone)',
+          '[bare dead](https://objectui.org/docs/gone)',
+          '[www live](https://www.objectui.org/docs/guide/a)',
+          '[bare live](https://objectui.org/docs/guide/a)',
+        ].join('\n\n'),
+      }),
+    ).toEqual(['https://www.objectui.org/docs/gone', 'https://objectui.org/docs/gone']);
+  });
+
+  it('INHERITS /docs strictness — an extension 404s here exactly as it does origin-less', () => {
+    // The test that proves the origin is stripped and the rest handed to the
+    // existing `routeExists()`, rather than judged by some new parallel path.
+    // `guide/b.md` is materialised: only the strict `/docs` branch rejects it.
+    expect(
+      brokenHrefs({
+        'guide/a.md': '[b](https://www.objectui.org/docs/guide/b.md)',
+        'guide/b.md': '# B',
+      }),
+    ).toEqual(['https://www.objectui.org/docs/guide/b.md']);
+  });
+
+  it('INHERITS the apps/site route table for non-/docs paths', () => {
+    // `/playground` and `/` are real routes in the site fixture; `/examples` is
+    // the prefix #3490 proved has never been one. Same table, same verdicts.
+    expect(
+      brokenHrefs({
+        'guide/a.md': [
+          '[examples](https://www.objectui.org/examples)',
+          '[playground](https://www.objectui.org/playground)',
+          '[home](https://www.objectui.org)',
+          '[home slash](https://www.objectui.org/)',
+        ].join('\n\n'),
+      }),
+    ).toEqual(['https://www.objectui.org/examples']);
+  });
+
+  it('checks site URLs in the disk surfaces too, not only content/docs', () => {
+    // One rejection from EACH tree, for the reason the fence test spells out:
+    // an expectation naming only the content/docs one would hold just as well
+    // if the check never ran on the disk rule, and would prove nothing.
+    const repo = repoWith({
+      ...SITE_FIXTURE,
+      'content/docs/guide/a.md': '[gone](https://www.objectui.org/docs/gone)',
+      'README.md': '[gone](https://objectui.org/docs/gone)',
+      'examples/hello-world/README.md': '[live](https://www.objectui.org/docs/guide/a)',
+    });
+
+    expect(scan(repo).map((item) => [path.relative(repo, item.file), item.reason])).toEqual([
+      [path.join('content', 'docs', 'guide', 'a.md'), 'site-absolute-url'],
+      ['README.md', 'site-absolute-url'],
+    ]);
+  });
+
+  it('leaves every other origin alone, a lookalike host included', () => {
+    // The regex is anchored at both ends precisely so `objectui.org.example.com`
+    // cannot borrow this repo's route table — it is somebody else's host, and
+    // resolving it here would invent 404s that are not ours to report.
+    expect(
+      brokenHrefs({
+        'guide/a.md': [
+          '[lookalike](https://objectui.org.example.com/docs/gone)',
+          '[prefixed](https://notobjectui.org/docs/gone)',
+          '[other](https://example.com/docs/gone)',
+          '[docs of another](https://react.dev/docs/gone)',
+        ].join('\n\n'),
+      }),
+    ).toEqual([]);
+  });
+
+  it('ignores the fragment and the query on a site URL — anchors are out of scope', () => {
+    expect(
+      brokenHrefs({
+        'guide/a.md': [
+          '[live](https://www.objectui.org/docs/guide/a#install)',
+          '[live q](https://www.objectui.org/docs/guide/a?x=1)',
+          '[dead](https://www.objectui.org/docs/gone#install)',
+        ].join('\n\n'),
+      }),
+    ).toEqual(['https://www.objectui.org/docs/gone#install']);
+  });
+
+  it('exposes siteAbsoluteRoute: the path it extracts, and the shapes it declines', () => {
+    expect(siteAbsoluteRoute('https://www.objectui.org/docs/guide/plugins')).toBe('/docs/guide/plugins');
+    expect(siteAbsoluteRoute('https://objectui.org/api/core')).toBe('/api/core');
+    expect(siteAbsoluteRoute('http://objectui.org/docs')).toBe('/docs');
+    // No path at all is the site ROOT, not the empty string — `routeExists()`
+    // reads '' as a pure in-page anchor and would wave it through.
+    expect(siteAbsoluteRoute('https://www.objectui.org')).toBe('/');
+    expect(siteAbsoluteRoute('https://www.objectui.org/docs/guide/a#x')).toBe('/docs/guide/a');
+    expect(siteAbsoluteRoute('https://objectui.org.example.com/docs')).toBeNull();
+    expect(siteAbsoluteRoute('https://example.com/docs')).toBeNull();
+    expect(siteAbsoluteRoute('/docs/guide/plugins')).toBeNull();
+  });
+
+  it('really judges the site-absolute URLs this repo carries — the floor under the green', () => {
+    // objectui#3603's anti-vacuous-green assertion, and the one this change
+    // needs most. Unlike #3536 and #3572 this card added NO scan root, so the
+    // repo-wide "no broken internal links" test above stays green whether or
+    // not the new resolution runs at all — it would pass just as well if
+    // `siteAbsoluteRoute()` returned null for everything. This pins that the
+    // URLs are really there and really reaching the check.
+    //
+    // Measured on main when #3603 landed: 11 of them, of which 6 sit inside
+    // `content/docs` itself — the fact that makes this a general fix rather
+    // than a package README one — and 3 carry a `/docs/...` path, so the strict
+    // branch above is genuinely exercised by real content and not only by
+    // fixtures. objectui#3622 took the total to 58 by adding a surface that
+    // writes 47 of them; the floors below stay at #3603's measurement, since
+    // they exist to pin THAT card's minimum and the new root has its own floor
+    // in the last describe.
+    const seen: { root: string; route: string }[] = [];
+    for (const root of SCAN_ROOTS as { path: string }[]) {
+      for (const file of collectFiles(path.join(repoRoot, root.path)) as string[]) {
+        for (const match of stripCode(fs.readFileSync(file, 'utf8')).matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
+          const route = siteAbsoluteRoute(match[1].trim());
+          if (route !== null) seen.push({ root: root.path, route });
+        }
+      }
+    }
+
+    expect(seen.length).toBeGreaterThanOrEqual(11);
+    expect(seen.filter((item) => item.root === 'content/docs').length).toBeGreaterThanOrEqual(6);
+    expect(seen.filter((item) => item.route.startsWith('/docs')).length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('packages/*/README.md joined the disk surface — objectui#3622', () => {
+  it('reports the four shapes the 11 dead links really had', () => {
+    // One fixture carrying all four, each next to a live control of the same
+    // shape — so no verdict here can be right for the wrong reason:
+    //
+    //   /api/core            a route prefix the router has never had (#3490's class)
+    //   /docs/core           a REAL directory with no index page, so not a route
+    //   ../../docs/SHA…      a disk path that has never existed
+    //   ./LICENSE            a disk path this package really does not have
+    //
+    // The middle one is the one objectui#3603's own verification script scored
+    // green, by accepting a bare directory as a fumadocs candidate. The fixture
+    // materialises `content/docs/core/schema-renderer.mdx` so the directory is
+    // genuinely there and only the missing index decides the verdict.
+    expect(
+      rejections({
+        ...SITE_FIXTURE,
+        'content/docs/core/schema-renderer.mdx': '# SchemaRenderer',
+        'packages/core/README.md': [
+          '[api](https://objectui.org/api/core)',
+          '[group](https://www.objectui.org/docs/core)',
+          '[renderer](https://www.objectui.org/docs/core/schema-renderer)',
+          '[sync](../../docs/SHADCN_SYNC.md)',
+          '[changelog](./CHANGELOG.md)',
+          '[licence](./LICENSE)',
+        ].join('\n\n'),
+        'packages/core/CHANGELOG.md': '# Changelog',
+      }),
+    ).toEqual([
+      ['https://objectui.org/api/core', 'site-absolute-url'],
+      ['https://www.objectui.org/docs/core', 'site-absolute-url'],
+      ['../../docs/SHADCN_SYNC.md', 'example-relative'],
+      ['./LICENSE', 'example-relative'],
+    ]);
+  });
+
+  it('expands the wildcard to one path per package directory, sorted', () => {
+    // The row is the table's only wildcard, so this is where `expandWildcard()`
+    // is pinned: one path per directory, a package without a README dropped
+    // (`sdui-parser` on main), and a stable order so the report does not depend
+    // on the filesystem's.
+    const repo = repoWith({
+      'packages/gamma/README.md': '# Gamma',
+      'packages/alpha/README.md': '# Alpha',
+      'packages/beta/index.ts': 'export {}',
+    });
+
+    expect(
+      collectFiles(path.join(repo, 'packages/*/README.md')).map((file: string) => path.relative(repo, file)),
+    ).toEqual([path.join('packages', 'alpha', 'README.md'), path.join('packages', 'gamma', 'README.md')]);
+  });
+
+  it('takes only the README — a package CHANGELOG or TESTING.md stays unscanned', () => {
+    // The boundary this row deliberately stops at, pinned as a decision rather
+    // than left to be discovered as coverage that was never there. The README's
+    // OWN dead link is the control: an expectation of "nothing from the other
+    // two files" would hold just as well if the row had been dropped entirely.
+    expect(
+      rejections({
+        'packages/core/README.md': '[fine](./CHANGELOG.md) and [gone](./NOWHERE.md)',
+        'packages/core/CHANGELOG.md': '[also gone](./NOWHERE.md)',
+        'packages/core/TESTING.md': '[also gone](./NOWHERE.md)',
+        'packages/core/docs/FilterBuilder.md': '[also gone](./NOWHERE.md)',
+      }),
+    ).toEqual([['./NOWHERE.md', 'example-relative']]);
+  });
+
+  it('does not treat a dependency tree under packages/ as a package', () => {
+    // `packages/node_modules` is a directory like any other to a wildcard, and
+    // its READMEs are not ours. Same exclusion the tree walk already applies.
+    expect(
+      rejections({
+        'packages/core/README.md': '[gone](./NOWHERE.md)',
+        'packages/node_modules/README.md': '[gone](./NOWHERE.md)',
+      }),
+    ).toEqual([['./NOWHERE.md', 'example-relative']]);
+  });
+
+  it('keeps the docs rules off package READMEs — the contrast pair', () => {
+    // A package README is read on npm and on GitHub, never served by the site,
+    // so it takes the `disk` rule. Two hrefs make that visible in both
+    // directions: a link INTO content/docs is fine from a README (there is no
+    // collection to escape) and rejected from inside content/docs, while the
+    // extensionless spelling the docs rule accepts is a 404 on GitHub.
+    const repo = repoWith({
+      ...SITE_FIXTURE,
+      'content/docs/guide/a.md': '[readme](../../../packages/core/README.md)',
+      'content/docs/fields/lookup.mdx': '# Lookup',
+      'packages/core/README.md': '[lookup](../../content/docs/fields/lookup.mdx) and [bare](../../content/docs/fields/lookup)',
+    });
+
+    expect(scan(repo).map((item) => [path.relative(repo, item.file), item.href, item.reason])).toEqual([
+      [path.join('content', 'docs', 'guide', 'a.md'), '../../../packages/core/README.md', 'escapes-collection'],
+      [path.join('packages', 'core', 'README.md'), '../../content/docs/fields/lookup', 'example-relative'],
+    ]);
+  });
+
+  it('refuses a wildcard that is not a whole path segment, rather than matching nothing', () => {
+    // The failure mode a glob row has and a plain path does not: a pattern that
+    // expands to zero paths is a surface silently dropped, and every test above
+    // stays green about a tree nobody opened. Loud beats quiet, as with the
+    // missing route table in `routeExists()`.
+    const repo = repoWith({ 'packages/plugin-charts/README.md': '# Charts' });
+
+    expect(() => collectFiles(path.join(repo, 'packages/plugin-*/README.md'))).toThrow(/whole path segment/);
+  });
+
+  it('really judges the links these READMEs carry — the floor under the green', () => {
+    // The anti-vacuous-green floor for this row, and the reason it counts HREFS
+    // rather than files: the file count above proves the wildcard expanded, but
+    // a surface of 38 files carrying nothing this gate can decide would still
+    // leave the repo-wide green meaning "checked nothing". Measured when the row
+    // landed: 200 decidable hrefs across the 38 READMEs, 47 of them site-absolute
+    // URLs — the shape 9 of the 11 dead links had.
+    // The root is read out of SCAN_ROOTS rather than spelled again here, so
+    // deleting the row takes this floor with it instead of leaving a green test
+    // measuring a surface the gate no longer scans.
+    const root = (SCAN_ROOTS as { path: string }[]).find((item) => item.path.startsWith('packages/'));
+    expect(root).toBeDefined();
+
+    const decidable: string[] = [];
+    const siteAbsolute: string[] = [];
+    for (const file of collectFiles(path.join(repoRoot, root!.path)) as string[]) {
+      for (const match of stripCode(fs.readFileSync(file, 'utf8')).matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
+        const href = match[1].trim();
+        const decidableScheme = siteAbsoluteRoute(href) !== null || selfRepoPath(href) !== null;
+        if (siteAbsoluteRoute(href) !== null) siteAbsolute.push(href);
+        if (decidableScheme || !/^(?:#|[a-zA-Z][a-zA-Z0-9+.-]*:)/.test(href)) decidable.push(href);
+      }
+    }
+
+    expect(decidable.length).toBeGreaterThanOrEqual(150);
+    expect(siteAbsolute.length).toBeGreaterThanOrEqual(40);
   });
 });

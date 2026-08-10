@@ -305,12 +305,52 @@ export type { ObjectTimelineProps } from './ObjectTimeline';
 
 import { ComponentRegistry } from '@object-ui/core';
 import { ObjectTimeline } from './ObjectTimeline';
-import { useSchemaContext } from '@object-ui/react';
+import {
+  ElementDataSourceGate,
+  useSchemaContext,
+  type ElementDataSourceMapping,
+} from '@object-ui/react';
+
+/**
+ * `object-timeline` maps `object` + `filter` + `sort` + `limit` — every key its
+ * fetch now reads (objectstack#7137).
+ *
+ * Until #7137 the fetch was `dataSource.find(schema.objectName, { options: { $top:
+ * 100 } })`: no `$filter`, no `$orderby`, and a cap nested under a key no adapter
+ * reads. objectstack#7121 therefore mapped `object` alone and said so, rather than
+ * writing the composed filter/sort/limit onto keys nobody read — which would have
+ * looked like the binding was honoured while changing nothing about the rows.
+ * #7137 added the read sites (`$filter` / `$orderby` / `$top: schema.limit ?? 100`),
+ * so the flags come with them and a named `view` now actually narrows the rail.
+ *
+ * `columns` stays unmapped for the same reason a calendar's does: a timeline
+ * projects the fields its `timeline` config names (title / start / end /
+ * description / color / groupBy), not a view's column list.
+ */
+const OBJECT_TIMELINE_DATA_SOURCE: ElementDataSourceMapping = {
+  filter: true,
+  sort: true,
+  limit: 'limit',
+};
 
 // Register object-timeline component
 export const ObjectTimelineRenderer: React.FC<any> = ({ schema, ...props }) => {
   const { dataSource } = useSchemaContext() || {};
-  return <ObjectTimeline schema={schema} dataSource={dataSource} {...props} />;
+  // The spec's `PageComponentSchema.dataSource` binding (objectstack#7121): a
+  // timeline authored with the binding and no flat `objectName` never fetched —
+  // every branch of its effect is gated on `schema.objectName` — and rendered an
+  // empty rail with no request and no error.
+  return (
+    <ElementDataSourceGate
+      schema={schema}
+      mapping={OBJECT_TIMELINE_DATA_SOURCE}
+      dataSource={dataSource}
+      testId="object-timeline"
+      errorTitle="This timeline’s data source could not be resolved"
+    >
+      {(bound) => <ObjectTimeline schema={bound} dataSource={dataSource} {...props} />}
+    </ElementDataSourceGate>
+  );
 };
 
 ComponentRegistry.register('object-timeline', ObjectTimelineRenderer, {

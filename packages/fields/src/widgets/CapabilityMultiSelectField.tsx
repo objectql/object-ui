@@ -18,9 +18,18 @@ import { useFieldTranslation } from './useFieldTranslation';
  * labelled, with the capability description on hover — while round-tripping the
  * stored value **byte-for-byte** as a JSON string of names.
  *
- * Reached via the field `widget: 'capability-multiselect'` hint (stamped onto
- * the object metadata in MetadataProvider), registered in the field registry as
- * `field:capability-multiselect`.
+ * ## Not a registry field widget (objectui#3308)
+ *
+ * This is a plain component, imported directly by its host — Studio's
+ * `PermissionMatrixEditor` (`packages/app-shell`), which is where ADR-0056 P2
+ * put the capability editor. It is deliberately NOT reachable through the field
+ * registry, and `widget: 'capability-multiselect'` is a **retired** hint: the
+ * key only ever existed on the docs-site-only `registerFields()` path, nothing
+ * ever stamped the hint (ADR-0056 P1 stamps `permission-facet-link` on all six
+ * `sys_permission_set` facets), and it was removed under ADR-0049
+ * enforce-or-remove. Do not re-register it without re-deciding ADR-0056 P2 —
+ * a field carrying that hint now degrades to its declared `type` renderer,
+ * which is the defined behavior for an unregistered widget.
  */
 
 interface Capability {
@@ -98,8 +107,11 @@ export function CapabilityMultiSelectField({
   const selected = React.useMemo(() => parseCapabilityNames(value), [value]);
 
   // Load the live capability registry (active only). Mirrors LookupField's
-  // context-dataSource access — createFieldRenderer does not forward the
-  // dataSource prop, so the SchemaRenderer context is the reliable source.
+  // context-dataSource access: no registration path forwards a `dataSource`
+  // prop to a field widget, so the SchemaRenderer context is the reliable
+  // source. (The absent forwarder named here used to be the docs-demo
+  // `createFieldRenderer`, removed in objectui#3910 — the conclusion is
+  // unchanged and now holds for the only remaining path.)
   React.useEffect(() => {
     if (!dataSource || typeof (dataSource as any).find !== 'function') return;
     let cancelled = false;

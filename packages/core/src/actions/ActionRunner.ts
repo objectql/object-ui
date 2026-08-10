@@ -24,8 +24,9 @@
 import type { RunnableActionType } from '@object-ui/types';
 import type { ActionInput as SpecActionInput } from '@objectstack/spec/ui';
 import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
+import { hasDeclaredPredicate } from '../evaluator/declaredPredicate';
 import { globalUndoManager, type UndoableOperation } from './UndoManager';
-import { warnOnUnknownActionKeys } from './actionKeys';
+import { warnOnDeprecatedObjectParams, warnOnUnknownActionKeys } from './actionKeys';
 
 export interface ActionResult {
   success: boolean;
@@ -103,8 +104,17 @@ export interface ActionDef {
   confirmText?: string;
   /** Structured confirmation (from crud.ts) */
   confirm?: { title?: string; message?: string; confirmText?: string; cancelText?: string };
-  /** Condition expression — if falsy, skip action */
-  condition?: string;
+  /**
+   * Condition predicate — the action executes only while it holds.
+   *
+   * A boolean, a bare CEL string, a `${…}` template, or the normalized
+   * `{ dialect, source }` envelope `objectstack build` emits. Declared and
+   * FALSE skips the action; not declared at all (absent / empty predicate)
+   * executes. `boolean` is spelled out here because the execution gate now
+   * honours `condition: false` as the verdict it plainly is (objectui#3872) —
+   * the same widening `disabled` already carries below.
+   */
+  condition?: string | boolean;
   /** Disabled expression — if truthy, skip action */
   disabled?: string | boolean;
   /**
@@ -412,6 +422,32 @@ export type ResultDialogHandler = (
 ) => Promise<void>;
 
 /**
+ * One entry of a param's option list, as the RESOLVED param carries it.
+ *
+ * `label` / `value` are the two keys this layer itself reads and rewrites (i18n
+ * translation of the label, value matching). Everything else an option declares
+ * rides along in the catch-all and reaches the widgets untouched: per-option
+ * `visibleWhen` (the CEL predicate `resolveVisibleOptions()` filters on —
+ * ADR-0058 / #2284), `color`, `icon`, `disabled`.
+ *
+ * The catch-all is deliberate rather than a closed key list (objectui#3559).
+ * A field's option vocabulary is owned by the field metadata (`@objectstack/spec`'s
+ * `SelectOptionSchema`) and read by the option widgets; a param's option list is
+ * only a CONDUIT between the two. When this type restated that vocabulary as
+ * `{ label, value }`, the resolver dutifully rebuilt every inherited option to
+ * match and a field's `visibleWhen` stopped narrowing the dialog's list — the
+ * same field metadata behaving two ways on two surfaces. Naming the two keys
+ * this layer uses and passing the rest through is what keeps that from
+ * recurring; it is NOT an invitation to author new resolved-only option keys
+ * (the spec's schema is the authoring gate, and it is `.strict()`).
+ */
+export type ActionParamOption = {
+  label: string;
+  value: string;
+  [key: string]: unknown;
+};
+
+/**
  * ActionParam definition accepted by the runner.
  * Compatible with @objectstack/spec ActionParam.
  *
@@ -433,7 +469,7 @@ export interface ActionParamDef {
   label: string;
   type: string;
   required?: boolean;
-  options?: Array<{ label: string; value: string }>;
+  options?: ActionParamOption[];
   defaultValue?: unknown;
   helpText?: string;
   placeholder?: string;
@@ -499,6 +535,73 @@ function withIdentityAlias(context: ActionContext): ActionContext {
   if (os && typeof os === 'object' && os.user === user) return context;
   return { ...context, os: { ...(os && typeof os === 'object' ? os : {}), user } };
 }
+
+/*
+ * ## The two predicate gates in `execute`, and the one question they ask first
+ *
+ * `execute` gates on `condition` and on `disabled`, and both need ONE question
+ * answered before evaluating — "is a gate DECLARED here, i.e. is there a
+ * condition to reach a verdict on?" — for OPPOSITE reasons, which is exactly why
+ * the question has to be asked separately from the verdict:
+ *
+ *   - `disabled` (objectui#3848): an EMPTY predicate must not be handed to
+ *     `evaluateCondition`, whose answer for "no condition" is `true` = BLOCKED.
+ *     Measured consequence of asking `!= null && !== false` instead:
+ *     `disabled: ''` returned `{ success: false, error: 'Action is disabled' }`
+ *     and the handler never ran.
+ *   - `condition` (objectui#3872): a DECLARED-FALSE predicate must not be
+ *     skipped by a truthiness test. `if (action.condition)` never asked whether
+ *     a gate was declared, so `condition: false` — the most explicit "never
+ *     execute" an author can write — landed on `if (false)`, the evaluator was
+ *     never consulted, and the action RAN. Measured on `origin/main` @
+ *     `2937bcf7d`: `condition: false` → `{"success":true}`, handler ran, while
+ *     the semantically identical `{ dialect: 'cel', source: 'false' }` was
+ *     refused. Asking "declared?" routes `false` to `evaluateCondition`, which
+ *     short-circuits booleans (`if (typeof condition === 'boolean') return
+ *     condition`) and blocks.
+ *
+ * Both read {@link hasDeclaredPredicate} — the repo's one definition of that
+ * question, in `evaluator/declaredPredicate.ts` beside the normalizer it is
+ * derived from, with the scope objectui#3850 ruled on (`''` / whitespace-only /
+ * empty-`source` envelope / non-predicate junk are NOT declared; a declared
+ * `false` IS). This gate arrived here first as a module-private helper with a
+ * scope note saying it stayed private until that ruling landed; it has, so the
+ * definition moved down a layer and the renderer side reads the same one
+ * (`components/renderers/action/visibility-gate.ts` re-exports it as
+ * `hasDeclaredVisibilityGate`, `SchemaRenderer`'s `disabled` chain calls it).
+ *
+ * ## Why the gates normalize to DECIDE but evaluate the RAW value
+ *
+ * Historically the two were not interchangeable for a string already spelled as
+ * a `${…}` template: `toPredicateInput` assumed a bare expression and wrapped
+ * unconditionally, so `'${x}'` became `'${${x}}'`, which no longer matched the
+ * single-template fast path and did not parse — leaving a constant verdict whose
+ * direction was set by the caller's error policy (fail-soft got the unparsed
+ * string back, `Boolean(…)` = `true`; fail-closed got a throw). On `disabled`
+ * that meant "always blocked", on `condition` the opposite ("always execute").
+ * That defect was objectui#3871, fixed at the normalizer: an already-`${…}`
+ * string is returned untouched, the normalizer is idempotent, and
+ * `evaluateCondition(toPredicateInput(raw))` agrees with
+ * `evaluateCondition(raw)` on every shape these gates accept.
+ *
+ * The gates still read the raw value. Nothing forces the change now that the two
+ * agree, and it would be churn on the execution path rather than a fix — but the
+ * reason has shifted from "must" to "no reason to", so the equality is pinned
+ * next to each gate's suite (`ActionRunner.disabledGate.test.ts` /
+ * `ActionRunner.conditionGate.test.ts`, the two cases that replaced the
+ * objectui#3871 tripwires) instead of being assumed. Every non-empty shape —
+ * boolean, bare CEL, `${…}` template, `{ dialect, source }` envelope — keeps the
+ * verdict it reaches today.
+ *
+ * The `visible`-filter template in `ActionEngine.getActionsForLocation` used to
+ * be the one place this scope was NOT shared: its non-predicate branch kept a
+ * historical `Boolean(raw)` coercion, so `0` there meant "hidden" — fail-CLOSED
+ * on junk, the opposite of what this module committed to for `disabled`
+ * (`catch { isDisabled = false }`). That filter now reads
+ * {@link hasDeclaredPredicate} too (objectui#3957), so a value that is not a
+ * predicate at all decides nothing on either key, at either entry: `0` / `{}` are
+ * "no gate" here, in the engine filter, and in the shared definition.
+ */
 
 export class ActionRunner {
   private handlers = new Map<string, ActionRunnerHandler>();
@@ -626,18 +729,48 @@ export class ActionRunner {
       // does nothing" shape. Dev-only, warn-once, changes nothing (#4075 step 1).
       warnOnUnknownActionKeys(action);
 
+      // The compat window for the object-form `params` payload (#5777, maintainer
+      // ruling 2026-08-06 direction A). Checked HERE, before the param-collection
+      // block below rewrites `action.params` into a values map — after that point
+      // an action that authored a legitimate ActionParam[] DEFINITION array also
+      // carries an object under `params`, and the warning could no longer tell the
+      // two apart. Dev-only, warn-once, changes nothing.
+      warnOnDeprecatedObjectParams(action);
+
       // Resolve the action type
       const actionType = action.type || action.actionType || action.name || '';
 
-      // Conditional execution
-      if (action.condition) {
+      // Conditional execution. Ask "is a `condition` gate DECLARED?" — not "is
+      // the raw value truthy?" (objectui#3872). Truthiness cannot answer that
+      // question, and on this key it answered it in the OVER-PERMISSIVE
+      // direction: `condition: false` (the most explicit "never execute" an
+      // author can write, and what a template that switches an action off
+      // emits) fell on `if (false)`, so the evaluator was never consulted and
+      // the action executed anyway — while the semantically identical
+      // `{ dialect: 'cel', source: 'false' }` was refused. `evaluateCondition`
+      // short-circuits booleans, so once the gate asks the right question the
+      // verdict needs no boolean branch of its own. See `hasDeclaredPredicate`
+      // for the shared "declared?" scope (objectui#3850) and for why the verdict
+      // still reads the RAW value (`toPredicateInput` used to double-wrap an
+      // already-`${…}` string into a constant verdict — objectui#3871, fixed at
+      // the normalizer; on THIS key that constant meant "always execute").
+      if (hasDeclaredPredicate(action.condition)) {
         const shouldExecute = this.evaluator.evaluateCondition(action.condition);
         if (!shouldExecute) {
           return { success: false, error: 'Action condition not met' };
         }
       }
 
-      if (action.disabled != null && action.disabled !== false) {
+      // Ask "is a `disabled` gate DECLARED?" — not "is the key present and not
+      // `false`?" (objectui#3848). The old test let every EMPTY predicate reach
+      // `evaluateCondition`, whose answer for "no condition" is `true`, which on
+      // this key means BLOCKED: `disabled: ''` / `'   '` /
+      // `{ dialect: 'cel', source: '' }` all returned `Action is disabled` with
+      // the handler never invoked. See `hasDeclaredPredicate` above for why the
+      // gate normalizes to decide while the verdict below reads the RAW value
+      // (historically load-bearing: `toPredicateInput` double-wrapped an
+      // already-`${…}` string — objectui#3871, now fixed, so the two agree).
+      if (hasDeclaredPredicate(action.disabled)) {
         // `disabled` may be a boolean, a CEL string, or the normalized envelope
         // `{ dialect, source }` (what `objectstack build` emits). The previous
         // code only evaluated the STRING form and treated any object as truthy,
@@ -1203,6 +1336,62 @@ export class ActionRunner {
   }
 
   /**
+   * Assemble the request body for the runner's OWN `executeAPI` — the path taken
+   * when no host registered an `api` handler.
+   *
+   * `bodyExtra` is merged LAST, which is the spec's documented semantics for the
+   * key ("Static request-body fields for a `type:'api'` action, merged last
+   * (overrides user params)") and what the console's `apiHandler` already does on
+   * both of its branches. Before objectstack#6837 this path read `action.params`
+   * alone and never looked at `bodyExtra` at all, so an action whose payload lives
+   * entirely in `bodyExtra` — the shape the ADR-0087 conversion produces from an
+   * old object-form `params` page — POSTed an empty body here.
+   *
+   * `params` contributes only in its DEPRECATED non-array form (the compat window
+   * #5777 opened; see `warnOnDeprecatedObjectParams`). An ARRAY `params` is a
+   * parameter DEFINITION list, not a payload: it reaches this method unconsumed
+   * only when no `paramCollectionHandler` is mounted, and POSTing the definitions
+   * as the request body was never a payload any endpoint wanted. It now falls
+   * through to the context record like an absent `params` does.
+   *
+   * `bodyShape` then decides how that payload is WRAPPED, and the wrap covers the
+   * collected payload ONLY — `bodyExtra` stays at the top level. That is the
+   * spec's own wording for the key ("`{ wrap: 'data' }` nests the user-collected
+   * params under that key, while `recordIdParam` and other top-level keys stay
+   * flat") and what both console read-sites already do, so the key means one
+   * thing on every path that honours it. Until objectstack#6938 this path did not
+   * read it at all: the console `apiHandler` wrapped and the runner's own fallback
+   * did not, so the same action changed body shape with the host it ran under.
+   */
+  private buildApiRequestBody(action: ActionDef): unknown {
+    const asRecord = (value: unknown): Record<string, unknown> | undefined => (
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : undefined
+    );
+    const bodyExtra = asRecord(action.bodyExtra);
+    const base = asRecord(action.params) ?? this.context.data;
+    // `'flat'` (and an absent//malformed value) means no wrapping — the same
+    // predicate the console read-sites use, so an off-spec `bodyShape` degrades
+    // to the documented default here too instead of producing a `{ undefined: … }`
+    // key on the wire.
+    const shape = action.bodyShape;
+    const wrap = shape && typeof shape === 'object' && typeof shape.wrap === 'string' && shape.wrap
+      ? shape.wrap
+      : undefined;
+    if (wrap) {
+      // The payload nests; `bodyExtra` rides flat beside it. No key collision to
+      // resolve in this branch — that is the point of the wrap — so "merged last"
+      // is preserved by construction.
+      return { [wrap]: base ?? {}, ...bodyExtra };
+    }
+    // Nothing to merge: hand back the historical value as-is, so a host passing a
+    // non-object `context.data` still serializes exactly what it used to.
+    if (!bodyExtra) return base ?? {};
+    return { ...asRecord(base), ...bodyExtra };
+  }
+
+  /**
    * Execute API action — supports both simple string endpoint and complex ApiConfig.
    */
   private async executeAPI(action: ActionDef): Promise<ActionResult> {
@@ -1224,7 +1413,7 @@ export class ActionRunner {
         // Simple string endpoint
         url = this.interpolateTarget(apiConfig, action);
         method = action.method || 'POST';
-        body = JSON.stringify(action.params || this.context.data || {});
+        body = JSON.stringify(this.buildApiRequestBody(action));
       } else {
         // Complex ApiConfig
         const config = apiConfig as ApiConfig;
@@ -1245,7 +1434,7 @@ export class ActionRunner {
             ? config.body
             : JSON.stringify(config.body);
         } else if (method !== 'GET' && method !== 'HEAD') {
-          body = JSON.stringify(action.params || this.context.data || {});
+          body = JSON.stringify(this.buildApiRequestBody(action));
         }
       }
 

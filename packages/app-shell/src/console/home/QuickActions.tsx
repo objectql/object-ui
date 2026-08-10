@@ -36,7 +36,14 @@ export function QuickActions() {
       label: t('home.quickActions.manageObjects', { defaultValue: 'Manage Objects' }),
       description: t('home.quickActions.manageObjectsDesc', { defaultValue: 'Configure data models' }),
       icon: Database,
-      href: '/apps/setup/system/metadata/object',
+      // #3739 — the metadata-admin engine's CANONICAL route, not the legacy
+      // `…/system/metadata/object` alias this card used to carry. That alias is
+      // not a page: `apps/console`'s host fragment serves it with
+      // `MetadataRedirect`, a bare `<Navigate>` onto the URL below, so every
+      // click paid a redundant hop plus a re-render. Same defect and same
+      // remedy as #3660's `sys-datasources` entry in both sidebars. The alias
+      // routes stay for bookmarks and external links.
+      href: '/apps/setup/metadata/object',
       iconBg: 'bg-gradient-to-br from-violet-500/15 to-purple-500/10 ring-violet-500/20',
       iconText: 'text-violet-600 dark:text-violet-400',
       hoverBorder: 'hover:border-violet-500/40',
@@ -46,7 +53,9 @@ export function QuickActions() {
       label: t('home.quickActions.systemSettings', { defaultValue: 'System Settings' }),
       description: t('home.quickActions.systemSettingsDesc', { defaultValue: 'Configure your workspace' }),
       icon: Settings,
-      href: '/apps/setup',
+      // #3611 — the system hub, not the bare `/apps/setup` (which is the
+      // "No Apps Configured" empty state's own URL on a zero-app deployment).
+      href: '/apps/setup/system',
       iconBg: 'bg-gradient-to-br from-emerald-500/15 to-teal-500/10 ring-emerald-500/20',
       iconText: 'text-emerald-600 dark:text-emerald-400',
       hoverBorder: 'hover:border-emerald-500/40',

@@ -47,14 +47,75 @@ export function registerLayout() {
   // which lives in the framework repo. Narrowing the DECLARATION is
   // unconditional and independent of that: it breaks no consumer, and it stops
   // the registry from teaching the wrong key in the meantime.
+  //
+  // `isContainer: true` is the other half of the same principle, and it is NOT
+  // an extension of the spec's authoring surface (objectui#3900). `children` is
+  // a base property of EVERY node in objectui's JSON protocol — `BASE_PROPS` in
+  // `sdui-parser/src/validate.ts` lists it beside `type`/`id`/`className` — not
+  // a key of the spec's `PageHeaderProps`. So this flag answers the protocol
+  // question "does this node accept a child list?", and for this component the
+  // answer has always been yes: `PageHeader.tsx` deliberately re-introduces
+  // `schema.children` into the right-hand slot (that is how `record:quick_actions`
+  // nests under `page:header.children`), `content/docs/layout/page-header.mdx`
+  // publishes the slot's precedence as contract, and the docs page's only live
+  // demo is exactly that shape.
+  //
+  // Leaving the flag off did not make children illegal — nothing on the render
+  // path reads `isContainer` — it made the VALIDATOR lie: `sdui-parser`'s
+  // `not-a-container` diagnostic fired on the documented, demo-verified,
+  // correctly-rendering write-up. A warning that lies is worse than a missing
+  // one, because it trains authors (AI authors especially) to discount the true
+  // `not-a-container` reports on components that really are childless.
+  //
+  // `icon` and `actions` are the same lie on two more keys, found by auditing
+  // this list against the renderer's actual read points (objectui#3972). Each
+  // declared key below is aligned on the three faces that have to agree, and the
+  // audit's negative results are as load-bearing as its positive ones:
+  //
+  //   RENDERER READS IT × SPEC DECLARES IT × `ManifestInputType` CAN SPELL IT
+  //   - `title` / `subtitle`  — read at `PageHeader.tsx:113/115`, spec keys.
+  //   - `icon`      — read at `:117`, rendered at `:224-226` (a string goes
+  //     through `LazyIcon`, a node renders as-is); `PageHeaderProps.icon` is the
+  //     spec's icon NAME, hence `type: 'string'`. `content/docs/layout/
+  //     page-header.mdx` documents it AND its only live demo
+  //     (`layout-page-header/pageheader-with-actions`) writes `"icon": "users"`
+  //     — so omitting it made the manifest gate report `unknown-prop` on the
+  //     repo's own documented example.
+  //   - `actions`   — read at `:119`, resolved at `:192-196` and delegated to
+  //     `record:quick_actions`; `PageHeaderProps.actions` is an array of action
+  //     ids, and the canonical `page:header` already publishes it as
+  //     `type: 'array'` (`components/.../containers.tsx:1585`). Spelled
+  //     identically here on purpose — one concept, one key, one type.
+  //
+  // NOT declared, deliberately, and each for its own reason:
+  //   - `breadcrumb` — spec declares it, this renderer has NO read point (the
+  //     word appears only in a comment and an `aria-label`). Declaring it would
+  //     be objectui#3829's defect in reverse: an authoring surface the platform
+  //     silently drops. (`page:header.icon` is that same case on the CANONICAL
+  //     renderer, which is why it sits in `UNPUBLISHED_EXEMPTIONS` in
+  //     `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts` while
+  //     `icon` gets declared HERE — different renderers, opposite read facts.)
+  //   - `showBack` / `action` / `description` — this renderer reads them, the
+  //     spec has no such keys. Declaring one would publish a second dialect,
+  //     which is the whole point of the objectui#3226 narrowing above.
+  //   - `aria` — spec declares it; omitted for the reason every block omits it
+  //     (accessibility escape hatch, not a layout choice).
   ComponentRegistry.register('page-header', PageHeader, {
-      namespace: 'layout',
-      label: 'Page Header',
-      category: 'Layout',
-      inputs: [
-          { name: 'title', type: 'string', label: 'Title' },
-          { name: 'subtitle', type: 'string', label: 'Subtitle' }
-      ]
+    namespace: 'layout',
+    label: 'Page Header',
+    category: 'Layout',
+    isContainer: true,
+    inputs: [
+      { name: 'title', type: 'string', label: 'Title' },
+      { name: 'subtitle', type: 'string', label: 'Subtitle' },
+      { name: 'icon', type: 'string', label: 'Icon', description: 'Lucide icon name' },
+      {
+        name: 'actions',
+        type: 'array',
+        label: 'Actions',
+        description: 'ActionDef list (or action ids) rendered through record:quick_actions',
+      },
+    ],
   });
 
   // Page Card — register ONLY as `layout:page:card`. `skipFallback` keeps this
@@ -87,12 +148,43 @@ export function registerLayout() {
     ],
   });
 
+  // `items` is `NavigationItem[]` (`NavigationRenderer.tsx:108`) — an ARRAY, and
+  // it used to be declared `type: 'object'` (objectui#3972). Those are not two
+  // spellings of one check: `sdui-parser`'s `checkType` accepts `'object'` only
+  // for `typeof value === 'object' && !Array.isArray(value)` and `'array'` only
+  // for `Array.isArray(value)` (`validate.ts:124-129`), so the declaration made
+  // the manifest gate report `type-mismatch: <navigation-renderer> prop "items"
+  // expected an object` on the ONLY value this renderer can render — and stay
+  // silent on the object that would crash it.
+  //
+  // This is not objectui#3832 (`ComponentInput.type` cannot spell a spec union):
+  // `ManifestInputType` has `'array'`, so the declaration was simply wrong about
+  // a type it could express exactly.
+  //
+  // `required: true` is the fourth face of the same agreement (objectui#3987).
+  // #3972 aligned the key's EXISTENCE and TYPE; optionality was still declared
+  // the opposite of what the component enforces. `NavigationRendererProps.items`
+  // has no `?` and the renderer supplies no default (`NavigationRenderer.tsx:1204`),
+  // so `{ "type": "navigation-renderer" }` — a node the validator passed in
+  // silence, because `validate.ts:55-64` only reports `missing-required-prop`
+  // when `input.required` is set — crashes on the first thing the render does
+  // with the prop: `collectPinnedItems(filteredItems)` at `:1242` does
+  // `for (const item of items)` (`:1410`) and throws
+  // `TypeError: items is not iterable`. (The `resolveActiveNavItem` memo above
+  // it survives, its `visit` guards `if (!nodes) return`; `filteredItems.slice()`
+  // at `:1247` would throw too but is never reached.)
+  //
+  // So this is not a stylistic "document it as required" — it is the one
+  // diagnostic that exists precisely to stop a node whose render is a
+  // guaranteed crash from shipping. `basePath` below stays optional because the
+  // renderer really does default it (`basePath = ''`); the two are declared
+  // differently because the component treats them differently.
   ComponentRegistry.register('navigation-renderer', NavigationRenderer, {
     namespace: 'layout',
     label: 'Navigation Renderer',
     category: 'Layout',
     inputs: [
-      { name: 'items', type: 'object' },
+      { name: 'items', type: 'array', required: true },
       { name: 'basePath', type: 'string' },
     ],
   });

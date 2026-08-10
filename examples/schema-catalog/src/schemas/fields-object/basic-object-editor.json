@@ -1,6 +1,13 @@
 {
-  "type": "object",
-  "name": "metadata",
-  "label": "Metadata",
-  "placeholder": "{\n  \"key\": \"value\"\n}"
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "metadata",
+      "label": "Metadata",
+      "type": "object",
+      "placeholder": "{\n  \"key\": \"value\"\n}"
+    }
+  ]
 }
