@@ -1010,6 +1010,7 @@ const zh = {
       first: '首个',
     },
     editor: {
+      panelTitle: '编辑报表',
       breadcrumb: '配置',
       basic: '基础',
       title: '标题',

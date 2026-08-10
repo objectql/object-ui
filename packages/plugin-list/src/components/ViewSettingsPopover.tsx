@@ -211,9 +211,15 @@ export function ViewSettingsPopover(props: ViewSettingsPopoverProps) {
           </Section>
         )}
 
+        {/* `list.rowColor` names the SECTION; `list.color` is the compact
+            toolbar-BUTTON label for the same feature — ListView renders the
+            button with `list.color` and the panel it opens with
+            `list.rowColor`. This Section is that panel's counterpart on the
+            collapsed/mobile surface, so it takes the panel's key
+            (objectui#4118). */}
         {showColor && setRowColorConfig && (
           <Section
-            title={t('list.color', { defaultValue: 'Color' })}
+            title={t('list.rowColor', { defaultValue: 'Row Color' })}
             onClear={rowColorConfig ? () => setRowColorConfig(undefined) : undefined}
             clearLabel={t('list.clear', { defaultValue: 'Clear' })}
             defaultOpen={!!rowColorConfig}

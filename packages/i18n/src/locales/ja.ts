@@ -2509,6 +2509,7 @@ const ja = {
       first: "最初",
     },
     editor: {
+      panelTitle: "レポートを編集",
       breadcrumb: "設定",
       basic: "基本",
       title: "タイトル",

@@ -1050,6 +1050,13 @@ const en = {
       first: 'First',
     },
     editor: {
+      // Names the PANEL. Distinct from `title` below, which is the label of the
+      // report's Title *field* — `titlePlaceholder` right under it is that
+      // field's placeholder, which is what makes the pairing unambiguous.
+      // ReportConfigPanel borrowed `title` for both its heading and its
+      // `role="complementary"` aria-label, so the panel was titled "Title" and
+      // the landmark announced "Title" (objectui#4118).
+      panelTitle: 'Edit report',
       breadcrumb: 'Configuration',
       basic: 'Basic',
       title: 'Title',

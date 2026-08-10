@@ -2509,6 +2509,7 @@ const fr = {
       first: "Premier",
     },
     editor: {
+      panelTitle: "Modifier le rapport",
       breadcrumb: "Configuration",
       basic: "Général",
       title: "Titre",

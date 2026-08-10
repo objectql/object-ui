@@ -2508,6 +2508,7 @@ const pt = {
       first: "Primeiro",
     },
     editor: {
+      panelTitle: "Editar relatório",
       breadcrumb: "Configuração",
       basic: "Geral",
       title: "Título",

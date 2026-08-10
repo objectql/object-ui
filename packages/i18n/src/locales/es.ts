@@ -2513,6 +2513,7 @@ const es = {
       first: "Primero",
     },
     editor: {
+      panelTitle: "Editar informe",
       breadcrumb: "Configuración",
       basic: "General",
       title: "Título",

@@ -135,16 +135,23 @@ export function ReportConfigPanel({
 
   if (!open) return null;
 
+  // The panel's name — its visible heading and the accessible name of the
+  // `role="complementary"` landmark — is `report.editor.panelTitle`, NOT
+  // `report.editor.title`: that key is the label of the report's Title *field*
+  // (`titlePlaceholder` sits right under it in the pack), so asking for it here
+  // titled the panel "Title" and announced the landmark as "Title"
+  // (objectui#4118). Both slots keep the same string on purpose, so the
+  // landmark's spoken name matches the heading a sighted user reads.
   return (
     <aside
       className="hidden sm:flex w-[440px] shrink-0 flex-col border-l bg-background h-full"
       data-testid="report-config-panel"
       role="complementary"
-      aria-label={t('report.editor.title', { defaultValue: 'Title' })}
+      aria-label={t('report.editor.panelTitle', { defaultValue: 'Edit report' })}
     >
       <div className="flex items-center justify-between gap-2 border-b px-4 py-2.5 shrink-0">
         <div className="text-sm font-medium truncate">
-          {t('report.editor.title', { defaultValue: 'Title' })}
+          {t('report.editor.panelTitle', { defaultValue: 'Edit report' })}
         </div>
         <Button
           variant="ghost"

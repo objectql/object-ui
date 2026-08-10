@@ -2513,6 +2513,7 @@ const ar = {
       first: "الأول",
     },
     editor: {
+      panelTitle: "تعديل التقرير",
       breadcrumb: "الإعدادات",
       basic: "أساسي",
       title: "العنوان",

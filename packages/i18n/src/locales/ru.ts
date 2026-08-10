@@ -2516,6 +2516,7 @@ const ru = {
       first: "Первый",
     },
     editor: {
+      panelTitle: "Редактировать отчёт",
       breadcrumb: "Конфигурация",
       basic: "Основное",
       title: "Заголовок",

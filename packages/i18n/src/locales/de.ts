@@ -2509,6 +2509,7 @@ const de = {
       first: "Erster",
     },
     editor: {
+      panelTitle: "Bericht bearbeiten",
       breadcrumb: "Konfiguration",
       basic: "Allgemein",
       title: "Titel",

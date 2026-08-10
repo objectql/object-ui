@@ -2508,6 +2508,7 @@ const ko = {
       first: "첫 번째",
     },
     editor: {
+      panelTitle: "보고서 편집",
       breadcrumb: "구성",
       basic: "기본",
       title: "제목",
