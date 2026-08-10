@@ -42,7 +42,7 @@
     "@radix-ui/react-use-controllable-state": "^1.2.6",
     "ai": "^7.0.56",
     "class-variance-authority": "^0.7.1",
-    "lucide-react": "^1.28.0",
+    "lucide-react": "^1.29.0",
     "motion": "^12.43.0",
     "nanoid": "^6.0.1",
     "react-markdown": "^10.1.0",

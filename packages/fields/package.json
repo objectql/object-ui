@@ -39,7 +39,7 @@
     "@object-ui/types": "workspace:*",
     "@objectstack/spec": "^17.0.0-rc.5",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.28.0",
+    "lucide-react": "^1.29.0",
     "react-markdown": "^10.1.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
