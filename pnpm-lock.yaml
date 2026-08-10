@@ -535,6 +535,9 @@ importers:
       '@object-ui/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@object-ui/mobile':
+        specifier: workspace:*
+        version: link:../../packages/mobile
       '@object-ui/plugin-calendar':
         specifier: workspace:*
         version: link:../../packages/plugin-calendar
@@ -553,6 +556,9 @@ importers:
       '@object-ui/plugin-detail':
         specifier: workspace:*
         version: link:../../packages/plugin-detail
+      '@object-ui/plugin-editor':
+        specifier: workspace:*
+        version: link:../../packages/plugin-editor
       '@object-ui/plugin-form':
         specifier: workspace:*
         version: link:../../packages/plugin-form
@@ -571,6 +577,15 @@ importers:
       '@object-ui/plugin-view':
         specifier: workspace:*
         version: link:../../packages/plugin-view
+      '@object-ui/providers':
+        specifier: workspace:*
+        version: link:../../packages/providers
+      '@object-ui/react-runtime':
+        specifier: workspace:*
+        version: link:../../packages/react-runtime
+      '@object-ui/sdui-parser':
+        specifier: workspace:*
+        version: link:../../packages/sdui-parser
       react:
         specifier: 19.2.8
         version: 19.2.8

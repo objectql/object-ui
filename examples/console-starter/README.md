@@ -26,9 +26,13 @@ plugins by side-effect import (grid, kanban, calendar, charts, list, detail, vie
 form, dashboard, report) and loads UI translations from
 `${VITE_SERVER_URL}/api/v1/i18n/translations/:lang`.
 
-[`vite.config.ts`](./vite.config.ts) aliases 24 `@object-ui/*` specifiers to
+[`vite.config.ts`](./vite.config.ts) aliases 29 `@object-ui/*` specifiers to
 `packages/*/src` so plugin registration hits one `ComponentRegistry` singleton — a
-monorepo detail. Drop the aliases when you consume published packages.
+monorepo detail. Drop the aliases when you consume published packages. The list is
+**closed under its own import graph** — aliased source imports only aliased
+packages — and [`test/vite-alias-closure.test.ts`](./test/vite-alias-closure.test.ts)
+re-derives that graph on every run so the list cannot silently drift out of date
+again.
 
 ## What it is **not**
 
@@ -49,18 +53,32 @@ monorepo detail. Drop the aliases when you consume published packages.
 ```bash
 # from the monorepo root
 pnpm install
-pnpm -w build                 # required, see below
 
 cd examples/console-starter
 pnpm dev                      # Vite; no server.port is set, so the default 5173
 ```
 
-**The root build is not optional.** The `src` aliases above pull in workspace
-packages that are *not* on the alias list and not in this example's
-`package.json` — `@object-ui/mobile`, `@object-ui/providers`,
-`@object-ui/sdui-parser`, `@object-ui/plugin-editor`, `@object-ui/react-runtime`.
-Those resolve to `packages/*/dist`, which exists only after a build. Skip it and
-Vite starts fine but serves 500s for those modules, leaving `#root` empty.
+**`pnpm dev` needs no prior build.** Every workspace package the app reaches is on
+the alias list, so Vite serves all of them from `src`. This was not always true:
+five packages the aliased sources import — `@object-ui/mobile`,
+`@object-ui/providers`, `@object-ui/sdui-parser`, `@object-ui/plugin-editor`,
+`@object-ui/react-runtime` — were missing from the list, fell back to node
+resolution onto `packages/*/dist`, and produced 500s behind an empty `#root` with
+nothing on the page to say why (objectui#3528).
+
+**`pnpm build` and `pnpm type-check` still need `pnpm -w build` first.** Those run
+`tsc`, which resolves `@object-ui/*` through `node_modules` rather than through the
+Vite aliases — and each package's `types` entry points at `dist/index.d.ts`, which
+exists only after a build. Skip it and `tsc` reports `TS2307: Cannot find module
+'@object-ui/app-shell' or its corresponding type declarations`:
+
+```bash
+# from the monorepo root
+pnpm -w build
+
+cd examples/console-starter
+pnpm build
+```
 
 ### Backend
 
