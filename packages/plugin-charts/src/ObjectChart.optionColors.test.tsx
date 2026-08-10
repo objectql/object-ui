@@ -25,6 +25,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, waitFor } from '@testing-library/react';
+import { SchemaRendererProvider } from '@object-ui/react';
 
 let lastSchema: any = null;
 
@@ -55,6 +56,25 @@ function installMetaFetchDouble(routes: Record<string, unknown> = {}) {
     }),
   );
   return calls;
+}
+
+/**
+ * objectui#4114 — the same recorder, but as a standalone function rather than
+ * a global stub, so a host's `apiFetch` channel and the global `fetch` can be
+ * recorded SEPARATELY and the probe's routing read off which one moved.
+ */
+function makeMetaFetchRecorder(routes: Record<string, unknown> = {}) {
+  const calls: string[] = [];
+  const inits: (RequestInit | undefined)[] = [];
+  const fn = vi.fn(async (input: unknown, init?: RequestInit) => {
+    const url = String(
+      input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+    );
+    calls.push(url);
+    inits.push(init);
+    return { ok: true, json: async () => routes[url] ?? {} };
+  });
+  return { fn, calls, inits };
 }
 
 afterEach(() => {
@@ -200,5 +220,158 @@ describe('ObjectChart — category option colors (objectui#4106)', () => {
     await waitFor(() => expect(lastSchema).not.toBeNull());
     expect(lastSchema.categoryColors).toBeUndefined();
     expect(metaCalls).toEqual(['/api/v1/meta/object/opportunity']);
+  });
+});
+
+/**
+ * objectui#4114 — WHICH channel the two probes above ride.
+ *
+ * `ObjectChart` already reads `SchemaRendererContext`, but the effect used to
+ * call the bare global `fetch` at both call sites, so a hosted console's
+ * authenticated channel (Authorization / tenant headers, base-URL rewrite,
+ * draft-preview params — `ConsoleShell.tsx:245` supplies it) was bypassed. The
+ * effect swallows every failure, so the symptom was silent: option colors and
+ * dataset dimension labels simply never applied.
+ *
+ * Both recorders answer the SAME documents here, so the data path stays green
+ * either way and the only thing these pins can go red on is the routing — the
+ * host recorder holding nothing, or the global recorder holding something.
+ */
+describe('ObjectChart — option-color probe routing (objectui#4114)', () => {
+  const OPPORTUNITY_DOC = {
+    '/api/v1/meta/object/opportunity': {
+      item: {
+        name: 'opportunity',
+        fields: {
+          stage: {
+            type: 'select',
+            options: [{ value: 'won', label: 'Won', color: '#16a34a' }],
+          },
+        },
+      },
+    },
+  };
+
+  const OBJECT_CHART_SCHEMA = {
+    type: 'object-chart',
+    chartType: 'bar',
+    objectName: 'opportunity',
+    xAxisKey: 'stage',
+    data: [{ stage: 'won', amount: 42 }],
+  };
+
+  it('rides the host apiFetch when a provider supplies one, and never the global fetch', async () => {
+    const globalCalls = installMetaFetchDouble(OPPORTUNITY_DOC);
+    const host = makeMetaFetchRecorder(OPPORTUNITY_DOC);
+
+    render(
+      <SchemaRendererProvider
+        dataSource={{ find: async () => ({ data: [] }) } as any}
+        apiFetch={host.fn as any}
+      >
+        <ObjectChart schema={OBJECT_CHART_SCHEMA} />
+      </SchemaRendererProvider>,
+    );
+
+    // The object probe went through the host channel...
+    await waitFor(() => expect(host.calls).toEqual(['/api/v1/meta/object/opportunity']));
+    // ...and nothing escaped to the global one. This is the assertion the bug
+    // failed: pre-fix the two recorders held exactly the opposite contents.
+    expect(globalCalls).toEqual([]);
+    // The request options survive the routing — a host that needs the accept
+    // header still gets it, it is not dropped on the way to `apiFetch`.
+    expect(host.inits[0]).toMatchObject({ headers: { accept: 'application/json' } });
+    // And the routed answer is consumed, not merely requested.
+    await waitFor(() => expect(lastSchema?.categoryColors).toMatchObject({ won: '#16a34a' }));
+  });
+
+  it('routes BOTH dataset hops through the host apiFetch', async () => {
+    const routes = {
+      '/api/v1/meta/dataset/showcase_task_metrics': {
+        item: {
+          name: 'showcase_task_metrics',
+          object: 'task',
+          dimensions: [{ name: 'status', field: 'status' }],
+        },
+      },
+      '/api/v1/meta/object/task': {
+        item: {
+          name: 'task',
+          fields: {
+            status: {
+              type: 'select',
+              options: [
+                { value: 'todo', label: 'To do' },
+                { value: 'done', label: 'Done' },
+              ],
+            },
+          },
+        },
+      },
+    };
+    const globalCalls = installMetaFetchDouble(routes);
+    const host = makeMetaFetchRecorder(routes);
+
+    render(
+      <SchemaRendererProvider
+        dataSource={{
+          queryDataset: vi.fn().mockResolvedValue({
+            rows: [{ status: 'todo', task_count: 3 }],
+            fields: [{ name: 'status', label: 'Status' }, { name: 'task_count', label: 'Tasks' }],
+          }),
+        } as any}
+        apiFetch={host.fn as any}
+      >
+        <ObjectChart
+          schema={{
+            type: 'object-chart',
+            chartType: 'bar',
+            dataset: 'showcase_task_metrics',
+            dimensions: ['status'],
+            values: ['task_count'],
+          }}
+        />
+      </SchemaRendererProvider>,
+    );
+
+    // Both call sites — the dataset definition read AND the object read it
+    // names — are on the host channel, in order.
+    await waitFor(() => expect(host.calls).toHaveLength(2));
+    expect(host.calls).toEqual([
+      '/api/v1/meta/dataset/showcase_task_metrics',
+      '/api/v1/meta/object/task',
+    ]);
+    expect(globalCalls).toEqual([]);
+    // The dimension labels resolved over the host channel reach the rows.
+    await waitFor(() => expect(lastSchema?.data?.[0]?.status).toBe('To do'));
+  });
+
+  it('keeps using the global fetch for a standalone embed with no provider', async () => {
+    // The documented boundary of the convention (`useRecordEditable.ts:32`):
+    // no host, no `apiFetch` — the probe must still work off the global fetch
+    // rather than crash or go quiet.
+    const globalCalls = installMetaFetchDouble(OPPORTUNITY_DOC);
+
+    render(<ObjectChart schema={OBJECT_CHART_SCHEMA} dataSource={{ find: async () => ({ data: [] }) }} />);
+
+    await waitFor(() => expect(lastSchema?.categoryColors).toMatchObject({ won: '#16a34a' }));
+    expect(globalCalls).toEqual(['/api/v1/meta/object/opportunity']);
+  });
+
+  it('keeps using the global fetch when a provider supplies no apiFetch', async () => {
+    // A host CAN be mounted without an authenticated channel (every
+    // `SchemaRendererProvider dataSource={…}` in the suites, e.g.
+    // `ObjectChart.elementDataSource.test.tsx`). Presence of a provider is not
+    // presence of a channel, so this must stay on the fallback.
+    const globalCalls = installMetaFetchDouble(OPPORTUNITY_DOC);
+
+    render(
+      <SchemaRendererProvider dataSource={{ find: async () => ({ data: [] }) } as any}>
+        <ObjectChart schema={OBJECT_CHART_SCHEMA} />
+      </SchemaRendererProvider>,
+    );
+
+    await waitFor(() => expect(lastSchema?.categoryColors).toMatchObject({ won: '#16a34a' }));
+    expect(globalCalls).toEqual(['/api/v1/meta/object/opportunity']);
   });
 });
