@@ -112,12 +112,29 @@ Two things follow for anyone editing this directory:
   entry is what fails the build if the workflow later drops the trigger; nothing derives the set,
   because "may this context be required?" is a property of the repository's settings, which no
   test here can read.
-- **Some contexts can never be required, structurally**, and no amount of triggering changes that:
-  **Changeset Bump Policy** (`changeset-guard.yml`, inverse path filter — absent unless the PR
-  touches `.changeset/**`), **Bundle Analysis** (`performance-budget.yml`, path filter),
-  **Live E2E (informational)** (`continue-on-error: true`, so it is green whatever happens — it
-  cannot serve as a guarantee of anything), and **Close issues referenced in other repositories**
-  (`cross-repo-issue-closer.yml`, which runs only *after* a merge).
+- **Some contexts can never be required, structurally**, and no amount of triggering changes
+  that. Each line below is blocked by a *different* property, which is why they are all worth
+  reading; they are examples rather than a census, so a further workflow carrying any of these
+  shapes is just as unrequirable without appearing here.
+  - **Changeset Bump Policy** (`changeset-guard.yml`) — an **inverse** path filter: its
+    `pull_request` trigger declares `paths: ['.changeset/**']`, so on a PR that touches nothing
+    under `.changeset/**` the context is never created at all.
+  - **Bundle Analysis** (`performance-budget.yml`) — an ordinary path filter on the same
+    trigger, with the same consequence for every PR that matches none of its paths.
+  - **Live E2E (informational)** (`live-e2e.yml`) — the job carries `continue-on-error: true`,
+    so the run is green whatever the specs did; it cannot serve as a guarantee of anything.
+  - **Close issues referenced in other repositories** (`cross-repo-issue-closer.yml`) — its only
+    trigger is `pull_request_target` with `types: [closed]`, and the job additionally requires
+    `github.event.pull_request.merged == true`, so it runs only *after* a merge.
+
+  Each of those properties is pinned against the YAML in
+  `scripts/__tests__/ci-cd-pipeline-doc.test.ts`: change one of them without editing its line
+  here and that test fails, naming the workflow
+  ([#4170](https://github.com/objectstack-ai/objectui/issues/4170)). The `live-e2e.yml` line is
+  the one already scheduled to become false — that workflow's header says `continue-on-error`
+  comes off once the lane has run clean long enough to trust, and the day it does, the lane
+  becomes requirable and this line is wrong. Then delete the line and its entry in that test;
+  do not soften it in place.
 
 ## Core CI Workflow (`ci.yml`)
 
