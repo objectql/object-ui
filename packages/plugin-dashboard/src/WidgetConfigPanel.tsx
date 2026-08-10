@@ -380,21 +380,18 @@ function buildWidgetSchema(
         ],
       },
 
-      // ----- Behavior (always visible, collapsed by default) -------------
-      {
-        key: 'behavior',
-        title: 'Behavior',
-        collapsible: true,
-        defaultCollapsed: true,
-        fields: [
-          {
-            key: 'actionUrl',
-            label: 'Click-through URL',
-            type: 'input',
-            placeholder: 'https://...',
-          },
-        ],
-      },
+      // ----- Behavior --------------------------------------------------
+      // Deliberately absent. The group held exactly one field, a
+      // "Click-through URL" bound to `actionUrl` — a widget-level key the spec
+      // RETIRED in @objectstack/spec 17.0.0-rc.3 (objectstack#5010, ADR-0049
+      // D2) alongside `actionType` / `actionIcon`. All three are `retiredKey`
+      // tombstones: `DashboardWidgetSchema` types them `never` and refuses any
+      // value, so the field was authoring a parse error into stored metadata
+      // (objectstack#7129). It was also inert on the render side — no dashboard
+      // widget renderer ever read `widget.actionUrl`; every action the
+      // dashboard dispatches comes from `header.actions[]`, which keeps its own
+      // (live, string-typed) `actionUrl`. Do not reintroduce it here: pinned by
+      // `__tests__/WidgetConfigPanel.retiredActionKeys.test.tsx`.
 
       // ----- Appearance (always visible, collapsed by default) ------------
       {
@@ -464,7 +461,18 @@ function resolveLabel(v: unknown): string {
  * removed pre-ADR-0021 inline analytics keys so switching type (or saving a
  * legacy widget) never re-emits the dead shape. Metric-like widgets show a
  * single value, so their `dimensions` are dropped.
+ *
+ * Also scrubs the three widget-level action keys retired in
+ * @objectstack/spec 17.0.0-rc.3 (objectstack#5010, ADR-0049 D2). They are
+ * `retiredKey` tombstones — `DashboardWidgetSchema` types them `never` and
+ * refuses any value — so re-emitting one turns a stored dashboard into a parse
+ * error. The authoring field that produced `actionUrl` is gone (see the
+ * Behavior note in `buildWidgetSchema`); this is the second line of defence,
+ * for a stored widget that already carries the keys or a host that hands the
+ * panel a config containing them (objectstack#7129).
  */
+const RETIRED_ACTION_KEYS = ['actionUrl', 'actionType', 'actionIcon'];
+
 const LEGACY_ANALYTICS_KEYS = [
   'object', 'categoryField', 'categoryGranularity', 'valueField', 'aggregate',
   'aggregation', 'rowField', 'columnField', 'xAxisField', 'yAxisFields',
@@ -478,6 +486,7 @@ export function sanitizeDraftForType(draft: Record<string, any>): Record<string,
   const t = draft.type as string | undefined;
   const out = { ...draft };
   for (const key of LEGACY_ANALYTICS_KEYS) delete out[key];
+  for (const key of RETIRED_ACTION_KEYS) delete out[key];
   if (!usesDimensions(t)) delete out.dimensions;
   return out;
 }
