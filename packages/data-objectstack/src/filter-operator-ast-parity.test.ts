@@ -7,7 +7,7 @@
  */
 
 /**
- * Adapter operator table → filter-AST parity (#2901, objectstack#3948).
+ * Adapter operator table → filter-AST parity (#2901, objectstack#3948, #3641).
  *
  * `FILTER_OPERATOR_ALIASES` is the last translation a filter passes through
  * before it goes on the wire, and `normalizeFilterOperator` ends in `?? op` —
@@ -20,7 +20,31 @@
  * `VIEW_FILTER_OPERATORS` — were missing, which is exactly how a stored
  * "close_date before X" view came back unfiltered.
  *
- * These tests pin the table against the spec vocabularies in both directions.
+ * That failure description is historical, and one part of it has moved (measured
+ * for #3641, not assumed): on the published `@objectstack/driver-sql@17.0.0-rc.5`
+ * the array form is lowered by `parseFilterAST()` at the engine and protocol
+ * doors, and an array reaching the driver anyway is refused with a 400
+ * (`unsupportedFilterError`, objectstack#5158) rather than skipped. What the
+ * protocol door does with an array the AST gate REJECTS is not measurable from
+ * this repo, so whether a missing row costs an unfiltered read or a hard 400
+ * today is deliberately left open. Both are a broken query.
+ *
+ * ## What the coverage guarantee rests on (#3641)
+ *
+ * The coverage sweep below used to mirror production's `?? op` tail: resolve the
+ * operator through the table, fall back to the raw view spelling, then ask
+ * whether the result was a member of `VALID_AST_OPERATORS`. That reads as a
+ * coverage assertion and is not one. `VALID_AST_OPERATORS` is derived upstream
+ * from `AST_OPERATOR_MAP`, it grew until it spelled the canonical view operators
+ * verbatim — `before` and `after` included — and from that moment the fallback
+ * arm was always AST-valid. Emptying this entire table left the sweep green, so
+ * the one thing it existed to catch, a missing row, had become invisible to it.
+ *
+ * The sweep therefore asserts the row EXISTS, with no fallback: the header above
+ * says a missing row is an unfiltered query rather than a validation failure, so
+ * a missing row is what is asserted, directly. What the rows resolve TO is a
+ * separate question, kept as its own assertion below — and the pair that
+ * actually regressed is pinned by spelling, not by membership.
  */
 import { describe, it, expect } from 'vitest';
 import { VALID_AST_OPERATORS } from '@objectstack/spec/data';
@@ -81,17 +105,26 @@ describe('FILTER_OPERATOR_ALIASES lands inside the spec AST vocabulary', () => {
     ).toEqual([]);
   });
 
-  it('covers every canonical view operator the spec defines', () => {
-    const uncovered = VIEW_FILTER_OPERATORS
+  it('has a mapping row for every canonical view operator the spec defines', () => {
+    // Resolution mirrors `normalizeFilterOperator` — lowercased spelling first,
+    // then the operator as written — but stops short of its `?? op` tail. That
+    // tail is production behaviour and must stay there; reproducing it HERE is
+    // what cancelled this assertion (#3641), because the value it falls back to
+    // is the raw view spelling and the AST vocabulary now accepts all of those.
+    const hasRow = (op: string) =>
+      Object.prototype.hasOwnProperty.call(FILTER_OPERATOR_ALIASES, op.toLowerCase())
+      || Object.prototype.hasOwnProperty.call(FILTER_OPERATOR_ALIASES, op);
+
+    const missing = VIEW_FILTER_OPERATORS
       .filter((op) => !NOT_THIS_ADAPTERS_JOB.has(op))
-      .filter((op) => {
-        const target = FILTER_OPERATOR_ALIASES[op] ?? op;
-        return !VALID_AST_OPERATORS.has(String(target).toLowerCase());
-      });
+      .filter((op) => !hasRow(op));
     expect(
-      uncovered,
-      'an author can declare these on a ViewFilterRule and the spec validates them, '
-        + 'but they reach the wire unmapped and the filter is silently dropped',
+      missing,
+      'FILTER_OPERATOR_ALIASES has no row for these. An author can declare them on a '
+        + 'ViewFilterRule and the spec validates them, so they reach the wire as the raw '
+        + 'view spelling. Do not settle for "the AST gate happens to accept that" — the '
+        + 'gate accepting a spelling is not the driver compiling it into a WHERE clause, '
+        + 'and an unmapped operator is how this adapter shipped an unfiltered query',
     ).toEqual([]);
   });
 
