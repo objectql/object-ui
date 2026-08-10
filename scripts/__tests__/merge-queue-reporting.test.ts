@@ -45,6 +45,8 @@ import { fileURLToPath } from 'node:url';
  */
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const workflowDir = path.join(repoRoot, '.github/workflows');
+const DOC = 'content/docs/guide/ci-cd-pipeline.md';
+const doc = fs.readFileSync(path.join(repoRoot, DOC), 'utf8');
 
 /**
  * `filename -> why this workflow must subscribe merge_group`.
@@ -350,6 +352,162 @@ describe('every context reports on every pull request (#3523 step 2)', () => {
             `log has to say what happened (objectstack#4928).`,
         ).not.toMatch(shape);
       }
+    }
+  });
+});
+
+/**
+ * The page's copy of the same list (objectui#4154).
+ *
+ * `content/docs/guide/ci-cd-pipeline.md` opened its `## Merge Queue` section with
+ * "Five workflows subscribe:" and named five, while the map above held six — the
+ * page went stale the moment objectui#3735 added `skills-paths.yml`, and stale
+ * prose reads exactly as authoritative as fresh prose. That is objectui#3261's
+ * defect one subsystem over, and it lands on the one reader the paragraph is
+ * written for: someone deciding whether a new gate of theirs has to subscribe.
+ *
+ * The page now points at `MUST_SUBSCRIBE_MERGE_GROUP` instead of copying it, and
+ * these assertions keep it that way. The honest caveat, recorded rather than
+ * hidden: this pins a copy to a copy, since the map is itself hand-maintained.
+ * What makes that trade worth taking is that the map is read by an assertion —
+ * a member that stops subscribing fails the first test in this file, and a member
+ * that stops existing fails the second — while prose is read by no one until it
+ * has already misled someone.
+ *
+ * Two paragraphs, two different rules, because they are two different kinds of
+ * claim:
+ *
+ *   - the LIVE claim ("which workflows subscribe") may not enumerate and may not
+ *     count. It cannot go stale if it holds no instances;
+ *   - the DATED clause (those four did not subscribe until objectui#3523, PR
+ *     #3722) keeps its four names. A past fact cannot drift, and the sentence
+ *     needs them: "none of the first four" has no antecedent once the live list
+ *     is gone.
+ *
+ * The exemption is therefore granted per PARAGRAPH, anchored on the #3523 link,
+ * rather than to the four names anywhere in the section — otherwise a future
+ * present-tense sentence naming exactly those four would pass while being short
+ * by every subscriber added since, which is this issue verbatim.
+ *
+ * The residual hole, stated rather than left for the next reader to find: a
+ * present-tense list of exactly those four names, written INSIDE the dated
+ * paragraph and carrying no count, still passes. That is a sentence someone has
+ * to author deliberately and falsely; what these assertions exist to stop is
+ * DRIFT, and a page holding no live list cannot drift — a seventh subscriber
+ * changes nothing on it. Every other spelling of the old sentence is red: five of
+ * the six names outside the dated paragraph, any of the two later ones inside it,
+ * and any cardinality anywhere in the section.
+ */
+const HISTORY_ANCHOR = 'objectui/issues/3523';
+
+/**
+ * The workflows the dated clause names — the ones PR #3722 subscribed for
+ * objectui#3523 step 1. Asserted below to be a subset of the map, so the
+ * exemption cannot be widened into a second live list by adding names to it.
+ */
+const HISTORY_NON_SUBSCRIBERS = ['ci.yml', 'lint.yml', 'control-bytes.yml', 'docs-links.yml'];
+
+/**
+ * The `## Merge Queue` section, from its heading to the next `## `.
+ *
+ * The scoping is load-bearing, not tidiness: `ci.yml` has a section of its own
+ * further down the same page and is named dozens of times there, so a whole-file
+ * scan for subscriber names would report all of them.
+ */
+function mergeQueueSection(): string {
+  const start = doc.indexOf('\n## Merge Queue\n');
+  expect(start, `${DOC} must still have a "## Merge Queue" section`).toBeGreaterThan(-1);
+  const rest = doc.slice(start + 1);
+  const next = rest.indexOf('\n## ');
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+/** Blank-line-separated paragraphs; a bullet list is one paragraph, as authored. */
+const paragraphsOf = (section: string): string[] =>
+  section
+    .split(/\n[ \t]*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+/** `ci.yml` but not `eslint.yml`, and not the tail of a longer path. */
+const namesWorkflow = (text: string, file: string): boolean =>
+  new RegExp(`(?<![\\w./-])${file.replace(/\./g, '\\.')}`).test(text);
+
+describe('ci-cd-pipeline.md does not keep its own copy of the subscriber list (#4154)', () => {
+  it('names no current subscriber outside the dated #3523 paragraph', () => {
+    const offenders: string[] = [];
+    for (const paragraph of paragraphsOf(mergeQueueSection())) {
+      const dated = paragraph.includes(HISTORY_ANCHOR);
+      for (const file of MUST_SUBSCRIBE_MERGE_GROUP.keys()) {
+        if (!namesWorkflow(paragraph, file)) continue;
+        if (dated && HISTORY_NON_SUBSCRIBERS.includes(file)) continue;
+        offenders.push(`${file} — in ${dated ? 'the dated #3523 paragraph' : 'a live paragraph'}: "${paragraph.split('\n')[0].slice(0, 72)}…"`);
+      }
+    }
+
+    expect(
+      offenders,
+      `The "## Merge Queue" section of ${DOC} enumerates workflows that subscribe ` +
+        `\`merge_group\` today:\n` +
+        offenders.map((o) => `  - ${o}`).join('\n') +
+        `\n\nThat list belongs in exactly one place, \`MUST_SUBSCRIBE_MERGE_GROUP\` in this file, ` +
+        `which is the copy an assertion reads. A second copy in prose is short by one subscriber ` +
+        `the day the next gate lands and still reads as authoritative — the page said "Five ` +
+        `workflows subscribe" for as long as it took someone to count the YAML (objectui#4154, ` +
+        `the same defect objectui#3261 removed from lint.yml). Point at the map instead. The one ` +
+        `exemption is the dated paragraph linking #3523, which names the four workflows that did ` +
+        `not subscribe before it: that is a past fact and cannot drift.`,
+    ).toEqual([]);
+  });
+
+  it('states no count of subscribing workflows', () => {
+    // "Five workflows subscribe" is the drift itself: a number is wrong the
+    // moment the set changes and nothing on the page can notice.
+    const counted = [
+      ...mergeQueueSection().matchAll(
+        /\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\b[^.\n]{0,24}?workflows?\b/gi,
+      ),
+    ].map((m) => m[0]);
+
+    expect(
+      counted,
+      `The "## Merge Queue" section of ${DOC} hard-codes how many workflows subscribe ` +
+        `\`merge_group\`:\n` +
+        counted.map((c) => `  - "${c}"`).join('\n') +
+        `\n\nThe map in this file is the list; the page states no cardinality, for the same ` +
+        `reason the Core CI section states no job count (objectui#3451) and this page's workflow ` +
+        `inventory states no workflow count (objectui#3212). A count that nothing reads drifts ` +
+        `silently — this one said five while six subscribed (objectui#4154).`,
+    ).toEqual([]);
+  });
+
+  it('keeps the pointer that replaced the list', () => {
+    // Without this, deleting the pointer passes both assertions above: no names,
+    // no count, and nothing telling the reader where the answer actually lives.
+    // Green because nothing was produced is the failure mode this whole file is
+    // about.
+    const section = mergeQueueSection();
+    for (const marker of ['MUST_SUBSCRIBE_MERGE_GROUP', 'scripts/__tests__/merge-queue-reporting.test.ts']) {
+      expect(
+        section,
+        `The "## Merge Queue" section of ${DOC} no longer names \`${marker}\`. The section may ` +
+          `not enumerate subscribers (above), so the pointer is the only thing left that answers ` +
+          `"which workflows subscribe, and why that one?" — dropping it leaves the reader with a ` +
+          `rule and no way to check an instance (objectui#4154).`,
+      ).toContain(marker);
+    }
+  });
+
+  it('keeps the dated exemption honest — its four names are all map entries', () => {
+    for (const file of HISTORY_NON_SUBSCRIBERS) {
+      expect(
+        [...MUST_SUBSCRIBE_MERGE_GROUP.keys()],
+        `HISTORY_NON_SUBSCRIBERS names ${file}, which is not in MUST_SUBSCRIBE_MERGE_GROUP. The ` +
+          `exemption exists for one dated sentence about the four workflows PR #3722 subscribed ` +
+          `(objectui#3523 step 1); it is not a place to park names the live rule would reject. ` +
+          `If ${file} genuinely stopped being a requirable gate, check that the #3523 paragraph ` +
+          `still reads correctly, then update both lists together.`,
+      ).toContain(file);
     }
   });
 });

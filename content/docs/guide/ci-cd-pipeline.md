@@ -73,11 +73,18 @@ checks it requires are green **on that rebuilt commit**. Those runs are a distin
 `merge_group`, on a throwaway `gh-readonly-queue/**` branch — a workflow that does not subscribe
 to that event simply does not run there.
 
-Five workflows subscribe: `ci.yml`, `lint.yml`, `control-bytes.yml`, `docs-links.yml` and
-`changeset-presence.yml` (the last added with the gate itself, in
-[#3387](https://github.com/objectstack-ai/objectui/issues/3387) — a gate that carries no path
-filter reports on every pull request and is therefore requirable, which is exactly the property
-this list tracks). None of the first four did until
+Which workflows subscribe is deliberately not listed here. `MUST_SUBSCRIBE_MERGE_GROUP` in
+`scripts/__tests__/merge-queue-reporting.test.ts` is the maintained list, and the only copy
+anything reads — it records why each entry is on it, and an assertion fails when one of them drops
+the trigger. A copy of it on this page would be right the day it was written and quietly wrong
+after the next subscriber landed, which is exactly what this paragraph used to do
+([#4154](https://github.com/objectstack-ai/objectui/issues/4154)). What is worth knowing here is
+the rule that decides membership, not the instances: a gate that carries no path filter reports on
+every pull request and is therefore requirable — and a requirable context that skips the queue
+build does not fail it, it stalls it.
+
+That rule was learned the expensive way. `ci.yml`, `lint.yml`, `control-bytes.yml` and
+`docs-links.yml` did not subscribe at all until
 [#3523](https://github.com/objectstack-ai/objectui/issues/3523), and the consequence was not subtle. A queue whose required set
 is empty validates nothing: it rebuilds the PR, sees no failing required check because there are
 no required checks, and merges. On 2026-08-07 three pull requests
@@ -100,9 +107,11 @@ queued PR burns an hour and fails, with nothing red to point at.
 
 Two things follow for anyone editing this directory:
 
-- **A workflow producing a context that could ever be required must subscribe `merge_group`.**
-  `scripts/__tests__/merge-queue-reporting.test.ts` holds the list, along with the reason each
-  entry is on it, and fails when one drops the trigger.
+- **A workflow producing a context that could ever be required must subscribe `merge_group`**,
+  and takes an entry in `MUST_SUBSCRIBE_MERGE_GROUP` (above) naming the context it produces. That
+  entry is what fails the build if the workflow later drops the trigger; nothing derives the set,
+  because "may this context be required?" is a property of the repository's settings, which no
+  test here can read.
 - **Some contexts can never be required, structurally**, and no amount of triggering changes that:
   **Changeset Bump Policy** (`changeset-guard.yml`, inverse path filter — absent unless the PR
   touches `.changeset/**`), **Bundle Analysis** (`performance-budget.yml`, path filter),
