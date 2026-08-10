@@ -2087,22 +2087,6 @@ const de = {
       footer: "Sie können den Zugriff jederzeit in Ihren Kontoeinstellungen widerrufen.",
     },
   },
-  // objectui#3546 slice three — the console's own /accept-invitation page.
-  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
-  acceptInvitation: {
-    title: "Organisationseinladung annehmen",
-    description: "Sie wurden eingeladen, einer Organisation beizutreten.",
-    accept: "Einladung annehmen",
-    accepting: "Nehme an…",
-    accepted: "Einladung angenommen",
-    acceptFailed: "Annehmen fehlgeschlagen",
-    decline: "Ablehnen",
-    declining: "Lehne ab…",
-    declined: "Einladung abgelehnt",
-    declineFailed: "Ablehnen fehlgeschlagen",
-    invalidTitle: "Ungültiger Einladungslink",
-    invalidDescription: "In der URL fehlt die Einladungs-ID.",
-  },
   profile: {
     title: "Profil",
     subtitle: "Verwalten Sie Ihre Kontoeinstellungen",

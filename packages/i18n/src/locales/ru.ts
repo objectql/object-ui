@@ -2093,22 +2093,6 @@ const ru = {
       footer: "Вы можете отозвать доступ в любое время в настройках аккаунта.",
     },
   },
-  // objectui#3546 slice three — the console's own /accept-invitation page.
-  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
-  acceptInvitation: {
-    title: "Принять приглашение в организацию",
-    description: "Вас пригласили присоединиться к организации.",
-    accept: "Принять приглашение",
-    accepting: "Принятие…",
-    accepted: "Приглашение принято",
-    acceptFailed: "Не удалось принять",
-    decline: "Отклонить",
-    declining: "Отклонение…",
-    declined: "Приглашение отклонено",
-    declineFailed: "Не удалось отклонить",
-    invalidTitle: "Недействительная ссылка приглашения",
-    invalidDescription: "В URL отсутствует идентификатор приглашения.",
-  },
   profile: {
     title: "Профиль",
     subtitle: "Управляйте настройками своей учётной записи",

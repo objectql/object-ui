@@ -2091,22 +2091,6 @@ const ar = {
       footer: "يمكنك إلغاء الوصول في أي وقت من إعدادات حسابك.",
     },
   },
-  // objectui#3546 slice three — the console's own /accept-invitation page.
-  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
-  acceptInvitation: {
-    title: "قبول دعوة المؤسسة",
-    description: "تمت دعوتك للانضمام إلى مؤسسة.",
-    accept: "قبول الدعوة",
-    accepting: "جارٍ القبول…",
-    accepted: "تم قبول الدعوة",
-    acceptFailed: "تعذّر القبول",
-    decline: "رفض",
-    declining: "جارٍ الرفض…",
-    declined: "تم رفض الدعوة",
-    declineFailed: "تعذّر الرفض",
-    invalidTitle: "رابط دعوة غير صالح",
-    invalidDescription: "معرّف الدعوة غير موجود في عنوان URL.",
-  },
   profile: {
     title: "الملف الشخصي",
     subtitle: "إدارة إعدادات حسابك",

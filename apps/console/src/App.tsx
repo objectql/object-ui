@@ -36,6 +36,7 @@ import {
   DefaultMembersPage,
   DefaultInvitationsPage,
   DefaultSettingsPage,
+  DefaultAcceptInvitationPage,
   DefaultAiChatPage,
   StudioDesignSurface,
   BuilderLanding,
@@ -62,7 +63,6 @@ import { VerifyEmailPromptPage } from './pages/auth/VerifyEmailPromptPage';
 import { SetupPage } from './pages/auth/SetupPage';
 import { OAuthConsentPage } from './pages/auth/OAuthConsentPage';
 import { DeviceAuthPage } from './pages/auth/DeviceAuthPage';
-import { AcceptInvitationPage } from './pages/auth/AcceptInvitationPage';
 
 const AUTH_URL = `${import.meta.env.VITE_SERVER_URL || ''}/api/v1/auth`;
 
@@ -183,9 +183,21 @@ export function App() {
             <Route path="/setup" element={<SetupPage />} />
             <Route path="/oauth/consent" element={<OAuthConsentPage />} />
             <Route path="/auth/device" element={<DeviceAuthPage />} />
+            {/*
+              * Invitation acceptance — app-shell's `DefaultAcceptInvitationPage`
+              * (objectui#3811). This route used to render a console-local thin
+              * page that offered only accept/decline; the app-shell page fetches
+              * the invitation and shows which organization, which role and when
+              * it expires, then switches the user into that organization on
+              * accept. Both were shipped for the same URL under two i18n
+              * namespaces; the thin page and its `acceptInvitation.*` keys are
+              * gone, `organization.accept.*` is the only namespace for this
+              * screen. Rendered bare (no `AuthLayout`) — the page paints its own
+              * full-viewport shell, like the other self-shelled auth surfaces.
+              */}
             <Route
               path="/accept-invitation/:invitationId"
-              element={<AcceptInvitationPage />}
+              element={<DefaultAcceptInvitationPage />}
             />
             {/*
               * Public anonymous form — rendered OUTSIDE ProtectedRoute so

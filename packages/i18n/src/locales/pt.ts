@@ -2086,22 +2086,6 @@ const pt = {
       footer: "Você pode revogar o acesso a qualquer momento nas configurações da sua conta.",
     },
   },
-  // objectui#3546 slice three — the console's own /accept-invitation page.
-  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
-  acceptInvitation: {
-    title: "Aceitar convite da organização",
-    description: "Você foi convidado para entrar em uma organização.",
-    accept: "Aceitar convite",
-    accepting: "Aceitando…",
-    accepted: "Convite aceito",
-    acceptFailed: "Não foi possível aceitar",
-    decline: "Recusar",
-    declining: "Recusando…",
-    declined: "Convite recusado",
-    declineFailed: "Não foi possível recusar",
-    invalidTitle: "Link de convite inválido",
-    invalidDescription: "O identificador do convite não está presente na URL.",
-  },
   profile: {
     title: "Perfil",
     subtitle: "Gerencie as configurações da sua conta",

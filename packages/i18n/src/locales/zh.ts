@@ -2267,22 +2267,6 @@ const zh = {
       footer: '您可以随时在账户设置中撤销访问权限。',
     },
   },
-  // objectui#3546 slice three — the console's own /accept-invitation page.
-  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
-  acceptInvitation: {
-    title: '接受组织邀请',
-    description: '您受邀加入一个组织。',
-    accept: '接受邀请',
-    accepting: '接受中…',
-    accepted: '邀请已接受',
-    acceptFailed: '接受失败',
-    decline: '拒绝',
-    declining: '拒绝中…',
-    declined: '邀请已拒绝',
-    declineFailed: '拒绝失败',
-    invalidTitle: '无效的邀请链接',
-    invalidDescription: 'URL 中缺少邀请 ID。',
-  },
   profile: {
     title: '个人资料',
     subtitle: '管理您的账户设置',

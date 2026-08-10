@@ -2087,22 +2087,6 @@ const ja = {
       footer: "アクセス権はアカウント設定からいつでも取り消せます。",
     },
   },
-  // objectui#3546 slice three — the console's own /accept-invitation page.
-  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
-  acceptInvitation: {
-    title: "組織への招待を承諾",
-    description: "組織に招待されています。",
-    accept: "招待を承諾",
-    accepting: "承諾中…",
-    accepted: "招待を承諾しました",
-    acceptFailed: "承諾できませんでした",
-    decline: "辞退",
-    declining: "辞退中…",
-    declined: "招待を辞退しました",
-    declineFailed: "辞退できませんでした",
-    invalidTitle: "無効な招待リンク",
-    invalidDescription: "URL に招待 ID が含まれていません。",
-  },
   profile: {
     title: "プロフィール",
     subtitle: "アカウント設定を管理します",

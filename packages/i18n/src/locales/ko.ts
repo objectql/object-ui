@@ -2087,22 +2087,6 @@ const ko = {
       footer: "계정 설정에서 언제든지 액세스를 취소할 수 있습니다.",
     },
   },
-  // objectui#3546 slice three — the console's own /accept-invitation page.
-  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
-  acceptInvitation: {
-    title: "조직 초대 수락",
-    description: "조직에 초대되었습니다.",
-    accept: "초대 수락",
-    accepting: "수락 중…",
-    accepted: "초대를 수락함",
-    acceptFailed: "수락할 수 없습니다",
-    decline: "거절",
-    declining: "거절 중…",
-    declined: "초대를 거절함",
-    declineFailed: "거절할 수 없습니다",
-    invalidTitle: "잘못된 초대 링크",
-    invalidDescription: "URL에 초대 ID가 없습니다.",
-  },
   profile: {
     title: "프로필",
     subtitle: "계정 설정을 관리하세요",

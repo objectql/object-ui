@@ -2087,22 +2087,6 @@ const fr = {
       footer: "Vous pouvez révoquer cet accès à tout moment dans les paramètres de votre compte.",
     },
   },
-  // objectui#3546 slice three — the console's own /accept-invitation page.
-  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
-  acceptInvitation: {
-    title: "Accepter l'invitation à l'organisation",
-    description: "Vous avez été invité à rejoindre une organisation.",
-    accept: "Accepter l'invitation",
-    accepting: "Acceptation…",
-    accepted: "Invitation acceptée",
-    acceptFailed: "Impossible d'accepter",
-    decline: "Refuser",
-    declining: "Refus…",
-    declined: "Invitation refusée",
-    declineFailed: "Impossible de refuser",
-    invalidTitle: "Lien d'invitation invalide",
-    invalidDescription: "L'identifiant d'invitation est absent de l'URL.",
-  },
   profile: {
     title: "Profil",
     subtitle: "Gérez les paramètres de votre compte",

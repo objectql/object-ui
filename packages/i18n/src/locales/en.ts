@@ -2351,24 +2351,6 @@ const en = {
       footer: 'You can revoke access at any time from your account settings.',
     },
   },
-  // The console's own `/accept-invitation/:invitationId` page. Distinct from
-  // `organization.accept.*`, which belongs to app-shell's richer page for the
-  // same route (it fetches the invitation and shows org/role/expiry). Two
-  // components, two namespaces — see the note in the slice-three test.
-  acceptInvitation: {
-    title: 'Accept organization invitation',
-    description: "You've been invited to join an organization.",
-    accept: 'Accept invitation',
-    accepting: 'Accepting…',
-    accepted: 'Invitation accepted',
-    acceptFailed: 'Could not accept',
-    decline: 'Decline',
-    declining: 'Declining…',
-    declined: 'Invitation declined',
-    declineFailed: 'Could not decline',
-    invalidTitle: 'Invalid invitation link',
-    invalidDescription: 'The invitation id is missing from the URL.',
-  },
   profile: {
     title: 'Profile',
     subtitle: 'Manage your account settings',
