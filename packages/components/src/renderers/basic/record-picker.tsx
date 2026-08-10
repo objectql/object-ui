@@ -221,8 +221,46 @@ ComponentRegistry.register('record_picker', ElementRecordPickerRenderer, {
   skipFallback: true,
   label: 'Record Picker',
   category: 'input',
+  // `filter` is DECLARED, not merely honoured (objectui#3830) — the fourth key
+  // of objectui#3808's A class, which that issue's own three-way triage dropped
+  // between the raw key dump and the lists. The renderer has read it all along
+  // (`composed?.filter ?? props.filter` above, into `query.$filter`), and the
+  // spec declares it (`ElementRecordPickerProps.filter`), but while it was
+  // missing from this list every layer that reads a manifest said the opposite:
+  // `element:record_picker` is not in `PUBLIC_BLOCKS` ("record picking is a
+  // field widget, not a page block"), so the gap was not in `sdui.manifest.json`
+  // — it was in the JSX-page compiler's prop whitelist, which
+  // `renderers/layout/page.tsx` builds from `getKnownTypes()` plus these same
+  // `inputs`. A JSX page writing `filter` got an `unknown-prop` warning from
+  // `sdui-parser/src/validate.ts` on a key the renderer then went on to filter
+  // by. That is objectui#3407 in the same shape as `readonly` — honoured,
+  // undiscoverable — and the reverse half of the parity gate in
+  // `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts`, whose
+  // explicit exemption for this key is deleted by the same change.
   inputs: [
     { name: 'object', type: 'string', label: 'Object' },
+    {
+      name: 'filter',
+      // `'object'` is the spec's shape, not a chosen arm. `filter` is
+      // `FilterConditionSchema.optional()`, and that schema is
+      // `z.record(z.string(), z.unknown()).and(z.object({ $and, $or, $not }))`
+      // — a plain object. `checkType`'s `'object'` case in
+      // `sdui-parser/src/validate.ts` accepts exactly what the spec accepts
+      // here (a non-null non-array object) and rejects exactly what it rejects
+      // (arrays, strings, numbers, booleans — all verified against
+      // `ElementRecordPickerPropsSchema.safeParse` in the parity test next to
+      // this file). So this is the one case in the family where
+      // `ComponentInput`'s coarse typing costs nothing: no narrowing to name in
+      // the description, unlike `element:text_input.defaultValue`'s
+      // `string | number` (objectui#3832).
+      type: 'object',
+      label: 'Filter',
+      // Taken from what the renderer DOES with the key, because the one thing
+      // an author cannot read off the spec is which of the two places they may
+      // write a filter actually wins.
+      description:
+        'Filter criteria narrowing which records the picker offers, as a spec FilterCondition object — `{ status: "open" }`, or `{ $and: [ … ] }` for a group. It becomes the `$filter` of the picker\'s own query, so it decides which records exist for the user, not merely how they are shown. PRECEDENCE: a node-level `dataSource` binding wins outright. The renderer reads `dataSource.filter ?? filter`, so when the binding — or the saved view its `view` names, which AND-combine with each other because the spec calls the binding\'s filter *additional* — supplies a filter, THIS key is dropped entirely rather than merged into it; it applies only when the node carries no `dataSource`, or that `dataSource` and its view both leave `filter` unset. A rule ARRAY (an ObjectQL AST, or a view\'s rule list) is not a FilterCondition and the spec rejects it here.',
+    },
     { name: 'labelField', type: 'string', label: 'Label Field' },
     { name: 'valueField', type: 'string', label: 'Value Field' },
     { name: 'placeholder', type: 'string', label: 'Placeholder' },

@@ -511,17 +511,12 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   'page:card.body':
     'Retired upstream by objectstack#5775 / PR objectstack#6281 (ADR-0087 D2 tombstone, converging on the `children` this renderer reads and now publishes); declaring it would publish a key the spec rejects by name — objectui#4027. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
 
-  // ── element:record_picker.filter — a real A-class gap, out of scope here ───
-  // The renderer DOES read it (`record-picker.tsx:78`, `ds.filter ?? props.filter`,
-  // into `query.$filter` at :103) and the spec DOES declare it, so by the bar
-  // above this key should be declared, not exempted. It is exempted because
-  // objectui#3808's own three-class triage never sorted it into A, B or C — it
-  // appears in that issue's raw key dump and then in none of the three lists —
-  // so it fell outside the dispatched scope of the change that added this gate.
-  // Filed as objectui#3830 with the same evidence, rather than widened into a
-  // PR nobody reviewed for it.
-  'element:record_picker.filter':
-    'A genuine A-class gap (renderer reads it at record-picker.tsx:78 → query.$filter at :103), not a deliberate omission — it fell out of objectui#3808\'s three-class triage and so out of that PR\'s scope. Owned by objectui#3830; delete this entry when it declares the input.',
+  // `element:record_picker.filter` was the ninth entry here — a real A-class gap
+  // that fell out of objectui#3808's three-class triage, exempted only because it
+  // was outside that PR's dispatched scope. objectui#3830 declared the input, so
+  // the entry stopped describing anything and `carries no stale unpublished-key
+  // exemption` demanded its deletion. It is now pinned as DECLARED, by name,
+  // alongside #3808's four at the bottom of this file.
 
   // ── targetVariable — the spec's own "declarative hint" (2 keys) ────────────
   // Zero read points repo-wide (`grep -rn targetVariable packages/ apps/` is
@@ -676,8 +671,10 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
 
   it('every unpublished-key exemption states a reason and references a tracking issue', () => {
     // The discipline that separates "deliberately not published, and here is who
-    // owns the decision" from "we forgot". Four of the nine entries below exist
-    // only because objectui#3829 / #3830 / #3834 were opened to own them.
+    // owns the decision" from "we forgot". Four of the nine entries once here
+    // existed only because objectui#3829 / #3830 / #3834 were opened to own
+    // them, and #3830's is already gone — declaring the input is what retires an
+    // entry, which is the point of the stale check below.
     const unjustified = Object.entries(UNPUBLISHED_EXEMPTIONS)
       .filter(([, reason]) => !/#\d+/.test(reason))
       .map(([key]) => key);
@@ -699,17 +696,26 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     expect(stale).toEqual([]);
   });
 
-  it('the four keys objectui#3808 declared are discoverable, block by block', () => {
+  it('the five A-class keys objectui#3808 / #3830 declared are discoverable, block by block', () => {
     // Named, not just covered by the derived loop above. The derived assertion
-    // would also pass if these four were added to `UNPUBLISHED_EXEMPTIONS`
+    // would also pass if these five were added to `UNPUBLISHED_EXEMPTIONS`
     // instead of declared — which is precisely the move #3808 exists to rule
     // out — so the keys it fixed are pinned by name, and pinned as DECLARED
     // rather than merely "not failing".
+    //
+    // The fifth is objectui#3830's `element:record_picker.filter`, the A-class
+    // key #3808's own triage dropped between its raw key dump and its three
+    // lists. It is listed HERE, in the same place as the other four, because it
+    // is the same fact about the same gate: the entry that used to exempt it
+    // (deleted above) is not evidence of anything once the input exists, and a
+    // future change that dropped the declaration and re-added the exemption
+    // would restore the gap while leaving every derived assertion green.
     const fixed: Array<[string, string]> = [
       ['record:details', 'hideFields'],
       ['record:related_list', 'relationshipValueField'],
       ['record:related_list', 'add'],
       ['element:text_input', 'defaultValue'],
+      ['element:record_picker', 'filter'],
     ];
     for (const [type, key] of fixed) {
       expect(specTopLevelKeys(type), `${type} spec no longer declares ${key}`).toContain(key);
