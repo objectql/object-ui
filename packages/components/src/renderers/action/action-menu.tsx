@@ -31,6 +31,7 @@ import { cn } from '../../lib/utils';
 import { Loader2, MoreHorizontal } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
 import { hasDeclaredVisibilityGate } from './visibility-gate';
+import { hasAutoTrigger, useAutoTriggerOnce } from './auto-trigger';
 
 function useMoreActionsLabel(): string {
   // useObjectTranslation is provider-safe (never throws); no try/catch, which
@@ -137,6 +138,40 @@ export const ActionMenuItem: React.FC<{
 
 ActionMenuItem.displayName = 'ActionMenuItem';
 
+/**
+ * The menu's `autoTrigger` consumption point (#4162) — renders NOTHING and
+ * executes its action once, through the same `handleExecute` a click uses.
+ *
+ * ## Why a headless component per action, and not the item
+ *
+ * The consumption point has to be where the action provably ARRIVES, which is
+ * this renderer receiving it in `schema.actions`. It cannot be `ActionMenuItem`:
+ * the items live inside `DropdownMenuContent`, which Radix mounts only when the
+ * dropdown OPENS, so an effect there would wait on the very click the flag
+ * exists to avoid — and would make the trigger's open state, not the action,
+ * decide whether a deep link runs. These mount with the menu itself.
+ *
+ * ## Why a component rather than a loop of hooks
+ *
+ * One `useAutoTriggerOnce` per action is the point (the guard is per action, so
+ * two flagged actions each run once), and hooks cannot be called in a loop.
+ * One instance per action, keyed by name, gives each its own guard ref for the
+ * menu's lifetime. They are rendered for EVERY action, not only the flagged
+ * ones, so the ref survives the flag flipping — mounting on the flip and
+ * unmounting on the flip-back would hand a true→false→true action a fresh ref
+ * and fire it twice, where `action:button`'s long-lived ref fires once.
+ */
+const ActionAutoTrigger: React.FC<{
+  action: ActionSchema;
+  onExecute: (action: ActionSchema) => Promise<void>;
+}> = ({ action, onExecute }) => {
+  const run = useCallback(() => onExecute(action), [action, onExecute]);
+  useAutoTriggerOnce(hasAutoTrigger(action), run);
+  return null;
+};
+
+ActionAutoTrigger.displayName = 'ActionAutoTrigger';
+
 const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSchema; [key: string]: any }>(
   ({ schema, className, ...props }, ref) => {
     const {
@@ -214,48 +249,72 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
     if (actions.length === 0) return null;
 
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            ref={ref}
-            type="button"
-            variant={variant as any}
-            size={size as any}
-            className={cn(
-              size === 'icon' && 'h-8 w-8',
-              schema.className,
-              className,
-            )}
-            disabled={loading}
-            aria-label={schema.label || moreActionsLabel}
-            {...rest}
-            {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
-          >
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                {/* eslint-disable-next-line react-hooks/static-components -- resolveIcon returns a stable icon component from a static registry, not one created during render */}
-                <TriggerIcon className={cn('h-4 w-4', schema.label && 'mr-2')} />
-                {schema.label && <span>{schema.label}</span>}
-              </>
-            )}
-          </Button>
-        </DropdownMenuTrigger>
+      <>
+        {/*
+          `autoTrigger` is a property of the ACTION, so this renderer honours it
+          for the actions it receives — an action does not lose its auto-trigger
+          for having sorted past `action:bar`'s `maxVisible` (#4162). Executing
+          is the whole consumption: the dropdown is deliberately NOT opened, so
+          a transport flag never moves what the user sees. Rendered outside
+          `DropdownMenuContent` on purpose — see `ActionAutoTrigger`.
 
-        <DropdownMenuContent align="end">
-          {actions.map((action, index) => {
-            // Render separator for actions tagged with 'separator-before'
-            const showSeparator = action.tags?.includes('separator-before') && index > 0;
-            return (
-              <React.Fragment key={action.name || index}>
-                {showSeparator && <DropdownMenuSeparator />}
-                <ActionMenuItem action={action} onExecute={handleExecute} record={data} />
-              </React.Fragment>
-            );
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
+          Placed after this renderer's early returns, which is the same rule
+          `action:bar` already follows: a container that renders nothing mounts
+          no children, so a hidden bar's inline `autoTrigger` button never fires
+          either. Container visibility governs mounting; the action's own
+          `visible` gate does not suppress the trigger (parity with
+          `action:button`, whose effect runs even when its gate renders null).
+        */}
+        {actions.map((action, index) => (
+          <ActionAutoTrigger
+            key={`auto-trigger:${action.name || index}`}
+            action={action}
+            onExecute={handleExecute}
+          />
+        ))}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              ref={ref}
+              type="button"
+              variant={variant as any}
+              size={size as any}
+              className={cn(
+                size === 'icon' && 'h-8 w-8',
+                schema.className,
+                className,
+              )}
+              disabled={loading}
+              aria-label={schema.label || moreActionsLabel}
+              {...rest}
+              {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  {/* eslint-disable-next-line react-hooks/static-components -- resolveIcon returns a stable icon component from a static registry, not one created during render */}
+                  <TriggerIcon className={cn('h-4 w-4', schema.label && 'mr-2')} />
+                  {schema.label && <span>{schema.label}</span>}
+                </>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent align="end">
+            {actions.map((action, index) => {
+              // Render separator for actions tagged with 'separator-before'
+              const showSeparator = action.tags?.includes('separator-before') && index > 0;
+              return (
+                <React.Fragment key={action.name || index}>
+                  {showSeparator && <DropdownMenuSeparator />}
+                  <ActionMenuItem action={action} onExecute={handleExecute} record={data} />
+                </React.Fragment>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </>
     );
   },
 );

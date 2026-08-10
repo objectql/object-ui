@@ -17,7 +17,7 @@
  * - Variant / size / className overrides from schema
  */
 
-import React, { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { ActionSchema } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
@@ -27,6 +27,7 @@ import { cn } from '../../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
 import { hasDeclaredVisibilityGate } from './visibility-gate';
+import { hasAutoTrigger, useAutoTriggerOnce } from './auto-trigger';
 
 export interface ActionButtonProps {
   schema: ActionSchema & { type: string; className?: string; actionType?: string };
@@ -147,20 +148,13 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
 
     // Client-side auto-trigger (#844): a caller (e.g. a welcome-page CTA that
     // deep-links into "create") can mark an action `autoTrigger: true` to run
-    // it once as soon as the button mounts — the exact same execute path as a
-    // click, so param dialogs / confirms / entitlement gates all still apply.
-    // NOT persisted metadata: the flag only exists on client-composed schemas.
-    // The ref guards re-fires across re-renders; the flag flipping true later
-    // (state-dependent toolbars) still triggers exactly once.
-    const autoTriggered = useRef(false);
-    const autoTrigger = (schema as any).autoTrigger === true;
-    useEffect(() => {
-      if (!autoTrigger || autoTriggered.current) return;
-      autoTriggered.current = true;
-      void handleClick();
-      // handleClick identity changes with schema/context churn; the ref makes
-      // this once-only regardless, so it's safe to depend on it.
-    }, [autoTrigger, handleClick]);
+    // it once as soon as the button receives it — the exact same execute path
+    // as a click, so param dialogs / confirms / entitlement gates all still
+    // apply. The guard and the flag test live in `./auto-trigger` because this
+    // is no longer the only consumer: `action:menu` runs the same contract for
+    // the actions that spill past `action:bar`'s `maxVisible` (#4162), and
+    // once-ness written twice is two behaviours waiting to drift.
+    useAutoTriggerOnce(hasAutoTrigger(schema), handleClick);
 
     // A declared boolean `visible: false` is a verdict, not a missing gate —
     // truthiness classified it as "ungated" and rendered the action for
