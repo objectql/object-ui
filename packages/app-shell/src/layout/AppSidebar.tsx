@@ -63,6 +63,13 @@ import { useRecentItems } from '../hooks/useRecentItems';
 import { useFavorites } from '../hooks/useFavorites';
 import { useNavPins } from '../hooks/useNavPins';
 import { resolveI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
+// Two resolvers, two vocabularies — the alias is what keeps them apart.
+// `resolveI18nLabel` above is objectui's own and resolves a TRANSLATION-KEY ref
+// (`{ key, defaultValue, params }`) through i18next. `resolveInlineI18nLabel` is
+// the spec's `resolveI18nLabel`, new in @objectstack/spec 17.0.0-rc.6, and
+// resolves the INLINE per-locale map (`{ en: …, 'zh-CN': … }`) that the same
+// release folded into `I18nLabel`. Neither accepts the other's shape.
+import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { useAppContextSelectors } from './ContextSelectors';
 
@@ -143,7 +150,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   const isWorkspaceAdmin = useIsWorkspaceAdmin();
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useObjectTranslation();
+  const { t, language } = useObjectTranslation();
   const { objectLabel: resolveNavObjectLabel, viewLabel: resolveNavViewLabel } = useObjectLabel();
 
   // Swipe-from-left-edge gesture to open sidebar on mobile
@@ -514,15 +521,23 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                    {visibleAreas.map((area) => {
                      const AreaIcon = getIcon(area.icon);
                      const isActiveArea = area.id === activeArea?.id;
+                     // `NavigationArea.label` is the spec's `I18nLabel`, which
+                     // @objectstack/spec 17.0.0-rc.6 widened from plain `string`
+                     // to `string | Record<string, string>` (the inline
+                     // per-locale map, folded in from the retired `I18nObject`).
+                     // Rendering it raw would print `[object Object]` for the
+                     // map form, so it goes through the spec's own shared
+                     // resolver rather than a local guess.
+                     const areaLabel = resolveInlineI18nLabel(area.label, language);
                      return (
                        <SidebarMenuItem key={area.id}>
                          <SidebarMenuButton
                            isActive={isActiveArea}
-                           tooltip={area.label}
+                           tooltip={areaLabel}
                            onClick={() => setActiveAreaId(area.id)}
                          >
                            <AreaIcon className="h-4 w-4" />
-                           <span>{area.label}</span>
+                           <span>{areaLabel}</span>
                          </SidebarMenuButton>
                        </SidebarMenuItem>
                      );

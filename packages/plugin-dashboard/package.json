@@ -43,7 +43,7 @@
   },
   "devDependencies": {
     "@object-ui/plugin-charts": "workspace:*",
-    "@objectstack/spec": "^17.0.0-rc.5",
+    "@objectstack/spec": "^17.0.0-rc.6",
     "@types/react-grid-layout": "^2.1.0",
     "@vitejs/plugin-react": "^6.0.5",
     "react-grid-layout": "^2.2.4",

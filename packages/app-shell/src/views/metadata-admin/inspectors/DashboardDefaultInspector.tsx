@@ -45,6 +45,14 @@ import { SchemaForm } from '../SchemaForm';
 import { getDashboardForm, getDashboardSchema } from '../dashboard-schema';
 import { mergeServerFields } from '../mergeServerFields';
 import { t } from '../i18n';
+// `DashboardWidget.title` is the spec's `I18nLabel`, which @objectstack/spec
+// 17.0.0-rc.6 widened from plain `string` to `string | Record<string, string>`
+// (the inline per-locale map, folded in from the retired `I18nObject`). Every
+// read below lands in a text slot — a `<button>` child, an HTML `title=`, a
+// selection label typed `string` — so each one resolves through the spec's own
+// shared resolver first. Rendering the map form raw prints `[object Object]`,
+// which is the exact harm the resolver's own doc comment names.
+import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 
 type DashboardWidget = DashboardWidgetSchema & { id: string };
 
@@ -106,7 +114,10 @@ export function DashboardDefaultInspector({
     onSelectionChange?.({
       kind: 'widget',
       id: widget.id,
-      label: widget.title || widget.id || `Widget ${index + 1}`,
+      label:
+        resolveInlineI18nLabel(widget.title, locale) ||
+        widget.id ||
+        `Widget ${index + 1}`,
     });
   };
 
@@ -202,9 +213,11 @@ export function DashboardDefaultInspector({
                     type="button"
                     className="min-w-0 flex-1 truncate text-left font-medium"
                     onClick={() => selectWidget(w, i)}
-                    title={w?.title || w?.id}
+                    title={resolveInlineI18nLabel(w?.title, locale) || w?.id}
                   >
-                    {w?.title || w?.id || `Widget ${i + 1}`}
+                    {resolveInlineI18nLabel(w?.title, locale) ||
+                      w?.id ||
+                      `Widget ${i + 1}`}
                   </button>
                   <code className="text-[10px] text-muted-foreground">{w?.type}</code>
                   {!readOnly && (

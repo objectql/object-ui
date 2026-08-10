@@ -23,6 +23,9 @@ import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewErrorBoundary, PreviewMessage } from './PreviewShell';
 import { uniqueId, appendArray } from '../inspectors/_shared';
 import { t as tr } from '../i18n';
+// The spec's own `I18nLabel` resolver, aliased so it is never confused with
+// objectui's same-named translation-KEY resolver in `app-shell/src/utils`.
+import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { AddWidgetPicker } from './AddWidgetPicker';
 import { WIDGET_TYPE_META } from './widget-types';
 
@@ -62,10 +65,14 @@ export function DashboardPreview({
       onSelectionChange({
         kind: 'widget',
         id: widgetId,
-        label: w?.title || widgetId,
+        // `DashboardWidget.title` became `string | Record<string, string>` in
+        // @objectstack/spec 17.0.0-rc.6 (`I18nLabel` absorbed the inline
+        // per-locale map). `SelectionChange.label` is a `string`, so the map
+        // form is resolved here rather than stringified at the render site.
+        label: resolveInlineI18nLabel(w?.title, locale) || widgetId,
       });
     },
-    [onSelectionChange, widgets],
+    [onSelectionChange, widgets, locale],
   );
 
   const handleReorder = React.useCallback(

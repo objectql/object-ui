@@ -15,8 +15,13 @@
  * `maxVisible` threshold are grouped into an overflow "More" dropdown.
  *
  * This is the "bridge" component that connects ActionSchema metadata to the UI,
- * enabling server-driven action rendering at list_toolbar, record_header,
- * list_item, record_more, record_related, and global_nav locations.
+ * enabling server-driven action rendering at every location the spec declares:
+ * list_toolbar, list_item, record_header, record_more, record_related and
+ * record_section. (`global_nav` used to close that list; it was retired from
+ * `ACTION_LOCATIONS` in @objectstack/spec 17.0.0-rc.6 — objectstack#6888 — as a
+ * location no running-app surface ever rendered. The enum this component
+ * publishes is `[...ACTION_LOCATIONS]`, so it followed the retirement on its
+ * own; only this prose had to be aligned.)
  *
  * @example
  * ```tsx

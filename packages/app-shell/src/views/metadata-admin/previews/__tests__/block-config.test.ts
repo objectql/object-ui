@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PageComponentType, RecordDetailsProps } from '@objectstack/spec/ui';
+import { ACTION_LOCATIONS, PageComponentType, RecordDetailsProps } from '@objectstack/spec/ui';
 import { BLOCK_CONFIG, blockHasConfig, type PlaceholderSpec } from '../block-config';
 import { BLOCK_TYPE_META, PALETTE_EXCLUSIONS } from '../block-types';
 import { t } from '../../i18n';
@@ -242,5 +242,44 @@ describe('page palette ↔ spec PageComponentType coverage', () => {
       (t) => specNames.includes(t) && !(t in (BLOCK_TYPE_META as Record<string, unknown>)),
     );
     expect(orphanPanels, 'these expose a config panel but cannot be authored').toEqual([]);
+  });
+
+  describe("record:quick_actions `location` — the designer's action-location dropdown", () => {
+    const locationField = () =>
+      BLOCK_CONFIG['record:quick_actions'].find((f) => f.name === 'location') as
+        | { options?: Array<{ value: string }> }
+        | undefined;
+
+    // POSITIVE half. Without it the negative pin below passes on an empty
+    // option list, which is how a deleted dropdown reads as a passing test.
+    it('offers exactly the locations the spec declares', () => {
+      const offered = (locationField()?.options ?? []).map((o) => o.value);
+      expect([...offered].sort()).toEqual([...ACTION_LOCATIONS].sort());
+    });
+
+    // NEGATIVE pin, converted from the coverage the removed option used to
+    // carry. `global_nav` was retired from `ACTION_LOCATIONS` in
+    // @objectstack/spec 17.0.0-rc.6 (objectstack#6888, maintainer ruling
+    // 2026-08-09 direction 2): no running-app surface ever rendered it, and the
+    // console's ⌘K palette reads no action metadata at all. An option the
+    // schema now rejects by name must not be offerable, or the designer teaches
+    // authors — and every AI copying this corpus — to write metadata that fails
+    // to parse.
+    it('does NOT offer the retired global_nav location', () => {
+      const offered = (locationField()?.options ?? []).map((o) => o.value);
+      expect(offered.length, 'option list is empty — the pin would be vacuous').toBeGreaterThan(0);
+      expect(offered).not.toContain('global_nav');
+      expect(ACTION_LOCATIONS as readonly string[]).not.toContain('global_nav');
+    });
+
+    // The i18n side of the same removal: an option key kept past its option is
+    // dead vocabulary the next author reads as a live surface, so BOTH locale
+    // tables lost `…option.location.global_nav`. `t()` returns the key
+    // unchanged on a miss, which is exactly "this locale has no translation".
+    it('has no leftover translation for the retired option in either locale', () => {
+      const key = 'engine.inspector.pageBlock.option.location.global_nav';
+      expect(t(key, 'en-US')).toBe(key);
+      expect(t(key, 'zh-CN')).toBe(key);
+    });
   });
 });

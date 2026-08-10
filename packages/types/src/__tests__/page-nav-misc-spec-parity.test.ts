@@ -561,8 +561,9 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
     ['PageRegion', 'PageNodeRegion'],
     ['PageRegionSchema', 'PageNodeRegionSchema'],
     ['ResponsiveConfig', 'MobileResponsiveConfig'],
-    ['WidgetManifest', 'RuntimeWidgetManifest'],
-    ['WidgetSource', 'RuntimeWidgetSource'],
+    // `WidgetManifest` / `WidgetSource` moved OUT of this list on the
+    // 17.0.0-rc.6 bump — see the block below. The tripwire fired for the second
+    // time, the same way objectui#3363 recorded the first.
   ])('the spec still owns `%s`, which is why the rename to `%s` happened', (owned) => {
     // The other direction of the tripwire: if the spec RETIRES one of these,
     // the local dialect can take the natural name back. A workaround should not
@@ -586,6 +587,38 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
    *
    * The third did not move — see the `OfflineConfig` block below.
    */
+  /**
+   * THE TRIPWIRE FIRED A SECOND TIME, on the @objectstack/spec 17.0.0-rc.6 bump
+   * (objectstack#7100). rc.6 retired the whole widget-manifest vocabulary —
+   * `WidgetManifest`, `WidgetSource`, `WidgetProperty`, `WidgetEvent`,
+   * `WidgetLifecycle` and their `…Schema`/`…Parsed` twins — so the spec stopped
+   * owning the two names that forced this package's `Runtime…` prefixes, and
+   * both rows moved from the "spec still owns" list above to this one.
+   *
+   * NOT reclaimed here, deliberately. The reclaim is available, not required:
+   * `RuntimeWidgetManifest`/`RuntimeWidgetSource` are exported names, so taking
+   * the bare names back is a cross-package rename with its own review, and this
+   * PR is a `global_nav` retirement that the bump merely rides under. What the
+   * rows below do is keep the vacancy PINNED — if the spec re-publishes either
+   * name while objectui holds it, that is a live collision, and this goes red.
+   * The unlock is recorded rather than taken: objectui#4164.
+   */
+  it.each([
+    ['WidgetManifest', 'RuntimeWidgetManifest'],
+    ['WidgetSource', 'RuntimeWidgetSource'],
+  ])(
+    'the spec no longer owns `%s`, so `%s` keeps its prefix by choice, not by force (objectstack#7100)',
+    (vacated) => {
+      expect(
+        names,
+        `spec owns '${vacated}' again. The rc.6 retirement that vacated it has ` +
+          `been undone upstream, so the prefix on the local dialect is load-bearing ` +
+          `again — move this row back to the "spec still owns" list, and re-triage ` +
+          `any reclaim planned in objectui#4164.`,
+      ).not.toContain(vacated);
+    },
+  );
+
   it.each([
     ['GestureType', 'TouchGestureType'],
     ['GestureConfig', 'TouchGestureConfig'],

@@ -49,6 +49,10 @@ import { useFavorites } from '../hooks/useFavorites';
 import { useNavPins } from '../hooks/useNavPins';
 import { useNavActionDispatch } from '../hooks/useNavActionDispatch';
 import { resolveI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
+// Aliased to keep it apart from objectui's own `resolveI18nLabel` above: this is
+// the spec's resolver (new in @objectstack/spec 17.0.0-rc.6) for the INLINE
+// per-locale map form of `I18nLabel`, not for a translation-key ref.
+import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 // useObjectLabel provides appLabel/appDescription for convention-based
 // i18n lookup — `{ns}.apps.{name}.label` resolves to the translated label
@@ -152,7 +156,7 @@ function isOverviewGroup(item: NavigationItem): boolean {
 export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
   const { isMobile, setOpenMobile } = useSidebar();
   const location = useLocation();
-  const { t } = useObjectTranslation();
+  const { t, language } = useObjectTranslation();
   const { objectLabel: resolveNavObjectLabel, dashboardLabel: resolveNavDashboardLabel, navGroupLabel: resolveNavGroupLabel, viewLabel: resolveNavViewLabel } = useObjectLabel();
   const { context, currentAppName } = useNavigationContext();
   const { user, activeOrganization } = useAuth();
@@ -506,15 +510,21 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
                    {visibleAreas.map((area) => {
                      const AreaIcon = getIcon(area.icon);
                      const isActiveArea = area.id === activeArea?.id;
+                     // Same as AppSidebar: `NavigationArea.label` is the spec's
+                     // `I18nLabel`, widened in @objectstack/spec 17.0.0-rc.6 to
+                     // `string | Record<string, string>`, so the inline
+                     // per-locale form has to be resolved before it reaches a
+                     // text slot or it renders as `[object Object]`.
+                     const areaLabel = resolveInlineI18nLabel(area.label, language);
                      return (
                        <SidebarMenuItem key={area.id}>
                          <SidebarMenuButton
                            isActive={isActiveArea}
-                           tooltip={area.label}
+                           tooltip={areaLabel}
                            onClick={() => setActiveAreaId(area.id)}
                          >
                            <AreaIcon className="h-4 w-4" />
-                           <span>{area.label}</span>
+                           <span>{areaLabel}</span>
                          </SidebarMenuButton>
                        </SidebarMenuItem>
                      );

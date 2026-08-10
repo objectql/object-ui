@@ -119,8 +119,15 @@ const PARAM_TYPE_OPTS = [
  * the spec ADDS is a missing-key error here rather than a silently absent
  * dropdown entry, and one it REMOVES is an excess-property error.
  *
+ * That mechanism is what fired here: `@objectstack/spec` 17.0.0-rc.6 retired
+ * `global_nav` from `ACTION_LOCATIONS` (objectstack#6888), and the entry that
+ * used to sit at the end of this map — `'Global nav / command palette'` —
+ * became a TS2353 excess property the moment the resolved vocabulary dropped to
+ * six. It is removed rather than re-typed; the six below are the whole
+ * vocabulary.
+ *
  * Insertion order is the display order — an authoring-friendly grouping
- * (record → list → global), deliberately not the spec's declaration order.
+ * (record → list), deliberately not the spec's declaration order.
  */
 const LOCATION_LABELS: Record<ActionLocation, string> = {
   record_header: 'Record header',
@@ -129,7 +136,6 @@ const LOCATION_LABELS: Record<ActionLocation, string> = {
   record_related: 'Record · related list',
   list_toolbar: 'List toolbar',
   list_item: 'List · row',
-  global_nav: 'Global nav / command palette',
 };
 
 const LOCATIONS: Array<{ value: ActionLocation; label: string }> = (

@@ -31,7 +31,7 @@
     "@object-ui/plugin-grid": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@objectstack/spec": "^17.0.0-rc.5",
+    "@objectstack/spec": "^17.0.0-rc.6",
     "class-variance-authority": "^0.7.1",
     "lucide-react": "^1.29.0"
   },

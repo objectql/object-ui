@@ -92,11 +92,15 @@ const DROPPED_SCHEMA_EXPORTS = [
   'AriaPropsSchema',
   // I18n
   'I18nLabelSchema',
-  'I18nObjectSchema',
-  'LocaleConfigSchema',
-  'PluralRuleSchema',
-  'DateFormatSchema',
-  'NumberFormatSchema',
+  // `I18nObjectSchema`, `LocaleConfigSchema`, `PluralRuleSchema`,
+  // `DateFormatSchema` and `NumberFormatSchema` were removed from this list on
+  // the @objectstack/spec 17.0.0-rc.6 bump (objectstack#7100): the spec RETIRED
+  // all five, so each row asserted "this name is not re-exported from
+  // @object-ui/types" about a name that no longer exists anywhere — vacuously
+  // true forever, which is what the guard above this list exists to catch.
+  // `I18nLabelSchema` SURVIVES rc.6 and stays denied; the release folded the
+  // per-locale record form into `I18nLabel` itself (`string` →
+  // `string | Record<string, string>`) and ships `resolveI18nLabel` for it.
   // Responsive Design
   'SpecResponsiveConfigSchema',
   'BreakpointColumnMapSchema',

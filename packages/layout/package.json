@@ -42,7 +42,7 @@
     "react-router-dom": "^6.0.0 || ^7.0.0"
   },
   "devDependencies": {
-    "@objectstack/spec": "^17.0.0-rc.5",
+    "@objectstack/spec": "^17.0.0-rc.6",
     "@vitejs/plugin-react": "^6.0.5",
     "react-router-dom": "^7.18.2",
     "vite": "^8.2.1",

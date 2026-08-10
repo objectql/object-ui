@@ -327,8 +327,19 @@ export const DashboardWidgetSchema = specFieldsExcept(SpecDashboardWidgetSchema.
  *    that object form, which the spec's `string | number | boolean` rejects.
  *
  * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
+ *
+ * `.safeExtend`, not `.extend`, since @objectstack/spec 17.0.0-rc.6: the spec's
+ * `GlobalFilterSchema` now carries a refinement, and zod 4 refuses `.extend()`
+ * on a refined object outright — *"Cannot overwrite keys on object schemas
+ * containing refinements. Use `.safeExtend()` instead."* — which threw at
+ * MODULE LOAD and took six `@object-ui/types` suites down with it before this
+ * file ran a single test. `.safeExtend` is zod's own prescribed replacement and
+ * KEEPS the refinement (measured: one check before, one check after), so the
+ * spec's cross-field rule still runs on objectui's dialect. That is the
+ * behaviour we want — the three divergences below widen individual FIELDS, and
+ * were never meant to switch off a whole-object rule.
  */
-export const GlobalFilterSchema = SpecGlobalFilterSchema.extend({
+export const GlobalFilterSchema = SpecGlobalFilterSchema.safeExtend({
   options: z.array(z.union([
     z.string(),
     z.object({

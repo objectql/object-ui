@@ -41,7 +41,7 @@
     "@object-ui/types": "workspace:*"
   },
   "devDependencies": {
-    "@objectstack/spec": "^17.0.0-rc.5",
+    "@objectstack/spec": "^17.0.0-rc.6",
     "@types/react": "19.2.18",
     "react": "19.2.8",
     "typescript": "^6.0.3",
