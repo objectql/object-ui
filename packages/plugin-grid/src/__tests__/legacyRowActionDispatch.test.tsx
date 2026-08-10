@@ -30,7 +30,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 
 vi.mock('@object-ui/permissions', () => ({
-  usePermissions: () => ({ isLoaded: false, checkField: () => true, getObjectApiOperations: () => undefined }),
+  usePermissions: () => ({ isLoaded: false, checkField: () => true, getObjectApiOperations: () => undefined, can: () => true }),
 }));
 
 import { ObjectGrid } from '../ObjectGrid';

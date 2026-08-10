@@ -6,8 +6,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import React from 'react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, waitFor, screen, cleanup } from '@testing-library/react';
+import { ComponentRegistry } from '@object-ui/core';
 import { ListView } from '../ListView';
 import { SchemaRendererProvider } from '@object-ui/react';
 import { PermissionProvider } from '@object-ui/permissions';
@@ -121,5 +123,113 @@ describe('ListView – field-level permission gating (negative)', () => {
     const select = lastSelect();
     expect(select).toBeDefined();
     expect(select).toContain('annual_revenue');
+  });
+});
+
+/**
+ * [#4096] The NON-grid bulk bar (kanban / calendar / gallery / …), which
+ * ListView renders itself — the grid path delegates to ObjectGrid, which gates
+ * its own.
+ *
+ * The built-in `delete` entry used to be gated on the object's resolved delete
+ * affordance alone: the ADR-0103 bucket ∧ `userActions.delete` ∧ the server's
+ * `apiOperations`. All three describe the OBJECT. `apiOperations` in particular
+ * is byte-identical across accounts with opposite write grants, so the most
+ * destructive control on a board stayed visible for a principal with no
+ * `allowDelete` — the same defect the main list's row kebab carried. It now
+ * also ANDs `can(obj, 'delete')`.
+ *
+ * Both directions plus the no-provider fail-open are pinned here.
+ */
+function makeObjectPermissions(allowDelete: boolean): ObjectPermissionConfig {
+  return {
+    object: 'account',
+    roles: {
+      restricted: {
+        roleName: 'restricted',
+        // `evaluatePermission` reads the role's `actions` list, so the grant
+        // has to live there — `objectPermissions` drives the field-level gate.
+        actions: allowDelete ? ['read', 'delete'] : ['read'],
+        objectPermissions: { read: true, create: false, update: false, delete: allowDelete },
+      },
+    },
+  };
+}
+
+const galleryBulkSchema: ListViewSchema = {
+  type: 'list-view',
+  objectName: 'account',
+  viewType: 'gallery',
+  fields: ['name', 'industry'],
+  bulkActions: ['delete', 'archive'] as any,
+};
+
+/**
+ * Stand in for the gallery renderer and select a row as soon as it mounts —
+ * the bulk bar only renders with a non-empty selection, and driving the real
+ * gallery's selection UI would couple this permission assertion to that
+ * component's markup.
+ */
+function registerSelectingGallery() {
+  ComponentRegistry.register('object-gallery', (props: any) => {
+    const onRowSelect = props.onRowSelect;
+    React.useEffect(() => {
+      onRowSelect?.([{ id: 'A1', name: 'Acme Co' }]);
+    }, [onRowSelect]);
+    return <div data-testid="gallery-stub" />;
+  });
+}
+
+/** `permissions: null` renders with NO PermissionProvider at all. */
+function renderGalleryBulk(permissions: ObjectPermissionConfig | null) {
+  const view = <ListView schema={galleryBulkSchema} dataSource={mockDataSource as any} />;
+  return render(
+    <SchemaRendererProvider dataSource={mockDataSource as any}>
+      {permissions
+        ? (
+          <PermissionProvider roles={roles} permissions={[permissions]} userRoles={['restricted']}>
+            {view}
+          </PermissionProvider>
+        )
+        : view}
+    </SchemaRendererProvider>,
+  );
+}
+
+describe('ListView – non-grid bulk delete vs the principal permission gate (#4096)', () => {
+  let prevGallery: ReturnType<typeof ComponentRegistry.get>;
+
+  beforeEach(() => {
+    mockDataSource.find.mockClear();
+    prevGallery = ComponentRegistry.get('object-gallery');
+    registerSelectingGallery();
+  });
+
+  afterEach(() => {
+    cleanup();
+    if (prevGallery) ComponentRegistry.register('object-gallery', prevGallery);
+    else ComponentRegistry.unregister('object-gallery');
+  });
+
+  it('a principal WITH allowDelete keeps the bulk delete button', async () => {
+    renderGalleryBulk(makeObjectPermissions(true));
+    await waitFor(() => expect(screen.getByTestId('bulk-actions-bar')).toBeInTheDocument());
+    expect(screen.queryByTestId('bulk-action-delete')).not.toBeNull();
+  });
+
+  it('a principal WITHOUT allowDelete loses it, and keeps the non-delete actions', async () => {
+    renderGalleryBulk(makeObjectPermissions(false));
+    await waitFor(() => expect(screen.getByTestId('bulk-actions-bar')).toBeInTheDocument());
+    expect(screen.queryByTestId('bulk-action-delete')).toBeNull();
+    // Control group: proves the bar rendered and the probe can observe a
+    // surviving entry, so the absence above is not a false positive. Custom
+    // ids route through the action runner with their own gates.
+    expect(screen.queryByTestId('bulk-action-archive')).not.toBeNull();
+  });
+
+  it('with NO PermissionProvider the bulk delete survives (fail-open preserved)', async () => {
+    renderGalleryBulk(null);
+    await waitFor(() => expect(screen.getByTestId('bulk-actions-bar')).toBeInTheDocument());
+    expect(screen.queryByTestId('bulk-action-delete')).not.toBeNull();
   });
 });

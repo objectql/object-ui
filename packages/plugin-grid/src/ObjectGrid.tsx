@@ -435,6 +435,15 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const perms = usePermissions();
   const { getObjectApiOperations } = perms;
   const effectiveApiOps = objectName ? getObjectApiOperations(objectName) : undefined;
+  // [#4096] The CURRENT PRINCIPAL's write verdict on this object, the same
+  // source the toolbar's `can(obj, 'create')` reads (`/me/permissions`
+  // `allowEdit` / `allowDelete`). `effectiveApiOps` above cannot stand in for
+  // it: that set is the object's API exposure surface and is identical for
+  // every account, so the row kebab and the bulk bar used to fail open for a
+  // read-only principal. Undefined when no object name is resolved (element
+  // data source), which leaves the affordance verdict untouched.
+  const permissionUpdate = objectName ? perms.can(objectName, 'update') : undefined;
+  const permissionDelete = objectName ? perms.can(objectName, 'delete') : undefined;
   const schemaFields = schema.fields;
   const schemaColumns = schema.columns;
   // The view's declared filter, lowered ONCE through the repo's single filter
@@ -1644,6 +1653,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // `operations` above only says whether the CONSUMER wired the affordance; it
   // is not a permission grant, which is why the object verdict is ANDed here
   // rather than assumed to have been applied upstream.
+  // [#4096] …and neither is `apiOperations`, which describes the OBJECT, not
+  // the caller — so the principal's own `allowEdit` / `allowDelete` is ANDed on
+  // top, matching the toolbar and the record header on the very same screen.
   const { canEdit, canDelete, objectCanDelete, editPredicates, deletePredicates } = resolveRowCrudAffordances({
     operationsUpdate: operations?.update,
     operationsDelete: operations?.delete,
@@ -1654,6 +1666,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     managedBy: (objectSchema as any)?.managedBy,
     userActions: (objectSchema as any)?.userActions,
     effectiveApiOperations: effectiveApiOps,
+    permissionUpdate,
+    permissionDelete,
   });
   const hasActions = !!(operations && (operations.update || operations.delete));
   const hasRowActions = customRowActions.length > 0 || resolvedRowActionDefs.length > 0 || wantEditAction || wantDeleteAction;

@@ -1,19 +1,26 @@
 // Copyright (c) 2026 ObjectStack. Licensed under the Apache-2.0 license.
 
 /**
- * RelatedRecordActionsBridge — effective API operations (#3546).
+ * RelatedRecordActionsBridge — the two gates that narrow a related list's
+ * Create/Edit/Delete: the effective API operations (#3546) and the CURRENT
+ * PRINCIPAL's permission on the child object (#4096).
  *
- * The related-list Create/Edit/Delete affordances for a CHILD object must be
- * intersected with the server-resolved effective operation set for that child
- * (`/me/permissions` `apiOperations`), so the list never offers an operation
- * the server would 405. These pin the button-visibility outcome:
+ * The related-list affordances for a CHILD object must be intersected with the
+ * server-resolved effective operation set for that child (`/me/permissions`
+ * `apiOperations`), so the list never offers an operation the server would 405:
  *   • full CRUD effective set → onCreate/onEdit/onDelete all present;
  *   • read-only effective set → none present;
  *   • update-only effective set → onEdit present, onCreate/onDelete absent;
  *   • undefined (unrestricted / old backend) → bucket affordances win (all present).
+ *
+ * [#4096] …and with the principal's `allowCreate` / `allowEdit` / `allowDelete`.
+ * `apiOperations` describes the child OBJECT's exposure surface and is identical
+ * for every account, so on its own it fails open — the second face of the row
+ * kebab defect the main list carried. Both gates live in this one file so a
+ * future change that drops either one fails here.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
@@ -21,10 +28,14 @@ import { vi } from 'vitest';
 
 // Controllable effective-operations map, keyed by child object name.
 let effectiveOps: Record<string, string[] | undefined> = {};
+// [#4096] Controllable principal verdict, keyed by action. `undefined` action
+// entries default to allowed, matching `can()`'s permissive fallback.
+let principal: Record<string, boolean> = {};
 
 vi.mock('@object-ui/permissions', () => ({
   usePermissions: () => ({
     getObjectApiOperations: (name: string) => effectiveOps[name],
+    can: (_name: string, action: string) => principal[action] ?? true,
   }),
 }));
 
@@ -65,6 +76,11 @@ function resolveHandlers(): Record<string, boolean> {
   return captured;
 }
 
+beforeEach(() => {
+  effectiveOps = {};
+  principal = {};
+});
+
 describe('RelatedRecordActionsBridge — effective API operations (#3546)', () => {
   it('full-CRUD effective set → Create/Edit/Delete all offered', () => {
     effectiveOps = { [CHILD]: ['get', 'list', 'create', 'update', 'delete'] };
@@ -98,5 +114,60 @@ describe('RelatedRecordActionsBridge — effective API operations (#3546)', () =
     expect(h.onCreate).toBe(true);
     expect(h.onEdit).toBe(true);
     expect(h.onDelete).toBe(true);
+  });
+});
+
+describe('RelatedRecordActionsBridge — principal permission gate (#4096)', () => {
+  const FULL = ['get', 'list', 'create', 'update', 'delete'];
+
+  it('a principal WITH the write grants keeps Create/Edit/Delete', () => {
+    effectiveOps = { [CHILD]: FULL };
+    principal = { create: true, update: true, delete: true };
+    const h = resolveHandlers();
+    expect(h.onCreate).toBe(true);
+    expect(h.onEdit).toBe(true);
+    expect(h.onDelete).toBe(true);
+  });
+
+  it('a principal WITHOUT them loses all three — on a fully exposed child', () => {
+    // The #4096 shape carried over to the related list: identical full
+    // `apiOperations`, no write permission. Pre-#4096 all three were offered.
+    effectiveOps = { [CHILD]: FULL };
+    principal = { create: false, update: false, delete: false };
+    const h = resolveHandlers();
+    expect(h.onCreate).toBe(false);
+    expect(h.onEdit).toBe(false);
+    expect(h.onDelete).toBe(false);
+    // Viewing a child record is not a write — it must survive.
+    expect(h.onView).toBe(true);
+  });
+
+  it('gates create / update / delete independently', () => {
+    effectiveOps = { [CHILD]: FULL };
+    principal = { create: false, update: true, delete: false };
+    const h = resolveHandlers();
+    expect(h.onCreate).toBe(false);
+    expect(h.onEdit).toBe(true);
+    expect(h.onDelete).toBe(false);
+  });
+
+  it('with no permission source at all the affordances survive (fail-open preserved)', () => {
+    // `usePermissions()` with no `PermissionProvider` answers `can: () => true`
+    // and `getObjectApiOperations: () => undefined` — the stub's defaults here.
+    effectiveOps = { [CHILD]: undefined };
+    principal = {};
+    const h = resolveHandlers();
+    expect(h.onCreate).toBe(true);
+    expect(h.onEdit).toBe(true);
+    expect(h.onDelete).toBe(true);
+  });
+
+  it('keeps apiOperations as a layer — a write grant cannot re-open a closed surface', () => {
+    effectiveOps = { [CHILD]: ['get', 'list'] };
+    principal = { create: true, update: true, delete: true };
+    const h = resolveHandlers();
+    expect(h.onCreate).toBe(false);
+    expect(h.onEdit).toBe(false);
+    expect(h.onDelete).toBe(false);
   });
 });

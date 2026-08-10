@@ -7,8 +7,14 @@
  */
 
 /**
- * ObjectGrid row-level CRUD + bulk delete vs the server's effective API
- * operation set (#3720 — the fourth face of #3391).
+ * ObjectGrid row-level CRUD + bulk delete vs every gate that narrows them:
+ * the server's effective API operation set (#3720 — the fourth face of #3391)
+ * and the CURRENT PRINCIPAL's permission on the object (#4096).
+ *
+ * One file on purpose. The row kebab and the bulk bar are two faces of the same
+ * verdict, and the two gates are independent layers over it — keeping all four
+ * combinations here is what makes a future divergence fail a test instead of
+ * shipping.
  *
  * The main list's row kebab is a chain of its own: it never went through
  * `resolveEffectiveCrudAffordances`, so the toolbar (objectui#2823), detail/form
@@ -37,7 +43,14 @@ import React from 'react';
 // builds it before the hoisted `vi.mock` factory runs; the accessor reads
 // mutable state so a test can swap the effective set without changing identity.
 const { permsStub, state } = vi.hoisted(() => {
-  const state: { effectiveOps: string[] | undefined } = { effectiveOps: undefined };
+  const state: {
+    effectiveOps: string[] | undefined;
+    /** [#4096] The principal's `allowEdit` / `allowDelete` on this object. */
+    permUpdate: boolean;
+    permDelete: boolean;
+    /** [#4096] Bypass the stub and run the REAL provider-less hook instead. */
+    noProvider: boolean;
+  } = { effectiveOps: undefined, permUpdate: true, permDelete: true, noProvider: false };
   return {
     state,
     // `isLoaded: false` keeps the FIELD-level filter out of the way so the
@@ -46,11 +59,31 @@ const { permsStub, state } = vi.hoisted(() => {
       isLoaded: false,
       checkField: () => true,
       getObjectApiOperations: () => state.effectiveOps,
+      // [#4096] `can(obj, 'update' | 'delete')` — what `MePermissionsProvider`
+      // resolves from `/me/permissions` `allowEdit` / `allowDelete`. It sits on
+      // the SAME stub as `getObjectApiOperations` deliberately: the two layers
+      // are independent gates, and a change that drops either one has to fail a
+      // case in this file rather than in a file nobody thinks to open.
+      can: (_obj: string, action: string) =>
+        action === 'delete' ? state.permDelete : state.permUpdate,
     },
   };
 });
 
-vi.mock('@object-ui/permissions', () => ({ usePermissions: () => permsStub }));
+// The real module stays reachable so the no-`PermissionProvider` case below
+// exercises the ACTUAL fail-open fallback (`can: () => true`) instead of a
+// hand-written imitation of it. The real hook is invoked on every render so
+// hook order is stable whichever branch is returned.
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => {
+      const real = actual.usePermissions();
+      return state.noProvider ? real : permsStub;
+    },
+  };
+});
 
 import { ObjectGrid } from '../ObjectGrid';
 import { registerAllFields } from '@object-ui/fields';
@@ -75,10 +108,19 @@ interface Case {
   userActions?: Record<string, unknown>;
   /** Extra view-schema keys (e.g. an author-declared `bulkActions`). */
   schema?: Record<string, unknown>;
+  /** [#4096] `/me/permissions` `allowEdit` for the caller; default `true`. */
+  permUpdate?: boolean;
+  /** [#4096] `/me/permissions` `allowDelete` for the caller; default `true`. */
+  permDelete?: boolean;
+  /** [#4096] Render with NO `PermissionProvider` (standalone embed / old host). */
+  noProvider?: boolean;
 }
 
 function renderGrid(c: Case) {
   state.effectiveOps = c.effectiveOps;
+  state.permUpdate = c.permUpdate ?? true;
+  state.permDelete = c.permDelete ?? true;
+  state.noProvider = c.noProvider ?? false;
   const dataSource: any = {
     getObjectSchema: async (name: string) => ({
       name,
@@ -138,7 +180,12 @@ async function hasSelection(c: Case): Promise<boolean> {
   return screen.queryAllByRole('checkbox').length > 0;
 }
 
-beforeEach(() => { state.effectiveOps = undefined; });
+beforeEach(() => {
+  state.effectiveOps = undefined;
+  state.permUpdate = true;
+  state.permDelete = true;
+  state.noProvider = false;
+});
 afterEach(() => { cleanup(); });
 
 describe('ObjectGrid row CRUD vs the effective API operation set (#3720)', () => {
@@ -243,6 +290,16 @@ describe('ObjectGrid bulk delete vs the object delete verdict (#3720)', () => {
     expect(screen.queryByTestId('bulk-action-delete')).not.toBeInTheDocument();
   });
 
+  it('drops the built-in bulk delete for a principal with no allowDelete', async () => {
+    // [#4096] The row gate and the bulk bar must move together — fixing the
+    // kebab while the (more destructive) bulk button stays open would be the
+    // same bug one control over.
+    renderGrid({ effectiveOps: FULL, permDelete: false, schema: { bulkActions: ['delete'] } });
+    await waitFor(() => expect(screen.getByText('Alice')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Bob')).toBeInTheDocument());
+    expect(screen.queryAllByRole('checkbox').length).toBe(0);
+  });
+
   it('drops a bulkActionDefs entry whose operation is delete', async () => {
     renderGrid({
       effectiveOps: READ_ONLY,
@@ -259,5 +316,63 @@ describe('ObjectGrid bulk delete vs the object delete verdict (#3720)', () => {
     await userEvent.click(boxes[boxes.length - 1]);
     await waitFor(() => expect(screen.getByTestId('bulk-action-reassign')).toBeInTheDocument());
     expect(screen.queryByTestId('bulk-action-purge')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * [#4096] The principal layer, through the real ObjectGrid.
+ *
+ * `apiOperations` answers "which verbs does this OBJECT publish"; it is
+ * principal-independent (the report measured 30/30 shared objects byte-identical
+ * between an account with `allowEdit` and one without), so intersecting only
+ * with it left the row kebab and the bulk bar permanently open for read-only
+ * accounts — while the toolbar's New button and the record header's Edit/Delete
+ * on the very same screen were correctly hidden. The gate now also ANDs
+ * `can(obj, 'update' | 'delete')`, i.e. `/me/permissions` `allowEdit` /
+ * `allowDelete` — the toolbar's own source.
+ *
+ * The three cases the fix must hold simultaneously, in both directions:
+ *   • a principal WITH the write grant still sees Edit/Delete (no over-tightening);
+ *   • a principal WITHOUT it sees neither (the bug);
+ *   • NO `PermissionProvider` at all still sees both (fail-open preserved for
+ *     standalone embeds / older hosts — this one runs the real hook, not a stub).
+ */
+describe('ObjectGrid row CRUD vs the principal permission gate (#4096)', () => {
+  it('a principal WITH allowEdit/allowDelete keeps both entries', async () => {
+    expect(await rowKebab({ effectiveOps: FULL, permUpdate: true, permDelete: true }))
+      .toEqual({ edit: true, delete: true });
+    cleanup();
+    expect(await hasSelection({ effectiveOps: FULL, permUpdate: true, permDelete: true })).toBe(true);
+  });
+
+  it('a principal WITHOUT allowEdit/allowDelete loses both — on a fully exposed object', async () => {
+    // The exact reported shape: identical full `apiOperations`, opposite
+    // `allowEdit`/`allowDelete`. Pre-#4096 this returned `{ edit: true, delete: true }`.
+    expect(await rowKebab({ effectiveOps: FULL, permUpdate: false, permDelete: false }))
+      .toEqual({ edit: false, delete: false });
+    cleanup();
+    expect(await hasSelection({ effectiveOps: FULL, permUpdate: false, permDelete: false })).toBe(false);
+  });
+
+  it('with NO PermissionProvider both entries survive (fail-open preserved)', async () => {
+    // Runs the REAL `usePermissions` with no provider mounted: `can: () => true`
+    // and `getObjectApiOperations: () => undefined`. A standalone embed has no
+    // permission source and must not lose its Edit/Delete to this tightening.
+    expect(await rowKebab({ noProvider: true })).toEqual({ edit: true, delete: true });
+    cleanup();
+    expect(await hasSelection({ noProvider: true })).toBe(true);
+  });
+
+  it('gates update and delete independently', async () => {
+    expect(await rowKebab({ effectiveOps: FULL, permUpdate: true, permDelete: false }))
+      .toEqual({ edit: true, delete: false });
+    cleanup();
+    expect(await rowKebab({ effectiveOps: FULL, permUpdate: false, permDelete: true }))
+      .toEqual({ edit: false, delete: true });
+  });
+
+  it('keeps apiOperations as a layer — a write grant cannot re-open a closed exposure surface', async () => {
+    expect(await rowKebab({ effectiveOps: READ_ONLY, permUpdate: true, permDelete: true }))
+      .toEqual({ edit: false, delete: false });
   });
 });

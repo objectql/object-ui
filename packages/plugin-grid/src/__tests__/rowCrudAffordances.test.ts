@@ -200,6 +200,92 @@ describe('resolveRowCrudAffordances', () => {
       expect(resolveRowCrudAffordances({ ...wired, managedBy: 'append-only' }).objectCanDelete).toBe(false);
       expect(resolveRowCrudAffordances({ ...wired, effectiveApiOperations: ['get', 'list'] }).objectCanDelete).toBe(false);
       expect(resolveRowCrudAffordances({ ...wired, effectiveApiOperations: ['get', 'list', 'delete'] }).objectCanDelete).toBe(true);
+      // [#4096] …including the principal layer, so the bulk bar cannot outlive
+      // the row kebab for a caller with no delete grant.
+      expect(resolveRowCrudAffordances({ ...wired, permissionDelete: false }).objectCanDelete).toBe(false);
+    });
+  });
+
+  // [#4096] The principal layer. `effectiveApiOperations` describes the OBJECT
+  // (which verbs it publishes) and is byte-identical across accounts with
+  // opposite write grants — measured 30/30 in the report — so it can never act
+  // as the user permission gate on its own. `permissionUpdate` /
+  // `permissionDelete` carry `/me/permissions` `allowEdit` / `allowDelete`.
+  describe('#4096 principal-scoped permission gate', () => {
+    const FULL = ['get', 'list', 'create', 'update', 'delete'];
+
+    it('a principal WITH write permission still sees both entries', () => {
+      expect(rowGate({ ...wired, effectiveApiOperations: FULL, permissionUpdate: true, permissionDelete: true }))
+        .toEqual({ canEdit: true, canDelete: true });
+    });
+
+    it('a principal WITHOUT write permission sees neither — even on a fully exposed object', () => {
+      // The exact #4096 shape: account A's `apiOperations` is the full verb set
+      // (identical to the writer's) while `allowEdit` / `allowDelete` are false.
+      // Before this layer the row kebab rendered both entries regardless.
+      expect(rowGate({ ...wired, effectiveApiOperations: FULL, permissionUpdate: false, permissionDelete: false }))
+        .toEqual({ canEdit: false, canDelete: false });
+    });
+
+    it('gates update and delete independently', () => {
+      expect(rowGate({ ...wired, effectiveApiOperations: FULL, permissionUpdate: true, permissionDelete: false }))
+        .toEqual({ canEdit: true, canDelete: false });
+      expect(rowGate({ ...wired, effectiveApiOperations: FULL, permissionUpdate: false, permissionDelete: true }))
+        .toEqual({ canEdit: false, canDelete: true });
+    });
+
+    it('an absent verdict changes nothing (no object name / no provider)', () => {
+      // `usePermissions()` with no `PermissionProvider` answers `can: () => true`,
+      // so a provider-less host arrives here as `true`, not `undefined` — both
+      // shapes must leave the pre-#4096 outcome intact.
+      expect(rowGate({ ...wired, permissionUpdate: undefined, permissionDelete: undefined }))
+        .toEqual({ canEdit: true, canDelete: true });
+      expect(rowGate({ ...wired, permissionUpdate: true, permissionDelete: true }))
+        .toEqual({ canEdit: true, canDelete: true });
+    });
+
+    it('intersects, never unions — a permission grant cannot re-open a bucket lock', () => {
+      expect(rowGate({ ...wired, managedBy: 'append-only', permissionUpdate: true, permissionDelete: true }))
+        .toEqual({ canEdit: false, canDelete: false });
+    });
+
+    it('intersects, never unions — a permission grant cannot re-open a userActions opt-out', () => {
+      expect(rowGate({
+        ...wired,
+        userActions: { edit: false, delete: false },
+        permissionUpdate: true,
+        permissionDelete: true,
+      })).toEqual({ canEdit: false, canDelete: false });
+    });
+
+    it('intersects, never unions — a permission grant cannot re-open a server denial', () => {
+      expect(rowGate({
+        ...wired,
+        effectiveApiOperations: ['get', 'list'],
+        permissionUpdate: true,
+        permissionDelete: true,
+      })).toEqual({ canEdit: false, canDelete: false });
+    });
+
+    it('intersects, never unions — a userActions opt-in cannot survive a permission denial', () => {
+      expect(rowGate({
+        ...wired,
+        managedBy: 'better-auth',
+        userActions: { edit: true, delete: true },
+        permissionUpdate: false,
+        permissionDelete: false,
+      })).toEqual({ canEdit: false, canDelete: false });
+    });
+
+    it('the apiOperations layer is KEPT, not replaced', () => {
+      // A write grant must not resurrect an entry the object's exposure surface
+      // closed: an `apiOperations` set without `delete` still hides Delete.
+      expect(rowGate({
+        ...wired,
+        effectiveApiOperations: ['get', 'list', 'update'],
+        permissionUpdate: true,
+        permissionDelete: true,
+      })).toEqual({ canEdit: true, canDelete: false });
     });
   });
 });

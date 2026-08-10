@@ -35,12 +35,36 @@
  *          `update` and `delete` with `delete`, so a row never offers a
  *          mutation the server would reject.
  *
- * Layer (c) is an INTERSECTION, never a union: a server grant cannot re-open
- * what the bucket or `userActions` closed, and a `userActions` opt-in cannot
- * survive a server denial. An absent effective set (unrestricted object / old
- * backend / no `PermissionProvider`) leaves the bucket verdict untouched, and
- * an absent `managedBy` resolves to the `platform` bucket — so every main list
- * on an ordinary object keeps its Edit/Delete kebab out of the box.
+ * and on top of that verdict:
+ *
+ *       d. [#4096] the CURRENT PRINCIPAL's effective permission on the object
+ *          (`/me/permissions` `allowEdit` / `allowDelete`, reached through
+ *          `usePermissions().can(obj, 'update' | 'delete')`) — passed in as
+ *          `permissionUpdate` / `permissionDelete`.
+ *
+ * Layer (c) and layer (d) answer DIFFERENT questions and neither substitutes
+ * for the other. `apiOperations` is the object's API EXPOSURE SURFACE — "which
+ * verbs does this object publish at all" — and is principal-independent: two
+ * accounts with opposite write grants receive a byte-identical set (measured in
+ * #4096: 30/30 shared objects identical between an account with `allowEdit`
+ * and one without). Intersecting only with (c) therefore fails OPEN for every
+ * unprivileged account. Layer (d) is the per-principal verdict the toolbar's
+ * `affordances.create && can(obj, 'create')` and the record header's
+ * `objectAffordances.edit && recordWriteAllowed` already AND in; the row kebab
+ * and the bulk-delete bar now run the same judgement, so one screen no longer
+ * carries three different answers to "may this user write this object".
+ *
+ * Every layer is an INTERSECTION, never a union: a server grant cannot re-open
+ * what the bucket or `userActions` closed, a `userActions` opt-in cannot
+ * survive a server denial, and neither can survive a permission denial. An
+ * absent effective set (unrestricted object / old backend / no
+ * `PermissionProvider`) leaves the bucket verdict untouched, an absent
+ * `permissionUpdate` / `permissionDelete` likewise leaves it untouched — the
+ * no-provider host keeps today's behavior, because `usePermissions()` without a
+ * `PermissionProvider` answers `can: () => true` by design (standalone embeds
+ * have no permission source and must not lose their Edit/Delete) — and an
+ * absent `managedBy` resolves to the `platform` bucket, so every main list on
+ * an ordinary object keeps its Edit/Delete kebab out of the box.
  *
  * Since objectui#2614, `userActions.edit` / `delete` also accept an object
  * form `{ enabled?, visibleWhen?, disabledWhen? }`: `enabled` carries the
@@ -78,6 +102,24 @@ export function resolveRowCrudAffordances(opts: {
    * untouched; an empty array means "expose nothing" → both entries hidden.
    */
   effectiveApiOperations?: readonly string[] | null;
+  /**
+   * [#4096] The current principal's effective `update` permission on this
+   * object — `usePermissions().can(objectName, 'update')`, which
+   * `MePermissionsProvider` maps to `/me/permissions` `allowEdit`.
+   *
+   * `undefined` (no object name resolved, caller that has not wired the check)
+   * leaves the verdict untouched, exactly like `effectiveApiOperations`. Note
+   * that "no `PermissionProvider`" does NOT arrive here as `undefined`: the
+   * hook's provider-less fallback answers `true`, which is the same
+   * no-narrowing outcome.
+   */
+  permissionUpdate?: boolean;
+  /**
+   * [#4096] The current principal's effective `delete` permission on this
+   * object — `usePermissions().can(objectName, 'delete')` → `allowDelete`.
+   * Same `undefined` semantics as `permissionUpdate`.
+   */
+  permissionDelete?: boolean;
 }): {
   canEdit: boolean;
   canDelete: boolean;
@@ -99,14 +141,19 @@ export function resolveRowCrudAffordances(opts: {
     { managedBy: opts.managedBy, userActions: opts.userActions },
     opts.effectiveApiOperations,
   );
+  // [#4096] …then the principal's own verdict. `apiOperations` above is the
+  // object's exposure surface and says nothing about WHO is asking, so without
+  // this the row kebab fails open for every account with no write grant.
+  const objectCanEdit = aff.edit && opts.permissionUpdate !== false;
+  const objectCanDelete = aff.delete && opts.permissionDelete !== false;
   const canEdit =
-    !!((opts.operationsUpdate || opts.wantEditAction) && opts.hasOnEdit) && aff.edit;
+    !!((opts.operationsUpdate || opts.wantEditAction) && opts.hasOnEdit) && objectCanEdit;
   const canDelete =
-    !!((opts.operationsDelete || opts.wantDeleteAction) && opts.hasOnDelete) && aff.delete;
+    !!((opts.operationsDelete || opts.wantDeleteAction) && opts.hasOnDelete) && objectCanDelete;
   return {
     canEdit,
     canDelete,
-    objectCanDelete: aff.delete,
+    objectCanDelete,
     editPredicates: canEdit ? aff.editPredicates : undefined,
     deletePredicates: canDelete ? aff.deletePredicates : undefined,
   };

@@ -866,7 +866,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // Missing effective set (unrestricted object / old backend / no provider)
   // keeps the current behavior. The frontend consumes the effective set the
   // server resolved; it never reads the raw `apiMethods`.
-  const { getObjectApiOperations } = usePermissions();
+  const { getObjectApiOperations, can: canDo } = usePermissions();
   const effectiveApiOps = schema.objectName ? getObjectApiOperations(schema.objectName) : undefined;
   const exportPermitted =
     schema.allowExport !== false &&
@@ -881,12 +881,19 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // it: the ADR-0103 bucket lock ∧ `userActions.delete` ∧ the server's
   // effective API operation set (#3391). Custom action ids pass through
   // untouched — they route through the action runner with their own gates.
+  // [#4096] ∧ the CURRENT PRINCIPAL's `allowDelete` — the three layers above
+  // all describe the OBJECT, so without this the most destructive entry on a
+  // kanban/gallery board stayed visible for an account with no delete grant.
+  // `can()` answers `true` with no `PermissionProvider` (standalone embeds).
   const permittedBulkActions = React.useMemo(() => {
     const declared = schema.bulkActions;
     if (!declared || declared.length === 0) return declared;
-    if (resolveEffectiveCrudAffordances(objectDef as any, effectiveApiOps).delete) return declared;
+    const objectDeleteAllowed =
+      resolveEffectiveCrudAffordances(objectDef as any, effectiveApiOps).delete &&
+      (schema.objectName ? canDo(schema.objectName, 'delete') : true);
+    if (objectDeleteAllowed) return declared;
     return declared.filter((a: unknown) => String(a).toLowerCase() !== 'delete');
-  }, [schema.bulkActions, objectDef, effectiveApiOps]);
+  }, [schema.bulkActions, schema.objectName, objectDef, effectiveApiOps, canDo]);
 
   // Normalize exportOptions: support both ObjectUI object format and spec string[] format
   const resolvedExportOptions = React.useMemo(() => {
