@@ -7,6 +7,7 @@ export * from './date-picker';
 export * from './empty';
 export * from './field';
 export * from './filter-builder';
+export * from './fullscreen-editor';
 export * from './input-group';
 export * from './item';
 export * from './kbd';
