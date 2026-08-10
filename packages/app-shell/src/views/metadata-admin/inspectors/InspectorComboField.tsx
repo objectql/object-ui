@@ -12,6 +12,23 @@
  * catalog, a computed path, or a server-only field is never a dead end).
  *
  * Self-filters (`shouldFilter={false}`) for predictable label+value matching.
+ *
+ * ## Naming (objectui#3997)
+ *
+ * The trigger is a `button[role=combobox]` rendered by `PopoverTrigger asChild`,
+ * so it is a labelable element — but visual adjacency to a `<Label>` is NOT an
+ * association. Before this fix the labelled branch rendered the `<Label>` as a
+ * bare sibling (no `htmlFor`, no id, no `aria-label`), so assistive tech read an
+ * anonymous "combobox" with the field name floating above it as unowned text,
+ * `getByLabelText` could not reach it, and clicking the visible label did
+ * nothing — the same defect PR #3996 closed for the three `_shared.tsx` atoms.
+ * The un-labelled branch was one notch worse: the combobox was wholly anonymous.
+ *
+ * Naming is therefore a TYPE-LEVEL requirement (see {@link InspectorComboFieldNaming}):
+ * exactly one of `label` / `ariaLabel` / `id` must be given, so an anonymous
+ * combo cannot be authored — it fails `tsc`, not a review. One channel only,
+ * never two: a control carrying both an associated `<Label>` and an `aria-label`
+ * is the double-announcement failure objectui#3961/#3978 exists to avoid.
  */
 
 import * as React from 'react';
@@ -40,8 +57,40 @@ export interface InspectorComboOption {
   group?: string;
 }
 
-export interface InspectorComboFieldProps {
-  label?: string;
+/**
+ * Where this combo's accessible name comes from — exactly one of three, never
+ * zero and never two. Pick the variant that matches where the name already lives:
+ *
+ * • `label`     — this atom renders the visible `<Label>` and owns the pair
+ *                 (`htmlFor` ⇄ a `React.useId()`-minted trigger id). The default
+ *                 choice, and the only one that needs no caller bookkeeping.
+ * • `ariaLabel` — there is no visible label to associate: repeated rows whose
+ *                 column is obvious from context (an object filter's `field =
+ *                 value` pair, a dataset's list of joined relationships) and
+ *                 "add another" pickers sitting under a group heading. The
+ *                 trigger carries the name itself.
+ * • `id`        — an EXTERNAL `<Label htmlFor={…}>` already owns the naming (the
+ *                 `Field` wrapper in `DashboardWidgetInspector` is the live
+ *                 case). The caller's id lands on the trigger so that `for`
+ *                 RESOLVES; without this prop the caller's `for` pointed at an
+ *                 id nothing carried, which is a dangling IDREF — strictly worse
+ *                 than no label, because the tooling reports an association that
+ *                 does not exist.
+ *
+ * `label` mints its id internally rather than accepting one because these combos
+ * render in loops over array items (`lookupFilters[i]`, `dimensions[i]`), where a
+ * caller-supplied id is exactly what collides: two rows sharing a label would
+ * share an id and both labels would silently resolve to the FIRST trigger.
+ * `useId()` cannot be authored into a collision. The `id` variant re-opens that
+ * door by necessity — the caller must already own the id to have written the
+ * `for` — so reach for it only when an external label is genuinely in charge.
+ */
+export type InspectorComboFieldNaming =
+  | { label: string; ariaLabel?: never; id?: never }
+  | { label?: never; ariaLabel: string; id?: never }
+  | { label?: never; ariaLabel?: never; id: string };
+
+export type InspectorComboFieldProps = InspectorComboFieldNaming & {
   value: string;
   onCommit: (v: string) => void;
   options: InspectorComboOption[];
@@ -56,7 +105,7 @@ export interface InspectorComboFieldProps {
   mono?: boolean;
   /** Override the trigger label for the currently-selected custom value. */
   className?: string;
-}
+};
 
 function matches(option: InspectorComboOption, q: string): boolean {
   if (!q) return true;
@@ -70,6 +119,8 @@ function matches(option: InspectorComboOption, q: string): boolean {
 
 export function InspectorComboField({
   label,
+  ariaLabel,
+  id,
   value,
   onCommit,
   options,
@@ -84,6 +135,20 @@ export function InspectorComboField({
 }: InspectorComboFieldProps) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
+
+  // The id goes on the trigger `Button`, never on `Popover`: Radix's
+  // `Popover.Root` is a context provider that renders no DOM element of its own,
+  // so an id (or any aria-*) handed to it is silently DROPPED and the label's
+  // `for` resolves to nothing — the failure objectui#3976 (PR #3992) and #3994
+  // (PR #3996) each paid for once. `PopoverTrigger asChild` merges its props
+  // onto the `Button` below, which renders the real `button[role=combobox]`.
+  //
+  // It is minted only when something points AT it: the `<Label>` this atom
+  // renders (`autoId`), or the caller's external label (`id`). In the
+  // `ariaLabel` variant nothing references an id, so none is emitted — an
+  // unreferenced id would be noise, and the naming channel stays exactly one.
+  const autoId = React.useId();
+  const triggerId = label ? autoId : id;
 
   const selected = options.find((o) => o.value === value);
   const triggerText = selected ? selected.label : value || (loading ? 'Loading…' : placeholder);
@@ -126,6 +191,8 @@ export function InspectorComboField({
           type="button"
           variant="outline"
           role="combobox"
+          id={triggerId}
+          aria-label={ariaLabel}
           aria-expanded={open}
           disabled={disabled}
           className={cn('h-8 w-full justify-between px-2 text-sm font-normal', className)}
@@ -173,10 +240,12 @@ export function InspectorComboField({
     </Popover>
   );
 
+  // No visible label to render: the name is already on the trigger (`ariaLabel`)
+  // or owned by an external `<Label htmlFor={id}>` that now resolves to it.
   if (!label) return field;
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label htmlFor={autoId} className="text-xs text-muted-foreground">{label}</Label>
       {field}
     </div>
   );

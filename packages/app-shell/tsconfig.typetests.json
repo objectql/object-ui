@@ -68,9 +68,20 @@
   // in which the hand-written shape was too NARROW — excess-property checking
   // rejected the canonical `{ dialect, source }` literal outright. No test that
   // vitest runs can observe that, so unlisted it would be commentary.
+  // `views/metadata-admin/inspectors/InspectorComboField.naming.types.test.tsx`
+  // earns its place through objectui#3997: the combo's naming contract (exactly
+  // one of `label` / `ariaLabel` / `id`) is enforced only by its props union, and
+  // neither violation has a runtime symptom the component could report — an
+  // unnamed combobox renders and commits perfectly, it is just anonymous to
+  // assistive tech. So the whole check is compile-time, and unlisted it would be
+  // decoration: the first draft put the `@ts-expect-error` cases in
+  // `_shared.labels.test.tsx`, and making naming optional again type-checked
+  // completely green. It is also the first `.tsx` entry here — JSX compiles
+  // because the root tsconfig sets `"jsx": "react-jsx"`.
   "include": [
     "src/__tests__/spec-symbol-parity.test.ts",
     "src/utils/resolveActionParams.test.ts",
+    "src/views/metadata-admin/inspectors/InspectorComboField.naming.types.test.tsx",
     "src/views/metadata-admin/previews/flow-designer-edge.types.test.ts",
     "src/views/metadata-admin/previews/simulator/__tests__/flow-sim-edge.types.test.ts"
   ]

@@ -235,6 +235,10 @@ function FiltersEditor({
         <div key={`${field}-${i}`} className="flex items-center gap-1">
           <div className="min-w-0 flex-1">
             <InspectorComboField
+              // No visible per-row label — the `field = value` shape is read
+              // from the row itself — so the trigger carries its own name
+              // instead of being an anonymous combobox (objectui#3997).
+              ariaLabel={t('engine.inspector.appNav.filtersField', locale)}
               value={field}
               onCommit={(v) => update(i, v, value)}
               options={fieldOptions}

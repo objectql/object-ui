@@ -1147,6 +1147,10 @@ function LookupConfigFields({
         )}
         {!readOnly && hostOptions.length > 0 && (
           <InspectorComboField
+            // The `Depends on` label above heads the whole group (chips + this
+            // "add another" picker), so the picker names itself rather than
+            // hijacking the group heading (objectui#3997).
+            ariaLabel={tr('designer.field.lookup.addDependsOn')}
             value=""
             onCommit={(v) => addDependsOn(v)}
             options={hostOptions.filter((o) => !dependsOn.includes(o.value))}

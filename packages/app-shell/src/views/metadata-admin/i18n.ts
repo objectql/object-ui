@@ -328,6 +328,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
     'Map each dashboard-level filter to one of this widget’s own fields, or untick Apply to opt the widget out. Empty = the filter’s own field.',
   'engine.inspector.widget.filterBindingApply': 'Apply',
   'engine.inspector.widget.filterBindingDefault': 'Default ({field})',
+  'engine.inspector.widget.filterBindingField': 'Bound field for {filter}',
   'engine.inspector.widget.filterBindingReset': 'Reset',
   // Flow node inspector
   'engine.inspector.flowNode.kind': 'Node',
@@ -2074,6 +2075,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
     '把每个仪表盘级过滤器映射到本组件自己的字段；取消勾选「应用」可让本组件不受该过滤器影响。留空表示使用过滤器自身的字段。',
   'engine.inspector.widget.filterBindingApply': '应用',
   'engine.inspector.widget.filterBindingDefault': '默认（{field}）',
+  'engine.inspector.widget.filterBindingField': '{filter} 绑定的字段',
   'engine.inspector.widget.filterBindingReset': '恢复默认',
   // Flow node inspector
   'engine.inspector.flowNode.kind': '节点',

@@ -412,6 +412,10 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly, name }: Meta
           include.map((rel, i) => (
             <div key={i} className="flex items-center gap-1.5">
               <InspectorComboField
+                // One row per join under the "Included relationships" heading;
+                // no per-row visible label, so the trigger is named directly
+                // rather than left anonymous (objectui#3997).
+                ariaLabel="Included relationship"
                 value={rel}
                 onCommit={(v) => onPatch({ include: include.map((r, idx) => (idx === i ? v : r)) })}
                 options={relationshipComboOptions}

@@ -95,6 +95,34 @@ describe('DashboardWidgetInspector — dataset binding', () => {
     expect(screen.getByText('维度')).toBeInTheDocument();
   });
 
+  it('the Dataset label resolves to the combo trigger, not to nothing (#3997)', () => {
+    // This panel labels its controls through a `Field` wrapper that renders
+    // `<Label htmlFor={id}>` and expects the wrapped control to carry the same
+    // id. Every other field honoured it (`Input id`, `SelectTrigger id`); the
+    // dataset combo could not, because `InspectorComboField` took no id — so
+    // `htmlFor="widget-dataset"` pointed at an id nothing carried and the
+    // picker was an anonymous combobox. This is the call-site half of the fix:
+    // the atom's own pins live in `_shared.labels.test.tsx`.
+    renderWidget({ dataset: 'sales_pipeline' });
+
+    const label = screen.getByText('Dataset');
+    const forId = label.getAttribute('for');
+    expect(forId).toBeTruthy();
+
+    const trigger = screen.getByLabelText('Dataset');
+    expect(trigger).toBe(document.getElementById(forId!));
+    expect(trigger.tagName).toBe('BUTTON');
+    expect(trigger).toHaveAttribute('role', 'combobox');
+    expect(trigger).toHaveAccessibleName('Dataset');
+    // Exactly one element answers that id — the trigger, not a wrapper.
+    expect(document.querySelectorAll(`[id="${forId}"]`)).toHaveLength(1);
+
+    // Scoped to this `Field` deliberately: a panel-wide "no dangling for" sweep
+    // would also catch `widget-color`, whose `ColorVariantPicker` accepts no id
+    // either. That is a different component and out of this issue's scope — it
+    // is filed separately rather than fixed here or asserted broken here.
+  });
+
   it('disables every picker when readOnly', () => {
     renderWidget({ dataset: 'sales_pipeline', object: 'crm_opportunity' }, { readOnly: true });
     const combos = screen.getAllByRole('combobox');
