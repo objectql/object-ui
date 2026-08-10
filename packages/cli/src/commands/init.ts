@@ -7,7 +7,7 @@
  */
 
 import { existsSync, writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import chalk from 'chalk';
 
 import {
@@ -399,41 +399,29 @@ export function buildInitPackageJson(name: string): Record<string, unknown> {
   };
 }
 
-export async function init(name: string, options: InitOptions) {
-  const cwd = process.cwd();
-  const projectDir = join(cwd, name);
-
-  // Check if directory already exists
-  if (existsSync(projectDir) && name !== '.') {
-    throw new Error(`Directory "${name}" already exists. Please choose a different name.`);
-  }
-
-  const targetDir = name === '.' ? cwd : projectDir;
-
-  // Create project directory if needed
-  if (name !== '.') {
-    mkdirSync(projectDir, { recursive: true });
-  }
-
-  console.log(chalk.blue('🎨 Creating Object UI application...'));
-  console.log(chalk.dim(`   Template: ${options.template}`));
-  console.log();
-
-  // Get template
-  const template = templates[options.template as keyof typeof templates];
+/**
+ * Every file `objectui init` writes, as `relative path -> contents`.
+ *
+ * Split out of `init()` for the same reason `buildInitPackageJson` was
+ * (objectui#3892): the command writes with `fs` directly, so until the map is a
+ * value there is nothing for a structural gate to judge. `app-generator.ts`
+ * exports `buildAppFiles` / `buildRoutedAppFiles` for exactly this, and the two
+ * gates `app-generator.test.ts` runs over those maps — every import declared,
+ * every versioned declaration imported — are what objectui#4061 and
+ * objectui#4062 were both invisible to. This scaffold is the third generator and
+ * had never been under either.
+ *
+ * `init()` below writes this map and nothing else, and a test pins that
+ * equivalence through the real bin, so the map cannot drift from the artifact.
+ */
+export function buildInitFiles(name: string, templateName: string): Record<string, string> {
+  const template = templates[templateName as keyof typeof templates];
   if (!template) {
     throw new Error(
-      `Unknown template: ${options.template}\nAvailable templates: ${Object.keys(templates).join(', ')}`
+      `Unknown template: ${templateName}\nAvailable templates: ${Object.keys(templates).join(', ')}`
     );
   }
 
-  // Create schema file
-  const schemaPath = join(targetDir, 'app.json');
-  writeFileSync(schemaPath, JSON.stringify(template, null, 2));
-
-  console.log(chalk.green('✓ Created app.json'));
-
-  // Create README
   const readme = `# ${name}
 
 An Object UI application built from JSON schemas.
@@ -477,10 +465,6 @@ Edit \`app.json\` to customize your application. The dev server will automatical
 Built with ❤️ using [Object UI](https://www.objectui.org)
 `;
 
-  writeFileSync(join(targetDir, 'README.md'), readme);
-  console.log(chalk.green('✓ Created README.md'));
-
-  // Create .gitignore
   const gitignore = `.objectui-tmp
 node_modules
 dist
@@ -488,14 +472,6 @@ dist
 *.log
 `;
 
-  writeFileSync(join(targetDir, '.gitignore'), gitignore);
-  console.log(chalk.green('✓ Created .gitignore'));
-
-  // Create package.json
-  writeFileSync(join(targetDir, 'package.json'), JSON.stringify(buildInitPackageJson(name), null, 2));
-  console.log(chalk.green('✓ Created package.json'));
-
-  // Create vite.config.ts
   const viteConfig = `import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -507,9 +483,6 @@ export default defineConfig({
 });
 `;
 
-  writeFileSync(join(targetDir, 'vite.config.ts'), viteConfig);
-  console.log(chalk.green('✓ Created vite.config.ts'));
-
   // No tailwind.config.js is written: this scaffold's CSS pipeline is Tailwind 4
   // (`postcss.config.js` names `@tailwindcss/postcss`, `src/index.css` does
   // `@import 'tailwindcss'`), and v4 reads a JS config only when a stylesheet
@@ -519,7 +492,6 @@ export default defineConfig({
   // `src/**` from the project root. objectui#3852 removed the same dead file
   // from the temp-app generators; objectui#3892 removes it here.
 
-  // Create postcss.config.js
   const postcssConfig = `export default {
   plugins: {
     '@tailwindcss/postcss': {},
@@ -528,10 +500,6 @@ export default defineConfig({
 };
 `;
 
-  writeFileSync(join(targetDir, 'postcss.config.js'), postcssConfig);
-  console.log(chalk.green('✓ Created postcss.config.js'));
-
-  // Create index.html
   const indexHtml = `<!doctype html>
 <html lang="en">
   <head>
@@ -546,21 +514,29 @@ export default defineConfig({
 </html>
 `;
 
-  writeFileSync(join(targetDir, 'index.html'), indexHtml);
-  console.log(chalk.green('✓ Created index.html'));
-
-  // Create src directory and source files
-  const srcDir = join(targetDir, 'src');
-  mkdirSync(srcDir, { recursive: true });
-
-  // Create src/index.css
+  // The component library's PREBUILT stylesheet, not a `@source` scan of it.
+  //
+  // The theme utilities these templates lean on (`text-muted-foreground` and
+  // `bg-muted/10` in `simple`/`dashboard`, `shadow-sm` on every `card`) resolve
+  // through tokens declared in a `@theme` block that lives in
+  // `packages/components/src/index.css` — a file `files` does not publish, so an
+  // installed consumer cannot compile it and cannot obtain those tokens by
+  // scanning `node_modules` either. objectui#3884 measured both halves against a
+  // real install: the full class surface a `node_modules` glob reaches is 1331
+  // rules, all of them already inside the published `dist/index.css`'s 1410 — the
+  // prebuilt sheet is a strict superset, and the `@source` lines are the
+  // redundant ~100 kB. `@object-ui/components` exports it as `./style.css`
+  // (objectui#4062).
+  //
+  // Components only. `@object-ui/fields` publishes a `style.css` too and
+  // quick-start names it, but `@object-ui/fields@17.3.0` ships ZERO css
+  // (measured on the published tarball, objectui#4059) and this scaffold does not
+  // depend on it — importing it would be a declaration in the wrong direction
+  // (objectui#3755) pointing at an empty file.
   const indexCss = `@import 'tailwindcss';
+@import '@object-ui/components/style.css';
 `;
 
-  writeFileSync(join(srcDir, 'index.css'), indexCss);
-  console.log(chalk.green('✓ Created src/index.css'));
-
-  // Create src/main.tsx
   const mainTsx = `import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
@@ -573,11 +549,27 @@ createRoot(document.getElementById('root')!).render(
 );
 `;
 
-  writeFileSync(join(srcDir, 'main.tsx'), mainTsx);
-  console.log(chalk.green('✓ Created src/main.tsx'));
-
-  // Create src/App.tsx
+  // `import '@object-ui/components'` is what fills the component registry, and
+  // nothing else does it.
+  //
+  // `SchemaRenderer` resolves each node through `ComponentRegistry.get(type)`
+  // and renders `Unknown component type: <type>` on a miss; registration happens
+  // as a side effect of importing `@object-ui/components`, which
+  // `@object-ui/react` does not depend on. Without this line every node of all
+  // three templates — `div`, `card`, `text`, `button`, `input`, `textarea` — took
+  // the miss path, so the scaffold's entire visible output was error boxes
+  // (objectui#4061).
+  //
+  // Components alone, no `@object-ui/plugin-*`: all six types above are
+  // registered by this one package (measured), and none of the three templates
+  // names a plugin type. The temp-app generator imports nine packages because it
+  // renders arbitrary user schemas; adding nine dependencies to a minimal
+  // scaffold that uses none of them is the declared-but-unused direction
+  // objectui#3755 removed.
   const appTsx = `import { SchemaRenderer } from '@object-ui/react';
+// Registers the component renderers SchemaRenderer looks up. Side-effect
+// import — removing it makes every node render "Unknown component type".
+import '@object-ui/components';
 import schema from '../app.json';
 
 export default function App() {
@@ -585,10 +577,6 @@ export default function App() {
 }
 `;
 
-  writeFileSync(join(srcDir, 'App.tsx'), appTsx);
-  console.log(chalk.green('✓ Created src/App.tsx'));
-
-  // Create tsconfig.json
   const tsconfig = {
     compilerOptions: {
       target: 'ES2020',
@@ -611,8 +599,52 @@ export default function App() {
     include: ['src'],
   };
 
-  writeFileSync(join(targetDir, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2));
-  console.log(chalk.green('✓ Created tsconfig.json'));
+  // Insertion order is the order `init()` writes and logs them.
+  return {
+    'app.json': JSON.stringify(template, null, 2),
+    'README.md': readme,
+    '.gitignore': gitignore,
+    'package.json': JSON.stringify(buildInitPackageJson(name), null, 2),
+    'vite.config.ts': viteConfig,
+    'postcss.config.js': postcssConfig,
+    'index.html': indexHtml,
+    'src/index.css': indexCss,
+    'src/main.tsx': mainTsx,
+    'src/App.tsx': appTsx,
+    'tsconfig.json': JSON.stringify(tsconfig, null, 2),
+  };
+}
+
+export async function init(name: string, options: InitOptions) {
+  const cwd = process.cwd();
+  const projectDir = join(cwd, name);
+
+  // Check if directory already exists
+  if (existsSync(projectDir) && name !== '.') {
+    throw new Error(`Directory "${name}" already exists. Please choose a different name.`);
+  }
+
+  const targetDir = name === '.' ? cwd : projectDir;
+
+  // Create project directory if needed
+  if (name !== '.') {
+    mkdirSync(projectDir, { recursive: true });
+  }
+
+  console.log(chalk.blue('🎨 Creating Object UI application...'));
+  console.log(chalk.dim(`   Template: ${options.template}`));
+  console.log();
+
+  // Writes the file map and nothing else — see `buildInitFiles`. Unknown
+  // templates still throw here, before the first write.
+  for (const [relativePath, contents] of Object.entries(
+    buildInitFiles(name, options.template)
+  )) {
+    const target = join(targetDir, relativePath);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, contents);
+    console.log(chalk.green(`✓ Created ${relativePath}`));
+  }
 
   console.log();
   console.log(chalk.green('✨ Application created successfully!'));

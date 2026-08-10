@@ -59,7 +59,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { buildInitPackageJson } from '../commands/init.js';
+import { buildInitFiles, buildInitPackageJson } from '../commands/init.js';
 import {
   buildAppFiles,
   buildAppPackageJson,
@@ -371,6 +371,23 @@ const plainFiles = () => buildAppFiles(SCHEMA, STANDALONE);
 const routedFiles = () => buildRoutedAppFiles(ROUTES, APP_CONFIG, STANDALONE);
 const routedFilesNoConfig = () => buildRoutedAppFiles(ROUTES, undefined, STANDALONE);
 
+/**
+ * The `objectui init` scaffold, as a file map (objectui#4061 / objectui#4062).
+ *
+ * The third generator, and the one an external user meets first. Its manifest
+ * joined `DEPENDENCY_ANCHORS` in objectui#3892; its generated SOURCES were still
+ * under no gate at all, which is how both of these shipped at once:
+ * `@object-ui/components` was declared and never imported (so the registry was
+ * empty and every node rendered "Unknown component type"), and `src/index.css`
+ * imported none of the library's published CSS. The first is exactly what the
+ * unused-declaration gate below reports; see `generated init scaffold sources`.
+ *
+ * `'simple'` is the default template. The gates are asserted over all three,
+ * since each writes a different `app.json` — and the same `src/**`.
+ */
+const INIT_TEMPLATES = ['simple', 'form', 'dashboard'] as const;
+const initFiles = (template: string = 'simple') => buildInitFiles('sample-app', template);
+
 describe('generated app manifests', () => {
   it('declares every package the generated sources import', () => {
     // objectui#3827, generalised over both generators and every generated file.
@@ -380,14 +397,19 @@ describe('generated app manifests', () => {
     // first shape and hide the rest. Reverting the fix has to name `lucide-react`
     // — the reported defect, which lives in the routed layout — and not just
     // whichever shape happens to be checked first.
+    //
+    // `init` joined the shapes in objectui#4061: `src/App.tsx` gained the
+    // `@object-ui/components` side-effect import, and a gate that judged only
+    // the two temp-app generators could not have seen it arrive OR leave.
     expect({
       plain: undeclaredImports(buildAppPackageJson(STANDALONE), plainFiles()),
       routed: undeclaredImports(buildRoutedAppPackageJson(), routedFiles()),
       routedWithoutAppConfig: undeclaredImports(
         buildRoutedAppPackageJson(),
         routedFilesNoConfig()
-      )
-    }).toEqual({ plain: [], routed: [], routedWithoutAppConfig: [] });
+      ),
+      init: undeclaredImports(buildInitPackageJson('sample-app'), initFiles())
+    }).toEqual({ plain: [], routed: [], routedWithoutAppConfig: [], init: [] });
   });
 
   it('names every dependency the pre-fix routed manifest was missing', () => {
@@ -443,6 +465,11 @@ describe('generated app manifests', () => {
       .toEqual([]);
     expect(
       unusedVersionedDependencies(dependenciesOf(buildAppPackageJson(STANDALONE)), plainFiles())
+    ).toEqual([]);
+    // The init scaffold's 4 runtime ranges, judged for the first time
+    // (objectui#4061). This is the gate the defect was a live instance of.
+    expect(
+      unusedVersionedDependencies(dependenciesOf(buildInitPackageJson('sample-app')), initFiles())
     ).toEqual([]);
   });
 
@@ -639,6 +666,158 @@ describe('generated app manifests', () => {
     expect(buildAppPackageJson(IN_WORKSPACE).dependencies).toEqual({});
     expect(buildAppPackageJson(IN_WORKSPACE).devDependencies).toEqual({});
     expect(dependenciesOf(buildRoutedAppPackageJson())['@object-ui/react']).toBeTruthy();
+  });
+});
+
+/**
+ * The `objectui init` scaffold's generated sources (objectui#4061, objectui#4062).
+ *
+ * Both defects are the same shape as objectui#3755's, one in each direction, and
+ * both were invisible for the same reason: this generator's SOURCES had never
+ * been judged against its manifest. The gates above now judge them; the cases
+ * here plant each defect back, because a gate that passes over a shape it cannot
+ * fail is not a gate (objectui#3826).
+ */
+describe('generated init scaffold sources', () => {
+  /** The pre-objectui#4061 `src/App.tsx`, verbatim from `origin/main@11c1e71e8`. */
+  const PRE_FIX_APP_TSX = `import { SchemaRenderer } from '@object-ui/react';
+import schema from '../app.json';
+
+export default function App() {
+  return <SchemaRenderer schema={schema} />;
+}
+`;
+
+  /** The pre-objectui#4062 `src/index.css`, verbatim — the whole file. */
+  const PRE_FIX_INDEX_CSS = `@import 'tailwindcss';
+`;
+
+  it('imports the package registration is a side effect of', () => {
+    // objectui#4061's fix, pinned where a reader can see WHY the line is there.
+    // `SchemaRenderer` resolves nodes through `ComponentRegistry.get(type)` and
+    // `@object-ui/react` does not depend on `@object-ui/components`, so this
+    // side-effect import is the only thing that fills the registry.
+    const app = initFiles()['src/App.tsx'];
+    expect(app).toContain(`import '@object-ui/components';`);
+    expect(importedPackagesOf(app)).toEqual(['@object-ui/components', '@object-ui/react']);
+  });
+
+  it('reports @object-ui/components as unused when the registration import is removed', () => {
+    // Reverse verification, direction predicted before running: RED, naming
+    // exactly one package. The declaration was already in the manifest
+    // (objectui#3892 anchored its range), so removing the import turns the
+    // scaffold back into the objectui#4061 shape — declared, never imported —
+    // and the unused-declaration gate is what now catches it.
+    //
+    // This is the defect's real historical text, not an invented one: deleting
+    // the import yields `PRE_FIX_APP_TSX` byte for byte, asserted here so the
+    // fixture cannot drift away from the shape it claims to restore.
+    const preFix = { ...initFiles(), 'src/App.tsx': PRE_FIX_APP_TSX };
+    expect(initFiles()['src/App.tsx'].replace(
+      `// Registers the component renderers SchemaRenderer looks up. Side-effect\n` +
+      `// import — removing it makes every node render "Unknown component type".\n` +
+      `import '@object-ui/components';\n`,
+      ''
+    )).toBe(PRE_FIX_APP_TSX);
+
+    expect(
+      unusedVersionedDependencies(dependenciesOf(buildInitPackageJson('sample-app')), preFix)
+    ).toEqual(['@object-ui/components']);
+  });
+
+  it('needs no @object-ui/plugin-* to render what its own templates contain', () => {
+    // Why the fix imports ONE package where the temp-app generator imports nine.
+    // None of the three templates names a plugin type: the whole distinct set is
+    // the six below, every one registered by `@object-ui/components` itself
+    // (measured against `ComponentRegistry.register` calls in that package).
+    // Adding nine dependencies a minimal scaffold never uses would be
+    // objectui#3755's direction again — and the unused-declaration gate above
+    // would fail on all nine, which is the structural reason this stays honest.
+    const templateTypes = new Set<string>();
+    for (const template of INIT_TEMPLATES) {
+      const collect = (node: unknown): void => {
+        if (Array.isArray(node)) return node.forEach(collect);
+        if (node === null || typeof node !== 'object') return;
+        const record = node as Record<string, unknown>;
+        if (typeof record.type === 'string') templateTypes.add(record.type);
+        Object.values(record).forEach(collect);
+      };
+      collect(JSON.parse(initFiles(template)['app.json']));
+    }
+    expect([...templateTypes].sort()).toEqual([
+      'button',
+      'card',
+      'div',
+      'input',
+      'text',
+      'textarea'
+    ]);
+    expect(importedPackagesOf(initFiles()['src/App.tsx'])).not.toContain(
+      '@object-ui/plugin-grid'
+    );
+  });
+
+  it('imports the published stylesheet of every declared dependency that ships one', () => {
+    // objectui#4062, as a rule rather than a string pin: of the scaffold's
+    // runtime `@object-ui/*` dependencies, exactly those whose package declares
+    // a `./style.css` export must be imported by the generated CSS. Non-vacuous
+    // and discriminating — `@object-ui/components` exports one,
+    // `@object-ui/react` exports none, so the rule has something to say in both
+    // directions rather than blessing whatever is written.
+    const css = initFiles()['src/index.css'];
+    const imported = [...css.matchAll(/@import\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
+
+    const platformDeps = Object.keys(dependenciesOf(buildInitPackageJson('sample-app'))).filter(
+      (name) => name.startsWith('@object-ui/')
+    );
+    const publishesStyles = platformDeps.filter((name) => {
+      const exports = readManifest(
+        resolve(REPO_ROOT, 'packages', name.replace('@object-ui/', ''), 'package.json')
+      ) as unknown as { exports?: Record<string, unknown> };
+      return exports.exports?.['./style.css'] !== undefined;
+    });
+
+    expect(publishesStyles).toEqual(['@object-ui/components']);
+    expect(imported).toEqual(['tailwindcss', '@object-ui/components/style.css']);
+  });
+
+  it('is missing that stylesheet when the pre-fix CSS is restored', () => {
+    // Reverse verification for objectui#4062, direction predicted before
+    // running: the pre-fix file is a bare `@import 'tailwindcss';`, so the set of
+    // imported stylesheets loses the components entry and the assertion above
+    // goes RED. Stated as the set difference so the failure names the missing
+    // sheet rather than just "strings differ".
+    const imported = [...PRE_FIX_INDEX_CSS.matchAll(/@import\s+['"]([^'"]+)['"]/g)].map(
+      (m) => m[1]
+    );
+    expect(imported).toEqual(['tailwindcss']);
+    expect(imported).not.toContain('@object-ui/components/style.css');
+  });
+
+  it('imports no stylesheet from a package it does not depend on', () => {
+    // The other half of objectui#4062's undecided cell, settled by measurement:
+    // quick-start names `@object-ui/fields/style.css` too, but this scaffold does
+    // not depend on `@object-ui/fields` AND that package ships zero CSS at
+    // 17.3.0 (published-tarball measurement, objectui#4059). Copying the docs
+    // line would declare-vs-import in the wrong direction at an empty file.
+    const css = initFiles()['src/index.css'];
+    expect(css).not.toContain('@object-ui/fields');
+    const declared = new Set(Object.keys(dependenciesOf(buildInitPackageJson('sample-app'))));
+    for (const specifier of [...css.matchAll(/@import\s+['"](@[^'"]+)['"]/g)].map((m) => m[1])) {
+      const pkg = specifier.split('/').slice(0, 2).join('/');
+      expect(declared, `${specifier} is imported but ${pkg} is not a dependency`).toContain(pkg);
+    }
+  });
+
+  it('keeps the Tailwind entry first, so the library sheet cannot precede it', () => {
+    // `@import` order is load-bearing in a Tailwind 4 entrypoint and the CSS spec
+    // requires `@import` rules to precede other rules; the library sheet is
+    // appended after `@import 'tailwindcss'`, matching what quick-start teaches.
+    const css = initFiles()['src/index.css'];
+    expect(css.indexOf(`@import 'tailwindcss';`)).toBe(0);
+    expect(css.indexOf(`@import '@object-ui/components/style.css';`)).toBeGreaterThan(
+      css.indexOf(`@import 'tailwindcss';`)
+    );
   });
 });
 
