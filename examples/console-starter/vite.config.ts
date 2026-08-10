@@ -43,9 +43,12 @@ const workspaceAliases: Record<string, string> = {
   '@object-ui/plugin-report': path.resolve(__dirname, '../../packages/plugin-report/src'),
   '@object-ui/plugin-view': path.resolve(__dirname, '../../packages/plugin-view/src'),
   '@object-ui/providers': path.resolve(__dirname, '../../packages/providers/src'),
-  // '@object-ui/react' does NOT shadow '@object-ui/react-runtime': an alias key
-  // matches an importee only when it equals it or is a prefix ending at a '/'
-  // boundary, so the order of these keys is presentation, not precedence.
+  // Note that the `react` key does NOT shadow the `react-runtime` one below —
+  // an alias key matches an importee only when it equals it or is a prefix
+  // ending at a '/' boundary, so the order of these keys is presentation, not
+  // precedence. (Spelled without the full quoted specifiers on purpose: a
+  // quoted `@object-ui/...` followed by a colon reads as a 30th table entry to
+  // anything scanning this file, and that decoy already fooled one scan.)
   '@object-ui/react': path.resolve(__dirname, '../../packages/react/src'),
   '@object-ui/react-runtime': path.resolve(__dirname, '../../packages/react-runtime/src'),
   '@object-ui/sdui-parser': path.resolve(__dirname, '../../packages/sdui-parser/src'),
