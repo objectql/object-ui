@@ -25,7 +25,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, waitFor } from '@testing-library/react';
-import { SchemaRendererProvider } from '@object-ui/react';
+import { SchemaRendererProvider, type ApiFetch } from '@object-ui/react';
 
 let lastSchema: any = null;
 
@@ -74,7 +74,9 @@ function makeMetaFetchRecorder(routes: Record<string, unknown> = {}) {
     inits.push(init);
     return { ok: true, json: async () => routes[url] ?? {} };
   });
-  return { fn, calls, inits };
+  // The double answers the two fields the probe reads (`ok` / `json()`), not a
+  // whole Response — cast once here so the call sites stay `any`-free.
+  return { fn: fn as unknown as ApiFetch, calls, inits };
 }
 
 afterEach(() => {
@@ -266,8 +268,8 @@ describe('ObjectChart — option-color probe routing (objectui#4114)', () => {
 
     render(
       <SchemaRendererProvider
-        dataSource={{ find: async () => ({ data: [] }) } as any}
-        apiFetch={host.fn as any}
+        dataSource={{ find: async () => ({ data: [] }) }}
+        apiFetch={host.fn}
       >
         <ObjectChart schema={OBJECT_CHART_SCHEMA} />
       </SchemaRendererProvider>,
@@ -319,8 +321,8 @@ describe('ObjectChart — option-color probe routing (objectui#4114)', () => {
             rows: [{ status: 'todo', task_count: 3 }],
             fields: [{ name: 'status', label: 'Status' }, { name: 'task_count', label: 'Tasks' }],
           }),
-        } as any}
-        apiFetch={host.fn as any}
+        }}
+        apiFetch={host.fn}
       >
         <ObjectChart
           schema={{
@@ -366,7 +368,7 @@ describe('ObjectChart — option-color probe routing (objectui#4114)', () => {
     const globalCalls = installMetaFetchDouble(OPPORTUNITY_DOC);
 
     render(
-      <SchemaRendererProvider dataSource={{ find: async () => ({ data: [] }) } as any}>
+      <SchemaRendererProvider dataSource={{ find: async () => ({ data: [] }) }}>
         <ObjectChart schema={OBJECT_CHART_SCHEMA} />
       </SchemaRendererProvider>,
     );
