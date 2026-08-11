@@ -499,7 +499,14 @@ describe('AppHeader — presence stays app-only chrome (#4197 boundary)', () => 
   it('renders no presence avatars and no connection dot off-app', async () => {
     render(<AppHeader variant="home" connectionState="connected" />);
 
-    await waitFor(() => expect(activityReads().length).toBeGreaterThan(0));
+    // Settle on the INBOX read, not the activity read. Asserting an absence
+    // needs the tree to have done its work first, and the inbox poll is the
+    // one read this variant issues on both sides of this change (#4199
+    // un-gated it) — so this case stays green before AND after, which is what
+    // a boundary pin is for. Anchored on the activity read it went red on
+    // `origin/main` for the settle point never arriving, which would have
+    // dressed an unrelated timeout up as evidence about presence.
+    await waitFor(() => expect(inboxReads().length).toBeGreaterThan(0));
     expect(screen.queryByTestId('presence-avatars')).not.toBeInTheDocument();
     expect(screen.queryByTestId('connection-dot')).not.toBeInTheDocument();
   });
@@ -515,6 +522,7 @@ describe('AppHeader — presence stays app-only chrome (#4197 boundary)', () => 
     render(<AppHeader variant="app" appName="ehr" connectionState="connected" />);
 
     await waitFor(() => expect(activityReads().length).toBeGreaterThan(0));
+    // Not one read names presence — in the variant that DOES render it.
     expect(finds.some((f) => String(f.object).includes('presence'))).toBe(false);
   });
 });
