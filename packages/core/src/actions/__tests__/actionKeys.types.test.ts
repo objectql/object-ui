@@ -7,8 +7,9 @@
  */
 
 /**
- * Type-level pins for objectstack#4075 step 2 — the 18 spec-owned keys that
- * `ActionDef` now declares explicitly.
+ * Type-level pins for objectstack#4075 — the keys `ActionDef` declares
+ * explicitly (step 2's 18 spec-owned ones, plus the five step 3's deletion
+ * surfaced) and, since step 3, the keys it now REFUSES.
  *
  * Why this file has to drive `tsc` itself: the property under test is that the
  * COMPILER rejects a wrong-typed value. A normal runtime test cannot observe
@@ -25,6 +26,13 @@
  * is what makes this file revert-proof: undo the promotion and the "rejects"
  * assertions go green-to-red, because the index signature swallows them again,
  * which is the entire bug objectstack#4075 describes.
+ *
+ * Since step 3 that control also covers the deletion itself, not just the
+ * promotions. `{ targt: … }` and `{ execute: … }` are now `rejected: true`, and
+ * the only thing standing between them and silence is the absence of the index
+ * signature — so restoring it makes those two rows leak into the control's
+ * "leaked" list as well as flipping them here. The control is no longer a
+ * historical foil; it is the exact shape of the thing that was removed.
  *
  * Cost note (AGENTS.md 测试纪律): the program is built once at MODULE SCOPE, not
  * in `beforeAll`. Module-scope work runs in the import phase and is bound by no
@@ -94,11 +102,55 @@ const CASES: readonly Case[] = [
   { what: 'visible accepts a { dialect, source } envelope', rejected: false, code: `{ visible: { dialect: 'cel', source: 'record.done == false' } }` },
   { what: 'visible accepts a literal boolean (objectui tolerance, pinned by ActionEngine.visibility.test.ts)', rejected: false, code: `{ visible: true }` },
 
-  // Step 3's completion check, from the type side. While `[key: string]: any`
-  // stands, a typo is still absorbed silently — which is precisely why the
-  // dev-mode warning in `actionKeys.ts` exists. When this case starts FAILING,
-  // step 3 has landed and the warning can retire.
-  { what: 'an unrecognized key is still absorbed — the index signature stands', rejected: false, code: `{ targt: 'form_1' }` },
+  // `disabled`'s three arms, converged onto `visible`'s by the 2026-08-06
+  // maintainer ruling and delivered by `@objectstack/spec` 17.0.0-rc.6
+  // (objectstack#5970). Step 2 could only declare `string | boolean` by hand,
+  // which is why `DeclaredActionsBar` still read the key through a cast: the
+  // envelope arm the spec emits had no declaration to land in.
+  { what: 'disabled accepts a literal boolean', rejected: false, code: `{ disabled: true }` },
+  { what: 'disabled accepts a raw CEL string', rejected: false, code: `{ disabled: 'record.locked' }` },
+  { what: 'disabled accepts a { dialect, source } envelope', rejected: false, code: `{ disabled: { dialect: 'cel', source: 'record.locked' } }` },
+  { what: 'disabled rejects a number — neither predicate, envelope, nor boolean', rejected: true, code: `{ disabled: 42 }` },
+
+  // The five keys step 3's deletion surfaced: four `navigation`-alias spellings
+  // that step 1 had ruled legitimate but step 2 left as data, and `description`,
+  // which every action renderer forwards and the param dialog reads.
+  { what: 'the navigation alias spelling is declared', rejected: false, code: `{ to: '/records/1', external: false, newTab: true, replace: false }` },
+  { what: 'newTab is the boolean switch, not the openIn string', rejected: true, code: `{ newTab: 'new-tab' }` },
+  //
+  // `description` is deliberately NOT pinned here — it is pinned in
+  // `actionDef-closed-surface.test.ts` instead, and the reason is a real limit
+  // of this harness rather than an oversight.
+  //
+  // Every other derivation above resolves through `@objectstack/spec`, an
+  // ordinary installed package. `description` derives from
+  // `UIActionSchema['description']` in `@object-ui/types`, a WORKSPACE package
+  // whose types resolve through its built `dist/index.d.ts`. This harness
+  // builds its own program with a default compiler host and no `paths` (see
+  // `erroringLines`), so it reads whatever is on disk — and the unit-test job
+  // does not build workspace packages first. When `dist` is stale or absent the
+  // indexed access degrades to `any`, `{ description: 42 }` is accepted, and a
+  // `rejected: true` row here goes red for a reason that has nothing to do with
+  // `ActionDef`. Measured: green locally after a build, red in CI without one.
+  //
+  // `tsconfig.typetests.json` has no such problem — it is a real project in the
+  // dependency graph, so CI's Type Check job builds `@object-ui/types` before
+  // compiling it, and the `@ts-expect-error` on `{ description: 42 }` there is
+  // enforced for real. Splitting the two `description` pins out is therefore
+  // the honest placement, not a weakening: an assertion whose colour depends on
+  // whether someone ran a build is not a pin.
+
+  // Step 3's completion check, from the type side, INVERTED by step 3 landing.
+  // While `[key: string]: any` stood, a typo was absorbed silently and this case
+  // read `rejected: false` under a comment promising it would flip. It flipped.
+  //
+  // The dev-mode warning it pointed at did NOT retire with it, and the reason is
+  // the one thing this file cannot pin: `tsc` only ever sees actions authored as
+  // TypeScript, while `execute: 'markDone'` lives in stored `sys_metadata` rows
+  // that reach the runner UNPARSED (objectstack#3903). Closing the type is half
+  // the surface; the warning is the other half.
+  { what: 'an unrecognized key is REJECTED — the index signature is gone', rejected: true, code: `{ targt: 'form_1' }` },
+  { what: 'the retired `execute` tombstone is rejected by name', rejected: true, code: `{ execute: 'markDone' }` },
 ];
 
 /** `ActionDef` as it was BEFORE step 2: nothing but the open index signature. */

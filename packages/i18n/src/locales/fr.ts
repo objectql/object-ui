@@ -545,6 +545,7 @@ const fr = {
     sortByIdSuffix: "(par ID)",
     sortRelationalHint:
       "Les colonnes qui pointent vers un autre enregistrement ne sont pas listées : elles ne peuvent être triées que par l'ID stocké, et non par le nom affiché dans la cellule. Pour trier par ce nom, ajoutez un champ de formule qui le contient.",
+    resetSortToDefault: "Réinitialiser au tri par défaut de la vue",
     group: "Grouper",
     groupBy: "Grouper par",
     export: "Exporter",

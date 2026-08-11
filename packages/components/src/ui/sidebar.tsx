@@ -15,6 +15,7 @@ import { PanelLeft } from "lucide-react"
 
 import { useIsMobile } from "../hooks/use-mobile"
 import { cn } from "../lib/utils"
+import { readSidebarStateCookie } from "../lib/sidebar-cookie"
 import { Button } from "./button"
 import { Input } from "./input"
 import { Separator } from "./separator"
@@ -86,7 +87,7 @@ const SidebarProvider = React.forwardRef<
 
     // This is the internal state of the sidebar.
     // We use openProp and setOpenProp for control from outside the component.
-    const [_open, _setOpen] = React.useState(defaultOpen)
+    const [_open, _setOpen] = React.useState(() => readSidebarStateCookie(SIDEBAR_COOKIE_NAME) ?? defaultOpen)
     const open = openProp ?? _open
     const setOpen = React.useCallback(
       (value: boolean | ((value: boolean) => boolean)) => {

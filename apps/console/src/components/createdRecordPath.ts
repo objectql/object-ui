@@ -18,94 +18,62 @@
  * `InterfaceListPage`, …) builds this same shape. But `/forms/:name` names no
  * app, so one has to be chosen.
  *
- * ## Which app, and the honest limit of this copy
+ * ## Which app — app-shell's resolver, and nothing local (objectui#4280)
  *
- * app-shell answers exactly this question for framework-owned, app-independent
- * pages in `resolveHostAppSegment` (`utils/appRoute.ts`): prefer the app the
- * user is in or last had open, RE-CHECKED against the live active list; else
- * their first active app; else fall back further. Its docblock is emphatic that
- * the order is one hard-won definition, and duplicating it would be the "two
- * readers of one prose contract" mistake this repo keeps paying for.
+ * `resolveHostAppSegment` answers exactly this question for framework-owned,
+ * app-independent pages, and its docblock (`app-shell/src/utils/appRoute.ts`)
+ * is the contract: prefer the app the user is in or last had open, RE-CHECKED
+ * against the live active list; else their first active app; else the two last
+ * resorts below. This module holds NO copy of that order — it builds the URL
+ * shape and delegates the choice.
  *
- * We would import it — but `@object-ui/app-shell` exports only its package
- * root, and that root re-exports `./utils` nowhere, so the helper is not
- * reachable from `apps/console` without widening app-shell's public surface.
- * That edit was out of scope for #4109 (a parallel agent holds app-shell), so
- * this implements the FIRST TWO steps only and then STOPS:
+ * ### What #4280 deleted, and the behaviour that changed with it
  *
- *   1. `preferred` — the app the user is in / last had open — re-checked
- *      against the live list, so an app deactivated or hidden since is not
- *      resurrected as a link;
- *   2. else their first openable app — arbitrary but reachable, and on a
- *      business user's workspace that is a business app;
- *   3. else `null` — NOT `setup`. That is the deliberate divergence: the
- *      upstream helper's last resorts exist so a framework page always renders
- *      SOMEWHERE, whereas an unresolvable app here means we cannot name the
- *      record's page at all, and the caller must confirm the submit instead of
- *      sending the user to a URL that resolves to nothing.
+ * #4109 could not import the resolver (`@object-ui/app-shell` published only
+ * its package root, and that root re-exported `./utils` nowhere), so it shipped
+ * a documented local subset: steps 1–2 only, returning `null` where upstream
+ * falls through further. #4280 published the resolver from the package root and
+ * deleted the subset, and the divergence went with it — deliberately, since a
+ * second reader of one prose contract is the failure this repo keeps paying for
+ * (#3367 / #3842). The two cases that used to answer `null` now answer:
  *
- * Replacing all of this with the upstream helper is a pure deletion once it is
- * exported; the divergence at step 3 is the only judgement to re-make.
+ *   - **an EMPTY openable list with a `preferred` app** → `preferred`,
+ *     unchecked. An empty list means "not loaded yet" at least as often as it
+ *     means "this user has no apps", and a caller rendering inside
+ *     `/apps/{preferred}/…` is demonstrably in that app;
+ *   - **anything else unresolvable** (no apps and nothing preferred, or apps
+ *     carrying neither `_packageId` nor `name`) → `setup`, the least-surprising
+ *     last resort rather than a broken link.
+ *
+ * The user-visible delta is on the created-record redirect: `FormPage` treats a
+ * `null` path as "cannot name the record's page" and confirms the submit in
+ * place instead of navigating (`setSubmitted(true)`). With the host app now
+ * always named, a submit that used to stop on that confirmation navigates to
+ * the record under the resolved app instead. The write itself was never at
+ * stake — only where the user is put afterwards — and this is the same answer
+ * every other record link in the console already gives, which is the point.
  */
 
-/** The fields this resolver reads off an App metadata record. */
-export interface HostAppLike {
-  name?: unknown;
-  /** ADR-0048 owning package — the canonical identity of a shipped app. */
-  _packageId?: unknown;
-  active?: unknown;
-  hidden?: unknown;
-}
+import { resolveHostAppSegment } from '@object-ui/app-shell';
 
 /**
- * The `/apps/<segment>` route segment for an app: its package id, falling back
- * to its name for runtime/DB apps that have none. Mirrors app-shell's
- * `appRouteSegment` — same reason, same unavailability.
+ * The app records this module hands to app-shell's resolver, DERIVED from that
+ * resolver's own signature — the package publishes the function, not its
+ * parameter type, and re-declaring the field set here (what `name`,
+ * `_packageId`, `active` and `hidden` mean) is precisely the duplication
+ * objectui#4280 removed. Deriving it means this call site cannot drift from the
+ * shape the resolver accepts.
  */
-function routeSegment(app: HostAppLike | undefined): string | null {
-  if (!app) return null;
-  const seg = (typeof app._packageId === 'string' && app._packageId) || null;
-  if (seg) return seg;
-  return typeof app.name === 'string' && app.name ? app.name : null;
-}
+export type HostAppLike = NonNullable<Parameters<typeof resolveHostAppSegment>[0]>[number];
 
 /**
- * The apps a user can actually open. `active === false` deactivates an app;
- * `hidden === true` keeps it out of the launcher. Neither is a place to send
- * someone. (Deliberately NOT filtering `_unpublished`: it is the ADR-0045
- * publish gate and is enforced server-side — see app-shell's `filterActiveApps`
- * docblock — so filtering it here would hide a builder's own app from the
- * builder and buy nothing.)
- */
-function openableApps(apps: readonly HostAppLike[] | null | undefined): HostAppLike[] {
-  if (!apps) return [];
-  return apps.filter((a) => a?.active !== false && a?.hidden !== true);
-}
-
-/**
- * Which app should host the created record's page, as a route segment, or
- * `null` when none can be named. See the module docblock for the order.
- */
-export function resolveRecordHostAppSegment(
-  apps: readonly HostAppLike[] | null | undefined,
-  preferred: string | null | undefined,
-): string | null {
-  const openable = openableApps(apps);
-  if (preferred) {
-    const stillOpenable =
-      openable.find((a) => a._packageId === preferred) ??
-      openable.find((a) => a.name === preferred);
-    const seg = routeSegment(stillOpenable);
-    if (seg) return seg;
-  }
-  return routeSegment(openable[0]);
-}
-
-/**
- * The console path of a freshly created record, or `null` when it cannot be
- * built — no openable app to host it, or a caller with no object/id. A null
- * return is a supported answer, not a failure: `FormPage` confirms the submit
- * instead of navigating to a path that resolves to nothing.
+ * The console path of a freshly created record, or `null` when there is no
+ * record to point at — a caller with no object or no id. That null is a
+ * supported answer, not a failure: `FormPage` confirms the submit instead of
+ * navigating to a path that names nothing.
+ *
+ * The host app is never a reason to return null any more — see the module
+ * docblock — because `resolveHostAppSegment` always names one.
  *
  * `recordId` is percent-encoded (ids are opaque and may carry `/` or `#`);
  * `objectName` and the app segment are metadata identifiers, encoded for the
@@ -118,7 +86,6 @@ export function buildCreatedRecordPath(
   recordId: string | null | undefined,
 ): string | null {
   if (!objectName || !recordId) return null;
-  const appSegment = resolveRecordHostAppSegment(apps, preferredAppName);
-  if (!appSegment) return null;
+  const appSegment = resolveHostAppSegment(apps, preferredAppName);
   return `/apps/${encodeURIComponent(appSegment)}/${encodeURIComponent(objectName)}/record/${encodeURIComponent(recordId)}`;
 }

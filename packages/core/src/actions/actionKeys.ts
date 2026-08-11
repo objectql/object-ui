@@ -7,26 +7,46 @@
  */
 
 /**
- * What an action is allowed to carry — objectstack#4075 step 1.
+ * What an action is allowed to carry — objectstack#4075, all three steps.
  *
- * `ActionDef` ends with `[key: string]: any`, so it accepts any key of any type.
- * Concretely (objectui#2990): deleting `ActionDef.execute` produced ZERO compile
- * errors even though the field had just been removed, and stale metadata still
- * authoring `execute: 'markDone'` type-checks today. The same deletion against
- * `@object-ui/types`' `ActionSchema` — which has no index signature — correctly
- * produced `TS2353` at the authoring site. One of the two readers can catch a
- * retired key; the other is structurally incapable.
+ * `ActionDef` used to end with `[key: string]: any`, so it accepted any key of
+ * any type. Concretely (objectui#2990): deleting `ActionDef.execute` produced
+ * ZERO compile errors even though the field had just been removed, and stale
+ * metadata authoring `execute: 'markDone'` type-checked. The same deletion
+ * against `@object-ui/types`' `ActionSchema` — which has no index signature —
+ * correctly produced `TS2353` at the authoring site. One of the two readers
+ * could catch a retired key; the other was structurally incapable.
  *
- * That asymmetry is the issue. An open key set on a DECLARED METADATA CONTRACT
+ * That asymmetry was the issue. An open key set on a DECLARED METADATA CONTRACT
  * is what lets a typo (`targt`, `exectue`) and a tombstoned key (`execute`) both
  * sail through to a runner that then silently does nothing — the #2169 "Mark
  * Done does nothing" shape.
  *
- * This module is step 1 of the staged narrowing: it makes the key set VISIBLE
- * and warns on anything outside it, without changing a single type. Nothing
- * breaks, and an invisible failure becomes an audible one. Steps 2 and 3 —
- * promoting the legitimate keys to explicit optional fields, then removing the
- * index signature — are what finally let `tsc` catch typos and retired keys.
+ * This module was step 1 of the staged narrowing: make the key set VISIBLE and
+ * warn on anything outside it, without changing a single type. Step 2 promoted
+ * the legitimate keys to explicit optional fields; **step 3 removed the index
+ * signature**, so `tsc` now rejects a typo or a retired key outright.
+ *
+ * ── Why this module SURVIVES step 3 ──────────────────────────────────────────
+ * Step 1 wrote that the dev-mode warning "can retire" once the index signature
+ * came down. Step 3 measured that and kept it, because the two mechanisms cover
+ * DISJOINT populations rather than the same one twice:
+ *
+ *   - `tsc` sees action literals AUTHORED IN CODE. It rejects an unknown key at
+ *     the construction site, which is the strongest possible signal — but only
+ *     for actions that exist as TypeScript.
+ *   - the warning below sees actions that arrive as DATA. objectstack#3903
+ *     established that stored `sys_metadata` rows are rehydrated UNPARSED, so
+ *     authored metadata reaches `runner.execute()` as a plain object no
+ *     compiler ever looked at. That is the population `execute: 'markDone'`
+ *     actually lives in, and no type can reach it.
+ *
+ * Retiring the warning would therefore have re-opened the runtime half of the
+ * gap while closing the compile-time half — which is why `executeScript`'s
+ * rename-prescription branch also survives, for the same rows and the same
+ * reason. What DID retire with the index signature is the inverted pin in
+ * `actionKeys.pin.test.ts` that asserted the signature was still there; it now
+ * asserts the opposite, which was always its stated completion condition.
  *
  * The lists are pinned by `__tests__/actionKeys.pin.test.ts`, which re-derives
  * each one from its actual source. A hand-maintained list that drifts from the
@@ -67,8 +87,22 @@
  * deprecating them toward a spelling that does not exist would be worse than
  * leaving them declared.
  *
- * Step 3 remains: remove the index signature, at which point `tsc` catches both
- * typos and retired keys and the dev-mode warning below can retire with it.
+ * ── What step 3 found the first two steps had missed ─────────────────────────
+ * Deleting the index signature is the only thing that can name the keys still
+ * hiding behind it, and it named five, in two groups:
+ *
+ * `to` / `external` / `newTab` / `replace` — the `navigation` alias's own
+ * spelling. Step 1 had already ruled these legitimate and listed them below in
+ * {@link NAVIGATION_ALIAS_KEYS}, but step 2's scope was the SPEC-owned keys, so
+ * they were declared as data and never as fields; `executeNavigation` read them
+ * through the index signature. Promoted, and deliberately not `@deprecated` —
+ * step 2's acceptance ruled on exactly that point.
+ *
+ * `description` — objectui vocabulary from `@object-ui/types`' renderer view of
+ * an action, forwarded by all four action renderers (`check:action-forward-parity`
+ * requires it) and read by the param-collection dialog for its subtitle
+ * (objectui#4192). Authorable, forwarded, read — and undeclared. These were the
+ * only two `TS2353`s the deletion produced across the whole workspace.
  */
 
 /**
@@ -83,6 +117,10 @@ export const ACTION_DEF_KEYS = [
   'actionType',
   'name',
   'label',
+  // Promoted by step 3 — objectui vocabulary (`@object-ui/types`' renderer view
+  // of an action), forwarded by all four action renderers and read by the
+  // param-collection dialog, but never declared on `ActionDef`.
+  'description',
   'confirmText',
   'confirm',
   'condition',
@@ -91,6 +129,14 @@ export const ACTION_DEF_KEYS = [
   'endpoint',
   'method',
   'navigate',
+  // The `navigation` alias's own spelling, promoted to real fields by step 3.
+  // Listed a second time in `NAVIGATION_ALIAS_KEYS` below, which keeps the
+  // separate fact that these four are objectui dialect with a spec-adoption
+  // tripwire; this list is only "what the interface declares".
+  'to',
+  'external',
+  'newTab',
+  'replace',
   'onClick',
   'reload',
   'close',
@@ -231,8 +277,15 @@ export const NAVIGATION_ALIAS_KEYS = ['to', 'external', 'newTab', 'replace'] as 
  * Warned about separately from unknown keys, and more loudly: an unknown key is
  * probably a typo, while a retired key is metadata that used to work. That
  * distinction is why `executeScript` carries a runtime branch returning the
- * rename prescription — a branch that exists solely to compensate for the index
- * signature, and that can retire with it in step 3.
+ * rename prescription.
+ *
+ * Step 1 expected that branch to retire with the index signature. It does not,
+ * and the reason is the one in this module's header: `tsc` closed the
+ * code-authored half of the gap, while `execute: 'markDone'` lives in stored
+ * rows that reach the runner UNPARSED (objectstack#3903). The branch reads the
+ * key off an untyped view of the action precisely so that `ActionDef` can go on
+ * NOT declaring it — declaring it to make the read compile would re-legitimize
+ * a tombstone the spec keeps only in order to reject it by name.
  */
 export const RETIRED_ACTION_KEYS: Readonly<Record<string, string>> = {
   execute: '`execute` was removed in @objectstack/spec 17 (#3855) — rename the key to `target`. ' +

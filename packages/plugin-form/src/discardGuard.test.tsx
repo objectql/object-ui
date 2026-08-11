@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { registerAllFields } from '@object-ui/fields';
+import type { DataSource } from '@object-ui/types';
 import { ModalForm } from './ModalForm';
 import { DrawerForm } from './DrawerForm';
 
@@ -216,10 +217,32 @@ function fireBeforeUnload(): Event {
   return evt;
 }
 
-describe.each([
+/**
+ * The two overlay containers, as one type.
+ *
+ * `ModalFormProps.schema` is a `ModalFormSchema` and `DrawerFormProps.schema` a
+ * `DrawerFormSchema`, each pinned to its own `formType` literal, so a
+ * `describe.each` tuple hands JSX a UNION of the two components — and JSX
+ * resolves a union of components by INTERSECTING their props, reducing
+ * `formType` to `never` and rejecting every schema including the correct one
+ * (`Type 'any' is not assignable to type 'never'`). Naming the surface the
+ * parametrisation actually uses is what makes the suite expressible; `schema`
+ * can only be `any` here, because a shared schema type would have to be
+ * assignable to both variants at once. See the longer note in
+ * `recordSwapLoading.test.tsx`, where the same collision accounts for most of
+ * this package's #4040 error count.
+ */
+type OverlayFormContainer = React.ComponentType<{
+  schema: any;
+  dataSource?: DataSource;
+}>;
+
+const OVERLAY_FORMS: ReadonlyArray<readonly [string, OverlayFormContainer]> = [
   ['ModalForm', ModalForm],
   ['DrawerForm', DrawerForm],
-] as const)('%s beforeunload guard', (_name, Form) => {
+];
+
+describe.each(OVERLAY_FORMS)('%s beforeunload guard', (_name, Form) => {
   it('does not block unload while the form is pristine', async () => {
     render(
       <Form

@@ -537,8 +537,27 @@ describe('PageHeaderRenderer — record dispatch shape (objectui#3391)', () => {
     fireEvent.click(screen.getByRole('button', { name: /No Record/i }));
     await waitFor(() => expect(api).toHaveBeenCalledTimes(1));
     const dispatched: any = api.mock.calls[0][0];
-    expect(dispatched).toBe(action);
+    // Value-equal, not reference-equal. Since objectui#4265 every header action
+    // is run through the shared action-text localizer before it is rendered or
+    // dispatched, so what reaches the runner is always a localized COPY — which
+    // is what the record-context branch was already doing deliberately (see
+    // `dispatchHeaderAction`: a fresh object keeps the runner's in-place
+    // collected-params merge off the authored schema node). This case is about
+    // the SHAPE staying untouched outside a record context, and the assertion
+    // that carries that is the `params` pin below: no `_rowRecord` stash is
+    // added when there is no record. Identity was never the contract — it was
+    // how "unchanged" happened to be spelled when only the record branch
+    // rebuilt.
+    expect(dispatched).toStrictEqual(action);
     expect(dispatched.params).toBeUndefined();
+    // …and the authored node itself is not mutated on the way through.
+    expect(action).toStrictEqual({
+      name: 'no_record_3391',
+      type: 'api',
+      locations: ['record_header'],
+      label: 'No Record',
+      target: '/api/v1/misc/ping',
+    });
   });
 });
 

@@ -104,6 +104,62 @@ function i18nCloseLabelPatches(primitive) {
 }
 
 /**
+ * The sidebar collapse-persistence patch (objectui#4234).
+ *
+ * `SidebarProvider` writes `sidebar_state` on every toggle and never reads it
+ * back, so a collapsed sidebar returns expanded after a reload — the cookie is
+ * present and correct, and nothing consults it. Upstream closes the loop in a
+ * **server component** (read the cookie there, pass it down as `defaultOpen`),
+ * a step a pure SPA like the console does not have, so the read must happen
+ * client-side inside the provider itself.
+ *
+ * Fixing it at a call site instead was rejected on the issue: passing a
+ * cookie-derived `defaultOpen` from one shell leaves every other SPA consumer
+ * of this primitive broken.
+ *
+ * As with the i18n patches above, the payload stays OUT of `src/ui/`: all of
+ * the parsing lives in `packages/components/src/lib/sidebar-cookie.ts`, and the
+ * primitive gets two anchored one-liners. The lazy `useState` initialiser (not
+ * a mount effect) is the point — the state must be right on the FIRST render,
+ * because the reported symptom is measured at first paint and a mount-then-
+ * collapse effect would still flash expanded.
+ *
+ * @type {LocalPatch[]}
+ */
+const sidebarCookieReadPatches = [
+  {
+    id: 'sidebar-cookie-read-import',
+    issue: 'objectui#4234',
+    reason:
+      'Imports the cookie reader that restores the persisted collapse state. ' +
+      'Anchored on the `cn` import, which every Shadcn component carries.',
+    find: 'import { cn } from "../lib/utils"',
+    replace:
+      'import { cn } from "../lib/utils"\nimport { readSidebarStateCookie } from "../lib/sidebar-cookie"',
+    marker: 'from "../lib/sidebar-cookie"',
+    occurrences: 1,
+  },
+  {
+    id: 'sidebar-cookie-read-initial-state',
+    issue: 'objectui#4234',
+    reason:
+      "Seeds the provider's uncontrolled state from the `sidebar_state` cookie " +
+      'that its own `setOpen` writes, so a collapsed sidebar survives a reload. ' +
+      'A lazy initialiser rather than an effect: the value must be correct on ' +
+      'the first render, not applied after one expanded paint. Precedence is ' +
+      'cookie > `defaultOpen`; the controlled `open` prop still wins, because ' +
+      'it is applied downstream of this state (`openProp ?? _open`). ' +
+      'SIDEBAR_COOKIE_NAME is passed in so the cookie name keeps exactly one ' +
+      'spelling — the write side\'s.',
+    find: 'const [_open, _setOpen] = React.useState(defaultOpen)',
+    replace:
+      'const [_open, _setOpen] = React.useState(() => readSidebarStateCookie(SIDEBAR_COOKIE_NAME) ?? defaultOpen)',
+    marker: 'readSidebarStateCookie(SIDEBAR_COOKIE_NAME)',
+    occurrences: 1,
+  },
+];
+
+/**
  * Component name (as tracked in `shadcn-components.json`) → patches it needs.
  *
  * @type {Record<string, LocalPatch[]>}
@@ -111,6 +167,7 @@ function i18nCloseLabelPatches(primitive) {
 export const LOCAL_PATCHES = {
   sheet: i18nCloseLabelPatches('Sheet'),
   dialog: i18nCloseLabelPatches('Dialog'),
+  sidebar: sidebarCookieReadPatches,
 };
 
 /** Components that carry at least one declared patch. */

@@ -59,13 +59,17 @@ vi.mock('../../utils/getIcon', () => ({ getIcon: () => () => null }));
 // authored literal, which is what the render assertions below expect); the
 // bar's OWN chrome resolves through `t`. Marking `t` output makes it visible
 // whether a string went through the locale bundle or was baked in English.
+// (`useActionTextLocalizer` — the shared action-text resolver the bar calls
+// since objectui#4265 — is the REAL one from `@object-ui/react`; it reads these
+// three resolvers plus `pickLocalized`, so the double has to carry all four.)
 vi.mock('@object-ui/i18n', () => ({
   useObjectLabel: () => ({
     actionLabel: (_o: unknown, _n: unknown, fallback: string) => fallback,
     actionConfirm: (_o: unknown, _n: unknown, fallback?: string) => fallback,
     actionSuccess: (_o: unknown, _n: unknown, fallback?: string) => fallback,
   }),
-  useObjectTranslation: () => ({ t: (key: string) => `t:${key}` }),
+  useObjectTranslation: () => ({ t: (key: string) => `t:${key}`, language: 'en' }),
+  pickLocalized: (value: unknown) => (typeof value === 'string' ? value : ''),
 }));
 
 // The components barrel stays doubled (its full graph is what the light `dom`
