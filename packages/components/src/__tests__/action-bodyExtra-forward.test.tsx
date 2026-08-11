@@ -26,9 +26,10 @@
  * payload was still lost downstream.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
+import type { ActionContext, ActionDef, ActionResult } from '@object-ui/core';
 import { ActionProvider } from '@object-ui/react';
 import '../renderers/basic/elements';
 import '../renderers/action/action-button';
@@ -42,7 +43,12 @@ function Registered({ type, schema }: { type: string; schema: any }) {
 }
 
 describe('bodyExtra survives the renderer forward whitelist', () => {
-  let api: ReturnType<typeof vi.fn>;
+  // Typed with the signature `ActionProvider`'s `handlers` prop declares, not
+  // `ReturnType<typeof vi.fn>` — that resolves to the un-instantiated
+  // `Mock<Procedure | Constructable>`, which no handler slot accepts and whose
+  // `mock.calls[0]` is the EMPTY tuple, so `dispatched()` below read `undefined`
+  // as far as the compiler was concerned (objectui#4040).
+  let api: Mock<(action: ActionDef, ctx: ActionContext) => Promise<ActionResult>>;
 
   beforeEach(() => {
     api = vi.fn(async () => ({ success: true }));

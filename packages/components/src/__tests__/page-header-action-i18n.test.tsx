@@ -23,6 +23,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
+import type { ConfirmationHandler, ToastHandler } from '@object-ui/core';
 import { ActionProvider, RecordContextProvider } from '@object-ui/react';
 import { I18nProvider, useObjectTranslation } from '@object-ui/i18n';
 
@@ -75,8 +76,12 @@ function BundleLoader({ bundle, children }: { bundle: unknown; children: React.R
 }
 
 function renderHeader(opts: { bundle?: unknown; action?: Record<string, unknown> }) {
-  const onConfirm = vi.fn(async () => true);
-  const onToast = vi.fn();
+  // Typed with the handler signatures `@object-ui/core` declares: a bare
+  // `vi.fn(async () => true)` is zero-arity, so `onConfirm.mock.calls[0][0]` —
+  // the translated message these tests exist to pin — was the empty tuple's
+  // element 0 as far as the compiler was concerned (objectui#4040).
+  const onConfirm = vi.fn<ConfirmationHandler>(async () => true);
+  const onToast = vi.fn<ToastHandler>();
   const handler = vi.fn(async () => ({ success: true }));
   const utils = render(
     <I18nProvider config={{ defaultLanguage: 'en', detectBrowserLanguage: false }}>

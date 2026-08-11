@@ -28,6 +28,7 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
+import type { DataTableSchema } from '@object-ui/types';
 import { PredicateScopeProvider } from '@object-ui/react';
 import { planDataTableRowMenu } from '../data-table';
 
@@ -222,9 +223,21 @@ describe('planDataTableRowMenu', () => {
   });
 
   it('still counts an item that renders merely DISABLED', () => {
+    // Typed as what the production caller actually hands the planner —
+    // `schema.rowEditPredicates`, whose declared shape carries `disabledWhen`
+    // alongside `visibleWhen` (`@object-ui/types`, objectui#2614). The planner's
+    // own parameter names only `visibleWhen`, because visibility is all it
+    // decides; a bare object literal therefore tripped excess-property checking
+    // once this package started type-checking its tests, while the identical
+    // value reaches it unremarked in production (objectui#4040). Deriving the
+    // annotation keeps the fixture honest about which key is being ignored,
+    // rather than deleting the key and quietly renaming the case.
+    const editPredicates: DataTableSchema['rowEditPredicates'] = {
+      disabledWhen: 'record.frozen == true',
+    };
     const plan = planDataTableRowMenu({
       onRowEdit: noop,
-      editPredicates: { disabledWhen: 'record.frozen == true' },
+      editPredicates,
       customActions: [],
       row: frozen,
       scope,

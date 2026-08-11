@@ -37,9 +37,10 @@
  * the wrap was still dropped downstream.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
+import type { ActionContext, ActionDef, ActionResult } from '@object-ui/core';
 import { ActionProvider } from '@object-ui/react';
 import '../renderers/action/action-button';
 import '../renderers/action/action-group';
@@ -54,7 +55,9 @@ function Registered({ type, schema }: { type: string; schema: any }) {
 }
 
 describe('bodyShape survives the declared-action renderer whitelists', () => {
-  let api: ReturnType<typeof vi.fn>;
+  // See action-bodyExtra-forward.test.tsx for why this is not
+  // `ReturnType<typeof vi.fn>` (objectui#4040).
+  let api: Mock<(action: ActionDef, ctx: ActionContext) => Promise<ActionResult>>;
 
   beforeEach(() => {
     api = vi.fn(async () => ({ success: true }));

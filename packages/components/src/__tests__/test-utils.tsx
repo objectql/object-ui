@@ -8,12 +8,18 @@
 
 import { render, RenderOptions } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
-import type { SchemaNode } from '@object-ui/types';
+import type { BaseSchema } from '@object-ui/types';
 
 /**
- * Test utility for rendering components from schema
+ * Test utility for rendering components from schema.
+ *
+ * `BaseSchema`, not `SchemaNode`: `SchemaNode` is the union a schema TREE can
+ * hold — `BaseSchema | string | number | boolean | null | undefined` — and this
+ * helper reads `schema.type` off it, which four of those six members do not
+ * have. Every caller passes an object; the declared type was wider than the
+ * function and than anything it is used with (objectui#4040).
  */
-export function renderComponent(schema: SchemaNode, options?: RenderOptions) {
+export function renderComponent(schema: BaseSchema, options?: RenderOptions) {
   const Component = ComponentRegistry.get(schema.type);
   
   if (!Component) {

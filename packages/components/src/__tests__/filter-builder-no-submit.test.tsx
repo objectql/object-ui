@@ -25,7 +25,14 @@ const FIELDS = [
   { value: 'pinned', label: 'Pinned', type: 'boolean' },
 ];
 
-function renderInForm(onSubmit: () => void, value?: any) {
+// `React.FormEventHandler`, not `() => void`: every caller passes a spy that
+// takes the event and calls `preventDefault()` on it, and a one-parameter
+// function is not assignable to a zero-parameter one — the helper's declared
+// type contradicted all three of its uses (objectui#4040).
+function renderInForm(
+  onSubmit: React.FormEventHandler<HTMLFormElement>,
+  value?: any,
+) {
   return render(
     <form onSubmit={onSubmit}>
       <FilterBuilder

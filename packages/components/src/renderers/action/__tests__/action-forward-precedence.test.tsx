@@ -47,10 +47,11 @@
  * assertion that refactor would be indistinguishable from the correct one.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
+import type { ActionContext, ActionDef, ActionResult } from '@object-ui/core';
 import { ActionProvider } from '@object-ui/react';
 // Module-scope side-effect imports — the light `dom` project does not load the
 // `@object-ui/components` graph, and these renderers register themselves on
@@ -100,7 +101,9 @@ const ICON_ORDER = [
   'locations', 'toast', 'resultDialog',
 ];
 
-let api: ReturnType<typeof vi.fn>;
+// See action-bodyExtra-forward.test.tsx for why this is not
+// `ReturnType<typeof vi.fn>` (objectui#4040).
+let api: Mock<(action: ActionDef, ctx: ActionContext) => Promise<ActionResult>>;
 
 beforeEach(() => {
   api = vi.fn(async () => ({ success: true }));

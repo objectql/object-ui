@@ -115,10 +115,16 @@ export const TEST_DEBT = {
   // compile-time type assertions (objectui#3181), listed one by one so the rest
   // of the debt tree stays out. Both entries stay because that REST is still
   // unchecked — each number below is that remainder, not the whole package.
-  "@object-ui/core": { errors: 72, issue: 4118, note: "TS2741x32, TS2322x17 — mostly the input-vs-output fixture confusion" },
-  "@object-ui/app-shell": { errors: 53, issue: 4118, note: "TS2339x24 — implementation wider than the type" },
-  "@object-ui/components": { errors: 31, issue: 4118, note: "TS7006x12, TS7031x12 — untyped test callback params" },
-  "@object-ui/react": { errors: 27, issue: 4118, note: "TS2769x9 — overload mismatch on render helpers" },
+  // Counts REMEASURED at objectui#4040 tranche 4 against the template config
+  // these packages will graduate with (config-tier errors excluded). The old
+  // numbers were the #2911-era sweep and were unreliable in both directions —
+  // i18n declared 13 and measured 103, react declared 27 and measured 43 — so
+  // remeasure before planning against any number here.
+  "@object-ui/core": { errors: 56, issue: 4118, note: "TS2322x17, TS7006x10 — mostly the input-vs-output fixture confusion (was declared 72)" },
+  "@object-ui/app-shell": { errors: 62, issue: 4118, note: "TS2339x8, TS2698x8, TS2739x7 — implementation wider than the type; needs lib ES2022 (was declared 53)" },
+  // Graduating in the tranche-4 sibling PR; the line stays until that one lands
+  // so this branch's gate describes this branch. Remeasured 43 (was declared 27).
+  "@object-ui/react": { errors: 43, issue: 4118, note: "TS2322x18, TS2769x11 — untyped mocks and createElement children" },
   "@object-ui/plugin-dashboard": { errors: 6, issue: 4118 },
 };
 

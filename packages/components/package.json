@@ -30,7 +30,7 @@
     "prebuild": "pnpm --filter @object-ui/types build && pnpm --filter @object-ui/core build && pnpm --filter @object-ui/react build",
     "pretest": "pnpm run prebuild",
     "test": "vitest run",
-    "type-check": "tsc --noEmit && tsc -p tsconfig.typetests.json",
+    "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."
   },
   "dependencies": {

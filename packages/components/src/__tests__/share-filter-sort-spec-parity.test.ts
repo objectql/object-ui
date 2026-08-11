@@ -135,7 +135,10 @@ describe('renamed local dialects do not collide with a spec export', () => {
 
 /* -------------------------------------------------------------------------- */
 /* Compile-time pins. A violation is a `tsc` error, not a runtime failure.      */
-/* Compiled by this package's `tsconfig.typetests.json` (objectui#3181).       */
+/* Compiled by this package's `tsconfig.test.json` (objectui#3181): the narrow  */
+/* `tsconfig.typetests.json` that used to name this one file was the rescue     */
+/* hatch for a package still in TEST_DEBT, and it was retired with the debt     */
+/* (objectui#4040 / objectui#4291).                                             */
 /* -------------------------------------------------------------------------- */
 
 type Assert<T extends true> = T;

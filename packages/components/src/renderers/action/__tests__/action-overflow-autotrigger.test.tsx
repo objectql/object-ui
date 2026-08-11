@@ -43,10 +43,11 @@
  * actions carry the flag, and only the last block tells them apart.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
+import type { ActionContext, ActionDef, ActionResult } from '@object-ui/core';
 import { ActionProvider } from '@object-ui/react';
 // Module-scope side-effect imports — `action:bar` resolves its members (and the
 // overflow menu) through the ComponentRegistry at render time, and the light
@@ -75,7 +76,9 @@ const CREATE = {
   locations: ['list_toolbar'],
 };
 
-let api: ReturnType<typeof vi.fn>;
+// See action-bodyExtra-forward.test.tsx for why this is not
+// `ReturnType<typeof vi.fn>` (objectui#4040).
+let api: Mock<(action: ActionDef, ctx: ActionContext) => Promise<ActionResult>>;
 
 beforeEach(() => {
   api = vi.fn(async () => ({ success: true }));
@@ -313,7 +316,9 @@ describe('what suppresses an auto-trigger, and what does not (#4162)', () => {
     expect(screen.queryByRole('button', { name: 'Create Environment' })).toBeNull();
     inline.unmount();
 
-    const overflowApi = vi.fn(async () => ({ success: true }));
+    const overflowApi = vi.fn<
+      (action: ActionDef, ctx: ActionContext) => Promise<ActionResult>
+    >(async () => ({ success: true }));
     render(
       <ActionProvider handlers={{ api: overflowApi }}>
         <Bar actions={[...FILLERS, hidden]} />

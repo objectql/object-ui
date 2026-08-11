@@ -44,10 +44,16 @@
  * That verdict is carried, with its evidence, in the gate's JUSTIFIED table.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
+import type {
+  ActionContext,
+  ActionDef,
+  ActionResult,
+  ParamCollectionHandler,
+} from '@object-ui/core';
 import { ActionProvider } from '@object-ui/react';
 // Module-scope side-effect imports — `action:bar` resolves its members and the
 // overflow menu through the ComponentRegistry at render time, and the light
@@ -82,8 +88,11 @@ const CREATE = {
   autoTrigger: true,
 };
 
-let api: ReturnType<typeof vi.fn>;
-let onParamCollection: ReturnType<typeof vi.fn>;
+// Typed with the signatures the provider's props declare, not
+// `ReturnType<typeof vi.fn>` — see action-bodyExtra-forward.test.tsx
+// (objectui#4040).
+let api: Mock<(action: ActionDef, ctx: ActionContext) => Promise<ActionResult>>;
+let onParamCollection: Mock<ParamCollectionHandler>;
 
 beforeEach(() => {
   api = vi.fn(async () => ({ success: true }));
