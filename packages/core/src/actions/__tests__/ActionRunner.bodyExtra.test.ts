@@ -27,7 +27,7 @@
  *    stash would fire on nearly every declared-action click.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { ActionRunner } from '../ActionRunner';
 import { resetActionKeyWarnings } from '../actionKeys';
 
@@ -118,7 +118,11 @@ describe('ActionRunner.executeAPI — bodyExtra', () => {
 });
 
 describe('ActionRunner — object-form params deprecation window (#5777)', () => {
-  let warn: ReturnType<typeof vi.spyOn>;
+  // `MockInstance<typeof console.warn>`, not `ReturnType<typeof vi.spyOn>`:
+  // the latter is the un-instantiated `MockInstance<Procedure | Constructable>`,
+  // whose `mock.calls` carries no argument types — so the `(c) => c.join(' ')`
+  // callbacks below were implicit `any` (objectui#4040).
+  let warn: MockInstance<typeof console.warn>;
 
   beforeEach(() => {
     resetActionKeyWarnings();

@@ -26,6 +26,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { recordLookupFor, resolveRefKind, KIND_TO_RECORD_LOOKUP } from './FlowReferenceField';
+import type { FlowReferenceSpec } from './flow-node-config';
 
 describe('recordLookupFor — published source vs local mirror (#3508 follow-up)', () => {
   it('prefers the schema’s object and committed column over the local table', () => {
@@ -70,7 +71,11 @@ describe('recordLookupFor — published source vs local mirror (#3508 follow-up)
 });
 
 describe('resolveRefKind — sources are keyed by the discriminator (#3508 follow-up)', () => {
-  const ref = {
+  // Annotated with the spec type the resolver takes, so `map`'s values are
+  // checked against `ReferenceKind` instead of widening to `string` — which is
+  // what made this fixture unassignable the moment anything compiled it
+  // (objectui#4040).
+  const ref: FlowReferenceSpec = {
     kindFrom: 'type',
     map: { user: 'user', role: 'org-membership-level', org_membership_level: 'org-membership-level' },
     sources: {

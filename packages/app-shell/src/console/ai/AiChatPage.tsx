@@ -75,7 +75,17 @@ import {
   buildProgressFromDraftReview,
   type AgentDescriptor,
   type ChatbotEnhancedToolInvocation,
-  type ChatMessage,
+  // The ENHANCED message shape — the one `<ChatbotEnhanced>` renders and the
+  // one this file actually produces (`toolInvocations`, `buildProgress`).
+  // `@object-ui/plugin-chatbot` ALSO exports a minimal legacy `ChatMessage`
+  // from its own barrel module (id/role/content/timestamp/avatar only), and
+  // that is what this import used to resolve to. The mismatch compiled because
+  // every construction site spreads the extra keys conditionally
+  // (`...(x ? { toolInvocations } : {})`), which defeats excess-property
+  // checking — so the declared type was narrower than every value flowing
+  // through it, and `AiChatPage.hydration.test.ts` could not read
+  // `toolInvocations` off its own function's return (objectui#4040).
+  type ChatbotEnhancedMessage as ChatMessage,
 } from '@object-ui/plugin-chatbot';
 
 import { AppHeader } from '../../layout/AppHeader';

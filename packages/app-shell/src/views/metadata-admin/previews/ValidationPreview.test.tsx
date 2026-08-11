@@ -53,7 +53,8 @@ const BASE = {
 function renderPreview(draft: Record<string, unknown>) {
   return render(
     <ValidationPreview
-      {...({ type: 'validation', name: 'amount_positive' } as never)}
+      type="validation"
+      name="amount_positive"
       draft={draft}
     />,
   );

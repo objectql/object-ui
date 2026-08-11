@@ -26,7 +26,7 @@ const baseProps = { type: 'permission', name: 'sales_rep', locale: 'en-US' as co
 function renderPreview(objects: Record<string, unknown>) {
   return render(
     <PermissionPreview
-      {...(baseProps as never)}
+      {...baseProps}
       draft={{ name: 'sales_rep', label: 'Sales Rep', objects }}
     />,
   );

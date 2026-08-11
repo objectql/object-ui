@@ -28,12 +28,15 @@
  * `predicate.test.ts` instead.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { SchemaForm } from './SchemaForm';
 import { resetPredicateWarnings } from './predicate';
 
-let warn: ReturnType<typeof vi.spyOn>;
+// See the note in `predicate.test.ts`: `ReturnType<typeof vi.spyOn>` is the
+// un-instantiated `MockInstance<Procedure | Constructable>`, whose `mock.calls`
+// carries no argument types (objectui#4040).
+let warn: MockInstance<typeof console.warn>;
 
 beforeEach(() => {
   resetPredicateWarnings();

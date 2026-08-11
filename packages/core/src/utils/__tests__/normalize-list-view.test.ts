@@ -209,7 +209,7 @@ describe('normalizeListViewSchema (#2890)', () => {
       const out = normalizeListViewSchema({
         viewType: 'grid',
         aria: { label: 'Accounts', describedBy: 'hint', live: 'polite' },
-      }) as Record<string, Record<string, unknown>>;
+      }) as Record<string, unknown>;
       expect(out.aria).toEqual({ ariaLabel: 'Accounts', ariaDescribedBy: 'hint', live: 'polite' });
     });
 
@@ -217,7 +217,7 @@ describe('normalizeListViewSchema (#2890)', () => {
       const out = normalizeListViewSchema({
         viewType: 'grid',
         aria: { ariaLabel: 'canonical', label: 'legacy', role: 'grid' },
-      }) as Record<string, Record<string, unknown>>;
+      }) as Record<string, unknown>;
       expect(out.aria).toEqual({ ariaLabel: 'canonical', role: 'grid' });
     });
 

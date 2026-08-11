@@ -30,7 +30,7 @@
  * unchanged by it.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ActionEngine } from '../ActionEngine';
 import { hasDeclaredPredicate } from '../../evaluator/declaredPredicate';
 import type { ActionDef } from '../ActionRunner';

@@ -19,11 +19,15 @@ vi.mock('../previews/useObjectFields', () => ({
 }));
 
 import { ObjectFieldInspector } from './ObjectFieldInspector';
+// The inspector's `locale` prop is the closed `'en-US' | 'zh-CN'` union, not a
+// bare string — the loop below iterates exactly those two, so annotating the
+// helper keeps the array's element type from widening back to `string`.
+import type { SupportedLocale } from '../i18n';
 
 afterEach(cleanup);
 
 /** The lookup branch is the only one that renders the object picker. */
-function renderLookup(locale: string) {
+function renderLookup(locale: SupportedLocale) {
   return render(
     <ObjectFieldInspector
       type="object"
@@ -69,7 +73,7 @@ describe('ObjectFieldInspector — draft-object suffix is localized', () => {
   });
 
   it('leaves published objects unsuffixed in both locales', async () => {
-    for (const locale of ['en-US', 'zh-CN']) {
+    for (const locale of ['en-US', 'zh-CN'] as const) {
       const { container, unmount } = renderLookup(locale);
       const opt = await waitFor(() => {
         const found = [...container.querySelectorAll('option')].find(

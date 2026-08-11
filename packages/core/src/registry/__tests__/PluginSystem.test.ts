@@ -24,6 +24,15 @@ describe('PluginSystem', () => {
       name: 'test-plugin',
       version: '1.0.0',
       register: (reg) => {
+        // `RegistryPluginDefinition.register` takes `Registry | PluginScope`,
+        // and only the legacy `Registry` arm has `register()` — a scope
+        // registers through `registerComponent()`. `loadPlugin(..., false)`
+        // below selects the legacy arm, so narrow to it rather than assuming
+        // it: if scoped loading ever became the default for this call, this
+        // throws instead of failing somewhere further down (objectui#4040).
+        if (!(reg instanceof Registry)) {
+          throw new Error('expected the legacy Registry in useScope:false mode');
+        }
         reg.register('test', () => 'test');
       }
     };

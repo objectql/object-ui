@@ -33,12 +33,19 @@
  * spec has always refused at parse time — so the read could only ever fire on a
  * stack that never validated.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ActionRunner } from '../ActionRunner';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
+import { ActionRunner, type NavigationHandler } from '../ActionRunner';
+
+// Every `navHandler` below is typed with `setNavigationHandler`'s own signature.
+// `ReturnType<typeof vi.fn>` resolves to the un-instantiated `Mock<Procedure |
+// Constructable>`, which the setter does not accept and whose `mock.calls[0]`
+// is the EMPTY tuple — so the `calls[0][0]` assertions in this file were reading
+// element 0 of an empty tuple as far as the compiler was concerned
+// (objectui#4040).
 
 describe('url action: `openIn` is the sanctioned new-tab spelling (objectstack#6828)', () => {
   let runner: ActionRunner;
-  let navHandler: ReturnType<typeof vi.fn>;
+  let navHandler: Mock<NavigationHandler>;
 
   beforeEach(() => {
     runner = new ActionRunner({});
@@ -125,7 +132,7 @@ describe('url action: `openIn` is the sanctioned new-tab spelling (objectstack#6
 
 describe('url action: `${param.X}` still interpolates the COLLECTED dialog values', () => {
   let runner: ActionRunner;
-  let navHandler: ReturnType<typeof vi.fn>;
+  let navHandler: Mock<NavigationHandler>;
 
   beforeEach(() => {
     runner = new ActionRunner({});
@@ -169,7 +176,7 @@ describe('url action: `${param.X}` still interpolates the COLLECTED dialog value
 
 describe('url action: `${ctx.X}` is untouched by the retirement (control)', () => {
   let runner: ActionRunner;
-  let navHandler: ReturnType<typeof vi.fn>;
+  let navHandler: Mock<NavigationHandler>;
 
   beforeEach(() => {
     navHandler = vi.fn();

@@ -51,7 +51,7 @@ const STALE_DRAFT = {
 
 function renderPreview(draft: Record<string, unknown>) {
   return render(
-    <AgentPreview {...({ type: 'agent', name: 'sales_copilot' } as never)} draft={draft} />,
+    <AgentPreview type="agent" name="sales_copilot" draft={draft} />,
   );
 }
 

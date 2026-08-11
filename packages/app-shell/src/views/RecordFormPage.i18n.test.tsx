@@ -128,10 +128,12 @@ function renderPage(
       : '/apps/:appName/:objectName/record/:recordId/edit';
 
   return render(
-    h(
-      I18nProvider,
-      { config: { defaultLanguage: language, detectBrowserLanguage: false } },
-      h(
+    // `children` rides in the PROPS object: `I18nProviderProps` declares it
+    // required, and `createElement`'s third-argument form does not satisfy that
+    // overload (objectui#4040, same fix as packages/react's tranche).
+    h(I18nProvider, {
+      config: { defaultLanguage: language, detectBrowserLanguage: false },
+      children: h(
         MemoryRouter,
         { initialEntries: [path] },
         h(
@@ -140,7 +142,7 @@ function renderPage(
           h(Route, { path: route, element: h(RecordFormPage, { mode }) }),
         ),
       ),
-    ),
+    }),
   );
 }
 

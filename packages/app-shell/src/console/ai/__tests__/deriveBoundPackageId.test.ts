@@ -9,10 +9,20 @@
  */
 import { describe, it, expect } from 'vitest';
 import { deriveBoundPackageId, isPlatformBuiltinApp } from '../AiChatPage';
-import type { ChatMessage } from '@object-ui/plugin-chatbot';
 
-const msg = (toolInvocations: unknown[]): ChatMessage =>
-  ({ id: 'm', role: 'assistant', content: '', toolInvocations } as unknown as ChatMessage);
+/**
+ * DERIVED from the function under test, not restated: `deriveBoundPackageId`
+ * declares a structural minimum (messages whose `toolInvocations` may carry
+ * `draftReview` / `builderHandoff`), never `ChatMessage`. This file used to
+ * author a `ChatMessage` and cast to it — and the legacy `ChatMessage` the
+ * chatbot barrel exports has NO properties in common with that minimum, so the
+ * cast was asserting between unrelated shapes and the fixtures could have
+ * drifted arbitrarily far from what the function reads (objectui#4040).
+ */
+type PackageBearingMessage = Parameters<typeof deriveBoundPackageId>[0][number];
+type PackageBearingTool = NonNullable<PackageBearingMessage['toolInvocations']>[number];
+
+const msg = (toolInvocations: readonly PackageBearingTool[]): PackageBearingMessage => ({ toolInvocations });
 
 describe('deriveBoundPackageId', () => {
   it('prefers the explicit editPackageId (Edit-with-AI) over anything in messages', () => {
@@ -22,14 +32,17 @@ describe('deriveBoundPackageId', () => {
 
   it('unbound while nothing has been built → undefined ("New app")', () => {
     expect(deriveBoundPackageId([], undefined)).toBeUndefined();
-    expect(deriveBoundPackageId([msg([{ someOther: true }])], undefined)).toBeUndefined();
+    // A tool invocation carrying NEITHER binding key — the case this covers.
+    // (It used to spell that as `{ someOther: true }`; the derivation reads only
+    // `draftReview` / `builderHandoff`, so the two are the same path.)
+    expect(deriveBoundPackageId([msg([{}])], undefined)).toBeUndefined();
   });
 
   it('binds to the package a build/draft produced (draftReview or builderHandoff)', () => {
     expect(deriveBoundPackageId([msg([{ draftReview: { packageId: 'app.inventory' } }])], undefined)).toBe(
       'app.inventory',
     );
-    expect(deriveBoundPackageId([msg([{ builderHandoff: { prompt: 'x', packageId: 'app.crm' } }])], undefined)).toBe(
+    expect(deriveBoundPackageId([msg([{ builderHandoff: { packageId: 'app.crm' } }])], undefined)).toBe(
       'app.crm',
     );
   });

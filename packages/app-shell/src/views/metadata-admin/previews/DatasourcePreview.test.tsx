@@ -81,7 +81,7 @@ const REMOVED_KEYS_DRAFT = {
 
 function renderPreview(draft: Record<string, unknown>) {
   return render(
-    <DatasourcePreview {...({ type: 'datasource', name: 'warehouse' } as never)} draft={draft} />,
+    <DatasourcePreview type="datasource" name="warehouse" draft={draft} />,
   );
 }
 

@@ -41,14 +41,24 @@ const t = (_key: string, opts?: Record<string, unknown>) => {
 /** Identity field-label resolver (no translation bundle loaded). */
 const identityLabel = (_o: string, _f: string, fallback: string) => fallback;
 
-const ANDON_SCHEMA = {
+/**
+ * The label lookup reads `fields[<apiKey>].label` and falls back to the key when
+ * the entry is absent — so the schema shape is an OPEN map of field entries, not
+ * this fixture's two specific keys. Annotated as such: without it `vi.fn` infers
+ * the resolved type from this literal alone, and the `{ fields: {} }` case below
+ * (the whole point of the "falls back to the API key" test) is rejected for
+ * missing `type` / `source_method` (objectui#4040).
+ */
+type ObjectSchemaShape = { fields: Record<string, { label: string }> };
+
+const ANDON_SCHEMA: ObjectSchemaShape = {
   fields: {
     type: { label: 'Andon type' },
     source_method: { label: 'Source method' },
   },
 };
 
-const adapter = { getObjectSchema: vi.fn(async () => ANDON_SCHEMA) };
+const adapter = { getObjectSchema: vi.fn(async (): Promise<ObjectSchemaShape> => ANDON_SCHEMA) };
 
 const EVENT: WriteWarningEvent = {
   operation: 'update',

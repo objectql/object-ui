@@ -6,7 +6,13 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
+
+// The `warn` spies below are typed `MockInstance<typeof console.warn>` rather
+// than `ReturnType<typeof vi.spyOn>`: the latter is the un-instantiated
+// `MockInstance<Procedure | Constructable>`, whose `mock.calls` carries no
+// argument types, leaving every `(c) => String(c[0])` callback an implicit
+// `any` (objectui#4040).
 import {
   evalRowPredicate,
   resolveConditionalFormatting,
@@ -81,7 +87,7 @@ describe('evalRowPredicate', () => {
   });
 
   describe('legacy-dialect routing', () => {
-    let warn: ReturnType<typeof vi.spyOn>;
+    let warn: MockInstance<typeof console.warn>;
     beforeEach(() => {
       warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     });
@@ -101,7 +107,7 @@ describe('evalRowPredicate', () => {
   });
 
   describe('warnOnError (fail-closed row actions)', () => {
-    let warn: ReturnType<typeof vi.spyOn>;
+    let warn: MockInstance<typeof console.warn>;
     beforeEach(() => {
       warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     });

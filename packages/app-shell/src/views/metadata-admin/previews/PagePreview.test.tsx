@@ -43,7 +43,10 @@ const regionDraft = {
 describe('PagePreview — interface-page routing (ADR-0047)', () => {
   it('renders the runtime InterfaceListPage for an interface page in preview mode', () => {
     // preview mode = no onSelectionChange (not editing the canvas)
-    render(<PagePreview draft={interfaceDraft} />);
+    // `type` / `name` are the host-owned half of `MetadataPreviewProps` (the
+    // metadata type and the item's primary key); every render site below has to
+    // supply them now that this file is type-checked (objectui#4040).
+    render(<PagePreview type="page" name={interfaceDraft.name} draft={interfaceDraft} />);
     expect(screen.getByTestId('mock-interface-list')).toBeInTheDocument();
     expect(screen.queryByTestId('mock-schema-renderer')).not.toBeInTheDocument();
   });
@@ -51,6 +54,8 @@ describe('PagePreview — interface-page routing (ADR-0047)', () => {
   it('also renders the live InterfaceListPage in design mode (no canvas hint)', () => {
     render(
       <PagePreview
+        type="page"
+        name={interfaceDraft.name}
         draft={interfaceDraft}
         editing
         onSelectionChange={() => {}}
@@ -64,7 +69,7 @@ describe('PagePreview — interface-page routing (ADR-0047)', () => {
   });
 
   it('renders the generic SchemaRenderer for a region-composed page (not an interface page)', () => {
-    render(<PagePreview draft={regionDraft} />);
+    render(<PagePreview type="page" name={regionDraft.name} draft={regionDraft} />);
     expect(screen.queryByTestId('mock-interface-list')).not.toBeInTheDocument();
     expect(screen.getByTestId('mock-schema-renderer')).toBeInTheDocument();
   });
@@ -95,7 +100,7 @@ describe('PagePreview — slotted record page synthesis', () => {
   };
 
   it('renders synthesized default regions (not the empty draft) so the preview is not blank', async () => {
-    render(<PagePreview draft={slottedDraft} />);
+    render(<PagePreview type="page" name={slottedDraft.name} draft={slottedDraft} />);
     await waitFor(() => expect(schemaSpy).toHaveBeenCalled());
     const rendered = schemaSpy.mock.calls.at(-1)![0];
 
@@ -108,7 +113,7 @@ describe('PagePreview — slotted record page synthesis', () => {
   });
 
   it('fills omitted slots with synthesized defaults and applies authored overrides', async () => {
-    render(<PagePreview draft={slottedDraft} />);
+    render(<PagePreview type="page" name={slottedDraft.name} draft={slottedDraft} />);
     await waitFor(() => expect(schemaSpy).toHaveBeenCalled());
     const rendered = schemaSpy.mock.calls.at(-1)![0];
     const main = rendered.regions.find((r: any) => r.name === 'main');
@@ -137,7 +142,7 @@ describe('PagePreview — slotted record page synthesis', () => {
       kind: 'full',
       regions: [{ name: 'main', components: [{ type: 'record:details' }] }],
     };
-    render(<PagePreview draft={fullDraft} />);
+    render(<PagePreview type="page" name={fullDraft.name} draft={fullDraft} />);
     await waitFor(() => expect(schemaSpy).toHaveBeenCalled());
     const rendered = schemaSpy.mock.calls.at(-1)![0];
     // No synthesis — the authored single-region layout passes through as-is.

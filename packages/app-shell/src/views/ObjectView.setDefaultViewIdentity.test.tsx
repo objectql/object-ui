@@ -239,7 +239,13 @@ describe('divergence A — a stored override row carrying a foreign `id` (#4211)
       fallbackTab,
     });
     const tab = tabs.find(t => t.label === 'My View')!;
-    const updateView = vi.fn(async () => ({}));
+    // Parameters spelled out to match the adapter call this stands in for: a
+    // zero-arity `vi.fn` infers `Mock<() => …>`, and calling it with three
+    // arguments is a compile error the untyped test tree could not report
+    // (objectui#4040).
+    const updateView = vi.fn(
+      async (_objectName: string, _viewId: string, _patch: { isDefault: boolean }) => ({}),
+    );
     for (const { viewId, patch } of setDefaultViewPatches(savedViews, tab.id)) {
       await updateView(OBJECT_NAME, viewId, patch);
     }
@@ -313,7 +319,13 @@ describe('divergence B — a duplicated view whose `config` carries its source `
 
   it('the write reaches the adapter with `{ isDefault: true }`', async () => {
     const tab = tabs().find(t => t.label === 'My View')!;
-    const updateView = vi.fn(async () => ({}));
+    // Parameters spelled out to match the adapter call this stands in for: a
+    // zero-arity `vi.fn` infers `Mock<() => …>`, and calling it with three
+    // arguments is a compile error the untyped test tree could not report
+    // (objectui#4040).
+    const updateView = vi.fn(
+      async (_objectName: string, _viewId: string, _patch: { isDefault: boolean }) => ({}),
+    );
     for (const { viewId, patch } of setDefaultViewPatches(savedViews, tab.id)) {
       await updateView(OBJECT_NAME, viewId, patch);
     }

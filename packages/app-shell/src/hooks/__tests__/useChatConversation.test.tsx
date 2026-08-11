@@ -19,6 +19,7 @@ import {
   toUIMessages,
   useChatConversation,
   writeConversationMessagesCache,
+  type HydratedUIMessage,
 } from '../useChatConversation';
 
 const API_BASE = 'http://ai.test/api/v1/ai';
@@ -755,9 +756,18 @@ describe('useChatConversation — A1.b rekeyScope + legacy-scope fallback', () =
       },
     ]);
     fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'conv-legacy', messages: [] }));
-    const adoptLegacy = vi.fn(
-      (messages: { parts: Array<{ output?: { packageId?: string } }> }[]) =>
-        messages.some((m) => m.parts.some((p) => p.output?.packageId === 'crm')),
+    // Typed with the option's own parameter type. The hand-written structural
+    // stand-in (`{ parts: Array<{ output?: { packageId?: string } }> }[]`) is
+    // NOT `HydratedUIMessage[]` — a `HydratedUIMessagePart` shares no declared
+    // property with it — so the mock was unassignable to `adoptLegacy` the
+    // moment anything compiled this file (objectui#4040). `output` rides in on
+    // the part's catch-all, so it still needs narrowing at the read.
+    const adoptLegacy = vi.fn((messages: HydratedUIMessage[]) =>
+      messages.some((m) =>
+        m.parts.some(
+          (p) => (p.output as { packageId?: string } | undefined)?.packageId === 'crm',
+        ),
+      ),
     );
 
     const { result } = renderHook(() =>

@@ -12,12 +12,15 @@
  * the underlying write actually completing rather than firing as soon as the
  * (synchronous) expression evaluation returned a still-pending Promise.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ActionRunner, type ActionDef } from '../ActionRunner';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { ActionRunner, type ActionDef, type ToastHandler } from '../ActionRunner';
 
 describe('ActionRunner - script action awaits a Promise-returning formula', () => {
   let runner: ActionRunner;
-  let toast: ReturnType<typeof vi.fn>;
+  // Typed with `setToastHandler`'s own signature — see the note in
+  // `ActionRunner.resultDialog.test.ts` for what `ReturnType<typeof vi.fn>`
+  // degrades to (objectui#4040).
+  let toast: Mock<ToastHandler>;
 
   beforeEach(() => {
     runner = new ActionRunner({});

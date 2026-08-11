@@ -40,12 +40,22 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { PredicateScopeProvider } from '@object-ui/react';
 import { SelectField } from '@object-ui/fields';
+import type { ActionParamOption } from '@object-ui/core';
 import { resolveActionParams, type ResolveActionParamsContext } from './resolveActionParams';
 import { paramToField } from './paramToField';
 
-/** An object whose `tier` field gates one option on the viewer's positions. */
+/**
+ * An object whose `tier` field gates one option on the viewer's positions.
+ *
+ * `options` carries the element type the runtime field declares
+ * (`ActionParamOption | string`) rather than `Record< string, unknown > |
+ * string`: the latter is wider than the field it is fed to — it admits an
+ * option with no `label` / `value` at all — and only went unnoticed while this
+ * file was not type-checked (objectui#4040). Every fixture below already
+ * carries both keys; `visibleWhen` and friends ride along on the catch-all.
+ */
 const accountCtx = (
-  options: Array<Record<string, unknown> | string>,
+  options: Array<ActionParamOption | string>,
 ): ResolveActionParamsContext => ({
   objectName: 'account',
   objects: [{ name: 'account', fields: { tier: { type: 'select', label: 'Tier', options } } }],
@@ -63,7 +73,7 @@ const ROLE_GATED = [
  * the widget as `field` with `id={param.name}`.
  */
 function renderInheritedSelect(
-  options: Array<Record<string, unknown> | string>,
+  options: Array<ActionParamOption | string>,
   positions: string[],
   value?: string,
 ) {

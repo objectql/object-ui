@@ -17,13 +17,23 @@
  *   - `target` interpolation handles `${param.X}` and `${ctx.X}`, applies
  *     `encodeURIComponent`, and degrades missing keys to empty string.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ActionRunner, type ActionDef } from '../ActionRunner';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import {
+  ActionRunner,
+  type ActionDef,
+  type ResultDialogHandler,
+  type ToastHandler,
+} from '../ActionRunner';
 
 describe('ActionRunner - resultDialog', () => {
   let runner: ActionRunner;
-  let toast: ReturnType<typeof vi.fn>;
-  let resultDialog: ReturnType<typeof vi.fn>;
+  // Typed with the signature each setter declares, not `ReturnType<typeof
+  // vi.fn>` — that resolves to the un-instantiated `Mock<Procedure |
+  // Constructable>`, which no handler slot accepts and whose `mock.calls[0]` is
+  // the EMPTY tuple, so every `calls[0][0]` assertion below was reading element
+  // 0 of an empty tuple as far as the compiler was concerned (objectui#4040).
+  let toast: Mock<ToastHandler>;
+  let resultDialog: Mock<ResultDialogHandler>;
 
   beforeEach(() => {
     runner = new ActionRunner({});

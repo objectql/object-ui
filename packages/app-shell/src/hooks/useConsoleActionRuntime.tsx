@@ -26,7 +26,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
 import { useObjectLabel, useObjectTranslation } from '@object-ui/i18n';
-import { ActionProvider, useGlobalUndo } from '@object-ui/react';
+import { ActionProvider, useGlobalUndo, type ActionProviderProps } from '@object-ui/react';
 import { toast } from 'sonner';
 import type {
   ActionContext,
@@ -79,7 +79,12 @@ export interface ConsoleActionRuntime {
   navigateHandler: NavigationHandler;
   paramCollectionHandler: ParamCollectionHandler;
   resultDialogHandler: ResultDialogHandler;
-  apiHandler: (action: ActionDef) => Promise<ActionResult>;
+  // Two parameters, like its three siblings below — the implementation has
+  // always been `(action, context?)` (it reads `context.pageVariables` to
+  // resolve `{{page.<var>}}` tokens). The one-parameter declaration was a
+  // narrower restatement that nothing could catch while the tests calling it
+  // with two arguments were unchecked (objectui#4040).
+  apiHandler: (action: ActionDef, context?: ActionContext) => Promise<ActionResult>;
   flowHandler: (action: ActionDef, context?: ActionContext) => Promise<ActionResult>;
   serverActionHandler: (action: ActionDef, context?: ActionContext) => Promise<ActionResult>;
   /** `type: 'modal'` — opens `target` as a page/object form, else runs the action server-side. */
@@ -88,16 +93,32 @@ export interface ConsoleActionRuntime {
   authFetch: ReturnType<typeof createAuthenticatedFetch>;
   /** Open the shared environment entitlement (upgrade / limit) dialog. */
   openEntitlementDialog: (spec: EntitlementDialogSpec) => void;
-  /** Props to spread onto `<ActionProvider>`. */
-  actionProviderProps: {
-    context: Record<string, any>;
-    onConfirm: ConfirmationHandler;
-    onToast: ToastHandler;
-    onNavigate: NavigationHandler;
-    onParamCollection: ParamCollectionHandler;
-    onResultDialog: ResultDialogHandler;
-    handlers: Record<string, (action: ActionDef) => Promise<ActionResult>>;
-  };
+  /**
+   * Props to spread onto `<ActionProvider>`.
+   *
+   * DERIVED from that component's own props (`ActionProviderProps`) rather than
+   * restated. The key list stays explicit — it states which props this hook
+   * owns — but every TYPE comes from the consumer, so the two cannot drift.
+   * They had: the restatement omitted `onModal` (which the implementation has
+   * returned all along) and declared `handlers` values as one-parameter
+   * functions where `<ActionProvider>` passes `(action, ctx)`. Neither was
+   * visible while this package's tests were not type-checked — the suite next
+   * door asserts `typeof props.onModal === 'function'` and was reading a key
+   * the interface said did not exist (objectui#4040).
+   */
+  actionProviderProps: Required<
+    Pick<
+      ActionProviderProps,
+      | 'context'
+      | 'onConfirm'
+      | 'onToast'
+      | 'onModal'
+      | 'onNavigate'
+      | 'onParamCollection'
+      | 'onResultDialog'
+      | 'handlers'
+    >
+  >;
   /** Confirm / param / result / paused-flow dialogs — render inside the provider. */
   dialogs: React.ReactNode;
 }
