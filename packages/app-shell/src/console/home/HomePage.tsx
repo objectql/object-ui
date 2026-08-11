@@ -27,7 +27,7 @@ import { HomeAppsStrip } from './HomeAppsStrip';
 import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail';
 import { useHomeInbox } from '../../hooks/useHomeInbox';
 import { useNavigationContext } from '../../context/NavigationContext';
-import { appRouteSegment, matchAppBySegment } from '../../utils';
+import { appRouteSegment, filterActiveApps, resolveHostAppSegment } from '../../utils';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
 import { Sparkles, ShieldAlert, X, UploadCloud, MessageSquareText, Hammer, LayoutTemplate } from 'lucide-react';
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
@@ -264,35 +264,26 @@ export function HomePage() {
   // when AI isn't enabled. Community builds typically land in the ask-only state.
   const { askAvailable, buildAvailable } = useHomeAiAvailability();
 
-  const activeApps = apps.filter((a: any) => a.active !== false && a.hidden !== true);
+  const activeApps = filterActiveApps(apps);
 
   /**
-   * Which app hosts the Approvals Inbox we link to (objectstack#7231).
+   * Which app hosts the app-independent pages this page links into — the
+   * Approvals Inbox (objectstack#7231), the full inbox and the activity list
+   * (objectui#4074). The resolution and the reasoning live in
+   * `utils/appRoute.ts` so Home and the top-bar bell (`InboxPopover`) cannot
+   * drift into two different answers for the same question.
    *
-   * `system/approvals` is mounted in the host's route fragment as BOTH
-   * `extraRoutes` and `extraRoutesNoApp`, so `/apps/{ANY_APP}/system/approvals`
-   * resolves — the page was never bound to `setup`. The hardcoded
-   * `/apps/setup/...` this replaces was therefore not "where the page lives",
-   * it was a dead end for every business user without access to the setup app.
+   * `currentAppName` is the only "which app is the user in" signal available
+   * here — Home renders OUTSIDE the `/apps/:appName/*` router, so there is no
+   * `params.appName` to read, and the remembered name is stale by construction
+   * (undefined on a cold landing at `/home`, and it outlives the app it names).
+   * That is exactly why the resolution re-checks it against the live list.
    *
-   * Resolution order, each step falling through only when the previous one
-   * cannot name an app the user can actually open:
-   *   1. the app they last had open, if it is still one of their active apps
-   *      (`matchAppBySegment` re-checks it against the live list, so an app
-   *      that was deactivated or hidden since is not resurrected as a link);
-   *   2. their first active app — arbitrary but reachable, and on a business
-   *      user's workspace that is a business app rather than `setup`;
-   *   3. `setup`. NOT the zero-app case: `activeApps.length === 0` returns the
-   *      welcome empty state below, which renders no action center, so this
-   *      producer never runs there. What is left for step 3 is the degenerate
-   *      app carrying neither `_packageId` nor `name` — nothing addressable to
-   *      build a URL from, so the historical target is the least-surprising
-   *      last resort rather than a broken link.
+   * The helper's `setup` last resort is NOT the zero-app case here:
+   * `activeApps.length === 0` returns the welcome empty state below, which
+   * renders no action center, so these producers never run there.
    */
-  const approvalsAppSegment =
-    appRouteSegment(matchAppBySegment(activeApps, currentAppName)) ??
-    appRouteSegment(activeApps[0]) ??
-    'setup';
+  const hostAppSegment = resolveHostAppSegment(activeApps, currentAppName);
 
   const recentApps = recentItems
     .filter(item => item.type === 'object' || item.type === 'dashboard' || item.type === 'page' || item.type === 'record')
@@ -458,6 +449,10 @@ export function HomePage() {
             apps={activeApps}
             favorites={favorites}
             onOpen={(app) => navigate(`/apps/${appRouteSegment(app) ?? app.name}`)}
+            /* Deliberately NOT resolved through `hostAppSegment` (objectui#4074
+               scope guard): the marketplace is an admin-only surface that lives
+               in the setup app, so `setup` here is the target, not an oversight
+               — unlike the app-independent `sys_*` pages below. */
             onBrowseMarketplace={() => navigate('/apps/setup/system/marketplace')}
             isAdmin={isAdmin}
           />
@@ -467,8 +462,13 @@ export function HomePage() {
             <HomeActionCenter
               pendingApprovalsCount={pendingApprovalsCount}
               notifications={notifications}
-              onOpenApprovals={() => navigate(`/apps/${approvalsAppSegment}/system/approvals`)}
-              onOpenNotification={(n) => navigate(n.actionUrl || '/apps/setup/sys_inbox_message?view=mine')}
+              onOpenApprovals={() => navigate(`/apps/${hostAppSegment}/system/approvals`)}
+              /* The fallback arm runs whenever a notification carries no
+                 `action_url`; `?view=mine` selects the user-scoped view, so the
+                 full page matches what the card showed (objectui#4074). */
+              onOpenNotification={(n) =>
+                navigate(n.actionUrl || `/apps/${hostAppSegment}/sys_inbox_message?view=mine`)
+              }
               t={t}
             />
           </div>
@@ -476,7 +476,7 @@ export function HomePage() {
           {/* Continue where you left off + ambient activity */}
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
             <HomeContinue items={recentApps} onOpen={(href) => navigate(href)} t={t} />
-            <HomeActivity items={activities} onViewAll={() => navigate('/apps/setup/sys_activity')} t={t} />
+            <HomeActivity items={activities} onViewAll={() => navigate(`/apps/${hostAppSegment}/sys_activity`)} t={t} />
           </div>
         </div>
       </div>

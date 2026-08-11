@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { appRouteSegment, matchAppBySegment, appStudioDesignPath, appStudioSurfacePath, appStudioObjectPath, appStudioRoutePath } from '../appRoute';
+import { appRouteSegment, matchAppBySegment, filterActiveApps, resolveHostAppSegment, appStudioDesignPath, appStudioSurfacePath, appStudioObjectPath, appStudioRoutePath } from '../appRoute';
 
 /**
  * ADR-0048 (option A) — package-id route segment.
@@ -36,6 +36,83 @@ describe('matchAppBySegment', () => {
   it('returns undefined for missing inputs', () => {
     expect(matchAppBySegment(apps, undefined)).toBeUndefined();
     expect(matchAppBySegment(null, 'com.acme.crm')).toBeUndefined();
+  });
+});
+
+/**
+ * objectstack#7231 / objectui#4074 — which app hosts an app-INDEPENDENT page
+ * (the Approvals Inbox, `sys_inbox_message`, `sys_activity`). The producers that
+ * consume this are pinned end-to-end in `HomePage.inboxLinksTarget.test.tsx` and
+ * `InboxPopover.viewAllTarget.test.tsx`; these cases pin the resolution itself.
+ */
+describe('filterActiveApps', () => {
+  it('keeps apps that declare neither flag (the common case)', () => {
+    expect(filterActiveApps([{ name: 'crm' }])).toEqual([{ name: 'crm' }]);
+  });
+  it('drops deactivated and hidden apps', () => {
+    const apps = [
+      { name: 'crm' },
+      { name: 'old', active: false },
+      { name: 'account', hidden: true },
+    ];
+    expect(filterActiveApps(apps).map((a) => a.name)).toEqual(['crm']);
+  });
+  it('is idempotent, so a caller that already filtered can pass its list through', () => {
+    const apps = [{ name: 'crm' }, { name: 'old', active: false }];
+    expect(filterActiveApps(filterActiveApps(apps))).toEqual(filterActiveApps(apps));
+  });
+  it('returns an empty list for nullish input', () => {
+    expect(filterActiveApps(null)).toEqual([]);
+    expect(filterActiveApps(undefined)).toEqual([]);
+  });
+});
+
+describe('resolveHostAppSegment', () => {
+  const setup = { name: 'setup' };
+  const crm = { name: 'crm', _packageId: 'com.acme.crm' };
+  const hr = { name: 'hr' };
+
+  it('1. prefers the app the user is in / last had open', () => {
+    expect(resolveHostAppSegment([setup, crm], 'com.acme.crm')).toBe('com.acme.crm');
+  });
+
+  it('1. addresses that app by its package segment, whichever spelling was remembered', () => {
+    // `matchAppBySegment` accepts the name as a legacy alias; the segment we
+    // emit is always the canonical one, so the link cannot disagree with the
+    // app tiles about how the same app is spelled.
+    expect(resolveHostAppSegment([crm], 'crm')).toBe('com.acme.crm');
+  });
+
+  it('1. re-checks the preferred name against the LIVE list and does not resurrect a dead app', () => {
+    // `currentAppName` is plain React state — it outlives the app it names.
+    expect(resolveHostAppSegment([hr], 'crm')).toBe('hr');
+    expect(resolveHostAppSegment([hr, { name: 'crm', active: false }], 'crm')).toBe('hr');
+    expect(resolveHostAppSegment([hr, { name: 'crm', hidden: true }], 'crm')).toBe('hr');
+  });
+
+  it('2. falls back to the first ACTIVE app when nothing names the current one', () => {
+    expect(resolveHostAppSegment([{ name: 'old', active: false }, hr], undefined)).toBe('hr');
+  });
+
+  it('3. keeps an unchecked preferred segment when the list names no app at all', () => {
+    // An empty list is "not loaded yet" as often as "no apps" — a caller
+    // rendering inside `/apps/crm/…` must not be demoted to `setup`.
+    expect(resolveHostAppSegment([], 'crm')).toBe('crm');
+    expect(resolveHostAppSegment(undefined, 'crm')).toBe('crm');
+  });
+
+  it('4. falls back to setup only when nothing addressable is left', () => {
+    expect(resolveHostAppSegment([], undefined)).toBe('setup');
+    expect(resolveHostAppSegment(null, null)).toBe('setup');
+    // A degenerate app carrying neither `_packageId` nor `name`: present, so
+    // step 3 does not apply, but nothing to build a URL from either.
+    expect(resolveHostAppSegment([{ label: 'nameless' }], 'crm')).toBe('setup');
+  });
+
+  it('CONTROL: a user whose current app IS setup resolves to setup', () => {
+    // The fallback order's tail is not "never setup" — it is "an app this user
+    // can actually open", and for an admin sitting in Setup that is `setup`.
+    expect(resolveHostAppSegment([setup, crm], 'setup')).toBe('setup');
   });
 });
 

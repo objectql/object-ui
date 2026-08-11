@@ -11,6 +11,8 @@
  *   fallback doubles as a per-tenant friendly alias and keeps legacy
  *   name-based URLs/bookmarks working. Callers keep their own
  *   default/first-app fallback around this match.
+ * - `resolveHostAppSegment(apps, preferred)` — which app should HOST a
+ *   framework-owned, app-independent page for this user (see below).
  */
 
 type AppLike = { name?: unknown; _packageId?: unknown } & Record<string, unknown>;
@@ -27,6 +29,76 @@ export function matchAppBySegment<T extends AppLike>(
 ): T | undefined {
   if (!apps || seg == null) return undefined;
   return apps.find((a) => a?._packageId === seg) ?? apps.find((a) => a?.name === seg);
+}
+
+/**
+ * The console's own administration app. Only ever a LAST RESORT for the
+ * resolution below — historically it was hardcoded as the FIRST choice, which
+ * is the defect objectstack#7231 / objectui#4074 removed.
+ */
+const SETUP_APP_SEGMENT = 'setup';
+
+/**
+ * The apps a user can actually open, in metadata order. `active === false`
+ * deactivates an app; `hidden === true` keeps it out of the launcher (personal
+ * settings and similar chrome). Neither is a place to send someone.
+ *
+ * One definition, because "an app the user can open" has to mean the same thing
+ * to Home's launcher and to every producer that builds a link into an app.
+ */
+export function filterActiveApps<T extends AppLike>(apps: readonly T[] | null | undefined): T[] {
+  if (!apps) return [];
+  return apps.filter((a) => a?.active !== false && a?.hidden !== true);
+}
+
+/**
+ * Which app should host a framework-owned, **app-independent** page for this
+ * user — the Approvals Inbox (objectstack#7231), the full inbox
+ * (`sys_inbox_message`) and the activity list (`sys_activity`) (objectui#4074).
+ *
+ * Those pages are mounted for every app (`system/approvals` sits in the host's
+ * route fragment as BOTH `extraRoutes` and `extraRoutesNoApp`; `sys_*` objects
+ * are framework-owned and resolve at `/apps/{any app}/{object}`), so the app
+ * segment in their URL is a statement about WHERE THE USER IS, never about
+ * where the page lives. Hardcoding `setup` there was a dead end for every
+ * business user without access to the setup app, and an unannounced app switch
+ * for everyone else — both measured in a browser on objectui#4074.
+ *
+ * Resolution order, each step falling through only when the previous one cannot
+ * name an app the user can actually open:
+ *   1. `preferred` — the app they are in, or last had open — RE-CHECKED against
+ *      the live active list, so an app that was deactivated or hidden since is
+ *      not resurrected as a link;
+ *   2. their first active app — arbitrary but reachable, and on a business
+ *      user's workspace that is a business app rather than `setup`;
+ *   3. `preferred` unchecked, but ONLY when the list names no app at all. An
+ *      empty list means "not loaded yet" (the pre-catalog render, or a consumer
+ *      outside `MetadataProvider`) at least as often as it means "this user has
+ *      no apps", and demoting a user who is demonstrably rendering inside
+ *      `/apps/{preferred}/…` to `setup` would reintroduce the very defect this
+ *      resolves. A caller with a genuinely empty workspace has no reachable app
+ *      to offer anyway;
+ *   4. `setup`. What is left is the degenerate app carrying neither
+ *      `_packageId` nor `name` — nothing addressable to build a URL from — so
+ *      the historical target is the least-surprising last resort rather than a
+ *      broken link.
+ *
+ * Note step 1 takes ONE `preferred` hint: callers inside the `/apps/:appName/*`
+ * router pass `currentAppName ?? params.appName` (the shell's published app,
+ * then the URL's own segment); Home renders outside that router and has only
+ * `currentAppName`, which is stale by construction — hence the re-check.
+ */
+export function resolveHostAppSegment(
+  apps: readonly AppLike[] | null | undefined,
+  preferred: string | null | undefined,
+): string {
+  const active = filterActiveApps(apps);
+  const stillActive = appRouteSegment(matchAppBySegment(active, preferred));
+  if (stillActive) return stillActive;
+  const firstActive = appRouteSegment(active[0]);
+  if (firstActive) return firstActive;
+  if (active.length === 0 && preferred) return preferred;
+  return SETUP_APP_SEGMENT;
 }
 
 /**

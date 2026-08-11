@@ -32,7 +32,15 @@ export { deriveRelatedLists } from './deriveRelatedLists';
 export type { DerivedRelatedList } from './deriveRelatedLists';
 
 export { preferLocal } from './preferLocal';
-export { appRouteSegment, matchAppBySegment, appStudioDesignPath, appStudioSurfacePath, appStudioRoutePath } from './appRoute';
+export {
+  appRouteSegment,
+  matchAppBySegment,
+  filterActiveApps,
+  resolveHostAppSegment,
+  appStudioDesignPath,
+  appStudioSurfacePath,
+  appStudioRoutePath,
+} from './appRoute';
 
 /**
  * Resolves objectui's KEYED i18n label to a plain string.
