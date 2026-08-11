@@ -13,6 +13,7 @@ import { MobileProvider, generatePWAManifest } from '@object-ui/mobile';
 import { registerPlaceholders } from '@object-ui/components';
 import { initSentry, initRuntimeConfig, getProductName, getProductShortName, getFaviconUrl, getPwaDescription, getPwaThemeColor } from '@object-ui/app-shell';
 import { loadLanguage } from './loadLanguage';
+import { loadLocales } from './loadLocales';
 import { preflightAuth } from './lib/auth-preflight';
 
 const AUTH_URL = `${import.meta.env.VITE_SERVER_URL || ''}/api/v1/auth`;
@@ -111,7 +112,7 @@ Promise.all([
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <MobileProvider pwa={{ enabled: true, name: getProductName(), shortName: getProductShortName() }}>
-        <I18nProvider loadLanguage={loadLanguage}>
+        <I18nProvider loadLanguage={loadLanguage} loadLocales={loadLocales}>
           <App />
         </I18nProvider>
       </MobileProvider>

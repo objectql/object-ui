@@ -59,15 +59,75 @@ function clearStoredLanguage(): void {
 }
 
 /**
- * Languages `createI18n(config)` will know about: the built-in packs plus any
- * extra `config.resources`.
+ * Languages `createI18n(config)` will know about *synchronously*: the built-in
+ * packs plus any extra `config.resources`.
  *
  * `hasOwnProperty` rather than `in`: a junk stored value like `constructor`
  * would pass an `in` check against the locale map's prototype.
  */
-function isKnownLanguage(lang: string, config?: I18nConfig): boolean {
+function isStaticallyKnownLanguage(lang: string, config?: I18nConfig): boolean {
   const own = Object.prototype.hasOwnProperty;
   return own.call(builtInLocales, lang) || Boolean(config?.resources && own.call(config.resources, lang));
+}
+
+/** The built-in packs' codes, as a stable identity for consumers' dep arrays. */
+const BUILT_IN_LANGUAGE_CODES: readonly string[] = Object.freeze(Object.keys(builtInLocales));
+
+/**
+ * Every language this renderer can produce *without asking the app*: the
+ * built-in packs plus `config.resources`.
+ *
+ * This is the offline/no-backend answer — the set the switcher offers when
+ * there is no `loadLocales` wiring, or when the app's locale endpoint cannot
+ * be reached (objectui#4039).
+ */
+function resolvableLanguages(config?: I18nConfig): string[] {
+  const extra = Object.keys(config?.resources ?? {}).filter(
+    (code) => !BUILT_IN_LANGUAGE_CODES.includes(code),
+  );
+  return [...BUILT_IN_LANGUAGE_CODES, ...extra];
+}
+
+/**
+ * Whether `tag` is a well-formed BCP-47 language tag.
+ *
+ * `Intl.getCanonicalLocales` is the standard's own parser, so this rejects
+ * exactly what a locale code cannot be — `constructor`, `__proto__`, `en_US`,
+ * `''` all throw `RangeError` — while accepting codes no pack exists for yet
+ * (`th`, `pt-BR`). Guarded for runtimes that ship no `Intl`: a language
+ * preference is never worth taking the app down for.
+ */
+function isWellFormedLanguageTag(tag: string): boolean {
+  if (typeof Intl === 'undefined' || typeof Intl.getCanonicalLocales !== 'function') {
+    return /^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$/.test(tag);
+  }
+  try {
+    return Intl.getCanonicalLocales(tag).length === 1;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether this provider can end up rendering `lang` at all.
+ *
+ * Wider than {@link isStaticallyKnownLanguage} by exactly one case: when a
+ * dynamic {@link I18nProviderProps.loadLanguage} loader is wired, that loader
+ * *is* the mechanism that produces app-shipped locales, and nothing can
+ * enumerate what it will answer for synchronously — the app's pack for `th`
+ * lives behind `GET /api/v1/i18n/translations/th`, not in `config.resources`.
+ *
+ * This is the lockstep half of objectui#4039. The switcher now offers the
+ * app's own locales, so the restore validation had to grow with it or a
+ * user-picked app locale would be purged on the next reload — the exact bug
+ * objectstack#5418 predicted this fix would otherwise mint. The bound stays
+ * honest rather than absent: only well-formed tags qualify, and the app's own
+ * locale list adjudicates the choice for real once it lands (see the
+ * `provisional` self-heal in {@link I18nProvider}).
+ */
+function canResolveLanguage(lang: string, config?: I18nConfig, hasLoader = false): boolean {
+  if (isStaticallyKnownLanguage(lang, config)) return true;
+  return hasLoader && isWellFormedLanguageTag(lang);
 }
 
 /**
@@ -89,18 +149,35 @@ function isKnownLanguage(lang: string, config?: I18nConfig): boolean {
  * A stored value the app no longer offers is dropped *and purged*, so one stale
  * entry can never lock the UI to a locale that has no translations.
  */
+interface BootstrapResolution {
+  /** The config to build the i18next instance from. */
+  config: I18nConfig | undefined;
+  /**
+   * The stored language accepted on the dynamic loader's credit alone — not a
+   * built-in pack, not in `config.resources`. Nothing synchronous can confirm
+   * the app still ships it, so the app's own locale list adjudicates it once
+   * it lands. `null` when the bootstrap language needed no such credit, which
+   * is every case that existed before objectui#4039.
+   */
+  provisional: string | null;
+}
+
 function resolveBootstrapConfig(
   config: I18nConfig | undefined,
   persist: boolean,
-): I18nConfig | undefined {
-  if (!persist) return config;
+  hasLoader: boolean,
+): BootstrapResolution {
+  if (!persist) return { config, provisional: null };
   const stored = readStoredLanguage();
-  if (!stored) return config;
-  if (!isKnownLanguage(stored, config)) {
+  if (!stored) return { config, provisional: null };
+  if (!canResolveLanguage(stored, config, hasLoader)) {
     clearStoredLanguage();
-    return config;
+    return { config, provisional: null };
   }
-  return { ...config, defaultLanguage: stored, detectBrowserLanguage: false };
+  return {
+    config: { ...config, defaultLanguage: stored, detectBrowserLanguage: false },
+    provisional: isStaticallyKnownLanguage(stored, config) ? null : stored,
+  };
 }
 
 interface I18nContextValue {
@@ -112,6 +189,19 @@ interface I18nContextValue {
   direction: 'ltr' | 'rtl';
   /** The underlying i18next instance */
   i18n: I18nInstance;
+  /**
+   * The languages a switcher may offer (objectui#4039): the app's own locale
+   * list ∩ what this renderer can resolve. Computed here because only the
+   * provider knows both sides — the built-in packs, `config.resources` and
+   * whether a dynamic loader is wired.
+   *
+   * `null` means "still asking the app". Consumers render nothing (or a
+   * skeleton) rather than a list they will have to retract a tick later.
+   * Without {@link I18nProviderProps.loadLocales} wiring, or when the app's
+   * endpoint cannot be reached, this is the offline fallback: the built-in
+   * packs plus `config.resources`.
+   */
+  offerableLanguages: readonly string[] | null;
 }
 
 const ObjectI18nContext = createContext<I18nContextValue | null>(null);
@@ -139,6 +229,24 @@ export interface I18nProviderProps {
    * ```
    */
   loadLanguage?: (lang: string) => Promise<Record<string, unknown>>;
+  /**
+   * The app's own locale list — the codes it actually ships translations for
+   * (objectui#4039). Wired the same way as {@link I18nProviderProps.loadLanguage}:
+   * the app owns the transport, the provider owns what is done with the answer.
+   *
+   * The console reads `GET /api/v1/i18n/locales`; see
+   * `apps/console/src/loadLocales.ts`. Without this prop the switcher keeps
+   * offering the built-in packs (plus `config.resources`) exactly as before, so
+   * an app that never wires it is unaffected.
+   *
+   * @example
+   * ```tsx
+   * <I18nProvider loadLanguage={loadLanguage} loadLocales={loadLocales}>
+   *   <App />
+   * </I18nProvider>
+   * ```
+   */
+  loadLocales?: () => Promise<string[]>;
   /**
    * Remember the active language in `localStorage` ({@link LOCALE_STORAGE_KEY})
    * and restore it on the next mount. Default: `true`.
@@ -177,13 +285,21 @@ export function I18nProvider({
   config,
   instance: externalInstance,
   loadLanguage,
+  loadLocales,
   persistLanguage = true,
   children,
 }: I18nProviderProps) {
-  const i18nInstance = useMemo(
-    () => externalInstance || createI18n(resolveBootstrapConfig(config, persistLanguage)),
-    [externalInstance, config, persistLanguage],
-  );
+  // A boolean, not `loadLanguage` itself: an inline arrow would change identity
+  // every render and rebuild the i18next instance (and with it the language)
+  // on each one. What the bootstrap needs to know is only whether a loader
+  // exists at all.
+  const hasLoader = Boolean(loadLanguage);
+  const bootstrap = useMemo(() => {
+    if (externalInstance) return { instance: externalInstance, provisional: null as string | null };
+    const resolved = resolveBootstrapConfig(config, persistLanguage, hasLoader);
+    return { instance: createI18n(resolved.config), provisional: resolved.provisional };
+  }, [externalInstance, config, persistLanguage, hasLoader]);
+  const i18nInstance = bootstrap.instance;
 
   const [language, setLanguage] = useState(i18nInstance.language || 'en');
   const direction = getDirection(language);
@@ -247,6 +363,77 @@ export function I18nProvider({
     });
   }, [i18nInstance, loadLanguage]);
 
+  // The app's own locale list (objectui#4039). `null` = not answered yet; `[]`
+  // = asked and got nothing usable, which is "I don't know", not "I ship no
+  // locales" — both degrade to the offline fallback below.
+  const [appLocales, setAppLocales] = useState<string[] | null>(null);
+
+  // Asked exactly once per provider, guarded by a ref — the same shape as the
+  // `loadedAppLangs` guard on `loadLanguage` above, and for two reasons at
+  // once. An inline `loadLocales={() => …}` changes identity every render, so
+  // without the guard the answer would set state, the re-render would mint a
+  // new arrow, and the new arrow would re-run the effect: a fetch loop. And
+  // StrictMode's double-invoked effect must not fire a second request.
+  //
+  // Deliberately no `cancelled` flag: under StrictMode the cleanup would
+  // cancel the only in-flight request while the re-run declines to start
+  // another, leaving the list permanently unanswered and the switcher
+  // permanently blank. Settling state after unmount is a no-op in React 18 —
+  // which is exactly why the `loadLanguage` effect above does the same.
+  const hasLocaleLoader = Boolean(loadLocales);
+  const askedForLocales = useRef(false);
+
+  useEffect(() => {
+    if (!loadLocales || askedForLocales.current) return;
+    askedForLocales.current = true;
+    loadLocales()
+      .then((codes) => setAppLocales(Array.isArray(codes) ? codes : []))
+      .catch((err) => {
+        // A language menu is not worth an unhandled rejection: fall back to the
+        // locales this renderer can produce on its own.
+        setAppLocales([]);
+        console.warn('[i18n] Failed to load the app locale list:', err);
+      });
+  }, [loadLocales]);
+
+  const offerableLanguages = useMemo<readonly string[] | null>(() => {
+    const fallback = resolvableLanguages(config);
+    // No wiring at all: the built-in packs are the whole truth, as before.
+    if (!hasLocaleLoader) return fallback;
+    if (appLocales === null) return null;
+    const offerable = appLocales.filter((code) => canResolveLanguage(code, config, hasLoader));
+    // An app that answers with nothing this renderer can produce leaves the
+    // user with no way to switch at all — strictly worse than the offline
+    // fallback, so the fallback wins.
+    return offerable.length > 0 ? offerable : fallback;
+  }, [config, hasLocaleLoader, appLocales, hasLoader]);
+
+  // Self-heal: a stored language accepted on the loader's credit alone is
+  // adjudicated by the app's real list once it lands. Without this, widening
+  // the restore validation would reintroduce exactly what it was written to
+  // stop — one stale entry locking the UI to a locale with no translations.
+  // Scoped to our own optimism: only the bootstrap language, only while the
+  // user has not moved on, and never on an empty/failed answer.
+  useEffect(() => {
+    const provisional = bootstrap.provisional;
+    if (!provisional || !appLocales || appLocales.length === 0) return;
+    if (appLocales.includes(provisional)) return;
+    if ((i18nInstance.language || '') !== provisional) return;
+    const revertTo = config?.defaultLanguage || config?.fallbackLanguage || 'en';
+    void (async () => {
+      await i18nInstance.changeLanguage(revertTo);
+      // Purge AFTER the switch, not before: every language change persists
+      // itself (that is the point of the single choke point in the
+      // `languageChanged` handler), so clearing first would just be overwritten
+      // with `revertTo` — recording a preference the user never expressed and
+      // suppressing browser detection from then on. Ending with nothing stored
+      // is what the bootstrap purge has always left behind.
+      // Guarded: if the user picked something in the meantime, that choice is
+      // theirs to keep.
+      if ((i18nInstance.language || '') === revertTo) clearStoredLanguage();
+    })();
+  }, [bootstrap, appLocales, i18nInstance, config]);
+
   const contextValue = useMemo<I18nContextValue>(
     () => ({
       language,
@@ -266,8 +453,9 @@ export function I18nProvider({
       },
       direction,
       i18n: i18nInstance,
+      offerableLanguages,
     }),
-    [language, direction, i18nInstance, loadLanguage],
+    [language, direction, i18nInstance, loadLanguage, offerableLanguages],
   );
 
   return React.createElement(
@@ -303,6 +491,13 @@ export function useObjectTranslation(ns?: string) {
     direction: context?.direction || 'ltr',
     /** The underlying i18next instance */
     i18n,
+    /**
+     * Languages a switcher may offer (objectui#4039). `null` while the app's
+     * locale list is in flight. Outside a provider there is nobody to ask, so
+     * the built-in packs are the answer — not `null`, which would leave a
+     * standalone switcher permanently blank.
+     */
+    offerableLanguages: context ? context.offerableLanguages : BUILT_IN_LANGUAGE_CODES,
   };
 }
 
