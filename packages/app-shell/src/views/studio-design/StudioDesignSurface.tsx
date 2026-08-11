@@ -2556,7 +2556,24 @@ export function DataPillar({
                   </button>
                 </div>
                 <span className="text-[11px] text-muted-foreground">
-                  {formMode === 'layout' ? t('engine.studio.data.form.layoutBadge', locale) : t('engine.studio.data.form.previewBadge', locale)}
+                  {formMode === 'layout' ? (
+                    // The caption used to assert "your unsaved changes" from
+                    // `formMode` alone — a TAB selector — so it claimed pending
+                    // edits on every clean layout tab, including in a read-only
+                    // package where `保存草稿` is disabled and the designer has
+                    // no draggable at all (objectui#4036). Say it only when it
+                    // is true: real local edits, on a surface that can save
+                    // them. `!readOnly` is belt-and-braces — `dirty` is set only
+                    // by the edit paths, which the package gate already blocks —
+                    // but it makes "no unsaved-changes claim where nothing can
+                    // be saved" a property of this line rather than an
+                    // inference about a state machine two hundred lines up.
+                    dirty && !readOnly
+                      ? t('engine.studio.data.form.layoutBadge', locale)
+                      : t('engine.studio.data.form.layoutBadgeClean', locale)
+                  ) : (
+                    t('engine.studio.data.form.previewBadge', locale)
+                  )}
                 </span>
                 {/* Preview renders the PUBLISHED definition on purpose: a draft with
                   * structural changes has no physical columns yet (DDL lands at

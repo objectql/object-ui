@@ -619,7 +619,7 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
 
   if (loading) {
     return (
-      <PageShell entry={entry} itemName={name} embedded={embedded}>
+      <PageShell entry={entry} itemName={name} embedded={embedded} readOnly={readOnly}>
         <div className="p-6 text-sm text-muted-foreground flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin" /> {t('perm.loading').replace('{name}', name)}
         </div>
@@ -634,6 +634,11 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
       subtitle={t('perm.subtitle.set')}
       stats={stats}
       embedded={embedded}
+      // The header badge must report the gate that actually governs this
+      // screen. `permission` is overlay-allowed in the registry, so without
+      // this the hero rendered "writable" while every control below it was
+      // disabled by the package gate (objectui#4036).
+      readOnly={readOnly}
       actions={
         <>
           <Button
