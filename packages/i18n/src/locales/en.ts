@@ -552,7 +552,7 @@ const en = {
     sortRecords: 'Sort Records',
     sortByIdSuffix: '(by ID)',
     sortRelationalHint:
-      'Columns that link to another record are not listed: they can only be sorted by the stored ID, not by the name shown in the cell. To sort by that name, add a formula field holding it.',
+      'Columns that link to another record are not listed: they can only be sorted by the stored ID, not by the name shown in the cell. To sort by that name, denormalize it onto this object as a stored field, written when the source changes, and sort by that. Not a formula field: it is virtual, so no column is stored for it and the server refuses to sort by one.',
     resetSortToDefault: 'Reset to view default',
     group: 'Group',
     groupBy: 'Group By',
