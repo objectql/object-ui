@@ -9,14 +9,33 @@ name: Changeset Presence
 #
 # Why this is a SECOND changeset workflow rather than a wider trigger on the
 # first. `changeset-guard.yml` runs only when `.changeset/**` changes, and that
-# inversion is deliberate and documented in its own header: `ci.yml` and
-# `lint.yml` both list `.changeset/**` under `paths-ignore`, so a PR that adds
-# ONLY a changeset starts nothing else, and that guard exists to see exactly that
-# PR. A PR which FORGOT its changeset does not touch `.changeset/**` at all, so
-# the one check that could notice is the one guaranteed not to run. Widening those
-# paths would break the case it was built for. Hence two workflows, opposite
-# directions: that one polices the level of a declaration that exists, this one
-# polices the existence of a declaration at all.
+# inversion is deliberate and documented in its own header: on a PR that adds
+# ONLY a changeset, every gate inside `ci.yml` and `lint.yml` skips, so nothing
+# in either of them ever reads the changeset — and that guard exists to see
+# exactly that PR. A PR which FORGOT its changeset does not touch `.changeset/**`
+# at all, so the one check that could notice is the one guaranteed not to run.
+# Widening those paths would break the case it was built for. Hence two
+# workflows, opposite directions: that one polices the level of a declaration
+# that exists, this one polices the existence of a declaration at all.
+#
+# That is no longer the reason this header used to give. It said `ci.yml` and
+# `lint.yml` both list `.changeset/**` under `paths-ignore`, so a PR adding ONLY
+# a changeset "starts nothing else". objectui#3523 step 2 deleted `paths-ignore`
+# from their `pull_request` trigger; it remains ONLY on `push`. Such a PR does
+# start both workflows and does produce their contexts — measured: PR #3856 (one
+# markdown file) 16 checks, PR #4339 (one line added to AGENTS.md) 17. The
+# correction is objectui#3857; an author had already acted on the old sentence
+# and got the opposite result.
+#
+# What #3523 moved rather than deleted is the path DECISION: it is now the
+# `Decide whether this change needs a full run` step in `ci.yml`, with a twin in
+# `lint.yml`, and its exclusion list is that `push` filter unchanged — markdown
+# and `.changeset/**` included, held identical to it by
+# `scripts/__tests__/merge-queue-reporting.test.ts`. Both workflows therefore
+# start, report, and skip every expensive step on precisely this PR: the
+# conclusion survives its premise, and `changeset-guard.yml`, running outside
+# that in-job switch with no install and no build, is still the only thing that
+# judges a changeset-only PR at all.
 #
 # Hence also: no `paths` and no `paths-ignore` here, deliberately — the same
 # choice `control-bytes.yml` and `docs-links.yml` made and for a stronger reason.

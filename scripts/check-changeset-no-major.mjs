@@ -19,7 +19,19 @@
  * (17 package entries between them) during the 17.x line — enough to publish
  * 39 packages as 18.0.0 against an `@objectstack` still on 17. The rule was
  * already written down; nothing executed it, and no workflow even looked at
- * `.changeset/**` (both `ci.yml` and `lint.yml` list it under `paths-ignore`).
+ * `.changeset/**` (at the time `ci.yml` and `lint.yml` both listed it under
+ * `paths-ignore` on their `pull_request` trigger, so a changeset-only PR started
+ * nothing at all).
+ *
+ * That parenthetical is history, not today's shape: objectui#3523 step 2 deleted
+ * `paths-ignore` from those two `pull_request` triggers and it remains ONLY on
+ * `push`, so such a PR now starts both workflows and produces their contexts.
+ * What skips is the expensive work inside them — the `Decide whether this change
+ * needs a full run` step excludes markdown and `.changeset/**` and skips every
+ * step below itself. So no gate in either workflow reads the changeset either
+ * way, and this one, run by `.github/workflows/changeset-guard.yml` outside that
+ * in-job switch, is still the only thing that judges such a PR. The conclusion
+ * outlived its premise; objectui#3857 pinned the correction.
  *
  * The one legitimate major is the synchronized bump that follows objectstack
  * across ITS major. Set `OBJECTUI_ALLOW_MAJOR=1` for that release, and only
