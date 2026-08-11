@@ -33,17 +33,26 @@ import {
 
 const RUNNER = join(dirname(fileURLToPath(import.meta.url)), '..', 'ActionRunner.ts');
 
-/** `ActionDef`'s declared property names, read off the interface itself. */
-function declaredActionDefKeys(): string[] {
+/** The named interface's members, read off `ActionRunner.ts` itself. */
+function interfaceMembers(name: string): readonly ts.TypeElement[] {
   const sf = ts.createSourceFile(RUNNER, readFileSync(RUNNER, 'utf8'), ts.ScriptTarget.Latest, true);
   for (const stmt of sf.statements) {
-    if (!ts.isInterfaceDeclaration(stmt) || stmt.name.text !== 'ActionDef') continue;
-    return stmt.members
-      .filter(ts.isPropertySignature)
-      .map((m) => (m.name && (ts.isIdentifier(m.name) || ts.isStringLiteral(m.name)) ? m.name.text : null))
-      .filter((n): n is string => n !== null);
+    if (ts.isInterfaceDeclaration(stmt) && stmt.name.text === name) return stmt.members;
   }
-  throw new Error('ActionDef interface not found in ActionRunner.ts');
+  throw new Error(`${name} interface not found in ActionRunner.ts`);
+}
+
+/** `ActionDef`'s declared property names, read off the interface itself. */
+function declaredActionDefKeys(): string[] {
+  return interfaceMembers('ActionDef')
+    .filter(ts.isPropertySignature)
+    .map((m) => (m.name && (ts.isIdentifier(m.name) || ts.isStringLiteral(m.name)) ? m.name.text : null))
+    .filter((n): n is string => n !== null);
+}
+
+/** Does the named interface end with an `[key: string]: any`-style catch-all? */
+function hasIndexSignature(name: string): boolean {
+  return interfaceMembers(name).some(ts.isIndexSignatureDeclaration);
 }
 
 /**
@@ -75,10 +84,27 @@ function specActionKeys(): string[] {
 }
 
 describe('action key inventory (objectstack#4075 step 1)', () => {
-  it('ActionDef still has the index signature this inventory compensates for', () => {
-    // The day this fails, step 3 has landed: `tsc` catches unknown keys itself
-    // and the dev-mode warning (plus `executeScript`'s rename branch) can retire.
-    expect(readFileSync(RUNNER, 'utf8')).toContain('[key: string]: any');
+  it('ActionDef has NO index signature, and ActionContext still does', () => {
+    // The successor to step 1's inverted pin. That one asserted the index
+    // signature was STILL THERE and named its own retirement condition: "the day
+    // this fails, step 3 has landed". Step 3 landed, so the assertion inverts
+    // rather than disappears — the property is still worth pinning, in the
+    // opposite direction, and silently deleting the pin would have left the
+    // deletion unguarded against a well-meaning re-add.
+    //
+    // Asserted through the AST, not `toContain('[key: string]: any')` as the
+    // original did. A whole-file text match cannot tell the DECLARATION from
+    // prose ABOUT it, and both files now discuss the index signature at length;
+    // a text-negative pin would go red on a comment. It would also have been
+    // blind to the half of this assertion that carries the real discrimination:
+    // `ActionContext` KEEPING its own index signature. The card turns on that
+    // asymmetry — a runtime data bag is legitimately open, a declared metadata
+    // contract is not — so a pin that only checked `ActionDef` would stay green
+    // through a change that "tidied up" `ActionContext` too.
+    expect({
+      ActionDef: hasIndexSignature('ActionDef'),
+      ActionContext: hasIndexSignature('ActionContext'),
+    }).toEqual({ ActionDef: false, ActionContext: true });
   });
 
   it('lists every key ActionDef declares', () => {
