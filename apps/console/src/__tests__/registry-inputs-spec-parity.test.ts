@@ -434,6 +434,32 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   'page:card.body':
     'Retired upstream by objectstack#5775 / PR objectstack#6281 (ADR-0087 D2 tombstone, converging on the `children` this renderer reads and now publishes); declaring it would publish a key the spec rejects by name — objectui#4027. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
 
+  // ── record:details.layout — retired upstream AND withdrawn here (1 key) ───
+  // The fifth D2 tombstone, and the first one whose objectui half has actually
+  // landed — so it is here for a DIFFERENT reason than the four above, and the
+  // difference is worth reading before treating it as more of the same.
+  //
+  // Those four are stale-pin cover: the key is still published in this repo and
+  // the entry says "the pin predates the retirement". This one is the opposite.
+  // objectui#3818 DELETED the `record:details` `layout` input (the spec's
+  // `auto` | `custom` semantics were never implemented — the renderer's only
+  // read tested `inline` | `compact`, values the schema never permitted, so both
+  // legal values took the same branch and the key selected nothing), which is
+  // exactly what this gate's forward direction wants. The entry exists because
+  // the REVERSE direction then demands the key back: `specTopLevelKeys` reads
+  // raw `Object.keys(shape)`, the ADR-0087 D2 tombstone is still an entry in
+  // that shape, and so a key the spec rejects by name reads as "declared, and
+  // you failed to publish it".
+  //
+  // That is objectui#3809's blind spot seen from the other side — it predicted a
+  // false GREEN in the forward direction, and this is the same root cause
+  // producing a false RED in the reverse one. Both vanish together when #3809
+  // narrows `specTopLevelKeys` to non-tombstone members; this entry then goes
+  // stale and `carries no stale unpublished-key exemption` will name it, along
+  // with the four above. Do not resolve it by re-adding the input.
+  'record:details.layout':
+    'Retired upstream by objectstack#6946 (ADR-0087 D2 tombstone) and withdrawn here by objectui#3818 — its published `auto` | `custom` semantics were never implemented, and the spec now rejects the key by name, so publishing it again would teach a key the contract refuses. Unlike the stale-pin entries above this one is live at @objectstack/spec@17.0.0-rc.6: the tombstone stays in `Object.keys(shape)`, so the reverse direction demands a key the forward direction forbids. Resolves via objectui#3809 tombstone recognition, not by declaring the input.',
+
   // `element:record_picker.filter` was the ninth entry here — a real A-class gap
   // that fell out of objectui#3808's three-class triage, exempted only because it
   // was outside that PR's dispatched scope. objectui#3830 declared the input, so
