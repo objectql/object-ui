@@ -6,10 +6,33 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useContext, useMemo } from 'react';
-import { isElementDataSourceConfig, mergeFilterNodes } from '@object-ui/core';
-import { SchemaRendererContext, useElementDataSource } from '@object-ui/react';
+import React, { useContext } from 'react';
+import { isElementDataSourceConfig } from '@object-ui/core';
+import {
+  ElementDataSourceGate,
+  SchemaRendererContext,
+  type ElementDataSourceMapping,
+} from '@object-ui/react';
 import { ListView, type ListViewHandle, type ListViewProps } from './ListView';
+
+/**
+ * Which schema keys `ListView` actually reads, so the composed binding lands on
+ * those and nothing else.
+ *
+ * `list-view` is the block that reads all five: `columns` is a FIELD projection
+ * here (so a saved view's column list belongs on it), `filter` and `sort` go to
+ * the query, the row cap is read as `pagination.pageSize`, and `viewType` picks
+ * which view kind renders — its registry `inputs` enumerate grid/kanban/gallery,
+ * so naming a saved kanban view and rendering a grid would be a silently wrong
+ * answer.
+ */
+const LIST_VIEW_DATA_SOURCE: ElementDataSourceMapping = {
+  columns: true,
+  filter: true,
+  sort: true,
+  limit: 'pagination.pageSize',
+  viewType: true,
+};
 
 /**
  * Registry entry point for `<ListView>` — two bridges in one component.
@@ -52,125 +75,53 @@ import { ListView, type ListViewHandle, type ListViewProps } from './ListView';
  * `SchemaRenderer` no longer spreads the schema's `dataSource` as a prop, which
  * removes the collision at its source. This component completes the other half:
  * it maps the binding onto the props `ListView` actually reads, resolving a named
- * saved view through {@link useElementDataSource}.
+ * saved view through `ElementDataSourceGate`.
  *
- * ### Precedence
+ * ### Where the precedence table lives (objectui#4038)
  *
- * Two kinds of value arrive, and they do not have the same standing:
+ * It is NOT here. objectstack#5576 landed this block's own ~45-line copy of
+ * "binding overrides the component key / a view is only a baseline / `filter`
+ * AND-combines / an empty `columns` counts as unauthored / the row cap lands on
+ * `pagination.pageSize` / `viewType` only when undeclared", and objectstack#6953
+ * then lifted that same table into `@object-ui/react` when the other eight
+ * object-bound blocks needed it. Two copies of one table is how the spec's
+ * "*additional* filter criteria" quietly becomes two dialects — the next person
+ * to change the rules changes one side. So the table now lives ONCE, in
+ * {@link ElementDataSourceGate}, and this block contributes only the part that is
+ * genuinely its own: {@link LIST_VIEW_DATA_SOURCE}, the names of the keys it
+ * reads. The behaviour is unchanged in both directions — that objectstack#5576's
+ * whole suite passes here untouched is the acceptance criterion of the
+ * convergence, not a happy accident.
  *
- *  - **`dataSource.*` keys are authoritative.** The author wrote them on THIS
- *    placement, and the spec says the binding "overrides page-level object
- *    context". They beat the component's own same-named key.
- *  - **View-sourced values are a baseline.** A `view` is a *reference*; a key
- *    written on the component itself is more specific than the view it points at,
- *    so the component's key wins. ("view provides the baseline, explicit keys
- *    override".)
- *  - **`filter` never overrides — it combines.** The spec describes the
- *    binding's filter as "*Additional* filter criteria", so component filter,
- *    view filter and binding filter all AND together through
- *    `mergeFilterNodes`. A binding can only narrow what the view already
- *    restricts, never widen it: a mistyped per-element filter cannot expose rows
- *    the saved view excluded. (`ListView` then ANDs the user's own toolbar
- *    filters onto this, unchanged.)
- *
- * An authored-but-EMPTY `columns` counts as "not authored": `[]` is what the
- * designer emits for an unconfigured column list, and supplying the columns is
- * exactly why a view was named. Any non-empty `columns` on the component wins.
- *
- * ### An unresolvable `view` fails loudly
- *
- * When the named view does not exist we render a configuration error instead of
- * falling back to the object's default view. Silently widening a named view to
- * "all records" is the failure class the binding exists to remove, and it is the
- * one an AI-authored page hides best: the page looks like it works. Same posture
- * (and same shape of panel) as `SchemaRenderer`'s "Unknown component type" —
- * authored metadata pointing at something that is not there.
+ * An unresolvable `view` still fails loudly (the gate renders the configuration
+ * error rather than falling back to the object's default view): silently widening
+ * a named view to "all records" is the failure class the binding exists to
+ * remove, and the one an AI-authored page hides best.
  */
 const ListViewBlock = React.forwardRef<ListViewHandle, ListViewProps>((props, ref) => {
   const context = useContext(SchemaRendererContext as React.Context<any>);
 
   // Defence in depth for the collision above: even though SchemaRenderer no
   // longer spreads it, a host (or an older cached bundle) handing us the spec
-  // BINDING under this prop name must never be mistaken for an adapter.
+  // BINDING under this prop name must never be mistaken for an adapter. The gate
+  // carries the same guard for its own resolution; this one also decides what
+  // `ListView` itself receives as its adapter, which the gate cannot do for us.
   const explicitAdapter = isElementDataSourceConfig(props.dataSource)
     ? undefined
     : props.dataSource;
   const adapter = explicitAdapter ?? context?.dataSource;
 
-  const binding = useElementDataSource(props.schema, adapter);
-
-  const schema = useMemo(() => {
-    const composed = binding.composed;
-    if (!composed) return props.schema;
-
-    const base = props.schema as Record<string, any>;
-    const next: Record<string, any> = { ...base };
-
-    next.objectName = composed.object;
-
-    const authoredColumns = Array.isArray(base.columns) && base.columns.length > 0
-      ? base.columns
-      : undefined;
-    if (authoredColumns === undefined && composed.columns !== undefined) {
-      next.columns = composed.columns;
-    }
-
-    // Component filter AND (view filter AND binding filter). `composed.filter`
-    // already carries the latter pair; a single surviving source comes back
-    // unwrapped, so the common "only the view filters" case stays flat.
-    const filter = mergeFilterNodes(base.filter, composed.filter);
-    if (filter !== undefined) next.filter = filter;
-    else delete next.filter;
-
-    // `composed.sort` is the binding's sort when it declared one, else the
-    // view's — so the component's own `sort` may only win over the latter.
-    if (composed.sort !== undefined) {
-      const viewSuppliedSort = binding.config?.sort === undefined;
-      if (!viewSuppliedSort || base.sort === undefined) next.sort = composed.sort;
-    }
-
-    if (composed.limit !== undefined) {
-      const viewSuppliedLimit = binding.config?.limit === undefined;
-      const authoredPageSize = base.pagination?.pageSize;
-      if (!viewSuppliedLimit || authoredPageSize === undefined) {
-        next.pagination = { ...(base.pagination ?? {}), pageSize: composed.limit };
-      }
-    }
-
-    if (composed.viewType !== undefined && base.viewType === undefined) {
-      next.viewType = composed.viewType;
-    }
-
-    return next as ListViewProps['schema'];
-  }, [props.schema, binding.composed, binding.config]);
-
-  if (binding.status === 'missing') {
-    return (
-      <div
-        className="p-4 border border-red-500 rounded text-red-500 bg-red-50 my-2"
-        role="alert"
-        data-testid="list-view-datasource-error"
-      >
-        <p className="font-medium">This list view&rsquo;s data source could not be resolved</p>
-        <p className="text-sm mt-1">{binding.error}</p>
-      </div>
-    );
-  }
-
-  if (binding.status === 'loading') {
-    return (
-      <div
-        className="p-2 text-sm text-muted-foreground animate-pulse"
-        role="status"
-        aria-live="polite"
-        data-testid="list-view-resolving-view"
-      >
-        Loading view&hellip;
-      </div>
-    );
-  }
-
-  return <ListView ref={ref} {...props} schema={schema} dataSource={adapter} />;
+  return (
+    <ElementDataSourceGate
+      schema={props.schema}
+      mapping={LIST_VIEW_DATA_SOURCE}
+      dataSource={adapter}
+      testId="list-view"
+      errorTitle="This list view’s data source could not be resolved"
+    >
+      {(schema) => <ListView ref={ref} {...props} schema={schema} dataSource={adapter} />}
+    </ElementDataSourceGate>
+  );
 });
 ListViewBlock.displayName = 'ListViewBlock';
 

@@ -22,10 +22,12 @@
  * halves drift: one block ANDs the filters and the next replaces them, and the
  * spec's "additional filter criteria" quietly becomes two dialects.
  *
- * `plugin-list`'s `ListViewBlock` predates this module and still carries its own
- * copy of the table (they agree today — objectstack#5576's whole suite passes
- * against this one unchanged). Collapsing it onto this module is objectstack#7120;
- * until then, a change to the rules below belongs in both places.
+ * `plugin-list`'s `ListViewBlock` carried the ORIGINAL copy of the table
+ * (objectstack#5576, which predates this module) and was collapsed onto this one
+ * by objectui#4038 — on the acceptance criterion that objectstack#5576's whole
+ * suite passes against this implementation untouched, which it does. Every
+ * object-bound block now reads the rules below from here, so this is the one
+ * place a change to them belongs.
  *
  * ## Precedence — one table, applied everywhere
  *
