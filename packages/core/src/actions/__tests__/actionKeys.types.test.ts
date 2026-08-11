@@ -117,8 +117,28 @@ const CASES: readonly Case[] = [
   // which every action renderer forwards and the param dialog reads.
   { what: 'the navigation alias spelling is declared', rejected: false, code: `{ to: '/records/1', external: false, newTab: true, replace: false }` },
   { what: 'newTab is the boolean switch, not the openIn string', rejected: true, code: `{ newTab: 'new-tab' }` },
-  { what: 'description accepts the human string the param dialog titles itself with', rejected: false, code: `{ description: 'Creates an environment' }` },
-  { what: 'description rejects a number', rejected: true, code: `{ description: 42 }` },
+  //
+  // `description` is deliberately NOT pinned here — it is pinned in
+  // `actionDef-closed-surface.test.ts` instead, and the reason is a real limit
+  // of this harness rather than an oversight.
+  //
+  // Every other derivation above resolves through `@objectstack/spec`, an
+  // ordinary installed package. `description` derives from
+  // `UIActionSchema['description']` in `@object-ui/types`, a WORKSPACE package
+  // whose types resolve through its built `dist/index.d.ts`. This harness
+  // builds its own program with a default compiler host and no `paths` (see
+  // `erroringLines`), so it reads whatever is on disk — and the unit-test job
+  // does not build workspace packages first. When `dist` is stale or absent the
+  // indexed access degrades to `any`, `{ description: 42 }` is accepted, and a
+  // `rejected: true` row here goes red for a reason that has nothing to do with
+  // `ActionDef`. Measured: green locally after a build, red in CI without one.
+  //
+  // `tsconfig.typetests.json` has no such problem — it is a real project in the
+  // dependency graph, so CI's Type Check job builds `@object-ui/types` before
+  // compiling it, and the `@ts-expect-error` on `{ description: 42 }` there is
+  // enforced for real. Splitting the two `description` pins out is therefore
+  // the honest placement, not a weakening: an assertion whose colour depends on
+  // whether someone ran a build is not a pin.
 
   // Step 3's completion check, from the type side, INVERTED by step 3 landing.
   // While `[key: string]: any` stood, a typo was absorbed silently and this case
