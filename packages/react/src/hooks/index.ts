@@ -37,6 +37,9 @@ export * from './useSchemaPersistence';
 export * from './useGlobalUndo';
 export * from './useDebugMode';
 export * from './useActionEngine';
+// The ONE application of `useObjectLabel`'s action resolvers over the three
+// authored strings an action carries (label / confirmText / successMessage).
+export * from './useActionTextLocalizer';
 export * from './useCapabilityGate';
 export * from './useDataRefresh';
 export * from './usePageAssignment';

@@ -44,6 +44,8 @@ import {
   RelatedRecordActionsProvider,
   notifyDataChanged,
   useAction,
+  useActionTextLocalizer,
+  type ActionTextLocalizer,
   type RelatedRecordActionsValue,
   type RelatedRecordHandlers,
   type RelatedRowActionDef,
@@ -67,9 +69,6 @@ export function notifyRelatedChanged(objectName: string): void {
   notifyDataChanged({ objectName });
 }
 
-/** i18n label resolver signature (matches `useObjectLabel().actionLabel`). */
-type ActionLabelFn = (objectName: string | undefined, actionName: string, fallback: string) => string;
-
 export interface RelatedRecordActionsBridgeProps {
   /** Current app segment used to build `/apps/:appName/...` routes. */
   appName?: string;
@@ -77,8 +76,6 @@ export interface RelatedRecordActionsBridgeProps {
   objects: any[];
   /** Data source for delete + action dispatch. */
   dataSource: any;
-  /** Localizes a child action's label (falls back to the raw label). */
-  actionLabel: ActionLabelFn;
   /**
    * The record this bridge is mounted under — the PARENT of any related row a
    * user drills into. Threaded into the child record's `?from=` trail so the
@@ -98,23 +95,23 @@ export interface RelatedRecordActionsBridgeProps {
  */
 function deriveActions(
   childDef: any,
-  actionLabel: ActionLabelFn,
+  localizeActionTexts: ActionTextLocalizer,
   location: 'list_item' | 'list_toolbar',
 ): RelatedRowActionDef[] {
   const actions = Array.isArray(childDef?.actions) ? childDef.actions : [];
   return actions
     .filter((a: any) => Array.isArray(a?.locations) && a.locations.includes(location))
-    .map((a: any) => ({
-      ...a,
-      label: actionLabel(childDef.name, a.name, a.label || a.name),
-    }));
+    // One bundle entry, one fate (objectui#4265): the row menu's label used to
+    // be the ONLY string resolved here, so `runRowAction` below dispatched the
+    // child action's `confirmText` / `successMessage` in the authored language
+    // next to a translated menu item.
+    .map((a: any) => localizeActionTexts(childDef.name, a) as RelatedRowActionDef);
 }
 
 export function RelatedRecordActionsBridge({
   appName,
   objects,
   dataSource,
-  actionLabel,
   parentObjectName,
   parentRecordId,
   parentTitle,
@@ -124,6 +121,12 @@ export function RelatedRecordActionsBridge({
   const { execute } = useAction();
   const [, setSearchParams] = useSearchParams();
   const { getObjectApiOperations, can } = usePermissions();
+  // The child action's authored strings go through the ONE shared resolver
+  // (objectui#4265). This used to arrive as an `actionLabel` prop injected by
+  // RecordDetailView — an injection point that could only ever carry the LABEL,
+  // which is precisely how the row menu ended up translated while its confirm
+  // dialog stayed in the authored language.
+  const localizeActionTexts = useActionTextLocalizer();
   const base = appName ? `/apps/${appName}` : '';
 
   // #2604 D3 — open a child create/edit task as the console's global record
@@ -247,7 +250,7 @@ export function RelatedRecordActionsBridge({
           };
         }
 
-        const rowActions = deriveActions(childDef, actionLabel, 'list_item');
+        const rowActions = deriveActions(childDef, localizeActionTexts, 'list_item');
         if (rowActions.length > 0) {
           handlers.rowActions = rowActions;
           handlers.onRowAction = (action, record) =>
@@ -258,7 +261,7 @@ export function RelatedRecordActionsBridge({
         // header buttons — the related-list equivalent of the object list's
         // toolbar. Executed through the same dispatch as row actions, just
         // without a row record.
-        const toolbarActions = deriveActions(childDef, actionLabel, 'list_toolbar');
+        const toolbarActions = deriveActions(childDef, localizeActionTexts, 'list_toolbar');
         if (toolbarActions.length > 0) {
           handlers.toolbarActions = toolbarActions;
           handlers.onToolbarAction = (action) =>
@@ -268,7 +271,7 @@ export function RelatedRecordActionsBridge({
         return handlers;
       },
     }),
-    [objects, base, navigate, dataSource, actionLabel, runRowAction, openChildForm, parentObjectName, parentRecordId, parentTitle, getObjectApiOperations, can],
+    [objects, base, navigate, dataSource, localizeActionTexts, runRowAction, openChildForm, parentObjectName, parentRecordId, parentTitle, getObjectApiOperations, can],
   );
 
   return (

@@ -38,9 +38,10 @@ import {
   useCondition,
   toPredicateInput,
   usePredicateRecordContext,
+  useActionTextLocalizer,
 } from '@object-ui/react';
 import type { ActionDef } from '@object-ui/core';
-import { useObjectLabel, useObjectTranslation } from '@object-ui/i18n';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2 } from 'lucide-react';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
 import { useAdapter } from '../providers/AdapterProvider';
@@ -111,9 +112,11 @@ const DeclaredActionButton: React.FC<{
   // Localize the SERVER-DECLARED strings through the `_actions.<name>.*`
   // translation convention (objectui#2762 P0-3) — the metadata's literal
   // label/confirmText/successMessage are the fallback, exactly like
-  // ObjectView/RecordDetailView do for their toolbars. The param dialog's
-  // labels localize downstream in useConsoleActionRuntime.
-  const { actionLabel, actionConfirm, actionSuccess } = useObjectLabel();
+  // ObjectView/RecordDetailView do for their toolbars. Since objectui#4265 the
+  // three keys go through ONE call, so no surface can localize the button and
+  // leave the confirm dialog behind. The param dialog's labels localize
+  // downstream in useConsoleActionRuntime.
+  const localizeActionTexts = useActionTextLocalizer();
   // Chrome strings the bar itself authors — as opposed to the declared metadata
   // above — go through the normal locale bundle. The decision-output params are
   // synthesized here from `decision_output_defs`, so their key path is dynamic
@@ -200,20 +203,12 @@ const DeclaredActionButton: React.FC<{
         ? decisionOutputParams(decisionOutputDefs(recordData), t, { decision })
         : [];
       const dispatch: any = {
-        ...rest,
         // Localized copies ride the dispatch: the runner reads `label` for the
         // param-dialog title, `confirmText` for the confirm prompt and
         // `successMessage` for the toast. A nameless action has no translation
-        // key, so it keeps its literal strings.
-        ...(action.name && {
-          label: actionLabel(objectName, action.name, action.label || action.name),
-          ...(rest.confirmText !== undefined && {
-            confirmText: actionConfirm(objectName, action.name, (rest as any).confirmText),
-          }),
-          ...(rest.successMessage !== undefined && {
-            successMessage: actionSuccess(objectName, action.name, (rest as any).successMessage),
-          }),
-        }),
+        // key, so it keeps its literal strings — that rule lives in the
+        // localizer now rather than being re-spelled per surface.
+        ...localizeActionTexts(objectName, rest as Record<string, any>),
         objectName,
         params: { _rowRecord: record },
       };
@@ -225,7 +220,7 @@ const DeclaredActionButton: React.FC<{
     } finally {
       setLoading(false);
     }
-  }, [action, execute, loading, objectName, record, actionLabel, actionConfirm, actionSuccess, t]);
+  }, [action, execute, loading, objectName, record, localizeActionTexts, t]);
 
   // Does the action DECLARE a `visible` gate? `hasDeclaredVisibilityGate`
   // (`!= null && !== ''`) is the one definition on the question, imported rather
@@ -259,8 +254,9 @@ const DeclaredActionButton: React.FC<{
     : declaredVariant === 'danger'
       ? 'destructive'
       : (declaredVariant || 'outline');
-  const fallbackLabel = action.label || action.name || '';
-  const label = action.name ? actionLabel(objectName, action.name, fallbackLabel) : fallbackLabel;
+  // Same resolver as the dispatch above, so the button text and the confirm
+  // dialog body can never come from different bundle reads (objectui#4265).
+  const label = (localizeActionTexts(objectName, action as Record<string, any>).label as string) || '';
 
   return (
     <Button

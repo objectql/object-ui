@@ -16,8 +16,7 @@
  */
 
 import React from 'react';
-import { useRecordContext, useActionEngine, useMetadataItem, useCondition, toPredicateInput, useSafeFieldLabel } from '@object-ui/react';
-import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
+import { useRecordContext, useActionEngine, useMetadataItem, useCondition, toPredicateInput, useActionTextLocalizer } from '@object-ui/react';
 import { usePermissions } from '@object-ui/permissions';
 import { Button, cn, hasDeclaredVisibilityGate } from '@object-ui/components';
 import { Loader2 } from 'lucide-react';
@@ -52,8 +51,12 @@ export const RecordQuickActionsRenderer: React.FC<RecordQuickActionsRendererProp
   const ctx = useRecordContext();
   const { designer } = splitDesigner(props);
   const perms = usePermissions();
-  const { language } = useObjectTranslation();
-  const i18n = useSafeFieldLabel();
+  // The ONE resolver for a declared action's authored strings (objectui#4265).
+  // This bar used to localize the button `label` only, while `executeAction`
+  // ran the RAW def looked up out of the object's metadata — so its confirm
+  // dialog rendered the authored English `confirmText` next to a translated
+  // button, from the same `_actions.<name>` bundle entry.
+  const localizeActionTexts = useActionTextLocalizer();
 
   // Spec bridge inlines `properties.*` onto the node but also preserves the
   // raw bag. Read from both for compatibility.
@@ -82,7 +85,7 @@ export const RecordQuickActionsRenderer: React.FC<RecordQuickActionsRendererProp
   const needsLookup = namesToResolve.length > 0 && !!objectName;
   const { item: objectMeta } = useMetadataItem('object', needsLookup ? objectName : null);
 
-  const actions: ActionDef[] = needsLookup
+  const authoredActions: ActionDef[] = needsLookup
     ? (() => {
         const all: ActionDef[] = Array.isArray(objectMeta?.actions) ? objectMeta!.actions : [];
         const byName = new Map(all.map((a) => [a.name, a]));
@@ -91,6 +94,20 @@ export const RecordQuickActionsRenderer: React.FC<RecordQuickActionsRendererProp
           .filter((a): a is ActionDef => !!a);
       })()
     : (Array.isArray(rawActions) ? (rawActions as ActionDef[]) : []);
+
+  /**
+   * Localize once, before the defs reach `useActionEngine` (objectui#4265).
+   *
+   * `executeAction(name)` runs the def out of THIS array, and the button below
+   * renders `action.label` out of the same array — so localizing here is what
+   * keeps the button and the confirm dialog on one bundle entry. Resolving only
+   * the display label (what this renderer used to do) left `executeAction`
+   * dispatching the untranslated `confirmText` / `successMessage` straight from
+   * the object's metadata.
+   */
+  const actions: ActionDef[] = authoredActions.map((a, idx) =>
+    localizeActionTexts(objectName || undefined, a, { fallbackLabel: `Action ${idx + 1}` }),
+  );
   const required: string[] = Array.isArray(schema.requiredPermissions)
     ? schema.requiredPermissions
     : [];
@@ -166,10 +183,9 @@ export const RecordQuickActionsRenderer: React.FC<RecordQuickActionsRendererProp
           record={ctx?.data}
           variant={(action as any).variant || schema.variant || 'default'}
           size={(action as any).size || schema.size || 'sm'}
-          label={(() => {
-            const raw = pickLocalized(action.label, language) || action.name || `Action ${idx + 1}`;
-            return action.name ? (i18n as any).actionLabel(objectName || undefined, action.name, raw) : raw;
-          })()}
+          // Already resolved (with the confirm/success strings that ride the
+          // same dispatch) in the `actions` memo above — objectui#4265.
+          label={(action.label as string) || `Action ${idx + 1}`}
           onRun={async () => {
             if (typeof action.onClick === 'function') await action.onClick();
             else if (action.name) await executeAction(action.name);
