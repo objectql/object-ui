@@ -138,14 +138,39 @@ export function AppManagementPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
 
-  // Filter apps by search query
+  /**
+   * Filter apps by search query — through the SAME resolver the rows render
+   * with (objectui#4343).
+   *
+   * `label` and `description` are `I18nLabel` in `AppSchema`
+   * (`string | Record< string, string >` in `@objectstack/spec` 17.0.0-rc.6), so
+   * an authored non-string label is spec-legal. An object is TRUTHY, so the
+   * `(app.label || '')` guard this filter used to carry never fired for one — it
+   * handed the object straight to `.toLowerCase()`:
+   *
+   *     TypeError: (l || "").toLowerCase is not a function
+   *
+   * thrown inside `filter` **during render**, so it took the whole page out
+   * rather than degrading search. And only on the first keystroke, because
+   * `if (!searchQuery) return true` short-circuits the empty case — the page
+   * loaded fine and died the moment anyone used it.
+   *
+   * The fix is not a wider guard, it is the SAME reading the rows already use:
+   * `appTitle` (the one display-name helper #4307 introduced) and the identical
+   * `resolveKeyedI18nLabel(…, t)` call the description `< p >` makes below. So
+   * search now matches what the operator can actually SEE — the pack's answer
+   * for a keyed label rather than its authoring `defaultValue`, and `app.name`
+   * wherever the row heading itself falls back to it — and any future widening
+   * of the resolver (objectui#4163's inline-locale-map form) reaches search and
+   * display in the same commit, instead of leaving this filter behind again.
+   */
   const filteredApps = (apps || []).filter((app: any) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
       (app.name || '').toLowerCase().includes(q) ||
-      (app.label || '').toLowerCase().includes(q) ||
-      (app.description || '').toLowerCase().includes(q)
+      appTitle(app).toLowerCase().includes(q) ||
+      (resolveKeyedI18nLabel(app.description, t) || '').toLowerCase().includes(q)
     );
   });
 
