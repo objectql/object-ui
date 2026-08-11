@@ -34,12 +34,21 @@
  *
  * ## Reverse verification (direction predicted before running)
  *
- * Restoring the two raw reads turns every keyed and map case RED **by the
+ * Restoring the two raw reads turns the keyed and map cases RED **by the
  * TypeError above**, thrown on the first keystroke, and leaves the plain-string
  * control GREEN — that asymmetry is the whole claim, and it is why the control
  * case is here at all. It is also why `toThrow`-style coverage would be
  * worthless: the defect is not "something throws", it is that one truthy shape
  * reaches a string method.
+ *
+ * ⚠️ The prediction was wrong the first time, and the reason is worth keeping.
+ * Four cases were expected red; three came back red. The filter is a chain of
+ * `||`, so **a query the NAME already satisfies short-circuits before the label
+ * is read** — the map case searched `mapped` against `mapped_app` and passed on
+ * the UNFIXED page, having never reached the throwing term. Every red-first
+ * case in this file therefore hands the filter a query no earlier term can
+ * answer (`vertr`, `crm`, `kunden` against `sales_app`; `zzz` against
+ * everything). A case that matches on the name is testing the name.
  */
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
@@ -192,21 +201,33 @@ describe('a non-string label survives the first keystroke', () => {
     expect(screen.queryByTestId('app-card-ops_app')).toBeNull();
   });
 
-  it('survives the spec-legal INLINE LOCALE MAP form, and agrees with the row heading', async () => {
+  it('survives the spec-legal INLINE LOCALE MAP form on a query that MISSES', async () => {
     apps.value = [MAPPED, OPS];
-    renderPage();
+    const { unmount } = renderPage();
 
     // The row heading falls back to the app's `name`, because
     // `resolveKeyedI18nLabel` speaks the keyed form and not the map form
-    // (objectui#4163 is the audit that widens it). That limitation is the
-    // DISPLAY path's, and the point of this case is that search now shares it
-    // exactly instead of crashing on the same input: what the heading shows is
-    // what the filter matches. When #4163 teaches the resolver the map form,
-    // both assertions below move together rather than drifting apart again.
+    // (objectui#4163 is the audit that widens it). That limitation belongs to
+    // the DISPLAY path; what this case pins is that search now shares it
+    // exactly instead of crashing on the same input.
     expect(screen.getByText('mapped_app')).toBeInTheDocument();
 
-    await search('mapped');
+    // ⚠️ The query must MISS every app, and that is load-bearing rather than
+    // incidental: the filter is a chain of `||`, so a query the NAME satisfies
+    // short-circuits before the label is ever read. Searching `mapped` here
+    // passes even on the unfixed page — `'mapped_app'.includes('mapped')` is
+    // true and the throwing term never runs. A red-first case for this filter
+    // has to hand it a query no earlier term can answer.
+    await search('zzz');
 
+    expect(screen.getByTestId('no-apps-message')).toBeInTheDocument();
+    unmount();
+
+    // …and the parity half, on a query that DOES hit: what the heading shows
+    // is what the filter matches. When #4163 teaches the resolver the map
+    // form, both halves move together instead of drifting apart again.
+    renderPage();
+    await search('mapped');
     expect(screen.getByTestId('app-card-mapped_app')).toBeInTheDocument();
     expect(screen.queryByTestId('app-card-ops_app')).toBeNull();
   });
