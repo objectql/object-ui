@@ -14,6 +14,7 @@ import { registerPlaceholders } from '@object-ui/components';
 import { initSentry, initRuntimeConfig, getProductName, getProductShortName, getFaviconUrl, getPwaDescription, getPwaThemeColor } from '@object-ui/app-shell';
 import { loadLanguage } from './loadLanguage';
 import { loadLocales } from './loadLocales';
+import { seedTenantLanguage } from './languageSeed';
 import { preflightAuth } from './lib/auth-preflight';
 
 const AUTH_URL = `${import.meta.env.VITE_SERVER_URL || ''}/api/v1/auth`;
@@ -65,9 +66,16 @@ registerPlaceholders();
 // Both kicks are awaited so first paint sees definitive values, but each
 // one absorbs its own failures so a missing endpoint never blocks boot.
 const SERVER_BASE = (import.meta.env.VITE_SERVER_URL || '').replace(/\/+$/, '');
+// The third entry seeds the UI language from the tenant's server-side locale
+// (objectui#4035). It joins this existing gate rather than adding one of its
+// own, which is what keeps it off the critical path: it runs CONCURRENTLY with
+// the two round-trips above, is bounded at ~500ms, absorbs every failure, and
+// short-circuits to a no-op on every boot except a device's true first visit
+// (any later boot reads its answer synchronously out of the seed cache).
 Promise.all([
   initRuntimeConfig(SERVER_BASE),
   preflightAuth(AUTH_URL),
+  seedTenantLanguage(SERVER_BASE),
 ]).finally(() => {
   // Apply runtime branding before React mounts — avoids a flash of the
   // static defaults for operators who configure OS_PRODUCT_NAME etc.

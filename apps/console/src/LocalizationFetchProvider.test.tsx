@@ -16,6 +16,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { LOCALE_SEED_STORAGE_KEY, LOCALE_STORAGE_KEY } from '@object-ui/i18n';
 import { LocalizationFetchProvider } from './LocalizationFetchProvider';
 
 const ENDPOINT = '/api/v1/auth/me/localization';
@@ -116,5 +117,58 @@ describe('LocalizationFetchProvider', () => {
     );
     await new Promise((r) => setTimeout(r, 50));
     expect((globalThis.fetch as never as ReturnType<typeof vi.fn>)).toHaveBeenCalledTimes(5);
+  });
+
+  // The UI-language seed cache (objectui#4035). This provider is the
+  // "revalidate" half of stale-while-revalidate: it already fetches the tenant
+  // locale on every boot, so refreshing the cache here costs no extra request
+  // and keeps a tenant reconfiguration reaching choice-less devices.
+  describe('tenant language seed cache', () => {
+    beforeEach(() => { window.localStorage.clear(); });
+
+    it('refreshes the seed cache from a successful answer', async () => {
+      (globalThis.fetch as never as ReturnType<typeof vi.fn>).mockResolvedValue(
+        ok({ authenticated: true, currency: 'CNY', locale: 'zh-CN' }),
+      );
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(window.localStorage.getItem(LOCALE_SEED_STORAGE_KEY)).toBe('zh-CN'),
+      );
+      // A cache write only — this boot's language is already decided, and the
+      // explicit-choice slot is never touched by a server value.
+      expect(window.localStorage.getItem(LOCALE_STORAGE_KEY)).toBeNull();
+    });
+
+    it('clears the seed when the tenant unsets its locale', async () => {
+      window.localStorage.setItem(LOCALE_SEED_STORAGE_KEY, 'zh-CN');
+      (globalThis.fetch as never as ReturnType<typeof vi.fn>).mockResolvedValue(
+        ok({ authenticated: true, currency: 'USD', locale: null }),
+      );
+
+      renderProvider();
+
+      // An old seed must never pin a device past a tenant reconfiguration.
+      await waitFor(() =>
+        expect(window.localStorage.getItem(LOCALE_SEED_STORAGE_KEY)).toBeNull(),
+      );
+    });
+
+    it('keeps a good seed when the fetch never succeeds', async () => {
+      window.localStorage.setItem(LOCALE_SEED_STORAGE_KEY, 'zh-CN');
+      (globalThis.fetch as never as ReturnType<typeof vi.fn>).mockResolvedValue(
+        fail(503, { 'Retry-After': '0' }),
+      );
+
+      renderProvider();
+
+      // Revalidation that cannot complete leaves the stale value in place —
+      // that is the whole point of stale-while-revalidate.
+      await waitFor(() =>
+        expect((globalThis.fetch as never as ReturnType<typeof vi.fn>)).toHaveBeenCalledTimes(5),
+      );
+      expect(window.localStorage.getItem(LOCALE_SEED_STORAGE_KEY)).toBe('zh-CN');
+    });
   });
 });
