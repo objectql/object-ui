@@ -7,6 +7,7 @@ import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
 import { ImageLightbox } from './ImageLightbox';
 import { useUploadingSignal } from './useUploadingSignal';
+import { maxSizeError, type TranslateFn } from './file-size-guard';
 import {
   fileValueForSubmit,
   readFileValues,
@@ -31,6 +32,12 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
   const multiple = imageField?.multiple || false;
   const accept = imageField?.accept ? imageField.accept.join(',') : 'image/*';
   /**
+   * Max upload size in bytes. Delivered by `paramToField` for an action param
+   * and by the field config for a record field; enforced before any upload
+   * starts, exactly as FileField does (objectui#4141).
+   */
+  const maxSize = imageField?.maxSize as number | undefined;
+  /**
    * Set `field.crop = false` to opt out of inline cropping. Defaults to enabled.
    */
   const cropEnabled = imageField?.crop !== false;
@@ -39,6 +46,8 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
   const { upload } = useUpload();
   const { t } = useObjectTranslation();
   const [uploading, setUploading] = useState(false);
+  /** Client-side rejections (oversize picks), cleared on the next attempt. */
+  const [errors, setErrors] = useState<string[]>([]);
   // Display details of just-uploaded images, keyed by their new `sys_file` id.
   // Submitting the reference form means the field value no longer carries the
   // URL a thumbnail needs; these keep the preview visible until the next read
@@ -59,6 +68,18 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
   const handleCropConfirm = useCallback(
     async (blob: Blob, name: string) => {
       if (!cropTarget) return;
+      // The size that matters here is the CROP's, not the source image's: the
+      // cropper re-encodes to PNG, so cropping an in-limit JPEG can produce a
+      // blob over the limit. Checked before `setUploading` so a rejected crop
+      // never flashes the spinner, and the dialog closes so the message lands
+      // in the field's error row rather than behind the open dialog.
+      const rejection = maxSizeError(t as TranslateFn, { name, size: blob.size }, maxSize);
+      if (rejection) {
+        setErrors([rejection]);
+        setCropTarget(null);
+        return;
+      }
+      setErrors([]);
       setUploading(true);
       try {
         const result = await upload(blob);
@@ -76,7 +97,7 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
         setCropTarget(null);
       }
     },
-    [cropTarget, images, multiple, onChange, upload, remember],
+    [cropTarget, images, multiple, onChange, upload, remember, maxSize, t],
   );
 
   const openCropper = useCallback(
@@ -128,12 +149,32 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
+    // Reset the input up front rather than in `finally`: a pick rejected below
+    // returns before the upload runs, and leaving the old value in place would
+    // stop the user re-picking the same name after shrinking the image.
+    // `selectedFiles` already holds the File objects, so clearing is safe.
+    if (inputRef.current) inputRef.current.value = '';
     if (selectedFiles.length === 0) return;
+
+    // Enforce the declared limit before anything touches the network. Partial
+    // acceptance matches FileField: the in-limit picks of a multi-select still
+    // upload, and only the oversize ones are reported.
+    const rejections: string[] = [];
+    const validFiles = selectedFiles.filter((file) => {
+      const rejection = maxSizeError(t as TranslateFn, file, maxSize);
+      if (rejection) {
+        rejections.push(rejection);
+        return false;
+      }
+      return true;
+    });
+    setErrors(rejections);
+    if (validFiles.length === 0) return;
 
     setUploading(true);
     try {
       const imageObjects = await Promise.all(
-        selectedFiles.map(async (file) => {
+        validFiles.map(async (file) => {
           const result = await upload(file);
           remember(result, file.name);
           return fileValueForSubmit(result, file.name);
@@ -147,8 +188,6 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
       }
     } finally {
       setUploading(false);
-      // Reset input so picking the same file again still triggers change.
-      if (inputRef.current) inputRef.current.value = '';
     }
   };
 
@@ -237,6 +276,17 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
               ? t('fields.image.addMore')
               : t('fields.image.upload')}
         </Button>
+
+        {/* Client-side rejections (oversize picks). Same presentation as
+            FileField's error row — this widget previously had no surface for
+            them at all, because it never rejected anything (objectui#4141). */}
+        {errors.length > 0 && (
+          <div className="space-y-0.5">
+            {errors.map((err, i) => (
+              <p key={i} className="text-xs text-destructive">{err}</p>
+            ))}
+          </div>
+        )}
       </div>
 
       {cropEnabled && cropTarget && (
