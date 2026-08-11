@@ -52,6 +52,9 @@ export function CheckboxesField({
   // per-element clear the multi-value case needs (cf. the scalar select/radio).
   useEffect(() => {
     if (readonly) return;
+    // Never configured → nothing to prune against; see `MultiSelectField`'s
+    // copy of this guard for the measured failure (objectui#4220).
+    if (rawOptions.length === 0) return;
     if (selected.length === 0) return;
     const stillOffered = selected.filter((v) => options.some((o) => o.value === v));
     if (stillOffered.length !== selected.length) onChange(stillOffered);

@@ -22,6 +22,10 @@ import {
   AddressField,
   LocationField,
   GeolocationField,
+  FieldEditWidget,
+  hasFieldEditWidget,
+  mapFieldTypeToFormType,
+  FORM_FIELD_TYPES,
   coerceToSafeValue,
 } from '@object-ui/fields';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
@@ -38,6 +42,110 @@ import { TEXTUAL_REF_FALLBACK_TYPES } from './fieldEnrichment';
  * the package's public name unchanged.
  */
 export { TEXTUAL_REF_FALLBACK_TYPES };
+
+/**
+ * Test id on the terminal raw text input at the end of this component.
+ *
+ * The one editor in here that is lossy by construction — it displays through
+ * `coerceToSafeValue` and emits a STRING — so "did this type reach the terminal
+ * input?" is the question the drift guard has to answer EXACTLY, in both
+ * directions. Sniffing `input[type="text"]` cannot: `TextField`, `ColorField`
+ * and `QRCodeField` render one too, so the heuristic reads a benign type's
+ * correct fallback and a delegated type's correct widget as the same thing.
+ */
+export const INLINE_PLAIN_TEXT_INPUT_TESTID = 'inline-plain-text-input';
+
+/**
+ * **Class D** — field types whose stored value is ALREADY a string, so the
+ * terminal input's stringification is the identity and nothing is lost
+ * (objectui#4220). These, and only these, keep that input.
+ *
+ * Enumerated rather than expressed as "everything the switch didn't match":
+ * an open tail is what let `tags`, `checkboxes`, `toggle`, `slider`, `radio`
+ * and friends land on a value-destroying editor in silence for six cards
+ * running. A new field type is now a RED drift guard until someone decides
+ * which of the four buckets it belongs in — see
+ * `__tests__/inlineEditTypeCoverage.test.tsx`.
+ *
+ * `select` is deliberately absent: it has a routed branch (the picklist), and
+ * only its degenerate options-less SINGLE-value form reaches the terminal
+ * input — see {@link usesInlinePlainTextInput}. `markdown` / `html` /
+ * `richtext` are absent because the hosts never open an editor for them at all
+ * (they are in the fields package's shared exclusion, consulted since #4228).
+ */
+export const INLINE_PLAIN_TEXT_FIELD_TYPES = new Set<string>([
+  'text',
+  'textarea',
+  'email',
+  'phone',
+  'url',
+]);
+
+/**
+ * The type switch's own manifest: every type this component routes to a
+ * dedicated editor before the delegation below is reached.
+ *
+ * Declared next to the switch so the four-way classification is readable in
+ * ONE place, and pinned by rendering — the drift guard asserts each member
+ * really produces something other than the terminal input, so an entry that
+ * outlives its branch fails rather than quietly re-opening the plain-text path
+ * (the discipline #4228 established for `DETAIL_ROUTED_INLINE_TYPES`).
+ *
+ * `select` / `multiselect` are routed only WITH options; the options-less
+ * spellings are covered by {@link usesInlinePlainTextInput} (single, a bare
+ * string) and by the delegation (multi-value, an array). Both are pinned by
+ * name in the guard.
+ */
+export const INLINE_ROUTED_FIELD_TYPES = new Set<string>([
+  // Picklists (with options), booleans, numerics
+  'select', 'multiselect', 'boolean', 'number', 'currency', 'percent',
+  // Native date input
+  'date', 'datetime',
+  // Structured composites (#4216 / #4222)
+  'address', 'location', 'geolocation',
+  // Relational pickers
+  'lookup', 'master_detail', 'tree', 'user', 'owner',
+  // Binary / attachment — the detail page's exemption from the shared
+  // exclusion (#4228): a row can host an upload widget, a grid cell cannot.
+  'image', 'avatar', 'signature', 'file', 'video', 'audio',
+]);
+
+/**
+ * Is this a field type the form actually knows, rather than an unrecognized
+ * string?
+ *
+ * `mapFieldTypeToFormType` FALLS BACK to `field:text` for anything it has no
+ * entry for, which makes `hasFieldEditWidget()` answer `true` for every string
+ * on earth. Delegating on that answer alone would quietly hand a typo'd or
+ * private type (`decimal`, `integer` — deliberately not aliased, see the
+ * numeric branch) to `TextField` instead of leaving it on the documented
+ * fallback, and would let the drift guard's "delegated" bucket swallow a NEW
+ * spec type that nobody has decided about. Both are the recurrence this card
+ * exists to stop, so the alias fallback is not treated as a decision.
+ */
+export function isKnownFieldType(type: string | undefined): boolean {
+  if (!type) return false;
+  // `text` is the fallback's own target, and also a direct widget key — so the
+  // first clause already covers it and no real type is missed here.
+  return FORM_FIELD_TYPES.includes(type) || mapFieldTypeToFormType(type) !== 'field:text';
+}
+
+/**
+ * Does this field edit in the terminal raw text input (class D)?
+ *
+ * The options-less SINGLE `select` is the one conditional member. Its stored
+ * value is a bare string, so the text input is lossless — while the fields
+ * package's own widget would render its "no options to offer" state, leaving
+ * the user unable to enter anything at all. The `multiple` spelling of the same
+ * degenerate field is NOT benign: its value is an array, so it delegates and
+ * keeps that array (class A).
+ */
+export function usesInlinePlainTextInput(field: Record<string, any>): boolean {
+  const type = field?.type as string | undefined;
+  if (!type) return true;
+  if (INLINE_PLAIN_TEXT_FIELD_TYPES.has(type)) return true;
+  return type === 'select' && !field.multiple;
+}
 
 /**
  * Extract the id a reference widget expects from a value that may already be
@@ -240,6 +348,44 @@ export const InlineFieldInput: React.FC<InlineFieldInputProps> = ({
     return <GeolocationField field={field as any} value={value} onChange={(v: any) => onChange(v)} autoFocus={autoFocus} />;
   }
   const isDate = editType === 'date' || editType === 'datetime';
+  // Everything the switch did not route, and that is not class D, edits with
+  // the SAME widget the form uses (objectui#4220). One fallback branch, not a
+  // per-type copy of the routing above: the tail this closes is the part of the
+  // #4216 sweep where the terminal input is not merely the wrong control but a
+  // value-destroying one —
+  //
+  //   class A (`tags`, `checkboxes`, an options-less multi picklist) stores a
+  //   `string[]`, and `coerceToSafeValue`'s array case is `.join(', ')`, so the
+  //   box offered `"a, b"` for editing and saved that string over the array;
+  //   class C (`toggle`, `slider`, `progress`, `rating`, `radio`) stores a
+  //   boolean / number / one-of-`options`, all of which came back as strings.
+  //
+  // Plus every type the fields package edits inline that this switch simply had
+  // no branch for (`json` → the code editor, `color`, `qrcode`, `time`, `code`).
+  //
+  // The design calls INSIDE class A — what an options-less `checkboxes` offers,
+  // how a chip row renders — are `FieldEditWidget`'s to make, and it already
+  // makes them for the grid's inline cell editor; asking it here is the point of
+  // delegating rather than routing type by type. `date`/`datetime` are excluded
+  // because they ARE routed (the native date input below) and a working path
+  // does not get churned. Types the hosts gate out entirely (containers,
+  // credentials, computed — #4228 / #3355) never arrive here at all, and none of
+  // them has a widget anyway, so this branch cannot re-open those.
+  //
+  // `autoFocus` follows the numeric/composite branches' convention: it is
+  // forwarded, and `FieldEditWidget` hands it to the widget, whose own
+  // `toDomProps` whitelist lands it on the real focusable control. No
+  // `dataSource` is needed — every record-querying type is routed above.
+  if (!isDate && !usesInlinePlainTextInput(field) && isKnownFieldType(editType) && hasFieldEditWidget(editType)) {
+    return (
+      <FieldEditWidget
+        field={field as any}
+        value={value}
+        onChange={(v: any) => onChange(v)}
+        autoFocus={autoFocus}
+      />
+    );
+  }
   const inputType = isDate ? 'date' : 'text';
   // <input type="date"> needs a YYYY-MM-DD string; raw ISO timestamps
   // ("2026-02-14T14:46:20.862Z") leave the picker blank. Slice down to the date
@@ -261,6 +407,10 @@ export const InlineFieldInput: React.FC<InlineFieldInputProps> = ({
   return (
     <input
       type={inputType}
+      // Marks the RAW TEXT fallback only. The `date`/`datetime` branch shares
+      // this element but is a routed editor (a native date picker with ISO
+      // coercion on both sides), not the lossy fallback the guard hunts for.
+      data-testid={isDate ? undefined : INLINE_PLAIN_TEXT_INPUT_TESTID}
       autoFocus={autoFocus}
       className="w-full px-2 py-1.5 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
       value={inputValue}

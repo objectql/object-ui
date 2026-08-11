@@ -174,12 +174,19 @@ const COMPACT_EDIT_TYPES = new Set<string>(['lookup', 'master_detail', 'user', '
  * form uses — as a controlled `{ value, onChange, field }` input. Returns
  * `null` for types without a registered widget so the caller can fall back to
  * a plain editor.
+ *
+ * `autoFocus` is forwarded because an inline-edit host enters edit mode ON a
+ * field and expects the caret to land there (objectui#4220 — the detail page's
+ * delegation): each widget's own `toDomProps` whitelist already carries it onto
+ * the real focusable control, so nothing here needs to know which element that
+ * is. A host that passes nothing is unaffected.
  */
 export function FieldEditWidget({
   field,
   value,
   onChange,
   readonly,
+  autoFocus,
 }: FieldWidgetComponentProps<any>): React.ReactElement | null {
   const resolved = field?.type ? resolveInlineEditType(field.type) : undefined;
   const Widget = resolved ? EDIT_WIDGETS[resolved] : undefined;
@@ -187,5 +194,14 @@ export function FieldEditWidget({
   // `compact` is a declared widget prop (objectui#3221 closed this type), so
   // the spread no longer needs an `any` escape hatch to get past it.
   const compactProps = resolved && COMPACT_EDIT_TYPES.has(resolved) ? { compact: true } : {};
-  return <Widget field={field} value={value} onChange={onChange} readonly={readonly} {...compactProps} />;
+  return (
+    <Widget
+      field={field}
+      value={value}
+      onChange={onChange}
+      readonly={readonly}
+      autoFocus={autoFocus}
+      {...compactProps}
+    />
+  );
 }

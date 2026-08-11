@@ -50,6 +50,9 @@ export function RadioField({
   // (parent changed / predicate flipped), drop it so no stale pair persists.
   useEffect(() => {
     if (readonly) return;
+    // Never configured → nothing to prune against; see `MultiSelectField`'s
+    // copy of this guard for the measured failure (objectui#4220).
+    if (rawOptions.length === 0) return;
     if (value === undefined || value === null || (value as unknown) === '') return;
     if (!isValueStillOffered(value, options)) onChange?.(undefined as unknown as string);
     // eslint-disable-next-line react-hooks/exhaustive-deps

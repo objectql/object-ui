@@ -53,6 +53,16 @@ export function MultiSelectField({
   // the scalar case we prune per-element rather than clearing the whole field.
   useEffect(() => {
     if (readonly) return;
+    // Nothing was ever CONFIGURED to prune against (objectui#4220). An empty
+    // offered set has two very different causes: a list that cascaded down to
+    // zero (a real decision — clear), and a field authored with no `options` at
+    // all (no decision — the widget renders its "unfillable" state below). In
+    // the second case pruning is not a cascade, it is deleting the stored value
+    // of a field the user was only ever shown a hint for — measured on the
+    // detail page's inline editor, which stages that empty array into the
+    // record draft the moment the row enters edit mode, and on the grid's
+    // inline cell editor, which has always taken this path.
+    if (rawOptions.length === 0) return;
     if (selected.length === 0) return;
     const stillOffered = selected.filter((v) => options.some((o) => o.value === v));
     if (stillOffered.length !== selected.length) onChange(stillOffered);
