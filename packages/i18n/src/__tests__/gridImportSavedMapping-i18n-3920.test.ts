@@ -117,13 +117,21 @@ const QUOTED_NAME: Record<(typeof PACKS)[number], string> = {
 const at = (pack: unknown, path: string): unknown =>
   path.split('.').reduce<unknown>((n, k) => (n as Record<string, unknown> | undefined)?.[k], pack);
 
-const value = (lang: string, key: string) => at(builtInLocales[lang], `${NS}.${key}`) as string;
+// Derived from the map: `builtInLocales[lang]` on a plain `string` is an
+// implicit-`any` index into a `const` map (TS7053), so the pack every
+// assertion below reads would be one the compiler never confirmed exists.
+// The `as const` on each pack list below is the other half — an array
+// literal of string literals widens to `string[]` without it.
+// Same convention as `authRemediation-locale-parity.test.ts` next door.
+type LocaleCode = keyof typeof builtInLocales;
+
+const value = (lang: LocaleCode, key: string) => at(builtInLocales[lang], `${NS}.${key}`) as string;
 
 describe('objectui#3920 — grid.import saved-mapping keys are translated in all nine packs', () => {
   it('the ten packs all define the five keys (anti-vacuous guard)', () => {
     // Every assertion below reads these values. A renamed key would otherwise
     // let `not.toBe(en)` pass on `undefined` versus a string and read as green.
-    for (const lang of [...PACKS, 'en', 'zh', 'ja']) {
+    for (const lang of [...PACKS, 'en', 'zh', 'ja'] as const) {
       for (const key of KEYS) {
         const v = value(lang, key);
         expect(typeof v, `${lang} ${NS}.${key}`).toBe('string');
@@ -183,7 +191,7 @@ describe('objectui#3920 — grid.import saved-mapping keys are translated in all
     // not a substitute for it — it is the local proof that the two values these
     // translations rewrote most heavily did not drop the hole the call site
     // fills (`ImportWizard.tsx` passes `{ name: mapping.label || mapping.name }`).
-    for (const lang of [...PACKS, 'en', 'zh', 'ja']) {
+    for (const lang of [...PACKS, 'en', 'zh', 'ja'] as const) {
       for (const key of SENTENCES) {
         expect(value(lang, key), `${lang} ${key} lost {{name}}`).toContain('{{name}}');
       }
@@ -234,7 +242,7 @@ describe('objectui#3920 — grid.import saved-mapping keys are translated in all
     // same wizard, and `en` gives both the `— … —` shape. zh and ja kept it when
     // they translated; the seven packs must too, or the option stops reading as
     // "not a real mapping".
-    for (const lang of [...PACKS, 'en', 'zh', 'ja']) {
+    for (const lang of [...PACKS, 'en', 'zh', 'ja'] as const) {
       const v = value(lang, 'manualMapping');
       expect(v.startsWith('— '), `${lang} manualMapping opening em dash`).toBe(true);
       expect(v.endsWith(' —'), `${lang} manualMapping closing em dash`).toBe(true);
@@ -249,7 +257,7 @@ describe('objectui#3920 — grid.import saved-mapping keys are translated in all
     // and `en` ends both with ":". CJK packs use the fullwidth "：", fr puts a
     // space before the ASCII colon (59 of 61 colons in the pack) — so the check
     // is "same terminator as your own sibling", not "ends with U+003A".
-    for (const lang of [...PACKS, 'en', 'zh', 'ja']) {
+    for (const lang of [...PACKS, 'en', 'zh', 'ja'] as const) {
       const sibling = at(builtInLocales[lang], `${NS}.mappingTemplate`) as string;
       // The terminator is the colon plus whatever whitespace precedes it — NOT
       // the sibling's last two characters, which in `ko` is the tail of the word
@@ -269,7 +277,7 @@ describe('objectui#3920 — grid.import saved-mapping keys are translated in all
   it('chooseSavedMapping keeps the ellipsis of its sibling chooser', () => {
     // U+2026, not three dots — `chooseTemplate` is the sibling and `en` uses the
     // single character in both.
-    for (const lang of [...PACKS, 'en', 'zh', 'ja']) {
+    for (const lang of [...PACKS, 'en', 'zh', 'ja'] as const) {
       expect(value(lang, 'chooseSavedMapping').endsWith('…'), `${lang} ellipsis`).toBe(true);
       expect(value(lang, 'chooseSavedMapping').includes('...'), `${lang} used three dots`).toBe(false);
     }
@@ -280,7 +288,7 @@ describe('objectui#3920 — grid.import saved-mapping keys are translated in all
     // value in the same pack (mostly from `grid.import` itself), so the wizard
     // does not acquire a second word for "mapping" or "type coercion". These
     // are the anchors named in the PR's per-pack rationale.
-    const ANCHORS: Array<[lang: string, key: string, stems: string[]]> = [
+    const ANCHORS: Array<[lang: LocaleCode, key: string, stems: string[]]> = [
       // de: `stepMapping` "Zuordnung", `legacyFallbackNotice` "Typkonvertierung",
       // `view.readonlyTooltip` "schreibgeschützt", `validateHint` "auf dem Server".
       ['de', 'savedMappingHint', ['Zuordnung', 'Typkonvertierung', 'schreibgeschützt', 'auf dem Server']],
@@ -378,7 +386,7 @@ describe('objectui#3920 — grid.import saved-mapping keys are translated in all
 
     // Anti-vacuous guard first, as in this file's opening `it`: `not.toBe(en)`
     // would pass on `undefined` versus a string if the key were ever renamed.
-    for (const lang of [...PACKS, 'en', 'zh', 'ja']) {
+    for (const lang of [...PACKS, 'en', 'zh', 'ja'] as const) {
       const v = value(lang, 'transform');
       expect(typeof v, `${lang} ${NS}.transform`).toBe('string');
       expect(v.trim().length, `${lang} ${NS}.transform is empty`).toBeGreaterThan(0);

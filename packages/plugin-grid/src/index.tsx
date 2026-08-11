@@ -35,7 +35,7 @@ export { useGroupReorder } from './useGroupReorder';
 export { useColumnSummary } from './useColumnSummary';
 export { FormulaBar } from './FormulaBar';
 export { SplitPaneGrid } from './SplitPaneGrid';
-export type { ObjectGridProps } from './ObjectGrid';
+export type { ObjectGridProps, ObjectGridExternalPaginationProps, ObjectGridColumnState } from './ObjectGrid';
 export type { VirtualGridProps, VirtualGridColumn } from './VirtualGrid';
 export type { InlineEditingProps } from './InlineEditing';
 export type { ImportWizardProps, ImportResult } from './ImportWizard';

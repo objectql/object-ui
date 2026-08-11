@@ -22,7 +22,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import type { ObjectGridSchema, DataSource, ListColumn, ViewData, TableSortItem } from '@object-ui/types';
+import type { ObjectGridSchema, DataSource, ListColumn, ViewData, TableSortItem, DataTableSchema } from '@object-ui/types';
 import { isSystemManagedField } from '@object-ui/types';
 import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useSafeFieldLabel, usePredicateScope } from '@object-ui/react';
@@ -157,7 +157,78 @@ function resolveColumnLabel(label: string | I18nLabel | undefined): string | und
   return typeof label === 'string' ? label : undefined;
 }
 
-export interface ObjectGridProps {
+/**
+ * The column layout ObjectGrid persists and reports back — the merged result of
+ * a resize and a reorder, not either event on its own. Named so the state hook
+ * below and the `onColumnStateChange` prop cannot drift apart.
+ */
+export interface ObjectGridColumnState {
+  order?: string[];
+  widths?: Record<string, number>;
+}
+
+/**
+ * The HOST-DRIVEN ("external") mode of ObjectGrid — framework#2212.
+ *
+ * The ordinary authoring surface hands ObjectGrid a `schema` and a `dataSource`
+ * and lets it fetch, page, sort and search for itself. In this mode a host
+ * (ListView, a designer preview, an app screen with its own toolbar) has
+ * already fetched one window of a larger collection and drives the controls
+ * itself: it passes the window as `data` plus the real match total and the
+ * page/sort/search state, and ObjectGrid forwards them straight to its
+ * DataTable instead of client-slicing the window it was handed.
+ *
+ * Kept as its own named interface rather than flattened into `ObjectGridProps`
+ * (#4277 裁决 B, 2026-08-11): the two are different classes of contract, and a
+ * dozen more members merged into the authoring surface would erase that
+ * boundary. Until this existed, every member below was read out of `...rest`
+ * through an `as any` cast and was declared nowhere at all.
+ *
+ * DERIVATION (#4277 裁决 §3, the anti-drift pin): this vocabulary is already
+ * declared once, on `DataTableSchema` — which is exactly where ObjectGrid
+ * forwards it — so the members that have a counterpart there are TYPE-DERIVED
+ * from that declaration rather than hand-copied into a second enumeration. Two
+ * hand-written copies of one vocabulary is how the next drift happens. The
+ * `Partial<...>` wrapper is deliberate and is the only shape change: the whole
+ * mode is opt-in, and `DataTableSchema['data']` is required because a table
+ * always has rows, while a grid that was given no `data` fetches its own.
+ */
+export interface ObjectGridExternalPaginationProps
+  extends Partial<
+    Pick<
+      DataTableSchema,
+      // The host's already-fetched window. Highest-priority data source: it
+      // wins over `schema.data` / `schema.bind` when present.
+      | 'data'
+      // Turns off client slicing. With `rowCount` + `onPageChange` it is what
+      // makes the mode active at all (see `externalManualPagination` below).
+      | 'manualPagination'
+      | 'rowCount'
+      | 'page'
+      | 'pageSize'
+      | 'onPageChange'
+      | 'onPageSizeChange'
+      | 'sort'
+      | 'onSortChange'
+      | 'search'
+      | 'onSearchChange'
+    >
+  > {
+  /**
+   * Grid-only: `DataTableSchema` has no counterpart to derive from.
+   *
+   * The table vocabulary reports column changes as separate per-event
+   * callbacks — `onColumnResize(columnKey, width)` and
+   * `onColumnReorder(newOrder)` — whereas this reports the MERGED, persisted
+   * `{ order, widths }` layout after ObjectGrid has folded either event into
+   * the state it also writes to `localStorage`, so a host can save one blob
+   * through `dataSource.updateViewConfig`. Deriving it from either table
+   * callback would misstate both the payload and when it fires.
+   */
+  onColumnStateChange?: (state: ObjectGridColumnState) => void;
+}
+
+export interface ObjectGridProps extends ObjectGridExternalPaginationProps {
   schema: ObjectGridSchema;
   dataSource?: DataSource;
   className?: string;
@@ -266,7 +337,23 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   onRowSave,
   onBatchSave,
   onAddRecord,
-  ...rest
+  // The host-driven mode (`ObjectGridExternalPaginationProps`). Every one of
+  // these was read out of `...rest` through an `as any` cast until #4277 gave
+  // them a declaration; they are ordinary typed props now, and `rest` is gone
+  // with them. Renamed on the way in only where the component already owns the
+  // plain name (`data` is the fetched rows, `pageSize` the schema's).
+  data: passedData,
+  manualPagination: hostManualPagination,
+  rowCount: hostRowCount,
+  page: hostPage,
+  pageSize: hostPageSize,
+  onPageChange: hostOnPageChange,
+  onPageSizeChange: hostOnPageSizeChange,
+  sort: hostSort,
+  onSortChange: hostOnSortChange,
+  search: hostSearch,
+  onSearchChange: hostOnSearchChange,
+  onColumnStateChange,
 }) => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -317,10 +404,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       : `grid-columns-${schema.objectName}`;
   }, [schema.objectName, schema.id]);
 
-  const [columnState, setColumnState] = useState<{
-    order?: string[];
-    widths?: Record<string, number>;
-  }>(() => {
+  const [columnState, setColumnState] = useState<ObjectGridColumnState>(() => {
     // Priority: 1) externally provided (e.g. persisted view override),
     // 2) localStorage (per-browser fallback), 3) empty.
     const fromProps = (schema as any).columnState;
@@ -356,11 +440,10 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       console.warn('Failed to persist column state:', e);
     }
     // Notify parent so it can persist via dataSource.updateViewConfig.
-    const onChange = (rest as any).onColumnStateChange;
-    if (typeof onChange === 'function') {
-      try { onChange(state); } catch (e) { console.warn('onColumnStateChange threw:', e); }
+    if (typeof onColumnStateChange === 'function') {
+      try { onColumnStateChange(state); } catch (e) { console.warn('onColumnStateChange threw:', e); }
     }
-  }, [columnStorageKey, rest]);
+  }, [columnStorageKey, onColumnStateChange]);
 
   const handlePullRefresh = useCallback(async () => {
     setRefreshKey(k => k + 1);
@@ -380,8 +463,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     return () => window.removeEventListener('resize', checkWidth);
   }, []);
 
-  // Check if data is passed directly (from ListView)
-  const passedData = (rest as any).data;
+  // `passedData` — data handed down directly (from ListView) — is destructured
+  // from props above.
 
   // Resolve bound data if 'bind' property exists
   const boundData = useDataScope(schema.bind);
@@ -415,11 +498,12 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // real match total + page controls. We must forward those straight to DataTable
   // instead of client-slicing the window — otherwise the footer would report
   // "pages = window / pageSize" and records beyond the window stay unreachable
-  // (framework #2212). `data` arrives via `rest` (a prop), so do these too.
+  // (framework #2212). `data` is a prop, and so are these — all declared on
+  // `ObjectGridExternalPaginationProps` since #4277.
   const externalManualPagination =
-    (rest as any).manualPagination === true &&
-    typeof (rest as any).rowCount === 'number' &&
-    typeof (rest as any).onPageChange === 'function';
+    hostManualPagination === true &&
+    typeof hostRowCount === 'number' &&
+    typeof hostOnPageChange === 'function';
 
   // Extract stable primitive/reference-stable values from schema for dependency arrays.
   // This prevents infinite re-render loops when schema is a new object on each render
@@ -2159,16 +2243,16 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     ? schema.searchableFields.length > 0
     : (schema.showSearch !== undefined ? schema.showSearch : true);
 
-  const manualRowCount = externalManualPagination ? (rest as any).rowCount : totalMatching;
-  const manualPage = externalManualPagination ? (rest as any).page : serverPage;
+  const manualRowCount = externalManualPagination ? hostRowCount : totalMatching;
+  const manualPage = externalManualPagination ? hostPage : serverPage;
   const manualPageSize = externalManualPagination
-    ? ((rest as any).pageSize ?? serverPageSize)
+    ? (hostPageSize ?? serverPageSize)
     : serverPageSize;
   const manualOnPageChange = externalManualPagination
-    ? (rest as any).onPageChange
+    ? hostOnPageChange
     : setServerPage;
   const manualOnPageSizeChange = externalManualPagination
-    ? (rest as any).onPageSizeChange
+    ? hostOnPageSizeChange
     : (size: number) => { setServerPageSize(size); setServerPage(1); };
 
   // Before anyone clicks, the headers show the sort the view was authored with
@@ -2185,10 +2269,10 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     schemaSort ?? (schema.defaultSort ? [schema.defaultSort] : undefined),
   );
   const manualSort: TableSortItem[] = externalManualPagination
-    ? ((rest as any).sort ?? [])
+    ? (hostSort ?? [])
     : (headerSort ?? declaredSort);
   const manualOnSortChange = externalManualPagination
-    ? (rest as any).onSortChange
+    ? hostOnSortChange
     : setHeaderSort;
 
   // The search term, in whichever server mode applies. When a parent owns the
@@ -2198,10 +2282,10 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // turns it into `$search`. A parent that drives the rows but offers no
   // `onSearchChange` gets NO box rather than one scoped to its window.
   const manualSearch = externalManualPagination
-    ? ((rest as any).search ?? '')
+    ? (hostSearch ?? '')
     : searchTerm;
   const manualOnSearchChange = externalManualPagination
-    ? (rest as any).onSearchChange
+    ? hostOnSearchChange
     : setSearchTerm;
 
   const dataTableSchema: any = {

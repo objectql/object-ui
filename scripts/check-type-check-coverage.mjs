@@ -119,11 +119,9 @@ export const TEST_DEBT = {
   "@object-ui/app-shell": { errors: 53, issue: 4118, note: "TS2339x24 — implementation wider than the type" },
   "@object-ui/components": { errors: 31, issue: 4118, note: "TS7006x12, TS7031x12 — untyped test callback params" },
   "@object-ui/react": { errors: 27, issue: 4118, note: "TS2769x9 — overload mismatch on render helpers" },
-  "@object-ui/i18n": { errors: 13, issue: 4118, note: "TS2769x9" },
   "@object-ui/plugin-dashboard": { errors: 6, issue: 4118 },
   "@object-ui/plugin-list": { errors: 6, issue: 4118, note: "TS2353x3 — dialect keys" },
   "@object-ui/plugin-detail": { errors: 5, issue: 4118, note: "TS2353x3 — dialect keys" },
-  "@object-ui/plugin-grid": { errors: 2, issue: 4118 },
 };
 
 // ── Collect workspace packages ───────────────────────────────────────────────

@@ -68,8 +68,19 @@ function keyPaths(node: unknown, prefix = ''): string[] {
 
 const keysOf = (pack: unknown) => new Set(keyPaths(pack).filter((k) => !OUTBOUND_KEYS.has(k)));
 
+/**
+ * `Object.keys` erases which keys it enumerated, so `builtInLocales[lang]` on a
+ * plain `string` is an implicit-`any` index into a `const` map (TS7053) — the
+ * suite would then be comparing packs the compiler never confirmed exist. The
+ * assertion is derived from the map itself, so a locale added to (or removed
+ * from) `builtInLocales` reaches these cases for free, while a typo'd code is a
+ * compile error. Same convention as `authRemediation-locale-parity.test.ts` and
+ * `inboxBadgeBreakdown-i18n-7233.test.ts` next door.
+ */
+type LocaleCode = keyof typeof builtInLocales;
+
 const EN = keysOf(builtInLocales.en);
-const OTHER_LOCALES = Object.keys(builtInLocales).filter((l) => l !== 'en');
+const OTHER_LOCALES = (Object.keys(builtInLocales) as LocaleCode[]).filter((l) => l !== 'en');
 
 describe('all locale packs are at full key parity with en (objectui#2872)', () => {
   it('the comparison covers the whole pack — not an empty assertion', () => {

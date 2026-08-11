@@ -25,12 +25,18 @@
 import { describe, it, expect } from 'vitest';
 import { builtInLocales } from '../locales';
 
-const LANGS = Object.keys(builtInLocales);
+// Derived from the map rather than left as `string[]`: `Object.keys` erases
+// which keys it enumerated, so `builtInLocales[lang]` below would be an
+// implicit-`any` index into a `const` map (TS7053) and the suite would compare
+// packs the compiler never confirmed exist. Same convention as
+// `authRemediation-locale-parity.test.ts` next door.
+type LocaleCode = keyof typeof builtInLocales;
+const LANGS = Object.keys(builtInLocales) as LocaleCode[];
 
-const characterCountOf = (lang: string) =>
+const characterCountOf = (lang: LocaleCode) =>
   (builtInLocales[lang] as any)?.fields?.textarea?.characterCount as string | undefined;
 
-const charactersRemainingOf = (lang: string) =>
+const charactersRemainingOf = (lang: LocaleCode) =>
   (builtInLocales[lang] as any)?.fields?.textarea?.charactersRemaining as string | undefined;
 
 describe('fields.textarea.characterCount locale coverage (objectui#3406)', () => {
