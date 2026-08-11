@@ -172,6 +172,15 @@ export const SPEC_ACTION_KEYS = [
   'bulkEnabled',
   'component',
   'confirmText',
+  // Added to `ActionSchema` in @objectstack/spec 17.0.0-rc.6. Listed here purely
+  // because this array's contract is "every property the spec's `ActionSchema`
+  // declares" — restating the spec, not adopting a feature. `ActionDef` does NOT
+  // declare `description` and is not changed: whether the runner or any renderer
+  // should READ it is a separate question, and `actionKeys.pin.test.ts`'s
+  // `ActionDef` half stays green without it. What this entry buys is that an
+  // action carrying a `description` is no longer reported as having an unknown
+  // key, which is the only thing the inventory is consulted for.
+  'description',
   'disabled',
   'errorMessage',
   'execute',

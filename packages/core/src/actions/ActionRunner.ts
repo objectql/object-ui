@@ -22,7 +22,7 @@
  */
 
 import type { RunnableActionType } from '@object-ui/types';
-import type { ActionInput as SpecActionInput } from '@objectstack/spec/ui';
+import type { Action as SpecActionInput } from '@objectstack/spec/ui';
 import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
 import { hasDeclaredPredicate } from '../evaluator/declaredPredicate';
 import { globalUndoManager, type UndoableOperation } from './UndoManager';
@@ -244,14 +244,21 @@ export interface ActionDef {
   // hand-copied: a hand-written duplicate of a spec shape is a second contract
   // that drifts silently, which is the failure this whole issue is about.
   //
-  // Derived from `z.input` (`ActionInput`), not `z.infer` (`Action`), and the
-  // difference is load-bearing rather than stylistic. `ActionSchema` is a
-  // `ZodPipe` whose transforms narrow the authored shape — `visible` is authored
-  // as `string | { dialect, source }` but INFERS to the object form alone. This
-  // runner consumes authored/stored rows, which #3903 established are rehydrated
-  // UNPARSED, so it sees the input shape. Deriving from `Action` would have
-  // type-errored the raw-string predicate that `ActionEngine` explicitly
-  // supports and that `ActionEngine.visibility.test.ts` pins.
+  // Derived from `z.input`, not `z.infer`, and the difference is load-bearing
+  // rather than stylistic. `ActionSchema` is a `ZodPipe` whose transforms narrow
+  // the authored shape — `visible` is authored as `string | { dialect, source }`
+  // but INFERS to the object form alone. This runner consumes authored/stored
+  // rows, which #3903 established are rehydrated UNPARSED, so it sees the input
+  // shape. Deriving from the `z.infer` side would type-error the raw-string
+  // predicate that `ActionEngine` explicitly supports and that
+  // `ActionEngine.visibility.test.ts` pins.
+  //
+  // WHICH SPEC NAME carries `z.input` changed under us in `@objectstack/spec`
+  // 17.0.0-rc.6: up to rc.5 it was `ActionInput` (with `Action` = `z.infer`),
+  // and rc.6 retired every `…Input` alias and moved the bare name onto the input
+  // side (`Action` = `z.input`, `ActionParsed` = `z.infer`). The import above is
+  // therefore `Action as SpecActionInput` — the local alias keeps naming the
+  // side this file needs, so every derivation below is unchanged in meaning.
   //
   // `shortcut` and `bulkEnabled` land here as `undefined`, not as a usable type
   // — that is correct and deliberate. Spec 17 retired both as `retiredKey()`

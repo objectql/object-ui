@@ -109,13 +109,41 @@ describe('validateMetadataDraft("sharing_rule") — objectui#3561', () => {
    */
   it('does not gate the edit door — a stored body may carry `_packageId`', async () => {
     const stored = { ...SHARING_RULE, _packageId: 'crm_pkg' };
-    // Authoring door: strict, so the stamped key is an unrecognized key.
+
+    // AUTHORING DOOR — INVERTED on the @objectstack/spec 17.0.0-rc.6 bump, and
+    // the inversion is upstream convergence rather than a regression here.
+    //
+    // This assertion used to read `expect(create.ok).toBe(false)`, on the stated
+    // premise that `SharingRuleSchema` "declares NONE of the seven ADR-0010
+    // envelope keys" — so a stamped `_packageId` reached the strict object as an
+    // unrecognized key. rc.6 made the schema declare all seven (`_lock`,
+    // `_lockDocsUrl`, `_lockReason`, `_lockSource`, `_packageId`,
+    // `_packageVersion`, `_provenance`), the way `ActionSchema` has since rc.2.
+    // A stamped body is therefore legal input now, and the create door accepts
+    // it — which is the behaviour the envelope was always supposed to have.
+    //
+    // Pinned as accept, with the strictness it does NOT cost asserted right
+    // below: the boundary this file guards is "does the client stay no stricter
+    // than the server", and that still holds.
     const create = await validateMetadataDraft('sharing_rule', stored, undefined, {
       mode: 'create',
     });
-    expect(create.ok).toBe(false);
+    expect(create.ok).toBe(true);
+
+    // …and the door is still a door. A genuinely unknown key is still refused,
+    // so the assertion above pins "the envelope became legal", not "the schema
+    // stopped being strict" — without this, reverting the schema to a permissive
+    // object would leave the pin above green.
+    const bogus = await validateMetadataDraft(
+      'sharing_rule',
+      { ...SHARING_RULE, notAKeyAnySchemaDeclares: 1 },
+      undefined,
+      { mode: 'create' },
+    );
+    expect(bogus.ok).toBe(false);
+
     // Edit door: no client gate, so the server stays authoritative and the
-    // client cannot report a stored body as broken.
+    // client cannot report a stored body as broken. Unchanged by rc.6.
     const edit = await validateMetadataDraft('sharing_rule', stored, undefined, { mode: 'edit' });
     expect(edit.ok).toBe(true);
     expect(edit.issues).toEqual([]);

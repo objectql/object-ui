@@ -29,6 +29,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
+// Needed to isolate the rc.6 `GlobalFilterSchema` refinement from the field type
+// it hides behind — see the objectui#4165 pin below.
+import { z } from 'zod';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -147,6 +150,78 @@ describe('GlobalFilterSchema pinned divergences', () => {
     expect(SpecGlobalFilterSchema.safeParse({
       field: 'created_at', type: 'date', defaultValue: { preset: 'last_7_days' },
     }).success).toBe(false);
+  });
+
+  /**
+   * OPEN CONFLICT, pinned rather than resolved — objectui#4165.
+   *
+   * The divergence above used to be about a FIELD TYPE, and only that: the spec
+   * typed `defaultValue` as `string | number | boolean`, objectui widened the key
+   * to `z.any()`, and widening the key was ENOUGH — nothing else in the spec had
+   * an opinion about the object form.
+   *
+   * @objectstack/spec 17.0.0-rc.6 added a whole-object refinement that refuses
+   * `{ preset }` BY NAME, with a message enumerating the three spellings a
+   * `type: 'date'` filter may use (a preset name, an ISO date, a date-macro
+   * token). A refinement is not a field type, so widening the key no longer
+   * escapes it: any derivation that CARRIES the refinement refuses the object
+   * form regardless of how `defaultValue` is typed.
+   *
+   * Read the two assertions below in that light, because the obvious shorter
+   * version is a trap. `SpecGlobalFilterSchema.safeParse({ …, defaultValue: {
+   * preset } })` does fail — but it fails with `invalid_union` on the FIELD, the
+   * same way it failed at rc.5, and the refinement never runs. Asserting that
+   * would pin the OLD behaviour while reading like a pin on the new one. The
+   * refinement is only observable once the field admits the object, so it is
+   * isolated here by widening the key first — which is exactly the shape
+   * objectui's own dialect has.
+   *
+   * The conflict this leaves is a producer/consumer one with three possible
+   * answers (follow the spec and migrate stored dashboards; keep the divergence;
+   * the spec's refinement is an upstream defect), and it is filed rather than
+   * guessed — the deciding half belongs to the spec owner. Until it is ruled,
+   * `GlobalFilterSchema` is composed by spreading the spec's `.shape`, carrying
+   * the FIELDS by reference and leaving the refinement behind: the exact
+   * behaviour this schema had before rc.6, so the bump changes nothing here. The
+   * spread is not a preference — rc.6 closed both other doors (`.extend()`
+   * throws at module load, `.safeExtend()` types the three overrides as `never`),
+   * so some spelling had to change, and this is the one that decides nothing.
+   *
+   * This test is the tripwire on that standstill and goes red from EITHER side:
+   * if objectui stops accepting the object form (resolved consumer-side), or if
+   * the refinement is withdrawn or reworded upstream (resolved producer-side).
+   */
+  it('does NOT carry the spec rc.6 refinement that refuses `{ preset }` (objectui#4165)', () => {
+    const stored = { field: 'created_at', type: 'date', defaultValue: { preset: 'last_7_days' } };
+
+    // objectui side: still accepts what its own normalizer writes.
+    expect(GlobalFilterSchema.safeParse(stored).success).toBe(true);
+
+    // Spec side, refinement ISOLATED from the field type: widen `defaultValue`
+    // exactly as objectui's dialect does, but keep the spec's checks (that is
+    // what `.safeExtend` preserves). What refuses the value now can only be the
+    // rc.6 refinement, and asserting its MESSAGE is what separates "the spec's
+    // `defaultValue` is narrow" (true since forever) from "the spec has a rule
+    // about this exact shape" (new in rc.6, and the reason #4165 exists).
+    const specWithRefinement = SpecGlobalFilterSchema.safeExtend({
+      defaultValue: z.any().optional(),
+    });
+    const refused = specWithRefinement.safeParse(stored);
+    expect(refused.success).toBe(false);
+    expect(
+      refused.error?.issues?.some((i) => /is not a value a .*date.* filter can resolve/.test(i.message)),
+      'the spec no longer refuses `{ preset }` with its rc.6 refinement message — ' +
+        'either the refinement was withdrawn or its wording changed. Re-read objectui#4165 ' +
+        'before touching this: the standstill it documents may be over.',
+    ).toBe(true);
+
+    // …and the bare preset NAME, which the refinement's message points authors
+    // at, is already legal on both sides. That is why #4165's leading candidate
+    // is a rewrite rather than a capability loss.
+    const bare = { field: 'created_at', type: 'date', defaultValue: 'last_7_days' };
+    expect(specWithRefinement.safeParse(bare).success).toBe(true);
+    expect(SpecGlobalFilterSchema.safeParse(bare).success).toBe(true);
+    expect(GlobalFilterSchema.safeParse(bare).success).toBe(true);
   });
 
   it('keeps `optionsFrom.labelField` optional', () => {

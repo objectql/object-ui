@@ -578,14 +578,18 @@ function PlacementPreview({ locations, label, icon, variant, iconOnly }: {
           </div>
         </Frame>
       )}
-      {locations.includes('global_nav') && (
-        <Frame label="global_nav">
-          <div className="rounded border bg-background">
-            <div className="px-3 py-2 text-[11px] text-muted-foreground">⌘K · Command palette</div>
-            <div className="border-t px-3 py-1.5 text-xs"><div className="rounded px-1 py-0.5 hover:bg-accent">{label}</div></div>
-          </div>
-        </Frame>
-      )}
+      {/* No `global_nav` frame. The location was retired from the spec's
+          `ACTION_LOCATIONS` in @objectstack/spec 17.0.0-rc.6 (objectstack#6888,
+          maintainer ruling 2026-08-09 direction 2) because no running-app
+          surface ever rendered it: the console's ⌘K palette
+          (`chrome/CommandPalette.tsx`) builds its groups from nav items,
+          objects, dashboards, pages, reports, recent items, record search and
+          theme, and reads no action metadata at all. The frame that used to
+          stand here drew the author a mock "⌘K · Command palette" preview, so
+          the designer promised a surface the product does not have — the
+          ADR-0078 "declares, 'renders', reports success, and does nothing"
+          shape, which is the sharpest harm the ruling names. Pinned negatively
+          in `__tests__/ActionPreview.locations.test.tsx`. */}
     </div>
   );
 }

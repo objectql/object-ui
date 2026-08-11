@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { ActionLocationSchema } from '@objectstack/spec/ui';
 import { useActionEngine } from '../useActionEngine';
 
 describe('useActionEngine', () => {
@@ -28,6 +29,14 @@ describe('useActionEngine', () => {
       locations: ['list_item'],
     },
     {
+      // Deliberately STALE, in the same posture as the `bulkEnabled` and
+      // `shortcut` keys this fixture also keeps: `global_nav` was retired from
+      // the spec's `ACTION_LOCATIONS` in @objectstack/spec 17.0.0-rc.6
+      // (objectstack#6888), so metadata like this can no longer be authored.
+      // Kept rather than deleted because the coverage that matters now is the
+      // INVERSE — see 'does not offer an action declaring the retired
+      // global_nav location' below. Deleting the entry would delete the only
+      // input that can prove the retired location leaks nowhere.
       name: 'global_search',
       type: 'script',
       target: 'true',
@@ -35,6 +44,16 @@ describe('useActionEngine', () => {
       shortcut: 'ctrl+k',
     },
   ];
+
+  /** The six locations `ACTION_LOCATIONS` declares as of 17.0.0-rc.6. */
+  const LIVE_LOCATIONS = [
+    'list_toolbar',
+    'list_item',
+    'record_header',
+    'record_more',
+    'record_related',
+    'record_section',
+  ] as const;
 
   describe('getActionsForLocation', () => {
     it('returns actions for list_toolbar', () => {
@@ -74,6 +93,61 @@ describe('useActionEngine', () => {
 
       const actions = result.current.getActionsForLocation('record_related');
       expect(actions.length).toBe(0);
+    });
+
+    // `global_nav` was retired from `ACTION_LOCATIONS` in @objectstack/spec
+    // 17.0.0-rc.6 (objectstack#6888) because no running-app surface ever
+    // rendered it. `sampleActions` still declares it, so this pins what a stale
+    // declaration can and cannot do: it must surface at NONE of the six live
+    // locations.
+    it('does not offer an action declaring the retired global_nav location', () => {
+      const { result } = renderHook(() =>
+        useActionEngine({ actions: sampleActions }),
+      );
+
+      for (const location of LIVE_LOCATIONS) {
+        const names = result.current
+          .getActionsForLocation(location)
+          .map((a) => a.name);
+        expect(names, `global_search leaked into ${location}`).not.toContain(
+          'global_search',
+        );
+      }
+    });
+
+    // The OTHER half, and it is deliberately NOT the symmetric one. Asking the
+    // engine for `'global_nav'` still returns the stale action, and that is
+    // correct: `ActionEngine.getActionsForLocation` is a literal string match
+    // over whatever a host registered, not a vocabulary filter. Narrowing it to
+    // the six live members would be renderer-side enforcement of a spec
+    // vocabulary — precisely the tolerant/lenient consumer shape AGENTS.md #0.1
+    // forbids, and it would put a SECOND rejection point beside the schema's.
+    //
+    // Enforcement lives in two places instead, both pinned here:
+    //   1. the TYPE — `getActionsForLocation(location: ActionLocation)` is now
+    //      six-membered, so no type-correct caller can spell the retired value
+    //      at all (the cast below is what a stale caller would have to write);
+    //   2. the SCHEMA — `ActionLocationSchema` rejects it by name at authoring
+    //      and publish time, with the retirement message pointing at the fix.
+    // Between them, metadata carrying `global_nav` cannot be saved, and no live
+    // caller can ask for it. This test was written expecting the engine to
+    // return `[]` and measured otherwise; the measurement is what it now pins.
+    it('leaves the retired location to the schema, not to a runtime filter', () => {
+      const { result } = renderHook(() =>
+        useActionEngine({ actions: sampleActions }),
+      );
+
+      const retired = result.current.getActionsForLocation(
+        'global_nav' as (typeof LIVE_LOCATIONS)[number],
+      );
+      expect(retired.map((a) => a.name)).toEqual(['global_search']);
+
+      const rejected = ActionLocationSchema.safeParse('global_nav');
+      expect(rejected.success).toBe(false);
+      expect(rejected.error?.issues?.[0]?.message).toContain(
+        'was removed from `ACTION_LOCATIONS`',
+      );
+      expect(ActionLocationSchema.safeParse('record_header').success).toBe(true);
     });
   });
 

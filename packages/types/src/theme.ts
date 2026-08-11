@@ -81,24 +81,31 @@ import type {
  * by reference (objectstack#4115) rather than restated.
  *
  * The interface this replaces was member-for-member identical to the spec's
- * `ThemeInput` (verified by the mutual-assignability probe in
+ * authoring theme shape (verified by the mutual-assignability probe in
  * `__tests__/page-nav-misc-spec-parity.test.ts`), so the only thing the copy
  * added was a second place to drift from — under the spec's own symbol name,
  * which is what makes such a copy read as canonical to the next reader.
  *
- * `ThemeInput`, not `Theme`: the spec's `z.infer<typeof ThemeSchema>` is the
- * PARSED shape, where `mode` is required because `.default('auto')` has already
- * run. Everything in objectui that carries a `Theme` is on the authoring side —
- * theme JSON as stored, edited and handed to `ThemeProvider` — so the input
- * shape (`mode` optional) is the one that is true here. This is the
+ * **The `z.input` shape, not the parsed one**, and in `@objectstack/spec`
+ * 17.0.0-rc.6 that shape is spelled `Theme`. Up to rc.5 the spec published
+ * three names — `Theme` (= `z.infer`), `ThemeParsed` (= `z.infer`) and
+ * `ThemeInput` (= `z.input`) — and this binding took `ThemeInput`. rc.6 retired
+ * every `…Input` alias and made the bare name the input: `Theme` is now
+ * `z.input<typeof ThemeSchema>` and `ThemeParsed` is the `z.infer` side. So
+ * `ThemeInput` → `Theme` is a rename that preserves this binding's meaning
+ * exactly; re-pointing at `ThemeParsed` would be the silent semantic change.
+ * The reason the input side is the true one here is unchanged: `mode` is
+ * required in the parsed shape because `.default('auto')` has already run, and
+ * everything in objectui that carries a `Theme` is on the authoring side —
+ * theme JSON as stored, edited and handed to `ThemeProvider`. This is the
  * `.default()`/`z.input` rule from objectui#3169: writing side → input type.
  *
  * This is the canonical JSON shape for a theme. It can be serialized, stored,
  * and applied at runtime via ThemeProvider.
  */
-export type { ThemeInput as Theme } from '@objectstack/spec/ui';
+export type { Theme } from '@objectstack/spec/ui';
 
-import type { ThemeInput as Theme } from '@objectstack/spec/ui';
+import type { Theme } from '@objectstack/spec/ui';
 
 // ============================================================================
 // ObjectUI Component Schemas (UI rendering)
