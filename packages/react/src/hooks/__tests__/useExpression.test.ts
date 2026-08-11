@@ -5,7 +5,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { createElement } from 'react';
-import { useExpression, useCondition, useRowPredicate, toPredicateInput, PredicateScopeProvider } from '../useExpression';
+import { useExpression, useCondition, useRowPredicate, toPredicateInput, PredicateScopeProvider, usePredicateRecordContext } from '../useExpression';
 
 describe('useExpression', () => {
   it('returns string value directly for non-expression strings', () => {
@@ -175,6 +175,46 @@ describe('useRowPredicate (canonical CEL row predicate — issue #1584)', () => 
     expect(result.current).toBe(false);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+/**
+ * `usePredicateRecordContext` — the no-row half of the binding rule
+ * (objectui#4075 / #4080).
+ *
+ * The row-PRESENT half (all three spellings resolving) is pinned behaviorally
+ * where the rule is consumed: `action-record-predicate-root.test.tsx` for the
+ * four generic renderers, `DeclaredActionsBar.test.tsx` for the bar. What is
+ * pinned HERE is the return shape itself, one level below any renderer — the
+ * distinction between "this surface has no row" and "this surface's row is
+ * empty", which is the single point on which the helper and the inline copies
+ * it replaced ever differed. Its consumers can only fail it through a rendered
+ * verdict; a caller reading the bag directly (or a future "simplification" of
+ * the helper) would not be caught by them at all.
+ */
+describe('usePredicateRecordContext — no row binds NOTHING (objectui#4075)', () => {
+  it('returns an EMPTY bag for no row — not `{ record: {}, data: {} }`', () => {
+    for (const noRow of [null, undefined, 'a string', 42, [1, 2]]) {
+      const { result } = renderHook(() => usePredicateRecordContext(noRow));
+      expect(result.current, String(noRow)).toEqual({});
+      // Spelled out: the ABSENCE of these two keys is the whole contract, and
+      // `toEqual({})` above would still pass if they were present-and-undefined.
+      expect('record' in result.current, String(noRow)).toBe(false);
+      expect('data' in result.current, String(noRow)).toBe(false);
+    }
+  });
+
+  it('so a host-supplied ambient `record` survives the merge `useCondition` does', () => {
+    // The consequence the shape exists for. `useCondition` evaluates on
+    // `{ ...scope, ...context }`, so an empty-row bag would shadow the scope's
+    // `record` with `{}` and a correctly-authored predicate would read false.
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(PredicateScopeProvider, { scope: { record: { status: 'pending' } } }, children);
+    const { result } = renderHook(
+      () => useCondition('${record.status === "pending"}', usePredicateRecordContext(undefined)),
+      { wrapper },
+    );
+    expect(result.current).toBe(true);
   });
 });
 

@@ -37,6 +37,7 @@ import {
   useAction,
   useCondition,
   toPredicateInput,
+  usePredicateRecordContext,
 } from '@object-ui/react';
 import type { ActionDef } from '@object-ui/core';
 import { useObjectLabel, useObjectTranslation } from '@object-ui/i18n';
@@ -124,32 +125,28 @@ const DeclaredActionButton: React.FC<{
   const recordData = record != null && typeof record === 'object' ? (record as Record<string, any>) : {};
   /**
    * The predicate scope, with the record bound the THREE ways the platform's
-   * row surfaces bind it (objectui#3055).
+   * row surfaces bind it (objectui#3055) — through the ONE named helper that
+   * states the rule, not a local restatement of it (objectui#4080).
    *
-   * The bar used to hand the row in as the bare context bag, so only the
-   * shorthand spelling — `status == "pending"` — resolved. The CANONICAL
-   * spelling is the `record.` root: it is what `ExpressionEvaluator`'s CEL path
-   * binds (`bag.record` as the record namespace), what `evalRowPredicate` binds
-   * on the record header and on list rows, and what the server itself
-   * enforces with. Under a root-only bag `record.viewer.can_act` does not read
-   * as false — it throws `record is not defined`, and `throwOnError` turns that
-   * into "hidden".
+   * The rationale lives with the definition (`usePredicateRecordContext` in
+   * `@object-ui/react`): why the `record.` root is canonical, why `record` /
+   * `data` are written after the spread, and why a surface with no row of its
+   * own binds NOTHING rather than an empty row. The bar carried an inline copy
+   * of that expression from objectui#4077 until the four generic action
+   * renderers gave the rule its name in objectui#4079; two implementations of
+   * one binding rule is the shape objectui#3367 / #3842 rule against, and this
+   * family has already paid for it once at the `toPredicateInput` level
+   * (objectui#3314 — two normalizations drifted and the same `visible:`
+   * predicate reached different verdicts).
    *
-   * Which is not hypothetical: EVERY declared action on `sys_approval_request`
-   * gates on `record.viewer.*` (framework#3310 / #3424), so the whole
+   * What is specific to this bar is the cost of getting it wrong: EVERY
+   * declared action on `sys_approval_request` gates on `record.viewer.*`
+   * (framework#3310 / #3424), so under a root-only bag the whole
    * server-declared decision set was invisible on every surface this bar
-   * renders. The record page's two hand-written buttons were, in practice, the
-   * only decision UI that could still be reached — the fork objectui#3055 is
-   * about, kept alive by the "full" path being unable to evaluate its own gate.
-   *
-   * `record` / `data` are written AFTER the spread, so a row that happens to
-   * carry a field of either name cannot shadow the namespace a predicate means.
+   * renders — `record.viewer.can_act` does not read as false there, it throws
+   * `record is not defined` and `throwOnError` turns that into "hidden".
    */
-  const predicateRecord = useMemo(
-    () => ({ ...recordData, record: recordData, data: recordData }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [record],
-  );
+  const predicateRecord = usePredicateRecordContext(record);
   // `visible` fails CLOSED on a throwing predicate — mirrors action:button and
   // ActionEngine.getActionsForLocation: a guard that can't be evaluated hides
   // the action rather than exposing one whose precondition is broken.

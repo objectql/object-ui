@@ -91,6 +91,10 @@ vi.mock('@object-ui/components', async () => {
 });
 
 import { DeclaredActionsBar } from '../DeclaredActionsBar';
+// The real provider — the `@object-ui/react` double above spreads `actual`, so
+// the ambient predicate scope the objectui#4080 no-row case needs is the
+// shipped one, not a stand-in for it.
+import { PredicateScopeProvider } from '@object-ui/react';
 
 const REQUEST = { id: 'req_1', status: 'pending', record_id: 'proj_9' };
 
@@ -652,5 +656,84 @@ describe('DeclaredActionsBar — declared `disabled` on a server-declared action
     fireEvent.click(approve());
     await waitFor(() => expect(executeSpy).toHaveBeenCalledTimes(1));
     expect(executeSpy.mock.calls[0][0]).toMatchObject({ name: 'approval_approve' });
+  });
+});
+
+/**
+ * objectui#4080 — the bar binds the row through the SHARED
+ * `usePredicateRecordContext`, not through a local copy of that expression.
+ *
+ * objectui#4077 fixed the root-only binding here with an inline
+ * `{ ...row, record: row, data: row }`; objectui#4079 fixed the same fault on
+ * the four generic action renderers and gave the rule one name instead of a
+ * fifth copy. The two copies agreed on every row the bar has ever been mounted
+ * over — which is why this is a convergence card and not a defect report, and
+ * why the two cases below are deliberately different in kind:
+ *
+ *   • the ROW-PRESENT case is an EQUIVALENCE pin. It was green before the
+ *     migration and is green after it, because the copies agree wherever a row
+ *     exists. It is not a mutation detector for this change and must not be
+ *     read as one; it is here so the reachable path — the only path any host
+ *     drives today — is pinned against a future edit to the helper, which now
+ *     owns the verdict for this bar too.
+ *   • the NO-ROW case is the CONVERGENCE detector, and the one difference the
+ *     two copies ever had. `usePredicateRecordContext` binds NOTHING when there
+ *     is no row; the inline copy bound `{ record: {}, data: {} }`. Since
+ *     `useCondition` merges this context OVER the ambient predicate scope, the
+ *     inline shape blanks out a `record` the HOST put in the scope — a
+ *     legitimate pattern, and how `action-group-dropdown-visible.test.tsx`
+ *     drives the group's dropdown leaves. No host mounts this bar without a
+ *     row today, so this case is unreachable in production; it is exercised
+ *     here precisely because it is where the copies part, and it is what goes
+ *     red if the inline expression comes back.
+ */
+describe('DeclaredActionsBar — the row binds through the shared helper (objectui#4080)', () => {
+  const APPROVE = {
+    name: 'approval_approve',
+    type: 'api',
+    label: 'Approve',
+    target: '/api/v1/approvals/requests/{id}/approve',
+    locations: ['record_section'],
+  };
+
+  it('with a row present, all three spellings reach the same verdict', () => {
+    // Both halves per spelling: "renders" alone is satisfied by a bar that
+    // ignores `visible` entirely, which is the mutation objectui#3835 was.
+    for (const visible of [
+      'record.status == "pending"',
+      'status == "pending"',
+      'data.status == "pending"',
+    ]) {
+      const shown = renderWithGate({ ...APPROVE, visible }, { ...REQUEST, status: 'pending' });
+      expect(screen.getByTestId('declared-action-approval_approve'), visible).toBeInTheDocument();
+      shown.unmount();
+
+      const hidden = renderWithGate({ ...APPROVE, visible }, { ...REQUEST, status: 'approved' });
+      expect(screen.queryByTestId('declared-action-approval_approve'), visible).toBeNull();
+      // The ungated companion proves the bar itself rendered — "not found" here
+      // must mean the gate said no, not that the located set was empty.
+      expect(screen.getByTestId('declared-action-approval_reassign')).toBeInTheDocument();
+      hidden.unmount();
+    }
+  });
+
+  it('with NO row of its own, the bar does not shadow a host-supplied ambient `record`', () => {
+    render(
+      <PredicateScopeProvider scope={{ record: { status: 'pending' } }}>
+        <DeclaredActionsBar
+          objectName="sys_approval_request"
+          record={undefined}
+          location="record_section"
+          actions={[
+            { ...APPROVE, visible: 'record.status == "pending"' },
+            COMPANION,
+          ] as any}
+        />
+      </PredicateScopeProvider>,
+    );
+    // Under the inline copy this was hidden: `record` merged down to `{}`, so
+    // the host's row never reached the predicate and a fail-closed `visible`
+    // turned that into "hidden".
+    expect(screen.getByTestId('declared-action-approval_approve')).toBeInTheDocument();
   });
 });
