@@ -14,11 +14,11 @@
  */
 import {
   CheckSquare, Activity, ArrowRight, CheckCheck, Bell, Clock,
-  FileText, Database, LayoutDashboard, File,
+  FileText, Database, LayoutDashboard, File, CircleAlert,
 } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import type { ActivityItem } from '../../layout/ActivityFeed';
-import type { HomeNotification } from '../../hooks/useHomeInbox';
+import type { HomeInboxStatus, HomeNotification } from '../../hooks/useHomeInbox';
 import type { RecentItem } from '../../hooks/useRecentItems';
 import { timeAgo } from '../../utils/relativeTime';
 
@@ -94,28 +94,74 @@ function Row({
   );
 }
 
+/**
+ * "You're all caught up" is an ASSERTION about the user's inbox, so it may only
+ * be made once the inbox has answered (#4235).
+ *
+ * `notifications` arriving empty says nothing on its own: until #4235 the hook
+ * behind it swallowed every failed read to `[]`, so a `403 PERMISSION_DENIED`
+ * on `sys_inbox_message` (objectstack#7344, browser-measured for every non-admin
+ * persona) reached this component wearing the exact shape of an empty inbox —
+ * and the panel cheerfully told a user with nine unread messages that there was
+ * nothing to do, with no badge. `notificationsStatus` is the missing bit, and
+ * gating on it is why that pair is now unreachable: an unanswered read renders
+ * the quiet notice below, never the affirmative copy.
+ *
+ * Same rule #4300 landed for the app list ("an unloadable app list is UNKNOWN,
+ * not 'no default app'"), and the same status vocabulary.
+ */
 export function HomeActionCenter({
   pendingApprovalsCount,
   notifications,
+  notificationsStatus,
   onOpenApprovals,
   onOpenNotification,
   t,
 }: {
   pendingApprovalsCount: number;
   notifications: HomeNotification[];
+  /**
+   * Required, not optional-with-a-default: a call site that cannot say whether
+   * its rows are an answer must not be able to reach the affirmative copy by
+   * saying nothing.
+   */
+  notificationsStatus: HomeInboxStatus;
   onOpenApprovals: () => void;
   onOpenNotification: (n: HomeNotification) => void;
   t: TFn;
 }) {
   const { language } = useObjectTranslation();
   const total = pendingApprovalsCount + notifications.length;
+  const answered = notificationsStatus === 'ready';
   return (
     <Card icon={CheckSquare} accent count={total} title={t('home.actionCenter.title', { defaultValue: 'Needs your attention' })}>
-      {total === 0 ? (
-        <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-          <CheckCheck className="h-4 w-4 text-emerald-500" />
-          {t('home.actionCenter.empty', { defaultValue: "You're all caught up" })}
+      {/*
+        Rendered ALONGSIDE the list, not only instead of it: when approvals are
+        known and the inbox read failed, the panel is showing half an answer,
+        and saying so is the same honesty the empty case owes.
+      */}
+      {!answered && (
+        <div
+          className="flex items-center gap-2 py-2 text-sm text-muted-foreground"
+          data-testid="home-action-unanswered"
+        >
+          {notificationsStatus === 'error' ? (
+            <>
+              <CircleAlert className="h-4 w-4 text-amber-500" />
+              {t('errors.unknown', { defaultValue: 'An unexpected error occurred.' })}
+            </>
+          ) : (
+            t('common.loading', { defaultValue: 'Loading...' })
+          )}
         </div>
+      )}
+      {total === 0 ? (
+        answered && (
+          <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+            <CheckCheck className="h-4 w-4 text-emerald-500" />
+            {t('home.actionCenter.empty', { defaultValue: "You're all caught up" })}
+          </div>
+        )
       ) : (
         <ul className="flex flex-col gap-0.5">
           {pendingApprovalsCount > 0 && (
