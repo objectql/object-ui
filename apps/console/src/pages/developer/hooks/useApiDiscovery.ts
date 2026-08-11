@@ -44,6 +44,18 @@ function buildAuthEndpoints(authBase: string): EndpointDef[] {
   ];
 }
 
+/**
+ * Service-gated endpoint groups, keyed by **canonical service-slot name**.
+ *
+ * The key is not a label and not a route — it is the name this page looks up in
+ * `/discovery`'s `services` map, which the framework keys by `CoreServiceName`
+ * (`@objectstack/spec/system`). A key that is not a member of that vocabulary
+ * can never match, and because the lookup miss is deliberately fail-closed
+ * (ADR-0076 D12) the group then renders NOWHERE, silently, on every host.
+ *
+ * `useApiDiscovery.test.ts` pins the keys against the spec's slot enum so a
+ * rename on either side goes red instead of going quiet.
+ */
 export const SERVICE_ENDPOINT_CATALOG: Record<string, { group: string; defaultRoute: string; endpoints: ServiceEndpointEntry[] }> = {
   // The `/api/v1/ai/**` family, in ledger order (framework#3718).
   //
@@ -205,7 +217,16 @@ export const SERVICE_ENDPOINT_CATALOG: Record<string, { group: string; defaultRo
       { method: 'POST', path: '/:object/:recordId', desc: 'Post feed item', bodyTemplate: { body: '' } },
     ],
   },
-  storage: {
+  // The KEY is the canonical service-slot name, because it is looked up
+  // straight in `/discovery`'s `services` map (`discoveredServices[serviceName]`
+  // below) — and that map is keyed by `CoreServiceName`. The slot is
+  // `file-storage`; the ROUTE is `/api/v1/storage`. Keying this `storage` (as it
+  // was until #4240) missed on every host, and the miss is indistinguishable
+  // from "no such service" — so the deliberate fail-closed branch hid all three
+  // endpoints everywhere, forever. The group's display name stays `Storage`:
+  // that is the route's name and the user-facing one, and it is not derived
+  // from the key.
+  'file-storage': {
     group: 'Storage',
     defaultRoute: '/api/v1/storage',
     endpoints: [
