@@ -34,6 +34,7 @@ import {
   buildDimensionLabelMap,
   buildCategoryOrder,
   relabelDimensions,
+  resolveDimensionFieldOptions,
   findChartSeriesRow,
   formatMeasure,
   formatDimensionValue,
@@ -604,14 +605,29 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     (async () => {
       try {
         const doFetch = apiFetch ?? fetch;
-        const res = await doFetch(`/api/v1/meta/object/${encodeURIComponent(object)}`, { headers: { accept: 'application/json' }, credentials: 'include' });
-        const j = await res.json().catch(() => null);
-        const objSchema = j?.item ?? j?.data ?? j;
-        const firstDimOptions = objSchema?.fields?.[fieldOf(dimensions[0])]?.options;
+        const loadObjectSchema = async (name: string) => {
+          const r = await doFetch(`/api/v1/meta/object/${encodeURIComponent(name)}`, { headers: { accept: 'application/json' }, credentials: 'include' });
+          const doc = await r.json().catch(() => null);
+          return doc?.item ?? doc?.data ?? doc;
+        };
+        const objSchema = await loadObjectSchema(object);
+        // A dimension's field may be a DOTTED relationship path
+        // (`crm_account.industry`) whose options live on the RELATED object, not
+        // on the dataset's base object — objectui#4053. `resolveDimensionFieldOptions`
+        // is the object-resolution step of this same lookup: a local field name
+        // still resolves straight off `objSchema`, a dotted one walks each hop
+        // through the SAME channel `objSchema` came from. Unresolvable paths
+        // yield no entry, so the raw value survives exactly as before.
+        const optionsByPath = await resolveDimensionFieldOptions(
+          objSchema,
+          dimensions.map(fieldOf),
+          loadObjectSchema,
+        );
+        const firstDimOptions = optionsByPath[fieldOf(dimensions[0])];
         const colorMap = buildOptionColorMap(firstDimOptions);
         const labels: Record<string, Record<string, string>> = {};
         for (const dim of dimensions) {
-          const m = buildDimensionLabelMap(objSchema?.fields?.[fieldOf(dim)]?.options);
+          const m = buildDimensionLabelMap(optionsByPath[fieldOf(dim)]);
           if (m) labels[dim] = m;
         }
         if (!cancelled) {

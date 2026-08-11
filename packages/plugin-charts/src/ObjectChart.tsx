@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation, useFilterScope, ElementDataSourceGate, type ElementDataSourceMapping } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, buildDimensionLabelMap, relabelDimensions, type CompareToConfig, type DrillEvent, type ChartResultField } from '@object-ui/core';
+import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, buildDimensionLabelMap, relabelDimensions, resolveDimensionFieldOptions, type CompareToConfig, type DrillEvent, type ChartResultField } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -364,19 +364,37 @@ export const ObjectChart = (props: any) => {
           fieldName = dim?.field ?? dim0;
         }
         if (!objectName || !fieldName) { if (!cancelled) { setFieldOptionColors(null); setDimensionLabels(null); } return; }
-        const schemaRes = await doFetch(`/api/v1/meta/object/${encodeURIComponent(objectName)}`, reqOpts);
-        const sj = await schemaRes.json().catch(() => null);
-        const objSchema = sj?.item ?? sj?.data ?? sj;
-        const map = buildOptionColorMap(objSchema?.fields?.[fieldName]?.options);
+        const loadObjectSchema = async (name: string) => {
+          const r = await doFetch(`/api/v1/meta/object/${encodeURIComponent(name)}`, reqOpts);
+          const doc = await r.json().catch(() => null);
+          return doc?.item ?? doc?.data ?? doc;
+        };
+        const objSchema = await loadObjectSchema(objectName);
+        // Each dimension's underlying field, which for a dataset dimension may be
+        // a DOTTED relationship path (`crm_account.industry`) — objectui#4053.
+        const fieldByDim: Record<string, string> = {};
+        if (schema.dataset && Array.isArray(schema.dimensions)) {
+          for (const dimName of schema.dimensions) {
+            const dimDef = (datasetDef?.dimensions || []).find((d: any) => d?.name === dimName);
+            fieldByDim[dimName] = dimDef?.field ?? dimName;
+          }
+        }
+        // One resolution for every path: a local field name reads straight off
+        // `objSchema` as before, a dotted one walks to the object that owns the
+        // terminal field. Unresolvable paths yield no entry → raw value survives.
+        const optionsByPath = await resolveDimensionFieldOptions(
+          objSchema,
+          [fieldName, ...Object.values(fieldByDim)],
+          loadObjectSchema,
+        );
+        const map = buildOptionColorMap(optionsByPath[fieldName]);
         // dataset path: build a {value → label} map for EVERY select dimension
         // (the objectName path resolves labels via resolveGroupByLabels instead).
         let labels: Record<string, Record<string, string>> | null = null;
         if (schema.dataset && Array.isArray(schema.dimensions)) {
           const acc: Record<string, Record<string, string>> = {};
           for (const dimName of schema.dimensions) {
-            const dimDef = (datasetDef?.dimensions || []).find((d: any) => d?.name === dimName);
-            const f = dimDef?.field ?? dimName;
-            const m = buildDimensionLabelMap(objSchema?.fields?.[f]?.options);
+            const m = buildDimensionLabelMap(optionsByPath[fieldByDim[dimName]]);
             if (m) acc[dimName] = m;
           }
           if (Object.keys(acc).length > 0) labels = acc;

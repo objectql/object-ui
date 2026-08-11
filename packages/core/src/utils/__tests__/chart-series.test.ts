@@ -12,6 +12,8 @@ import {
   buildDimensionLabelMap,
   relabelDimensions,
   buildChartSeries,
+  resolveRelationshipTarget,
+  resolveDimensionFieldOptions,
 } from '../chart-series';
 
 describe('buildOptionColorMap', () => {
@@ -189,5 +191,143 @@ describe('relabelDimensions + buildChartSeries (the value≠label chart bug, clo
       { month: '2025-01', 合作中: 5, 已流失: 1 },
       { month: '2025-02', 合作中: 7 },
     ]);
+  });
+});
+
+describe('resolveRelationshipTarget (objectui#4053)', () => {
+  it('reads the target off every spelling of the reference key', () => {
+    expect(resolveRelationshipTarget({ type: 'lookup', reference: 'crm_account' })).toBe('crm_account');
+    expect(resolveRelationshipTarget({ type: 'lookup', reference_to: 'crm_account' })).toBe('crm_account');
+    expect(resolveRelationshipTarget({ type: 'lookup', referenceTo: 'crm_account' })).toBe('crm_account');
+    expect(resolveRelationshipTarget({ type: 'lookup', reference_to_object: 'crm_account' })).toBe('crm_account');
+    // Array and `{ object }` carriers, both seen on spec-shaped defs.
+    expect(resolveRelationshipTarget({ type: 'lookup', reference: ['crm_account'] })).toBe('crm_account');
+    expect(resolveRelationshipTarget({ type: 'lookup', reference: { object: 'crm_account' } })).toBe('crm_account');
+  });
+
+  it('accepts every master-detail spelling, case-insensitively', () => {
+    for (const type of ['master_detail', 'masterDetail', 'master-detail', 'LOOKUP']) {
+      expect(resolveRelationshipTarget({ type, reference: 'crm_account' })).toBe('crm_account');
+    }
+  });
+
+  it('refuses a NON-relationship field even when it carries a reference-shaped key', () => {
+    // The type gate is what stops a plain field's segment from being turned
+    // into an object name and fetched speculatively.
+    expect(resolveRelationshipTarget({ type: 'select', reference: 'crm_account' })).toBeUndefined();
+    expect(resolveRelationshipTarget({ type: 'lookup' })).toBeUndefined();
+    expect(resolveRelationshipTarget(null)).toBeUndefined();
+    expect(resolveRelationshipTarget('crm_account')).toBeUndefined();
+  });
+});
+
+describe('resolveDimensionFieldOptions (objectui#4053)', () => {
+  const INDUSTRY = [
+    { value: 'education', label: 'Education' },
+    { value: 'finance', label: 'Finance' },
+  ];
+  const OPPORTUNITY = {
+    name: 'crm_opportunity',
+    fields: {
+      stage: { type: 'select', options: [{ value: 'won', label: 'Won' }] },
+      crm_account: { type: 'lookup', reference: 'crm_account' },
+    },
+  };
+  const ACCOUNT = {
+    name: 'crm_account',
+    fields: {
+      industry: { type: 'select', options: INDUSTRY },
+      tier: { type: 'select', options: [{ value: 'a', label: 'A' }] },
+      owner: { type: 'lookup', reference: 'crm_user' },
+      website: { type: 'text' },
+    },
+  };
+  const USER = {
+    name: 'crm_user',
+    fields: { department: { type: 'select', options: [{ value: 'rnd', label: 'R&D' }] } },
+  };
+  const DOCS: Record<string, unknown> = {
+    crm_opportunity: OPPORTUNITY,
+    crm_account: ACCOUNT,
+    crm_user: USER,
+  };
+  /** Records which objects the walk asked for, in order. */
+  const makeLoader = () => {
+    const asked: string[] = [];
+    return {
+      asked,
+      load: async (name: string) => {
+        asked.push(name);
+        return DOCS[name] ?? null;
+      },
+    };
+  };
+
+  it('resolves a LOCAL field straight off the base schema, fetching nothing', async () => {
+    const { asked, load } = makeLoader();
+    const out = await resolveDimensionFieldOptions(OPPORTUNITY, ['stage'], load);
+    expect(out).toEqual({ stage: [{ value: 'won', label: 'Won' }] });
+    expect(asked).toEqual([]);
+  });
+
+  it('resolves a DOTTED path against the relationship target', async () => {
+    const { asked, load } = makeLoader();
+    const out = await resolveDimensionFieldOptions(OPPORTUNITY, ['crm_account.industry'], load);
+    expect(out['crm_account.industry']).toEqual(INDUSTRY);
+    expect(asked).toEqual(['crm_account']);
+  });
+
+  it('walks N hops', async () => {
+    const { asked, load } = makeLoader();
+    const out = await resolveDimensionFieldOptions(OPPORTUNITY, ['crm_account.owner.department'], load);
+    expect(out['crm_account.owner.department']).toEqual([{ value: 'rnd', label: 'R&D' }]);
+    expect(asked).toEqual(['crm_account', 'crm_user']);
+  });
+
+  it('fetches a shared prefix ONCE and never re-fetches the base object', async () => {
+    const { asked, load } = makeLoader();
+    const out = await resolveDimensionFieldOptions(
+      OPPORTUNITY,
+      ['stage', 'crm_account.industry', 'crm_account.tier', 'crm_account.owner.department'],
+      load,
+    );
+    expect(Object.keys(out).sort()).toEqual(
+      ['crm_account.industry', 'crm_account.owner.department', 'crm_account.tier', 'stage'],
+    );
+    // `crm_account` serves three paths on one read; the base is seeded, not read.
+    expect(asked).toEqual(['crm_account', 'crm_user']);
+  });
+
+  it('yields NO entry for a terminal field with no options, a missing field, or a dead hop', async () => {
+    const { asked, load } = makeLoader();
+    const out = await resolveDimensionFieldOptions(
+      OPPORTUNITY,
+      ['crm_account.website', 'crm_account.no_such_field', 'stage.nested', 'crm_account.ghost.name'],
+      load,
+    );
+    expect(out).toEqual({});
+    // `stage` is not a relationship, so it was never fetched; `ghost` is not a
+    // field at all. Only the one reachable object was read.
+    expect(asked).toEqual(['crm_account']);
+  });
+
+  it('survives a loader that throws, costing only that path', async () => {
+    const out = await resolveDimensionFieldOptions(
+      OPPORTUNITY,
+      ['stage', 'crm_account.industry'],
+      async () => { throw new Error('offline'); },
+    );
+    expect(out).toEqual({ stage: [{ value: 'won', label: 'Won' }] });
+  });
+
+  it('is a no-op for an empty / undefined path list and a junk base schema', async () => {
+    const { asked, load } = makeLoader();
+    expect(await resolveDimensionFieldOptions(OPPORTUNITY, [], load)).toEqual({});
+    expect(await resolveDimensionFieldOptions(OPPORTUNITY, [undefined, null, ''], load)).toEqual({});
+    expect(await resolveDimensionFieldOptions(null, ['stage'], load)).toEqual({});
+    // `fields` as an array (not the map shape this lookup reads) resolves to
+    // nothing rather than throwing.
+    expect(await resolveDimensionFieldOptions({ fields: [] }, ['stage'], load)).toEqual({});
+    expect(asked).toEqual([]);
   });
 });

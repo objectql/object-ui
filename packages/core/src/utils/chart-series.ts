@@ -286,3 +286,128 @@ export function buildDimensionLabelMap(options: unknown): Record<string, string>
   }
   return Object.keys(map).length > 0 ? map : null;
 }
+
+/**
+ * Field types that JOIN to another object, so they can be a hop in a dotted
+ * dimension path. Mirrors the dataset designer's allowlist
+ * (`useDatasetFields.ts`), matched case-insensitively so `masterDetail` and
+ * `master_detail` both resolve.
+ */
+const RELATIONSHIP_FIELD_TYPES = new Set(['lookup', 'master_detail', 'masterdetail', 'master-detail']);
+
+/** The `fields` map of an object metadata doc, or null when it isn't one. */
+function fieldDefsOf(schema: unknown): Record<string, unknown> | null {
+  const fields = (schema as { fields?: unknown } | null | undefined)?.fields;
+  return fields && typeof fields === 'object' && !Array.isArray(fields)
+    ? (fields as Record<string, unknown>)
+    : null;
+}
+
+/**
+ * The object a relationship field points at, or `undefined` when the field is
+ * not a relationship (or names no target).
+ *
+ * The target lives under `reference` on framework-served field defs; older /
+ * spec shapes spell it `reference_to` / `referenceTo` / `reference_to_object`,
+ * and any of them may carry a bare name, a one-element array, or `{ object }`.
+ * Same canonicalization as the dataset designer's `resolveReferenceTo`.
+ *
+ * The **type gate is deliberate**: only a declared relationship is walked, so a
+ * path segment naming a plain field can never be turned into an object name and
+ * fetched speculatively.
+ */
+export function resolveRelationshipTarget(fieldDef: unknown): string | undefined {
+  if (!fieldDef || typeof fieldDef !== 'object') return undefined;
+  const def = fieldDef as {
+    type?: unknown;
+    reference?: unknown;
+    reference_to?: unknown;
+    referenceTo?: unknown;
+    reference_to_object?: unknown;
+  };
+  const type = typeof def.type === 'string' ? def.type.toLowerCase() : '';
+  if (!RELATIONSHIP_FIELD_TYPES.has(type)) return undefined;
+  const raw = def.reference ?? def.reference_to ?? def.referenceTo ?? def.reference_to_object;
+  if (typeof raw === 'string' && raw) return raw;
+  if (Array.isArray(raw) && typeof raw[0] === 'string' && raw[0]) return raw[0];
+  if (raw && typeof raw === 'object') {
+    const obj = (raw as { object?: unknown }).object;
+    if (typeof obj === 'string' && obj) return obj;
+  }
+  return undefined;
+}
+
+/**
+ * Resolve each dataset dimension's underlying `field` to that field's select
+ * `options`, following DOTTED relationship paths to the object that actually
+ * owns the terminal field (objectui#4053).
+ *
+ * A dimension's `field` is either a local field name (`industry`) or a
+ * relationship path (`crm_account.industry`, and — per ADR-0071, which the
+ * dataset designer emits — `crm_account.owner.department`). Reading the options
+ * as `baseSchema.fields[path]` only ever works for the local spelling: for a
+ * dotted path the options live on the RELATED object, the lookup missed
+ * silently, and the chart fell through to the raw stored enum while the same
+ * field as a local dimension rendered its labels beside it.
+ *
+ * This is the object-resolution step of that ONE lookup, not a dotted-path
+ * variant beside it: a single-segment path never enters the walk and resolves
+ * exactly as before, so the local path cannot drift away from the joined one.
+ *
+ * `loadObjectSchema` supplies each hop's object metadata doc — the caller's
+ * existing channel (the same `GET /meta/object/:name` read that produced
+ * `baseSchema`), so no new fetch layer is introduced. It is memoized per call,
+ * because sibling dimensions routinely share a prefix (`crm_account.industry`
+ * alongside `crm_account.type` fetches `crm_account` once), and seeded with
+ * `baseSchema` under its own `name` so the base is never re-fetched.
+ *
+ * Best-effort by construction: a hop that is not a relationship, a target that
+ * cannot be loaded, or a terminal field that carries no `options` simply yields
+ * no entry, and the caller keeps the raw value. Returns `{ fieldPath → options }`
+ * for the paths that did resolve.
+ */
+export async function resolveDimensionFieldOptions(
+  baseSchema: unknown,
+  fieldPaths: Array<string | undefined | null>,
+  loadObjectSchema: (objectName: string) => Promise<unknown>,
+): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = {};
+  const paths = Array.from(new Set((fieldPaths ?? []).filter((p): p is string => !!p)));
+  if (paths.length === 0) return out;
+
+  const cache = new Map<string, Promise<unknown>>();
+  const baseName = (baseSchema as { name?: unknown } | null | undefined)?.name;
+  if (typeof baseName === 'string' && baseName) cache.set(baseName, Promise.resolve(baseSchema));
+  const load = (name: string): Promise<unknown> => {
+    let hit = cache.get(name);
+    if (!hit) {
+      // A rejected hop resolves to null rather than throwing, so one unreachable
+      // relationship costs its own dimension's labels and not the whole chart's.
+      hit = Promise.resolve().then(() => loadObjectSchema(name)).catch(() => null);
+      cache.set(name, hit);
+    }
+    return hit;
+  };
+
+  for (const path of paths) {
+    const segments = path.split('.');
+    let schema: unknown = baseSchema;
+    let walked = true;
+    // Every segment but the last must be a relationship; walk to its target.
+    // Hops are sequential by nature — hop N's object is only known once hop
+    // N-1 has been read.
+    for (let i = 0; i < segments.length - 1; i += 1) {
+      const target = resolveRelationshipTarget(fieldDefsOf(schema)?.[segments[i]]);
+      if (!target) { walked = false; break; }
+      // eslint-disable-next-line no-await-in-loop
+      schema = await load(target);
+      if (!schema) { walked = false; break; }
+    }
+    if (!walked) continue;
+    const terminal = fieldDefsOf(schema)?.[segments[segments.length - 1]] as
+      | { options?: unknown }
+      | undefined;
+    if (terminal?.options !== undefined) out[path] = terminal.options;
+  }
+  return out;
+}
