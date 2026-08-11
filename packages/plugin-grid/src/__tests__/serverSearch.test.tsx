@@ -97,7 +97,8 @@ function renderGrid(dataSource: any, opts?: Record<string, any>) {
 const lastFindParams = (ds: any) => ds.find.mock.calls[ds.find.mock.calls.length - 1][1];
 
 const searchBox = (container: HTMLElement) =>
-  container.querySelector('input[placeholder="Search..."]') as HTMLInputElement;
+  // U+2026, matching `table.search` in the en pack (objectui#3878).
+  container.querySelector('input[placeholder="Search…"]') as HTMLInputElement;
 
 /**
  * The rendered rows, as their full text. Whole-row text rather than the first

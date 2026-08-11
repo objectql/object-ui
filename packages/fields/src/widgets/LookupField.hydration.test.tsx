@@ -71,7 +71,7 @@ describe('LookupField — multi-value hydration batches and shows loading (#3108
 
     // In-flight: loading indicator + raw committed count, no "Select…".
     await waitFor(() => expect(screen.getByTestId('lookup-hydrating')).toBeTruthy());
-    expect(screen.queryByText('Select...')).toBeNull();
+    expect(screen.queryByText('Select…')).toBeNull();
     expect(screen.getByText(/3/)).toBeTruthy();
 
     resolveFind({ data: USERS });

@@ -31,7 +31,8 @@ import { RecordActivityRenderer } from '../renderers/record-activity';
 
 const EMPTY_ACTIVITY = 'No activity recorded';
 const EMPTY_COMMENTS = 'No comments yet';
-const LOADING = 'Loading...';
+// U+2026, matching `detail.loading` in the en pack (objectui#3878).
+const LOADING = 'Loading…';
 
 const ITEMS: FeedItem[] = [
   {

@@ -93,7 +93,7 @@ describe('ConversationsSidebar', () => {
 
   it('filters by query and highlights the matched substring', () => {
     renderSidebar();
-    fireEvent.change(screen.getByPlaceholderText('Search chats...'), {
+    fireEvent.change(screen.getByPlaceholderText('Search chats…'), {
       target: { value: 'pipe' },
     });
     // Non-matching conversation is filtered out.

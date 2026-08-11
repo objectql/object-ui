@@ -131,13 +131,15 @@ describe('CommentThread with no I18nProvider — English fallback (objectstack#5
     expect(screen.getByText('Cancel')).toBeTruthy();
 
     fireEvent.click(screen.getAllByText('Reply')[0]);
-    expect(screen.getByText('Replying to Bob Ito...')).toBeTruthy();
+    // U+2026 — the defaults map is byte-identical to the en pack by contract
+    // (objectui#3440), so objectui#3878's convergence moved this copy too.
+    expect(screen.getByText('Replying to Bob Ito…')).toBeTruthy();
   });
 
   it('renders the composer in English', () => {
     renderBare();
 
-    expect(screen.getByPlaceholderText('Add a comment... (use @ to mention)')).toBeTruthy();
+    expect(screen.getByPlaceholderText('Add a comment… (use @ to mention)')).toBeTruthy();
     expect(screen.getByText('Send')).toBeTruthy();
   });
 

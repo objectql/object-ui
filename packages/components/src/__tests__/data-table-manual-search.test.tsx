@@ -60,7 +60,9 @@ const rowNames = (container: HTMLElement) =>
   );
 
 const searchBox = (container: HTMLElement) =>
-  container.querySelector('input[placeholder="Search..."]') as HTMLInputElement | null;
+  // U+2026, matching `table.search` in the en pack and in this renderer's own
+  // defaults map (objectui#3878).
+  container.querySelector('input[placeholder="Search…"]') as HTMLInputElement | null;
 
 describe('data-table — manual (server-side) search', () => {
   it('does not filter the rows it was handed', () => {

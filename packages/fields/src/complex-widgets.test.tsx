@@ -193,7 +193,7 @@ describe('Complex & Relationship Widgets', () => {
 
             // Type in search
             await act(async () => {
-                fireEvent.change(screen.getByPlaceholderText('Search...'), {
+                fireEvent.change(screen.getByPlaceholderText('Search…'), {
                     target: { value: 'acme' },
                 });
             });
@@ -462,7 +462,7 @@ describe('Complex & Relationship Widgets', () => {
                 expect(screen.getByText('Alpha')).toBeInTheDocument();
             });
 
-            const searchInput = screen.getByPlaceholderText('Search...');
+            const searchInput = screen.getByPlaceholderText('Search…');
 
             // Arrow down twice: -1 → 0 (Alpha) → 1 (Beta)
             await act(async () => {

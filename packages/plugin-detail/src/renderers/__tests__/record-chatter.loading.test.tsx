@@ -28,7 +28,8 @@ import type { FeedItem } from '@object-ui/types';
 import { RecordChatterRenderer } from '../record-chatter';
 
 const EMPTY_COMMENTS = 'No comments yet';
-const LOADING = 'Loading...';
+// U+2026, matching `detail.loading` in the en pack (objectui#3878).
+const LOADING = 'Loading…';
 
 const ITEMS: FeedItem[] = [
   {
