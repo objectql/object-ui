@@ -3886,9 +3886,10 @@ export {
 export type { MetadataCacheStats } from './cache/MetadataCache';
 
 // v3.0.0 Deep Integration modules
-export { CloudOperations } from './cloud';
-export type { CloudDeploymentConfig, CloudHostingConfig, CloudMarketplaceEntry } from './cloud';
-
+// (The cloud deployment/hosting/marketplace surface that used to be re-exported
+// here was retired by objectui#4152 — it called into a client namespace that
+// does not exist and fabricated success. `cloud-surface-retired-4152.pin.test.ts`
+// fails if it returns; that file names the retired symbols, this one must not.)
 export { validatePluginContract, generateContractManifest } from './contracts';
 
 // User-scoped persistence adapter (favorites / recent items / …)
@@ -3906,8 +3907,11 @@ export type { IntegrationConfig, IntegrationTrigger, IntegrationProvider, SlackI
 // Used by plugin-designer to back the Setup-app Object Manager and Field
 // Designer surfaces; kept separate from ObjectStackAdapter so callers
 // can use it without the full data-source surface.
-export { MetadataClient } from './metadata-client';
+export { MetadataClient, readSaveAdvisories } from './metadata-client';
 export type {
+  RuntimeAuthoringIssue,
+  MetadataSaveAdvisoryEvent,
+  MetadataSaveAdvisoryListener,
   MetadataClientConfig,
   MetadataListOptions,
   MetadataDraftHeader,

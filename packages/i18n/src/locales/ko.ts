@@ -1286,6 +1286,7 @@ const ko = {
     },
   },
   console: {
+    saveAdvisoryTitle: "저장되었습니다 — 작성 검사에서 {{count}}건의 권장 사항이 발견되었습니다",
     settingsHub: {
       title: "설정",
       subtitle: "워크스페이스, 연동, 기능 플래그를 구성합니다.",

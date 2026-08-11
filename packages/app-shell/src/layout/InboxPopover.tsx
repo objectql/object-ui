@@ -36,6 +36,8 @@ import { Bell, CheckSquare, Activity as ActivityIcon, ChevronRight } from 'lucid
 import { useObjectTranslation } from '@object-ui/i18n';
 import type { ActivityItem } from './ActivityFeed';
 import { useNavigationContext } from '../context/NavigationContext';
+import { useMetadata } from '../providers/MetadataProvider';
+import { resolveHostAppSegment } from '../utils/appRoute';
 import { timeAgo } from '../utils/relativeTime';
 import { groupNotifications } from './inboxGrouping';
 import type { InboxNotification, NotificationGroup } from './inboxGrouping';
@@ -72,6 +74,7 @@ export function InboxPopover({
   const navigate = useNavigate();
   const params = useParams();
   const { currentAppName } = useNavigationContext();
+  const { apps } = useMetadata();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'notifications' | 'approvals' | 'activity'>('notifications');
   // Sub-filter inside Notifications: default to Unread so users see what
@@ -120,13 +123,25 @@ export function InboxPopover({
     navigate(app ? `/apps/${app}/system/approvals` : '/apps/setup/system/approvals');
   };
 
+  /**
+   * Which app hosts the two full-page drills below (objectui#4074).
+   *
+   * `sys_inbox_message` is the canonical full-page inbox (ADR-0030 L5) and
+   * `sys_activity` the full activity stream; both are framework-owned objects,
+   * so they are app-INDEPENDENT — which is precisely why they render under
+   * whatever app the user can open, exactly like `system/approvals` above.
+   * These two used to hardcode `/apps/setup/...`, and being app-independent
+   * argued for neither half of that: it sent every business user without setup
+   * access to a page they cannot read, and switched everyone else out of the
+   * app they were in without saying so.
+   */
+  const hostAppSegment = resolveHostAppSegment(apps, currentAppName ?? params.appName);
+
   const goToAllNotifications = () => {
     setOpen(false);
-    // Route through the setup app's sys_inbox_message list view — the
-    // canonical full-page inbox (ADR-0030 L5), outside per-app sidebars. The
-    // `?view=mine` query selects the user-scoped "Notifications" view, matching
-    // the popover scope.
-    navigate('/apps/setup/sys_inbox_message?view=mine');
+    // `?view=mine` selects the user-scoped "Notifications" view, matching the
+    // popover's own scope.
+    navigate(`/apps/${hostAppSegment}/sys_inbox_message?view=mine`);
   };
 
   const goToAllActivity = () => {
@@ -134,7 +149,7 @@ export function InboxPopover({
     // Mirror of goToAllNotifications: drill from the popover Activity tab
     // (capped at 20 rows) into the full sys_activity list page. Org-wide
     // scope — no `?view=` qualifier — to match what the popover already shows.
-    navigate('/apps/setup/sys_activity');
+    navigate(`/apps/${hostAppSegment}/sys_activity`);
   };
 
   const handleNotificationClick = (n: InboxNotification) => {

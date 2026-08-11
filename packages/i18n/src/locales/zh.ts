@@ -1348,6 +1348,7 @@ const zh = {
     },
   },
   console: {
+    saveAdvisoryTitle: '已保存 — 编辑检查提出了 {{count}} 条建议',
     title: 'ObjectStack 控制台',
     initializing: '正在初始化应用程序...',
     search: '搜索…',

@@ -75,6 +75,7 @@ import { useCommandPalette } from '../context/CommandPaletteProvider';
 import { useUrlOverlay } from '../hooks/useUrlOverlay';
 import { KEYBOARD_SHORTCUTS_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
 import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
+import { useSharedActivityFeed, useSharedPendingApprovalsCount } from '../hooks/sharedUserFeeds';
 import { getProductName, getLogoUrl } from '../runtime-config';
 import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger';
 import { PreviewBadge } from './PreviewBadge';
@@ -192,7 +193,18 @@ export function AppHeader({
     }
   }, [helpDocs, dataSource]);
 
-  const [apiActivities, setApiActivities] = useState<ActivityItem[] | null>(null);
+  /**
+   * Recent activity for the bell's Activity tab (#4197).
+   *
+   * Read from the shared user-scoped feed rather than a local effect: Home's
+   * activity card reads the very same `sys_activity` rows, and on `/home` the
+   * bell and the card mount in one tree — so an effect here would have made
+   * that page issue the read twice. Also NOT gated on `isApp`: the feed is
+   * tenant-scoped, not app-scoped, and gating it left this tab reading "No
+   * recent activity" on Home / Organizations / the AI screen while the card
+   * two hundred pixels below listed the rows.
+   */
+  const apiActivities = useSharedActivityFeed();
   /**
    * In-header notifications (ADR-0030). Polled from `sys_inbox_message` (the L5
    * in-app materialization, `mine` scope) joined with `sys_notification_receipt`
@@ -219,7 +231,8 @@ export function AppHeader({
   // Once the server returns 404 for these collections we stop retrying for
   // the lifetime of the page — they're optional features and re-requesting
   // on every navigation creates console noise + wasted round trips.
-  const activityUnavailableRef = useRef(false);
+  // (`sys_activity` and the approvals endpoint carry the same rule inside
+  // `sharedUserFeeds`, which retires a feed for every consumer at once.)
   const notificationsUnavailableRef = useRef(false);
 
   // Tracks whether the component is still mounted. Used by the pollers to
@@ -235,83 +248,36 @@ export function AppHeader({
     return () => { mountedRef.current = false; };
   }, []);
 
-  // In-flight guards: during bootstrap the poller effects re-run several
-  // times as `dataSource` / `isApp` / `user.id` settle, and each run kicks
-  // an immediate fetch. Without these the same query fired 5× concurrently
-  // (nothing cached yet) and flooded the backend. They coalesce to one.
+  // In-flight guard: during bootstrap the poller effect re-runs several times
+  // as `dataSource` / `user.id` settle, and each run kicks an immediate fetch.
+  // Without it the same query fired 5× concurrently (nothing cached yet) and
+  // flooded the backend. It coalesces them to one. (The approvals and activity
+  // feeds carry the equivalent guard inside `sharedUserFeeds`, where it also
+  // collapses the *other* consumer's mount, not just this one's re-runs.)
   const notifInFlightRef = useRef(false);
-  const approvalsInFlightRef = useRef(false);
-  const activityInFlightRef = useRef(false);
 
-  /** M11.C15: pending approvals count for the topbar shortcut. */
-  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
-  const approvalsUnavailableRef = useRef(false);
+  /**
+   * M11.C15: pending approvals count — the topbar shortcut, and the second
+   * addend of the bell badge (`unreadTopics + pendingApprovalsCount`).
+   *
+   * Shared with Home's To-do card (#4197): one polled request serves both, so
+   * the badge and the card can no longer disagree. Formerly a local effect
+   * gated on `isApp`, which meant the badge silently dropped this addend
+   * everywhere outside an app — the same user with the same data read 1 on
+   * Home and 3 inside an app.
+   */
+  const pendingApprovalsCount = useSharedPendingApprovalsCount();
 
-  const fetchPresenceAndActivities = useCallback(async () => {
-    if (!dataSource || !isApp) return;
-    // ObjectStack client throws Error objects with `httpStatus` (not `status`)
-    // and a `code` like `object_not_found` when the underlying object isn't
-    // registered on the server. Either signal means the feature is
-    // unavailable — disable it for the rest of the page.
-    const isMissingResource = (err: any): boolean =>
-      err?.httpStatus === 404 || err?.status === 404 || errorCodeIs(err, 'OBJECT_NOT_FOUND');
-
-    // Tenant-wide presence ("who else is online?") is intentionally NOT
-    // probed here. Presence is real-time ephemeral state that does not
-    // belong in a regular REST collection. The feature is staged behind a
-    // transport-level provider (<PresenceProvider>) which is not yet
-    // wired — see ROADMAP for the realtime plan.
-    if (activityUnavailableRef.current) return;
-    // In-flight dedupe: this callback's identity changes as dataSource/isApp
-    // settle during bootstrap, re-firing the mount effect below; coalesce the
-    // immediate fetches into one instead of N (sys_activity fired 3×+).
-    if (activityInFlightRef.current) return;
-    activityInFlightRef.current = true;
-    try {
-      const activityResult = await dataSource
-        .find('sys_activity', { $orderby: { timestamp: 'desc' }, $top: 20 })
-        .catch((err: any) => {
-          if (isMissingResource(err)) activityUnavailableRef.current = true;
-          return { data: [] as Record<string, unknown>[] };
-        });
-      if (activityResult.data?.length) {
-        // Raw sys_activity rows use plugin-audit's column names
-        // (summary / actor_name / object_name / timestamp). Map them onto
-        // ActivityItem's shape (description / user / objectName) — casting the
-        // raw row straight through left every field undefined, so the popover
-        // Activity tab rendered blank rows (only the relative time showed).
-        // Mirrors the mapping in `useHomeInbox` so the bell and Home never diverge.
-        const items: ActivityItem[] = (activityResult.data as Record<string, unknown>[])
-          .filter((r) => typeof r.type === 'string' && String(r.summary ?? '').trim())
-          .map((r) => {
-            let when = r.timestamp as string | undefined;
-            if (!when || when === 'NOW()' || Number.isNaN(Date.parse(when))) {
-              when = r.created_at as string | undefined;
-            }
-            const raw = String(r.type);
-            const type: ActivityItem['type'] =
-              raw === 'commented' || raw === 'mentioned' ? 'comment'
-                : raw === 'deleted' ? 'delete'
-                  : raw === 'created' ? 'create'
-                    : 'update';
-            return {
-              id: String(r.id),
-              type,
-              objectName: (r.object_name as string) ?? '',
-              recordId: (r.record_id as string) ?? undefined,
-              user: (r.actor_name as string) ?? '',
-              description: (r.summary as string) ?? '',
-              timestamp: when ?? '',
-            };
-          });
-        if (items.length) setApiActivities(items);
-      }
-    } catch { /* fallback below */ } finally {
-      activityInFlightRef.current = false;
-    }
-  }, [dataSource, isApp]);
-
-  useEffect(() => { fetchPresenceAndActivities(); }, [fetchPresenceAndActivities]);
+  /**
+   * Presence is the OTHER half of what this component used to fetch here, and
+   * it stays app-scoped (#4197). Tenant-wide presence ("who else is online?")
+   * is never *read* — it is not a REST collection but a transport-level
+   * subscription (`useTenantPresence`, <PresenceProvider>), and the avatars
+   * plus the connection dot render only under `isApp` below, which is the
+   * reason that flag exists. So un-gating the two user/tenant-scoped feeds
+   * above does not drag app-shell chrome off-app with them: the boundary is
+   * data scope, not surface.
+   */
 
   /**
    * Poll the signed-in user's in-app inbox (ADR-0030 L5).
@@ -443,66 +409,6 @@ export function AppHeader({
     };
   }, [dataSource, user?.id]);
 
-  /**
-   * M11.C15: poll pending-approvals count for the topbar shortcut badge.
-   * Hits the framework's `/api/v1/approvals/requests?status=pending`
-   * endpoint with the user's identities (id, email, role:<r>). Degrades
-   * silently to zero on 404 (approvals plugin not installed).
-   *
-   * The endpoint accepts a comma-separated `approverId` and matches a
-   * request when ANY identity is a pending approver, so this issues ONE
-   * request per poll. (It previously looped one fetch per identity, firing
-   * N near-simultaneous calls every cycle — the dominant duplicate-request
-   * offender on the control plane. Requires framework with multi-approverId
-   * support; ship the framework + console SHA bumps together.)
-   */
-  useEffect(() => {
-    if (!isApp || !user?.id) return;
-    if (approvalsUnavailableRef.current) return;
-    const serverUrl = (import.meta.env?.VITE_SERVER_URL || '').replace(/\/$/, '');
-    const base = `${serverUrl}/api/v1/approvals/requests`;
-    const identities: string[] = [];
-    if (user.id) identities.push(user.id);
-    if ((user as any).email) identities.push((user as any).email);
-    for (const r of ((user as any).roles || []) as string[]) {
-      if (r) identities.push(`role:${r}`);
-    }
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const POLL_MS = 30_000;
-    const fetchOnce = async () => {
-      if (identities.length === 0) return;
-      // In-flight dedupe: bootstrap re-runs this effect a few times; coalesce
-      // the immediate fetches into one instead of firing them concurrently.
-      if (approvalsInFlightRef.current) return;
-      approvalsInFlightRef.current = true;
-      try {
-        const qs = new URLSearchParams({ status: 'pending', approverId: identities.join(',') });
-        const res = await fetch(`${base}?${qs}`, {
-          credentials: 'include',
-          // Bearer too — see utils/authToken (#2548 split-origin fix).
-          headers: bearerAuthHeaders(),
-        });
-        if (res.status === 404) { approvalsUnavailableRef.current = true; return; }
-        if (!res.ok) return;
-        const payload = await res.json().catch(() => null);
-        const seen = new Set<string>();
-        for (const row of (payload?.data || []) as { id: string }[]) seen.add(row.id);
-        // Apply if still mounted (not gated on this run's `cancelled`, so the
-        // single in-flight fetch survives a bootstrap re-run mid-flight).
-        if (mountedRef.current) setPendingApprovalsCount(seen.size);
-      } catch { /* transient — keep last value */ } finally {
-        approvalsInFlightRef.current = false;
-      }
-    };
-    const schedule = () => {
-      if (cancelled || approvalsUnavailableRef.current) return;
-      timer = setTimeout(async () => { await fetchOnce(); schedule(); }, POLL_MS);
-    };
-    fetchOnce().finally(schedule);
-    return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [isApp, user?.id]);
-
   const unreadCount = notifications.reduce((n, x) => n + (x.is_read ? 0 : 1), 0);
 
   // Read-state lives in `sys_notification_receipt`, keyed
@@ -558,7 +464,9 @@ export function AppHeader({
 
   const tenantPresence = useTenantPresence();
   const activeUsers = presenceUsers ?? (tenantPresence.length > 0 ? tenantPresence : EMPTY_PRESENCE_USERS);
-  const activeActivities = activities ?? apiActivities ?? [];
+  // The `activities` prop still wins where a host passes one; otherwise the
+  // shared feed, which is `[]` (not null) until the first read lands.
+  const activeActivities = activities ?? apiActivities;
   const orgList = organizations ?? [];
   const hasOrgSection = isOrganizationsLoading || orgList.length > 0 || !!activeOrganization;
   // Mirror the server's `beforeCreateOrganization` gate so the "Create

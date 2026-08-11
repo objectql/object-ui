@@ -63,7 +63,7 @@ import { importTargetFields } from './importTargetFields';
 import { useExpressionContext } from '../providers/ExpressionProvider';
 import { resolveManagedByEmptyState } from '../utils/managedByEmptyState';
 import { resolveViewId } from '../utils/resolveViewId';
-import { defaultListViewId } from '../utils/viewIdentity';
+import { defaultListViewId, viewRowId, isSavedViewId, viewEntry } from '../utils/viewIdentity';
 import { warnSuppressedListNav } from '../utils/warnSuppressedListNav';
 import { useObjectActions } from '../hooks/useObjectActions';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
@@ -315,6 +315,158 @@ export async function loadViewOverrides(
         if (v && typeof v === 'object') map[id] = sanitizeViewOverride(v);
     }
     return map;
+}
+
+/**
+ * Build the switcher's tab list — the ONE place a tab's identity is decided
+ * (objectui#4211).
+ *
+ * Views reach this function from two independent reads of the same
+ * `type='view'` metadata namespace:
+ *
+ *   - `definedViews` — `objectDef.listViews`, keyed by the composer's runtime
+ *     identity (`MetadataProvider.applyViewItem`, `<object>.<key>`);
+ *   - `savedViews` — the adapter's `listViews()` overlay rows, keyed by
+ *     {@link viewRowId}.
+ *
+ * The two must produce the SAME string for the same view, because everything
+ * downstream that decides whether a view is mutable — the tab's `readonly`
+ * flag, `isSavedView`, and the early return in every mutating handler — asks
+ * whether the tab's id is among the overlay keys. When they disagreed, a saved
+ * view was presented as a system view: its set-default / rename / delete menu
+ * entries were not rendered at all, so the click the QA run reported produced
+ * no adapter write because there was nothing left to click.
+ *
+ * They disagreed because the metadata side spelled identity `{ id: key,
+ * ...body, ...override }` — `id` FIRST, so an `id` key inside the stored body
+ * or the stored override silently replaced it. Both are stored documents that
+ * really do carry one: `persistViewPatch` writes the whole tab object (its `id`
+ * included) back through `updateViewConfig`, and a duplicated view copies its
+ * source artifact's `id` verbatim. `viewEntry` stamps identity LAST at all
+ * three sites, so the tab id is now a property of the key the caller looked the
+ * view up by, and can never be a property of the data.
+ *
+ * Extracted from the `views` memo so the seam is assertable without mounting
+ * the view; the memo still owns the concerns that need render context (default
+ * columns, labels, the per-user sort).
+ *
+ * @param fallbackTab - the auto-generated "all records" tab, built lazily
+ *   because it needs the translated label and the object's default columns.
+ *   Used only when the object declares no views at all.
+ */
+export function buildViewTabs({
+    definedViews,
+    primary,
+    primaryId,
+    savedViews,
+    viewOverrides,
+    fallbackTab,
+}: {
+    definedViews: Record<string, any>;
+    primary?: any;
+    primaryId?: string;
+    savedViews: readonly any[];
+    viewOverrides: Record<string, any>;
+    fallbackTab: () => Record<string, any> & { id: string };
+}): Array<Record<string, any> & { id: string }> {
+    const viewList = Object.entries(definedViews || {}).map(([key, value]: [string, any]) => {
+        const override = viewOverrides[key];
+        // Override wins per-key — saved overrides represent user preferences
+        // (density, column widths, etc.) that should shadow the embedded
+        // definition — but NOT over the tab's identity.
+        return viewEntry(key, value, override, {
+            type: (override?.type) || value?.type || 'grid',
+        });
+    });
+
+    // Honor `objectDef.list` (the primary list view, per @objectstack/spec
+    // ViewSchema). MetadataProvider mirrors it into `listViews` so it's
+    // already in `viewList` above; promote it to the front and mark it as
+    // the default so `defaultViewId` picks it over secondary listViews.
+    //
+    // Its id is the composer's runtime identity (objectui#3770), which is
+    // what the tab label / description / emptyState are translated under:
+    // `viewLabel` reads `objects.<object>._views.<bare key>.label`, and for a
+    // default list declared without a `name` that bare key is `default`.
+    if (primaryId) {
+        const idx = viewList.findIndex(v => v.id === primaryId);
+        if (idx >= 0) {
+            const [entry] = viewList.splice(idx, 1);
+            viewList.unshift(viewEntry(primaryId, entry, { isDefault: true }));
+        } else {
+            const override = viewOverrides[primaryId];
+            viewList.unshift(viewEntry(primaryId, primary, override, {
+                type: (override?.type) || primary?.type || 'grid',
+                isDefault: true,
+            }));
+        }
+    }
+
+    if (viewList.length === 0) viewList.push(fallbackTab());
+
+    // Merge user-defined views (overlay rows) after metadata-defined views.
+    // Dedup by id so a saved view that shadows a metadata view wins.
+    const metaIds = new Set(viewList.map(v => v.id));
+    for (const sv of savedViews) {
+        const id = viewRowId(sv);
+        if (!id) continue;
+        // Drop undefined fields so a partial overlay (e.g. baseline row
+        // with no user customization) does not stomp `isDefault`/`columns`
+        // populated from the metadata view it shadows.
+        const rawNormalized: Record<string, any> = {
+            label: sv.label || sv.name || id,
+            type: sv.type || 'grid',
+            columns: sv.columns,
+            filter: sv.filter,
+            sort: sv.sort,
+            showSearch: sv.showSearch,
+            showFilters: sv.showFilters,
+            showSort: sv.showSort,
+            isPinned: sv.isPinned,
+            isDefault: sv.isDefault,
+            visibility: sv.visibility,
+            sortOrder: sv.sortOrder,
+            ...sv,
+            id,
+        };
+        const normalized: Record<string, any> = {};
+        for (const [k, v] of Object.entries(rawNormalized)) {
+            if (v !== undefined) normalized[k] = v;
+        }
+        if (metaIds.has(id)) {
+            const idx = viewList.findIndex(v => v.id === id);
+            viewList[idx] = viewEntry(id, viewList[idx], normalized);
+        } else {
+            viewList.push(viewEntry(id, normalized));
+        }
+    }
+    return viewList;
+}
+
+/**
+ * The `updateView` writes a "set this view as default" must issue
+ * (objectui#4211).
+ *
+ * Extracted from `handleSetDefaultView` so the write set is assertable without
+ * mounting the whole view: the QA symptom this issue records is *zero* adapter
+ * writes, and a claim about how many writes a click produces has to be measured
+ * against the code that produces them, not a replica of it.
+ *
+ * The list is never empty — clearing `isDefault` elsewhere is conditional, but
+ * setting it here is not. So a set-default that reaches this function always
+ * writes; the only way to observe no write at all is to be refused before it,
+ * by the `isSavedViewId` guard in the handler (and, upstream of that, by the
+ * menu entry the same predicate hides).
+ */
+export function setDefaultViewPatches(
+    savedViews: readonly any[],
+    vid: string,
+): Array<{ viewId: string; patch: { isDefault: boolean } }> {
+    const patches = savedViews
+        .filter((sv: any) => viewRowId(sv) !== vid && sv.isDefault)
+        .map((sv: any) => ({ viewId: viewRowId(sv) as string, patch: { isDefault: false } }));
+    patches.push({ viewId: vid, patch: { isDefault: true } });
+    return patches;
 }
 
 export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: any) {
@@ -678,7 +830,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                         // tab id so a duplicate's `id` field (which may have
                         // been copied verbatim from the source artifact) does
                         // not collide with the source's view id during dedup.
-                        id: sv.name || sv.id,
+                        // `viewRowId` owns that rule for every consumer of this
+                        // array too, so the key written here and the key read
+                        // back cannot drift apart (objectui#4211).
+                        id: viewRowId(sv),
                         objectName: sv.objectName || sv.object || objectName,
                     }));
                     setSavedViews(normalized);
@@ -739,93 +894,19 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         const resolveDefaultColumns = (): string[] =>
             defaultListColumnsFromObject(objectDef, 5, { orgAttribution });
 
-        const definedViews = objectDef.listViews || objectDef.list_views || {};
-        const viewList = Object.entries(definedViews).map(([key, value]: [string, any]) => {
-            const override = viewOverrides[key];
-            // Override wins per-key — saved overrides represent user
-            // preferences (density, column widths, etc.) that should
-            // shadow the embedded definition.
-            return {
-                id: key,
-                ...value,
-                ...(override || {}),
-                type: (override?.type) || value.type || 'grid',
-            };
-        });
-
-        // Honor `objectDef.list` (the primary list view, per @objectstack/spec
-        // ViewSchema). MetadataProvider mirrors it into `listViews` so it's
-        // already in `viewList` above; promote it to the front and mark it as
-        // the default so `defaultViewId` picks it over secondary listViews.
-        //
-        // Its id is the composer's runtime identity (objectui#3770), which is
-        // what the tab label / description / emptyState are translated under:
-        // `viewLabel` reads `objects.<object>._views.<bare key>.label`, and for a
-        // default list declared without a `name` that bare key is `default`.
-        const primary = (objectDef as any).list;
-        const primaryId = defaultListViewId(objectDef.name, primary);
-        if (primaryId) {
-            const idx = viewList.findIndex(v => v.id === primaryId);
-            if (idx >= 0) {
-                const [entry] = viewList.splice(idx, 1);
-                viewList.unshift({ ...entry, isDefault: true });
-            } else {
-                const override = viewOverrides[primaryId];
-                viewList.unshift({
-                    id: primaryId,
-                    ...primary,
-                    ...(override || {}),
-                    type: (override?.type) || primary.type || 'grid',
-                    isDefault: true,
-                });
-            }
-        }
-
-        if (viewList.length === 0) {
-            viewList.push({
+        const viewList = buildViewTabs({
+            definedViews: objectDef.listViews || objectDef.list_views || {},
+            primary: (objectDef as any).list,
+            primaryId: defaultListViewId(objectDef.name, (objectDef as any).list),
+            savedViews,
+            viewOverrides,
+            fallbackTab: () => ({
                 id: 'all',
                 label: t('console.objectView.allRecords'),
                 type: 'grid',
                 columns: resolveDefaultColumns(),
-            });
-        }
-
-        // Merge user-defined views (sys_view) after metadata-defined views.
-        // Dedup by id so a saved view that shadows a metadata view wins.
-        const metaIds = new Set(viewList.map(v => v.id));
-        for (const sv of savedViews) {
-            const id = sv.id || sv._id;
-            if (!id) continue;
-            // Drop undefined fields so a partial overlay (e.g. baseline row
-            // with no user customization) does not stomp `isDefault`/`columns`
-            // populated from the metadata view it shadows.
-            const rawNormalized: Record<string, any> = {
-                label: sv.label || sv.name || id,
-                type: sv.type || 'grid',
-                columns: sv.columns,
-                filter: sv.filter,
-                sort: sv.sort,
-                showSearch: sv.showSearch,
-                showFilters: sv.showFilters,
-                showSort: sv.showSort,
-                isPinned: sv.isPinned,
-                isDefault: sv.isDefault,
-                visibility: sv.visibility,
-                sortOrder: sv.sortOrder,
-                ...sv,
-                id,
-            };
-            const normalized: Record<string, any> = {};
-            for (const [k, v] of Object.entries(rawNormalized)) {
-                if (v !== undefined) normalized[k] = v;
-            }
-            if (metaIds.has(id)) {
-                const idx = viewList.findIndex(v => v.id === id);
-                viewList[idx] = { ...viewList[idx], ...normalized };
-            } else {
-                viewList.push(normalized);
-            }
-        }
+            }),
+        });
 
         // Apply default columns to any grid-like view that has no explicit
         // columns (e.g. saved views created via "Add View" before the user
@@ -857,8 +938,8 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             if (aUser !== undefined && bUser !== undefined) return aUser - bUser;
             if (aUser !== undefined) return -1;
             if (bUser !== undefined) return 1;
-            const aSaved = savedViews.find((sv: any) => (sv.id || sv._id) === a.id);
-            const bSaved = savedViews.find((sv: any) => (sv.id || sv._id) === b.id);
+            const aSaved = savedViews.find((sv: any) => viewRowId(sv) === a.id);
+            const bSaved = savedViews.find((sv: any) => viewRowId(sv) === b.id);
             const aHasOrder = aSaved && typeof aSaved.sortOrder === 'number';
             const bHasOrder = bSaved && typeof bSaved.sortOrder === 'number';
             // Only an explicit user `sortOrder` should reorder views away from
@@ -963,7 +1044,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
 
     const handleViewAction = useCallback((actionType: string, viewType: string) => {
         if (actionType === 'settings') {
-            const matchedView = views.find((v: { id: string; type: string }) => v.type === viewType);
+            // `type` is optional on a view entry until the grid-like default
+            // pass fills it in, so the predicate must tolerate its absence.
+            const matchedView = views.find((v: { id: string; type?: string }) => v.type === viewType);
             if (matchedView) handleViewChange(matchedView.id);
             setViewConfigPanelMode('edit');
             setShowViewConfigPanel(true);
@@ -973,7 +1056,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // ─── ViewTabBar CRUD callbacks (Phase 2) ────────────────────────────
     /** Returns true if the view is backed by a sys_view record (mutable). */
     const isSavedView = useCallback((vid: string) => {
-        return savedViews.some((sv: any) => (sv.id || sv._id) === vid);
+        return isSavedViewId(savedViews, vid);
     }, [savedViews]);
 
     const handleRenameView = useCallback(async (vid: string, newName: string) => {
@@ -1052,11 +1135,11 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             // Clear `isDefault` on all other saved views, then set this one.
             if (typeof (dataSource as any)?.updateView !== 'function') return;
             const updateView = (dataSource as any).updateView;
-            const updates = savedViews
-                .filter((sv: any) => (sv.id || sv._id) !== vid && sv.isDefault)
-                .map((sv: any) => updateView(objectName, sv.id || sv._id, { isDefault: false }));
-            updates.push(updateView(objectName, vid, { isDefault: true }));
-            await Promise.all(updates);
+            await Promise.all(
+                setDefaultViewPatches(savedViews, vid).map(
+                    ({ viewId: target, patch }) => updateView(objectName, target, patch),
+                ),
+            );
             setRefreshKey(k => k + 1);
         } catch (err) {
             console.error('[ViewTabBar] Failed to set default view:', err);
@@ -1077,7 +1160,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         // sessions / users can pick up the order from the backend.
         if (typeof (dataSource as any)?.updateView === 'function') {
             const updateView = (dataSource as any).updateView;
-            const savedIdSet = new Set(savedViews.map((sv: any) => sv.id || sv._id));
+            const savedIdSet = new Set(savedViews.map((sv: any) => viewRowId(sv)));
             const updates = orderedIds
                 .filter(id => savedIdSet.has(id))
                 .map((id, idx) => updateView(objectName, id, { sortOrder: idx }));
@@ -1992,7 +2075,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                  mutating callbacks short-circuit with a toast. */}
              {views.length >= 1 && (() => {
                const viewTabItems: ViewTabItem[] = views.map((view: any) => {
-                 const saved = savedViews.find((sv: any) => (sv.id || sv._id) === view.id);
+                 const saved = savedViews.find((sv: any) => viewRowId(sv) === view.id);
                  // System views (loaded from objectDef.listViews / metadata) are
                  // *read-only*. Only sys_view-backed records can be mutated by
                  // the user; admins must duplicate a system view to customize it.

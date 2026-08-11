@@ -9,6 +9,15 @@
 import { expandViewContainer } from '@objectstack/spec/ui';
 
 /**
+ * A view body as the switcher receives it: a stored metadata document, read
+ * structurally. Deliberately open — the same body arrives as a spec view, as an
+ * overlay row and as a persisted override, and this module only ever inspects
+ * its identity keys.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ViewBody = Record<string, any>;
+
+/**
  * Runtime identity of an aggregated container's DEFAULT `list` view — asked of
  * the spec's view composer, never spelled out here (objectui#3770).
  *
@@ -45,4 +54,84 @@ export function defaultListViewId(objectName: string, list: unknown): string | u
     return declared;
   }
   return expandViewContainer(objectName, { list })[0]?.name;
+}
+
+/**
+ * The identity of ONE view row — the single spelling every consumer asks
+ * (objectui#4211).
+ *
+ * Views reach `ObjectView` through two independent reads of the same
+ * `type='view'` metadata namespace, and each used to spell the row's identity
+ * for itself:
+ *
+ *   - the overlay read (`listViews` → `savedViews`) normalized `sv.name || sv.id`;
+ *   - every consumer of a normalized row then re-derived `sv.id || sv._id`;
+ *   - the tab list built its entries as `{ id: <key>, ...body, ...override }`,
+ *     where `id` sits FIRST and any `id` key inside the merged body or the
+ *     stored override therefore REDEFINED the tab's identity.
+ *
+ * The third spelling is the defect. A stored view body can legitimately carry
+ * an `id` key — `persistViewPatch` writes the whole tab object (`id` included)
+ * back through `updateViewConfig`, and a duplicated view copies its source
+ * artifact's `id` verbatim — so the spread handed the tab an identity the
+ * overlay read had never heard of. `isSavedView` then answered false for a view
+ * that *is* saved, which both hid the set-default / rename / delete menu
+ * entries (`readonly: !saved`) and short-circuited the handlers behind them.
+ *
+ * Order is `name` → `id` → `_id`: the overlay is name-keyed
+ * (`/meta/view/:name` is name-addressed, and `ViewItemNameSchema` judges that
+ * string), so `name` is the identity whenever the row carries one. Empty
+ * strings are skipped rather than returned, so a blank `name` falls through to
+ * the next spelling instead of yielding an id nothing can match.
+ *
+ * IDEMPOTENT by construction, which is what lets one function serve both the
+ * producer and its readers: `viewRowId(normalized) === viewRowId(raw)` for
+ * every row, because normalization only ever writes the answer back onto `id`
+ * while leaving `name` in place.
+ */
+export function viewRowId(row: unknown): string | undefined {
+  if (!row || typeof row !== 'object') return undefined;
+  const record = row as Record<string, unknown>;
+  for (const key of ['name', 'id', '_id'] as const) {
+    const value = record[key];
+    if (typeof value === 'string' && value !== '') return value;
+  }
+  return undefined;
+}
+
+/**
+ * Whether `vid` names a view backed by an overlay row — i.e. one the user may
+ * rename / delete / pin / set-default.
+ *
+ * This is the exact predicate BOTH halves of the surface consult: the tab's
+ * `readonly` flag (which decides whether the menu entry is rendered at all) and
+ * the early return inside each mutating handler. They must never disagree —
+ * a tab that renders the entry but whose handler refuses it is a click that
+ * fires no write, and a saved view whose entry is hidden is a capability the
+ * user cannot reach. Sharing one function is what keeps them in step.
+ */
+export function isSavedViewId(savedViews: readonly unknown[], vid: string): boolean {
+  return savedViews.some((sv) => viewRowId(sv) === vid);
+}
+
+/**
+ * Build one switcher tab, stamping its identity LAST.
+ *
+ * The merged bodies (the metadata view definition, the persisted override, the
+ * overlay row) are all stored documents, and a stored document may carry an
+ * `id` key of its own. Assigning `id` after them — rather than declaring it
+ * first and letting the spreads run over it — is what makes the tab id a
+ * property of the caller's key rather than of whatever happens to be in the
+ * data. See {@link viewRowId} for how that clobbering was reached in practice.
+ */
+export function viewEntry(
+  id: string,
+  ...bodies: Array<ViewBody | undefined | null>
+): ViewBody & { id: string } {
+  const entry: ViewBody = {};
+  for (const body of bodies) {
+    if (body && typeof body === 'object') Object.assign(entry, body);
+  }
+  entry.id = id;
+  return entry as ViewBody & { id: string };
 }

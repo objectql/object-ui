@@ -28,7 +28,7 @@
  * never touches `credentials`, so a same-origin session cookie still flows.
  */
 
-import { MetadataClient } from '@object-ui/data-objectstack';
+import { MetadataClient, type MetadataSaveAdvisoryListener } from '@object-ui/data-objectstack';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 
 /**
@@ -63,6 +63,15 @@ export interface ConsoleMetadataClientOptions {
   previewDrafts?: boolean;
   /** Scope reads/writes to a tenant environment (`withEnvironment`). */
   environmentId?: string;
+  /**
+   * #4133 — sink for the runtime authoring gate's advisory findings on a
+   * SUCCESSFUL save (objectstack#7435). Passed straight through to
+   * {@link MetadataClient}; `useMetadataClient` supplies the console's toast
+   * renderer, which is what puts one wiring in front of every save call site
+   * in the app. Omitted for read-only clients (`MetadataProvider`), which
+   * never write and so can never receive one.
+   */
+  onSaveAdvisory?: MetadataSaveAdvisoryListener;
 }
 
 /**
@@ -72,11 +81,12 @@ export interface ConsoleMetadataClientOptions {
 export function createConsoleMetadataClient(
   options: ConsoleMetadataClientOptions = {},
 ): MetadataClient {
-  const { previewDrafts = false, environmentId } = options;
+  const { previewDrafts = false, environmentId, onSaveAdvisory } = options;
   const client = new MetadataClient({
     baseUrl: resolveMetadataBaseUrl(),
     previewDrafts,
     fetch: consoleApiFetch,
+    ...(onSaveAdvisory ? { onSaveAdvisory } : {}),
   });
   return environmentId ? client.withEnvironment(environmentId) : client;
 }

@@ -114,15 +114,21 @@ vi.mock('@object-ui/react', async (importOriginal) => ({
   useOffline: () => ({ isOnline: true }),
 }));
 
+// Presence renders identifiably (and with a non-empty tenant list) so the
+// #4197 boundary case can assert that presence stays app-only chrome while the
+// activity feed goes user-scoped. `useTenantPresence` is a transport
+// subscription, not a `dataSource.find` — there is no presence *read* to count.
 vi.mock('@object-ui/collaboration', () => ({
-  PresenceAvatars: () => null,
-  useTenantPresence: () => [],
+  PresenceAvatars: () => <div data-testid="presence-avatars" />,
+  useTenantPresence: () => [{ id: 'u2', name: 'Wang Wu' }],
 }));
 
 vi.mock('../ModeToggle', () => ({ ModeToggle: () => null }));
 vi.mock('../WorkspaceSwitcher', () => ({ WorkspaceSwitcher: () => null }));
 vi.mock('../LocaleSwitcher', () => ({ LocaleSwitcher: () => null }));
-vi.mock('../ConnectionStatus', () => ({ ConnectionStatus: () => null }));
+vi.mock('../ConnectionStatus', () => ({
+  ConnectionStatus: () => <div data-testid="connection-dot" />,
+}));
 vi.mock('../AppSwitcher', () => ({ AppSwitcher: () => null }));
 vi.mock('../LocalizedSidebarTrigger', () => ({ LocalizedSidebarTrigger: () => null }));
 vi.mock('../PreviewBadge', () => ({ PreviewBadge: () => null }));
@@ -176,6 +182,31 @@ const finds: Array<{ object: string; query: unknown }> = [];
 /** What the fake `sys_inbox_message` collection holds for the current test. */
 let inboxRows: Array<Record<string, unknown>> = [];
 
+/**
+ * #4197 — one `sys_activity` row in plugin-audit's raw column names, the shape
+ * both the bell's Activity tab and Home's activity card map onto `ActivityItem`.
+ * A named human actor, so it survives BOTH mappings (Home additionally drops
+ * `System`-actor churn).
+ */
+const ACTIVITY_ROW = {
+  id: 'act_1',
+  type: 'updated',
+  actor_name: 'Li Si',
+  summary: 'updated Contract C-1',
+  object_name: 'hr_contract',
+  record_id: 'c_1',
+  timestamp: '2026-08-10T08:00:00Z',
+};
+
+/** What the fake `sys_activity` collection holds for the current test. */
+let activityRows: Array<Record<string, unknown>> = [];
+
+/**
+ * What `/api/v1/approvals/requests?status=pending` answers for the current
+ * test. Two rows ⇒ `pendingApprovalsCount` 2, which is the second badge addend.
+ */
+let approvalRows: Array<{ id: string }> = [];
+
 const fakeAdapter = {
   find: (object: string, query: unknown) => {
     finds.push({ object, query });
@@ -183,6 +214,7 @@ const fakeAdapter = {
     if (object === 'sys_notification_receipt') {
       return Promise.resolve({ data: inboxRows.length ? [DELIVERED_RECEIPT] : [] });
     }
+    if (object === 'sys_activity') return Promise.resolve({ data: activityRows });
     return Promise.resolve({ data: [] });
   },
   getClient: () => undefined,
@@ -193,13 +225,41 @@ vi.mock('../../providers/AdapterProvider', () => ({
 }));
 
 import { AppHeader } from '../AppHeader';
+import { useHomeInbox } from '../../hooks/useHomeInbox';
+import { __resetSharedUserFeeds } from '../../hooks/sharedUserFeeds';
+
+/** Every URL passed to `fetch`, in order — the approvals reads are counted here. */
+let fetchUrls: string[] = [];
 
 beforeEach(() => {
   finds.length = 0;
+  fetchUrls = [];
   inboxRows = [INBOX_ROW];
-  // The approvals count + auth-config reads are not under test; keep them from
-  // reaching the network (both are already soft-degrading).
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 404 })));
+  // Default: no activity, no approvals — so the #4110 cases above keep the
+  // exact badge arithmetic they were written against (approvals addend 0).
+  activityRows = [];
+  approvalRows = [];
+  // Drop the shared feeds' cache and poll timer so cases do not inherit each
+  // other's reads — the store deliberately outlives any one render tree.
+  __resetSharedUserFeeds();
+  // Route by URL: the approvals endpoint answers from `approvalRows`; every
+  // other request (auth config, mark-read) stays a soft-degrading 404.
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      fetchUrls.push(url);
+      if (url.includes('/api/v1/approvals/requests')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ data: approvalRows }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }
+      return Promise.resolve(new Response('{}', { status: 404 }));
+    }),
+  );
 });
 
 afterEach(() => {
@@ -209,6 +269,10 @@ afterEach(() => {
 
 /** Objects the bell's poller reads, in the order it issued them. */
 const inboxReads = () => finds.filter((f) => f.object === 'sys_inbox_message');
+/** `sys_activity` reads issued by anyone in the tree — the dedupe assertion. */
+const activityReads = () => finds.filter((f) => f.object === 'sys_activity');
+/** Approvals-endpoint requests issued by anyone in the tree. */
+const approvalReads = () => fetchUrls.filter((u) => u.includes('/api/v1/approvals/requests'));
 
 describe('AppHeader — the bell polls the inbox in every variant (#4110)', () => {
   it('lists a canonical inbox row on Home, where the To-do card already shows it', async () => {
@@ -259,5 +323,206 @@ describe('AppHeader — the bell polls the inbox in every variant (#4110)', () =
     await waitFor(() => expect(inboxReads().length).toBeGreaterThan(0));
     expect(await screen.findByText("You're all caught up")).toBeInTheDocument();
     expect(screen.queryByTestId('inbox-bell-badge')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * #4197 — the two sibling effects #4110 left behind. The pending-approvals poll
+ * (`if (!isApp || !user?.id) return;`) and the activity read
+ * (`if (!dataSource || !isApp) return;`) carried the same variant gate, so
+ * off-app the Approvals tab read "No pending approvals" and the Activity tab
+ * "No recent activity" — on the very page whose own cards (`useHomeInbox`,
+ * ungated) were showing both. Worse, the bell badge is
+ * `unreadTopics + pendingApprovalsCount`, so after #4110 only the FIRST addend
+ * was fetched off-app: the same user with the same data read 1 on Home and 3
+ * inside an app.
+ *
+ * `variant="home"` is also the AI screen — `AiChatPage` renders
+ * `<AppHeader variant="home" />`; there is no separate `ai-chat` variant
+ * (`AppHeaderVariant = 'app' | 'home' | 'orgs'`).
+ */
+describe('AppHeader — Approvals + Activity fill in every variant (#4197)', () => {
+  beforeEach(() => {
+    approvalRows = [{ id: 'apr_1' }, { id: 'apr_2' }];
+    activityRows = [ACTIVITY_ROW];
+  });
+
+  // 'app' is the control: it was green before the fix and must stay green.
+  for (const variant of ['home', 'orgs', 'app'] as const) {
+    it(`fills the Approvals tab on the ${variant} variant`, async () => {
+      render(<AppHeader variant={variant} appName={variant === 'app' ? 'ehr' : undefined} />);
+
+      // The count reached the popover: the breakdown line spells the second
+      // addend out unclamped, and the tab body offers the drill-in.
+      await waitFor(() =>
+        expect(screen.getByTestId('inbox-badge-breakdown-approvals')).toHaveTextContent(
+          '2 pending approvals',
+        ),
+      );
+      expect(screen.getByText('View approvals')).toBeInTheDocument();
+      expect(screen.queryByText('No pending approvals')).not.toBeInTheDocument();
+    });
+
+    it(`fills the Activity tab on the ${variant} variant`, async () => {
+      render(<AppHeader variant={variant} appName={variant === 'app' ? 'ehr' : undefined} />);
+
+      expect(await screen.findByText('updated Contract C-1')).toBeInTheDocument();
+      expect(screen.getByText('Li Si')).toBeInTheDocument();
+      expect(screen.queryByText('No recent activity')).not.toBeInTheDocument();
+    });
+
+    it(`reads the same badge on ${variant} as anywhere else — 1 unread topic + 2 approvals`, async () => {
+      render(<AppHeader variant={variant} appName={variant === 'app' ? 'ehr' : undefined} />);
+
+      // Both addends are fetched, so the badge reconciles against the
+      // breakdown line instead of against an unasked question (#4073).
+      await waitFor(() =>
+        expect(screen.getByTestId('inbox-bell-badge')).toHaveTextContent('3'),
+      );
+      expect(screen.getByTestId('inbox-badge-breakdown-total')).toHaveTextContent('3 total');
+      expect(screen.getByTestId('inbox-badge-breakdown-notifications')).toHaveTextContent(
+        '1 notifications',
+      );
+    });
+  }
+
+  it('still reports an empty approvals inbox as an answer, not a gate', async () => {
+    approvalRows = [];
+    render(<AppHeader variant="home" />);
+
+    await waitFor(() => expect(approvalReads().length).toBeGreaterThan(0));
+    expect(await screen.findByText('No pending approvals')).toBeInTheDocument();
+    // Badge falls back to the notifications addend alone — correctly this time.
+    expect(screen.getByTestId('inbox-bell-badge')).toHaveTextContent('1');
+  });
+});
+
+/**
+ * The To-do card's real data path. `HomePage` renders this hook's output
+ * alongside the bell inside `HomeLayout`, so on Home both consumers mount in
+ * the same commit — the duplicate-read site the card called out.
+ */
+function HomeTodoCardProbe() {
+  const { pendingApprovalsCount, activities } = useHomeInbox();
+  return (
+    // Fenced off with a testid so the assertions below can tell the card's
+    // copy of a row apart from the bell's — when the fix works, BOTH render
+    // the same text and an unscoped `getByText` is ambiguous by construction.
+    <div data-testid="home-cards">
+      <span data-testid="home-approvals-count">{pendingApprovalsCount}</span>
+      <span data-testid="home-activity-summary">{activities[0]?.description ?? ''}</span>
+    </div>
+  );
+}
+
+/**
+ * The pin on the triage ruling (#4197): consistency is the acceptance
+ * criterion and ONE fetch feeds both consumers. Naively dropping `isApp` would
+ * make Home issue the approvals read and the `sys_activity` read twice — once
+ * for the bell, once for `useHomeInbox` — which is precisely the trade-off the
+ * card refused to resolve by duplicate polling. Both consumers now read one
+ * shared store, so the read count stays 1 no matter how many mount.
+ */
+describe('AppHeader + Home cards share one fetch, not two (#4197)', () => {
+  beforeEach(() => {
+    approvalRows = [{ id: 'apr_1' }, { id: 'apr_2' }];
+    activityRows = [ACTIVITY_ROW];
+  });
+
+  it('issues ONE approvals read for the bell and the To-do card together', async () => {
+    render(
+      <>
+        <AppHeader variant="home" />
+        <HomeTodoCardProbe />
+      </>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('inbox-badge-breakdown-approvals')).toHaveTextContent(
+        '2 pending approvals',
+      ),
+    );
+    await waitFor(() => expect(screen.getByTestId('home-approvals-count')).toHaveTextContent('2'));
+
+    // …and exactly one request went out for the two of them.
+    expect(approvalReads()).toHaveLength(1);
+  });
+
+  it('issues ONE sys_activity read for the bell and the activity card together', async () => {
+    render(
+      <>
+        <AppHeader variant="home" />
+        <HomeTodoCardProbe />
+      </>,
+    );
+
+    // The one row surfaces in BOTH places — the bell's Activity tab and Home's
+    // card — so it is matched twice and each match is attributed explicitly.
+    await waitFor(() => {
+      const homeCards = screen.getByTestId('home-cards');
+      const shown = screen.getAllByText('updated Contract C-1');
+      expect(shown.some((el) => !homeCards.contains(el))).toBe(true); // the bell's tab
+      expect(shown.some((el) => homeCards.contains(el))).toBe(true); // Home's card
+    });
+
+    expect(activityReads()).toHaveLength(1);
+  });
+
+  it('serves both consumers the same numbers — the consistency criterion', async () => {
+    render(
+      <>
+        <AppHeader variant="home" />
+        <HomeTodoCardProbe />
+      </>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('home-approvals-count')).toHaveTextContent('2'));
+    // The bell's second badge addend IS the card's number, from one read.
+    expect(screen.getByTestId('inbox-badge-breakdown-approvals')).toHaveTextContent(
+      '2 pending approvals',
+    );
+  });
+});
+
+/**
+ * The other half of the boundary. `isApp` still means something — it is the
+ * flag that hides genuinely app-scoped chrome — so un-gating the two
+ * user/org-scoped reads must NOT drag presence off-app with them.
+ *
+ * Note what is being pinned: presence never was a *read*. `useTenantPresence`
+ * is a transport subscription (`PresenceProvider.subscribeTenant`) and the
+ * effect formerly named `fetchPresenceAndActivities` explicitly never probed
+ * it — its one and only read is `sys_activity`. So the boundary is a RENDER
+ * gate, and these assert it stayed put.
+ */
+describe('AppHeader — presence stays app-only chrome (#4197 boundary)', () => {
+  it('renders no presence avatars and no connection dot off-app', async () => {
+    render(<AppHeader variant="home" connectionState="connected" />);
+
+    // Settle on the INBOX read, not the activity read. Asserting an absence
+    // needs the tree to have done its work first, and the inbox poll is the
+    // one read this variant issues on both sides of this change (#4199
+    // un-gated it) — so this case stays green before AND after, which is what
+    // a boundary pin is for. Anchored on the activity read it went red on
+    // `origin/main` for the settle point never arriving, which would have
+    // dressed an unrelated timeout up as evidence about presence.
+    await waitFor(() => expect(inboxReads().length).toBeGreaterThan(0));
+    expect(screen.queryByTestId('presence-avatars')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('connection-dot')).not.toBeInTheDocument();
+  });
+
+  it('renders both inside an app (the control)', async () => {
+    render(<AppHeader variant="app" appName="ehr" connectionState="connected" />);
+
+    expect(await screen.findByTestId('presence-avatars')).toBeInTheDocument();
+    expect(screen.getByTestId('connection-dot')).toBeInTheDocument();
+  });
+
+  it('never issues a presence read in any variant — presence is a subscription', async () => {
+    render(<AppHeader variant="app" appName="ehr" connectionState="connected" />);
+
+    await waitFor(() => expect(activityReads().length).toBeGreaterThan(0));
+    // Not one read names presence — in the variant that DOES render it.
+    expect(finds.some((f) => String(f.object).includes('presence'))).toBe(false);
   });
 });

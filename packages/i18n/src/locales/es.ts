@@ -1290,6 +1290,7 @@ const es = {
     },
   },
   console: {
+    saveAdvisoryTitle: "Guardado: la comprobación de creación generó {{count}} recomendación(es)",
     settingsHub: {
       title: "Configuración",
       subtitle: "Configure su espacio de trabajo, las integraciones y los indicadores de funciones.",
