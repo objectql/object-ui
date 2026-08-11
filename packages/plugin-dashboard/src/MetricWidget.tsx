@@ -1,7 +1,12 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, getLazyIcon } from '@object-ui/components';
 import { cn } from '@object-ui/components';
-import { createSafeTranslation } from '@object-ui/i18n';
+import {
+  createSafeTranslation,
+  useDisplayLocale,
+  formatDisplayNumber,
+  type DisplayNumberFormatOptions,
+} from '@object-ui/i18n';
 import { ArrowDownIcon, ArrowUpIcon, MinusIcon, AlertCircle, Loader2 } from 'lucide-react';
 import { VARIANT_ICON_CLASSES, VARIANT_TEXT_CLASSES, type MetricColorVariant } from './colorVariants';
 
@@ -62,13 +67,14 @@ function formatMetricValue(
   value: string | number,
   format?: string,
   currency?: string,
+  locale?: string,
 ): string {
   if (value == null) return '';
   if (typeof value === 'string') {
     // If the string is a pure number, format it; else pass through.
     const n = Number(value);
     if (!isFinite(n) || value.trim() === '') return value;
-    return formatMetricValue(n, format, currency);
+    return formatMetricValue(n, format, currency, locale);
   }
   if (!isFinite(value as number)) return String(value);
 
@@ -85,20 +91,24 @@ function formatMetricValue(
   // "1.1M", '$0a' → "$1M"). Keeps big KPI numbers from overflowing a tile.
   const isCompact = /a/i.test(trimmed);
   if (isCompact) {
-    const opts: Intl.NumberFormatOptions = { notation: 'compact', maximumFractionDigits: decimals || 1 };
-    if (isCurrency) { opts.style = 'currency'; opts.currency = currency || symbolMap[trimmed[0]] || 'USD'; }
-    try { return new Intl.NumberFormat('en-US', opts).format(value as number); } catch { /* fall through */ }
+    const opts: DisplayNumberFormatOptions = {
+      locale,
+      notation: 'compact',
+      maximumFractionDigits: decimals || 1,
+    };
+    if (isCurrency) { opts.currency = currency || symbolMap[trimmed[0]] || 'USD'; }
+    try { return formatDisplayNumber(value as number, opts); } catch { /* fall through */ }
   }
 
   if (isCurrency) {
     const code = currency || symbolMap[trimmed[0]] || 'USD';
     try {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
+      return formatDisplayNumber(value as number, {
+        locale,
         currency: code,
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals,
-      }).format(value as number);
+      });
     } catch {
       return `${code} ${(value as number).toFixed(decimals)}`;
     }
@@ -109,10 +119,21 @@ function formatMetricValue(
     return `${v.toFixed(decimals)}%`;
   }
 
-  return new Intl.NumberFormat('en-US', {
+  // MEASURED EXCEPTION to objectui#4033's ordinal no-grouping default, and the
+  // reason this call passes no `scale`. `decimals` above is parsed out of a
+  // numeral.js format PATTERN (`'0,0.00'` → 2), not out of a field's declared
+  // scale — and it is 0 for the commonest KPI patterns (`'0,0'`, or no format
+  // at all). Grouping is load-bearing here, as this function's own contract
+  // says: "defaults to thousands separators with no decimals — that's what
+  // users expect for KPI cards (`1,930,000` not `1930000`)". Suppressing it
+  // would turn every unformatted dashboard aggregate into an unreadable digit
+  // run. The `en-US` locale hardcode IS fixed; the grouping default is not
+  // applied to this surface.
+  return formatDisplayNumber(value as number, {
+    locale,
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
-  }).format(value as number);
+  });
 }
 
 /** Resolve an I18nLabel (string or {key, defaultValue}) to a plain string. */
@@ -186,6 +207,7 @@ export const MetricWidget = ({
 }: MetricWidgetProps) => {
   const iconClasses = VARIANT_ICON_CLASSES[colorVariant] || VARIANT_ICON_CLASSES.default;
   const { t: tTrend } = useTrendT();
+  const locale = useDisplayLocale();
 
   const localizedTrendLabel = useMemo(() => {
     const raw = resolveLabel(description) || resolveLabel(trend?.label);
@@ -196,7 +218,7 @@ export const MetricWidget = ({
 
   const displayValue = useMemo(() => {
     const formatted = typeof value === 'number' || (typeof value === 'string' && value.trim() !== '' && isFinite(Number(value)))
-      ? formatMetricValue(value, format, currency)
+      ? formatMetricValue(value, format, currency, locale)
       : (value ?? '');
     const formattedStr = String(formatted);
     // Avoid duplicating a currency-style prefix/suffix that the formatter
@@ -204,7 +226,7 @@ export const MetricWidget = ({
     const effectivePrefix = prefix && formattedStr.startsWith(prefix) ? '' : (prefix ?? '');
     const effectiveSuffix = suffix && formattedStr.endsWith(suffix) ? '' : (suffix ?? '');
     return `${effectivePrefix}${formattedStr}${effectiveSuffix}`;
-  }, [value, format, currency, prefix, suffix]);
+  }, [value, format, currency, prefix, suffix, locale]);
 
   // Resolve icon if it's a string — uses lazy resolver so we don't pull
   // the entire lucide-react namespace into the bundle.

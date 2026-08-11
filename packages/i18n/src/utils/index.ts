@@ -25,3 +25,9 @@ export {
   transformSpecTranslations,
   type SpecTranslationData,
 } from './spec-translations';
+
+export {
+  formatDisplayNumber,
+  shouldGroupDisplayNumber,
+  type DisplayNumberFormatOptions,
+} from './number-display';

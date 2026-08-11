@@ -24,6 +24,7 @@
  */
 
 import { deriveFieldGroupLayout } from '@objectstack/spec/data';
+import type { ServiceObject } from '@objectstack/spec/data';
 import { detectStatusField } from '@object-ui/types';
 import { inferDetailColumns } from '../autoLayout';
 
@@ -52,16 +53,27 @@ export interface ObjectDefLike {
    * Declared field groups from the object designer. Fields opt in via
    * `field.group === group.key`; the detail synthesizer derives sections
    * from them when no explicit sections are provided.
+   *
+   * DERIVED from the spec's own authorable group, not restated. This key is a
+   * pass-through: nothing here reads a member of it, `deriveFieldGroupLayout`
+   * (`@objectstack/spec/data`) does — so the set of members this type should
+   * admit is by definition the set the spec declares, and hand-listing them
+   * could only ever drift from it. It had: the hand-written list this replaces
+   * carried `key`/`label`/`collapse` and the deprecated `collapsible`/`collapsed`
+   * pair, but not `icon`, `description` or `defaultExpanded`. Two of those three
+   * are read by this very file — `deriveFieldGroupDetailSections` passes
+   * `s.icon`/`s.description` through to the section descriptors under a comment
+   * citing #2548 ("Dropping them here made the spec keys silently inert on
+   * detail pages") — so an author declaring the icon the synthesizer honours was
+   * rejected by the type of the function that honours it.
+   *
+   * `Partial` is the one shape difference and it is deliberate: the spec makes
+   * `key`/`label` required and `collapse` defaulted, but this is the duck type
+   * for a raw object definition that has NOT been through a spec parse (the
+   * whole reason it exists — see the interface header), so every member has to
+   * be admissible as absent. Nothing here requires a group member to be present.
    */
-  fieldGroups?: Array<{
-    key?: string;
-    label?: string;
-    collapse?: 'none' | 'expanded' | 'collapsed';
-    /** @deprecated pre-ADR-0085 pair; honoured by the shared derivation. */
-    collapsible?: boolean;
-    /** @deprecated pre-ADR-0085 pair; honoured by the shared derivation. */
-    collapsed?: boolean;
-  }>;
+  fieldGroups?: Array<Partial<NonNullable<ServiceObject['fieldGroups']>[number]>>;
   /**
    * Spec `enable` capability toggles. Only `files` is read here:
    * `enable.files === true` (opt-in, #2727) makes the synthesizer emit an

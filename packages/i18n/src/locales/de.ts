@@ -544,7 +544,7 @@ const de = {
     sortRecords: "Datensätze sortieren",
     sortByIdSuffix: "(nach ID)",
     sortRelationalHint:
-      "Spalten, die auf einen anderen Datensatz verweisen, werden nicht aufgeführt: Sie lassen sich nur nach der gespeicherten ID sortieren, nicht nach dem in der Zelle angezeigten Namen. Fügen Sie ein Formelfeld mit diesem Namen hinzu, um danach zu sortieren.",
+      "Spalten, die auf einen anderen Datensatz verweisen, werden nicht aufgeführt: Sie lassen sich nur nach der gespeicherten ID sortieren, nicht nach dem in der Zelle angezeigten Namen. Um nach diesem Namen zu sortieren, denormalisieren Sie ihn auf dieses Objekt — als gespeichertes Feld, das bei einer Änderung der Quelle geschrieben wird — und sortieren Sie danach. Kein Formelfeld: Es ist virtuell, es wird keine Spalte dafür gespeichert, und der Server verweigert die Sortierung danach.",
     resetSortToDefault: "Auf Standard der Ansicht zurücksetzen",
     group: "Gruppieren",
     groupBy: "Gruppieren nach",

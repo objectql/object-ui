@@ -544,7 +544,7 @@ const fr = {
     sortRecords: "Trier les enregistrements",
     sortByIdSuffix: "(par ID)",
     sortRelationalHint:
-      "Les colonnes qui pointent vers un autre enregistrement ne sont pas listées : elles ne peuvent être triées que par l'ID stocké, et non par le nom affiché dans la cellule. Pour trier par ce nom, ajoutez un champ de formule qui le contient.",
+      "Les colonnes qui pointent vers un autre enregistrement ne sont pas listées : elles ne peuvent être triées que par l'ID stocké, et non par le nom affiché dans la cellule. Pour trier par ce nom, dénormalisez-le sur cet objet sous la forme d'un champ stocké, écrit à chaque modification de la source, puis triez sur ce champ. Pas un champ de formule : il est virtuel, aucune colonne n'est stockée pour lui et le serveur refuse de trier dessus.",
     resetSortToDefault: "Réinitialiser au tri par défaut de la vue",
     group: "Grouper",
     groupBy: "Grouper par",

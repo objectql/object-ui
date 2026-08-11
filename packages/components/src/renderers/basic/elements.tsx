@@ -27,7 +27,14 @@
 import * as React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { useAdapter, useAction } from '@object-ui/react';
-import { useObjectTranslation, pickLocalized, useLocalization } from '@object-ui/i18n';
+import {
+  useObjectTranslation,
+  pickLocalized,
+  useLocalization,
+  useDisplayLocale,
+  formatDisplayNumber,
+  type DisplayNumberFormatOptions,
+} from '@object-ui/i18n';
 import { cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { Button, Separator } from '../../ui';
@@ -299,9 +306,9 @@ ComponentRegistry.register('button', ElementButtonRenderer, {
 // element:number — aggregate metric pulled from an object via the adapter.
 // ---------------------------------------------------------------------------
 
-const FORMAT_OPTS: Record<string, Intl.NumberFormatOptions> = {
+const FORMAT_OPTS: Record<string, DisplayNumberFormatOptions> = {
   number: {},
-  currency: { style: 'currency', currency: 'USD' },
+  currency: { currency: 'USD' },
   percent: { style: 'percent', maximumFractionDigits: 1 },
 };
 
@@ -322,7 +329,10 @@ function formatValue(
   if (format === 'currency') {
     opts = currency ? { ...FORMAT_OPTS.currency, currency } : FORMAT_OPTS.number;
   }
-  const body = new Intl.NumberFormat(locale, opts).format(value);
+  // No `scale` passed: an `element:number` renders an AGGREGATE (count / sum /
+  // avg), not a scale-bearing field value, so objectui#4033's ordinal
+  // no-grouping default must not fire on it — a large count keeps separators.
+  const body = formatDisplayNumber(value, { ...opts, locale });
   return `${prefix ?? ''}${body}${suffix ?? ''}`;
 }
 
@@ -338,8 +348,12 @@ function ElementNumberRenderer({ schema }: { schema: any }) {
     aria?: Record<string, any>;
   }>(schema);
   const adapter = useAdapter() as any;
-  // Tenant default currency + locale (ADR-0053) for a `currency`-format metric.
-  const { currency: tenantCurrency, locale } = useLocalization();
+  // Tenant default currency (ADR-0053) for a `currency`-format metric; the
+  // display locale resolves through the shared precedence (tenant regional
+  // default → active UI language), so the metric follows a language switch even
+  // when no tenant locale is configured (objectui#4033).
+  const { currency: tenantCurrency } = useLocalization();
+  const locale = useDisplayLocale();
   const [value, setValue] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [error, setError] = React.useState<string | null>(null);

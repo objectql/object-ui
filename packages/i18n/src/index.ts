@@ -108,3 +108,13 @@ export {
 export { pickLocalized } from './pickLocalized';
 export { LocalizationProvider, useLocalization, type LocalizationValue } from './LocalizationContext';
 export { resolveFieldCurrency } from './currency';
+
+// The one number-display formatter (objectui#4033) and the locale it formats
+// in. Every field cell / widget / metric renderer goes through this pair —
+// see `utils/number-display.ts` for the grouping policy and its interim status.
+export { useDisplayLocale } from './useDisplayLocale';
+export {
+  formatDisplayNumber,
+  shouldGroupDisplayNumber,
+  type DisplayNumberFormatOptions,
+} from './utils/index';

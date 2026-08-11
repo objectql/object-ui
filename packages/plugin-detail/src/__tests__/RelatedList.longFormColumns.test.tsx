@@ -30,7 +30,18 @@ import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 // The markdown cell renderer is behind `React.lazy`; import the chunk at module
 // scope so the factory resolves immediately and the assertions are not racing
-// the module loader (AGENTS.md §测试纪律). Same specifier the component uses.
+// the module loader (AGENTS.md §测试纪律). This matters most for the NEGATIVE
+// cases: they check `queryByText('Heading')` synchronously after awaiting only
+// the row, so without the pre-load a wrongly-derived richtext column would
+// still read as absent while its chunk was in flight — green for the wrong
+// reason. It resolves to the same module the `React.lazy` factory inside
+// `@object-ui/fields` loads relatively, so the factory finds it already cached.
+//
+// The specifier reaches `@object-ui/fields`' SOURCE through the repo vitest
+// alias; the package's `exports` map publishes only `.` and `./style.css`, so
+// nothing but that alias makes this path resolvable — which is why
+// `tsconfig.test.json` has to restate it as a `paths` entry (see there, and
+// #4325 for the packaging gap itself).
 import '@object-ui/fields/widgets/MarkdownContent';
 import { RelatedList } from '../RelatedList';
 

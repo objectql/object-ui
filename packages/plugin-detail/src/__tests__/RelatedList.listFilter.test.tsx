@@ -28,6 +28,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { MockInstance } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import * as React from 'react';
 import { RelatedList } from '../RelatedList';
@@ -112,7 +113,9 @@ describe('RelatedList — the list’s own filter reaches the query (objectstack
 });
 
 describe('RelatedList — a filter the raw-URL fallback cannot express (objectstack#7118)', () => {
-  let warn: ReturnType<typeof vi.spyOn>;
+  // Typed at the spied method — see `RelatedList.addPickerGuard.test.tsx` for
+  // why the bare generic form erases the call signature.
+  let warn: MockInstance<typeof console.warn>;
   let originalFetch: typeof globalThis.fetch;
   let fetchMock: ReturnType<typeof vi.fn>;
 

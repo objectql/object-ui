@@ -548,7 +548,7 @@ const es = {
     sortRecords: "Ordenar registros",
     sortByIdSuffix: "(por ID)",
     sortRelationalHint:
-      "Las columnas que apuntan a otro registro no aparecen aquí: solo pueden ordenarse por el ID almacenado, no por el nombre que se muestra en la celda. Para ordenar por ese nombre, añada un campo de fórmula que lo contenga.",
+      "Las columnas que apuntan a otro registro no aparecen aquí: solo pueden ordenarse por el ID almacenado, no por el nombre que se muestra en la celda. Para ordenar por ese nombre, desnormalícelo en este objeto como un campo almacenado, que se escribe cuando cambia el origen, y ordene por él. No un campo de fórmula: es virtual, no se almacena ninguna columna para él y el servidor rechaza ordenar por él.",
     resetSortToDefault: "Restablecer al valor predeterminado de la vista",
     group: "Agrupar",
     groupBy: "Agrupar por",

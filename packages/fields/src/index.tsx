@@ -9,7 +9,7 @@
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
 import { ComponentRegistry, percentDisplayValue, getRecordDisplayName } from '@object-ui/core';
-import { useLocalization } from '@object-ui/i18n';
+import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
 import { Badge, Avatar, AvatarImage, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
 import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
@@ -363,19 +363,19 @@ export function coerceToSafeValue(value: unknown): string | number | boolean | n
 import { resolveFieldCurrency } from './currency';
 export { resolveFieldCurrency };
 
-export function formatCurrency(value: number, currency?: string): string {
+export function formatCurrency(value: number, currency?: string, locale?: string): string {
   const isWhole = Number.isFinite(value) && value === Math.trunc(value);
   const maxFrac = isWhole ? 0 : 2;
   if (!currency) {
-    return formatNumber(value, maxFrac);
+    return formatNumber(value, maxFrac, locale);
   }
   try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
+    return formatDisplayNumber(value, {
+      locale,
       currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: maxFrac,
-    }).format(value);
+    });
   } catch {
     return `${currency} ${value.toFixed(maxFrac)}`;
   }
@@ -386,25 +386,26 @@ export function formatCurrency(value: number, currency?: string): string {
  * E.g., $150,000 → $150K, $1,200,000 → $1.2M
  * When `currency` is undefined, returns a compact number without symbol.
  */
-export function formatCompactCurrency(value: number, currency?: string): string {
+export function formatCompactCurrency(value: number, currency?: string, locale?: string): string {
   if (!currency) {
     try {
-      const formatted = new Intl.NumberFormat('en-US', {
+      const formatted = formatDisplayNumber(value, {
+        locale,
         notation: 'compact',
         maximumFractionDigits: 1,
-      }).format(value);
+      });
       return formatted.replace(/\.0(?=[KMBT])/, '');
     } catch {
       return String(value);
     }
   }
   try {
-    const formatted = new Intl.NumberFormat('en-US', {
-      style: 'currency',
+    const formatted = formatDisplayNumber(value, {
+      locale,
       currency,
       notation: 'compact',
       maximumFractionDigits: 1,
-    }).format(value);
+    });
     // Strip trailing ".0" before compact suffix for consistent cross-environment output
     // e.g. "$150.0K" → "$150K" while keeping "$1.5M" intact
     return formatted.replace(/\.0(?=[KMBT])/, '');
@@ -418,12 +419,18 @@ export function formatCompactCurrency(value: number, currency?: string): string 
  * Used as a safe fallback when a currency-typed field has no `currency`
  * configured — we'd rather render `1,234.50` than silently assume USD.
  */
-export function formatNumber(value: number, decimals: number = 2): string {
+export function formatNumber(value: number, decimals: number = 2, locale?: string): string {
   try {
-    return new Intl.NumberFormat('en-US', {
+    // Deliberately passes NO `scale`: `decimals` here is a display width the
+    // caller chose, not a field's declared scale, so the ordinal no-grouping
+    // policy must not fire. `formatCurrency`'s no-currency fallback lands here
+    // with `decimals: 0` for a whole amount — that is still money and must keep
+    // its separators.
+    return formatDisplayNumber(value, {
+      locale,
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
-    }).format(value);
+    });
   } catch {
     return value.toFixed(decimals);
   }
@@ -604,8 +611,12 @@ export function TextCellRenderer({ value }: CellRendererProps): React.ReactEleme
  * Number field cell renderer
  */
 export function NumberCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
+  // Hook before the empty-value early return — a value flipping between null
+  // and set must not change the hook count between renders (same rule as
+  // CurrencyCellRenderer below).
+  const locale = useDisplayLocale();
   if (value == null) return <EmptyValue />;
-  
+
   const safe = coerceToSafeValue(value);
   const numField = field as any;
   // Decimal places come from `scale` (the `s` in a `decimal(p, s)` column),
@@ -616,13 +627,22 @@ export function NumberCellRenderer({ value, field }: CellRendererProps): React.R
   // scale 2 → "16.00", a field with scale 3 → "3.140"); when it is absent we
   // keep the minimum at 0 so trailing zeros are trimmed and only cap the
   // maximum (20 = Intl max) to preserve the value's natural precision.
+  //
+  // `scale` is also the grouping POLICY input (objectui#4033): a declared
+  // `scale: 0` with no currency is a discrete integer — a year, a fiscal
+  // period, an ordinal — and those are rendered ungrouped, so a `Field.number`
+  // year finally shows `2026` instead of `2,026`. An ABSENT scale keeps
+  // grouping: absent means "decimals unknown", not "integer". The policy and
+  // its interim status live in `formatDisplayNumber`, not here.
   const scale = typeof numField.scale === 'number' ? numField.scale : undefined;
   const num = Number(safe);
   const formatted = !isNaN(num)
-    ? new Intl.NumberFormat('en-US', {
+    ? formatDisplayNumber(num, {
+        locale,
+        scale,
         minimumFractionDigits: scale ?? 0,
         maximumFractionDigits: scale ?? 20,
-      }).format(num)
+      })
     : String(safe);
   
   return <span className="tabular-nums">{formatted}</span>;
@@ -635,6 +655,7 @@ export function CurrencyCellRenderer({ value, field }: CellRendererProps): React
   // Hooks before the empty-value early return — a value flipping between
   // null and set must not change the hook count between renders.
   const { currency: tenantCurrency } = useLocalization();
+  const locale = useDisplayLocale();
   if (value == null) return <EmptyValue />;
 
   const safe = coerceToSafeValue(value);
@@ -645,7 +666,7 @@ export function CurrencyCellRenderer({ value, field }: CellRendererProps): React
   const currency = resolveFieldCurrency(field as any, tenantCurrency);
   const num = Number(safe);
   const formatted = !isNaN(num)
-    ? formatCurrency(num, currency)
+    ? formatCurrency(num, currency, locale)
     : String(safe);
 
   return <span className="tabular-nums font-medium whitespace-nowrap">{formatted}</span>;

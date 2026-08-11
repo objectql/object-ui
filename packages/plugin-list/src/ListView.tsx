@@ -457,8 +457,14 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'list.sort': 'Sort',
   'list.sortRecords': 'Sort Records',
   'list.sortByIdSuffix': '(by ID)',
+  // objectui#4294 — the remedy sentence must match `en`'s byte for byte. It is
+  // this copy, not the pack, that renders on a provider-less host (and in this
+  // package's own tests), so a pack-only reword would leave the old advice —
+  // "add a formula field" — on the exact surface the card is about. No gate
+  // compares this table to `en`: `check:i18n-keys` judges inline
+  // `t(key, { defaultValue })` options, never a `createSafeTranslation` table.
   'list.sortRelationalHint':
-    'Columns that link to another record are not listed: they can only be sorted by the stored ID, not by the name shown in the cell. To sort by that name, add a formula field holding it.',
+    'Columns that link to another record are not listed: they can only be sorted by the stored ID, not by the name shown in the cell. To sort by that name, denormalize it onto this object as a stored field, written when the source changes, and sort by that. Not a formula field: it is virtual, so no column is stored for it and the server refuses to sort by one.',
   'list.group': 'Group',
   'list.groupBy': 'Group By',
   'list.export': 'Export',
