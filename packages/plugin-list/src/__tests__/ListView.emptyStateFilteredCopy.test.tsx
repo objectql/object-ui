@@ -64,13 +64,38 @@ const BASE: ListViewSchema = {
   fields: ['name'],
 };
 
+/**
+ * A `list-view` node as an AUTHOR writes it, before `normalizeListViewSchema`
+ * folds the legacy vocabulary onto the spec's (#2890).
+ *
+ * `ListViewSchema` describes the CANONICAL surface, so it types `filter` as the
+ * spec's `ViewFilterRule[]` (`{ field, operator, value }` objects). What
+ * objectui actually stores and passes to `$filter` is an ObjectQL FilterNode
+ * array — `[['status', 'not_in', ['archived']]]`, the form used below and the
+ * form the issue's repro carries. That divergence is stated outright in the
+ * normalizer's own contract note ("the spec types `filter` as `ViewFilterRule[]`
+ * … so objectui's field is typed from the spec but used as something else …
+ * That mismatch is real and out of scope here"), and it is the reason these
+ * fixtures cannot be re-spelled into the declared shape: re-spelling them would
+ * stop testing the filter form the renderer actually receives.
+ *
+ * So the assertion is deliberately made about pre-normalization input, and the
+ * cast says exactly that rather than widening `ListViewSchema` to admit both —
+ * widening is what would re-fork the vocabulary #2890 unified. The legacy input
+ * vocabulary has no declared type of its own today; filed as #4337.
+ */
+const authored = (node: Record<string, unknown>): ListViewSchema =>
+  node as unknown as ListViewSchema;
+
 describe('ListView empty state — a filtered view says it is filtered (#4155)', () => {
   it('a view filtered to empty says "no matching records", not "nothing here yet"', async () => {
-    const panel = await emptyState({
-      ...BASE,
-      // The source-declared filter from the issue's repro.
-      filter: [['status', 'not_in', ['archived', 'deleted']]],
-    } as ListViewSchema);
+    const panel = await emptyState(
+      authored({
+        ...BASE,
+        // The source-declared filter from the issue's repro.
+        filter: [['status', 'not_in', ['archived', 'deleted']]],
+      }),
+    );
 
     expect(panel.textContent).toMatch(/No matching records/i);
     expect(panel.textContent).not.toMatch(/Nothing here yet/i);
@@ -91,11 +116,13 @@ describe('ListView empty state — a filtered view says it is filtered (#4155)',
   });
 
   it("the author's own emptyState copy still wins over both", async () => {
-    const panel = await emptyState({
-      ...BASE,
-      filter: [['status', 'not_in', ['archived']]],
-      emptyState: { title: 'No open work orders', message: 'Dispatch one to get started.' },
-    } as ListViewSchema);
+    const panel = await emptyState(
+      authored({
+        ...BASE,
+        filter: [['status', 'not_in', ['archived']]],
+        emptyState: { title: 'No open work orders', message: 'Dispatch one to get started.' },
+      }),
+    );
 
     expect(panel.textContent).toMatch(/No open work orders/);
     expect(panel.textContent).not.toMatch(/No matching records/i);

@@ -29,8 +29,12 @@ import type { ObjectPermissionConfig, RoleDefinition } from '@object-ui/types';
  * register table renderers), but the $select contract is invariant.
  */
 
+// `permissions: []` is accurate and required: a role's DIRECT object grants live
+// on `RoleDefinition.permissions`, and this role has none — every grant it uses
+// comes from the `ObjectPermissionConfig` below. (That the field is required and
+// read by nothing is the dormancy filed as #4288.)
 const roles: RoleDefinition[] = [
-  { name: 'restricted', description: 'denies one field' },
+  { name: 'restricted', label: 'Restricted', description: 'denies one field', permissions: [] },
 ];
 
 function makeRestrictedConfig(deniedField: string): ObjectPermissionConfig {
@@ -38,8 +42,19 @@ function makeRestrictedConfig(deniedField: string): ObjectPermissionConfig {
     object: 'account',
     roles: {
       restricted: {
-        roleName: 'restricted',
-        objectPermissions: { read: true, create: false, update: false, delete: false },
+        // `actions` is the declared channel for a role's object-level grants and
+        // the only one `evaluatePermission` reads. This entry used to spell them
+        // `objectPermissions: { read: true, … }` beside a `roleName` echo of its
+        // own map key — neither key exists on
+        // `ObjectPermissionConfig['roles'][string]`, so both were inert and the
+        // role granted nothing at all. The rewrite says what the old shape
+        // meant: read allowed, no writes.
+        //
+        // No assertion moves. The field gate these cases exercise runs through
+        // `checkField`, which reads `fieldPermissions` directly and never
+        // consults `actions`, so they were testing what they claim even while
+        // the object grant was empty.
+        actions: ['read'],
         fieldPermissions: [{ field: deniedField, read: false, write: false }],
       },
     },
@@ -146,11 +161,15 @@ function makeObjectPermissions(allowDelete: boolean): ObjectPermissionConfig {
     object: 'account',
     roles: {
       restricted: {
-        roleName: 'restricted',
         // `evaluatePermission` reads the role's `actions` list, so the grant
-        // has to live there — `objectPermissions` drives the field-level gate.
+        // has to live there. The `roleName` echo of the map key and the
+        // `objectPermissions` block that used to sit beside it are gone: neither
+        // is declared on `ObjectPermissionConfig['roles'][string]`, so neither
+        // was ever read. The comment they carried — that `objectPermissions`
+        // "drives the field-level gate" — was wrong twice over: that gate is
+        // `checkField`, it reads `fieldPermissions`, and this fixture declares
+        // none, so the block decided nothing here at all.
         actions: allowDelete ? ['read', 'delete'] : ['read'],
-        objectPermissions: { read: true, create: false, update: false, delete: allowDelete },
       },
     },
   };

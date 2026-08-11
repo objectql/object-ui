@@ -41,6 +41,27 @@ const renderWithProvider = (component: React.ReactNode) => {
 };
 
 /**
+ * A `list-view` node as an AUTHOR writes it, before `normalizeListViewSchema`
+ * folds the LEGACY vocabulary onto the spec's (#2890).
+ *
+ * `ListViewSchema` is the canonical surface — `aria: { ariaLabel }`, `sharing:
+ * { type }` — and `ListView` reads only that, because the first thing it does
+ * is `normalizeListViewSchema(propSchema)`. Stored view metadata in user
+ * databases still carries the legacy spellings, which is exactly why that fold
+ * exists and why it cannot be dropped; the two cases below are its coverage.
+ *
+ * They therefore have to be typed as PRE-fold input, and this says so. The two
+ * wrong ways out are worth naming, because both look like the smaller change:
+ * re-spelling the fixtures canonically deletes the only test that the fold
+ * still happens, and widening `ListViewSchema` to accept both spellings
+ * re-forks the vocabulary #2890 unified. The legacy input vocabulary has no
+ * declared type of its own today — filed as #4337 — so a cast is currently the
+ * only honest way to name it.
+ */
+const authored = (node: Record<string, unknown>): ListViewSchema =>
+  node as unknown as ListViewSchema;
+
+/**
  * Reveal the visualization options regardless of which form the switcher
  * takes. With 2–4 visualizations the switcher renders an inline segmented
  * control whose option buttons are always visible, so there is nothing to
@@ -552,7 +573,9 @@ describe('ListView', () => {
   });
 
   it('should apply aria attributes to root container', () => {
-    const schema: ListViewSchema = {
+    // Legacy `aria.label`; the fold renames it to the spec's `ariaLabel`, which is
+    // the only spelling ListView's root container reads.
+    const schema = authored({
       type: 'list-view',
       objectName: 'contacts',
       viewType: 'grid',
@@ -561,7 +584,7 @@ describe('ListView', () => {
         label: 'Contacts List',
         live: 'polite',
       },
-    };
+    });
 
     renderWithProvider(<ListView schema={schema} />);
     const region = screen.getByRole('region', { name: 'Contacts List' });
@@ -570,7 +593,9 @@ describe('ListView', () => {
   });
 
   it('should render share button when sharing is enabled', () => {
-    const schema: ListViewSchema = {
+    // Legacy `sharing: { enabled, visibility }`; the fold collapses it onto the
+    // spec's `{ type }`, which is what the badge below asserts.
+    const schema = authored({
       type: 'list-view',
       objectName: 'contacts',
       viewType: 'grid',
@@ -579,7 +604,7 @@ describe('ListView', () => {
         enabled: true,
         visibility: 'team',
       },
-    };
+    });
 
     renderWithProvider(<ListView schema={schema} />);
     const shareButton = screen.getByTestId('share-button');
@@ -1810,7 +1835,11 @@ describe('ListView', () => {
         objectName: 'contacts',
         viewType: 'grid',
         fields: ['name', 'email'],
-        gantt: { startDateField: 'start', endDateField: 'end' },
+        // `titleField` is required by the spec's gantt config — the fixture simply
+        // omitted it. Supplied rather than cast: this case is about the SPEC
+        // config winning over the legacy `options` block, so it should be a
+        // spec-valid config.
+        gantt: { startDateField: 'start', endDateField: 'end', titleField: 'name' },
       };
 
       renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);

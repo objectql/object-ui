@@ -51,13 +51,32 @@ import { UserFilters } from '../UserFilters';
  * a click — the same path a user takes when a view opens on its default tab,
  * and the path that shipped the 400.
  */
-function emitFor(rule: Record<string, unknown>): unknown[] {
+/**
+ * The authored rule, typed as authored metadata rather than as an untyped bag.
+ *
+ * `operator` is a plain `string`, not the spec's operator enum, because feeding
+ * the legacy and misspelled spellings (`nin`, `notin`, `notIn`) is the point of
+ * these cases — and it is OPTIONAL because one case deliberately authors a rule
+ * with no operator at all, to pin that the deleted `case undefined: return '='`
+ * branch does not come back. `Record<string, unknown>` expressed neither fact;
+ * it merely hid both.
+ */
+type AuthoredRule = { field: string; operator?: string; value?: unknown };
+
+function emitFor(rule: AuthoredRule): unknown[] {
   const onFilterChange = vi.fn();
   render(
     <UserFilters
       config={{
         element: 'tabs',
-        tabs: [{ name: 'preset', label: 'Preset', isDefault: true, filter: [rule] }],
+        // The tab config's own type requires a well-formed `{ field, operator }`
+        // rule, which is correct — and these fixtures are precisely the authored
+        // metadata that does not satisfy it. The cast is the suite's subject
+        // rather than a way around it: every case below asserts that an off-spec
+        // rule is REFUSED (`isFilterAST` false) or folded onto a canonical
+        // spelling, never silently repaired. Injecting it here, once, keeps that
+        // deliberate looseness at the one boundary it belongs to.
+        tabs: [{ name: 'preset', label: 'Preset', isDefault: true, filter: [rule as Required<Pick<AuthoredRule, 'field' | 'operator'>> & { value?: unknown }] }],
       }}
       data={[]}
       onFilterChange={onFilterChange}
