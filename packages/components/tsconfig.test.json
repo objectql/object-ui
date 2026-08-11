@@ -47,7 +47,17 @@
     // Drop the root tsconfig's source-tree `paths` so `@object-ui/*` and
     // `@objectstack/spec` resolve through the workspace dependency's built
     // `.d.ts` instead of pulling sibling sources in as program inputs (TS6059).
-    "paths": {}
+    // The single entry kept is this package's OWN name: `snapshot-critical.test.tsx`
+    // imports it the way a consumer would, and an empty `paths` sends that
+    // through the package `exports` to `dist/index.d.ts` — an artifact
+    // `type-check` must not depend on, since turbo makes it wait on `^build`
+    // (the DEPENDENCIES' builds), not on this package's own. The repo-root
+    // vitest config aliases the same specifier to `src`, so this resolves the
+    // import to exactly what the test runs against.
+    "baseUrl": ".",
+    "paths": {
+      "@object-ui/components": ["src/index.ts"]
+    }
   },
   // `src/**/*.d.ts` picks up `src/global.d.ts`, whose ambient declarations the
   // test files rely on.
