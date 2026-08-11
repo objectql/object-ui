@@ -67,7 +67,6 @@ function resolveHandlers(): Record<string, boolean> {
         appName="crm"
         objects={objects}
         dataSource={{ delete: vi.fn() }}
-        actionLabel={(_o, _n, fallback) => fallback}
       >
         <Probe onResolve={(p) => { captured = p; }} />
       </RelatedRecordActionsBridge>

@@ -27,6 +27,16 @@
  * {@link readFormRecordTarget} for the create/edit/refuse decision and
  * {@link readPrefill} for what wins when a `prefill_` param and a stored value
  * name the same field.
+ *
+ * ## Which object that id belongs to (objectui#4292)
+ *
+ * An id alone does not say which object it names, so the read/write pair above
+ * resolves it against the FormView's own target — right when the action fired
+ * from a record of that object, silently wrong when it did not. `?recordObject=`
+ * now travels with the id and this route refuses when the two disagree; see
+ * {@link FORM_RECORD_OBJECT_PARAM} for why it can only ever refuse, and the
+ * guard in {@link loadInternalForm} for where it fires (before any `/data/`
+ * request, so a mismatch reads nothing and writes nothing).
  */
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
@@ -117,6 +127,43 @@ export type FormPageMode = 'public' | 'internal';
 export const FORM_RECORD_ID_PARAM = 'recordId';
 
 /**
+ * The object the accompanying {@link FORM_RECORD_ID_PARAM} belongs to
+ * (objectui#4292) — `ActionRunner.executeForm` forwards the two together.
+ *
+ * ## Why an id needed an object at all
+ *
+ * `?recordId=` names an id and nothing else, so this route has to pick an
+ * object to resolve it against, and it picks the FormView's own target — the
+ * only one it knows. That is right whenever the action fired from a record OF
+ * that object, and until #4292 nothing checked that it had: an action whose
+ * `locations` put it on an Account but whose `target` is `showcase_task.edit`
+ * is publishable metadata, and where primary keys are per-table integers
+ * `GET /data/showcase_task/42` answers happily for the user who was looking at
+ * Account 42. The server cannot flag it either — it echoes the path's object
+ * back (`getData` returns `object: request.object`), so the response is
+ * self-consistent. #4278 shipped the read/write pair that turned that from a
+ * duplicate INSERT into a targeted UPDATE of the wrong record, which is what
+ * made the missing identity worth closing.
+ *
+ * ## An ASSERTION, never an override — the whole point
+ *
+ * This param cannot change which object the form edits; that comes from the
+ * view metadata and only from there. Its sole power is to make the form
+ * REFUSE. Reading it as a selector instead would let any hand-authored URL aim
+ * a form at an arbitrary object — the same hole, re-opened from the other side.
+ * (The registry's `formObject` is deliberately the other thing: it selects the
+ * object the record-form OVERLAY edits. Same `<param>Object` naming, opposite
+ * powers, separate surfaces.)
+ *
+ * Spelled as a literal here and in `ActionRunner` for the reason
+ * {@link FORM_RECORD_ID_PARAM} documents — `@object-ui/core` sits below this
+ * app and app-shell exports no `./urlParams`. `FormPage.test.ts` pins the two
+ * ends together by running the real producer and reading its URL back here,
+ * so a rename on either side fails rather than silently disarming the guard.
+ */
+export const FORM_RECORD_OBJECT_PARAM = 'recordObject';
+
+/**
  * What the URL says this internal form is FOR: creating a record, editing a
  * named one, or nothing coherent.
  *
@@ -130,7 +177,7 @@ export const FORM_RECORD_ID_PARAM = 'recordId';
  */
 export type FormRecordTarget =
   | { kind: 'create' }
-  | { kind: 'edit'; recordId: string }
+  | { kind: 'edit'; recordId: string; recordObject: string | null }
   | { kind: 'refuse'; reason: string };
 
 /**
@@ -141,7 +188,18 @@ export type FormRecordTarget =
  * controls the URL and the backend resolver deliberately exposes one
  * submit-only endpoint. Honouring `?recordId=` there would turn a public form
  * into an arbitrary-record reader and writer. The public path is unchanged by
- * every part of #4278, and this line is where that holds.
+ * every part of #4278, and this line is where that holds — `recordObject`
+ * (#4292) is read on the same terms, i.e. not at all on that surface.
+ *
+ * `recordObject` is carried to the loader rather than judged here: the object
+ * it must agree with is the FormView's, which only the view metadata knows, so
+ * the comparison happens where that arrives ({@link loadInternalForm}). What
+ * this function decides is unchanged — create, edit, or refuse from the URL
+ * alone. A blank or whitespace-only `recordObject` is treated as ABSENT, not as
+ * a mismatch: it asserts nothing, and #4292 ruling point 2 tightens the guard
+ * only where identity information is actually present (a URL can always just
+ * omit the param, so refusing here would buy nothing and would break the
+ * hand-authored deep links the ruling preserves).
  */
 export function readFormRecordTarget(
   mode: FormPageMode,
@@ -149,6 +207,8 @@ export function readFormRecordTarget(
 ): FormRecordTarget {
   if (mode !== 'internal') return { kind: 'create' };
   const raw = search.get(FORM_RECORD_ID_PARAM);
+  // No id ⇒ create, whatever `recordObject` says: with no record named there is
+  // nothing for an object assertion to be about.
   if (raw === null) return { kind: 'create' };
   const recordId = raw.trim();
   if (!recordId) {
@@ -159,7 +219,8 @@ export function readFormRecordTarget(
         'Re-open it from the record, or drop the parameter to create a new one.',
     };
   }
-  return { kind: 'edit', recordId };
+  const declaredObject = (search.get(FORM_RECORD_OBJECT_PARAM) ?? '').trim();
+  return { kind: 'edit', recordId, recordObject: declaredObject || null };
 }
 
 /**
@@ -618,7 +679,11 @@ export function resolveInternalForm(
  * throws and the caller shows the error state. The gap between the two `catch`
  * postures is the gap between "less detail" and "wrong operation".
  */
-async function loadInternalForm(name: string, recordId?: string | null): Promise<LoadedForm> {
+async function loadInternalForm(
+  name: string,
+  recordId?: string | null,
+  recordObject?: string | null,
+): Promise<LoadedForm> {
   const viewRes = await apiFetch(`/meta/view/${encodeURIComponent(name)}`);
   if (!viewRes.ok) {
     throw new Error(`Form metadata not found: view/${name}`);
@@ -627,6 +692,23 @@ async function loadInternalForm(name: string, recordId?: string | null): Promise
   const { label, object: objectName, form } = resolveInternalForm(name, viewBody);
   if (!objectName) {
     throw new Error(`FormView "${name}" is missing an "object" target`);
+  }
+  // #4292, the consumer half: the URL asserted which object the id belongs to,
+  // and it is not this form's. Refuse HERE — before the object-schema fetch and
+  // well before the record read — so a mismatch costs zero `/data/` traffic and
+  // can never reach a write. This is the second half of a check the producer
+  // already made (`ActionRunner.executeForm` will not forward an id across an
+  // object boundary at all); it is not redundant with it, because URLs also
+  // arrive hand-written, bookmarked, or from a producer that predates the fix.
+  //
+  // Distinct from `readLoadedRecord`'s mismatch check, deliberately: that one
+  // judges what the SERVER served, this one what the LINK claimed, and the two
+  // wordings stay different so a failure names which of them fired.
+  if (recordObject && recordObject !== objectName) {
+    throw new Error(
+      `This form edits ${objectName}, but the link says record "${recordId}" belongs to ` +
+        `${recordObject}. Refusing to open it — check the action that linked here.`,
+    );
   }
   let objectSchema: ObjectSchemaPayload | null = null;
   try {
@@ -919,6 +1001,8 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
    */
   const target = readFormRecordTarget(mode, search);
   const editingId = target.kind === 'edit' ? target.recordId : null;
+  /** The object the URL claims `editingId` belongs to (#4292), or null. */
+  const editingObject = target.kind === 'edit' ? target.recordObject : null;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -940,7 +1024,7 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
         ? Promise.reject(new Error(target.reason))
         : mode === 'public'
           ? loadPublicForm(identifier)
-          : loadInternalForm(identifier, editingId);
+          : loadInternalForm(identifier, editingId, editingObject);
     loader
       .then((result) => {
         if (cancelled) return;

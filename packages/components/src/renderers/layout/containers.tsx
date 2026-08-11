@@ -22,7 +22,7 @@ import React from 'react';
 import { ComponentRegistry, ExpressionEvaluator, evalRowPredicate, getRecordDisplayName, toPredicateRecord } from '@object-ui/core';
 import type { ComponentInput } from '@object-ui/core';
 import { actionRendersAt } from '@object-ui/types';
-import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit } from '@object-ui/react';
+import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit, useActionTextLocalizer } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { RelatedCountStore, useRelatedCountVersion } from '../../hooks/related-count-store';
@@ -975,7 +975,14 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // [ADR-0066 D4 / framework#3923] Shared capability gate — see filterAction.
   const mayInvoke = useCapabilityGate();
   const isMobile = useIsMobile();
-  const { objectLabel: tObjectLabel, actionLabel: tActionLabel } = useObjectLabel();
+  const { objectLabel: tObjectLabel } = useObjectLabel();
+  // The ONE resolver for a declared action's authored strings (objectui#4265).
+  // This header used to localize `label` only — via `useObjectLabel().actionLabel`
+  // inline below — and dispatch the action's `confirmText` / `successMessage`
+  // untouched, so on an authored record page one bundle entry met two fates: the
+  // button rendered the translation and the confirm dialog rendered the English
+  // literal from the metadata.
+  const localizeActionTexts = useActionTextLocalizer();
   const { fieldOptionLabel } = useSafeFieldLabel();
   const { language } = useObjectTranslation();
   // Console-supplied chrome copy (objectstack#5407). `detail.moreActions` is
@@ -1128,7 +1135,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     [ctx?.data, headerPredicateScope, headerPredicateFields],
   );
 
-  const headerActions = React.useMemo<any[]>(() => {
+  const headerActionsRaw = React.useMemo<any[]>(() => {
     const recordData: any = ctx?.data;
     // The record binds three ways inside `evalRowPredicate` — `record.status`
     // (spec/canonical), bare `status` (the row-action shorthand) and
@@ -1262,6 +1269,35 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     // scope in this list rather than adding to it.
   }, [rawHeaderActions, hostSystemActions, ctx?.data, evalHeaderPredicate]);
 
+  /**
+   * Localize the surviving actions ONCE, here, so the button text and the
+   * dispatched def cannot disagree (objectui#4265).
+   *
+   * Both the display path (`resolveLabel` below) and the execution path
+   * (`dispatchHeaderAction` → ActionRunner, which reads `confirmText` for the
+   * confirm dialog body and `successMessage` for the toast) read this same
+   * list, so one localization covers both. Localizing after the filter/order
+   * memo keeps translation out of the predicate gates — a `visible` CEL is
+   * evaluated against the record, never against display text.
+   *
+   * Idempotent by construction: a host that already localized these actions
+   * (RecordDetailView's `recordHeaderActions`, which feeds the SYNTHESIZED page
+   * schema) passes the translated string back in as the bundle fallback, and
+   * the same key resolves to the same value. Only the authored-page path —
+   * where `schema.actions` reaches this renderer straight from page metadata —
+   * changes behaviour.
+   */
+  const headerActions = React.useMemo<any[]>(
+    () => headerActionsRaw.map((a: any, idx: number) =>
+      localizeActionTexts(ctx?.objectName, a, {
+        // Last-resort display text only; `ActionDef.name` is the translation
+        // key and the spec makes it required.
+        fallbackLabel: (typeof a?.id === 'string' && a.id) || `Action ${idx + 1}`,
+      }),
+    ),
+    [headerActionsRaw, localizeActionTexts, ctx?.objectName],
+  );
+
   // Dispatch shape for record-page header actions (objectui#3391) — the same
   // shape ObjectGrid row actions, RelatedRecordActionsBridge, and
   // DeclaredActionsBar use: stash the current record under `params._rowRecord`
@@ -1293,15 +1329,13 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
 
   const renderHeaderActions = () => {
     if (headerActions.length === 0) return null;
-    // Resolve a translated label for an action via the
-    // `{ns}.objects.{objectName}._actions.{name}.label` convention. Falls
-    // back to authored `action.label`, then `action.name`.
-    const resolveLabel = (action: any, idx: number) => {
-      const key = (action?.name || action?.id) as string | undefined;
-      const fallback = action?.label || key || `Action ${idx + 1}`;
-      if (!key) return fallback;
-      return tActionLabel(ctx?.objectName, key, fallback);
-    };
+    // The label is already resolved — the `headerActions` memo above ran every
+    // action through the shared localizer (`{ns}.objects.{objectName}
+    // ._actions.{name}.label`, authored literal as fallback), together with the
+    // `confirmText` / `successMessage` that ride the same dispatch. Reading it
+    // back off the def is what keeps the button and the confirm dialog on one
+    // bundle entry (objectui#4265).
+    const resolveLabel = (action: any) => action?.label ?? '';
     // Inline/overflow split (objectui#2361) — up to `maxVisible` actions
     // render side-by-side as buttons; the rest collapse into a `⋯` overflow
     // menu. Which actions stay inline is metadata-driven:
@@ -1369,7 +1403,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       (inlineEditing && action?.disableDuringInlineEdit === true) ||
       resolveDisabled(action?.disabled, action?.name ?? action?.id);
     const renderButton = (action: any, idx: number) => {
-      const label = resolveLabel(action, idx);
+      const label = resolveLabel(action);
       // `variant: 'primary'` is valid ActionSchema but not a Shadcn Button
       // variant — map it to `default` (same as action-button.tsx).
       const variant = action.variant === 'primary' ? 'default' : (action.variant || 'default');
@@ -1417,7 +1451,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
               {overflowActions.map((action, idx) => {
-                const label = resolveLabel(action, idx + inlineActions.length);
+                const label = resolveLabel(action);
                 const disabled = isActionDisabled(action);
                 const icon = typeof action.icon === 'string' ? action.icon : null;
                 const isDestructive =

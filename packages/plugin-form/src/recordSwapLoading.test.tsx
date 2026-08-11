@@ -31,6 +31,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { registerAllFields } from '@object-ui/fields';
+import type { DataSource } from '@object-ui/types';
 import { ModalForm } from './ModalForm';
 import { DrawerForm } from './DrawerForm';
 import { TabbedForm } from './TabbedForm';
@@ -80,7 +81,47 @@ function deferredDataSource() {
 const titleInput = () =>
   document.body.querySelector<HTMLInputElement>('[data-field="title"] input');
 
-const schemaFor = (formType: string, recordId: string) =>
+/**
+ * The four containers under test, as one type.
+ *
+ * They are genuinely four different components — `ModalFormProps.schema` is a
+ * `ModalFormSchema`, `DrawerFormProps.schema` a `DrawerFormSchema`, and so on,
+ * each pinned to its own `formType` literal. A `describe.each` tuple therefore
+ * hands JSX a UNION of four component types, and JSX resolves a union of
+ * components by INTERSECTING their props: `ModalFormSchema & DrawerFormSchema &
+ * …` reduces `formType` to `never`, so every schema is rejected — including the
+ * right one for the case actually running. Ten of this package's thirteen
+ * unchecked-test errors were that one collision, reported as
+ * `Type 'any' is not assignable to type 'never'`.
+ *
+ * Naming the surface the parametrisation really exercises — the same two props
+ * against each container — is what makes the suite expressible. `schema` is
+ * deliberately `any` here and cannot be anything else: assigning
+ * `React.FC< ModalFormProps >` to a shared component type requires the shared
+ * schema type to be assignable to `ModalFormSchema` AND `DrawerFormSchema` AND
+ * the other two at once, which nothing but `any` satisfies. That is a fact
+ * about these four having no common props base, not a cast hiding a mismatch:
+ * the `formType` each case passes is checked below instead.
+ */
+type SectionedFormContainer = React.ComponentType<{
+  schema: any;
+  dataSource?: DataSource;
+}>;
+
+/** The `formType` discriminants these containers are pinned to, spelled once. */
+type SectionedFormType = 'modal' | 'drawer' | 'tabbed' | 'split';
+
+const CONTAINERS: ReadonlyArray<readonly [string, SectionedFormContainer, SectionedFormType]> = [
+  ['ModalForm', ModalForm, 'modal'],
+  ['DrawerForm', DrawerForm, 'drawer'],
+  ['TabbedForm', TabbedForm, 'tabbed'],
+  ['SplitForm', SplitForm, 'split'],
+];
+
+/** The two overlay containers — the only ones with an unsaved-input guard. */
+const OVERLAY_CONTAINERS = CONTAINERS.filter(([, , t]) => t === 'modal' || t === 'drawer');
+
+const schemaFor = (formType: SectionedFormType, recordId: string) =>
   ({
     type: 'object-form',
     formType,
@@ -96,12 +137,7 @@ const schemaFor = (formType: string, recordId: string) =>
 beforeEach(() => vi.clearAllMocks());
 afterEach(() => cleanup());
 
-describe.each([
-  ['ModalForm', ModalForm, 'modal'],
-  ['DrawerForm', DrawerForm, 'drawer'],
-  ['TabbedForm', TabbedForm, 'tabbed'],
-  ['SplitForm', SplitForm, 'split'],
-] as const)('%s — recordId swap', (_name, Form, formType) => {
+describe.each(CONTAINERS)('%s — recordId swap', (_name, Form, formType) => {
   it('does not keep showing the previous record while the new one loads', async () => {
     const { ds, land } = deferredDataSource();
     const { rerender } = render(
@@ -151,10 +187,7 @@ describe.each([
  * (#2998) would stay armed for input belonging to a record no longer on screen:
  * a plain refresh would prompt, and closing would ask to discard nothing.
  */
-describe.each([
-  ['ModalForm', ModalForm, 'modal'],
-  ['DrawerForm', DrawerForm, 'drawer'],
-] as const)('%s — swapping records clears the unsaved-input guard', (_name, Form, formType) => {
+describe.each(OVERLAY_CONTAINERS)('%s — swapping records clears the unsaved-input guard', (_name, Form, formType) => {
   it('stops blocking unload once the previous record is gone', async () => {
     const { ds, land } = deferredDataSource();
     const { rerender } = render(

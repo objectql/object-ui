@@ -43,6 +43,19 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 const uiDir = path.join(repoRoot, 'packages/components/src/ui');
 
 /**
+ * The components carrying the i18n close-label patch family.
+ *
+ * The registry is a general mechanism and now holds an unrelated family too
+ * (`sidebar`, objectui#4234), so the close-label assertions below must iterate
+ * THIS list and not `patchedComponents()` — the latter would assert one
+ * family's ids and marker on every patched primitive. Derived rather than
+ * hardcoded so a third `Sheet`-like primitive is picked up automatically.
+ */
+const closeLabelComponents = patchedComponents().filter((name: string) =>
+  LOCAL_PATCHES[name].some((p: { marker: string }) => p.marker === '<CloseSrLabel />'),
+);
+
+/**
  * A faithful excerpt of what the registry serves for `dialog`, AFTER
  * `rewriteRegistryImports` (so `@/lib/utils` already reads `../lib/utils`).
  * This is the exact shape the patch engine sees during `--update`.
@@ -70,9 +83,15 @@ const DialogContent = React.forwardRef((props, ref) => (
 `;
 
 describe('shadcn local patches — application to fresh upstream (objectstack#5505)', () => {
-  it.each(patchedComponents())('%s declares the i18n close patch', (name: string) => {
+  it.each(closeLabelComponents)('%s declares the i18n close patch', (name: string) => {
     const ids = LOCAL_PATCHES[name].map((p: { id: string }) => p.id);
     expect(ids).toEqual([`${name}-i18n-close-import`, `${name}-i18n-close-label`]);
+  });
+
+  /** The other declared family: the sidebar collapse-persistence patch. */
+  it('sidebar declares the cookie-read patch', () => {
+    const ids = LOCAL_PATCHES.sidebar.map((p: { id: string }) => p.id);
+    expect(ids).toEqual(['sidebar-cookie-read-import', 'sidebar-cookie-read-initial-state']);
   });
 
   it('turns an unpatched upstream file into the translated form', () => {
@@ -184,11 +203,20 @@ describe('shipped primitives still carry every declared patch (objectstack#5505)
    * English literal must not be back in the file under any spelling of the
    * span. Rendering-level negatives live in
    * `packages/components/src/__tests__/sheet-dialog-close-i18n.test.tsx`.
+   *
+   * Scoped to `closeLabelComponents` (see the top of this file), NOT to
+   * `patchedComponents()`: "contains `<CloseSrLabel />`" is simply false for
+   * the unrelated `sidebar` family.
    */
-  it.each(patchedComponents())('%s.tsx has no hardcoded English close label', (name: string) => {
+  it.each(closeLabelComponents)('%s.tsx has no hardcoded English close label', (name: string) => {
     const content = fs.readFileSync(path.join(uiDir, `${name}.tsx`), 'utf-8');
 
     expect(content).not.toMatch(/<span className="sr-only">\s*Close\s*<\/span>/);
     expect(content).toContain('<CloseSrLabel />');
+  });
+
+  /** The derivation above must never silently select nothing. */
+  it('still covers the close-label primitives', () => {
+    expect(closeLabelComponents).toEqual(['sheet', 'dialog']);
   });
 });

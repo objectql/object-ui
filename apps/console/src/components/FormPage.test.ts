@@ -7,9 +7,11 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { ActionRunner } from '@object-ui/core';
 import {
   buildSections,
   FORM_RECORD_ID_PARAM,
+  FORM_RECORD_OBJECT_PARAM,
   normalizeColumns,
   normalizeOptions,
   readCreatedRecordId,
@@ -265,15 +267,18 @@ describe('readFormRecordTarget', () => {
   });
 
   it('is edit mode when the param names a record', () => {
+    // `recordObject: null` — no object asserted (#4292). The pre-#4292 URL, and
+    // still exactly the pre-#4292 behaviour.
     expect(readFormRecordTarget('internal', new URLSearchParams('recordId=task-42')))
-      .toEqual({ kind: 'edit', recordId: 'task-42' });
+      .toEqual({ kind: 'edit', recordId: 'task-42', recordObject: null });
   });
 
   it('decodes a percent-encoded id (ActionRunner encodes it)', () => {
     // `ActionRunner.executeForm` builds the URL with encodeURIComponent, and
     // URLSearchParams decodes on read — so an id carrying `/` or `#` survives.
     const search = new URLSearchParams(`recordId=${encodeURIComponent('a/b#c')}`);
-    expect(readFormRecordTarget('internal', search)).toEqual({ kind: 'edit', recordId: 'a/b#c' });
+    expect(readFormRecordTarget('internal', search))
+      .toEqual({ kind: 'edit', recordId: 'a/b#c', recordObject: null });
   });
 
   /**
@@ -299,6 +304,140 @@ describe('readFormRecordTarget', () => {
       .toEqual({ kind: 'create' });
     expect(readFormRecordTarget('public', new URLSearchParams('recordId=')))
       .toEqual({ kind: 'create' });
+  });
+});
+
+/**
+ * objectui#4292 — the object half of the URL contract, read (not yet judged).
+ *
+ * The comparison itself needs the FormView's object and therefore lives in the
+ * loader; what this function owns is carrying the claim through unaltered, and
+ * deciding what "no claim" means. Reverse verification: with the read reverted
+ * every `recordObject` below reads back `null`, the loader has nothing to
+ * compare, and the forged-URL guard silently disarms — green tests, absent
+ * protection, which is why the DOM suite pins the refusal itself.
+ */
+describe('readFormRecordTarget carries the record object (#4292)', () => {
+  it('spells the param exactly as ActionRunner emits it', () => {
+    // Literal on both sides — `@object-ui/core` sits below this app and
+    // app-shell exports no `./urlParams`. The behavioural pin below is what
+    // actually holds them together.
+    expect(FORM_RECORD_OBJECT_PARAM).toBe('recordObject');
+  });
+
+  it('reads the object the URL claims the id belongs to', () => {
+    expect(
+      readFormRecordTarget(
+        'internal',
+        new URLSearchParams('recordId=task-42&recordObject=showcase_task'),
+      ),
+    ).toEqual({ kind: 'edit', recordId: 'task-42', recordObject: 'showcase_task' });
+  });
+
+  it('carries a MISMATCHING claim through untouched — the loader judges it', () => {
+    // Refusing here would be wrong: this function cannot know the FormView's
+    // object, so it must not pretend to. It reports what the URL said.
+    expect(
+      readFormRecordTarget(
+        'internal',
+        new URLSearchParams('recordId=42&recordObject=showcase_account'),
+      ),
+    ).toEqual({ kind: 'edit', recordId: '42', recordObject: 'showcase_account' });
+  });
+
+  /**
+   * Ruling point 2: the guard tightens only where identity information is
+   * present. Absent or blank asserts nothing — and a hand-authored URL can
+   * always just omit the param, so treating blank as a mismatch would buy no
+   * protection while breaking the old deep links the ruling preserves.
+   */
+  it('treats an absent or blank claim as no claim at all', () => {
+    for (const raw of [
+      'recordId=task-42',
+      'recordId=task-42&recordObject=',
+      'recordId=task-42&recordObject=%20%20',
+    ]) {
+      expect(readFormRecordTarget('internal', new URLSearchParams(raw)))
+        .toEqual({ kind: 'edit', recordId: 'task-42', recordObject: null });
+    }
+  });
+
+  it('is still CREATE when an object is claimed but no record is named', () => {
+    // Nothing for the assertion to be about; the form creates, as it always did.
+    expect(readFormRecordTarget('internal', new URLSearchParams('recordObject=showcase_task')))
+      .toEqual({ kind: 'create' });
+  });
+
+  it('never reads it in PUBLIC mode either', () => {
+    expect(
+      readFormRecordTarget(
+        'public',
+        new URLSearchParams('recordId=task-42&recordObject=showcase_task'),
+      ),
+    ).toEqual({ kind: 'create' });
+  });
+});
+
+/**
+ * The two halves of #4292, pinned against each other by BEHAVIOUR rather than
+ * by spelling: the real `ActionRunner` produces a URL, and this route's real
+ * reader consumes it. A rename on either side fails here — which matters more
+ * than usual, because a silently disarmed guard is invisible: the form would go
+ * back to loading whatever the id happened to hit, with every test still green.
+ *
+ * (`@object-ui/core` is a declared dependency of this app, so this is an
+ * ordinary import — no new coupling, and the only place the two ends meet.)
+ */
+describe('producer → consumer round trip (#4292)', () => {
+  /** Run the real producer and return the URL it navigated to. */
+  async function produce(context: Record<string, unknown>, target: string): Promise<string> {
+    const runner = new ActionRunner(context);
+    let url = '';
+    runner.setNavigationHandler((to) => {
+      url = to;
+    });
+    await runner.execute({ type: 'form', target });
+    return url;
+  }
+
+  function searchOf(url: string): URLSearchParams {
+    return new URLSearchParams(url.split('?')[1] ?? '');
+  }
+
+  it('a same-object action yields an edit target carrying the object', async () => {
+    const url = await produce(
+      { record: { id: 'task-42' }, objectName: 'showcase_task' },
+      'showcase_task.edit',
+    );
+
+    expect(readFormRecordTarget('internal', searchOf(url))).toEqual({
+      kind: 'edit',
+      recordId: 'task-42',
+      recordObject: 'showcase_task',
+    });
+  });
+
+  it('a cross-object action yields a CREATE target — no id crossed the boundary', async () => {
+    const url = await produce(
+      { record: { id: 42 }, objectName: 'showcase_account' },
+      'showcase_task.edit',
+    );
+
+    expect(url).toBe('/forms/showcase_task.edit');
+    expect(readFormRecordTarget('internal', searchOf(url))).toEqual({ kind: 'create' });
+  });
+
+  it('survives an id needing percent-encoding, end to end', async () => {
+    const url = await produce(
+      { record: { id: 'a/b#c' }, objectName: 'showcase_task' },
+      'showcase_task.edit',
+    );
+
+    expect(readFormRecordTarget('internal', searchOf(url))).toEqual({
+      kind: 'edit',
+      recordId: 'a/b#c',
+      recordObject: 'showcase_task',
+    });
   });
 });
 

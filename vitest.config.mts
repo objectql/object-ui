@@ -96,6 +96,7 @@ const heavyDomTests = [
   'packages/components/src/__tests__/action-bar.test.tsx',
   'packages/components/src/__tests__/action-group.test.tsx',
   'packages/components/src/__tests__/page-card-i18n-title.test.tsx',
+  'packages/components/src/__tests__/page-header-action-i18n.test.tsx',
   'packages/components/src/__tests__/page-header-actions.test.tsx',
   'packages/components/src/__tests__/page-header-capability-gate.test.tsx',
   'packages/components/src/__tests__/page-header-lookup-predicate.test.tsx',

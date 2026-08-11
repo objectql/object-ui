@@ -22,6 +22,10 @@
  *      means the environment has no product apps yet (objectui#4048, below);
  *   3. else `/home` — the multi-app workspace launcher (the legacy default).
  *
+ * Those three rules describe a landing resolved from a KNOWN app list. Whether
+ * the list is known at all is a separate question, answered before the policy
+ * runs — see {@link isAppListConclusive} (objectui#4233).
+ *
  * NOTE: this gives `isDefault` ROUTING semantics; it was previously a
  * display-only badge. Back-compat: a deployment with no `isDefault` App and ≥2
  * visible Apps still lands on `/home`, exactly as before. (A deploy-time ops
@@ -29,6 +33,7 @@
  * declaration is the source of truth.)
  */
 
+import { useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
   useMetadata,
@@ -36,6 +41,7 @@ import {
   SETUP_APP_PACKAGE_ID,
   SETUP_APP_NAME,
 } from '@object-ui/app-shell';
+import type { MetadataTypeStatus } from '@object-ui/app-shell';
 
 /** Minimal shape this resolver needs off each App metadata record. */
 interface LandingApp {
@@ -101,8 +107,75 @@ export function resolveLandingPath(apps: readonly LandingApp[] | null | undefine
   return '/home';
 }
 
+/**
+ * Is the app list this resolver was handed an ANSWER, or an unknown standing
+ * in for one? (objectui#4233)
+ *
+ * `resolveLandingPath` reads a LIST, and an empty list is a perfectly good
+ * input to it — rule 3 answers `/home`, which is right when the emptiness is
+ * REAL. What it cannot see is *why* the list is empty. A failed
+ * `GET /meta/app` also produces `[]` (`MetadataProvider.ensureType` catches and
+ * resolves `[]`, so `loading` goes false and nothing rejects), and the resolver
+ * then reports "this deployment has no default app" about a deployment it never
+ * managed to ask. That conclusion is not merely wrong, it STICKS: `Navigate
+ * … replace` rewrites `/` to `/home` in history, so a reload re-enters at
+ * `/home` and the `isDefault` branch never gets a second chance — and if the
+ * session turns out to be dead, the auth guard captures `/home` into
+ * `?redirect=%2Fhome` and honors it after sign-in. An error-state fallthrough
+ * must never be fossilized as user intent.
+ *
+ * The distinguishing fact already exists on the metadata context and is the
+ * ONE source of truth for it — `getTypeStatus('app')`, the provider's own
+ * per-type load status ('idle' | 'loading' | 'ready' | 'error'). No second
+ * dialect of loading/auth state is introduced here, and nothing about the
+ * *policy* in `resolveLandingPath` changes: this gates whether the policy gets
+ * to run at all.
+ *
+ * `getTypeStatus` is optional on `MetadataContextValue` and documented as
+ * "absent means always ready" (hand-rolled context values in tests omit it), so
+ * `undefined` is conclusive. Everything that is not a settled `ready` is not.
+ */
+export function isAppListConclusive(status: MetadataTypeStatus | undefined): boolean {
+  if (status === undefined) return true;
+  return status === 'ready';
+}
+
+/**
+ * How long to wait before the single re-ask below (objectui#4233).
+ *
+ * Short enough that a transient failure heals before the visitor reads the
+ * spinner as a hang, and comfortably past `MetadataProvider`'s
+ * `ERROR_RETRY_COOLDOWN_MS` (~1s) — inside that window `ensureType` answers
+ * from the failed entry instead of re-requesting, which would spend the one
+ * retry on nothing.
+ */
+const APP_LIST_RETRY_DELAY_MS = 1500;
+
 export function RootLandingRedirect() {
-  const { apps, loading } = useMetadata();
-  if (loading) return <LoadingFallback />;
+  const { apps, loading, getTypeStatus, refresh } = useMetadata();
+
+  // "Not yet" (`loading`) and "asked and failed" (`status === 'error'`) are
+  // both "no answer" — they differ only in whether waiting will help.
+  const unresolved = !loading && !isAppListConclusive(getTypeStatus?.('app'));
+
+  // Re-ask ONCE, so "produce no conclusion" is a recoverable state rather than
+  // a terminal spinner: a transient failure (server restart, a request that
+  // raced a session refresh) heals without the visitor doing anything, and a
+  // real outage settles into a screen that is at least not a lie about which
+  // apps exist. Deliberately bounded by a ref rather than by effect-dep
+  // identity — `unresolved` stays true across a failed retry, so relying on the
+  // deps to stop the loop would make "exactly once" a property of `refresh`'s
+  // memoization instead of a property of this component.
+  const retriedRef = useRef(false);
+  useEffect(() => {
+    if (!unresolved || retriedRef.current) return;
+    retriedRef.current = true;
+    const id = setTimeout(() => {
+      void refresh?.('app');
+    }, APP_LIST_RETRY_DELAY_MS);
+    return () => clearTimeout(id);
+  }, [unresolved, refresh]);
+
+  if (loading || unresolved) return <LoadingFallback />;
   return <Navigate to={resolveLandingPath(apps as LandingApp[] | undefined)} replace />;
 }

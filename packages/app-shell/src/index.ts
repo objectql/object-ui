@@ -68,6 +68,16 @@ export {
   LoadingFallback,
 } from './console/ConsoleShell';
 
+// Host-app route policy (ADR-0048) — which app's `/apps/<segment>/…` URL a
+// framework-owned, app-INDEPENDENT page should build, and the two predicates it
+// is defined in terms of. Published from the package root (objectui#4280)
+// because the resolution order in `resolveHostAppSegment`'s docblock is one
+// hard-won definition, and a consumer that cannot import it re-derives it: the
+// console shipped a documented copy of steps 1–2 for exactly this reason
+// (objectui#4109 / PR #4279), which is the "two readers of one prose contract"
+// shape #3367 / #3842 record. `./utils/appRoute` is the contract.
+export { resolveHostAppSegment, appRouteSegment, filterActiveApps } from './utils';
+
 // Runtime AI-availability signal — the single source of truth every AI entry
 // point gates on (FAB, /ai routes, designer "Ask AI"). Server-pushed, no
 // build-time edition flag. See ./hooks/useAiSurface.
