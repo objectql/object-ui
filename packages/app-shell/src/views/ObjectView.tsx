@@ -14,7 +14,7 @@ import { useParams, useSearchParams, useNavigate, useLocation } from 'react-rout
 import { resolveFilterPlaceholders, DENSITY_MODE_TO_ROW_HEIGHT, normalizeListViewSchema, type FilterTokenScope } from '@object-ui/core';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
 import { buildListFilterKey, readListFilterState, writeListFilterState } from './listFilterStorage';
-import { foldFilterGroupToSpecRules, FILTER_FOLD_REFUSAL_KEYS } from './viewFilterFold';
+import { VALUELESS_FILTER_OPERATORS } from './viewFilterFold';
 const ObjectChart = lazy(() =>
   import('@object-ui/plugin-charts').then((m) => ({ default: m.ObjectChart })),
 );
@@ -210,6 +210,76 @@ export function defaultListColumnsFromObject(
  * the authoritative branch and makes the fallback below unreachable code —
  * that was objectui#3774's second half, fixed in `@object-ui/data-objectstack`.
  */
+/**
+ * Strip conditions an overlay must never impose, and drop the `filter` key
+ * entirely when nothing effective is left (objectui#4155).
+ *
+ * A view override is merged over the source-declared view as `{ ...source,
+ * ...override }`, so its `filter` key REPLACES the view's declared filter
+ * wholesale. That made two overlay bodies destructive:
+ *
+ *   `filter: [{ field: 'x', operator: 'equals', value: '' }]`
+ *        — an incomplete filter-panel row. The live query never applied it
+ *          (`convertFilterGroupToAST` skips empty values), but as a stored
+ *          overlay it became the view's ENTIRE filter and returned `total: 0`:
+ *          the "empty list that used to have rows" this issue reports.
+ *   `filter: []`
+ *        — what "Clear all" wrote. Not a poisoned filter, but still an override
+ *          that silently deletes the source declaration (an archived-records
+ *          exclusion, say) for everyone.
+ *
+ * Both are neutralized HERE, on the read path, so an install already carrying a
+ * poisoned row self-heals on the next load rather than needing a `sys_metadata`
+ * delete plus a service restart. The write that created them is gone too (the
+ * filter panel no longer persists anything) — this is the recovery half.
+ *
+ * Consequence, deliberate and worth naming: an overlay can no longer express
+ * "this view has NO filter" over a source view that declares one. That is the
+ * strictly safer side of the trade — the shape that expressed it is the same
+ * shape that silently erased source declarations, and an author who genuinely
+ * wants no filter edits the view (an explicit save), which writes the view body
+ * rather than an overlay.
+ *
+ * Filter entries are matched in both at-rest shapes: spec `ViewFilterRule`
+ * objects (`{ field, operator, value }`, what the fold writes) and the legacy
+ * runtime triple `[field, operator, value]` a source view may declare and which
+ * `persistViewPatch` copies into the overlay along with the rest of the view.
+ */
+export function sanitizeViewOverride(override: any): any {
+    if (!override || typeof override !== 'object') return override;
+    if (!Array.isArray(override.filter)) return override;
+
+    const kept = override.filter.filter((entry: any) => {
+        if (Array.isArray(entry)) {
+            // Legacy runtime triple: [field, operator, value]
+            if (entry.length < 2) return false;
+            const [, operator, value] = entry;
+            if (VALUELESS_FILTER_OPERATORS.has(String(operator))) return true;
+            return !(value == null || value === '' || (Array.isArray(value) && value.length === 0));
+        }
+        if (!entry || typeof entry !== 'object') return false;
+        if (typeof entry.field !== 'string' || entry.field === '') return false;
+        if (VALUELESS_FILTER_OPERATORS.has(String(entry.operator))) return true;
+        const value = entry.value;
+        return !(value == null || value === '' || (Array.isArray(value) && value.length === 0));
+    });
+
+    // The empty-array case is checked FIRST: `filter: []` (Clear all's write)
+    // leaves `kept.length === override.filter.length`, so an "unchanged"
+    // shortcut ahead of this would hand the destructive empty override straight
+    // back.
+    if (kept.length === 0) {
+        // Nothing effective survives → the overlay carries no opinion about the
+        // filter, so the SOURCE-declared filter must win again. Dropping the key
+        // (rather than writing `[]`) is what makes the `{ ...source, ...override }`
+        // merge fall through to it.
+        const { filter: _dropped, ...rest } = override;
+        return rest;
+    }
+    if (kept.length === override.filter.length) return override;
+    return { ...override, filter: kept };
+}
+
 export async function loadViewOverrides(
     dataSource: any,
     objectName: string,
@@ -221,7 +291,7 @@ export async function loadViewOverrides(
             if (all && typeof all === 'object') {
                 const map: Record<string, any> = {};
                 for (const id of ids) {
-                    if (all[id]) map[id] = all[id];
+                    if (all[id]) map[id] = sanitizeViewOverride(all[id]);
                 }
                 return map;
             }
@@ -242,7 +312,7 @@ export async function loadViewOverrides(
     );
     const map: Record<string, any> = {};
     for (const [id, v] of entries) {
-        if (v && typeof v === 'object') map[id] = v;
+        if (v && typeof v === 'object') map[id] = sanitizeViewOverride(v);
     }
     return map;
 }
@@ -358,33 +428,29 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         [dataSource, objectName]
     );
 
-    /**
-     * Persist a toolbar filter change (objectstack#5159).
+    /*
+     * There is deliberately NO `persistViewFilter` here (objectui#4155).
      *
-     * The list toolbar's FilterBuilder emits its own grouped dialect
-     * (`{ id, logic, conditions }`); `ListViewSchema.filter` declares
-     * `ViewFilterRule[]`. Handing the group straight to `persistViewPatch` is
-     * what made every `Filter → Add filter` PUT come back 422 `invalid_union`.
-     * Fold at the producer (AGENTS.md #0.1) — the spec is not widened.
+     * The list toolbar's filter panel is TRANSIENT state — it belongs to the
+     * session (and to `writeListFilterState`'s per-browser restore), not to the
+     * view's stored body. It used to persist: every `onFilterChange` the panel
+     * emitted was folded and written to the view overlay, so merely opening the
+     * panel and clicking `Add filter` wrote an incomplete `field equals ''`
+     * condition into `sys_metadata` — which then REPLACED the source-declared
+     * `filter` for every user of that view and emptied the list, unrecoverably
+     * from the panel itself.
      *
-     * A group that cannot fold LOSSLESSLY (`logic: 'or'` across several
-     * conditions, or a nested group) is refused out loud and NOT saved, rather
-     * than quietly written as AND: an AND rewrite would return a different
-     * record set than the one the user is looking at. The filter still applies
-     * to the live grid — `convertFilterGroupToAST` honours `logic` in-session —
-     * it just does not become part of the stored view.
+     * The threshold for writing a view overlay is an EXPLICIT save:
+     * `handleViewConfigSave` (the view config panel) and `handleSaveAsView`
+     * (`ObjectDataPage`). `ObjectDataPage` already made this choice for the
+     * sibling surface — "Deliberately NO onSortChange/onFilterChange
+     * persistence hooks: this surface never writes back to any saved view"
+     * (#2251) — and this surface was the outlier.
+     *
+     * `foldFilterGroupToSpecRules` (objectstack#5159) is still the one dialect
+     * for those explicit paths — the Studio inspector's `FilterBuilderField`
+     * folds through it. What is gone is the automatic write, not the fold.
      */
-    const persistViewFilter = useCallback(
-        (viewIdLocal: string, baseViewDef: Record<string, any>, group: unknown) => {
-            const folded = foldFilterGroupToSpecRules(group);
-            if (!folded.ok) {
-                toast.error(t(FILTER_FOLD_REFUSAL_KEYS[folded.reason]));
-                return;
-            }
-            persistViewPatch(viewIdLocal, baseViewDef, { filter: folded.rules });
-        },
-        [persistViewPatch, t]
-    );
 
     const handleViewConfigSave = useCallback((draft: Record<string, any>) => {
         setViewDraft(draft);
@@ -1417,9 +1483,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             onSortChange: (sort: any) => {
                 persistViewPatch(viewDef.id, viewDef, { sort });
             },
-            onFilterChange: (filter: any) => {
-                persistViewFilter(viewDef.id, viewDef, filter);
-            },
+            // NO `onFilterChange` (objectui#4155): the filter panel is session
+            // state. ListView keeps it in `currentFilters` and applies it to the
+            // live query; nothing about it reaches the stored view.
             onHiddenFieldsChange: (hidden: string[]) => {
                 persistViewPatch(viewDef.id, viewDef, { hiddenFields: hidden });
             },
@@ -1666,11 +1732,13 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     persistViewPatch(viewDef.id, viewDef, { sort });
                 }}
                 onFilterChange={(filter: any) => {
-                    persistViewFilter(viewDef.id, viewDef, filter);
-                    // localStorage keeps the BUILDER's group verbatim — it is
-                    // read back into `initialFilters`, which needs `conditions`
-                    // (and the row ids) to rehydrate the toolbar. Only the
-                    // spec-governed view body is folded.
+                    // SESSION state only (objectui#4155) — localStorage keeps
+                    // the BUILDER's group verbatim, read back into
+                    // `initialFilters`, which needs `conditions` (and the row
+                    // ids) to rehydrate the toolbar. This restore is per
+                    // browser and the panel's own "Clear all" clears it: it
+                    // writes an empty group through this same handler. Nothing
+                    // here touches the view's stored body.
                     writeListFilterState(listFilterKey, { filters: filter });
                 }}
                 onSearchChange={(search: string) => {
@@ -1692,7 +1760,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 dataSource={ds}
             />
         );
-    }, [activeView, objectDef, objectName, refreshKey, navOverlay, actions, persistViewPatch, persistViewFilter, urlFilters, initialUfSelections, handleUserFilterSelectionsChange, user?.id]);
+    }, [activeView, objectDef, objectName, refreshKey, navOverlay, actions, persistViewPatch, urlFilters, initialUfSelections, handleUserFilterSelectionsChange, user?.id]);
 
     // Memoize the merged views array so PluginObjectView doesn't get a new
     // reference on every render (which would trigger unnecessary data refetches).

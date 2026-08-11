@@ -2,27 +2,35 @@
  * ObjectUI
  * Copyright (c) 2024-present ObjectStack Inc.
  *
- * objectstack#5159 ratchet — the FilterBuilder's `FilterGroup` must never
- * reach a persisted view `filter` again.
+ * Two ratchets on one call site, in order of strength.
  *
- * The bug: the runtime list toolbar handed `onFilterChange`'s payload straight
- * to `persistViewPatch({ filter })`. That payload is the builder's grouped
- * dialect (`{ id, logic, conditions }`); `ListViewSchema.filter` declares
- * `z.array(ViewFilterRuleSchema)`. Every `Filter → Add filter → save` came back
- * 422 `invalid_union` — and because objectstack#5014 flattens union errors to a
- * bare "Invalid input" that never names `filter`, it lived on `main` unnoticed.
+ * **objectui#4155 (the current contract): the list toolbar's filter panel must
+ * not persist ANYTHING.** Filter-panel state is transient — it belongs to the
+ * session and to `writeListFilterState`'s per-browser restore, not to the
+ * view's stored body. It used to write a view-customization overlay on every
+ * `onFilterChange`, so opening the panel and clicking `Add filter` put an
+ * incomplete `field equals ''` condition into `sys_metadata`, where it REPLACED
+ * the source-declared `filter` for every user of that view and emptied the
+ * list. Overlay writes belong to an EXPLICIT save (`handleViewConfigSave`, and
+ * `ObjectDataPage`'s "Save as view").
  *
- * `viewFilterFold.test.ts` pins what the fold PRODUCES. This pins that the
- * persist path still GOES THROUGH it: a shape assertion on the transform is
- * worth nothing if a future edit routes a raw group around it. The two together
- * close the issue's replay matrix at the persist-call boundary — variant ① (the
- * captured `FilterGroup`) is unreachable, variant ③ (declared keys only) is
- * what the PUT carries.
+ * **objectstack#5159 (subsumed, still pinned): the FilterBuilder's
+ * `FilterGroup` must never reach a persisted view `filter`.** Its bug was that
+ * the toolbar handed `onFilterChange`'s payload straight to
+ * `persistViewPatch({ filter })` — the builder's grouped dialect against
+ * `ListViewSchema.filter`'s `z.array(ViewFilterRuleSchema)`, so every
+ * `Filter → Add filter → save` came back 422 `invalid_union`. #4155 removes the
+ * write entirely, which is strictly stronger for THIS call site; the fold
+ * survives because the explicit save paths still need it, and this file keeps
+ * guarding them.
  *
- * If this fails: do not re-add `persistViewPatch(…, { filter })`. Route the
- * group through `persistViewFilter` (ObjectView) / `foldFilterGroupToSpecRules`
- * (`./viewFilterFold`), which folds to `ViewFilterRule[]` and refuses — out
- * loud — the shapes that cannot fold losslessly.
+ * If the #4155 assertions fail: do not re-add a filter persist to any toolbar
+ * handler. A user's panel interaction is not a save.
+ *
+ * If the #5159 assertions fail: route the group through
+ * `foldFilterGroupToSpecRules` (`./viewFilterFold`), which folds to
+ * `ViewFilterRule[]` and refuses — out loud — the shapes that cannot fold
+ * losslessly.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -39,35 +47,39 @@ const widgetsSrc = readFileSync(widgetsPath, 'utf8');
 
 /**
  * Every `persistViewPatch(…, { filter … })` in the file — the call that shipped
- * the group. Exactly ONE is legitimate: the one inside `persistViewFilter`,
- * whose value is the fold's output. Any other is the bug returning.
+ * the group, and (via the fold) the call that shipped the overlay. Since #4155
+ * there must be NONE: the toolbar persists sort / hiddenFields / columnState /
+ * rowHeight, never the filter.
  */
 const FILTER_PERSIST_CALLS = /persistViewPatch\s*\([^;]*?\{\s*filter\s*(?::\s*([A-Za-z0-9_.]+))?/gs;
 
-describe('objectstack#5159 ratchet — no raw FilterGroup on the view persist path', () => {
+describe('objectui#4155 ratchet — the filter panel persists nothing', () => {
     it('the ratchet is reading real source, not an empty string', () => {
         expect(objectViewSrc.length).toBeGreaterThan(10_000);
         expect(widgetsSrc.length).toBeGreaterThan(10_000);
-        // Sanity: the guarded symbol still exists under these names.
+        // Sanity: the sibling persist helper this file reasons about still
+        // exists under this name (the toolbar DOES persist other keys).
         expect(objectViewSrc).toContain('persistViewPatch');
     });
 
-    it('the only `filter` patch ObjectView persists is the FOLD’s output', () => {
-        // `m[1]` is undefined for the shorthand `{ filter }` — the exact form
-        // the bug shipped — so it can never satisfy the expectation below.
+    it('no `filter` is written through the view-config persist path at all', () => {
         const values = [...objectViewSrc.matchAll(FILTER_PERSIST_CALLS)].map((m) => m[1] ?? '{ filter } shorthand');
-        // Exactly one such call, and it writes the folded rules — never the raw
-        // `filter` argument the toolbar handed in.
-        expect(values, 'a `persistViewPatch(…, { filter })` call appeared that does not write the fold’s output')
-            .toEqual(['folded.rules']);
+        expect(values, 'a filter persist reappeared on the toolbar path — see #4155').toEqual([]);
     });
 
-    it('every toolbar filter change routes through the fold', () => {
-        // Look at the code immediately following each `onFilterChange` binding:
-        // it must reach `persistViewFilter`, not `persistViewPatch`.
+    it('the `persistViewFilter` helper is gone — there is no filter-persist seam to call', () => {
+        // Matched on a CALL/DECLARATION form so the comment that explains the
+        // removal (which names the symbol) does not satisfy the ratchet.
+        expect(objectViewSrc).not.toMatch(/const\s+persistViewFilter\b/);
+        expect(objectViewSrc).not.toMatch(/persistViewFilter\s*\(/);
+    });
+
+    it('no toolbar filter handler reaches ANY persist call', () => {
         const sites = [...objectViewSrc.matchAll(/onFilterChange[=:]/g)];
-        expect(sites.length, 'expected the list-toolbar onFilterChange handlers to be found')
-            .toBeGreaterThanOrEqual(2);
+        // The surviving handler is session state (localStorage) only. If every
+        // handler is gone the loop is vacuous, so pin that at least one exists —
+        // the session restore is a feature, not an accident.
+        expect(sites.length, 'expected at least one onFilterChange handler').toBeGreaterThanOrEqual(1);
         for (const site of sites) {
             // Window = this handler only. It ends where the NEXT `onXxx`
             // binding starts, so the sibling handlers (which legitimately call
@@ -76,16 +88,27 @@ describe('objectstack#5159 ratchet — no raw FilterGroup on the view persist pa
             const rest = objectViewSrc.slice(site.index! + 1, site.index! + 401);
             const next = rest.search(/\bon[A-Z]\w*\s*[=:]/);
             const body = next === -1 ? rest : rest.slice(0, next);
-            expect(body, `this onFilterChange bypasses the fold:\n${body}`).toContain('persistViewFilter');
-            expect(body, `this onFilterChange persists a raw group:\n${body}`).not.toContain('persistViewPatch');
+            expect(body, `this onFilterChange persists a view overlay:\n${body}`).not.toContain('persistViewPatch');
+            expect(body, `this onFilterChange persists a view overlay:\n${body}`).not.toContain('persistViewFilter');
+            expect(body, `this onFilterChange writes view metadata:\n${body}`).not.toContain('updateViewConfig');
+            expect(body, `this onFilterChange writes view metadata:\n${body}`).not.toContain('persistRuntimeMetadata');
         }
     });
 
-    it('ObjectView imports the shared fold rather than re-deriving one', () => {
-        expect(objectViewSrc).toMatch(/import\s*\{[^}]*foldFilterGroupToSpecRules[^}]*\}\s*from\s*'\.\/viewFilterFold'/);
+    it('the surviving handler still keeps SESSION state — the panel is not amnesiac', () => {
+        expect(objectViewSrc).toMatch(/onFilterChange=\{[^}]*writeListFilterState/s);
     });
 
-    it('the Studio inspector folds through the SAME module — one dialect, not two', () => {
+    it('the EXPLICIT save path is untouched — this is the control', () => {
+        // "Save view" through the view config panel still writes the whole view
+        // body through the metadata seam. #4155 removed the automatic write,
+        // not the deliberate one.
+        expect(objectViewSrc).toMatch(/handleViewConfigSave[\s\S]{0,600}persistRuntimeMetadata\('view'/);
+    });
+});
+
+describe('objectstack#5159 ratchet — no raw FilterGroup on any persist path', () => {
+    it('the Studio inspector still folds through the shared module — one dialect, not two', () => {
         expect(widgetsSrc).toMatch(/import\s*\{[^}]*foldFilterGroupToSpecRules[^}]*\}\s*from\s*'\.\.\/viewFilterFold'/);
         // The local operator table it used to carry is gone: a second table is
         // how the runtime toolbar ended up with no fold at all. (Matched on the
@@ -93,12 +116,16 @@ describe('objectstack#5159 ratchet — no raw FilterGroup on the view persist pa
         expect(widgetsSrc).not.toMatch(/const\s+FB_TO_SPEC\b/);
     });
 
-    it('the refusal reaches the user — both fold call sites surface it, none swallow it', () => {
-        for (const [name, src] of [['ObjectView.tsx', objectViewSrc], ['widgets.tsx', widgetsSrc]] as const) {
-            expect(src, `${name} calls the fold`).toContain('foldFilterGroupToSpecRules');
-            expect(src, `${name} surfaces the refusal as a toast`).toMatch(
-                /toast\.error\(\s*tr?\(\s*FILTER_FOLD_REFUSAL_KEYS/,
-            );
-        }
+    it('the refusal still reaches the user where the fold is still called', () => {
+        expect(widgetsSrc).toContain('foldFilterGroupToSpecRules');
+        expect(widgetsSrc, 'widgets.tsx surfaces the refusal as a toast').toMatch(
+            /toast\.error\(\s*tr?\(\s*FILTER_FOLD_REFUSAL_KEYS/,
+        );
+    });
+
+    it('the fold module itself is still exported and used — #4155 removed a caller, not the fold', () => {
+        const foldSrc = readFileSync(path.join(here, 'viewFilterFold.ts'), 'utf8');
+        expect(foldSrc).toMatch(/export function foldFilterGroupToSpecRules/);
+        expect(foldSrc).toMatch(/export const FILTER_FOLD_REFUSAL_KEYS/);
     });
 });

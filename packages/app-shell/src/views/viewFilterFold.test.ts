@@ -23,6 +23,13 @@ import { foldFilterGroupToSpecRules, FILTER_FOLD_REFUSAL_KEYS } from './viewFilt
  * The body objectstack#5159 captured off the wire, verbatim: one click of
  * `Filter → Add filter` on `/_console/apps/showcase_app/showcase_task`.
  * Replay variant ① — the shape that must never be emitted again.
+ *
+ * objectui#4155 amended what this folds TO. The captured row is incomplete — a
+ * column with no value yet — and the fold now drops it, because the live query
+ * never applied it and persisting it replaced the source-declared view filter.
+ * The variant-③ shape assertions below therefore run on a COMPLETE row; the
+ * captured body's own verdict (an empty rule list) is pinned in
+ * `viewFilterFold.emptyValue.test.ts`.
  */
 const CAPTURED_TOOLBAR_GROUP = {
     id: 'root',
@@ -32,17 +39,30 @@ const CAPTURED_TOOLBAR_GROUP = {
     ],
 };
 
+/** The same body once the user has actually typed a value into that row. */
+const COMPLETED_TOOLBAR_GROUP = {
+    id: 'root',
+    logic: 'and',
+    conditions: [
+        { id: '712135fb-58c5-4be4-a611-1925181509b0', field: 'title', operator: 'equals', value: 'draft' },
+    ],
+};
+
 describe('foldFilterGroupToSpecRules — flat AND group → ViewFilterRule[]', () => {
     it('#5159: folds the captured toolbar body to replay variant ③ (declared keys only)', () => {
-        const result = foldFilterGroupToSpecRules(CAPTURED_TOOLBAR_GROUP);
+        const result = foldFilterGroupToSpecRules(COMPLETED_TOOLBAR_GROUP);
         expect(result.ok).toBe(true);
         expect(result.ok && result.rules).toEqual([
-            { field: 'title', operator: 'equals', value: '' },
+            { field: 'title', operator: 'equals', value: 'draft' },
         ]);
     });
 
+    it('#4155: the captured body itself — an unfinished row — persists nothing', () => {
+        expect(foldFilterGroupToSpecRules(CAPTURED_TOOLBAR_GROUP)).toEqual({ ok: true, rules: [] });
+    });
+
     it('#5159: what is emitted is an ARRAY — never the FilterGroup object (variant ①)', () => {
-        const result = foldFilterGroupToSpecRules(CAPTURED_TOOLBAR_GROUP);
+        const result = foldFilterGroupToSpecRules(COMPLETED_TOOLBAR_GROUP);
         expect(result.ok).toBe(true);
         const rules = result.ok ? result.rules : null;
         expect(Array.isArray(rules)).toBe(true);
@@ -53,7 +73,7 @@ describe('foldFilterGroupToSpecRules — flat AND group → ViewFilterRule[]', (
     });
 
     it('#5114/#5159: strips the builder-minted row `id` — the read path regenerates it', () => {
-        const result = foldFilterGroupToSpecRules(CAPTURED_TOOLBAR_GROUP);
+        const result = foldFilterGroupToSpecRules(COMPLETED_TOOLBAR_GROUP);
         expect(result.ok && result.rules[0]).not.toHaveProperty('id');
         // Declared vocabulary only.
         expect(result.ok && Object.keys(result.rules[0])).toEqual(['field', 'operator', 'value']);
@@ -265,14 +285,16 @@ describe('the folded body is what the spec actually accepts (replay-matrix closu
 
     // …and the fold is what keeps us out of variant ②.
     it('the fold strips the `id` that variant ② proves the spec rejects', () => {
-        const folded = foldFilterGroupToSpecRules(CAPTURED_TOOLBAR_GROUP);
+        const folded = foldFilterGroupToSpecRules(COMPLETED_TOOLBAR_GROUP);
         expect(folded.ok).toBe(true);
+        // Non-vacuous: there IS a rule, and it carries no `id`.
+        expect(folded.ok && folded.rules.length).toBe(1);
         expect(folded.ok && folded.rules.every((r) => !('id' in r))).toBe(true);
     });
 
     // Replay variant ③ — what the fold now emits.
     it('#5159 variant ③: the folded rule array is ACCEPTED by ListViewSchema', () => {
-        const folded = foldFilterGroupToSpecRules(CAPTURED_TOOLBAR_GROUP);
+        const folded = foldFilterGroupToSpecRules(COMPLETED_TOOLBAR_GROUP);
         expect(folded.ok).toBe(true);
         const parsed = ListViewSchema.safeParse(viewBody(folded.ok ? folded.rules : undefined));
         expect(parsed.success, JSON.stringify((parsed as any).error?.issues)).toBe(true);
