@@ -10,12 +10,12 @@ import { describe, it, expect } from 'vitest';
 import { createPermissionStore } from '../store';
 import type { RoleDefinition, ObjectPermissionConfig } from '@object-ui/types';
 
-// Empty `permissions` is the accurate value, not padding: a role's DIRECT object
-// grants live there, and every grant these cases exercise arrives through the
-// `ObjectPermissionConfig[]` below instead.
+// A role carries identity and inheritance only; every grant these cases
+// exercise arrives through the `ObjectPermissionConfig[]` below, which is the
+// only wired home for role grants (objectui#4288).
 const roles: RoleDefinition[] = [
-  { name: 'admin', label: 'Admin', permissions: [] },
-  { name: 'viewer', label: 'Viewer', permissions: [] },
+  { name: 'admin', label: 'Admin' },
+  { name: 'viewer', label: 'Viewer' },
 ];
 
 const permissions: ObjectPermissionConfig[] = [

@@ -25,7 +25,7 @@
     {
       "id": 2,
       "prompt": "I want to create a custom detail page for the 'workflow' metadata type that has tabs for Settings, Steps, and History, similar to how object detail pages work.",
-      "expected_output": "Provides a PageSchema factory, self-contained widget components for each tab registered in ComponentRegistry, and an EditPage component that renders the factory's schema through SchemaRenderer — wired to the type by registerMetadataResource({ type: 'workflow', EditPage }). Mirrors apps/console/src/schemas/objectDetailPageSchema.ts plus components/schema/registerObjectDetailWidgets.ts.",
+      "expected_output": "Provides a PageSchema factory, self-contained widget components for each tab registered in ComponentRegistry, and an EditPage component that renders the factory's schema through SchemaRenderer — wired to the type by registerMetadataResource({ type: 'workflow', EditPage }). Notes that the console carries no schema-factory specimen today (the object-detail factory was retired in objectui#3731 / #3736) and that the live bespoke editor to copy is PermissionMatrixEditPage in packages/app-shell/src/services/builtinComponents.tsx.",
       "files": [],
       "assertions": {
         "must_contain": [

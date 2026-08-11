@@ -38,6 +38,38 @@
  * That gate skips any key a pack does not define — including the four
  * `OUTBOUND_KEYS` below — precisely because their key sets are this file's
  * business, so the two cannot contradict each other on the same fact.
+ *
+ * ## The second invariant here: a plural family carries a base key (objectui#3863)
+ *
+ * Parity across packs is necessary and NOT sufficient, and `detail.showEmptyRelated`
+ * was the proof: ten packs, identical key sets, `_one` and `_other` in every one of
+ * them — full parity, green — and `ru` still rendered ENGLISH at counts 2-20 and `ar`
+ * at 2-99. The mechanism is one level below key sets. i18next asks
+ * `Intl.PluralRules` for the ONE suffix a language needs for that number and, when
+ * the pack has no such slot, walks `fallbackLng` to `en`. `ru` has four categories
+ * (`one/few/many/other`) and `ar` six (`+ zero/two`); no pack in this repo defines
+ * `_few`/`_many`/`_two`/`_zero`, so those categories resolved nothing locally.
+ *
+ * Enumerating the missing slots per language is the fix that CANNOT be taken here:
+ * giving `ru` a `_few` would be a key `en` lacks, which the parity assertions above
+ * fail by design. The fix that composes with parity is the BASE key (no suffix) —
+ * always in i18next's lookup chain, so every category a pack did not enumerate lands
+ * on it, in the pack's own language, and the key set stays identical across ten packs.
+ *
+ * So this file owns the rule "a plural family must carry a base key" for a measured
+ * reason rather than by convenience — the two candidate homes were compared:
+ *
+ *   - `scripts/check-i18n-call-site-keys.mjs` reads exactly ONE pack
+ *     (`collectEnKeys`, `packages/i18n/src/locales/en.ts`). Slot coverage is a
+ *     per-pack fact about `ru` and `ar`; an `en`-only instrument cannot state it, and
+ *     it only sees families reached from a statically parsable `t()` literal — a
+ *     family added to the packs before its call site lands (the objectui#3546
+ *     transition, which ran for months) would be invisible. Tightening its
+ *     `resolvesLeaf` would also make it report a complete-but-baseless family as
+ *     `missing-key`, whose remediation text reads "The key exists in no locale pack" —
+ *     false for a family nine packs define.
+ *   - Here, the rule is pack-intrinsic: it walks all ten packs' own key sets, needs no
+ *     call site to exist, and fails in `pnpm test` at PR time.
  */
 import { describe, it, expect } from 'vitest';
 import { builtInLocales } from '../locales';
@@ -139,5 +171,91 @@ describe('all locale packs are at full key parity with en (objectui#2872)', () =
       }
     }
     expect(mismatches).toEqual([]);
+  });
+});
+
+/**
+ * i18next's plural suffixes, CLDR order. Deliberately the same list as
+ * `scripts/check-i18n-call-site-keys.mjs`'s `PLURAL_SUFFIXES`, and asserted equal to
+ * `Intl.PluralRules`' own vocabulary below so the two cannot drift apart silently.
+ */
+const PLURAL_SUFFIXES = ['_zero', '_one', '_two', '_few', '_many', '_other'] as const;
+
+const ALL_LOCALES = Object.keys(builtInLocales) as LocaleCode[];
+
+/** Every leaf path of a pack — no `OUTBOUND_KEYS` subtraction: a base key must be a
+ *  real leaf of the SAME pack, whatever the parity exemptions are. */
+const leavesOf = (pack: unknown) => new Set(keyPaths(pack));
+
+/**
+ * The plural families of one pack: base path → the suffixes it defines.
+ * A leaf whose name merely ends in one of the suffixes IS a family member — that is
+ * exactly how i18next reads it, so a key accidentally named `foo_one` is a real
+ * defect here and not a false positive.
+ */
+function familiesOf(pack: unknown): Map<string, string[]> {
+  const families = new Map<string, string[]>();
+  for (const path of leavesOf(pack)) {
+    const suffix = PLURAL_SUFFIXES.find((s) => path.endsWith(s) && path.length > s.length);
+    if (suffix === undefined) continue;
+    const base = path.slice(0, -suffix.length);
+    families.set(base, [...(families.get(base) ?? []), suffix]);
+  }
+  return families;
+}
+
+describe('every plural family carries a base key (objectui#3863)', () => {
+  it('the walk finds the families it is meant to judge — not an empty assertion', () => {
+    // Without this, deleting every plural family (or breaking `familiesOf`) would
+    // make the rule below trivially green. The count is `en`'s and parity carries it
+    // to the other nine; it is a floor, not a pin, so a new family does not have to
+    // edit this line — only a family DISAPPEARING has to be explained.
+    expect(familiesOf(builtInLocales.en).size).toBeGreaterThanOrEqual(5);
+    expect(ALL_LOCALES).toHaveLength(10);
+    // The suffix list is i18next's, which takes it from `Intl.PluralRules`. Compared
+    // as sets against the union of all ten packs' languages so a CLDR category this
+    // repo can actually meet cannot be missing from the list above.
+    const categories = new Set(
+      ALL_LOCALES.flatMap((l) => new Intl.PluralRules(l).resolvedOptions().pluralCategories),
+    );
+    expect([...categories].map((c) => `_${c}`).sort()).toEqual([...PLURAL_SUFFIXES].sort());
+  });
+
+  it.each(ALL_LOCALES)('%s defines the base key of every plural family it has', (lang) => {
+    // THE rule. i18next resolves `key_<category>` for the one category the number
+    // needs; the base key is the only slot that answers for every category the pack
+    // did not spell out, and it answers IN THIS PACK instead of falling through
+    // `fallbackLng` to English. A family without it leaks English at exactly the
+    // counts its language meets first (objectui#3863: `ru` 2-20, `ar` 2-99).
+    const leaves = leavesOf(builtInLocales[lang]);
+    const baseless = [...familiesOf(builtInLocales[lang])]
+      .filter(([base]) => !leaves.has(base))
+      .map(([base, suffixes]) => `${base} [${suffixes.sort().join(',')}] has no base key`)
+      .sort();
+    expect(baseless, `${lang}: ${baseless.length} plural family/families with no base key`).toEqual(
+      [],
+    );
+  });
+
+  it('the rule bites — five of the ten packs have categories that only a base key can serve', () => {
+    // Why the rule is not cosmetic, stated as data rather than prose. `en`/`de` and
+    // `zh`/`ja`/`ko` genuinely cannot reach the base key (their whole category set is
+    // covered by `_one`/`_other`), so for them it is parity ballast; for the other
+    // six it is the slot a real user hits.
+    const reachable = ALL_LOCALES.filter((l) =>
+      new Intl.PluralRules(l)
+        .resolvedOptions()
+        .pluralCategories.some((c) => c !== 'one' && c !== 'other'),
+    );
+    expect(reachable.sort()).toEqual(['ar', 'es', 'fr', 'pt', 'ru']);
+    // …and `ru`/`ar` reach it at everyday counts, which is what makes this a
+    // user-visible defect rather than a theoretical one: `fr`/`es`/`pt` only use
+    // `many` from a million up.
+    expect(new Intl.PluralRules('ru').select(3)).toBe('few');
+    expect(new Intl.PluralRules('ru').select(7)).toBe('many');
+    expect(new Intl.PluralRules('ar').select(2)).toBe('two');
+    expect(new Intl.PluralRules('ar').select(30)).toBe('many');
+    expect(new Intl.PluralRules('fr').select(100)).toBe('other');
+    expect(new Intl.PluralRules('fr').select(1_000_000)).toBe('many');
   });
 });

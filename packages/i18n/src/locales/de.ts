@@ -947,6 +947,9 @@ const de = {
     updatedBy: "Aktualisiert von",
     created: "Erstellt",
     updated: "Aktualisiert",
+    // objectui#3863 — base key. de's categories are exactly `one`/`other`, so this
+    // slot is unreachable here and equals `_other` for key-set parity.
+    showEmptyRelated: "+ {{count}} leer",
     showEmptyRelated_one: "+ {{count}} leer",
     showEmptyRelated_other: "+ {{count}} leer",
     copyEmail: "E-Mail kopieren",

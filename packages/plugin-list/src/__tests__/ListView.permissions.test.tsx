@@ -29,12 +29,11 @@ import type { ObjectPermissionConfig, RoleDefinition } from '@object-ui/types';
  * register table renderers), but the $select contract is invariant.
  */
 
-// `permissions: []` is accurate and required: a role's DIRECT object grants live
-// on `RoleDefinition.permissions`, and this role has none — every grant it uses
-// comes from the `ObjectPermissionConfig` below. (That the field is required and
-// read by nothing is the dormancy filed as #4288.)
+// Every grant this role uses comes from the `ObjectPermissionConfig` below —
+// the only wired home for role grants. (`RoleDefinition` used to require a
+// second, never-read `permissions` array; retired in objectui#4288.)
 const roles: RoleDefinition[] = [
-  { name: 'restricted', label: 'Restricted', description: 'denies one field', permissions: [] },
+  { name: 'restricted', label: 'Restricted', description: 'denies one field' },
 ];
 
 function makeRestrictedConfig(deniedField: string): ObjectPermissionConfig {

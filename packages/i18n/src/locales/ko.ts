@@ -947,6 +947,9 @@ const ko = {
     updatedBy: "업데이트한 사람",
     created: "작성됨",
     updated: "업데이트됨",
+    // objectui#3863 — base key. ko has a single plural category (`other`), so this
+    // slot is unreachable here and equals `_other` for key-set parity.
+    showEmptyRelated: "+ {{count}}개 비어 있음",
     showEmptyRelated_one: "+ {{count}}개 비어 있음",
     showEmptyRelated_other: "+ {{count}}개 비어 있음",
     copyEmail: "이메일 복사",

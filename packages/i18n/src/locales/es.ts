@@ -951,6 +951,9 @@ const es = {
     updatedBy: "Actualizado por",
     created: "Creado",
     updated: "Actualizado",
+    // objectui#3863 — base key. es's third category `many` starts at a million, where
+    // the plural form is correct, so the base repeats `_other`.
+    showEmptyRelated: "+ {{count}} vacíos",
     showEmptyRelated_one: "+ {{count}} vacío",
     showEmptyRelated_other: "+ {{count}} vacíos",
     copyEmail: "Copiar correo",

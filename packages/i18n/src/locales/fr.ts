@@ -947,6 +947,11 @@ const fr = {
     highlightFields: "Champs clés",
     createdBy: "Créé par",
     updatedBy: "Mis à jour par",
+    // objectui#3863 — base key. fr has a third category, `many`, which CLDR uses from
+    // a million up; the plural form is correct there, so the base repeats `_other`
+    // rather than restructuring (unlike ru/ar, whose unenumerated categories cover
+    // everyday counts).
+    showEmptyRelated: "+ {{count}} vides",
     showEmptyRelated_one: "+ {{count}} vide",
     showEmptyRelated_other: "+ {{count}} vides",
     copyEmail: "Copier l'e-mail",

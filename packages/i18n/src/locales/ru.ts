@@ -953,6 +953,13 @@ const ru = {
     deleteRowTitle: "Удалить запись",
     createdBy: "Создано",
     updatedBy: "Обновлено",
+    // objectui#3863 — base key, and in ru this is the slot users actually hit: `few`
+    // (2-4) and `many` (5-20, 25-30, …) are unenumerated, so before this key those
+    // counts rendered ENGLISH. The value therefore cannot agree with the numeral —
+    // it uses the «Существительное: {{count}}» form this pack already writes 22 times
+    // (lookup.recordCount `Записей: {{count}}`, notifications.groupCount), which is
+    // correct for EVERY Russian count. `_one` keeps the agreeing form for 1/21/31/…
+    showEmptyRelated: "+ Пустых: {{count}}",
     showEmptyRelated_one: "+ {{count}} пустое",
     showEmptyRelated_other: "+ {{count}} пустых",
     copyEmail: "Копировать email",

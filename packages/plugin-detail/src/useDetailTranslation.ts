@@ -152,6 +152,13 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.nextRecordKey': 'Next record (→)',
   'detail.lastRecord': 'Last record (End)',
   'detail.noRecords': 'No records',
+  // objectui#3863 — the packs grew a BASE key for this family, and this map has to
+  // mirror it for a reason of its own: `fallbackT` (createSafeTranslation) resolves
+  // `defaults[key]` LITERALLY and never appends a plural suffix, so with only the two
+  // suffixed rows below the provider-less path answered `t('detail.showEmptyRelated',
+  // { count })` with the raw key. The base row is the only one that path can reach;
+  // the suffixed rows are kept so the map's key set still mirrors the packs'.
+  'detail.showEmptyRelated': '+ {{count}} empty',
   'detail.showEmptyRelated_one': '+ {{count}} empty',
   'detail.showEmptyRelated_other': '+ {{count}} empty',
   'detail.searchWhileNavigating': 'Search while navigating',

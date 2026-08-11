@@ -32,7 +32,7 @@ vi.mock('../RelatedList', () => ({
 const ds = { find: vi.fn(async () => []) };
 
 const roles: RoleDefinition[] = [
-  { name: 'restricted', label: 'Restricted', permissions: [] },
+  { name: 'restricted', label: 'Restricted' },
 ];
 
 function contactPerms(actions: Array<'read'>): ObjectPermissionConfig[] {

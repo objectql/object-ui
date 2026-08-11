@@ -1002,6 +1002,13 @@ const en = {
     nextRecordKey: 'Next record (→)',
     lastRecord: 'Last record (End)',
     noRecords: 'No records',
+    // objectui#3863 — the BASE key is the slot every plural category a pack did not
+    // enumerate resolves to, keeping that pack in its own language instead of falling
+    // through `fallbackLng` to English. `en` itself can never reach it (its categories
+    // are exactly `one`/`other`), so this value is parity ballast — and it must stay
+    // byte-identical to the call site's inline `defaultValue` in
+    // `record-reference-rail.tsx`, which `check:i18n-keys` now judges as class 3.
+    showEmptyRelated: '+ {{count}} empty',
     showEmptyRelated_one: '+ {{count}} empty',
     showEmptyRelated_other: '+ {{count}} empty',
     searchWhileNavigating: 'Search while navigating',

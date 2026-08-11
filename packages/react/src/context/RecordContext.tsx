@@ -120,10 +120,6 @@ export interface RecordContextValue<TData = any, TObjectSchema = any> {
   data?: TData;
   /** Resolved object metadata schema (fields, label, etc.). */
   objectSchema?: TObjectSchema;
-  /** True while the record is fetching. */
-  loading?: boolean;
-  /** Last fetch error, if any. */
-  error?: Error | null;
   /** Re-fetch the record from the source. */
   refresh?: () => void | Promise<void>;
   /**
@@ -176,8 +172,6 @@ export const RecordContextProvider: React.FC<RecordContextProviderProps> = ({
     value.dataSource,
     value.data,
     value.objectSchema,
-    value.loading,
-    value.error,
     value.refresh,
     value.embedded,
     value.headerSystemActions,
