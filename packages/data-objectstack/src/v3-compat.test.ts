@@ -6,30 +6,19 @@ import { describe, it, expect } from 'vitest';
 import { validatePluginContract, generateContractManifest } from './contracts';
 import { IntegrationManager } from './integration';
 import { SecurityManager } from './security';
-import { CloudOperations } from './cloud';
 import { createDefaultCanvasConfig, snapToGrid, calculateAutoLayout } from './studio';
 
+// The `Cloud namespace (replacing Hub)` block that used to open this file is
+// gone with its subject (objectui#4152). Its three cases constructed
+// `CloudOperations` against a client stub of `{}` and asserted that the results
+// had the right KEYS — which is precisely how the surface stayed green for as
+// long as it did: every method optional-chained into a `cloud` namespace no
+// released `@objectstack/client` has ever exported, so what the assertions were
+// reading was the fallback literal, not a deployment. The replacement is a
+// negative pin next door, `cloud-surface-retired-4152.pin.test.ts`, which fails
+// if the exports come back.
+
 describe('v3.0.0 Compatibility', () => {
-  describe('Cloud namespace (replacing Hub)', () => {
-    it('should create cloud operations instance', () => {
-      const ops = new CloudOperations(() => ({}));
-      expect(ops).toBeDefined();
-    });
-
-    it('should handle deploy when client has no cloud support', async () => {
-      const ops = new CloudOperations(() => ({}));
-      const result = await ops.deploy('app-1', { environment: 'production' });
-      expect(result).toHaveProperty('deploymentId');
-      expect(result).toHaveProperty('status');
-    });
-
-    it('should handle marketplace search when client has no cloud support', async () => {
-      const ops = new CloudOperations(() => ({}));
-      const results = await ops.searchMarketplace('grid');
-      expect(Array.isArray(results)).toBe(true);
-    });
-  });
-
   describe('Contracts module', () => {
     it('should validate a valid plugin contract', () => {
       const contract = {
