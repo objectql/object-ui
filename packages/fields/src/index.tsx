@@ -358,26 +358,38 @@ export function coerceToSafeValue(value: unknown): string | number | boolean | n
  * RMB amount showing as dollars?" bug reports.
  *
  * Trailing `.00` is dropped when the value is a whole number — Salesforce
- * convention: `$1,234.50` keeps cents; `$1,234` does not.
+ * convention: `$1,234.50` keeps cents; `$1,234` does not. Wholeness picks ONE
+ * fraction-digit width, never a range: a whole amount shows 0 digits, and a
+ * fractional amount shows exactly 2 — so a real cents value of `.50` renders
+ * `.50`, not `.5`.
  */
 import { resolveFieldCurrency } from './currency';
 export { resolveFieldCurrency };
 
 export function formatCurrency(value: number, currency?: string, locale?: string): string {
   const isWhole = Number.isFinite(value) && value === Math.trunc(value);
-  const maxFrac = isWhole ? 0 : 2;
+  // ONE width for both bounds, not a range (objectui#4332). The symbol branch
+  // used to pass `minimumFractionDigits: 0` against a wholeness-switched
+  // maximum, which handed Intl the range [0, 2] — and Intl then emits the
+  // SHORTEST representation in range, so a genuine cents value of `.50` was
+  // printed as `.5`: `$1,234.5` instead of the `$1,234.50` promised above.
+  // It was the only branch that did: the no-currency branch reaches
+  // `formatNumber`, which sets both bounds to the width it is given, and the
+  // bad-currency fallback below has always used `toFixed`. Both already
+  // rendered `1,234.50` for the same amount.
+  const fracDigits = isWhole ? 0 : 2;
   if (!currency) {
-    return formatNumber(value, maxFrac, locale);
+    return formatNumber(value, fracDigits, locale);
   }
   try {
     return formatDisplayNumber(value, {
       locale,
       currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: maxFrac,
+      minimumFractionDigits: fracDigits,
+      maximumFractionDigits: fracDigits,
     });
   } catch {
-    return `${currency} ${value.toFixed(maxFrac)}`;
+    return `${currency} ${value.toFixed(fracDigits)}`;
   }
 }
 

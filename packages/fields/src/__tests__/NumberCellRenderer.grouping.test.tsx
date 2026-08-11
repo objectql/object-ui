@@ -122,14 +122,15 @@ describe('CurrencyCellRenderer — CONTROL, unaffected by the ordinal default', 
 
   it('keeps grouping and the fractional part when the amount is not whole', () => {
     renderCurrency(1234.5, { currency: 'USD' }, 'en-US');
-    // Pins CURRENT behaviour, which is `$1,234.5` — NOT the `$1,234.50` that
-    // `formatCurrency`'s own doc comment promises ("Salesforce convention:
-    // `$1,234.50` keeps cents"). The construction passes
-    // `minimumFractionDigits: 0`, so a trailing zero is dropped from a real
-    // cents value. Pre-existing and out of this card's scope (it is neither a
-    // locale nor a grouping defect) — filed separately; this control exists to
-    // prove #4033 does not disturb it.
-    expect(screen.getByText('$1,234.5')).toBeInTheDocument();
+    // This control pinned the CURRENT behaviour when #4033 landed — `$1,234.5`,
+    // NOT the `$1,234.50` that `formatCurrency`'s own doc comment promises
+    // ("Salesforce convention: `$1,234.50` keeps cents"). That was a real
+    // defect, deliberately filed rather than folded in (objectui#4332) and
+    // pinned here so its fix would flip a watched test instead of silently
+    // changing an unwatched surface. #4332 is now fixed, so the expectation
+    // moves to the promised form; grouping — this control's actual subject —
+    // is unchanged, which is still what #4033 needs it to prove.
+    expect(screen.getByText('$1,234.50')).toBeInTheDocument();
   });
 
   it('follows the active locale for currency too', () => {
