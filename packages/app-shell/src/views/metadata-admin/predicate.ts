@@ -80,6 +80,30 @@
  * `false && <unresolvable>` is `false` and `true || <unresolvable>` is `true` —
  * the unresolvable half is short-circuited away, absorbed exactly as CEL absorbs
  * an erroring branch, and no warning fires because nothing needed it.
+ *
+ * ## A path on the RIGHT of `==` / `!=` is a string literal (objectui#4049)
+ *
+ * Only the LEFT side resolves. The right side goes to `parseLiteral`, whose tail
+ * hands back anything it does not recognise as a literal VERBATIM — so
+ * `data.a == data.b` compares the value of `data.a` against the seven-character
+ * string "data.b". It is FALSE however equal the two sides are, and
+ * `data.a != data.b` is correspondingly TRUE. The subset list above is honest
+ * about this (`path == 'literal'`, never `path == path`), but the boundary was
+ * enforced by silence: objectstack#6936's warning cannot reach it, because that
+ * one hangs on `resolveValue` and the right side never enters it.
+ *
+ * Ruling on objectui#4049: **option B only — a dev-mode diagnostic here, zero
+ * semantic change.** Resolving the right side (option A) was rejected: it would
+ * flip `data.type == text`, the unquoted-string spelling that works today by
+ * accident, into a fail-open `true`. The verdicts stay bit-for-bit what they
+ * were and are pinned that way in `predicate.test.ts` §7.3; all that changes is
+ * that the console stops being silent about the subset boundary.
+ *
+ * The semantic fix belongs to the producer — publish-time validation of
+ * predicate expressions (objectstack#7010) — and to the real CEL runtime: as the
+ * header says, this file is an interim stand-in for `@objectstack/formula`, so
+ * **this diagnostic retires with the file** when ROADMAP M9 lands CEL. Do not
+ * grow it into a second evaluator.
  */
 
 export function evaluatePredicate(
@@ -90,7 +114,7 @@ export function evaluatePredicate(
   const source = typeof expr === 'string' ? expr : expr.source;
   if (!source) return true;
   try {
-    return evalExpr(source.trim(), ctx);
+    return evalExpr(source.trim(), ctx, source);
   } catch (err) {
     // Fail-open either way; an unresolvable path additionally gets a name.
     if (err instanceof UnresolvedPathError) warnUnresolvedPath(err.path, source);
@@ -119,9 +143,18 @@ class UnresolvedPathError extends Error {
 // `warnOnUnknownActionKeys` in `@object-ui/core` (`actions/actionKeys.ts`).
 const warnedUnresolvedPaths = new Set<string>();
 
-/** Reset the warn-once memo. Exported for tests. */
+/**
+ * The same warn-once discipline for the right-hand-literal diagnostic
+ * (objectui#4049), keyed on (right-hand text, predicate) for the same reason:
+ * keyed on the text alone, a form with fifteen predicates comparing against
+ * `data.b` would report one of them and hide the rest.
+ */
+const warnedPathShapedLiterals = new Set<string>();
+
+/** Reset the warn-once memos. Exported for tests. */
 export function resetPredicateWarnings(): void {
   warnedUnresolvedPaths.clear();
+  warnedPathShapedLiterals.clear();
 }
 
 const isDev = (): boolean =>
@@ -144,42 +177,79 @@ function warnUnresolvedPath(path: string, source: string): void {
   );
 }
 
+/**
+ * The identifier grammar the LEFT side accepts: a root identifier followed by
+ * dot-separated segments (`text`, `data.type`, `data.config.kind`) — i.e. the
+ * shape `resolveValue` would have resolved had this text been on the other side
+ * of the operator.
+ *
+ * Deliberately NOT "contains a dot". `1.2.3` also reaches `parseLiteral`'s tail
+ * (via the digit-leading literal shortcut in `resolveValue`) and is likewise
+ * compared as text, but it is a malformed NUMBER, not a path; announcing it as
+ * a path would be a false statement about the author's code. Quoted strings,
+ * numbers, booleans, null and arrays never reach the tail at all — they return
+ * from their own branches above.
+ */
+const PATH_SHAPED_LITERAL = /^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
+
+function warnPathShapedLiteral(text: string, source: string): void {
+  if (!isDev()) return;
+  const memo = `${text}::${source}`;
+  if (warnedPathShapedLiterals.has(memo)) return;
+  warnedPathShapedLiterals.add(memo);
+  console.warn(
+    `[metadata-admin] visibility predicate \`${source}\` compares against \`${text}\`, which looks ` +
+      `like a path but is being used as the literal string "${text}" — this evaluator resolves ` +
+      'paths only on the LEFT of `==` / `!=`; the right-hand side is always a literal (supported ' +
+      "subset: `path == 'literal'`). So `data.a == data.b` is FALSE even when both sides hold the " +
+      'same value, and `data.a != data.b` is TRUE — the verdict does not depend on the right-hand ' +
+      "path at all. If you meant the text, quote it (`== 'text'`). If you meant to compare two " +
+      'paths, that is outside this evaluator\'s subset: it is an interim stand-in for ' +
+      '`@objectstack/formula` until CEL lands (ROADMAP M9), and predicate expressions are ' +
+      'validated at publish time (objectstack#7010). objectui#4049.',
+  );
+}
+
 function evalExpr(
   expr: string,
   ctx: { data: Record<string, unknown> },
+  // The WHOLE predicate, threaded down unchanged so a diagnostic raised deep in
+  // a sub-expression can name the predicate the author actually wrote — the
+  // same pairing objectstack#6936's warning makes via UnresolvedPathError.
+  source: string,
 ): boolean {
   // Handle || (lowest precedence)
   const orParts = splitTopLevel(expr, '||');
   if (orParts.length > 1) {
-    return orParts.some((p) => evalExpr(p.trim(), ctx));
+    return orParts.some((p) => evalExpr(p.trim(), ctx, source));
   }
   // Handle &&
   const andParts = splitTopLevel(expr, '&&');
   if (andParts.length > 1) {
-    return andParts.every((p) => evalExpr(p.trim(), ctx));
+    return andParts.every((p) => evalExpr(p.trim(), ctx, source));
   }
   // Handle negation
   if (expr.startsWith('!')) {
-    return !evalExpr(expr.slice(1).trim(), ctx);
+    return !evalExpr(expr.slice(1).trim(), ctx, source);
   }
   // Handle 'in'
   const inMatch = expr.match(/^(.+?)\s+in\s+(\[.*\])$/);
   if (inMatch) {
-    const left = resolveValue(inMatch[1].trim(), ctx);
-    const right = parseLiteral(inMatch[2]);
+    const left = resolveValue(inMatch[1].trim(), ctx, source);
+    const right = parseLiteral(inMatch[2], source);
     return Array.isArray(right) && right.includes(left as never);
   }
   // Handle == / != (CEL-style loose equality: null == undefined)
   const eqMatch = expr.match(/^(.+?)\s*(==|!=)\s*(.+)$/);
   if (eqMatch) {
-    const left = resolveValue(eqMatch[1].trim(), ctx);
-    const right = parseLiteral(eqMatch[3].trim());
+    const left = resolveValue(eqMatch[1].trim(), ctx, source);
+    const right = parseLiteral(eqMatch[3].trim(), source);
     const nullish = (v: unknown) => v === null || v === undefined;
     const equal = nullish(left) && nullish(right) ? true : left === right;
     return eqMatch[2] === '==' ? equal : !equal;
   }
   // Bare truthy check
-  return Boolean(resolveValue(expr, ctx));
+  return Boolean(resolveValue(expr, ctx, source));
 }
 
 function splitTopLevel(expr: string, op: string): string[] {
@@ -221,10 +291,11 @@ function splitTopLevel(expr: string, op: string): string[] {
 function resolveValue(
   path: string,
   ctx: { data: Record<string, unknown> },
+  source: string,
 ): unknown {
   // Allow literals on the left side too.
   if (/^['"]/.test(path) || /^-?\d/.test(path) || path === 'true' || path === 'false' || path === 'null') {
-    return parseLiteral(path);
+    return parseLiteral(path, source);
   }
   const segs = path.split('.');
   // The root identifier must be a name the scope actually declares. `hasOwn`,
@@ -245,7 +316,7 @@ function resolveValue(
   return cur;
 }
 
-function parseLiteral(raw: string): unknown {
+function parseLiteral(raw: string, source: string): unknown {
   const s = raw.trim();
   if (s === 'true') return true;
   if (s === 'false') return false;
@@ -266,5 +337,12 @@ function parseLiteral(raw: string): unknown {
       return [];
     }
   }
+  // The tail: `s` is not a literal this evaluator recognises, so it is handed
+  // back as itself and compared as text. Every route to this line carries the
+  // diagnostic (objectui#4049) — the right side of `==` / `!=`, and the
+  // digit-leading literal shortcut in `resolveValue` used by `in`'s left side,
+  // a bare truthy check and the left of `==`. NOTE the verdict is untouched:
+  // `s` is still returned verbatim, exactly as before.
+  if (PATH_SHAPED_LITERAL.test(s)) warnPathShapedLiteral(s, source);
   return s;
 }

@@ -346,3 +346,107 @@ describe('the 16 vanished Studio sub-fields (objectstack#6936 reading)', () => {
     expect(warn).toHaveBeenCalled();
   });
 });
+
+/* ── 7. a path on the RIGHT of ==/!= is a string literal — say so (#4049) ── */
+
+/**
+ * objectui#4049. `parseLiteral`'s tail `return s` hands back any input it does
+ * not recognise as a literal, verbatim. The LEFT side of `==` / `!=` resolves
+ * paths; the RIGHT side does not — so `data.a == data.b` compares the value of
+ * `data.a` against the seven-character string "data.b" and is FALSE however
+ * equal the two sides are, with nothing in the console. objectstack#6936's
+ * warning cannot see this: it hangs on `resolveValue`, which the right side
+ * never enters (measured — 0 warnings for the whole truth table below).
+ *
+ * Maintainer/PM ruling on this card: option B ONLY — a dev-mode diagnostic at
+ * that tail, ZERO semantic change. The verdicts are therefore pinned IDENTICAL
+ * before and after (§7.3); the console merely stops being silent.
+ */
+describe('a path-shaped right-hand side is diagnosed, not resolved (objectui#4049)', () => {
+  /* 7.1 — it fires, and it names both halves */
+
+  it('`data.a == data.b` warns, naming the right-hand text and the predicate', () => {
+    expect(evaluatePredicate('data.a == data.b', scope({ a: 'x', b: 'x' }))).toBe(false);
+    expect(warn).toHaveBeenCalledTimes(1);
+    // Both halves or the warning sends nobody anywhere — same bar as #6936.
+    expect(warnings()).toContain('`data.b`');
+    expect(warnings()).toContain('data.a == data.b');
+  });
+
+  it('`!=` routes through the same tail', () => {
+    expect(evaluatePredicate('data.a != data.b', scope({ a: 'x', b: 'x' }))).toBe(true);
+    expect(warnings()).toContain('`data.b`');
+  });
+
+  it('an UNQUOTED bare identifier fires — the A-direction regression shape', () => {
+    // `data.type == text` "works" today by accident: the row happens to hold the
+    // string "text". Option A (resolving the right side) would have flipped it
+    // to fail-open true. It stays exactly as it was — and stops being silent, so
+    // the accident is discoverable instead of load-bearing.
+    expect(evaluatePredicate('data.type == text', scope({ type: 'text' }))).toBe(true);
+    expect(warnings()).toContain('`text`');
+  });
+
+  it('warns ONCE per (right-hand text, predicate) pair', () => {
+    for (let i = 0; i < 5; i++) evaluatePredicate('data.a == data.b', scope({ a: 'x', b: 'x' }));
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('but a different predicate carrying the same text gets its own warning', () => {
+    evaluatePredicate('data.a == data.b', scope({ a: 'x', b: 'x' }));
+    evaluatePredicate('data.c == data.b', scope({ b: 'x', c: 'x' }));
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it('the diagnostic is dev-mode only', () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      expect(evaluatePredicate('data.a == data.b', scope({ a: 'x', b: 'x' }))).toBe(false);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
+  /* 7.2 — controls: real literals stay silent */
+
+  it.each([
+    ["a quoted string", "data.type == 'text'", { type: 'text' }],
+    ['a double-quoted string', 'data.type == "text"', { type: 'text' }],
+    ['a number', 'data.n == 42', { n: 42 }],
+    ['a negative number', 'data.n == -1', { n: -1 }],
+    ['a decimal', 'data.n == 1.5', { n: 1.5 }],
+    ['true', 'data.flag == true', { flag: true }],
+    ['false', 'data.flag == false', { flag: false }],
+    ['null', 'data.v == null', { v: null }],
+    ['an array', "data.type in ['text','number']", { type: 'text' }],
+    ['a quoted string that CONTAINS dots', "data.v == 'a.b.c'", { v: 'a.b.c' }],
+  ])('%s on the right side fires nothing', (_label, expr, row) => {
+    evaluatePredicate(expr as string, scope(row as Record<string, unknown>));
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('a dotted NON-identifier is not called a path (grammar boundary)', () => {
+    // `1.2.3` reaches the same tail (via resolveValue's literal shortcut for
+    // digit-leading operands) and is likewise compared as text — but it is a
+    // malformed NUMBER, not a path. Reporting it as one would be a false claim,
+    // so the grammar is the dot-separated identifier chain the left side
+    // accepts, not "contains a dot".
+    expect(evaluatePredicate('data.v == 1.2.3', scope({ v: '1.2.3' }))).toBe(true);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  /* 7.3 — the zero-semantics proof: verdicts identical to pre-change */
+
+  it.each([
+    ['data.a == data.b', { a: 'x', b: 'x' }, false], // equal values, still FALSE
+    ['data.a != data.b', { a: 'x', b: 'x' }, true], // equal values, still TRUE
+    ['data.a == data.b', { a: 'x', b: 'y' }, false], // right for the wrong reason
+    ["data.a == 'x'", { a: 'x', b: 'y' }, true], // literal control
+    ['data.type == text', { type: 'text' }, true], // unquoted, unchanged
+    ['data.a == data.b', { a: 'data.b' }, true], // the literal-text comparison itself
+  ])('%s over %j is still %s — the diagnostic changes no verdict', (expr, row, expected) => {
+    expect(evaluatePredicate(expr as string, scope(row as Record<string, unknown>))).toBe(expected);
+  });
+});
