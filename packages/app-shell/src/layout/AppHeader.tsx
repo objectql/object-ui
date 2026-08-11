@@ -50,7 +50,7 @@ import {
   Hammer,
 } from 'lucide-react';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useOffline } from '@object-ui/react';
 import { PresenceAvatars, useTenantPresence, type PresenceUser } from '@object-ui/collaboration';
 import { ModeToggle } from './ModeToggle';
@@ -75,11 +75,14 @@ import { useCommandPalette } from '../context/CommandPaletteProvider';
 import { useUrlOverlay } from '../hooks/useUrlOverlay';
 import { KEYBOARD_SHORTCUTS_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
 import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
-import { useSharedActivityFeed, useSharedPendingApprovalsCount } from '../hooks/sharedUserFeeds';
+import {
+  useSharedActivityFeed,
+  useSharedInboxFeed,
+  useSharedPendingApprovalsCount,
+} from '../hooks/sharedUserFeeds';
 import { getProductName, getLogoUrl } from '../runtime-config';
 import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger';
 import { PreviewBadge } from './PreviewBadge';
-import { errorCodeIs } from '@object-ui/types';
 
 function humanizeSlug(slug: string): string {
   return slug.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -98,6 +101,10 @@ function PathSep() {
 // No fake fallback presence — render nothing when the API has no data so the
 // header doesn't ship phantom collaborators in production.
 const EMPTY_PRESENCE_USERS: PresenceUser[] = [];
+
+// Same stable-reference rule, for the optimistic mark-read overlay: a fresh
+// empty Set per render would re-run every memo that depends on it.
+const EMPTY_READ_IDS: ReadonlySet<string> = new Set<string>();
 
 export type AppHeaderVariant = 'app' | 'home' | 'orgs';
 
@@ -206,55 +213,39 @@ export function AppHeader({
    */
   const apiActivities = useSharedActivityFeed();
   /**
-   * In-header notifications (ADR-0030). Polled from `sys_inbox_message` (the L5
-   * in-app materialization, `mine` scope) joined with `sys_notification_receipt`
-   * for read-state — the bell no longer reads the re-modeled `sys_notification`
-   * L2 event (which carries no recipient/read columns).
+   * In-header notifications (ADR-0030), from the shared user feed (#4225).
+   *
+   * The rows are `sys_inbox_message` (the L5 in-app materialization, `mine`
+   * scope) joined with `sys_notification_receipt` for read-state — the bell
+   * does not read the re-modeled `sys_notification` L2 event (which carries no
+   * recipient/read columns). That query, its 10s cadence, its hidden-tab
+   * throttle, its visibility refetch and its failure backoff all moved into
+   * `sharedUserFeeds` unchanged; what was lost is only the SECOND copy of it.
+   *
+   * Home's action centre reads the same feed, so the two surfaces can no
+   * longer disagree about whether a message is read — the #4316 defect, where
+   * this bell showed zero unread while the card below listed five already-read
+   * messages as needing attention, has no representable state to occur in.
    */
-  const [notifications, setNotifications] = useState<Array<{
-    id: string;
-    /** FK → sys_notification (L2 event); keys the read-state receipt. */
-    notification_id?: string | null;
-    /** Existing receipt row id (if any) — lets mark-read UPDATE in place. */
-    receipt_id?: string | null;
-    type: string;
-    title: string;
-    body?: string | null;
-    /** Deep-link target carried by the materialization (action_url). */
-    action_url?: string | null;
-    source_object?: string | null;
-    source_id?: string | null;
-    actor_name?: string | null;
-    is_read?: boolean;
-    created_at?: string;
-  }>>([]);
-  // Once the server returns 404 for these collections we stop retrying for
-  // the lifetime of the page — they're optional features and re-requesting
-  // on every navigation creates console noise + wasted round trips.
-  // (`sys_activity` and the approvals endpoint carry the same rule inside
-  // `sharedUserFeeds`, which retires a feed for every consumer at once.)
-  const notificationsUnavailableRef = useRef(false);
+  const { value: inboxMessages } = useSharedInboxFeed();
 
-  // Tracks whether the component is still mounted. Used by the pollers to
-  // decide whether to apply an in-flight fetch's result, independent of any
-  // single effect run's `cancelled` flag — so a fetch that outlives the
-  // effect run that started it (because deps settled mid-flight during
-  // bootstrap) still populates state instead of being silently dropped.
-  const mountedRef = useRef(true);
-  useEffect(() => {
-    // Reset on (re)mount too, so StrictMode's mount→cleanup→mount cycle
-    // doesn't leave it latched false and silence the pollers.
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
-
-  // In-flight guard: during bootstrap the poller effect re-runs several times
-  // as `dataSource` / `user.id` settle, and each run kicks an immediate fetch.
-  // Without it the same query fired 5× concurrently (nothing cached yet) and
-  // flooded the backend. It coalesces them to one. (The approvals and activity
-  // feeds carry the equivalent guard inside `sharedUserFeeds`, where it also
-  // collapses the *other* consumer's mount, not just this one's re-runs.)
-  const notifInFlightRef = useRef(false);
+  /**
+   * Optimistic read-state, layered over the shared rows.
+   *
+   * Mark-read used to mutate this component's own `notifications` state; the
+   * rows are shared now, so a consumer may not write to them — one surface's
+   * optimistic flip must not become another's fact before the server agrees.
+   * Holding the flipped ids locally keeps the click instant while the next
+   * poll (which reads the persisted receipt) supersedes it.
+   */
+  const [locallyRead, setLocallyRead] = useState<ReadonlySet<string>>(EMPTY_READ_IDS);
+  const notifications = useMemo(
+    () =>
+      locallyRead.size === 0
+        ? inboxMessages
+        : inboxMessages.map((n) => (locallyRead.has(n.id) ? { ...n, is_read: true } : n)),
+    [inboxMessages, locallyRead],
+  );
 
   /**
    * M11.C15: pending approvals count — the topbar shortcut, and the second
@@ -280,134 +271,19 @@ export function AppHeader({
    */
 
   /**
-   * Poll the signed-in user's in-app inbox (ADR-0030 L5).
-   *
-   * Two scoped reads, joined client-side:
-   *   - `sys_inbox_message` filtered by `user_id` (the `mine` materialization),
-   *     20 most-recent — the notification rows themselves.
-   *   - `sys_notification_receipt` filtered by `user_id` + `channel:'inbox'` —
-   *     the read-state spine. A message is unread until its event has a
-   *     `read`/`clicked`/`dismissed` receipt; the unread count drives the badge.
-   *
-   * - Adaptive interval: 10s while the tab is foregrounded so the bell reflects
-   *   mentions / assignments within seconds without a server-push transport.
-   * - Immediate refetch on `visibilitychange` when the user returns to the tab.
-   * - On transient errors, exponential backoff (cap 2 min), reset on success.
-   * - Tolerates 404 so deployments without the messaging pipeline degrade
-   *   silently.
-   *
-   * Full server-push (SSE / WebSocket) is tracked separately; this adaptive
-   * poll keeps perceived latency ~5s and is sufficient for pilots up to ~50
-   * concurrent users.
-   *
-   * ⚠️ Deliberately NOT gated on `isApp` (#4110). The bell renders in every
-   * header variant, and its inbox is scoped to the *user*, not to the app in
-   * the URL — unlike the presence avatars and the connection dot, which are
-   * app-shell chrome and are the reason that flag exists. While this poll was
-   * gated the popover held `[]` on Home / Organizations / the full-page AI
+   * ⚠️ The bell's inbox is deliberately NOT gated on `isApp` (#4110), and the
+   * shared feed keeps it that way: the read is scoped to the *user*, not to the
+   * app in the URL — unlike the presence avatars and the connection dot, which
+   * are app-shell chrome and are the reason that flag exists. While this poll
+   * was gated the popover held `[]` on Home / Organizations / the full-page AI
    * screen forever: the "Unread" sub-filter read "You're all caught up" and
    * "All" — which applies no predicate at all — read "No notifications", on the
-   * very page whose To-do card (`useHomeInbox`, ungated) was listing the same
-   * `sys_inbox_message` row. Scope the read by `user?.id` only.
+   * very page whose To-do card was listing the same `sys_inbox_message` row.
+   *
+   * Full server-push (SSE / WebSocket) is tracked separately; the shared feed's
+   * adaptive poll keeps perceived latency ~5s and is sufficient for pilots up
+   * to ~50 concurrent users.
    */
-  useEffect(() => {
-    if (!dataSource || !user?.id) return;
-    if (notificationsUnavailableRef.current) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const ACTIVE_INTERVAL_MS = 10_000;
-    const HIDDEN_INTERVAL_MS = 60_000;
-    const MAX_BACKOFF_MS = 120_000;
-    let backoffMs = ACTIVE_INTERVAL_MS;
-    const isMissingResource = (err: any): boolean =>
-      err?.httpStatus === 404 || err?.status === 404 || errorCodeIs(err, 'OBJECT_NOT_FOUND');
-    const READ_STATES = new Set(['read', 'clicked', 'dismissed']);
-    const fetchOnce = async () => {
-      if (notifInFlightRef.current) return;
-      notifInFlightRef.current = true;
-      try {
-        const [inboxRes, receiptRes] = await Promise.all([
-          dataSource.find('sys_inbox_message', {
-            $filter: { user_id: user.id },
-            $orderby: { created_at: 'desc' },
-            $top: 20,
-          }) as Promise<any>,
-          // Read-state spine. Best-effort: if receipts are unavailable the
-          // inbox still renders (everything shows unread) rather than erroring.
-          (dataSource.find('sys_notification_receipt', {
-            $filter: { user_id: user.id, channel: 'inbox' },
-            $top: 200,
-          }) as Promise<any>).catch(() => ({ data: [] })),
-        ]);
-        if (!mountedRef.current) return;
-        const rows: any[] = Array.isArray(inboxRes?.data) ? inboxRes.data : [];
-        const receipts: any[] = Array.isArray(receiptRes?.data) ? receiptRes.data : [];
-        // notification_id → { id, state } (most-advanced receipt wins).
-        const receiptByNotif = new Map<string, { id: string; state: string }>();
-        for (const r of receipts) {
-          const nid = r?.notification_id != null ? String(r.notification_id) : '';
-          if (!nid) continue;
-          const prev = receiptByNotif.get(nid);
-          // Prefer a read/clicked/dismissed receipt over a plain delivered one.
-          if (!prev || (!READ_STATES.has(prev.state) && READ_STATES.has(r.state))) {
-            receiptByNotif.set(nid, { id: String(r.id), state: String(r.state) });
-          }
-        }
-        const merged = rows.map((m) => {
-          const nid = m?.notification_id != null ? String(m.notification_id) : null;
-          const rec = nid ? receiptByNotif.get(nid) : undefined;
-          return {
-            id: String(m.id),
-            notification_id: nid,
-            receipt_id: rec?.id ?? null,
-            type: m.topic ?? 'notification',
-            title: m.title ?? '',
-            body: m.body_md ?? null,
-            action_url: m.action_url ?? null,
-            is_read: rec ? READ_STATES.has(rec.state) : false,
-            created_at: m.created_at,
-          };
-        });
-        setNotifications(merged);
-        backoffMs = ACTIVE_INTERVAL_MS;
-      } catch (err: any) {
-        if (isMissingResource(err)) {
-          notificationsUnavailableRef.current = true;
-          return;
-        }
-        backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
-      } finally {
-        notifInFlightRef.current = false;
-      }
-    };
-    const scheduleNext = () => {
-      if (cancelled || notificationsUnavailableRef.current) return;
-      const hidden = typeof document !== 'undefined' && document.hidden;
-      const delay = hidden ? HIDDEN_INTERVAL_MS : backoffMs;
-      timer = setTimeout(async () => {
-        await fetchOnce();
-        scheduleNext();
-      }, delay);
-    };
-    const onVisibilityChange = () => {
-      if (cancelled) return;
-      if (typeof document === 'undefined' || document.hidden) return;
-      if (timer) { clearTimeout(timer); timer = null; }
-      backoffMs = ACTIVE_INTERVAL_MS;
-      fetchOnce().finally(scheduleNext);
-    };
-    fetchOnce().finally(scheduleNext);
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', onVisibilityChange);
-    }
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', onVisibilityChange);
-      }
-    };
-  }, [dataSource, user?.id]);
 
   const unreadCount = notifications.reduce((n, x) => n + (x.is_read ? 0 : 1), 0);
 
@@ -432,19 +308,29 @@ export function AppHeader({
     });
   }, []);
 
+  /** Flip rows read in the local overlay — never in the shared feed's rows. */
+  const markLocallyRead = useCallback((ids: readonly string[]) => {
+    if (ids.length === 0) return;
+    setLocallyRead((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) next.add(id);
+      return next;
+    });
+  }, []);
+
   const markNotificationRead = useCallback(async (id: string) => {
     const target = notifications.find(n => n.id === id);
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    markLocallyRead([id]);
     if (!target?.notification_id) return;
     try { await postMarkRead('read', [target.notification_id]); } catch { /* best-effort */ }
-  }, [notifications, postMarkRead]);
+  }, [notifications, markLocallyRead, postMarkRead]);
 
   const markAllRead = useCallback(async () => {
     const unread = notifications.filter(n => !n.is_read);
     if (!unread.length) return;
-    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    markLocallyRead(notifications.map(n => n.id));
     try { await postMarkRead('read/all'); } catch { /* best-effort */ }
-  }, [notifications, postMarkRead]);
+  }, [notifications, markLocallyRead, postMarkRead]);
 
   // Per-group "mark all of this type read" (#2765): the inbox coalesces
   // repeats of the same (topic, title) into one expandable row, and this marks
@@ -457,10 +343,10 @@ export function AppHeader({
       .filter(n => idSet.has(n.id) && !n.is_read)
       .map(n => n.notification_id)
       .filter((v): v is string => !!v);
-    setNotifications(prev => prev.map(n => idSet.has(n.id) ? { ...n, is_read: true } : n));
+    markLocallyRead(ids);
     if (!notifIds.length) return;
     try { await postMarkRead('read', notifIds); } catch { /* best-effort */ }
-  }, [notifications, postMarkRead]);
+  }, [notifications, markLocallyRead, postMarkRead]);
 
   const tenantPresence = useTenantPresence();
   const activeUsers = presenceUsers ?? (tenantPresence.length > 0 ? tenantPresence : EMPTY_PRESENCE_USERS);

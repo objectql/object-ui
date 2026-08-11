@@ -9,12 +9,23 @@
  *   |                          |                                            | tab; Home's To-do card             |
  *   | recent activity          | `find('sys_activity', top 20, desc)`       | AppHeader bell Activity tab;       |
  *   |                          |                                            | Home's activity card               |
+ *   | inbox messages           | `find('sys_inbox_message', top 20, desc)`  | AppHeader bell Notifications tab   |
+ *   |                          | ⋈ `find('sys_notification_receipt')`       | + badge; Home's action centre      |
  *
  * Both consumers live in this package and, on `/home`, mount in the same tree
  * (`HomeLayout` renders the bell, `HomePage` renders the cards) — so each of
  * them owning its own effect meant the same read went out twice per page. That
  * is exactly the trade-off #4197 refused to accept as the price of un-gating
  * the bell: the fix is one fetch feeding both, not two fetches agreeing.
+ *
+ * The inbox feed joined them last (#4225). #4197 had left it out because the
+ * two consumers asked genuinely different questions of the same object — and
+ * #4316 measured what that cost: `useHomeInbox` never read the receipts, so
+ * Home's "Needs your attention" counted messages the user had already read
+ * while the bell two hundred pixels above correctly showed zero. Two panels,
+ * one page load, disagreeing about the same rows. Deriving both from ONE feed
+ * is what makes that disagreement structurally impossible rather than merely
+ * fixed: there is no second read left to drift.
  *
  * Neither feed is app-scoped, so neither is gated on the header's `isApp`
  * flag. `isApp` still means something — it hides genuinely app-shell chrome
@@ -42,9 +53,26 @@ import { errorCodeIs } from '@object-ui/types';
 import { useAdapter } from '../providers/AdapterProvider';
 import { bearerAuthHeaders } from '../utils/authToken';
 import type { ActivityItem } from '../layout/ActivityFeed';
+import type { InboxNotification } from '../layout/inboxGrouping';
 
 /** Approvals poll cadence — the bell's original 30s (M11.C15). */
 const APPROVALS_POLL_MS = 30_000;
+/** Inbox poll cadence — the bell's original 10s (ADR-0030 L5, #4110). */
+const INBOX_POLL_MS = 10_000;
+/**
+ * Cadence while the tab is backgrounded. The bell's own poller carried this
+ * (60s hidden against 10s foregrounded) plus an immediate refetch when the
+ * user comes back, and consolidating the poll into the store had to bring
+ * both along — a shared feed that polled a hidden tab at its foreground rate
+ * would have been a regression riding in on a de-duplication fix (#4225).
+ */
+const HIDDEN_POLL_MS = 60_000;
+/**
+ * Ceiling for the failure backoff, likewise lifted from the bell's poller and
+ * now applied to every feed: a feed whose read keeps failing must not keep
+ * hammering the server at its foreground cadence.
+ */
+const MAX_BACKOFF_MS = 120_000;
 /**
  * How long a fetched value stays authoritative. It is the dedupe window: a
  * second consumer mounting inside it is served the cached value instead of
@@ -59,14 +87,55 @@ const FRESH_MS = 30_000;
  * value must be one shared array (cf. `EMPTY_PRESENCE_USERS` in AppHeader).
  */
 const NO_ACTIVITIES: ActivityItem[] = [];
+/** The same stable-empty rule, for the inbox feed. */
+const NO_MESSAGES: InboxNotification[] = [];
+
+/**
+ * Whether a feed's value is an ANSWER — one dialect for every feed here.
+ *
+ *  - `idle`    — nothing asked yet (no adapter, no signed-in user, post-reset).
+ *  - `loading` — asked, still in flight, no prior answer to show.
+ *  - `ready`   — the read answered. Only here does an empty value mean the
+ *                feed is genuinely empty. A MISSING resource (404 /
+ *                `OBJECT_NOT_FOUND`) is `ready` too: this deployment has no
+ *                such object, so nothing is waiting — that is an answer.
+ *  - `error`   — the read failed (denied, unreachable, malformed). The value
+ *                is the last one known, or empty; either way it is not an
+ *                answer to the question being asked now.
+ *
+ * The same four words as `MetadataTypeStatus` (`providers/MetadataProvider`)
+ * and `HomeInboxStatus` (`useHomeInbox`), deliberately: #4300 ruled one status
+ * dialect for this exact question, and #4235 applied it to the inbox. The
+ * store used to have none — every failure was swallowed into "keep the last
+ * value", which is indistinguishable from a successful re-read returning the
+ * same thing. #4225 filled that gap for ALL feeds at once rather than adding a
+ * second, inbox-only dialect beside it.
+ */
+export type SharedFeedStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+/** A feed's value together with whether that value is an answer. */
+export interface SharedFeedSnapshot<T> {
+  value: T;
+  status: SharedFeedStatus;
+}
 
 /**
  * The runner produces the feed's next value, or `undefined` to leave the last
- * one in place (a transient error, a non-OK response). `markUnavailable()`
- * retires the feed for the rest of the page — the deployment does not have the
- * approvals plugin / the `sys_activity` object, so retrying is pure noise.
+ * one in place. Which of the two "no value" cases it is has to be said out
+ * loud, because the store can no longer guess:
+ *
+ *  - `markUnavailable()` retires the feed for the rest of the page — the
+ *    deployment does not have the approvals plugin / the `sys_activity`
+ *    object / the messaging pipeline, so retrying is pure noise. That is an
+ *    ANSWER (`ready`).
+ *  - `markFailed()` reports a read that should have worked and did not. The
+ *    last value stays on screen, the status goes `error`, and the next poll
+ *    backs off. A thrown error is equivalent — the runner may just let it fly.
  */
-type FeedRunner<T> = (ctx: { markUnavailable: () => void }) => Promise<T | undefined>;
+type FeedRunner<T> = (ctx: {
+  markUnavailable: () => void;
+  markFailed: () => void;
+}) => Promise<T | undefined>;
 
 /**
  * One feed's shared state. Consumers `attach` (from an effect) and read via
@@ -74,7 +143,13 @@ type FeedRunner<T> = (ctx: { markUnavailable: () => void }) => Promise<T | undef
  * last one out stops it.
  */
 class SharedFeed<T> {
-  private value: T;
+  /**
+   * The published snapshot. Cached as ONE object and replaced only when the
+   * value or the status actually changes: `useSyncExternalStore` re-renders in
+   * a loop if `getSnapshot` hands back a fresh reference each call, so pairing
+   * the value with its status must not mean building a new pair per read.
+   */
+  private snapshot: SharedFeedSnapshot<T>;
   private key: string | null = null;
   private readonly listeners = new Set<() => void>();
   private runner: FeedRunner<T> | null = null;
@@ -83,13 +158,17 @@ class SharedFeed<T> {
   private unavailable = false;
   private fetchedAt = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** Current inter-poll delay: `pollMs`, doubled per failure, capped. */
+  private backoffMs: number;
+  private visibilityBound = false;
 
   constructor(
     private readonly empty: T,
     /** Re-fetch cadence while at least one consumer is mounted; 0 = fetch once. */
     private readonly pollMs: number,
   ) {
-    this.value = empty;
+    this.snapshot = { value: empty, status: 'idle' };
+    this.backoffMs = pollMs;
   }
 
   subscribe = (onStoreChange: () => void): (() => void) => {
@@ -99,7 +178,7 @@ class SharedFeed<T> {
     };
   };
 
-  getSnapshot = (): T => this.value;
+  getSnapshot = (): SharedFeedSnapshot<T> => this.snapshot;
 
   /**
    * Register a consumer. `key` identifies *whose* feed this is (the approver
@@ -114,16 +193,25 @@ class SharedFeed<T> {
       this.key = key;
       this.unavailable = false;
       this.fetchedAt = 0;
-      this.publish(this.empty);
+      this.backoffMs = this.pollMs;
+      // A different key means the cached value belongs to someone else, and
+      // so does the fact that it was an answer — back to `idle`, not `ready`.
+      this.publish(this.empty, 'idle');
     }
     // Freshest closure wins — it holds the current adapter / identities.
     this.runner = runner;
     this.consumers += 1;
-    if (this.consumers === 1) this.schedule();
+    if (this.consumers === 1) {
+      this.bindVisibility();
+      this.schedule();
+    }
     void this.refresh();
     return () => {
       this.consumers = Math.max(0, this.consumers - 1);
-      if (this.consumers === 0) this.stopPolling();
+      if (this.consumers === 0) {
+        this.stopPolling();
+        this.unbindVisibility();
+      }
     };
   }
 
@@ -138,32 +226,88 @@ class SharedFeed<T> {
     if (!runner || this.unavailable || this.inFlight) return;
     if (!force && this.fetchedAt && Date.now() - this.fetchedAt < FRESH_MS) return;
     this.inFlight = true;
+    // Only announce "loading" when there is no prior answer to show. A poll
+    // tick over a `ready` feed must not flash its consumers back through the
+    // loading state ten times a minute.
+    if (this.snapshot.status === 'idle') this.publish(this.snapshot.value, 'loading');
+    let failed = false;
     try {
       const next = await runner({
         markUnavailable: () => {
           this.unavailable = true;
           this.stopPolling();
+          // A missing resource IS an answer: this deployment has none, so
+          // nothing is waiting. Degrading to empty and calling it `ready` is
+          // the split `useHomeInbox` already applied to its own read (#4235).
+          this.fetchedAt = Date.now();
+          this.publish(this.snapshot.value, 'ready');
+        },
+        markFailed: () => {
+          failed = true;
         },
       });
       if (next !== undefined) {
         this.fetchedAt = Date.now();
-        this.publish(next);
+        this.backoffMs = this.pollMs;
+        this.publish(next, 'ready');
+      } else if (failed) {
+        this.fail();
       }
     } catch {
-      // Transient — keep the last value; the next poll / mount retries.
+      // Not swallowed into "keep the last value and say nothing": the value
+      // stays, but consumers are told it is no longer an answer (#4225).
+      this.fail();
     } finally {
       this.inFlight = false;
     }
   }
 
+  /** A read that should have worked did not — report it and back the poll off. */
+  private fail(): void {
+    this.backoffMs = Math.min(Math.max(this.backoffMs, this.pollMs) * 2, MAX_BACKOFF_MS);
+    this.publish(this.snapshot.value, 'error');
+  }
+
   private schedule(): void {
     if (this.pollMs <= 0 || this.unavailable || this.timer) return;
+    // Backgrounded tabs poll at the slower cadence — but never FASTER than the
+    // current backoff, so a failing feed stays backed off either way.
+    const hidden = typeof document !== 'undefined' && document.hidden;
+    const delay = hidden ? Math.max(HIDDEN_POLL_MS, this.backoffMs) : this.backoffMs;
     this.timer = setTimeout(() => {
       this.timer = null;
       void this.refresh(true).finally(() => {
         if (this.consumers > 0) this.schedule();
       });
-    }, this.pollMs);
+    }, delay);
+  }
+
+  /**
+   * Coming back to the tab refetches immediately rather than waiting out a
+   * hidden-cadence tick, so the bell is current within a beat of the user
+   * looking at it — the behaviour its own poller had before #4225 moved it.
+   */
+  private readonly onVisibilityChange = (): void => {
+    if (typeof document === 'undefined' || document.hidden) return;
+    if (this.consumers === 0 || this.unavailable) return;
+    this.stopPolling();
+    this.backoffMs = this.pollMs;
+    void this.refresh(true).finally(() => {
+      if (this.consumers > 0) this.schedule();
+    });
+  };
+
+  private bindVisibility(): void {
+    if (this.pollMs <= 0 || this.visibilityBound) return;
+    if (typeof document === 'undefined') return;
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    this.visibilityBound = true;
+  }
+
+  private unbindVisibility(): void {
+    if (!this.visibilityBound || typeof document === 'undefined') return;
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    this.visibilityBound = false;
   }
 
   private stopPolling(): void {
@@ -173,22 +317,24 @@ class SharedFeed<T> {
     }
   }
 
-  private publish(next: T): void {
-    if (Object.is(next, this.value)) return;
-    this.value = next;
+  private publish(next: T, status: SharedFeedStatus): void {
+    if (Object.is(next, this.snapshot.value) && status === this.snapshot.status) return;
+    this.snapshot = { value: next, status };
     for (const listener of [...this.listeners]) listener();
   }
 
   /** Test seam — drop all cached state between cases. Listeners are left alone. */
   reset(): void {
     this.stopPolling();
-    this.value = this.empty;
+    this.unbindVisibility();
+    this.snapshot = { value: this.empty, status: 'idle' };
     this.key = null;
     this.runner = null;
     this.consumers = 0;
     this.inFlight = false;
     this.unavailable = false;
     this.fetchedAt = 0;
+    this.backoffMs = this.pollMs;
   }
 }
 
@@ -197,7 +343,11 @@ class SharedFeed<T> {
  * signed-in user, no adapter) — the consumer still reads the snapshot, it just
  * does not drive a fetch.
  */
-function useSharedFeed<T>(feed: SharedFeed<T>, key: string | null, runner: FeedRunner<T>): T {
+function useSharedFeed<T>(
+  feed: SharedFeed<T>,
+  key: string | null,
+  runner: FeedRunner<T>,
+): SharedFeedSnapshot<T> {
   const value = useSyncExternalStore(feed.subscribe, feed.getSnapshot, feed.getSnapshot);
   // Latest-ref: the runner closes over values that change every render, but
   // only `key` may re-drive the attach effect. Declared first so it lands
@@ -244,7 +394,7 @@ export function useSharedPendingApprovalsCount(): number {
   // `user?.id` is the sign-in gate; identities is what the query needs.
   const key = user?.id && identities.length > 0 ? identities.join(',') : null;
 
-  return useSharedFeed(approvalsFeed, key, async ({ markUnavailable }) => {
+  return useSharedFeed(approvalsFeed, key, async ({ markUnavailable, markFailed }) => {
     const serverUrl = (import.meta.env?.VITE_SERVER_URL || '').replace(/\/$/, '');
     const qs = new URLSearchParams({ status: 'pending', approverId: identities.join(',') });
     const res = await fetch(`${serverUrl}/api/v1/approvals/requests?${qs}`, {
@@ -256,12 +406,15 @@ export function useSharedPendingApprovalsCount(): number {
       markUnavailable();
       return undefined;
     }
-    if (!res.ok) return undefined;
+    if (!res.ok) {
+      markFailed();
+      return undefined;
+    }
     const payload = await res.json().catch(() => null);
     const seen = new Set<string>();
     for (const row of (payload?.data || []) as { id: string }[]) seen.add(row.id);
     return seen.size;
-  });
+  }).value;
 }
 
 // ── Recent activity ──────────────────────────────────────────────────────────
@@ -271,6 +424,8 @@ const activityFeed = new SharedFeed<ActivityItem[]>(NO_ACTIVITIES, 0);
 /**
  * Stable string id per adapter instance, so swapping the adapter (tenant
  * switch) drops the previous tenant's rows instead of serving them from cache.
+ * Feed-neutral: each feed composes it with whatever else scopes its rows (the
+ * inbox adds the signed-in user id, since its query is `mine`).
  */
 const adapterKeys = new WeakMap<object, string>();
 let adapterSeq = 0;
@@ -278,7 +433,7 @@ function adapterKey(adapter: unknown): string | null {
   if (!adapter || typeof adapter !== 'object') return null;
   let key = adapterKeys.get(adapter as object);
   if (!key) {
-    key = `sys_activity@${++adapterSeq}`;
+    key = `adapter@${++adapterSeq}`;
     adapterKeys.set(adapter as object, key);
   }
   return key;
@@ -326,8 +481,18 @@ function mapActivityRows(rows: unknown[]): ActivityItem[] {
     });
 }
 
-/** The ObjectStack client throws `httpStatus` (not `status`) with an error code. */
-function isMissingResource(err: unknown): boolean {
+/**
+ * A missing OBJECT, as opposed to a failed read of a present one — the split
+ * that decides whether an empty result is an answer. The ObjectStack client
+ * throws `httpStatus` (not `status`) with an error code.
+ *
+ * Exported because all three inbox-surface readers need exactly this predicate
+ * and used to carry a copy each — `sharedUserFeeds`, `AppHeader`'s poller and
+ * `useHomeInbox` (#4225). Three copies of a predicate whose two branches mean
+ * "degrade quietly" and "say the read failed" is three chances to drift on the
+ * distinction #4235 exists to protect.
+ */
+export function isMissingResource(err: unknown): boolean {
   const e = err as { httpStatus?: number; status?: number } | null;
   return e?.httpStatus === 404 || e?.status === 404 || errorCodeIs(err, 'OBJECT_NOT_FOUND');
 }
@@ -342,19 +507,26 @@ function isMissingResource(err: unknown): boolean {
 export function useSharedActivityFeed(): ActivityItem[] {
   const dataSource = useAdapter();
 
-  return useSharedFeed(activityFeed, adapterKey(dataSource), async ({ markUnavailable }) => {
-    if (!dataSource) return undefined;
-    const res = await Promise.resolve(
-      dataSource.find('sys_activity', { $orderby: { timestamp: 'desc' }, $top: 20 }) as Promise<{
-        data?: unknown[];
-      }>,
-    ).catch((err: unknown) => {
-      if (isMissingResource(err)) markUnavailable();
-      return null;
-    });
-    if (!res) return undefined;
-    return mapActivityRows(Array.isArray(res.data) ? res.data : []);
-  });
+  return useSharedFeed(
+    activityFeed,
+    adapterKey(dataSource),
+    async ({ markUnavailable, markFailed }) => {
+      if (!dataSource) return undefined;
+      const res = await Promise.resolve(
+        dataSource.find('sys_activity', { $orderby: { timestamp: 'desc' }, $top: 20 }) as Promise<{
+          data?: unknown[];
+        }>,
+      ).catch((err: unknown) => {
+        // No `sys_activity` object ⇒ this deployment has no audit plugin, which
+        // is an answer. Anything else is a read that failed and must say so.
+        if (isMissingResource(err)) markUnavailable();
+        else markFailed();
+        return null;
+      });
+      if (!res) return undefined;
+      return mapActivityRows(Array.isArray(res.data) ? res.data : []);
+    },
+  ).value;
 }
 
 /**
@@ -373,6 +545,118 @@ export function useHumanActivityFeed(limit: number): ActivityItem[] {
   }, [all, limit]);
 }
 
+// ── Inbox messages ───────────────────────────────────────────────────────────
+
+const inboxFeed = new SharedFeed<InboxNotification[]>(NO_MESSAGES, INBOX_POLL_MS);
+
+/**
+ * Receipt states that count as READ (ADR-0030). `delivered` is not one of them
+ * — a message can carry a receipt and still be unread, which is the whole
+ * reason read-state cannot be inferred from the receipt's mere existence.
+ */
+const READ_STATES = new Set(['read', 'clicked', 'dismissed']);
+
+/**
+ * Join the `mine` inbox rows to their read-state receipts — the merge the
+ * bell's poller did inline, now the shared feed's single definition of what a
+ * message IS. `useHomeInbox` never had this join at all (#4316), which is why
+ * Home counted already-read messages as needing attention.
+ */
+function mergeInboxRows(rows: unknown[], receipts: unknown[]): InboxNotification[] {
+  // notification_id → { id, state } (most-advanced receipt wins).
+  const receiptByNotif = new Map<string, { id: string; state: string }>();
+  for (const raw of receipts) {
+    const r = raw as Record<string, unknown> | null;
+    const nid = r?.notification_id != null ? String(r.notification_id) : '';
+    if (!nid) continue;
+    const state = String(r?.state ?? '');
+    const prev = receiptByNotif.get(nid);
+    // Prefer a read/clicked/dismissed receipt over a plain delivered one.
+    if (!prev || (!READ_STATES.has(prev.state) && READ_STATES.has(state))) {
+      receiptByNotif.set(nid, { id: String(r?.id), state });
+    }
+  }
+  return rows.map((raw) => {
+    const m = raw as Record<string, unknown>;
+    const nid = m?.notification_id != null ? String(m.notification_id) : null;
+    const rec = nid ? receiptByNotif.get(nid) : undefined;
+    return {
+      id: String(m.id),
+      notification_id: nid,
+      receipt_id: rec?.id ?? null,
+      type: (m.topic as string) ?? 'notification',
+      title: (m.title as string) ?? '',
+      body: (m.body_md as string) ?? null,
+      action_url: (m.action_url as string) ?? null,
+      is_read: rec ? READ_STATES.has(rec.state) : false,
+      created_at: m.created_at as string | undefined,
+    } satisfies InboxNotification;
+  });
+}
+
+/**
+ * The signed-in user's 20 most recent in-app inbox messages, joined with their
+ * read-state receipts (ADR-0030 L5, the `mine` materialization).
+ *
+ * Two scoped reads, joined client-side, polled at 10s while the tab is
+ * foregrounded — the bell's cadence, now the store's:
+ *   - `sys_inbox_message` filtered by `user_id`, newest first, `$top: 20`.
+ *   - `sys_notification_receipt` filtered by `user_id` + `channel:'inbox'`.
+ *     Best-effort: if receipts are unavailable the inbox still renders
+ *     (everything shows unread) rather than erroring.
+ *
+ * This is the SUPERSET both consumers cut from. The bell lists all 20 and
+ * badges the unread topics; Home's action centre takes the unread ones, newest
+ * first, capped at its own smaller limit. Neither issues a read of its own, so
+ * the two cannot disagree about a row's read-state — the #4316 defect is not
+ * merely fixed here, it is unreachable.
+ *
+ * Degrades to empty when the messaging pipeline is absent (404 /
+ * `OBJECT_NOT_FOUND`) and retires the poll; every other failure is reported as
+ * `error` so a denial cannot reach a consumer wearing the shape of an empty
+ * inbox (#4235, objectstack#7344).
+ */
+export function useSharedInboxFeed(): SharedFeedSnapshot<InboxNotification[]> {
+  const dataSource = useAdapter();
+  const { user } = useAuth();
+  const userId = user?.id;
+  // Scoped by adapter AND user: the query is `mine`, so another user's rows
+  // must never be served from cache after a session switch.
+  const adapter = adapterKey(dataSource);
+  const key = adapter && userId ? `${adapter}:${userId}` : null;
+
+  return useSharedFeed(inboxFeed, key, async ({ markUnavailable, markFailed }) => {
+    if (!dataSource || !userId) return undefined;
+    try {
+      const [inboxRes, receiptRes] = await Promise.all([
+        Promise.resolve(
+          dataSource.find('sys_inbox_message', {
+            $filter: { user_id: userId },
+            $orderby: { created_at: 'desc' },
+            $top: 20,
+          }) as Promise<{ data?: unknown[] }>,
+        ),
+        Promise.resolve(
+          dataSource.find('sys_notification_receipt', {
+            $filter: { user_id: userId, channel: 'inbox' },
+            $top: 200,
+          }) as Promise<{ data?: unknown[] }>,
+        ).catch(() => ({ data: [] as unknown[] })),
+      ]);
+      return mergeInboxRows(
+        Array.isArray(inboxRes?.data) ? inboxRes.data : [],
+        Array.isArray(receiptRes?.data) ? receiptRes.data : [],
+      );
+    } catch (err: unknown) {
+      // No inbox object ⇒ no messaging pipeline in this deployment, so nothing
+      // is waiting: an answer. A denial / outage / malformed reply is not.
+      if (isMissingResource(err)) markUnavailable();
+      else markFailed();
+      return undefined;
+    }
+  });
+}
+
 /**
  * Test seam: drop every shared feed's cached value, key and in-flight state so
  * cases do not inherit each other's reads. Not part of the public surface.
@@ -380,4 +664,5 @@ export function useHumanActivityFeed(limit: number): ActivityItem[] {
 export function __resetSharedUserFeeds(): void {
   approvalsFeed.reset();
   activityFeed.reset();
+  inboxFeed.reset();
 }
