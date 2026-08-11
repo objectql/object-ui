@@ -33,9 +33,6 @@ void initSentry();
 // keeping a copy that can drift (objectui#2953).
 import './register-plugins';
 
-// Register console-specific schema widgets (object detail page sections)
-import './components/schema/registerObjectDetailWidgets';
-
 // Register `developer:*` component refs.
 import './registerDeveloperComponents';
 

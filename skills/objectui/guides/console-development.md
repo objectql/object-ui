@@ -118,7 +118,8 @@ Where the rest went (spread across the 2026-04-21 → 04-23 `app-shell` extracti
 
 Earlier versions of this guide taught seven `pages/system/` files. Five of them are
 gone; searching for them wastes a lap, and writing code against them does not
-compile. Each is listed here **once**, with what replaced it:
+compile. Each is listed here **once**, with what replaced it — together with the
+console symbols retired since:
 
 | Retired symbol | Verdict |
 |---|---|
@@ -129,6 +130,8 @@ compile. Each is listed here **once**, with what replaced it:
 | `PermissionManagementPage` | **Deleted** (`cccdf84d7`, 26 lines). Permissions are edited through `PermissionMatrixEditor`, registered as the `permission` type's `EditPage`. |
 | `config/metadataTypeRegistry.ts` | **Never existed under `apps/console/src/`.** The real registry is `packages/app-shell/src/views/metadata-admin/registry.ts`. |
 | `MetadataTypeConfig`, `registerMetadataType`, `getMetadataTypeConfig`, `pageSchemaFactory`, `listComponent`, `MetadataListComponentProps` | **No such API anywhere in the repo** (zero hits). The live equivalents are `MetadataResourceConfig`, `registerMetadataResource()`, `getMetadataResource()`, and the `ListPage` / `EditPage` / `CreatePage` component overrides. |
+| `buildObjectDetailPageSchema`, `schemas/objectDetailPageSchema.ts` | **Deleted** (objectui#3731 / #3736). Zero callers for months — its only consumer was `MetadataDetailPage`, retired above. The `object` type is edited by the metadata-admin engine's generic shell; see "Schema-driven detail pages". |
+| `ObjectDetailTabsWidget`, `ObjectPropertiesWidget`, `ObjectFieldDesignerWidget`, `ObjectRelationshipsWidget`, `ObjectKeysWidget`, `ObjectDataExperienceWidget`, `ObjectDataPreviewWidget` | **Deleted** (objectui#3731 / #3736) with `registerObjectDetailWidgets.ts` and its `main.tsx` import. The seven widget types they registered — `object-detail-tabs`, `object-properties`, `object-field-designer`, `object-relationships`, `object-keys`, `object-data-experience`, `object-data-preview` — no longer resolve in `ComponentRegistry`. |
 
 ## Metadata resource registry (metadata-admin engine)
 
@@ -236,101 +239,29 @@ registerMetadataResource({
 
 ## Schema-driven detail pages (PageSchema)
 
-### The pattern
+The mechanics are live and unchanged: `ComponentRegistry.register()` binds a widget type
+to a React component, `SchemaRenderer` (from `@object-ui/react`) resolves a `PageSchema`
+node by looking that type up, and `registerMetadataResource({ type, EditPage })` is how a
+bespoke editor replaces the engine's generated form.
 
-1. **Schema factory** generates a `PageSchema` from entity name/data
-2. **Custom widgets** are self-contained React components registered in `ComponentRegistry`
-3. **A registered `EditPage`** calls the factory and renders the result via `SchemaRenderer`
+> **There is no in-repo schema-factory specimen today, and that is deliberate.** This
+> section used to be anchored on a bespoke object-detail factory in the console —
+> `buildObjectDetailPageSchema()` plus seven registered `object-*` widgets. It was
+> retired (objectui#3731 / #3736) after the zero-caller fact was measured three times
+> over: its only consumer was the registry-driven detail page listed under "Retired
+> names" above, and the factory outlived it as unreachable code — carrying 60 lines of
+> non-English UI copy that no i18n gate could see, because bare literals have no keys.
+> Read that as the running cost of the pattern, not as an invitation to rebuild it.
 
-> Measured status: the factory and its widgets exist and are registered
-> (`main.tsx` imports `registerObjectDetailWidgets`), but **nothing in the repo calls
-> `buildObjectDetailPageSchema()` today** — its only caller was the registry-driven
-> detail page retired above. Its own docblock records the intended wiring: "Render via
-> SchemaRenderer (e.g. inside a custom metadata-admin EditPage)." Treat the pattern
-> below as the recipe for a *new* bespoke editor, not as a description of a live route.
+The live bespoke editor to copy from is `PermissionMatrixEditPage`
+(`packages/app-shell/src/views/metadata-admin/PermissionMatrixEditor.tsx`), registered as
+the `permission` type's `EditPage` in
+`packages/app-shell/src/services/builtinComponents.tsx`. Note what it is *not*: there is
+no declarative "give me a schema factory" hook: the registry takes a React component, so
+any factory call happens inside that component.
 
-### Object detail page example
-
-`apps/console/src/schemas/objectDetailPageSchema.ts`:
-
-```typescript
-export function buildObjectDetailPageSchema(objectName: string, item?: any): PageSchema {
-  return {
-    type: 'page',
-    children: [
-      {
-        type: 'object-detail-tabs',
-        props: { objectName },
-      },
-    ],
-  };
-}
-```
-
-### Registered custom widgets
-
-`apps/console/src/components/schema/registerObjectDetailWidgets.ts` registers seven types
-(its own docblock lists the same seven — count the `ComponentRegistry.register()` calls if
-this table and the file ever disagree):
-
-| Widget type | Component | Purpose |
-|------------|-----------|---------|
-| `object-detail-tabs` | `ObjectDetailTabsWidget` | Main tabs container (Details, Fields, Relationships, Data) |
-| `object-properties` | `ObjectPropertiesWidget` | Object config form (name, label, icon, etc.) |
-| `object-field-designer` | `ObjectFieldDesignerWidget` | Interactive field CRUD |
-| `object-relationships` | `ObjectRelationshipsWidget` | Relationships & foreign keys |
-| `object-keys` | `ObjectKeysWidget` | Key fields card — unique, `id`, and external-id fields |
-| `object-data-experience` | `ObjectDataExperienceWidget` | Data experience config |
-| `object-data-preview` | `ObjectDataPreviewWidget` | Data preview table |
-
-### Creating a new schema-driven detail page
-
-1. Create schema factory in `apps/console/src/schemas/`:
-```typescript
-export function buildMyDetailPageSchema(name: string, item?: any): PageSchema {
-  return {
-    type: 'page',
-    children: [
-      { type: 'my-detail-tabs', props: { entityName: name } },
-    ],
-  };
-}
-```
-
-2. Create widget components in `apps/console/src/components/schema/`:
-```typescript
-export function MyDetailTabsWidget({ schema }: { schema: any }) {
-  const entityName = schema.props?.entityName;
-  // Fetch data, render tabs
-}
-```
-
-3. Register widgets:
-```typescript
-ComponentRegistry.register('my-detail-tabs', MyDetailTabsWidget, {
-  label: 'My Detail Tabs',
-  category: 'admin',
-});
-```
-
-4. Wrap the factory in an `EditPage` component and register it as that type's override.
-   There is no declarative "give me a schema factory" hook — the registry takes a React
-   component, so the factory call happens inside it:
-
-```typescript
-import { SchemaRenderer } from '@object-ui/react';
-import { registerMetadataResource } from '@object-ui/app-shell';
-
-function MyEntityEditPage({ name }: { type: string; name: string }) {
-  return <SchemaRenderer schema={buildMyDetailPageSchema(name)} />;
-}
-
-registerMetadataResource({
-  type: 'my-entity',
-  EditPage: MyEntityEditPage,
-  // ...
-});
-```
+Before writing one, read "Adding a new admin surface" below — a registry override, a nav
+item, or nothing at all is the answer more often than a bespoke page is.
 
 ## Navigation system
 
@@ -515,11 +446,12 @@ So, in order of preference:
 
 ### Extending object management
 
-To add a new tab to the object detail page:
-1. Create widget component in `components/schema/`
-2. Register in `registerObjectDetailWidgets.ts`
-3. Add tab entry in `ObjectDetailTabsWidget.tsx`
-4. Update `buildObjectDetailPageSchema()` if needed
+The object type is edited through the metadata-admin engine like any other metadata
+type — `registerMetadataResource({ type: 'object', … })` in
+`packages/app-shell/src/services/builtinComponents.tsx` is the whole override surface.
+There is no longer a bespoke object-detail page in the console to add a tab to; the
+factory and its seven widgets were retired (objectui#3731 / #3736). See
+"Schema-driven detail pages" above before reaching for a bespoke replacement.
 
 ### Widget styling convention
 
