@@ -31,6 +31,23 @@ import { ObjectStackAdapter } from './index';
  *    request count, which is what makes it a pure dead-code removal rather
  *    than a caching change. (Whether `listViews` SHOULD be cached is a
  *    separate product question, deliberately not settled here.)
+ *
+ * ## objectui#4363 — every write path names BOTH keys
+ *
+ * Removing the dead key made the surviving asymmetry visible: only
+ * `updateViewConfig` invalidated `view-overrides:{object}`, so `createView` /
+ * `updateView` / `deleteView` left the batch map stale for the cache's
+ * 5-minute TTL. It does not self-heal — `loadViewOverrides` (app-shell
+ * `ObjectView`) treats a RESOLVED map as authoritative and deliberately does
+ * not re-probe per view (#3774), so the per-view `getView` fallback that would
+ * have masked a stale map is by design unreachable.
+ *
+ * So the rule these pins now enforce is uniform and per-METHOD, not
+ * per-branch: **a write to a view row invalidates the per-view key and the
+ * object's override map.** Four paths (five call sites — `updateView` has a
+ * draft half and a published half) emit the same ordered pair. The two sweep
+ * pins are untouched controls: `listViews` stays uncached, and no path names a
+ * `views:` key.
  */
 
 interface Harness {
@@ -152,36 +169,69 @@ describe('view metadata cache — invalidation names only keys with readers (#37
     expect(invalidated).toEqual(['view:account:v1', 'view-overrides:account']);
   });
 
-  it('updateView (published overlay) invalidates the getView key only', async () => {
+  it('listViewOverrides reads back under the key the write paths invalidate', async () => {
+    // The pairing, not the string: every assertion below names
+    // `view-overrides:account` because THIS is the key the batch reader caches
+    // under. An invalidation that named anything else would be the `views:`
+    // mistake again, one rename later.
+    const { ds, cacheReads } = makeDS({ items: [VIEW] });
+
+    await ds.listViewOverrides('account');
+
+    expect(cacheReads).toEqual(['view-overrides:account']);
+  });
+
+  it('createView invalidates the per-view key and the override map (#4363)', async () => {
+    const { ds, invalidated } = makeDS();
+
+    await ds.createView('account', { name: 'account.mine', object: 'account' });
+
+    // A created view is a new row in the batch map; nothing else notices.
+    // `saveItem` is an upsert, so the per-view key is named too — an explicit
+    // `name` that already exists overwrites a row `getView` may hold cached.
+    expect(invalidated).toEqual(['view:account:account.mine', 'view-overrides:account']);
+  });
+
+  it('updateView (published overlay) invalidates both keys (#4363)', async () => {
     const { ds, invalidated } = makeDS({ published: { name: 'v1', object: 'account' } });
 
     await ds.updateView('account', 'v1', { label: 'Renamed' });
 
-    expect(invalidated).toEqual(['view:account:v1']);
+    expect(invalidated).toEqual(['view:account:v1', 'view-overrides:account']);
   });
 
-  it('updateView (pending draft) invalidates the getView key only', async () => {
+  it('updateView (pending draft) invalidates both keys (#4363)', async () => {
     const { ds, invalidated } = makeDS({ draft: VIEW, published: notFound() });
 
     await ds.updateView('account', VIEW.name, { label: 'Renamed' });
 
-    expect(invalidated).toEqual([`view:account:${VIEW.name}`]);
+    // Deliberate over-invalidation on this half: both readers enumerate
+    // PUBLISHED rows, so a draft write stales neither — as was already true of
+    // the per-view line this pairs with. Pinned so the uniform per-method rule
+    // is a decision on the record, not an oversight the next reader "fixes".
+    expect(invalidated).toEqual([
+      `view:account:${VIEW.name}`,
+      'view-overrides:account',
+    ]);
   });
 
-  it('deleteView invalidates the getView key only', async () => {
+  it('deleteView invalidates both keys (#4363)', async () => {
     const { ds, invalidated } = makeDS();
 
     await ds.deleteView('account', 'v1');
 
-    expect(invalidated).toEqual(['view:account:v1']);
+    // The deleted row leaves the override map too — a ghost entry there is what
+    // the object page would keep applying for the rest of the TTL.
+    expect(invalidated).toEqual(['view:account:v1', 'view-overrides:account']);
   });
 
   it('no write path invalidates a `views:` key — nothing populates one', async () => {
-    // createView is the path whose ONLY invalidation was the dead key, so it
-    // now invalidates nothing. Asserted as "no `views:` key" rather than "no
-    // invalidation at all": whether it ought to invalidate the override map
-    // (`listViewOverrides` enumerates the same rows) is a separate question,
-    // filed on its own card — this pin must not freeze the answer.
+    // createView is the path whose ONLY invalidation was the dead key. #3778
+    // asserted "no `views:` key" here rather than "no invalidation at all",
+    // deliberately leaving the override-map question to its own card — and
+    // #4363 answered it: createView now names both live keys (pinned above).
+    // The ASSERTION is unchanged, which is the point of the slot: the dead key
+    // stays dead however the live key set grows.
     const created = makeDS();
     await created.ds.createView('account', { name: 'account.mine', object: 'account' });
 

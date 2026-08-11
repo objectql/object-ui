@@ -2917,8 +2917,16 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * (the cache stores on success only), so a transient failure does not
    * pin an empty answer for the TTL.
    *
-   * Result is cached identically to {@link getView}; saving a view via
-   * {@link updateViewConfig} invalidates the cache.
+   * Result is cached identically to {@link getView}, and EVERY view write path
+   * on this adapter invalidates it — {@link updateViewConfig},
+   * {@link createView}, {@link updateView} and {@link deleteView}. For a long
+   * time only the first did (objectui#4363), which left the other three stale
+   * for the cache's 5-minute TTL. That gap does not self-heal: the consumer
+   * (`loadViewOverrides`, app-shell `ObjectView`) treats a RESOLVED map as
+   * authoritative and deliberately does not re-probe per view — objectui#3774,
+   * and correct, since re-probing reinstates the 404 flurry the batch read
+   * exists to remove. So a stale map here is served in full, and the per-view
+   * {@link getView} fallback that would have masked it never runs.
    *
    * @param objectName - Object name (e.g. 'lead')
    * @returns Map keyed by view name with the persisted override config
@@ -3150,6 +3158,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    *
    * Generates a snake_case name if `spec.name` is not provided by appending
    * a short timestamp suffix to the source-name hint.
+   *
+   * Invalidates both view-shaped cache keys for the object, exactly as
+   * {@link updateViewConfig} does — see {@link listViewOverrides} for why the
+   * batch map is the one that cannot heal itself (objectui#4363).
    */
   async createView(
     objectName: string,
@@ -3179,6 +3191,14 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       data: spec?.data || { provider: 'object', object: objectName },
     };
     const result: any = await this.client.meta.saveItem('view', name, fullSpec);
+    // Same key set as `updateViewConfig` — this is the other `saveItem('view', …)`
+    // write, and `saveItem` is an UPSERT: an explicit `spec.name` that already
+    // exists overwrites the published row, which a prior `getView` may hold.
+    // (A generated name cannot collide, and a miss is a `Map.delete` on an absent
+    // key, so the uniform rule costs nothing on the create-a-new-row path.)
+    this.metadataCache.invalidate?.(`view:${objectName}:${name}`);
+    // The batch override map gains a row and cannot notice on its own (#4363).
+    this.metadataCache.invalidate?.(`view-overrides:${objectName}`);
     if (result && result.item) return result.item;
     return fullSpec;
   }
@@ -3215,6 +3235,15 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * *published* view (no draft pending) is unchanged — it writes the
    * published overlay, as before.
    *
+   * **Both halves invalidate the same two keys** (objectui#4363): the per-view
+   * {@link getView} key and the batch {@link listViewOverrides} map. On the
+   * draft half that is deliberate over-invalidation — both readers enumerate
+   * PUBLISHED rows, so a draft write stales neither, exactly as was already
+   * true of the per-view line this joins. The costs are not symmetric: an
+   * unnecessary invalidation costs one refetch, a missed one costs up to the
+   * cache's 5-minute TTL of stale overrides, and "which half am I in?" is not
+   * a question a future edit to this method should have to re-answer.
+   *
    * @throws when the view resolves in neither home, or when either read fails
    *   for any other reason (network, permission). Both used to be swallowed
    *   and converted into the bad partial write above; a caller that wants a
@@ -3239,6 +3268,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       const mergedDraft = mergeViewPatch(draft, partial, viewName, objectName);
       await metaClient.save('view', viewName, mergedDraft, { mode: 'draft' });
       this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
+      this.metadataCache.invalidate?.(`view-overrides:${objectName}`);
       return mergedDraft;
     }
 
@@ -3269,6 +3299,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     const merged = mergeViewPatch(current, partial, viewName, objectName);
     const result: any = await this.client.meta.saveItem('view', viewName, merged);
     this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
+    this.metadataCache.invalidate?.(`view-overrides:${objectName}`);
     if (result && result.item) return result.item;
     return merged;
   }
@@ -3277,6 +3308,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * Delete an overlay view (reset to artifact default if one exists, or
    * remove entirely if it was a user-created view). Routes to
    * `DELETE /api/v1/meta/view/:name`.
+   *
+   * Invalidates both view-shaped keys: the deleted row leaves the batch
+   * override map too, and a ghost entry there is what the object page would
+   * keep applying (objectui#4363).
    */
   async deleteView(
     objectName: string,
@@ -3285,6 +3320,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     await this.connect();
     const result: any = await this.client.meta.deleteItem('view', viewName);
     this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
+    this.metadataCache.invalidate?.(`view-overrides:${objectName}`);
     return { deleted: !!(result?.deleted ?? result?.reset ?? true) };
   }
 
