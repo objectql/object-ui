@@ -545,6 +545,7 @@ const de = {
     sortByIdSuffix: "(nach ID)",
     sortRelationalHint:
       "Spalten, die auf einen anderen Datensatz verweisen, werden nicht aufgeführt: Sie lassen sich nur nach der gespeicherten ID sortieren, nicht nach dem in der Zelle angezeigten Namen. Fügen Sie ein Formelfeld mit diesem Namen hinzu, um danach zu sortieren.",
+    resetSortToDefault: "Auf Standard der Ansicht zurücksetzen",
     group: "Gruppieren",
     groupBy: "Gruppieren nach",
     export: "Exportieren",

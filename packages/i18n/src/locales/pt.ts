@@ -544,6 +544,7 @@ const pt = {
     sortByIdSuffix: "(por ID)",
     sortRelationalHint:
       "As colunas que apontam para outro registro não são listadas: elas só podem ser ordenadas pelo ID armazenado, não pelo nome exibido na célula. Para ordenar por esse nome, adicione um campo de fórmula que o contenha.",
+    resetSortToDefault: "Restaurar o padrão da exibição",
     group: "Agrupar",
     groupBy: "Agrupar por",
     export: "Exportar",
