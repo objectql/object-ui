@@ -106,6 +106,12 @@ describe('formatDisplayNumber — the `useGrouping: true` trap', () => {
   );
 
   it('emits an explicit `false` only when suppressing', () => {
-    expect(formatDisplayNumber(1234, { locale: 'es-ES', scale: 0 })).toBe('1234');
+    // Deliberately en-US, NOT one of the two locales above. Reverse
+    // verification caught this pin passing for an empty reason: es-ES renders
+    // 1234 ungrouped under "auto" as well, so asserting '1234' there is green
+    // whether or not the suppression exists. en-US separates the two —
+    // "auto" gives `1,234`, suppression gives `1234`.
+    expect(new Intl.NumberFormat('en-US', {}).format(1234)).toBe('1,234');
+    expect(formatDisplayNumber(1234, { locale: 'en-US', scale: 0 })).toBe('1234');
   });
 });
