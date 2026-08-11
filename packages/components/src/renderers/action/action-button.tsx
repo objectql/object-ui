@@ -19,6 +19,7 @@
 
 import React, { forwardRef, useCallback, useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
+import type { ActionDef } from '@object-ui/core';
 import type { ActionSchema } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
 import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
@@ -89,11 +90,37 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
         // Route params correctly:
         // - Array of objects with name+type → ActionParamDef[] → pass as actionParams for collection
         // - Otherwise → pass as actual param values
-        const paramsPayload = Array.isArray(schema.params)
+        //
+        // Annotated rather than inferred: a spread SOURCE's own keys are not
+        // excess-property checked through the spread, so an invented key in
+        // either branch would be absorbed silently. Measured on objectui#4281 —
+        // `const p = cond ? { actionParams } : { zzBogus }` is accepted by an
+        // `ActionDef` literal that spreads it; annotating `p` rejects it here.
+        const paramsPayload: ActionDef = Array.isArray(schema.params)
           ? { actionParams: schema.params as any }
           : { params: schema.params as Record<string, any> | undefined };
 
-        await execute({
+        // ── Why this is a named `ActionDef` binding and not an inline literal ──
+        //
+        // `ActionDef` is CLOSED (objectui#4046 / objectstack#4075 step 3), so an
+        // invented or misspelled key at a forward site is a TS2353 — but only
+        // where TypeScript actually RUNS the excess-property (freshness) check.
+        // It does not run it on a literal that spreads a value of type `any`,
+        // and `localContext` is exactly that: `PropsWithoutRef` collapses
+        // `ActionButtonProps` (which carries an `[key: string]: any` index
+        // signature) to a pure index-signature type, so every destructured prop
+        // arrives as `any`. Spreading it into the payload made this site absorb
+        // unknown keys in silence while `action:group` / `action:menu` — same
+        // payload, no spread — rejected them (objectui#4281, measured in both
+        // directions).
+        //
+        // Hoisting the explicit keys into this annotated binding restores the
+        // check on them, independently of what the composed spreads are typed
+        // as. Key ORDER is deliberately unchanged (`...paramsPayload` keeps its
+        // original position and `...localContext` is still merged last), so the
+        // object that reaches `execute` is identical — see
+        // `__tests__/action-forward-precedence.test.tsx`.
+        const forwarded: ActionDef = {
           type: schema.actionType || schema.type,
           name: schema.name,
           // Forward the human label/description so a param-collection dialog
@@ -139,8 +166,9 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
           // backup codes). Without this forward the ActionRunner falls
           // back to the success toast and the user loses the value.
           resultDialog: (schema as any).resultDialog,
-          ...localContext,
-        });
+        };
+
+        await execute({ ...forwarded, ...localContext });
       } finally {
         setLoading(false);
       }

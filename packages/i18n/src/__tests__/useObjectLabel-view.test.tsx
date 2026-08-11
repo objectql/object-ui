@@ -7,8 +7,7 @@ import { useObjectLabel } from '../useObjectLabel';
 const wrapper = ({ children }: { children: React.ReactNode }) =>
   React.createElement(
     I18nProvider,
-    { config: { defaultLanguage: 'en', detectBrowserLanguage: false } },
-    children,
+    { config: { defaultLanguage: 'en', detectBrowserLanguage: false }, children },
   );
 
 /** Same provider, with the dev missing-key warner explicitly on. */
@@ -17,8 +16,8 @@ const warningWrapper = ({ children }: { children: React.ReactNode }) =>
     I18nProvider,
     {
       config: { defaultLanguage: 'en', detectBrowserLanguage: false, warnMissingKeys: true },
+      children,
     },
-    children,
   );
 
 describe('useObjectLabel().viewLabel', () => {

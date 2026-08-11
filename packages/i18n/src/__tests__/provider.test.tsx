@@ -15,8 +15,14 @@ beforeEach(() => {
 
 describe('I18nProvider', () => {
   it('creates i18n instance from config', () => {
+    // `children` goes IN the props object, not in `createElement`'s variadic
+    // third argument. `I18nProviderProps.children` is required, and React's
+    // `createElement` overloads check the props object alone — the variadic
+    // form never satisfies a required `children`, so every wrapper in this
+    // package was a `TS2769` the moment anything compiled these files (#4040).
+    // Identical at runtime; React merges the variadic children into props.
     const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(I18nProvider, { config: { defaultLanguage: 'en', detectBrowserLanguage: false } }, children);
+      React.createElement(I18nProvider, { config: { defaultLanguage: 'en', detectBrowserLanguage: false }, children });
 
     const { result } = renderHook(() => useObjectTranslation(), { wrapper });
 
@@ -28,7 +34,7 @@ describe('I18nProvider', () => {
     const instance = createI18n({ defaultLanguage: 'fr', detectBrowserLanguage: false });
 
     const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(I18nProvider, { instance }, children);
+      React.createElement(I18nProvider, { instance, children });
 
     const { result } = renderHook(() => useObjectTranslation(), { wrapper });
 
@@ -39,7 +45,7 @@ describe('I18nProvider', () => {
 
 describe('useObjectTranslation', () => {
   const wrapper = ({ children }: { children: React.ReactNode }) =>
-    React.createElement(I18nProvider, { config: { defaultLanguage: 'en', detectBrowserLanguage: false } }, children);
+    React.createElement(I18nProvider, { config: { defaultLanguage: 'en', detectBrowserLanguage: false }, children });
 
   it('returns t, language, changeLanguage, direction, i18n', () => {
     const { result } = renderHook(() => useObjectTranslation(), { wrapper });
@@ -67,7 +73,7 @@ describe('useObjectTranslation', () => {
 
   it('works with Chinese language', () => {
     const zhWrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(I18nProvider, { config: { defaultLanguage: 'zh', detectBrowserLanguage: false } }, children);
+      React.createElement(I18nProvider, { config: { defaultLanguage: 'zh', detectBrowserLanguage: false }, children });
 
     const { result } = renderHook(() => useObjectTranslation(), { wrapper: zhWrapper });
 
@@ -92,7 +98,7 @@ describe('useObjectTranslation', () => {
 
   it('returns RTL direction for Arabic', () => {
     const arWrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(I18nProvider, { config: { defaultLanguage: 'ar', detectBrowserLanguage: false } }, children);
+      React.createElement(I18nProvider, { config: { defaultLanguage: 'ar', detectBrowserLanguage: false }, children });
 
     const { result } = renderHook(() => useObjectTranslation(), { wrapper: arWrapper });
 
@@ -114,7 +120,7 @@ describe('useI18nContext', () => {
 
   it('returns context inside provider', () => {
     const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(I18nProvider, { config: { defaultLanguage: 'en', detectBrowserLanguage: false } }, children);
+      React.createElement(I18nProvider, { config: { defaultLanguage: 'en', detectBrowserLanguage: false }, children });
 
     const { result } = renderHook(() => useI18nContext(), { wrapper });
 

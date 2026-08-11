@@ -46,7 +46,13 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { builtInLocales } from '../locales/index';
 
-const LANGS = Object.keys(builtInLocales);
+// Derived from the map rather than left as `string[]`: `Object.keys` erases
+// which keys it enumerated, so `builtInLocales[lang]` below would be an
+// implicit-`any` index into a `const` map (TS7053) and the suite would compare
+// packs the compiler never confirmed exist. Same convention as
+// `authRemediation-locale-parity.test.ts` next door.
+type LocaleCode = keyof typeof builtInLocales;
+const LANGS = Object.keys(builtInLocales) as LocaleCode[];
 
 const at = (pack: unknown, path: string): unknown =>
   path.split('.').reduce<unknown>((n, k) => (n as Record<string, unknown> | undefined)?.[k], pack);

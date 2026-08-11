@@ -43,7 +43,13 @@ const KEYS = [
   'wizard.missingRequired',
 ] as const;
 
-const LANGS = Object.keys(builtInLocales);
+// Derived from the map rather than left as `string[]`: `Object.keys` erases
+// which keys it enumerated, so `builtInLocales[lang]` below would be an
+// implicit-`any` index into a `const` map (TS7053) and the suite would compare
+// packs the compiler never confirmed exist. Same convention as
+// `authRemediation-locale-parity.test.ts` next door.
+type LocaleCode = keyof typeof builtInLocales;
+const LANGS = Object.keys(builtInLocales) as LocaleCode[];
 
 const at = (pack: unknown, path: string): unknown =>
   path.split('.').reduce<unknown>((n, k) => (n as Record<string, unknown> | undefined)?.[k], pack);
@@ -52,8 +58,7 @@ const wrapperFor = (lang: string) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
     return React.createElement(
       I18nProvider,
-      { config: { defaultLanguage: lang, detectBrowserLanguage: false } },
-      children,
+      { config: { defaultLanguage: lang, detectBrowserLanguage: false }, children },
     );
   };
 
@@ -97,7 +102,7 @@ describe('objectui#3546 slice one — the five raw-key call-site keys', () => {
     // reached the user verbatim: the toast literally read
     // `console.objectView.cannotEditMetaView`. Nothing shadowed it, which is
     // why these two are the sites the issue verified on the page.
-    it.each(['en', 'zh'])('%s resolves both meta-view toasts from the pack', (lang) => {
+    it.each(['en', 'zh'] as const)('%s resolves both meta-view toasts from the pack', (lang) => {
       const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor(lang) });
       for (const key of [
         'console.objectView.cannotEditMetaView',
@@ -155,7 +160,7 @@ describe('objectui#3546 slice one — the five raw-key call-site keys', () => {
       'detail.back',
     );
 
-    it.each(['en', 'zh'])('%s resolves detail.viewSource from the pack', (lang) => {
+    it.each(['en', 'zh'] as const)('%s resolves detail.viewSource from the pack', (lang) => {
       const { result } = renderHook(() => useDetailish(), { wrapper: wrapperFor(lang) });
       const value = result.current.t('detail.viewSource');
       expect(value, `${lang} rendered the raw key`).not.toBe('detail.viewSource');
@@ -179,7 +184,7 @@ describe('objectui#3546 slice one — the five raw-key call-site keys', () => {
         return typeof hostValue === 'string' && hostValue !== key ? hostValue : defaults[key] || key;
       };
 
-    it.each(['en', 'zh'])('%s resolves the refresh aria-label from the pack', (lang) => {
+    it.each(['en', 'zh'] as const)('%s resolves the refresh aria-label from the pack', (lang) => {
       const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor(lang) });
       const t = perKey(result.current.t, { 'gantt.toolbar.refresh': 'Refresh' });
       expect(t('gantt.toolbar.refresh')).toBe(at(builtInLocales[lang], 'gantt.toolbar.refresh'));

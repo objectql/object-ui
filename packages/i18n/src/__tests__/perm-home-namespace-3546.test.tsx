@@ -101,7 +101,13 @@ const COUNT_KEYS = ['perm.facet.objects', 'perm.facet.fields', 'perm.facet.rls',
 /** Every path this slice added: the 14 above plus one `_one` per plural family. */
 const KEYS = [...MEASURED_KEYS, ...COUNT_KEYS.map((k) => `${k}_one`)];
 
-const LANGS = Object.keys(builtInLocales);
+// Derived from the map rather than left as `string[]`: `Object.keys` erases
+// which keys it enumerated, so `builtInLocales[lang]` below would be an
+// implicit-`any` index into a `const` map (TS7053) and the suite would compare
+// packs the compiler never confirmed exist. Same convention as
+// `authRemediation-locale-parity.test.ts` next door.
+type LocaleCode = keyof typeof builtInLocales;
+const LANGS = Object.keys(builtInLocales) as LocaleCode[];
 
 const FACET = 'packages/plugin-detail/src/renderers/PermissionFacetLink.tsx';
 const PUBLISH = 'packages/app-shell/src/preview/usePublishAllDrafts.ts';
@@ -352,7 +358,11 @@ describe('objectui#3546 slice six — the perm and home namespaces', () => {
     // The nine call sites whose `defaultValue` is a static literal. Two paths
     // must not diverge: with the pack present i18next answers, and before this
     // slice the inline default did — a user must not be able to tell which ran.
-    const EXPECTED: Array<[key: string, source: string, value: string]> = [
+    // `source` is the union of the two files, not `string`: `sources` below is
+    // keyed by those two literals, so a bare `string` made `sources[rel]` an
+    // implicit-`any` index (TS7053) and a third file added here would have
+    // read `undefined` instead of failing.
+    const EXPECTED: Array<[key: string, source: typeof FACET | typeof PUBLISH, value: string]> = [
       ['perm.facet.none', FACET, 'None'],
       ['perm.facet.adminScope', FACET, 'Delegated admin configured'],
       ['perm.facet.designInStudio', FACET, 'Design in Studio →'],
@@ -603,7 +613,7 @@ describe('objectui#3546 slice six — the perm and home namespaces', () => {
       expect(hook).not.toContain("'perm.facet.");
     });
 
-    it.each(['en', 'zh'])('%s resolves every sampled key from the pack', (lang) => {
+    it.each(['en', 'zh'] as const)('%s resolves every sampled key from the pack', (lang) => {
       const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor(lang) });
       for (const [key, owner] of SAMPLE) {
         const value = result.current.t(key);

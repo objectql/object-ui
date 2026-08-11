@@ -53,10 +53,22 @@ function makeTasks(overrides?: { lockedParent?: boolean }): GanttTask[] {
   ];
 }
 
+/**
+ * `GanttView`'s `onTaskUpdate` as this file's helpers pass it.
+ *
+ * Naming it is what lets the spies below be `vi.fn< GanttTaskUpdate >()` rather
+ * than a bare `vi.fn()`. A bare one types `mock.calls` as `any[][]` — an array
+ * of arrays of unknown LENGTH — while the assertions further down destructure
+ * `[task]` and read `call[1]`, the changes payload. So the spy was declaring
+ * that there is no second argument at all, next to assertions that read it
+ * (objectui#4040).
+ */
+type GanttTaskUpdate = (task: GanttTask, changes: any) => void;
+
 function renderView(opts: {
   tasks?: GanttTask[];
   summaryExtent?: 'children' | 'self';
-  onTaskUpdate?: (task: GanttTask, changes: any) => void;
+  onTaskUpdate?: GanttTaskUpdate;
   onDependencyCreate?: (s: GanttTask, t: GanttTask, ty: any) => void;
 }) {
   return render(
@@ -114,7 +126,7 @@ describe('self-extent summary bar editability', () => {
   });
 
   it('resize-right on a summary commits ONLY the summary own end (no children)', () => {
-    const onTaskUpdate = vi.fn();
+    const onTaskUpdate = vi.fn<GanttTaskUpdate>();
     const { container } = renderView({ summaryExtent: 'self', onTaskUpdate });
     const handle = container.querySelector('[data-testid="gantt-task-resize-right-p1"]') as HTMLElement;
     expect(handle).toBeTruthy();
@@ -132,7 +144,7 @@ describe('self-extent summary bar editability', () => {
   });
 
   it('dragging the summary body still group-moves the whole subtree', () => {
-    const onTaskUpdate = vi.fn();
+    const onTaskUpdate = vi.fn<GanttTaskUpdate>();
     const { container } = renderView({ summaryExtent: 'self', onTaskUpdate });
     const bar = container.querySelector('[data-testid="gantt-summary-bar-p1"]') as HTMLElement;
 
@@ -143,9 +155,9 @@ describe('self-extent summary bar editability', () => {
     act(() => { window.dispatchEvent(pointer('pointerup', 830)); });
 
     expect(onTaskUpdate).toHaveBeenCalledTimes(2);
-    const ids = onTaskUpdate.mock.calls.map(([t]: [GanttTask]) => t.id).sort();
+    const ids = onTaskUpdate.mock.calls.map(([t]) => t.id).sort();
     expect(ids).toEqual(['c1', 'p1']);
-    const parentCall = onTaskUpdate.mock.calls.find(([t]: [GanttTask]) => t.id === 'p1')!;
+    const parentCall = onTaskUpdate.mock.calls.find(([t]) => t.id === 'p1')!;
     expect(parentCall[1].start.toISOString()).toBe('2024-06-13T00:00:00.000Z');
     expect(parentCall[1].end.toISOString()).toBe('2024-06-18T00:00:00.000Z');
   });

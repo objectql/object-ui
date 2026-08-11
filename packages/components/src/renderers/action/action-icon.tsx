@@ -14,6 +14,7 @@
 
 import React, { forwardRef, useCallback, useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
+import type { ActionDef } from '@object-ui/core';
 import type { ActionSchema } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
 import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
@@ -68,7 +69,14 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
       if (loading) return;
       setLoading(true);
       try {
-        await execute({
+        // Annotated binding, not an inline literal — see action-button.tsx for
+        // the mechanism. `localContext` is `any` (the `PropsWithoutRef` collapse
+        // of an index-signature props interface), and a literal that spreads an
+        // `any` is not excess-property checked, so this site absorbed unknown
+        // keys while `action:group` / `action:menu` rejected them
+        // (objectui#4281). `...localContext` is still merged last, so the object
+        // reaching `execute` is unchanged.
+        const forwarded: ActionDef = {
           type: schema.type,
           name: schema.name,
           // See action-button.tsx — the param-collection dialog reads its title
@@ -96,8 +104,9 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
           // OAuth secret). Without it the runner falls back to the success
           // toast and the value the user was meant to copy is gone.
           resultDialog: (schema as any).resultDialog,
-          ...localContext,
-        });
+        };
+
+        await execute({ ...forwarded, ...localContext });
       } finally {
         setLoading(false);
       }
