@@ -6,7 +6,12 @@
  */
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
+import React from 'react';
 import { createSafeTranslation, useSafeTranslate } from '../useSafeTranslation';
+// objectui#3865's control block mounts a real provider to show the i18next path
+// is untouched. `children` goes IN the props object (see provider.test.tsx's
+// note on #4040) — the variadic form never satisfies the required prop.
+import { I18nProvider } from '../provider';
 
 const DEFAULTS = {
   'detail.test': 'Test Anchor',
@@ -97,6 +102,150 @@ describe('createSafeTranslation (no I18nProvider)', () => {
     const first = result.current.t;
     rerender();
     expect(result.current.t).toBe(first);
+  });
+});
+
+// objectui#3865 — the provider-less fallback never read the call site's inline
+// `defaultValue`. It looked the key up in its own hand-written defaults table
+// and, on a miss, rendered the RAW KEY to the user; `{ defaultValue: 'None' }`
+// was then run through the interpolation loop as if it were a `{{defaultValue}}`
+// variable, so the English the call site supplied was dropped on the floor.
+//
+// Measured on `origin/main` @ d2e2caf40 (AST census over all 26
+// `createSafeTranslation` hooks): 27 distinct keys reach a hook whose table
+// lacks them, 21 of those carrying an inline `defaultValue` — 16 keys in
+// `plugin-detail` alone, which is the count the issue reports.
+//
+// The lookup order below (`defaults[key]` -> `defaultValue` -> `key`) is
+// i18next's, verified against a real i18next 26.3.6 instance configured the way
+// `createI18n` configures it: a pack value beats an inline `defaultValue`
+// (`t('anchor', { defaultValue: 'INLINE' })` === `'Anchor value'`), a miss with
+// an inline default returns it (`'INLINE'`), and a miss without one returns the
+// key. The defaults table is the pack value's stand-in on this path, so it takes
+// the pack's position in that order.
+describe('createSafeTranslation honours an inline defaultValue (objectui#3865)', () => {
+  const DEFAULTS_3865 = {
+    'detail.test': 'Test Anchor',
+    'detail.tabled': 'Table value',
+    'detail.greeting': 'Hello {{name}}',
+    // A value that spells the reserved name as a hole. No string in the repo
+    // does this today (grepped: zero `{{defaultValue` in packages/apps/examples),
+    // which is what makes the reserved-name rule below cost-free — the pin is
+    // here so a future one cannot silently start eating the fallback text.
+    'detail.holed': 'Fallback: {{defaultValue}}',
+  };
+  const useT = createSafeTranslation(DEFAULTS_3865, 'detail.test');
+
+  it('renders a string defaultValue when the key is absent from the table', () => {
+    // The issue's exact fixture: `perm.facet.none` is not in plugin-detail's
+    // 146-entry table, so a provider-less host used to show `perm.facet.none`.
+    const { result } = renderHook(() => useT());
+    expect(result.current.t('perm.facet.none', { defaultValue: 'None' })).toBe('None');
+  });
+
+  it('prefers the defaults table over an inline defaultValue (order pin)', () => {
+    // The table stands in for the pack value on this path, and i18next lets a
+    // pack value beat `defaultValue` — measured, not assumed. Reversing these
+    // two would make a provider-less host disagree with a provider-mounted one
+    // for every key that has both.
+    const { result } = renderHook(() => useT());
+    expect(result.current.t('detail.tabled', { defaultValue: 'Inline' })).toBe('Table value');
+  });
+
+  it('still falls back to the key when neither answers', () => {
+    const { result } = renderHook(() => useT());
+    // Unchanged historical contract.
+    expect(result.current.t('detail.missing')).toBe('detail.missing');
+    expect(result.current.t('detail.missing', {})).toBe('detail.missing');
+    expect(result.current.t('detail.missing', { name: 'Ada' })).toBe('detail.missing');
+    // Non-string defaults are ignored rather than coerced: this function's
+    // return type is `string`, and i18next itself declines a `null` default.
+    expect(result.current.t('detail.missing', { defaultValue: 42 })).toBe('detail.missing');
+    expect(result.current.t('detail.missing', { defaultValue: null })).toBe('detail.missing');
+    expect(result.current.t('detail.missing', { defaultValue: undefined })).toBe(
+      'detail.missing',
+    );
+    expect(result.current.t('detail.missing', { defaultValue: { a: 1 } })).toBe(
+      'detail.missing',
+    );
+  });
+
+  it('never splices the fallback into a {{defaultValue}} hole (reserved name)', () => {
+    const { result } = renderHook(() => useT());
+    // `defaultValue` selects the string; it is not data that fills holes in one.
+    expect(result.current.t('detail.holed', { defaultValue: 'Inline' })).toBe(
+      'Fallback: {{defaultValue}}',
+    );
+    // Reserved regardless of type — a non-string default is ignored by the
+    // lookup, and must not re-enter through the interpolation loop either.
+    expect(result.current.t('detail.holed', { defaultValue: 42 })).toBe(
+      'Fallback: {{defaultValue}}',
+    );
+    // …and when the defaultValue is the string being rendered, it does not
+    // substitute into itself.
+    expect(result.current.t('detail.missing', { defaultValue: 'x {{defaultValue}} y' })).toBe(
+      'x {{defaultValue}} y',
+    );
+  });
+
+  it('interpolates every OTHER option, including holes inside the defaultValue', () => {
+    const { result } = renderHook(() => useT());
+    // Control: the interpolation loop still runs, and still runs over the
+    // chosen value whichever position of the chain produced it. i18next agrees
+    // — `t('missing', { defaultValue: 'Hi {{name}}', name: 'Ada' })` is `'Hi Ada'`.
+    expect(
+      result.current.t('detail.missing', { defaultValue: 'Hi {{name}}', name: 'Ada' }),
+    ).toBe('Hi Ada');
+    expect(result.current.t('detail.greeting', { name: 'Ada', defaultValue: 'unused' })).toBe(
+      'Hello Ada',
+    );
+    // objectui#3418's every-occurrence rule is unaffected by the new option.
+    expect(
+      result.current.t('detail.missing', {
+        defaultValue: '{{count}} of {{count}}',
+        count: 3,
+      }),
+    ).toBe('3 of 3');
+  });
+
+  it('leaves single-brace placeholders alone (objectui#3512 control)', () => {
+    // A different defect of the same helper, deliberately NOT changed here.
+    const { result } = renderHook(() => useT());
+    expect(result.current.t('detail.missing', { defaultValue: 'Hi {name}', name: 'Ada' })).toBe(
+      'Hi {name}',
+    );
+  });
+
+  it('keeps the fallback t stable across renders', () => {
+    const { result, rerender } = renderHook(() => useT());
+    const first = result.current.t;
+    rerender();
+    expect(result.current.t).toBe(first);
+  });
+});
+
+// Control for objectui#3865: with a provider mounted the helper hands over to
+// i18next's own `t` and this change touches nothing. The probe key must be one
+// the packs actually define, otherwise the hook stays on the fallback and the
+// test would be measuring the branch above.
+describe('createSafeTranslation with an I18nProvider (objectui#3865 control)', () => {
+  const wrapper = ({ children }: { children: React.ReactNode }) =>
+    React.createElement(I18nProvider, {
+      config: { defaultLanguage: 'en', detectBrowserLanguage: false, warnMissingKeys: false },
+      children,
+    });
+  const useT = createSafeTranslation({ 'common.save': 'Table value' }, 'common.save');
+
+  it('serves the pack value, not the defaults table', () => {
+    const { result } = renderHook(() => useT(), { wrapper });
+    expect(result.current.t('common.save')).toBe('Save');
+  });
+
+  it('already honoured an inline defaultValue, and still does', () => {
+    const { result } = renderHook(() => useT(), { wrapper });
+    expect(result.current.t('objectui3865.absentFromEveryPack', { defaultValue: 'Inline' })).toBe(
+      'Inline',
+    );
   });
 });
 

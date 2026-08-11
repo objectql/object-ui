@@ -3,12 +3,25 @@
  *
  * When no I18nProvider is available (e.g., in tests or standalone usage),
  * this hook falls back to the provided default translations instead of
- * returning raw i18n keys.
+ * returning raw i18n keys — and, for a key the `defaults` map does not carry,
+ * to the call site's own inline `t(key, { defaultValue })` (objectui#3865).
+ * The lookup order is i18next's, so a provider-less host and a provider-mounted
+ * one render the same string: `defaults[key]` (the pack value's stand-in here)
+ * -> `defaultValue` -> the key.
  *
  * @param defaults - Fallback English translations keyed by i18n key
  * @param testKey - A key to test if i18n is properly configured (must be in defaults)
  */
 import { useObjectTranslation } from './provider';
+
+/**
+ * The i18next option that names the string to use when the lookup misses.
+ *
+ * It is a LOOKUP CONTROL, not interpolation data (objectui#3865): it chooses
+ * which string is rendered, so it must never also be spliced into a
+ * `{{defaultValue}}` hole in the string it chose — or in any other.
+ */
+const DEFAULT_VALUE_OPTION = 'defaultValue';
 
 export function createSafeTranslation(
   defaults: Record<string, string>,
@@ -18,9 +31,45 @@ export function createSafeTranslation(
   // downstream useMemo/useCallback deps don't invalidate every render in
   // the no-translations case.
   const fallbackT = (key: string, options?: Record<string, unknown>) => {
-    let value = defaults[key] || key;
+    // Lookup order: defaults table -> inline `defaultValue` -> the key itself
+    // (objectui#3865). The table is the pack value's stand-in on this path, so
+    // it takes the pack's position in i18next's own order — verified against a
+    // real i18next 26.3.6 instance configured the way `createI18n` configures
+    // it: `t('anchor', { defaultValue: 'INLINE' })` is the pack's `'Anchor
+    // value'`, `t('missing', { defaultValue: 'INLINE' })` is `'INLINE'`, and
+    // `t('missing')` is `'missing'`.
+    //
+    // Before this, the inline default was DEAD on both paths for every
+    // component behind this factory: the provider path never reaches it
+    // (the pack value always wins), and this path did not read it at all —
+    // it rendered the raw key and then treated `defaultValue` as one more
+    // interpolation variable. A census over all 26 `createSafeTranslation`
+    // hooks measured 27 keys whose table lacks them, 21 of those carrying an
+    // inline default that used to be dropped (objectui#3865; the fact is
+    // recorded on objectui#3810, whose option C rests on it).
+    //
+    // Non-strings are ignored rather than coerced — this function returns a
+    // `string`, and i18next itself declines a `null` default. `||` (not `??`)
+    // keeps the whole chain consistent with the pre-existing `defaults[key] ||`
+    // step: an empty string at any position falls through to the next.
+    const inlineDefault = options?.[DEFAULT_VALUE_OPTION];
+    let value =
+      defaults[key] || (typeof inlineDefault === 'string' ? inlineDefault : '') || key;
     if (options) {
       for (const [k, v] of Object.entries(options)) {
+        // Reserved: see DEFAULT_VALUE_OPTION. Skipped whatever its type, so an
+        // ignored non-string default cannot re-enter through this loop.
+        //
+        // This is the one deliberate divergence from i18next on this path, and
+        // it is unreachable with today's strings: i18next passes the whole
+        // options object to its interpolator, so it WOULD render
+        // `'Fallback: {{defaultValue}}'` as `'Fallback: INLINE'` (measured on
+        // 26.3.6) — but no value in this repo spells that hole (zero hits for
+        // `{{defaultValue` across packages/apps/examples), and splicing a
+        // fallback string into a hole named after itself has no sensible
+        // reading. The alternative — letting a call site's fallback text leak
+        // into an unrelated table value — is the worse of the two.
+        if (k === DEFAULT_VALUE_OPTION) continue;
         // `split(needle).join(value)` — deliberately not `replace`, and not
         // `replaceAll` either (objectui#3418). This path must agree with
         // i18next, which serves the *provider* path; any divergence is a
