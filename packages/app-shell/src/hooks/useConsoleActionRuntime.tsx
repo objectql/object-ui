@@ -112,7 +112,8 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   const { fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel, actionDescription, actionResultDialog } = useObjectLabel();
   // Entitlement 403s render as a dialog, not a toast — its copy is localized
   // here rather than taken from the server (objectui#2458 / cloud#959).
-  const { t } = useObjectTranslation();
+  // `language` also resolves inline per-locale action-param labels below.
+  const { t, language } = useObjectTranslation();
 
   const objectDef = useMemo(
     () => (objectName ? objects?.find((o: any) => o.name === objectName) : undefined),
@@ -186,6 +187,9 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         fieldLabel,
         fieldOptionLabel,
         row,
+        // Resolves an inline per-locale `label` map (rc.6's widened
+        // `I18nLabel`) for the active language — objectui#4163.
+        locale: language,
       });
       // Localize each param's label/placeholder/helpText via the
       // `_actions.<action>.params.<param>.<attr>` convention.

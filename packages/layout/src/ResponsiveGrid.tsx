@@ -8,32 +8,28 @@
 
 import React from 'react';
 import { cn } from '@object-ui/components';
+import type { BreakpointColumnMap, BreakpointOrderMap } from '@objectstack/spec/ui';
 
 /**
- * Spec-aligned breakpoint column map (mirrors @objectstack/spec BreakpointColumnMapSchema).
- * Maps breakpoint names to grid column counts (1-12).
+ * Breakpoint column map (`BreakpointColumnMapSchema`) and breakpoint order map
+ * (`BreakpointOrderMapSchema`), both re-exported from `@objectstack/spec/ui`.
+ *
+ * These were hand copies until objectui#4167, each carrying the word "mirrors"
+ * — the doc-comment shape objectstack#4115 catalogues, where the claim is what
+ * the next agent reads as canonical and the code is what actually decides. rc.6
+ * publishes both names, and both copies happened to still be exact: six
+ * optional numbers keyed `xs`…`2xl`, on a `$strict` schema. "Still exact" is
+ * the argument FOR binding them, not against — the copies had nothing to
+ * protect, so the only thing they could do from here was drift, and a
+ * breakpoint the spec adds now arrives instead of silently not existing.
+ *
+ * `BreakpointOrderMap` has no read point in this package (`ResponsiveGrid`
+ * resolves columns only); it is published because `ResponsiveConfigSchema`
+ * pairs the two and an author configuring order needs the type. Bound rather
+ * than deleted for that reason — deleting a published type is a separate
+ * decision from stopping it being a fork.
  */
-export interface BreakpointColumnMap {
-  xs?: number;
-  sm?: number;
-  md?: number;
-  lg?: number;
-  xl?: number;
-  '2xl'?: number;
-}
-
-/**
- * Spec-aligned breakpoint order map (mirrors @objectstack/spec BreakpointOrderMapSchema).
- * Maps breakpoint names to display order numbers.
- */
-export interface BreakpointOrderMap {
-  xs?: number;
-  sm?: number;
-  md?: number;
-  lg?: number;
-  xl?: number;
-  '2xl'?: number;
-}
+export type { BreakpointColumnMap, BreakpointOrderMap };
 
 export interface ResponsiveGridProps {
   /** Grid column map per breakpoint */

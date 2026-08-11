@@ -9,7 +9,7 @@
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { HeaderBarSchema, BreadcrumbItem as BreadcrumbItemType } from '@object-ui/types';
-import { resolveI18nLabel, SchemaRenderer } from '@object-ui/react';
+import { resolveKeyedI18nLabel, SchemaRenderer } from '@object-ui/react';
 import {
   SidebarTrigger,
   Separator,
@@ -28,7 +28,7 @@ import {
 import { ChevronDown, Search } from 'lucide-react';
 
 function BreadcrumbLabel({ crumb, isLast }: { crumb: BreadcrumbItemType; isLast: boolean }) {
-  const label = resolveI18nLabel(crumb.label) ?? '';
+  const label = resolveKeyedI18nLabel(crumb.label) ?? '';
 
   if (crumb.siblings && crumb.siblings.length > 0) {
     return (

@@ -27,7 +27,7 @@ import {
 import { SchemaRendererContext } from './context/SchemaRendererContext';
 import { usePredicateScope } from './hooks/useExpression';
 import { usePageVariables } from './hooks/usePageVariables';
-import { resolveI18nLabel } from './utils/i18n';
+import { resolveKeyedI18nLabel } from './utils/i18n';
 
 /**
  * Dev-mode schema validation.
@@ -108,7 +108,7 @@ function validateSchemaOnce(schema: any): _ValidationCacheEntry {
 function resolveAriaProps(schema: Record<string, any>): Record<string, string | undefined> {
   const aria: Record<string, string | undefined> = {};
   if (schema.ariaLabel) {
-    aria['aria-label'] = resolveI18nLabel(schema.ariaLabel);
+    aria['aria-label'] = resolveKeyedI18nLabel(schema.ariaLabel);
   }
   if (schema.ariaDescribedBy) {
     aria['aria-describedby'] = schema.ariaDescribedBy;

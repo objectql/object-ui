@@ -205,7 +205,27 @@ describe('DroppedFieldsEvent IS the spec type, not a mirror of it', () => {
     // reason had appeared. `Equal` is used rather than `extends` because
     // `'readonly' | 'readonly_when' extends string` is true in the drifted
     // direction too.
-    type _ReasonIsTheEnum = Assert<Equal<DroppedFieldsEvent['reason'], 'readonly' | 'readonly_when'>>;
+    //
+    // THIS PIN FIRED, and its firing is the whole point (objectui#4167).
+    // `@objectstack/spec` 17.0.0-rc.6 added a third arm, `primary_key`, and this
+    // assertion is what reported it — a `tsc` error naming the exact widening,
+    // on a bump whose build and full vitest run were both green. Under the
+    // deleted hand copy's bare `string` the arm would have arrived silently, and
+    // `writeWarningToast` would have narrated it as "Read-only, so it did not
+    // take effect" with nobody the wiser.
+    //
+    // The member list is updated here; the CONSUMER gap is objectui#3935, which
+    // was filed BEFORE this arm shipped and named this exact moment as its
+    // activation condition ("the moment `.objectui-sha`'s spec pin moves past
+    // that change, a user who triggers the primary-key strip is told the field
+    // is read-only"). rc.6 is that moment, so #3935 stops being a prediction.
+    // Not fixed here: `emitWriteWarning`'s binary ternary needs replacing with
+    // an exhaustive map plus a third wording in both locale tables, which is a
+    // UX and i18n read of its own rather than bump adaptation. #3935 owns it and
+    // already prescribes the shape.
+    type _ReasonIsTheEnum = Assert<
+      Equal<DroppedFieldsEvent['reason'], 'readonly' | 'readonly_when' | 'primary_key'>
+    >;
     type _ReasonIsNotString = Assert<Equal<Equal<DroppedFieldsEvent['reason'], string>, false>>;
 
     expect(true).toBe(true);

@@ -9,7 +9,7 @@
 import { Star, StarOff, ArrowUpRight } from 'lucide-react';
 import { Card, CardContent, Button, Badge } from '@object-ui/components';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
-import { resolveI18nLabel, appRouteSegment } from '../../utils';
+import { resolveKeyedI18nLabel, appRouteSegment } from '../../utils';
 import { useFavorites } from '../../hooks/useFavorites';
 import { getIcon } from '../../utils/getIcon';
 import { cn } from '@object-ui/components';
@@ -44,8 +44,8 @@ export function AppCard({ app, onClick, isFavorite, index = 0 }: AppCardProps) {
   const { toggleFavorite } = useFavorites();
 
   const Icon = getIcon(app.icon);
-  const label = appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) });
-  const description = appDescription({ name: app.name, description: resolveI18nLabel(app.description, t) });
+  const label = appLabel({ name: app.name, label: resolveKeyedI18nLabel(app.label, t) });
+  const description = appDescription({ name: app.name, description: resolveKeyedI18nLabel(app.description, t) });
   const accent = ACCENTS[(hashStr(app.name) + index) % ACCENTS.length];
 
   const handleToggleFavorite = (e: React.MouseEvent) => {

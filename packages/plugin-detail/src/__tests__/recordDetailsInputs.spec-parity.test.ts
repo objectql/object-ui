@@ -29,8 +29,13 @@
  * `validateComponentProps` is advisory, the spec is only parsed on paths that
  * parse, and `RecordDetailsRenderer` reads `s.name` / `s.label` / `s.fields`
  * off each entry — all `undefined` on a string, so the section renders nothing.
- * Under `layout: 'custom'` sections are the ONLY source of the body, so the
+ * Once `sections` is authored at all it is the ONLY source of the body, so the
  * page comes up blank with no diagnostic anywhere pointing at `sections`.
+ * (That used to read "under `layout: 'custom'`". `layout` was removed in
+ * @objectstack/spec 17.0.0 — its `auto` | `custom` semantics were never
+ * implemented — and the body is now chosen by what you author: `sections`
+ * renders the explicit groups, omitting it falls back to the object's
+ * `highlightFields`. The blank-page failure this file guards is unchanged.)
  *
  * Every expectation below is DERIVED from the spec schema at runtime rather
  * than restating today's key list, so a spec change fails here instead of
@@ -109,15 +114,26 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     // A VALUE verdict, so the criterion is a full parse, not key recognition:
     // the retired spelling has to be rejected on its value, and the object form
     // has to survive intact.
+    //
+    // NEITHER fixture may carry `layout` (objectui#4167). Both did until
+    // @objectstack/spec 17.0.0-rc.6, which gave the key — removed in 17.0.0 under
+    // ADR-0087 D2 (objectstack#6946) — a named `never` rejection. That rejection
+    // is what the fixtures then hit: the object-form case failed on `layout`
+    // while its `sections` were perfectly valid, and, worse, the id-list case
+    // above kept PASSING on `layout`'s own `invalid_type` without ever reaching
+    // `sections` — green for a reason that has nothing to do with what it
+    // asserts. Dropping the key puts both verdicts back on `sections`, where the
+    // issues now resolve to path `sections.0` / `sections.1`.
     const idList = RecordDetailsProps.safeParse({
-      layout: 'custom',
       sections: ['contact_info', 'address'],
     });
     expect(idList.success).toBe(false);
     expect(idList.error?.issues.map((i) => i.code)).toContain('invalid_type');
+    // Pin the PATH, not just the code — this is precisely the assertion that was
+    // satisfied by the wrong key, and a code alone cannot tell the two apart.
+    expect(idList.error?.issues.map((i) => i.path.join('.'))).toContain('sections.0');
 
     const objectForm = RecordDetailsProps.safeParse({
-      layout: 'custom',
       sections: [{ name: 'contact_info', label: 'Contact', columns: 2, fields: ['phone'] }],
     });
     expect(objectForm.success).toBe(true);

@@ -62,13 +62,15 @@ import { usePermissions } from '@object-ui/permissions';
 import { useRecentItems } from '../hooks/useRecentItems';
 import { useFavorites } from '../hooks/useFavorites';
 import { useNavPins } from '../hooks/useNavPins';
-import { resolveI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
-// Two resolvers, two vocabularies — the alias is what keeps them apart.
-// `resolveI18nLabel` above is objectui's own and resolves a TRANSLATION-KEY ref
-// (`{ key, defaultValue, params }`) through i18next. `resolveInlineI18nLabel` is
-// the spec's `resolveI18nLabel`, new in @objectstack/spec 17.0.0-rc.6, and
-// resolves the INLINE per-locale map (`{ en: …, 'zh-CN': … }`) that the same
-// release folded into `I18nLabel`. Neither accepts the other's shape.
+import { resolveKeyedI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
+// Two resolvers, two vocabularies, and since objectui#4167 the NAMES carry the
+// distinction rather than a comment: `resolveKeyedI18nLabel` above is objectui's
+// own and resolves a TRANSLATION-KEY ref (`{ key, defaultValue, params }`)
+// through i18next; `resolveInlineI18nLabel` is the spec's `resolveI18nLabel`,
+// new in @objectstack/spec 17.0.0-rc.6, and resolves the INLINE per-locale map
+// (`{ en: …, 'zh-CN': … }`) that the same release folded into `I18nLabel`.
+// Neither accepts the other's shape. The import alias is now symmetry rather
+// than load-bearing disambiguation — Keyed and Inline, side by side.
 import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { useAppContextSelectors } from './ContextSelectors';
@@ -388,15 +390,15 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                     style={primaryColor ? { backgroundColor: primaryColor } : undefined}
                   >
                      {logo ? (
-                       <img src={logo} alt={resolveI18nLabel(activeApp.label, t)} className="size-6 object-contain" />
+                       <img src={logo} alt={resolveKeyedI18nLabel(activeApp.label, t)} className="size-6 object-contain" />
                      ) : (
                        React.createElement(getIcon(activeApp.icon), { className: "size-4" })
                      )}
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">{resolveI18nLabel(activeApp.label, t)}</span>
+                    <span className="truncate font-semibold">{resolveKeyedI18nLabel(activeApp.label, t)}</span>
                     <span className="truncate text-xs">
-                      {resolveI18nLabel(activeApp.description, t) || t('layout.appSwitcher.appsAvailable', { defaultValue: '{{count}} apps available', count: activeApps.length })}
+                      {resolveKeyedI18nLabel(activeApp.description, t) || t('layout.appSwitcher.appsAvailable', { defaultValue: '{{count}} apps available', count: activeApps.length })}
                     </span>
                   </div>
                   <ChevronsUpDown className="ml-auto" />
@@ -420,7 +422,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                     <div className="flex size-6 items-center justify-center rounded-sm border">
                       {app.icon ? React.createElement(getIcon(app.icon), { className: "size-3" }) : <Database className="size-3" />}
                     </div>
-                    {resolveI18nLabel(app.label, t)}
+                    {resolveKeyedI18nLabel(app.label, t)}
                     {activeApp.name === app.name && <span className="ml-auto text-xs">✓</span>}
                   </DropdownMenuItem>
                 ))}
@@ -779,7 +781,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
           return (
             <Link key={item.id} to={href} className="flex flex-col items-center gap-0.5 px-2 py-1.5 text-muted-foreground hover:text-foreground transition-colors min-w-[44px] min-h-[44px] justify-center">
               <NavIcon className="h-5 w-5" />
-              <span className="text-[10px] truncate max-w-[60px]">{resolveI18nLabel(item.label, t)}</span>
+              <span className="text-[10px] truncate max-w-[60px]">{resolveKeyedI18nLabel(item.label, t)}</span>
             </Link>
           );
           });
