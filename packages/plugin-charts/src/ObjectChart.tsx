@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation, useFilterScope, ElementDataSourceGate, type ElementDataSourceMapping } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, buildDimensionLabelMap, relabelDimensions, resolveDimensionFieldOptions, type CompareToConfig, type DrillEvent, type ChartResultField } from '@object-ui/core';
+import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, buildDimensionLabelMap, relabelDimensions, localizeFieldOptions, resolveDimensionFieldMeta, type DimensionFieldMeta, type OptionLabelTranslator, type CompareToConfig, type DrillEvent, type ChartResultField } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -290,12 +290,20 @@ export const ObjectChart = (props: any) => {
   // the dimension field's option colors → {value|label → color} so the render
   // layer can use them. Keyed by BOTH value and label since the row category
   // may be either (server resolves dataset dimension labels).
-  const [fieldOptionColors, setFieldOptionColors] = useState<Record<string, string> | null>(null);
-  // Dataset path: {value → label} per dimension, so a value-keyed group (e.g.
-  // status=`active`) shows its option label (`合作中`) on the axis/legend with
-  // its count intact when the server returned raw values (cloud#667). The legacy
-  // objectName path already resolves labels via resolveGroupByLabels below.
-  const [dimensionLabels, setDimensionLabels] = useState<Record<string, Record<string, string>> | null>(null);
+  // ── The label net's INPUT: resolved field metadata, locale-free ───────────
+  // `{ object, field, options }` per resolved dimension field path, exactly as
+  // the metadata doc carries it. The colour map and the per-dimension
+  // {value → label} maps are DERIVED from it during render (one memo below),
+  // because that derivation is where the locale bundle applies — objectui#4030.
+  // Keeping the fetched metadata locale-free is what makes a language switch a
+  // re-render instead of a re-fetch.
+  const [optionMeta, setOptionMeta] = useState<{
+    metaByPath: Record<string, DimensionFieldMeta>;
+    /** The colour dimension's field path — the aggregate groupBy / first dim. */
+    colorPath: string;
+    /** Dataset path only: dimension name → its underlying field path. */
+    fieldByDim: Record<string, string> | null;
+  } | null>(null);
   // Host-provided "open in list" navigation for the drill escape hatch.
   const { openRecordList } = useDrillNavigation();
   const tt = useSafeTranslate();
@@ -363,7 +371,7 @@ export const ObjectChart = (props: any) => {
           const dim = (datasetDef?.dimensions || []).find((d: any) => d?.name === dim0) ?? (datasetDef?.dimensions || [])[0];
           fieldName = dim?.field ?? dim0;
         }
-        if (!objectName || !fieldName) { if (!cancelled) { setFieldOptionColors(null); setDimensionLabels(null); } return; }
+        if (!objectName || !fieldName) { if (!cancelled) setOptionMeta(null); return; }
         const loadObjectSchema = async (name: string) => {
           const r = await doFetch(`/api/v1/meta/object/${encodeURIComponent(name)}`, reqOpts);
           const doc = await r.json().catch(() => null);
@@ -382,29 +390,62 @@ export const ObjectChart = (props: any) => {
         // One resolution for every path: a local field name reads straight off
         // `objSchema` as before, a dotted one walks to the object that owns the
         // terminal field. Unresolvable paths yield no entry → raw value survives.
-        const optionsByPath = await resolveDimensionFieldOptions(
+        // `…Meta` keeps the OWNING object + terminal field beside the options —
+        // the key the locale bundle is written under (objectui#4030).
+        const metaByPath = await resolveDimensionFieldMeta(
           objSchema,
           [fieldName, ...Object.values(fieldByDim)],
           loadObjectSchema,
         );
-        const map = buildOptionColorMap(optionsByPath[fieldName]);
-        // dataset path: build a {value → label} map for EVERY select dimension
-        // (the objectName path resolves labels via resolveGroupByLabels instead).
-        let labels: Record<string, Record<string, string>> | null = null;
-        if (schema.dataset && Array.isArray(schema.dimensions)) {
-          const acc: Record<string, Record<string, string>> = {};
-          for (const dimName of schema.dimensions) {
-            const m = buildDimensionLabelMap(optionsByPath[fieldByDim[dimName]]);
-            if (m) acc[dimName] = m;
-          }
-          if (Object.keys(acc).length > 0) labels = acc;
+        if (!cancelled) {
+          setOptionMeta({
+            metaByPath,
+            colorPath: fieldName,
+            fieldByDim: schema.dataset && Array.isArray(schema.dimensions) ? fieldByDim : null,
+          });
         }
-        if (!cancelled) { setFieldOptionColors(map); setDimensionLabels(labels); }
-      } catch { if (!cancelled) { setFieldOptionColors(null); setDimensionLabels(null); } }
+      } catch { if (!cancelled) setOptionMeta(null); }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema.objectName, schema.dataset, datasetKey, aggregateKey, schema.xAxisKey, apiFetch]);
+
+  // ── The label net's OUTPUT, with the locale bundle applied (objectui#4030) ─
+  // The net above RESOLVES a select dimension's option label; before this it
+  // handed the object's authored ENGLISH label straight to the axis and the
+  // legend, while the same page's related list showed the translation. The
+  // bundle is applied once, here, on the shared option list every consumer
+  // reads (colours AND the {value → label} relabel map) rather than per
+  // surface, through `fieldOptionLabel` — the resolver list and form surfaces
+  // already translate select options with
+  // (`fieldOptions.<object>.<field>.<value>`).
+  const { fieldOptionColors, dimensionLabels } = useMemo(() => {
+    if (!optionMeta) return { fieldOptionColors: null, dimensionLabels: null };
+    const { metaByPath, colorPath, fieldByDim } = optionMeta;
+    // Bound to the object that OWNS the terminal field — `crm_account` for
+    // `crm_account.industry`, not the dataset's base object.
+    const translatorFor = (path: string | undefined): OptionLabelTranslator | undefined => {
+      const meta = path ? metaByPath[path] : undefined;
+      const owner = meta?.object;
+      if (!owner) return undefined;
+      return (value, authored) => fieldOptionLabel(owner, meta.field, value, authored);
+    };
+    // Colours read `option.label`, so they are fed the LOCALIZED options and
+    // stay keyed by the string the rendered category actually carries — on the
+    // aggregate path `resolveGroupByLabels` already translates it, so an
+    // untranslated colour map missed every category in a localized app.
+    const colorOptions = localizeFieldOptions(metaByPath[colorPath]?.options, translatorFor(colorPath));
+    let labels: Record<string, Record<string, string>> | null = null;
+    if (fieldByDim) {
+      const acc: Record<string, Record<string, string>> = {};
+      for (const [dimName, path] of Object.entries(fieldByDim)) {
+        const m = buildDimensionLabelMap(metaByPath[path]?.options, translatorFor(path));
+        if (m) acc[dimName] = m;
+      }
+      if (Object.keys(acc).length > 0) labels = acc;
+    }
+    return { fieldOptionColors: buildOptionColorMap(colorOptions), dimensionLabels: labels };
+  }, [optionMeta, fieldOptionLabel]);
 
   // Run a single aggregate query (used for both the current and comparison
   // windows). Extracted so the two queries share identical logic.

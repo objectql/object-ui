@@ -34,7 +34,8 @@ import {
   buildDimensionLabelMap,
   buildCategoryOrder,
   relabelDimensions,
-  resolveDimensionFieldOptions,
+  localizeFieldOptions,
+  resolveDimensionFieldMeta,
   findChartSeriesRow,
   formatMeasure,
   formatDimensionValue,
@@ -52,6 +53,8 @@ import {
   pivotCellKey,
   compareToTrendLabelKey,
   type ChartSeriesBinding,
+  type DimensionFieldMeta,
+  type OptionLabelTranslator,
   type CompareToConfig,
   type DatasetResultField,
   type DatasetDrillRange,
@@ -689,7 +692,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     : undefined;
 
   const tt = useSafeTranslate();
-  const { fieldLabel } = useSafeFieldLabel();
+  const { fieldLabel, fieldOptionLabel } = useSafeFieldLabel();
 
   // ADR-0021 dual-form: the widget's presentation-scope `filter` must flow into
   // the dataset query as `runtimeFilter`, or a dataset-bound widget renders the
@@ -738,25 +741,23 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   const [state, setState] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; fields?: DatasetResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Array<Record<string, unknown>>; drillRanges?: Array<Record<string, DatasetDrillRange>>; totals?: DatasetTotals[]; error?: string }>({ status: 'idle', rows: [] });
   // Drill-through (ADR-0021 D2): the clicked bucket's record-list filter + title.
   const [drill, setDrill] = useState<{ filter: Record<string, unknown>; title: string } | null>(null);
-  // Per-category colors: when the chart's first dimension is a select/lookup
-  // field, paint each category in its option color (health green/red/yellow)
-  // instead of the generic --chart-1..5 palette — the same wiring the chart
-  // view uses (ObjectChart). The renderer's `categoryColors` map wins over the
-  // positional palette and falls back to it for categories without a color.
-  const [categoryColors, setCategoryColors] = useState<Record<string, string> | null>(null);
-  // Per-dimension {value → label} maps. The dataset groups by a select field's
-  // stored value (e.g. `active`); the chart axis must read the option label
-  // (e.g. `合作中`). The server resolves this when it can, but an AI-built
-  // select whose options the analytics layer can't see comes back value-keyed,
-  // so we resolve it here from the object field options (see relabelDimensions).
-  const [dimensionLabels, setDimensionLabels] = useState<Record<string, Record<string, string>> | null>(null);
-  // The first dimension's DECLARED picklist order (framework#3588) — the
-  // sequence the author wrote the options in on the object. For an
-  // ordered-sequence chart (funnel/pyramid) that order IS the domain order
-  // (Qualification → Needs Analysis → Proposal → Negotiation); grouping returns
-  // buckets alphabetically, which draws a shape that reads as a pipeline but
-  // isn't one. Fetched from the same object schema as the colours/labels below.
-  const [categoryOrder, setCategoryOrder] = useState<string[] | null>(null);
+  // ── The analytics label net's INPUT: resolved field metadata, locale-free ──
+  // What the object-schema probe below found for this widget's dimensions —
+  // the raw `{ object, field, options }` per dimension field path, exactly as
+  // the metadata doc carries it. Everything the surface actually displays
+  // (per-category colours, {value → label} maps, the declared category order)
+  // is DERIVED from it during render, one memo down, because that derivation
+  // is where the locale bundle applies (objectui#4030): keeping the fetched
+  // metadata locale-free means switching language re-renders the labels
+  // instead of re-fetching the schema, and the i18n application sits at the
+  // net's output rather than inside its fetch.
+  const [optionMeta, setOptionMeta] = useState<{
+    metaByPath: Record<string, DimensionFieldMeta>;
+    /** The dimensions this widget relabels, paired with their field paths. */
+    relabel: Array<{ dim: string; path: string }>;
+    /** First dimension's path — chart wiring only; undefined on table/pivot. */
+    firstDimPath?: string;
+  } | null>(null);
 
   // Signature uses the RAW filter (stable) — the resolved one carries a
   // render-time `now` and would otherwise force a refetch loop. The
@@ -810,7 +811,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // label — a dimension's value never reaches its output in any spelling — so
     // there is nothing on that path to relabel and resolving would be a
     // metadata read nothing consumes (objectui#4263, pinned).
-    if (isMetric || !object || dimensions.length === 0) { setCategoryColors(null); setDimensionLabels(null); setCategoryOrder(null); return; }
+    if (isMetric || !object || dimensions.length === 0) { setOptionMeta(null); return; }
     const fieldOf = (dim: string) => (state.dimensionFields && state.dimensionFields[dim]) || dim;
     // ── Which dimensions this widget type resolves (objectui#4263) ──────────
     // On table/pivot the SERVER resolves a dimension's display label
@@ -828,7 +829,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     const resolveDims = dottedOnly ? dimensions.filter((d) => fieldOf(d).includes('.')) : dimensions;
     // A table with no dotted dimension resolves nothing and — the part that
     // makes "unchanged" literal — never issues the metadata read at all.
-    if (resolveDims.length === 0) { setCategoryColors(null); setDimensionLabels(null); setCategoryOrder(null); return; }
+    if (resolveDims.length === 0) { setOptionMeta(null); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -841,33 +842,30 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
         const objSchema = await loadObjectSchema(object);
         // A dimension's field may be a DOTTED relationship path
         // (`crm_account.industry`) whose options live on the RELATED object, not
-        // on the dataset's base object — objectui#4053. `resolveDimensionFieldOptions`
+        // on the dataset's base object — objectui#4053. `resolveDimensionFieldMeta`
         // is the object-resolution step of this same lookup: a local field name
         // still resolves straight off `objSchema`, a dotted one walks each hop
         // through the SAME channel `objSchema` came from. Unresolvable paths
-        // yield no entry, so the raw value survives exactly as before.
-        const optionsByPath = await resolveDimensionFieldOptions(
+        // yield no entry, so the raw value survives exactly as before. It keeps
+        // the OWNING object and terminal field name beside the options, which
+        // is the key the locale bundle is written under (objectui#4030).
+        const metaByPath = await resolveDimensionFieldMeta(
           objSchema,
           resolveDims.map(fieldOf),
           loadObjectSchema,
         );
-        // Per-category COLOURS and the declared category ORDER are chart wiring
-        // — they key the palette and the axis sequence, neither of which a
-        // table or pivot renders. They stay null on that path exactly as they
-        // did when it returned early (objectui#4263).
-        const firstDimOptions = dottedOnly ? undefined : optionsByPath[fieldOf(dimensions[0])];
-        const colorMap = buildOptionColorMap(firstDimOptions);
-        const labels: Record<string, Record<string, string>> = {};
-        for (const dim of resolveDims) {
-          const m = buildDimensionLabelMap(optionsByPath[fieldOf(dim)]);
-          if (m) labels[dim] = m;
-        }
         if (!cancelled) {
-          setCategoryColors(colorMap);
-          setDimensionLabels(Object.keys(labels).length > 0 ? labels : null);
-          setCategoryOrder(buildCategoryOrder(firstDimOptions));
+          setOptionMeta({
+            metaByPath,
+            relabel: resolveDims.map((dim) => ({ dim, path: fieldOf(dim) })),
+            // Per-category COLOURS and the declared category ORDER are chart
+            // wiring — they key the palette and the axis sequence, neither of
+            // which a table or pivot renders. They stay null on that path
+            // exactly as they did when it returned early (objectui#4263).
+            firstDimPath: dottedOnly ? undefined : fieldOf(dimensions[0]),
+          });
         }
-      } catch { if (!cancelled) { setCategoryColors(null); setDimensionLabels(null); setCategoryOrder(null); } }
+      } catch { if (!cancelled) setOptionMeta(null); }
     })();
     return () => { cancelled = true; };
     // `apiFetch` joins the deps (objectui#4121) exactly as it does in
@@ -879,6 +877,49 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // the provider, so the identity is stable across the effect's own updates.
     // The in-repo host holds it at module scope (`ConsoleShell.tsx:187` → `:245`).
   }, [state.object, state.dimensionFields, dimensions, isMetric, isTable, apiFetch]);
+
+  // ── The analytics label net's OUTPUT, with the locale bundle applied ──────
+  // objectui#4030 (source thread objectstack#5076): the net above RESOLVES a
+  // select dimension's option label but used to hand the object's authored
+  // English label straight to the axis, the legend, the table cells and the
+  // CSV — the same screen's related list showing the translation beside it.
+  // The bundle is applied HERE, once, on the shared `{value → label}` /
+  // localized-options pair every one of those consumers reads, rather than per
+  // surface. `fieldOptionLabel` is the resolver list and form surfaces already
+  // use (`fieldOptions.<object>.<field>.<value>`), reached through the
+  // provider-safe wrapper so a widget rendered without an I18nProvider keeps
+  // its authored labels instead of crashing.
+  const { categoryColors, dimensionLabels, categoryOrder } = useMemo(() => {
+    if (!optionMeta) return { categoryColors: null, dimensionLabels: null, categoryOrder: null };
+    const { metaByPath, relabel, firstDimPath } = optionMeta;
+    // One translator per resolved path, bound to the object that OWNS the
+    // terminal field — `crm_account` for `crm_account.industry`, not the
+    // dataset's base object. A path whose owner could not be resolved gets no
+    // translator and keeps its authored labels.
+    const translatorFor = (path: string | undefined): OptionLabelTranslator | undefined => {
+      const meta = path ? metaByPath[path] : undefined;
+      const owner = meta?.object;
+      if (!owner) return undefined;
+      return (value, authored) => fieldOptionLabel(owner, meta.field, value, authored);
+    };
+    // Colours and declared order read `option.label`, so they are fed the
+    // LOCALIZED options — the same "translate the options, then render them"
+    // shape the list side uses (`translateOptions` → `SelectCellRenderer`).
+    // That keeps them keyed by the string the relabeled rows actually carry.
+    const firstDimOptions = firstDimPath
+      ? localizeFieldOptions(metaByPath[firstDimPath]?.options, translatorFor(firstDimPath))
+      : undefined;
+    const labels: Record<string, Record<string, string>> = {};
+    for (const { dim, path } of relabel) {
+      const m = buildDimensionLabelMap(metaByPath[path]?.options, translatorFor(path));
+      if (m) labels[dim] = m;
+    }
+    return {
+      categoryColors: buildOptionColorMap(firstDimOptions),
+      dimensionLabels: Object.keys(labels).length > 0 ? labels : null,
+      categoryOrder: buildCategoryOrder(firstDimOptions),
+    };
+  }, [optionMeta, fieldOptionLabel]);
 
   if (values.length === 0) {
     return <div className="flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground">{tt('dashboard.pickMeasures', 'Pick measures (values) for this dataset widget.')}</div>;
