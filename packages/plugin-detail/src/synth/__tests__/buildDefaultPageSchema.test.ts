@@ -895,7 +895,19 @@ describe('semantic-role hints (ADR-0085 / #2065)', () => {
     });
 
     it('ignores the retired compactLayout spelling (framework#2536) — heuristic applies instead', () => {
-      const derived = deriveHighlightFields({ ...leadDef, compactLayout: ['email', 'phone'] }, 'status');
+      // The cast is the case, not a workaround for it: `compactLayout` was
+      // RETIRED, so `ObjectDefLike` rejecting it is the type doing its job, and
+      // spelling it here in a typed position would only be asserting that the
+      // retirement happened. What this case is about is the other half — an
+      // object definition arriving as untyped runtime metadata (a stored record,
+      // a hand-written JSON file) that still carries the old key. Widening the
+      // type to admit it would un-retire it; asserting through `Record` models
+      // the untyped source exactly and leaves the verdict below untouched.
+      const retiredSpelling = { ...leadDef, compactLayout: ['email', 'phone'] } as Record<
+        string,
+        unknown
+      > as ObjectDefLike;
+      const derived = deriveHighlightFields(retiredSpelling, 'status');
       expect(derived).not.toEqual(['email', 'phone']);
     });
 

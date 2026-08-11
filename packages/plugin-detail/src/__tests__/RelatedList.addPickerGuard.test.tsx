@@ -33,6 +33,7 @@
  * here.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { MockInstance } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import * as React from 'react';
 import { RelatedList } from '../RelatedList';
@@ -79,7 +80,12 @@ const renderList = (ds: any, add?: any) =>
 const queryAddButton = () =>
   screen.queryByRole('button', { name: /Assign position|Grant permission set|^Add$/ });
 
-let warn: ReturnType<typeof vi.spyOn>;
+// Typed at the console method actually spied on, not left generic: bare
+// `ReturnType<typeof vi.spyOn>` resolves the type parameters to their
+// constraints, which erases the call signature and makes every `mock.calls`
+// entry an implicit `any` — so `warnings()` below stringified an untyped bag
+// and could not have caught being handed the wrong argument shape.
+let warn: MockInstance<typeof console.warn>;
 
 beforeEach(() => {
   warn = vi.spyOn(console, 'warn').mockImplementation(() => {});

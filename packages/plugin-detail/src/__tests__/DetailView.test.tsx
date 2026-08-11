@@ -591,7 +591,7 @@ describe('DetailView', () => {
   it('should try fallback with alternate ID when first findOne throws an error', async () => {
     let callCount = 0;
     const mockDataSource = {
-      findOne: vi.fn().mockImplementation((_obj: string, id: string) => {
+      findOne: vi.fn().mockImplementation((_obj: string, _id: string) => {
         callCount++;
         if (callCount === 1) {
           // First call throws (simulate server error)
