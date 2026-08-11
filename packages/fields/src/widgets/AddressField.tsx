@@ -14,7 +14,12 @@ import {
   type LegacyAddressValue,
 } from './address-format';
 
-export type { AddressValue };
+// Re-exported through its declaring module rather than bare, so the spec-symbol
+// guard resolves the name to where it is actually defined: `address-format`
+// imports `AddressValue` from `@objectstack/spec/data` (objectui#4167), and a
+// bare `export type { AddressValue }` here would read to that guard as a second,
+// local declaration of a name the spec owns.
+export type { AddressValue } from './address-format';
 
 /**
  * Address field widget - provides a structured address input
