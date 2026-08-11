@@ -15,6 +15,7 @@ import { AdapterCtx } from '@object-ui/react';
 import { useObjectTranslation, useSafeFieldLabel } from '@object-ui/i18n';
 import { installSettleSignalGlobal, withSettleSignal } from '../observability/settleSignal';
 import { emitWriteWarning, type TranslateFn } from './writeWarningToast';
+import { emitSaveAdvisories } from './saveAdvisoryToast';
 
 export { useAdapter } from '@object-ui/react';
 
@@ -52,6 +53,7 @@ export function AdapterProvider({ children, adapter: externalAdapter }: AdapterP
 
     let cancelled = false;
     let unsubscribeWriteWarning: (() => void) | undefined;
+    let unsubscribeSaveAdvisory: (() => void) | undefined;
 
     // Expose window.__objectui.{pendingRequests,idle,whenIdle} so an automated
     // (AI) browser driver has one "is the app settled?" predicate (ADR-0054 C5).
@@ -77,6 +79,19 @@ export function AdapterProvider({ children, adapter: externalAdapter }: AdapterP
           void emitWriteWarning(ev, tRef.current as TranslateFn, a, fieldLabelRef.current, toast);
         });
 
+        // Surface the runtime authoring gate's advisory findings for metadata
+        // saves that went through THIS adapter's `ObjectStackClient.meta`
+        // (#4237) — `MetadataService`, `useNavigationSync`, plugin-designer's
+        // app wizard, and the adapter's own view/dashboard save paths all take
+        // that client from `getClient()`, so this one subscription covers every
+        // one of them. The renderer is the same `emitSaveAdvisories` the other
+        // client class already uses (#4133/#4236): one wording, two doors. `t`
+        // rides the same ref as the write-warning channel above, and for the
+        // same reason — the adapter outlives a language switch.
+        unsubscribeSaveAdvisory = a.onSaveAdvisory((ev) => {
+          emitSaveAdvisories(ev, tRef.current as TranslateFn, toast);
+        });
+
         await a.connect();
 
         if (!cancelled) {
@@ -93,6 +108,7 @@ export function AdapterProvider({ children, adapter: externalAdapter }: AdapterP
     return () => {
       cancelled = true;
       unsubscribeWriteWarning?.();
+      unsubscribeSaveAdvisory?.();
     };
   }, [externalAdapter]);
 

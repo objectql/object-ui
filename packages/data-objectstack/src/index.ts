@@ -8,6 +8,14 @@
 
 import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from '@objectstack/client';
 import type { DroppedFieldsEvent } from '@objectstack/spec/data';
+// #4237 — the metadata save door's advisory reader, shared with `MetadataClient`
+// rather than forked. ONE reader, two call sites: the other client class calls it
+// from `MetadataClient.save` (#4133/#4236), this one from the interceptor below.
+import {
+  readSaveAdvisories,
+  type MetadataSaveAdvisoryEvent,
+  type MetadataSaveAdvisoryListener,
+} from './metadata-client';
 import type { AnalyticsResult, DatasetSelection } from '@objectstack/spec/contracts';
 import type {
   DataSource,
@@ -1053,6 +1061,13 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   // shell can surface a toast instead of the strip passing silently.
   private writeWarningListeners = new Set<WriteWarningListener>();
 
+  // Subscribers registered via onSaveAdvisory(). Emitted after a metadata save
+  // through THIS adapter's `ObjectStackClient` whose 200 carried a non-empty
+  // `advisories` array (#4237; backend objectstack#7435). Sibling of the set
+  // above in every respect except which door produced the event: that one is
+  // record CRUD, this one is the metadata save door.
+  private saveAdvisoryListeners = new Set<MetadataSaveAdvisoryListener>();
+
   constructor(config: {
     baseUrl: string;
     token?: string;
@@ -1070,6 +1085,9 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     // debug() so they don't pollute the browser console. Other log levels are
     // forwarded to the standard console.
     this.client = new ObjectStackClient({ ...config, logger: createQuietHttpLogger() });
+    // #4237 — one emitter for every metadata save this adapter's client makes,
+    // installed the moment the client exists so no save can precede it.
+    this.installSaveAdvisoryInterceptor();
     this.metadataCache = new MetadataCache(config.cache);
     this.autoReconnect = config.autoReconnect ?? true;
     this.maxReconnectAttempts = config.maxReconnectAttempts ?? 3;
@@ -1582,6 +1600,122 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     this.writeWarningListeners.add(callback);
     return () => {
       this.writeWarningListeners.delete(callback);
+    };
+  }
+
+  /**
+   * Subscribe to metadata save-advisory events — the runtime authoring gate's
+   * advisory findings on a save that SUCCEEDED (#4237; backend
+   * objectstack#7435). Returns an unsubscribe function.
+   *
+   * Deliberately the same seam as {@link onWriteWarning} (#3431/#3455), which
+   * is what {@link MetadataSaveAdvisoryEvent}'s own declaration already said it
+   * was modelled on. It is a SIBLING of that channel rather than a second
+   * payload pushed down it: `WriteWarningEvent` is a closed shape whose
+   * `droppedFields` is required and means "fields the write legally stripped",
+   * so carrying advisories on it would either force every existing
+   * `onWriteWarning` consumer to grow a branch or make the event lie about what
+   * happened. The seam's SHAPE is what is reused here — a long-lived instance
+   * with a `subscribe → unsubscribe` registration that `AdapterProvider` wires
+   * once — not its event type.
+   *
+   * Why here and not on the config, which is how the other client class does it
+   * (#4133/#4236): `MetadataClient` is minted per component by
+   * `useMetadataClient`, so it has no instance to subscribe to and its sink
+   * rides the factory. `ObjectStackAdapter` is the opposite — one long-lived
+   * instance per app, already carrying this exact subscription pattern.
+   */
+  onSaveAdvisory(callback: MetadataSaveAdvisoryListener): () => void {
+    this.saveAdvisoryListeners.add(callback);
+    return () => {
+      this.saveAdvisoryListeners.delete(callback);
+    };
+  }
+
+  /**
+   * Notify all save-advisory subscribers. Isolated exactly like
+   * {@link emitWriteWarning}: a throwing listener must neither break the save
+   * nor starve the others.
+   */
+  private emitSaveAdvisory(event: MetadataSaveAdvisoryEvent): void {
+    for (const listener of this.saveAdvisoryListeners) {
+      try {
+        listener(event);
+      } catch (err) {
+        console.warn('ObjectStackAdapter: save-advisory listener error', err);
+      }
+    }
+  }
+
+  /**
+   * Install the ONE emitter for the metadata save door (#4237).
+   *
+   * ## Why this seam, and what it covers
+   *
+   * `ObjectStackClient.meta.saveItem` is the second client class that writes
+   * through `PUT /api/v1/meta/:type/:name`, and every one of its callers reaches
+   * it through an adapter this class constructed — the four inside this file
+   * (`updateViewConfig`, the two view paths, `updateDashboard`) via
+   * `this.client`, and every caller outside it via {@link getClient}, which
+   * hands back this same instance: `MetadataService` (app-shell, five saves),
+   * `useNavigationSync`, and plugin-designer's Create/EditAppPage. Wrapping the
+   * method once here therefore covers all of them WITHOUT a per-site edit, which
+   * is the whole point — a toast copied into a dozen call sites is the shape
+   * #4133 rejected for the other client class and it is no better here.
+   *
+   * `meta` is an own, writable property assigned per instance in the SDK's
+   * constructor (`this.meta = { … }`), and the client this adapter builds is
+   * never shared, so the wrap is bounded to an object this adapter owns for its
+   * whole lifetime. It is not a prototype or global patch.
+   *
+   * ## Response shape — measured, not assumed
+   *
+   * The two client classes' envelopes coincide at the top level, which is what
+   * makes `readSaveAdvisories` reusable unchanged across both. `SaveMetaItem-
+   * ResponseSchema` puts `advisories` at the body's top level next to
+   * `success` / `version` / `seq` / `state`, and the SDK's `unwrapResponse`
+   * strips its `{ success, data }` envelope only when the body actually HAS a
+   * `data` key — this body does not, so it is returned verbatim. So the same
+   * reader that `MetadataClient.save` uses reads this response correctly, and
+   * the pins in `onSaveAdvisory.test.ts` drive a real SDK client through a fake
+   * `fetch` rather than stubbing `meta`, so that continues to be measured.
+   *
+   * ## Draft-door honesty (D1)
+   *
+   * Drafts are NEVER gated: the framework returns at its D1 early-return
+   * (`if (args.state !== 'active') return null`) before running a rule, so a
+   * draft save produces no findings to withhold. This client class has no draft
+   * door at all to worry about — the SDK's `saveItem(type, name, item)` takes no
+   * mode and always writes the active door, which is exactly why the gate DOES
+   * run for its callers. `mode` on the emitted event is therefore derived from
+   * the response's own `state` rather than from a request-side flag that does
+   * not exist here: `'draft'` when the server says the row landed as a draft,
+   * `'publish'` otherwise. That keeps the event truthful about which door it
+   * came through instead of hard-coding one.
+   */
+  private installSaveAdvisoryInterceptor(): void {
+    const meta = this.client.meta;
+    const original = meta.saveItem.bind(meta);
+    meta.saveItem = async (type: string, name: string, item: any) => {
+      const result = await original(type, name, item);
+      // Everything below is best-effort by construction: the row is already
+      // committed server-side, so nothing the advisory channel does may change
+      // what this call returns or whether it throws.
+      try {
+        const advisories = readSaveAdvisories(result);
+        if (advisories.length > 0) {
+          this.emitSaveAdvisory({
+            type,
+            name,
+            mode: (result as { state?: string } | null | undefined)?.state === 'draft' ? 'draft' : 'publish',
+            advisories,
+          });
+        }
+      } catch (err) {
+        /* an advisory must never turn a committed save into a thrown error */
+        console.warn('ObjectStackAdapter: save-advisory read error', err);
+      }
+      return result;
     };
   }
 
