@@ -15,7 +15,7 @@ function makeDataSource(overrides: any = {}) {
     getObjectSchema: vi.fn().mockResolvedValue(null),
     find: vi.fn().mockResolvedValue({ data: [{ id: 'l1', amount: 10 }] }),
     create: vi.fn(async (_o: string, d: any) => ({ id: 'newline', ...d })),
-    update: vi.fn(async (o: string, id: string, d: any) => ({ id, ...d })),
+    update: vi.fn(async (_o: string, id: string, d: any) => ({ id, ...d })),
     delete: vi.fn(async () => true),
     ...overrides,
   } as any;

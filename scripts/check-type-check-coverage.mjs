@@ -120,7 +120,6 @@ export const TEST_DEBT = {
   "@object-ui/components": { errors: 31, issue: 4118, note: "TS7006x12, TS7031x12 — untyped test callback params" },
   "@object-ui/react": { errors: 27, issue: 4118, note: "TS2769x9 — overload mismatch on render helpers" },
   "@object-ui/i18n": { errors: 13, issue: 4118, note: "TS2769x9" },
-  "@object-ui/plugin-form": { errors: 12, issue: 4118, note: "TS2322x10" },
   "@object-ui/plugin-dashboard": { errors: 6, issue: 4118 },
   "@object-ui/plugin-list": { errors: 6, issue: 4118, note: "TS2353x3 — dialect keys" },
   "@object-ui/permissions": { errors: 5, issue: 4118, note: "TS2741x5" },
