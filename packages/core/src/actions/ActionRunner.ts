@@ -1174,13 +1174,25 @@ export class ActionRunner {
       return { success: true };
     }
     // `openIn` is the first-class, declarative switch (ActionSchema.openIn);
-    // it wins over the legacy `navigate.newTab` / `params.newTab` escape
-    // hatches and the external-URL heuristic.
+    // it wins over the legacy `navigate.newTab` escape hatch and the
+    // external-URL heuristic.
+    //
+    // `params.newTab` used to sit between them and is RETIRED (objectui#4097,
+    // executing the objectstack#6828 maintainer ruling of 2026-08-10). It could
+    // only ever fire on an OBJECT-form `params`, which the spec has always
+    // refused on an action (`params` is `z.array(ActionParamSchema)`), so no
+    // validated stack could reach it; and no internal caller synthesizes a
+    // navigation directive into that bag — the runtime value bags carry
+    // collected dialog values, `_selectedIds` and `_rowRecord`, never `newTab`.
+    // Removing it also closes the collision hazard where a params dialog
+    // declaring a field literally named `newTab` would have had the user's own
+    // input silently steer navigation. The spec's refusal message names the
+    // sanctioned spelling: `openIn: 'new-tab'`.
     const openIn = source.openIn ?? action.openIn;
     const newTab =
       openIn === 'new-tab' ? true
         : openIn === 'self' ? false
-          : (source.newTab ?? action.params?.newTab ?? isExternal);
+          : (source.newTab ?? isExternal);
 
     // History semantics, the one thing the `navigation` shape carries that
     // `ActionSchema` has no field for. Omitted from the handler call when

@@ -160,10 +160,15 @@ describe('ActionRunner — object-form params deprecation window (#5777)', () =>
   });
 
   it('stays SILENT for a type:url action — #6828 is a third meaning, not this one', async () => {
-    // `interpolateTarget`'s `${param.X}` scope and `executeUrl`'s `params.newTab`
-    // read object-form params on a url action. `bodyExtra` is not their
-    // replacement, so prescribing it here would be wrong advice. The `api` guard
-    // mirrors the ADR-0087 conversion's own guard.
+    // `interpolateTarget`'s `${param.X}` scope reads object-form params on a url
+    // action. `bodyExtra` is not its replacement, so prescribing it here would be
+    // wrong advice. The `api` guard mirrors the ADR-0087 conversion's own guard.
+    //
+    // The `params.newTab` half of that pair is now RETIRED (objectui#4097,
+    // objectstack#6828 ruling) — `openIn` is the sanctioned spelling and the
+    // fallback is gone. `newTab` stays in this fixture on purpose: it is now an
+    // inert key on the retired shape, and this test's claim is about the
+    // bodyExtra warning's TYPE GUARD, which is unaffected either way.
     const runner = new ActionRunner({});
     await runner.execute({
       type: 'url',
