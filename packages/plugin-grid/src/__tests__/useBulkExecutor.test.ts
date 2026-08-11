@@ -354,8 +354,27 @@ describe('useBulkExecutor', () => {
     } as BulkActionDef);
     const ds = () => ({ update: vi.fn(), delete: vi.fn() });
 
+    // A stub that DECLARES the parameters the hook really passes.
+    // `BulkExecutorOptions.runAggregate` is `(def, rows, params)` and the hook
+    // dispatches it with all three (`hooks/useBulkExecutor.ts`), but a bare
+    // `vi.fn(async () => undefined)` declares none of them: vitest records the
+    // real arguments at runtime, so `mock.calls[0][1]` works while the compiler
+    // is told the call tuple has length 0. The cases below read that second
+    // argument and papered over the contradiction with casts — a types-only lie
+    // about the exact signature they exist to pin (#4277). Typing it here once
+    // makes the reads compile on their own and keeps every aggregate case
+    // agreeing about the dispatcher's shape.
+    const aggregateStub = () =>
+      vi.fn(
+        async (
+          _def: BulkActionDef,
+          _rows: Array<Record<string, unknown>>,
+          _params: Record<string, unknown>,
+        ): Promise<unknown> => undefined,
+      );
+
     it('dispatches runAggregate exactly once with every row and the params', async () => {
-      const runAggregate = vi.fn(async () => undefined);
+      const runAggregate = aggregateStub();
       const runAction = vi.fn(async () => undefined);
       const rows = [{ id: 'r1' }, { id: 'r2' }, { id: 'r3' }];
       const { result } = renderHook(() =>
@@ -366,9 +385,7 @@ describe('useBulkExecutor', () => {
       });
 
       expect(runAggregate).toHaveBeenCalledTimes(1);
-      const [defArg, rowsArg, paramsArg] = runAggregate.mock.calls[0] as unknown as [
-        BulkActionDef, Array<Record<string, unknown>>, Record<string, unknown>,
-      ];
+      const [defArg, rowsArg, paramsArg] = runAggregate.mock.calls[0];
       expect(defArg.name).toBe('generate_qr_zip');
       expect(rowsArg.map(r => r.id)).toEqual(['r1', 'r2', 'r3']);
       expect(paramsArg).toEqual({ format: 'png' });
@@ -378,7 +395,7 @@ describe('useBulkExecutor', () => {
     });
 
     it('a single-row selection still goes through the ONE aggregate call, never per-record', async () => {
-      const runAggregate = vi.fn(async () => undefined);
+      const runAggregate = aggregateStub();
       const runAction = vi.fn(async () => undefined);
       const { result } = renderHook(() =>
         useBulkExecutor({ resource: 'device', dataSource: ds(), runAction, runAggregate }));
@@ -393,7 +410,7 @@ describe('useBulkExecutor', () => {
     });
 
     it('ignores batchSize — 5 rows with batchSize 2 is still one call', async () => {
-      const runAggregate = vi.fn(async () => undefined);
+      const runAggregate = aggregateStub();
       const rows = [{ id: '1' }, { id: '2' }, { id: '3' }, { id: '4' }, { id: '5' }];
       const { result } = renderHook(() =>
         useBulkExecutor({ resource: 'device', dataSource: ds(), runAggregate }));
@@ -403,7 +420,7 @@ describe('useBulkExecutor', () => {
       });
 
       expect(runAggregate).toHaveBeenCalledTimes(1);
-      expect((runAggregate.mock.calls[0][1] as unknown[]).length).toBe(5);
+      expect(runAggregate.mock.calls[0][1].length).toBe(5);
       expect(result.current.result?.succeeded).toBe(5);
     });
 
@@ -462,7 +479,7 @@ describe('useBulkExecutor', () => {
     });
 
     it('a def WITHOUT execution: aggregate keeps per-record dispatch even when runAggregate is wired', async () => {
-      const runAggregate = vi.fn(async () => undefined);
+      const runAggregate = aggregateStub();
       const runAction = vi.fn(async () => undefined);
       const rows = [{ id: '1' }, { id: '2' }];
       const { result } = renderHook(() =>

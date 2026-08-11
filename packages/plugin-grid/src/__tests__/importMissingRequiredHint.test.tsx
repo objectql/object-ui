@@ -30,9 +30,24 @@ function pasteRows(text: string) {
   act(() => { window.dispatchEvent(evt); });
 }
 
+// A data source offering none of the optional import capabilities. These cases
+// never leave the mapping step, so nothing on it is ever called — but the wizard
+// probes it for `listImportMappings` / `importRecords` / `listImportJobs` on
+// render, and an empty object is the honest answer to all three: "a source that
+// supports none of them". `ImportWizardProps.dataSource` is required, so it has
+// to be passed rather than omitted (the omission was invisible until #4040 let
+// `tsc` read this file).
+const NO_CAPABILITY_DATA_SOURCE = {};
+
 function renderWizard() {
   render(
-    <ImportWizard objectName="account" fields={FIELDS} open onOpenChange={() => {}} />,
+    <ImportWizard
+      objectName="account"
+      fields={FIELDS}
+      dataSource={NO_CAPABILITY_DATA_SOURCE}
+      open
+      onOpenChange={() => {}}
+    />,
   );
 }
 

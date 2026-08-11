@@ -127,7 +127,6 @@ export const TEST_DEBT = {
   "@object-ui/plugin-detail": { errors: 5, issue: 4118, note: "TS2353x3 — dialect keys" },
   "@object-ui/plugin-gantt": { errors: 3, issue: 4118 },
   "@object-ui/plugin-chatbot": { errors: 2, issue: 4118 },
-  "@object-ui/plugin-grid": { errors: 2, issue: 4118 },
 };
 
 // ── Collect workspace packages ───────────────────────────────────────────────
