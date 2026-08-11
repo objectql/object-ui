@@ -262,28 +262,112 @@ export function buildCategoryRank(order: string[] | null | undefined): Map<strin
 }
 
 /**
+ * The i18n seam of the analytics label net (objectui#4030).
+ *
+ * `(storedValue, authoredLabel) => displayLabel` — the SAME signature
+ * `resolveGroupByLabels` (plugin-charts) already takes for the legacy aggregate
+ * path, which callers bind to `useSafeFieldLabel().fieldOptionLabel(object,
+ * field, …)`. That resolver reads `{ns}.fieldOptions.<object>.<field>.<value>`,
+ * the one convention list and form surfaces already translate select options
+ * through (`useObjectLabel.translateOptions`, and `@objectstack/spec` names
+ * objectui as its reader). Analytics reuses that channel rather than growing a
+ * chart-side per-locale dialect.
+ *
+ * Omitted everywhere it isn't available (no i18n provider, an unresolvable
+ * owning object): every helper below then behaves exactly as it did before this
+ * seam existed.
+ */
+export type OptionLabelTranslator = (value: string, authoredLabel: string) => string;
+
+/** One option, normalized out of the `{value,label}` / bare-string spellings. */
+function optionValueLabel(opt: unknown): { value: string; label: string } | null {
+  if (typeof opt === 'string' || typeof opt === 'number' || typeof opt === 'boolean') {
+    // A bare-string option IS its own label. Nothing to resolve, but there is
+    // something to TRANSLATE — the bundle is keyed by the stored value.
+    return { value: String(opt), label: String(opt) };
+  }
+  if (opt && typeof opt === 'object') {
+    const o = opt as { value?: unknown; label?: unknown };
+    if (o.value != null && o.label != null) return { value: String(o.value), label: String(o.label) };
+  }
+  return null;
+}
+
+/**
+ * Run a select field's `options` through the locale bundle, returning options
+ * whose `label` is the translated one (objectui#4030).
+ *
+ * The mirror of `useObjectLabel().translateOptions` — the channel list and form
+ * surfaces localize select options through — kept pure and shape-tolerant so
+ * the analytics net can apply it at the point the resolved options are read.
+ * Everything downstream ({@link buildOptionColorMap},
+ * {@link buildCategoryOrder}) keeps reading `option.label` and needs no
+ * knowledge of i18n, exactly like `SelectCellRenderer` on the list side.
+ *
+ * Colour, order and every other option key survive untouched — only `label`
+ * changes. Returns the input ARRAY ITSELF when there is no translator or
+ * nothing translated, so an untranslated app keeps the identities (and the
+ * memo/render behaviour) it had before.
+ */
+export function localizeFieldOptions(options: unknown, translate?: OptionLabelTranslator): unknown {
+  if (!translate || !Array.isArray(options) || options.length === 0) return options;
+  let changed = false;
+  const next = options.map((opt) => {
+    const vl = optionValueLabel(opt);
+    if (!vl) return opt;
+    const display = translate(vl.value, vl.label);
+    if (display === vl.label) return opt;
+    changed = true;
+    // A bare-string option becomes an object so the translation has somewhere
+    // to live; its value is preserved, which is the only identity that matters.
+    return opt && typeof opt === 'object'
+      ? { ...(opt as object), label: display }
+      : { value: vl.value, label: display };
+  });
+  return changed ? next : options;
+}
+
+/**
  * Build a `{ value → label }` map from a select/enum field's `options`, for
  * resolving a grouped dimension's stored value to its display label (fed to
  * {@link relabelDimensions}). Mirrors {@link buildOptionColorMap}.
  *
  * Options may be `{ value, label }` objects or bare strings (value == label —
- * nothing to relabel). Only entries whose `label` actually differs from the
- * `value` are kept, so the map is empty (→ `null`) when relabeling would be a
+ * nothing to relabel). Only entries whose display label actually differs from
+ * the key are kept, so the map is empty (→ `null`) when relabeling would be a
  * no-op and the caller can skip it entirely.
+ *
+ * **With a `translate` seam (objectui#4030) the map gains a SECOND key per
+ * option: the AUTHORED label.** A dimension's rows reach this net keyed either
+ * way — value-keyed when the server did not resolve the dimension (the whole
+ * reason this net exists), already label-keyed when it did (ADR-0021) — and
+ * the reported symptom is the second case: a chart legend showing the object's
+ * English `label` verbatim beside a related list showing the translation. One
+ * key resolves `orion`, the other re-translates `Orion Engineered Carbons`;
+ * `relabelDimensions` is value-wise and idempotent, so whichever the row
+ * carries lands on the same translated display.
+ *
+ * Value keys win over authored-label keys: a stored value that happens to
+ * equal some other option's label is still that option's value.
+ *
+ * Without a translator this is byte-for-byte the pre-#4030 map — the authored
+ * label then IS the display, so no second key is ever emitted.
  */
-export function buildDimensionLabelMap(options: unknown): Record<string, string> | null {
+export function buildDimensionLabelMap(
+  options: unknown,
+  translate?: OptionLabelTranslator,
+): Record<string, string> | null {
   if (!Array.isArray(options) || options.length === 0) return null;
-  const map: Record<string, string> = {};
+  const byValue: Record<string, string> = {};
+  const byAuthoredLabel: Record<string, string> = {};
   for (const opt of options) {
-    if (opt && typeof opt === 'object') {
-      const o = opt as { value?: unknown; label?: unknown };
-      if (o.value != null && o.label != null) {
-        const v = String(o.value);
-        const l = String(o.label);
-        if (l !== v) map[v] = l;
-      }
-    }
+    const vl = optionValueLabel(opt);
+    if (!vl) continue;
+    const display = translate ? translate(vl.value, vl.label) : vl.label;
+    if (display !== vl.value) byValue[vl.value] = display;
+    if (display !== vl.label) byAuthoredLabel[vl.label] = display;
   }
+  const map = { ...byAuthoredLabel, ...byValue };
   return Object.keys(map).length > 0 ? map : null;
 }
 
@@ -365,13 +449,60 @@ export function resolveRelationshipTarget(fieldDef: unknown): string | undefined
  * cannot be loaded, or a terminal field that carries no `options` simply yields
  * no entry, and the caller keeps the raw value. Returns `{ fieldPath → options }`
  * for the paths that did resolve.
+ *
+ * Thin wrapper over {@link resolveDimensionFieldMeta}, which is the same ONE
+ * walk keeping the identity of what it found. Callers that translate option
+ * labels need that identity (the i18n key is
+ * `fieldOptions.<owningObject>.<terminalField>.<value>`, and for a dotted path
+ * the owner is the RELATIONSHIP TARGET, not the dataset's base object) — see
+ * objectui#4030.
  */
 export async function resolveDimensionFieldOptions(
   baseSchema: unknown,
   fieldPaths: Array<string | undefined | null>,
   loadObjectSchema: (objectName: string) => Promise<unknown>,
 ): Promise<Record<string, unknown>> {
+  const meta = await resolveDimensionFieldMeta(baseSchema, fieldPaths, loadObjectSchema);
   const out: Record<string, unknown> = {};
+  for (const [path, entry] of Object.entries(meta)) out[path] = entry.options;
+  return out;
+}
+
+/**
+ * What {@link resolveDimensionFieldOptions} found for ONE dimension field path
+ * — the options AND the identity of the field they belong to.
+ */
+export interface DimensionFieldMeta {
+  /**
+   * The object that OWNS the terminal field: the dataset's base object for a
+   * local path, the last relationship's TARGET for a dotted one. `undefined`
+   * only when the base schema carries no `name` and the path is local.
+   */
+  object: string | undefined;
+  /** The terminal field's own name — the LAST path segment, never the path. */
+  field: string;
+  /** The terminal field's `options`, exactly as the metadata doc carries them. */
+  options: unknown;
+}
+
+/**
+ * {@link resolveDimensionFieldOptions} keeping what it walked THROUGH.
+ *
+ * Same single walk, same best-effort tolerance, same memoized loader — it just
+ * returns `{ object, field, options }` per resolved path instead of the options
+ * alone. Split out for objectui#4030: applying the locale bundle to a resolved
+ * option label needs the key the bundle is written under
+ * (`fieldOptions.<object>.<field>.<value>`), and for `crm_account.industry`
+ * that object is `crm_account` — the walk already knows it and used to drop it
+ * on the floor. Deriving it at the call site would mean re-walking the
+ * relationship chain a second time, i.e. two derivations of one fact.
+ */
+export async function resolveDimensionFieldMeta(
+  baseSchema: unknown,
+  fieldPaths: Array<string | undefined | null>,
+  loadObjectSchema: (objectName: string) => Promise<unknown>,
+): Promise<Record<string, DimensionFieldMeta>> {
+  const out: Record<string, DimensionFieldMeta> = {};
   const paths = Array.from(new Set((fieldPaths ?? []).filter((p): p is string => !!p)));
   if (paths.length === 0) return out;
 
@@ -392,6 +523,9 @@ export async function resolveDimensionFieldOptions(
   for (const path of paths) {
     const segments = path.split('.');
     let schema: unknown = baseSchema;
+    // The object owning the CURRENT schema — walked forward with it, so the
+    // terminal field's owner is whatever it holds when the walk ends.
+    let owner = typeof baseName === 'string' && baseName ? baseName : undefined;
     let walked = true;
     // Every segment but the last must be a relationship; walk to its target.
     // Hops are sequential by nature — hop N's object is only known once hop
@@ -402,12 +536,15 @@ export async function resolveDimensionFieldOptions(
       // eslint-disable-next-line no-await-in-loop
       schema = await load(target);
       if (!schema) { walked = false; break; }
+      // Prefer the loaded doc's own `name` over the reference's spelling, so a
+      // reference written against an alias still keys the bundle canonically.
+      const loadedName = (schema as { name?: unknown }).name;
+      owner = typeof loadedName === 'string' && loadedName ? loadedName : target;
     }
     if (!walked) continue;
-    const terminal = fieldDefsOf(schema)?.[segments[segments.length - 1]] as
-      | { options?: unknown }
-      | undefined;
-    if (terminal?.options !== undefined) out[path] = terminal.options;
+    const field = segments[segments.length - 1];
+    const terminal = fieldDefsOf(schema)?.[field] as { options?: unknown } | undefined;
+    if (terminal?.options !== undefined) out[path] = { object: owner, field, options: terminal.options };
   }
   return out;
 }

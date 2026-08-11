@@ -28,21 +28,34 @@
  * #4300, which fixed the same class ("an unloadable app list is UNKNOWN, not
  * 'no default app'") and ruled one source of truth, no second dialect.
  *
- * Approvals and activity are NOT fetched here (#4197). Both come from
+ * NOTHING is fetched here (#4197, #4225). All three streams come from
  * `sharedUserFeeds`, which the top-bar bell reads too — on `/home` the bell and
  * these cards mount in one tree, so two owners meant the same read went out
  * twice per page. One fetch now feeds both, which is also what makes the bell's
  * badge and this card structurally incapable of showing different numbers.
- * What is still fetched here is the inbox-message list, whose query is Home's
- * own (top-`limit` titles, no read-state receipts).
+ *
+ * The inbox list was the last hold-out (#4225) and its own read carried the
+ * #4316 defect: it queried `sys_inbox_message` alone, never joining
+ * `sys_notification_receipt`, so it could not tell a read message from an
+ * unread one and listed the five most recent unconditionally. A user who had
+ * just read all nine in the bell came back to Home and found up to five of them
+ * still filed under "Needs your attention", badged — while the bell two hundred
+ * pixels above correctly showed zero. Read-state is not on the message row;
+ * ADR-0030 resolved decision 2 puts it in the receipt, per recipient×channel.
+ *
+ * Both surfaces now cut from the shared feed's already-joined superset: the
+ * bell lists all 20 and badges its unread topics, this card takes the UNREAD
+ * ones newest-first and caps them at `limit`. The two cannot disagree about a
+ * row's read-state because there is no second read left to drift.
  *
  * @module
  */
-import { useEffect, useRef, useState } from 'react';
-import { useAdapter } from '../providers/AdapterProvider';
-import { useAuth } from '@object-ui/auth';
-import { errorCodeIs } from '@object-ui/types';
-import { useHumanActivityFeed, useSharedPendingApprovalsCount } from './sharedUserFeeds';
+import { useMemo } from 'react';
+import {
+  useHumanActivityFeed,
+  useSharedInboxFeed,
+  useSharedPendingApprovalsCount,
+} from './sharedUserFeeds';
 import type { ActivityItem } from '../layout/ActivityFeed';
 
 export interface HomeNotification {
@@ -62,8 +75,12 @@ export interface HomeNotification {
  *  - `error`   — the read failed (denied, unreachable, malformed). The empty
  *                array is the absence of an answer, not an empty inbox.
  *
- * Same four words as `MetadataTypeStatus` (`providers/MetadataProvider`), on
- * purpose: #4300 ruled one status dialect for this exact question.
+ * Same four words as `MetadataTypeStatus` (`providers/MetadataProvider`) and
+ * `SharedFeedStatus` (`sharedUserFeeds`), on purpose: #4300 ruled one status
+ * dialect for this exact question, and #4225 made the store speak it too
+ * rather than adding a second dialect beside it. This is now that store's
+ * status, passed through — a failed inbox read reaches this card as `error`
+ * instead of being swallowed into stale-but-`ready` data.
  */
 export type HomeInboxStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -75,78 +92,39 @@ export interface HomeInboxData {
   activities: ActivityItem[];
 }
 
-/**
- * A missing OBJECT, as opposed to a failed read of a present one. The
- * ObjectStack client throws `httpStatus` (not `status`) with an error code —
- * same predicate `sharedUserFeeds` and `AppHeader` apply to their own reads.
- */
-function isMissingResource(err: unknown): boolean {
-  const e = err as { httpStatus?: number; status?: number } | null;
-  return e?.httpStatus === 404 || e?.status === 404 || errorCodeIs(err, 'OBJECT_NOT_FOUND');
-}
-
 export function useHomeInbox(limit = 5): HomeInboxData {
-  const dataSource = useAdapter();
-  const { user } = useAuth();
-  const [notifications, setNotifications] = useState<HomeNotification[]>([]);
-  const [notificationsStatus, setNotificationsStatus] = useState<HomeInboxStatus>('idle');
-  const mountedRef = useRef(true);
-
-  // Shared with the top-bar bell — one read each, not one per consumer (#4197).
-  // `useHumanActivityFeed` is Home's narrower cut of the bell's rows: real
-  // human actions only, dropping the sys_*/ai_* churn (actor "System").
+  // Shared with the top-bar bell — one read each, not one per consumer
+  // (#4197, #4225). `useHumanActivityFeed` is Home's narrower cut of the bell's
+  // activity rows: real human actions only, dropping the sys_*/ai_* churn
+  // (actor "System"). `useSharedInboxFeed` is the bell's already-joined inbox
+  // superset, cut here to what is actually waiting on the user.
   const pendingApprovalsCount = useSharedPendingApprovalsCount();
   const activities = useHumanActivityFeed(limit);
+  const { value: messages, status: notificationsStatus } = useSharedInboxFeed();
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
-
-  // Latest in-app inbox messages (assignments / @mentions / alerts).
-  useEffect(() => {
-    // Nothing asked yet — NOT an empty inbox. A console still settling its
-    // adapter or its session must not be reported as "all caught up".
-    if (!dataSource || !user?.id) {
-      setNotificationsStatus('idle');
-      return;
-    }
-    let cancelled = false;
-    setNotificationsStatus('loading');
-    Promise.resolve(
-      dataSource.find('sys_inbox_message', {
-        $filter: { user_id: user.id },
-        $orderby: { created_at: 'desc' },
-        $top: limit,
-      }) as Promise<any>,
-    )
-      .then((res) => {
-        if (cancelled || !mountedRef.current) return;
-        const rows: any[] = Array.isArray(res?.data) ? res.data : [];
-        const seenTitles = new Set<string>();
-        const deduped = rows
-          .filter((m) => m && (m.title ?? '').toString().trim())
-          .map((m) => ({
-            id: String(m.id),
-            title: String(m.title),
-            actionUrl: m.action_url ?? undefined,
-            createdAt: m.created_at ?? undefined,
-          }))
-          // Collapse repeated identical notifications (e.g. recurring digests)
-          // — keep the most recent of each title (rows are newest-first).
-          .filter((n) => (seenTitles.has(n.title) ? false : (seenTitles.add(n.title), true)));
-        setNotifications(deduped);
-        setNotificationsStatus('ready');
-      })
-      .catch((err: unknown) => {
-        if (cancelled || !mountedRef.current) return;
-        // A missing object is an answer: this deployment has no inbox pipeline,
-        // so nothing is waiting on the user and the empty state is honest.
-        // Every other failure — the objectstack#7344 denial included — is not.
-        setNotificationsStatus(isMissingResource(err) ? 'ready' : 'error');
-      });
-    return () => { cancelled = true; };
-  }, [dataSource, user?.id, limit]);
+  const notifications = useMemo<HomeNotification[]>(() => {
+    const seenTitles = new Set<string>();
+    return messages
+      // #4316: "Needs your attention" means UNREAD. Read-state comes from the
+      // receipts join in the shared feed — the read this hook used to issue
+      // had none, so an already-read message was indistinguishable from a
+      // waiting one and got listed and badged all the same.
+      .filter((m) => !m.is_read)
+      .filter((m) => (m.title ?? '').trim().length > 0)
+      .map((m) => ({
+        id: m.id,
+        title: String(m.title),
+        actionUrl: m.action_url ?? undefined,
+        createdAt: m.created_at ?? undefined,
+      }))
+      // Collapse repeated identical notifications (e.g. recurring digests)
+      // — keep the most recent of each title (rows are newest-first).
+      .filter((n) => (seenTitles.has(n.title) ? false : (seenTitles.add(n.title), true)))
+      // The cap is applied here rather than as the read's `$top`, because the
+      // read is the bell's now and holds its 20. Same shape as `activities`,
+      // which has sliced the shared feed at its own call site since #4197.
+      .slice(0, limit);
+  }, [messages, limit]);
 
   return { pendingApprovalsCount, notifications, notificationsStatus, activities };
 }

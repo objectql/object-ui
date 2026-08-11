@@ -134,15 +134,81 @@ function convertSortToQueryParams(sort: string | any[] | undefined): Record<stri
   return undefined;
 }
 
+const isDev = (): boolean =>
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+    ?.NODE_ENV !== 'production';
+
+/**
+ * Warn once per distinct legacy stash, not once per evaluation: `getMapConfig`
+ * runs on every render of the map (hover, zoom, search all re-render it), and a
+ * warning that floods the console is a warning that gets muted. Mirrors the
+ * warn-once discipline of the visibility-predicate diagnostics in
+ * `app-shell/src/views/metadata-admin/predicate.ts` (objectui#4049).
+ */
+const warnedLegacyFilterMapConfigs = new Set<string>();
+
+/**
+ * `filter` is the query filter, not a configuration slot — objectui#4034
+ * (source thread objectstack#7138).
+ *
+ * `getMapConfig` used to ALSO read the map's configuration out of
+ * `schema.filter.map` (and its `style` half), a shape predating the declared
+ * `{ name: 'map', type: 'object' }` input. That read is gone: the block
+ * consumes only what it declares. Authoring the config under `filter.map`
+ * therefore has no effect, so say so in dev rather than dropping the author's
+ * markers without a trace — the map now renders with the DEFAULT field names,
+ * which looks exactly like "the data is wrong".
+ *
+ * Deliberately narrow, to stay off legitimate query filters:
+ * - OWN property only. `'map' in someArray` is TRUE via `Array.prototype.map`,
+ *   which is precisely how the deleted probe misfired on every array-shaped
+ *   filter — including the `and` node a dataSource binding merges
+ *   (objectstack#7121). An inherited method is not an authoring mistake.
+ * - object-valued only. `filter: { map: 'x' }` reads as a filter on a field
+ *   named `map`, not as a stashed MapConfig.
+ */
+function warnOnLegacyFilterMapConfig(schema: ObjectGridSchema | any): void {
+  if (!isDev()) return;
+
+  const filter = (schema as any)?.filter;
+  if (!filter || typeof filter !== 'object' || Array.isArray(filter)) return;
+  if (!Object.prototype.hasOwnProperty.call(filter, 'map')) return;
+
+  const legacy = (filter as any).map;
+  if (!legacy || typeof legacy !== 'object') return;
+
+  let memo: string;
+  try {
+    memo = `${(schema as any).type ?? 'map'}::${(schema as any).objectName ?? ''}::${JSON.stringify(legacy)}`;
+  } catch {
+    // Circular author data — still worth one warning, just not a keyed one.
+    memo = `${(schema as any).type ?? 'map'}::${(schema as any).objectName ?? ''}::<unserializable>`;
+  }
+  if (warnedLegacyFilterMapConfigs.has(memo)) return;
+  warnedLegacyFilterMapConfigs.add(memo);
+
+  console.warn(
+    '[ObjectMap] `filter.map` is no longer read as map configuration, so this map is ' +
+      'rendering with the DEFAULT field names (`latitude` / `longitude` / `name`). `filter` is ' +
+      'the query filter; the map config belongs under the declared `map` input — move it to ' +
+      '`schema.map` (`{ type: \'object-map\', map: { latitudeField, longitudeField, titleField } }`). ' +
+      'The old spelling was never documented and could not survive a `dataSource` binding, whose ' +
+      'merged filter is an `and` node with no `map` key at all (objectstack#7121). If `map` is ' +
+      'genuinely a field you are filtering on, ignore this — the filter itself is passed through ' +
+      'untouched. objectui#4034.',
+  );
+}
+
 /**
  * Helper to get map configuration from schema
  */
 function getMapConfig(schema: ObjectGridSchema | any): MapConfig {
+  warnOnLegacyFilterMapConfig(schema);
+
   // A custom style may be set alongside any of the shapes below — read it
   // once so every return path can carry it through.
   const style: string | undefined =
-    (schema as any).style || (schema as any).mapStyle
-    || (schema.filter as any)?.map?.style || (schema as any).map?.style;
+    (schema as any).style || (schema as any).mapStyle || (schema as any).map?.style;
 
   // 1. Check top-level properties (ObjectMapSchema style)
   if (schema.locationField || schema.latitudeField) {
@@ -158,16 +224,11 @@ function getMapConfig(schema: ObjectGridSchema | any): MapConfig {
       };
   }
 
-  let config: MapConfig | null = null;
-  // Check if schema has map configuration
-  if (schema.filter && typeof schema.filter === 'object' && 'map' in schema.filter) {
-    config = (schema.filter as any).map as MapConfig;
-  }
-
-  // For backward compatibility, check if schema has map config at root
-  else if ((schema as any).map) {
-    config = (schema as any).map as MapConfig;
-  }
+  // 2. The declared configuration input: `{ name: 'map', type: 'object' }` at
+  // the `object-map` / `map` registrations. The only shape consumed here.
+  const config: MapConfig | null = (schema as any).map
+    ? ((schema as any).map as MapConfig)
+    : null;
 
   if (config) {
      const result = MapConfigSchema.safeParse(config);

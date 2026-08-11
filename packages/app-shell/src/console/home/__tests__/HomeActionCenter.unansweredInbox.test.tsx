@@ -85,14 +85,22 @@ vi.mock('../../../providers/AdapterProvider', () => ({ useAdapter: () => adapter
 /**
  * The other two feeds are #4197's shared store and are not this card's subject;
  * stubbing them keeps the approvals addend a dial this suite can set directly.
+ *
+ * Partial, not wholesale (#4225): the inbox read now lives in this same module
+ * (`useSharedInboxFeed`) and it IS this suite's subject, so it has to stay
+ * real. Keeping the original module underneath leaves the hop under test
+ * exactly where it was — `dataSource.find` → rejected promise → status — while
+ * still holding the approvals addend as a dial.
  */
 let approvalsFixture = 0;
-vi.mock('../../../hooks/sharedUserFeeds', () => ({
+vi.mock('../../../hooks/sharedUserFeeds', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useSharedPendingApprovalsCount: () => approvalsFixture,
   useHumanActivityFeed: () => [],
 }));
 
 import { useHomeInbox } from '../../../hooks/useHomeInbox';
+import { __resetSharedUserFeeds } from '../../../hooks/sharedUserFeeds';
 import { HomeActionCenter } from '../HomeRail';
 
 /** Exactly `HomePage`'s wiring of the two — the seam the card indicts. */
@@ -163,6 +171,9 @@ beforeEach(() => {
   approvalsFixture = 0;
   inboxBehaviour = async () => ({ data: [] });
   findCalls.length = 0;
+  // The inbox feed is a module-scoped store that deliberately outlives any one
+  // render tree, so cases would otherwise inherit each other's rows and status.
+  __resetSharedUserFeeds();
 });
 
 describe('Home action centre — the affirmative empty state needs an ANSWER (#4235)', () => {
@@ -254,8 +265,16 @@ describe('Home action centre — nine unread rows are listed and badged (#4235)'
     await waitFor(() =>
       expect(screen.getByText('Approval request 1 needs your decision')).toBeInTheDocument(),
     );
-    expect(screen.getAllByText(/Approval request \d+ needs your decision/)).toHaveLength(9);
-    expect(badgeText()).toBe('9');
+    // Five, not nine — and five is what a real deployment always showed. The
+    // card's cap used to travel as the read's own `$top: 5`, which THIS fake
+    // adapter ignores (it answers every query with the full fixture), so the
+    // case measured nine only because nothing here enforced the server's cut.
+    // #4225 moved the read to the shared feed, whose `$top` is the bell's 20,
+    // and the cap became a client-side slice — enforced in the test exactly as
+    // the server enforced it in production. The rows-are-listed-and-badged
+    // claim this case exists to make is unchanged.
+    expect(screen.getAllByText(/Approval request \d+ needs your decision/)).toHaveLength(5);
+    expect(badgeText()).toBe('5');
     expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
     expect(screen.queryByTestId('home-action-unanswered')).not.toBeInTheDocument();
   });
@@ -275,7 +294,10 @@ describe('Home action centre — nine unread rows are listed and badged (#4235)'
     expect(inboxRead?.query).toMatchObject({
       $filter: { user_id: 'u1' },
       $orderby: { created_at: 'desc' },
-      $top: 5,
+      // 20, not 5: this is the bell's read now, and Home cuts its five from the
+      // superset (#4225). The `mine` scope and the ordering — what ADR-0030
+      // actually names, and what this case is pinning — are untouched.
+      $top: 20,
     });
   });
 
