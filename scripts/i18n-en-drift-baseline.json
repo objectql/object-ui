@@ -19,8 +19,41 @@
     "gone fails the build until it is deleted or renewed.",
     "",
     "Adding an entry also means raising WAIVER_CEILING in scripts/__tests__/check-i18n-en-drift.test.ts.",
-    "That is the ratchet: the ceiling is free to fall and costs a reviewed test edit to rise."
+    "That is the ratchet: the ceiling is free to fall and costs a reviewed test edit to rise.",
+    "",
+    "The five entries below are objectui#3878's ellipsis convergence, and they are the one shape",
+    "this ledger was designed for: en moved to U+2026 on keys where the packs ALREADY spelled it",
+    "U+2026, so there is nothing for them to follow. That is the inverse of the usual drift -- here",
+    "en was the outlier, not the packs -- and the transcribed sentences below are the evidence, since",
+    "the gate re-checks each one against en on every run. Four of the five had all nine packs already",
+    "correct; search.placeholder had zh already correct and the other eight followed in that same PR."
   ],
 
-  "waivers": {}
+  "waivers": {
+    "search.placeholder": {
+      "en": "Search objects, dashboards, pages, reports…",
+      "reason": "Ellipsis convergence on U+2026 (objectstack#6015 consistency pass). Eight packs followed in this PR; zh already spelled it '搜索对象、仪表板、页面、报表…' with U+2026 and had nothing to change.",
+      "issue": "objectui#3878"
+    },
+    "collaboration.replyingTo": {
+      "en": "Replying to {{name}}…",
+      "reason": "Ellipsis convergence on U+2026 (objectstack#6015 consistency pass). All nine packs already ended this value with U+2026; en was the sole ASCII outlier, so no translation changes.",
+      "issue": "objectui#3878"
+    },
+    "collaboration.replyingToComment": {
+      "en": "Replying to comment…",
+      "reason": "Ellipsis convergence on U+2026 (objectstack#6015 consistency pass). All nine packs already ended this value with U+2026; en was the sole ASCII outlier, so no translation changes.",
+      "issue": "objectui#3878"
+    },
+    "collaboration.commentPlaceholder": {
+      "en": "Add a comment… (use @ to mention)",
+      "reason": "Ellipsis convergence on U+2026 (objectstack#6015 consistency pass). The only mid-sentence case in the sweep, and all nine packs already wrote U+2026 there; en was the sole ASCII outlier, so no translation changes.",
+      "issue": "objectui#3878"
+    },
+    "appManagement.searchPlaceholder": {
+      "en": "Search apps…",
+      "reason": "Ellipsis convergence on U+2026 (objectstack#6015 consistency pass). All nine packs already ended this value with U+2026; en was the sole ASCII outlier, so no translation changes.",
+      "issue": "objectui#3878"
+    }
+  }
 }

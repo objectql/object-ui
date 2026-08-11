@@ -78,7 +78,7 @@ const en = {
     retry: 'Retry',
   },
   common: {
-    loading: 'Loading...',
+    loading: 'Loading…',
     save: 'Save',
     cancel: 'Cancel',
     delete: 'Delete',
@@ -110,7 +110,7 @@ const en = {
     required: 'Required',
     optional: 'Optional',
     selectOption: 'Select an option',
-    select: 'Select...',
+    select: 'Select…',
     openChat: 'Open chat',
     closeChat: 'Close chat',
     closePanel: 'Close panel',
@@ -229,7 +229,7 @@ const en = {
     richText: {
       format: 'Format: {{format}}',
       basicEditorHint: 'Rich text editor (basic)',
-      placeholder: 'Enter text...',
+      placeholder: 'Enter text…',
     },
     // objectui#3231 — the "this option list cannot be filled" copy shared by
     // the fixed-option widgets (select / multiselect / radio / checkboxes) AND
@@ -318,7 +318,7 @@ const en = {
     saveAll: 'Save All ({{count}})',
     addRecord: 'Add record',
     open: 'Open',
-    search: 'Search...',
+    search: 'Search…',
     modified: '{{count}} row modified',
     saveFailed: 'Save failed',
     selected: '{{count}} selected',
@@ -331,7 +331,7 @@ const en = {
     delete: 'Delete',
     export: 'Export',
     exportAs: 'Export as {{format}}',
-    loading: 'Loading grid...',
+    loading: 'Loading grid…',
     errorLoading: 'Error loading grid',
     pullToRefresh: 'Pull to refresh',
     refreshing: 'Refreshing…',
@@ -657,7 +657,7 @@ const en = {
     deleteCard: 'Delete card',
     deleteColumn: 'Delete column',
     noCards: 'No cards',
-    cardTitlePlaceholder: 'Enter card title...',
+    cardTitlePlaceholder: 'Enter card title…',
     uncategorized: 'Uncategorized',
     columns: 'columns',
   },
@@ -909,7 +909,7 @@ const en = {
     relatedRecords: '{{count}} records',
     relatedRecordOne: '{{count}} record',
     noRelatedRecords: 'No related records found',
-    loading: 'Loading...',
+    loading: 'Loading…',
     copyToClipboard: 'Copy to clipboard',
     copied: 'Copied!',
     deleteConfirmation: 'Are you sure you want to delete this record?',
@@ -931,7 +931,7 @@ const en = {
     nextPage: 'Next',
     pageOf: 'Page {{current}} of {{total}}',
     sortBy: 'Sort by',
-    filterPlaceholder: 'Filter...',
+    filterPlaceholder: 'Filter…',
     highlightFields: 'Key Fields',
     // Comments
     comments: 'Comments',
@@ -1044,7 +1044,7 @@ const en = {
   },
   chart: {
     noData: 'No chart data available',
-    loading: 'Loading chart...',
+    loading: 'Loading chart…',
   },
   report: {
     total: 'Total',
@@ -1106,8 +1106,8 @@ const en = {
     properties: 'Properties',
     connections: 'Connections',
     quickConnect: 'Quick Connect',
-    fromPlaceholder: 'From...',
-    toPlaceholder: 'To...',
+    fromPlaceholder: 'From…',
+    toPlaceholder: 'To…',
     connect: 'Connect',
     label: 'Label',
     type: 'Type',
@@ -1419,7 +1419,7 @@ const en = {
   console: {
     saveAdvisoryTitle: 'Saved — the authoring check raised {{count}} advisory finding(s)',
     title: 'ObjectOS',
-    initializing: 'Initializing application...',
+    initializing: 'Initializing application…',
     search: 'Search…',
     breadcrumb: {
       dashboards: 'Dashboards',
@@ -1500,7 +1500,7 @@ const en = {
     },
     commandPalette: {
       title: 'Command palette',
-      placeholder: 'Type a command or search...',
+      placeholder: 'Type a command or search…',
       noResults: 'No results found.',
       searching: 'Searching…',
       records: 'Records',
@@ -1542,7 +1542,7 @@ const en = {
       shareTitle: 'Share this conversation',
       shareDisabledTitle: 'Start chatting to enable sharing',
       newChat: 'New',
-      searchChats: 'Search chats...',
+      searchChats: 'Search chats…',
       noChatsYet: 'No chats yet',
       noChatsDescription: 'Start a new conversation to see it here.',
       noMatchingChats: 'No matching chats.',
@@ -1551,7 +1551,7 @@ const en = {
       deleteConversation: 'Delete conversation',
       saveRename: 'Save rename',
       cancelRename: 'Cancel rename',
-      loadingHistory: 'Loading conversation history...',
+      loadingHistory: 'Loading conversation history…',
       conversationReady: 'Conversation ready',
       preparingConversation: 'Preparing a new conversation',
       offlineDemoMode: 'Offline demo mode — agent list unavailable',
@@ -1559,12 +1559,12 @@ const en = {
         "You're sending messages too quickly. Your message is kept below — wait a moment and try again.",
       sendFailedGeneric:
         "Couldn't send your message. It's kept below — please try again.",
-      askAgent: 'Ask {{agent}}...',
+      askAgent: 'Ask {{agent}}…',
       assistant: 'Assistant',
       liveCanvas: 'Live preview — {{app}} (draft)',
       liveCanvasUnlisted: 'Live app — {{app}} (unlisted until published)',
-      loadingAgents: 'Loading agents...',
-      askAnything: 'Ask anything...',
+      loadingAgents: 'Loading agents…',
+      askAnything: 'Ask anything…',
       emptyTitle: 'Start a conversation',
       emptyDescription: 'Ask anything — the assistant has access to your current app context.',
       switchAssistant: 'Switch assistant',
@@ -1826,7 +1826,7 @@ const en = {
       exportPrintHint: 'Export formats, printing, and record count display',
       showAllFields: 'Show All',
       hideAllFields: 'Hide All',
-      searchFields: 'Search fields...',
+      searchFields: 'Search fields…',
       title: 'Title',
       description: 'Description',
       data: 'Data',
@@ -1905,8 +1905,8 @@ const en = {
       imageField: 'Image field',
       imageFieldHelp: 'The gallery cover comes from this image or attachment field.',
       dateField: 'Date field',
-      selectField: 'Select field...',
-      selectOption: 'Select...',
+      selectField: 'Select field…',
+      selectOption: 'Select…',
       noEligibleFieldForType: 'No eligible field of this type. Add one to the object first.',
       viewTypeUnavailable: 'This object has no field that can serve as "{{field}}".',
       viewTypeUnavailableShort: 'Not supported by this object.',
@@ -1980,7 +1980,7 @@ const en = {
       ufDropdown: 'Dropdown',
       ufTabs: 'Tabs',
       ufToggle: 'Toggle',
-      ufAddField: '+ Add filter field...',
+      ufAddField: '+ Add filter field…',
       ufNoFields: 'No fields available',
       ufAddTab: '+ Add tab',
       ufTabLabel: 'Label',
@@ -2012,7 +2012,7 @@ const en = {
       passwordPlaceholder: 'Enter your password',
       forgotPasswordText: 'Forgot password?',
       submitButton: 'Sign In',
-      submittingButton: 'Signing in...',
+      submittingButton: 'Signing in…',
       noAccountText: "Don't have an account?",
       signUpText: 'Sign up',
       signingIn: 'Signing you in…',
@@ -2056,7 +2056,7 @@ const en = {
       passwordMismatchError: 'Passwords do not match',
       passwordTooShortError: 'Password must be at least 8 characters',
       submitButton: 'Create Account',
-      submittingButton: 'Creating account...',
+      submittingButton: 'Creating account…',
       hasAccountText: 'Already have an account?',
       signInText: 'Sign in',
       errors: {
@@ -2077,7 +2077,7 @@ const en = {
       emailLabel: 'Email',
       emailPlaceholder: 'name@example.com',
       submitButton: 'Send Reset Link',
-      submittingButton: 'Sending...',
+      submittingButton: 'Sending…',
       successTitle: 'Check your email',
       successDescription: "We've sent a password reset link to {{email}}. Please check your inbox.",
       backToSignInText: 'Back to sign in',
@@ -2357,7 +2357,7 @@ const en = {
     area: 'Area',
     scope: 'Scope',
     packageManagement: 'Package management',
-    searchNavigation: 'Search navigation...',
+    searchNavigation: 'Search navigation…',
     recent: 'Recent',
     favorites: 'Favorites',
     starred: 'Starred',
@@ -2373,8 +2373,8 @@ const en = {
     switchObject: 'Switch Object',
     connection: {
       connected: 'Connected',
-      connecting: 'Connecting...',
-      reconnecting: 'Reconnecting...',
+      connecting: 'Connecting…',
+      reconnecting: 'Reconnecting…',
       disconnected: 'Disconnected',
       error: 'Connection Error',
     },
@@ -2417,7 +2417,7 @@ const en = {
       starred: 'Starred',
       recent: 'Recent items',
     },
-    loading: 'Loading workspace...',
+    loading: 'Loading workspace…',
     recent: 'Recent',
     starred: 'Starred',
     welcome: 'Build your business system with AI',
@@ -2538,7 +2538,7 @@ const en = {
   search: {
     title: 'Search',
     back: 'Back',
-    placeholder: 'Search objects, dashboards, pages, reports...',
+    placeholder: 'Search objects, dashboards, pages, reports…',
     inputAriaLabel: 'Search objects, dashboards, pages, reports',
     resultsCount: '{{count}} result for "{{query}}"',
     resultsCountPlural: '{{count}} results for "{{query}}"',
@@ -3545,12 +3545,12 @@ const en = {
     // Not `common.cancel`: an accessible name has to say what is cancelled.
     // Only the reply TARGET is dropped — the composer keeps whatever was typed.
     cancelReply: 'Cancel reply',
-    replyingTo: 'Replying to {{name}}...',
+    replyingTo: 'Replying to {{name}}…',
     // The no-author-found half of the reply banner, as a whole sentence:
     // languages that inflect around the addressee cannot build it by
     // substituting a noun into the `{{name}}` form.
-    replyingToComment: 'Replying to comment...',
-    commentPlaceholder: 'Add a comment... (use @ to mention)',
+    replyingToComment: 'Replying to comment…',
+    commentPlaceholder: 'Add a comment… (use @ to mention)',
     send: 'Send',
     // Presence avatar stack (objectui#3440). `presentUserCount*` is the avatar
     // group's `aria-label` — with only images and initials inside, that label
@@ -3592,7 +3592,7 @@ const en = {
     // `searchLabel` is the input's sr-only `<label>`; `searchPlaceholder` is
     // what a sighted user reads. Both, because a placeholder is not a label.
     searchLabel: 'Search apps',
-    searchPlaceholder: 'Search apps...',
+    searchPlaceholder: 'Search apps…',
     selectedCount: '{{n}} selected',
     // The two bulk buttons. Bare verbs — the selection badge beside them is
     // what says how many rows they act on.

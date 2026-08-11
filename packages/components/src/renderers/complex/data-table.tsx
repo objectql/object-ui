@@ -144,7 +144,7 @@ const TABLE_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'table.exportCSV': 'Export CSV',
   'table.addRecord': 'Add record',
   'table.open': 'Open',
-  'table.search': 'Search...',
+  'table.search': 'Search…',
   'table.modified': '{{count}} row modified',
   'table.saveFailed': 'Save failed',
   'table.selected': '{{count}} selected',

@@ -375,7 +375,7 @@ export function AppManagementPage() {
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             id="app-search"
-            placeholder={t('appManagement.searchPlaceholder', { defaultValue: 'Search apps...' })}
+            placeholder={t('appManagement.searchPlaceholder', { defaultValue: 'Search apps…' })}
             value={searchQuery}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
             className="pl-8"

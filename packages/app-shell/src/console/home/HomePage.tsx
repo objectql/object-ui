@@ -296,7 +296,7 @@ export function HomePage() {
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center py-20">
-        <div className="text-muted-foreground">{t('home.loading', { defaultValue: 'Loading workspace...' })}</div>
+        <div className="text-muted-foreground">{t('home.loading', { defaultValue: 'Loading workspace…' })}</div>
       </div>
     );
   }

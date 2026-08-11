@@ -119,7 +119,7 @@ const GRID_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.delete': 'Delete',
   'grid.export': 'Export',
   'grid.exportAs': 'Export as {{format}}',
-  'grid.loading': 'Loading grid...',
+  'grid.loading': 'Loading grid…',
   'grid.errorLoading': 'Error loading grid',
   'grid.pullToRefresh': 'Pull to refresh',
   'grid.refreshing': 'Refreshing…',

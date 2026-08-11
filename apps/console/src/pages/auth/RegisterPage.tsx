@@ -188,7 +188,7 @@ export function RegisterPage() {
             defaultValue: 'Password must be at least 8 characters',
           }),
           submitButton: t('auth.register.submitButton', { defaultValue: 'Create Account' }),
-          submittingButton: t('auth.register.submittingButton', { defaultValue: 'Creating account...' }),
+          submittingButton: t('auth.register.submittingButton', { defaultValue: 'Creating account…' }),
           hasAccountText: t('auth.register.hasAccountText', { defaultValue: 'Already have an account?' }),
           signInText: t('auth.register.signInText', { defaultValue: 'Sign in' }),
         }}

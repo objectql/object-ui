@@ -82,10 +82,10 @@ export const COLLAB_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'collaboration.reactThumbsUp': 'React with thumbs up',
   'collaboration.reactHeart': 'React with heart',
   'collaboration.cancelReply': 'Cancel reply',
-  'collaboration.replyingTo': 'Replying to {{name}}...',
-  'collaboration.replyingToComment': 'Replying to comment...',
+  'collaboration.replyingTo': 'Replying to {{name}}…',
+  'collaboration.replyingToComment': 'Replying to comment…',
   // Composer
-  'collaboration.commentPlaceholder': 'Add a comment... (use @ to mention)',
+  'collaboration.commentPlaceholder': 'Add a comment… (use @ to mention)',
   'collaboration.send': 'Send',
   // Presence avatar stack (objectui#3440). The group's `aria-label` IS the
   // control for a screen reader — the stack itself is images and initials —

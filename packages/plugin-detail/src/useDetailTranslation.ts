@@ -75,7 +75,7 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.relatedRecords': '{{count}} records',
   'detail.relatedRecordOne': '{{count}} record',
   'detail.noRelatedRecords': 'No related records found',
-  'detail.loading': 'Loading...',
+  'detail.loading': 'Loading…',
   'detail.copyToClipboard': 'Copy to clipboard',
   'detail.copied': 'Copied!',
   'detail.deleteConfirmation': 'Are you sure you want to delete this record?',
@@ -96,7 +96,7 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.nextPage': 'Next',
   'detail.pageOf': 'Page {{current}} of {{total}}',
   'detail.sortBy': 'Sort by',
-  'detail.filterPlaceholder': 'Filter...',
+  'detail.filterPlaceholder': 'Filter…',
   'detail.highlightFields': 'Key Fields',
   // Comments
   'detail.comments': 'Comments',

@@ -19,8 +19,8 @@ interface ConnectionStatusProps {
 
 const statusConfig: Record<ConnectionState, { labelKey: string; defaultValue: string; color: string; icon: typeof Wifi }> = {
   connected: { labelKey: 'topbar.connection.connected', defaultValue: 'Connected', color: 'text-green-500', icon: CheckCircle2 },
-  connecting: { labelKey: 'topbar.connection.connecting', defaultValue: 'Connecting...', color: 'text-yellow-500', icon: Loader2 },
-  reconnecting: { labelKey: 'topbar.connection.reconnecting', defaultValue: 'Reconnecting...', color: 'text-yellow-500', icon: Loader2 },
+  connecting: { labelKey: 'topbar.connection.connecting', defaultValue: 'Connecting…', color: 'text-yellow-500', icon: Loader2 },
+  reconnecting: { labelKey: 'topbar.connection.reconnecting', defaultValue: 'Reconnecting…', color: 'text-yellow-500', icon: Loader2 },
   disconnected: { labelKey: 'topbar.connection.disconnected', defaultValue: 'Disconnected', color: 'text-muted-foreground', icon: WifiOff },
   error: { labelKey: 'topbar.connection.error', defaultValue: 'Connection Error', color: 'text-destructive', icon: WifiOff },
 };

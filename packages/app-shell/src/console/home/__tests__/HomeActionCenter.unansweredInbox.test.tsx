@@ -133,7 +133,8 @@ const NINE_UNREAD = Array.from({ length: 9 }, (_, i) => ({
 
 const CAUGHT_UP = "You're all caught up";
 const ERROR_COPY = 'An unexpected error occurred.';
-const LOADING_COPY = 'Loading...';
+// U+2026, matching `common.loading` in the en pack (objectui#3878).
+const LOADING_COPY = 'Loading…';
 
 /**
  * The objectstack#7344 rejection, verbatim in shape: the generic data API

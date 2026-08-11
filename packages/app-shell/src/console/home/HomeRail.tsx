@@ -169,7 +169,7 @@ export function HomeActionCenter({
               {t('errors.unknown', { defaultValue: 'An unexpected error occurred.' })}
             </>
           ) : (
-            t('common.loading', { defaultValue: 'Loading...' })
+            t('common.loading', { defaultValue: 'Loading…' })
           )}
         </div>
       )}

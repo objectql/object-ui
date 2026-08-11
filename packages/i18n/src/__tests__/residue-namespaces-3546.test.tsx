@@ -361,10 +361,18 @@ describe('objectui#3546 slice seven — the ratchet residue', () => {
     const hook = sourceOf('packages/i18n/src/useSafeTranslation.ts');
     expect(hook).toContain('export function useSafeTranslate()');
     expect(hook).toContain('if (v && v !== key) return v;');
-    // U+2026, not three ASCII dots. `common.loading` is the older `'Loading...'`
-    // spelling and is a DIFFERENT string, so it is deliberately not reused here.
-    expect(at(builtInLocales.en, 'dashboard.loading')).not.toBe(at(builtInLocales.en, 'common.loading'));
-    expect(at(builtInLocales.en, 'common.loading')).toBe('Loading...');
+    // U+2026, not three ASCII dots — and this line is where objectui#3878 was
+    // found. This file used to assert the OPPOSITE of what it asserts now: that
+    // `dashboard.loading` (`Loading…`) and `common.loading` (`Loading...`) were
+    // DIFFERENT strings, which is why slice seven could not reuse the neighbour's
+    // translations and had to backfill ten packs by hand. That difference was the
+    // whole defect — one dashboard rendering two ellipsis glyphs — and
+    // objectui#3878 converged the pack on U+2026, so the two are now the same
+    // string BY DESIGN. Kept as an equality rather than deleted: it is the only
+    // place the convergence is visible from the slice-seven side, and it fails
+    // loudly if either value drifts back.
+    expect(at(builtInLocales.en, 'dashboard.loading')).toBe(at(builtInLocales.en, 'common.loading'));
+    expect(at(builtInLocales.en, 'common.loading')).toBe('Loading…');
   });
 
   describe('gantt.linkEnd. — the first prefix family', () => {
@@ -682,15 +690,29 @@ describe('objectui#3546 slice seven — the ratchet residue', () => {
     expect(at(builtInLocales.de, 'detail.deleteConfirmation')).toContain('diesen Datensatz');
     expect(composed('ru')).toContain('более новую версию этой записи');
     expect(composed('fr')).toContain("une version plus récente de cet enregistrement");
-    // `pt` is the one pack where the embedded phrase is NOT idiomatic and cannot
-    // be fixed from this leaf: Portuguese contracts de + este into "deste", but
-    // the "de " lives in the surrounding sentence, which is an EXISTING pack value
-    // this slice does not touch. Pinned as the current truth rather than left for
-    // the next reader to mistake for an oversight; filed separately, and the fix
-    // is to rephrase pt's `concurrentUpdateDescription` so the hole is not
-    // preceded by a bare preposition.
-    expect(composed('pt')).toContain('mais recente de este registro');
-    expect(at(builtInLocales.pt, 'detail.concurrentUpdateDescription')).toContain('mais recente de {{field}}');
+    // `pt` WAS the one pack where the embedded phrase was not idiomatic and could
+    // not be fixed from this leaf: Portuguese contracts de + este into "deste",
+    // but the "de " lived in the surrounding sentence, so every spelling of the
+    // leaf was wrong — `este registro` gave "de este registro", `deste registro`
+    // gave "de deste registro". This file used to pin "mais recente de este
+    // registro" as the current truth while objectui#3877 waited its turn.
+    //
+    // objectui#3877 rewrote the pt OUTER sentence instead (direction A), and it
+    // deliberately does not just swap `de` for another preposition: the hole is
+    // now preceded by the VERB `afeta`, so no contraction rule can apply to
+    // whatever the leaf holds. `em`/`a`/`por` would each have re-created the same
+    // defect with a different contraction (em+este = neste, a+aquele = àquele),
+    // and this hole takes either a field label or the record label above. pt
+    // alone diverges in sentence shape; `en` is unchanged, so the drift gate has
+    // no event here.
+    expect(composed('pt')).toContain('mais recente que afeta este registro');
+    expect(composed('pt')).not.toContain('de este');
+    expect(at(builtInLocales.pt, 'detail.concurrentUpdateDescription')).toContain('que afeta {{field}}');
+    // The split contract the dialog depends on: exactly one hole, so
+    // `split('{{field}}')` yields exactly the two halves it destructures.
+    expect(
+      (at(builtInLocales.pt, 'detail.concurrentUpdateDescription') as string).split('{{field}}'),
+    ).toHaveLength(2);
   });
 
   it('each pack keeps its own typography in the one long sentence of this slice', () => {

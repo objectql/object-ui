@@ -38,7 +38,7 @@ export function ForgotPasswordPage() {
           emailPlaceholder: t('auth.forgotPassword.emailPlaceholder', { defaultValue: 'name@example.com' }),
           submitButton: t('auth.forgotPassword.submitButton', { defaultValue: 'Send Reset Link' }),
           submittingButton: t('auth.forgotPassword.submittingButton', {
-            defaultValue: 'Sending...',
+            defaultValue: 'Sending…',
           }),
           successTitle: t('auth.forgotPassword.successTitle', {
             defaultValue: 'Check your email',

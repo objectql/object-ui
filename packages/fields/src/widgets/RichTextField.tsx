@@ -133,7 +133,7 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
   const hint = t('fields.richText.basicEditorHint', { defaultValue: 'Rich text editor (basic)' });
   const placeholder =
     richField?.placeholder ||
-    t('fields.richText.placeholder', { defaultValue: 'Enter text...' });
+    t('fields.richText.placeholder', { defaultValue: 'Enter text…' });
 
   return (
     <RichTextEditorSurface

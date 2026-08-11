@@ -517,8 +517,16 @@ describe('the waiver ledger', () => {
  *
  * Deliberately a count, not `toEqual({})`: a ledger that may legitimately hold
  * one entry should still be pinned at one, and `toEqual({})` cannot express that.
+ *
+ * 0 -> 5 (objectui#3878). The ellipsis convergence moved 34 `en` values to U+2026
+ * and 278 pack values with them; on five of those keys the packs were ALREADY
+ * spelling it U+2026, so `en` changed with nothing for them to follow. That is
+ * the inverse of the drift this gate hunts — the packs were right and `en` was
+ * the outlier — and it is the one case the ledger exists for. Each entry
+ * transcribes its new sentence, so the next `en` edit to any of the five expires
+ * the waiver and fails the build until someone renews it.
  */
-const WAIVER_CEILING = 0;
+const WAIVER_CEILING = 5;
 
 describe('the shipped ledger', () => {
   const ledger = readLedger(repoRoot);

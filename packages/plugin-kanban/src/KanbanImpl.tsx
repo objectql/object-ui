@@ -41,7 +41,7 @@ const useKanbanT = createSafeTranslation(
   {
     'kanban.addCard': 'Add card',
     'kanban.noCards': 'No cards',
-    'kanban.cardTitlePlaceholder': 'Enter card title...',
+    'kanban.cardTitlePlaceholder': 'Enter card title…',
   },
   'kanban.noCards',
 )

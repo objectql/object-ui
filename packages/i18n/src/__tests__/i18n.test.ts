@@ -47,9 +47,10 @@ describe('@object-ui/i18n', () => {
       expect(i18n.t('common.save')).toBe('Save');
       expect(i18n.t('common.cancel')).toBe('Cancel');
       expect(i18n.t('common.delete')).toBe('Delete');
-      expect(i18n.t('common.loading')).toBe('Loading...');
+      // U+2026, not three ASCII dots (objectui#3878 converged the ten packs).
+      expect(i18n.t('common.loading')).toBe('Loading…');
       expect(i18n.t('common.selectOption')).toBe('Select an option');
-      expect(i18n.t('common.select')).toBe('Select...');
+      expect(i18n.t('common.select')).toBe('Select…');
     });
 
     it('translates new form keys in English', () => {
@@ -64,9 +65,10 @@ describe('@object-ui/i18n', () => {
       expect(i18n.t('common.save')).toBe('保存');
       expect(i18n.t('common.cancel')).toBe('取消');
       expect(i18n.t('common.delete')).toBe('删除');
-      expect(i18n.t('common.loading')).toBe('加载中...');
+      // U+2026, not three ASCII dots (objectui#3878 converged the ten packs).
+      expect(i18n.t('common.loading')).toBe('加载中…');
       expect(i18n.t('common.selectOption')).toBe('请选择');
-      expect(i18n.t('common.select')).toBe('选择...');
+      expect(i18n.t('common.select')).toBe('选择…');
     });
 
     it('translates new form keys in Chinese', () => {

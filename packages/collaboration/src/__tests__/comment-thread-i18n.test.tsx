@@ -259,7 +259,7 @@ describe('CommentThread per-comment actions (objectstack#5506)', () => {
     fireEvent.click(screen.getAllByText('回复')[0]);
 
     expect(screen.getByText('正在回复 Alice Chen…')).toBeTruthy();
-    expect(screen.queryByText('Replying to Alice Chen...')).toBeNull();
+    expect(screen.queryByText('Replying to Alice Chen…')).toBeNull();
   });
 
   /**
@@ -288,7 +288,7 @@ describe('CommentThread per-comment actions (objectstack#5506)', () => {
     );
 
     expect(screen.getByText('正在回复该评论…')).toBeTruthy();
-    expect(screen.queryByText('Replying to comment...')).toBeNull();
+    expect(screen.queryByText('Replying to comment…')).toBeNull();
   });
 });
 
@@ -526,14 +526,14 @@ describe('CommentThread composer (objectstack#5506)', () => {
 
     expect(screen.getByPlaceholderText('添加评论…(输入 @ 提及他人)')).toBeTruthy();
     expect(screen.getByText('发送')).toBeTruthy();
-    expect(screen.queryByPlaceholderText('Add a comment... (use @ to mention)')).toBeNull();
+    expect(screen.queryByPlaceholderText('Add a comment… (use @ to mention)')).toBeNull();
     expect(screen.queryByText('Send')).toBeNull();
   });
 
   it('keeps the English copy under an en session', () => {
     renderThread('en');
 
-    expect(screen.getByPlaceholderText('Add a comment... (use @ to mention)')).toBeTruthy();
+    expect(screen.getByPlaceholderText('Add a comment… (use @ to mention)')).toBeTruthy();
     expect(screen.getByText('Send')).toBeTruthy();
   });
 

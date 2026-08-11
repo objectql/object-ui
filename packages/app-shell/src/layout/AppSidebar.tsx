@@ -563,7 +563,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
              <SidebarGroupContent className="relative">
                <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 select-none opacity-70" />
                <SidebarInput
-                 placeholder={t('sidebar.searchNavigation', { defaultValue: 'Search navigation...' })}
+                 placeholder={t('sidebar.searchNavigation', { defaultValue: 'Search navigation…' })}
                  value={navSearchQuery}
                  onChange={(e: any) => setNavSearchQuery(e.target.value)}
                  className="pl-8"
