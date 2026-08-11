@@ -113,13 +113,27 @@ function Row({
 export function HomeActionCenter({
   pendingApprovalsCount,
   notifications,
+  unreadTopicCount,
   notificationsStatus,
   onOpenApprovals,
   onOpenNotification,
   t,
 }: {
   pendingApprovalsCount: number;
+  /** The PREVIEW: newest-first, one row per title, capped by `useHomeInbox`. */
   notifications: HomeNotification[];
+  /**
+   * The TOTAL waiting in the inbox — every unread topic, not just the ones this
+   * card has room for (#4329).
+   *
+   * Required, and separate from `notifications` for the same reason
+   * `notificationsStatus` is: `notifications.length` was the badge until this
+   * card learned the difference, which made the badge report the size of a
+   * capped list. Nine unread showed "9" on the bell and "5" here, on one page,
+   * about one set of rows. A call site that cannot say how much is waiting must
+   * not be able to badge its own preview length by saying nothing.
+   */
+  unreadTopicCount: number;
   /**
    * Required, not optional-with-a-default: a call site that cannot say whether
    * its rows are an answer must not be able to reach the affirmative copy by
@@ -131,7 +145,11 @@ export function HomeActionCenter({
   t: TFn;
 }) {
   const { language } = useObjectTranslation();
-  const total = pendingApprovalsCount + notifications.length;
+  // "How much needs you", which is the question the badge asks and the question
+  // the bell answers with the same number. The list below is a preview of it —
+  // fewer rows than this whenever the cap or the title fold bites, and that
+  // gap is the point rather than a defect: badge = total, list = preview.
+  const total = pendingApprovalsCount + unreadTopicCount;
   const answered = notificationsStatus === 'ready';
   return (
     <Card icon={CheckSquare} accent count={total} title={t('home.actionCenter.title', { defaultValue: 'Needs your attention' })}>
@@ -155,6 +173,15 @@ export function HomeActionCenter({
           )}
         </div>
       )}
+      {/*
+        Gated on the TOTAL, not on the rows on show: "You're all caught up" is a
+        claim about the inbox, so it may only be made when the inbox is empty —
+        never merely because this card had nothing renderable to list. (The one
+        state where the two differ is an unread message with no title at all,
+        which the list cannot render: the card then shows its badge and no row,
+        rather than telling the user they are caught up while the bell above
+        badges the same message.)
+      */}
       {total === 0 ? (
         answered && (
           <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">

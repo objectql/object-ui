@@ -48,6 +48,12 @@
  * ones newest-first and caps them at `limit`. The two cannot disagree about a
  * row's read-state because there is no second read left to drift.
  *
+ * That left HOW MANY (#4329). The card's badge counted the list it renders, so
+ * the cap leaked into it: nine unread read as "9" on the bell and "5" here.
+ * `unreadTopicCount` is the count of the whole unread set, folded the way the
+ * bell folds it — the list stays a capped preview, and the badge stops
+ * reporting a preview's size as a total.
+ *
  * @module
  */
 import { useMemo } from 'react';
@@ -56,6 +62,7 @@ import {
   useSharedInboxFeed,
   useSharedPendingApprovalsCount,
 } from './sharedUserFeeds';
+import { groupNotifications } from '../layout/inboxGrouping';
 import type { ActivityItem } from '../layout/ActivityFeed';
 
 export interface HomeNotification {
@@ -87,6 +94,23 @@ export type HomeInboxStatus = 'idle' | 'loading' | 'ready' | 'error';
 export interface HomeInboxData {
   pendingApprovalsCount: number;
   notifications: HomeNotification[];
+  /**
+   * How many distinct unread TOPICS are waiting — the whole unread set, not the
+   * `limit`-capped slice `notifications` renders (#4329).
+   *
+   * `notifications` is a PREVIEW: newest-first, one row per title, five of
+   * them. Counting it badged the size of that preview as if it were the total,
+   * so nine unread messages read as "9" on the bell and "5" on the card two
+   * hundred pixels below — one page, one question, two numbers.
+   *
+   * Deliberately the bell's own fold (`groupNotifications`, by `(topic,
+   * title)`) over the bell's own rows, rather than the pre-slice length of the
+   * list above: that length is title-folded and drops blank titles, so it
+   * agrees with the bell on ordinary data and disagrees when two topics share a
+   * title. "Agrees usually" between two derivations of one number is exactly
+   * what #4316 was; one fold, applied twice, cannot drift.
+   */
+  unreadTopicCount: number;
   /** Whether `notifications` is an answer — see {@link HomeInboxStatus}. */
   notificationsStatus: HomeInboxStatus;
   activities: ActivityItem[];
@@ -126,5 +150,20 @@ export function useHomeInbox(limit = 5): HomeInboxData {
       .slice(0, limit);
   }, [messages, limit]);
 
-  return { pendingApprovalsCount, notifications, notificationsStatus, activities };
+  // The badge's inbox addend — see {@link HomeInboxData.unreadTopicCount}. Same
+  // rows, same fold, same reduce as the bell's `unreadTopics`, so the number
+  // Home shows is the number the bell shows by construction rather than by
+  // coincidence. Note it is NOT `notifications.length`: that is the preview.
+  const unreadTopicCount = useMemo(
+    () => groupNotifications(messages).reduce((n, g) => n + (g.unreadCount > 0 ? 1 : 0), 0),
+    [messages],
+  );
+
+  return {
+    pendingApprovalsCount,
+    notifications,
+    unreadTopicCount,
+    notificationsStatus,
+    activities,
+  };
 }

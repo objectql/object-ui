@@ -105,11 +105,13 @@ import { HomeActionCenter } from '../HomeRail';
 
 /** Exactly `HomePage`'s wiring of the two — the seam the card indicts. */
 function HomeActionCenterHost() {
-  const { pendingApprovalsCount, notifications, notificationsStatus } = useHomeInbox();
+  const { pendingApprovalsCount, notifications, notificationsStatus, unreadTopicCount } =
+    useHomeInbox();
   return (
     <HomeActionCenter
       pendingApprovalsCount={pendingApprovalsCount}
       notifications={notifications}
+      unreadTopicCount={unreadTopicCount}
       notificationsStatus={notificationsStatus}
       onOpenApprovals={() => {}}
       onOpenNotification={() => {}}
@@ -265,16 +267,15 @@ describe('Home action centre — nine unread rows are listed and badged (#4235)'
     await waitFor(() =>
       expect(screen.getByText('Approval request 1 needs your decision')).toBeInTheDocument(),
     );
-    // Five, not nine — and five is what a real deployment always showed. The
-    // card's cap used to travel as the read's own `$top: 5`, which THIS fake
-    // adapter ignores (it answers every query with the full fixture), so the
-    // case measured nine only because nothing here enforced the server's cut.
-    // #4225 moved the read to the shared feed, whose `$top` is the bell's 20,
-    // and the cap became a client-side slice — enforced in the test exactly as
-    // the server enforced it in production. The rows-are-listed-and-badged
-    // claim this case exists to make is unchanged.
+    // Five ROWS and a badge of nine (#4329). The card's cap used to travel as
+    // the read's own `$top: 5`; #4225 moved the read to the shared feed (whose
+    // `$top` is the bell's 20) and the cap became a client-side slice, so the
+    // list is still five. The badge counted that slice until #4329, which is
+    // how one page came to show 9 on the bell and 5 here for one question —
+    // the badge is the total waiting now, the list its newest few. The
+    // rows-are-listed-and-badged claim this case exists to make is unchanged.
     expect(screen.getAllByText(/Approval request \d+ needs your decision/)).toHaveLength(5);
-    expect(badgeText()).toBe('5');
+    expect(badgeText()).toBe('9');
     expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
     expect(screen.queryByTestId('home-action-unanswered')).not.toBeInTheDocument();
   });
