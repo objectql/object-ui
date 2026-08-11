@@ -88,11 +88,20 @@ describe('DetailSection — address fields render formatted, not as JSON (object
     expectNoJsonSignature(container.textContent);
   });
 
-  it('leaves the sibling location field formatted (control)', () => {
+  it('leaves the location field formatted (control — unchanged by this fix)', () => {
+    // A real control renders `location` ALONE. Asserting over a container that
+    // also holds the address field would make this case red for the address
+    // regression — it would restate the tests above instead of controlling for
+    // them. Isolated, it is green with the fix and green without it, which is
+    // what "the sibling formatter is untouched" actually claims.
     const { container } = render(
-      <DetailSection section={section} data={data} objectSchema={objectSchema} />,
+      <DetailSection
+        section={{ fields: [{ name: 'office_location', label: '办公地点' }] } as DetailViewSection}
+        data={{ office_location: data.office_location }}
+        objectSchema={objectSchema}
+      />,
     );
-    expect(container.textContent).toContain('30.2741');
+    expect(screen.getByText('30.2741, 120.1551')).toBeInTheDocument();
     expectNoJsonSignature(container.textContent);
   });
 
