@@ -173,6 +173,10 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // resolves correctly; only the fallback (no appName → first app)
   // skips hidden apps to avoid landing the user on a personal-settings
   // app by default.
+  //
+  // ⛔ `hidden` only — never `_unpublished` (objectstack#6955 / #4829 A1). The
+  // publish gate is enforced server-side; duplicating it here would strand a
+  // builder on their own unpublished app.
   const activeApps = apps.filter((a: any) => a.active !== false);
   const launcherApps = activeApps.filter((a: any) => a.hidden !== true);
   // ADR-0048 (A) — the route segment is the package id; resolve by it,

@@ -35,6 +35,13 @@ export function AppSwitcher({ activeAppName, onAppChange }: AppSwitcherProps) {
   // Hidden apps (App.hidden === true) live in the avatar dropdown
   // (personal-settings-style surfaces like the Account app), not the
   // top-level App Switcher.
+  //
+  // ⛔ Do NOT add `_unpublished` here (objectstack#6955 / #4829 A1). That key is
+  // the ADR-0045 publish gate and is enforced server-side — the REST metadata
+  // gate withholds unpublished apps from non-builders, so anything that reaches
+  // this list is already permitted. Filtering it here would hide a builder's own
+  // in-progress app from the builder. Pinned by
+  // `__tests__/AppSwitcher.publishState.test.tsx`.
   const activeApps = apps.filter((a: any) => a.active !== false && a.hidden !== true);
   // ADR-0048 (A) — route segment may be a package id; match by it (name fallback).
   const activeApp = matchAppBySegment(activeApps, activeAppName) || matchAppBySegment(apps.filter((a: any) => a.active !== false), activeAppName) || activeApps[0];

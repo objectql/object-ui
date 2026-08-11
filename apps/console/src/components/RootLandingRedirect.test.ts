@@ -34,6 +34,21 @@ describe('resolveLandingPath', () => {
     ).toBe('/apps/main');
   });
 
+  it('⛔ counts an UNPUBLISHED App as visible — `_unpublished` is a server gate, not a landing filter', () => {
+    // objectstack#6955 (#4829 A1). `hidden` and `_unpublished` split into two
+    // keys with two enforcement points: the REST metadata gate already
+    // withholds unpublished apps from everyone who should not see them, so an
+    // app that reaches this resolver is one the viewer is entitled to. Adding
+    // an `_unpublished !== true` clause above would flip this to '/apps/main' —
+    // silently landing a builder somewhere other than the app they are building.
+    //
+    // Declared as a const rather than inline so the extra key is not
+    // excess-property-checked against `LandingApp`: the resolver deliberately
+    // does not declare a field it must not read.
+    const apps = [{ name: 'main' }, { name: 'draft_app', _unpublished: true }];
+    expect(resolveLandingPath(apps)).toBe('/home');
+  });
+
   it('falls back to /home for a multi-app deployment with no isDefault (legacy behavior)', () => {
     expect(resolveLandingPath([{ name: 'a' }, { name: 'b' }])).toBe('/home');
   });

@@ -264,6 +264,8 @@ export function HomePage() {
   // when AI isn't enabled. Community builds typically land in the ask-only state.
   const { askAvailable, buildAvailable } = useHomeAiAvailability();
 
+  // Home grid = a launcher surface: `hidden` only, ⛔ never `_unpublished`
+  // (objectstack#6955 / #4829 A1 — the publish gate is enforced server-side).
   const activeApps = apps.filter((a: any) => a.active !== false && a.hidden !== true);
 
   /**

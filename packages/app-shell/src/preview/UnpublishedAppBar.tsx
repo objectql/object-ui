@@ -8,11 +8,33 @@
 
 /**
  * ADR-0045 — the "unpublished app" banner. Renders while the CURRENT app is
- * materialized-but-unlisted (`app.hidden === true`): the app is fully real —
- * tables, data, interactions — but end users can't see it (launchers exclude
- * it; the REST gate strips it for non-builders). The banner narrates that
- * state and offers the one action that matters: Publish, which simply flips
- * visibility (`hidden: false`) — instant and reversible, per ADR-0045.
+ * materialized-but-unpublished (`app._unpublished === true`): the app is fully
+ * real — tables, data, interactions — but end users can't see it (the REST gate
+ * strips it for non-builders). The banner narrates that state and offers the
+ * one action that matters: Publish, which simply clears the publish gate
+ * (`_unpublished: false`) — instant and reversible, per ADR-0045.
+ *
+ * ## Why `_unpublished` and not `hidden` (objectstack#4829 A1, framework PR
+ * #6942)
+ *
+ * These were one flag and are now two, with disjoint meanings:
+ *
+ *   `_unpublished` — MACHINE-MANAGED publish gate. Set by materialization,
+ *                    cleared by publish. The server withholds these apps from
+ *                    non-builders, so this bar is the builder's own watermark.
+ *   `hidden`       — AUTHOR-DECLARED navigation presentation, and nothing else.
+ *                    "Hidden apps stay fully routable and permission-checked";
+ *                    they are published, real, reachable by URL, and merely
+ *                    kept out of the launcher (the built-in `account` app is
+ *                    the specimen).
+ *
+ * Reading `hidden` here was therefore wrong in BOTH directions once the
+ * framework split them: it painted the "unpublished" watermark over published
+ * nav-hidden apps (Account), and it dropped the watermark from the builder's
+ * own genuinely-unpublished preview. Launcher surfaces keep filtering on
+ * `hidden` — that key now means exactly what it says — and must NOT start
+ * filtering on `_unpublished`, which the server already withholds
+ * (`layout/AppSwitcher.tsx`, `console/AppContent.tsx`, `console/home/HomePage.tsx`).
  *
  * Sibling of DraftPreviewBar (the ADR-0037 draft-overlay watermark): that bar
  * owns mutation preview (`?preview=draft`); this one owns the materialize
@@ -44,7 +66,7 @@ export function UnpublishedAppBar() {
   const routeApp = appName ?? location.pathname.match(/\/apps\/([^/?#]+)/)?.[1];
   if (!routeApp) return null;
   const app = matchAppBySegment(apps ?? [], routeApp);
-  if (!app || (app as any).hidden !== true) return null;
+  if (!app || (app as any)._unpublished !== true) return null;
   // ADR-0067 — the package this app belongs to keys its commit timeline.
   const packageId =
     (app as { packageId?: string })?.packageId ?? (app as { _packageId?: string })?._packageId ?? null;
@@ -53,13 +75,22 @@ export function UnpublishedAppBar() {
     setPublishing(true);
     try {
       // Publish = the ADR-0045 visibility flip: one metadata write, no
-      // lifecycle machinery. Body is the full current app with hidden:false
-      // (the meta save endpoint replaces the overlay row).
+      // lifecycle machinery. Body is the full current app with
+      // `_unpublished: false` (the meta save endpoint replaces the overlay row).
+      //
+      // `false`, not a delete: ADR-0045 §3 makes publish/unpublish symmetric
+      // ("unpublish = re-hide"), so the gate stays a two-state flag rather than
+      // a key whose absence has to be re-derived — the same shape the server's
+      // own `POST /packages/:id/publish-drafts` flip writes.
+      //
+      // Whatever `hidden` the app carries rides through the spread UNTOUCHED:
+      // publishing an app must not silently rewrite the author's navigation
+      // choice, which is the exact regression objectstack#4829 was filed for.
       const res = await fetch(`/api/v1/meta/app/${encodeURIComponent(routeApp)}`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ ...(app as Record<string, unknown>), hidden: false }),
+        body: JSON.stringify({ ...(app as Record<string, unknown>), _unpublished: false }),
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
