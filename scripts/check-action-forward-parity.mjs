@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 /**
- * An action renderer must forward every authored key the runtime will read.
+ * An action renderer must forward every authored key the runtime will read —
+ * and must write those keys somewhere the compiler will still check them.
+ *
+ * Two halves, two different failures. The first is a key DROPPED from a forward
+ * whitelist (below). The second is a key INVENTED at a forward site and absorbed
+ * in silence, because the literal it was written into is one TypeScript does not
+ * excess-property check — objectui#4281, see section 4. A surface can pass the
+ * first and fail the second: two of the four action renderers did.
  *
  * The failure class (objectui#4050, carried from objectstack#6975): each action
  * renderer hands the `ActionRunner` an explicit key WHITELIST rather than the
@@ -110,7 +117,8 @@
  * returning "no errors" there would be the silent pass the ruling forbids.
  *
  * Run:  node scripts/check-action-forward-parity.mjs
- * Exit: 0 = every surface forwards what it owes, 1 = a key is dropped, an entry
+ * Exit: 0 = every surface forwards what it owes, into a literal the compiler
+ *       checks; 1 = a key is dropped, a forward literal is unchecked, an entry
  *       is stale, or extraction failed.
  */
 
@@ -614,7 +622,252 @@ export function forwardedKeys(root, surface, opaqueSpreads = OPAQUE_SPREADS) {
   return keys;
 }
 
-// ── 4. Diff ──────────────────────────────────────────────────────────────────
+// ── 4. Is the forward literal CHECKED at all? ────────────────────────────────
+// Parity is only half the guarantee. The other half is objectui#4046, which
+// closed `ActionDef` so that an invented or misspelled key at a forward site is
+// a `TS2353` — the objectstack#2169 "Mark Done does nothing" shape, caught by
+// the compiler instead of by a user. objectui#4281 measured that the guarantee
+// held at only two of the four action renderers: `action:group` and
+// `action:menu` rejected an invented key, `action:button` and `action:icon`
+// absorbed it in silence, and NOTHING said so. A reader who knows `ActionDef` is
+// closed would reasonably assume it is closed everywhere.
+//
+// The cause is not the type. TypeScript runs the excess-property ("freshness")
+// check only on an object literal it can see whole, and several ordinary shapes
+// switch it off. Measured on TypeScript 6.0.3, against `packages/components`
+// itself and against a minimal reproduction (objectui#4281):
+//
+//   spread of an `any`-typed value    → check OFF   ← the live defect
+//   `expr as T` (any T, incl. `any`)  → check OFF
+//   a spread SOURCE's own keys        → check OFF   ← probe Q, the second hole
+//   plain `const x = {…}`, unannotated→ check OFF
+//   `const x: ActionDef = {…}`        → check ON
+//   `{…} satisfies ActionDef`         → check ON
+//   spread of `Record<string, any>`   → check ON
+//   spread of a resolvable literal    → check ON
+//
+// The two broken renderers were the two that spread `localContext`, and that
+// binding is `any` — `PropsWithoutRef` collapses a props interface carrying
+// `[key: string]: any` to a pure index-signature type, so every destructured
+// prop arrives as `any`. Note what this means: `...paramsPayload`, which
+// objectui#4281's own table named as `action:button`'s culprit, is NOT one —
+// narrowing only the `localContext` spread restored the check with
+// `...paramsPayload` untouched.
+//
+// ── Why this gate states a STRICTER rule than TypeScript's ───────────────────
+// Every row above turns on a TYPE, and this gate has no type checker: it parses
+// source files, deliberately (see the header — a program-wide check here would
+// be slower than the compile it duplicates). So the rule below is a SUFFICIENT
+// STRUCTURAL CONDITION, not a restatement of the compiler's:
+//
+//   Every object literal contributing an explicit key to a forward payload must
+//   be (a) contextually typed — the direct `execute(…)` argument, or a binding
+//   annotated `ActionDef` / `satisfies ActionDef` — and (b) free of any spread
+//   this gate cannot resolve to object literals.
+//
+// (b) is where it is stricter: a `Record<string, any>` spread would keep the
+// check, but an AST cannot tell one from an `any`. The escape is not an
+// exemption — it is the one-line fix the ruling prescribes, hoisting the
+// explicit keys into an annotated binding, which is checked whatever the
+// composed spreads turn out to be. That the rule is conservative in this exact
+// direction is the point: a future renderer written in the broken shape goes red
+// on the PR that adds it, which is what turns objectui#4046's guarantee from
+// "true today, by luck" into "enforced".
+//
+// Resolvable spreads are transparent for (b) — but their SOURCE literal is
+// judged by the same rule, because a spread source's keys are not checked
+// through the spread either (probe Q above: `const p = cond ? {actionParams} :
+// {zzBogus}` is absorbed whole; annotating `p` rejects it).
+export const UNCHECKED_FORWARDS = {
+  "element:button": {
+    reason:
+      "Its payload is cast `as any` (elements.tsx), so no excess-property check runs and none " +
+      "can be restored by hoisting alone. Unlike the four action renderers, this surface's " +
+      "`action` is a bare `Record<string, any>` prop rather than a typed action, so the cast is " +
+      "load-bearing for more than the forward literal. PRE-EXISTING and out of objectui#4281's " +
+      "scope (that card measured, and its ruling scoped, the two action renderers); filed " +
+      "separately so this gate stops the BLEEDING — a NEW unchecked forward literal is red — " +
+      "without retro-fixing a surface whose fix is a different change. Ratcheted below: drop " +
+      "the cast and this entry fails.",
+    issue: 4321,
+  },
+};
+
+/** Is this type node a reference to `ActionDef`? */
+const isActionDefType = (typeNode) =>
+  !!typeNode &&
+  ts.isTypeReferenceNode(typeNode) &&
+  ts.isIdentifier(typeNode.typeName) &&
+  typeNode.typeName.text === "ActionDef";
+
+/**
+ * The forward literals a surface writes explicit keys into that TypeScript does
+ * not excess-property check.
+ *
+ * Returns `[]` for a compliant surface. Each violation names the literal, the
+ * keys riding in it unchecked, and which clause failed — a message a reader can
+ * act on without knowing the freshness rules, since not knowing them is how
+ * objectui#4281 happened.
+ */
+export function uncheckedForwardLiterals(root, surface, opaqueSpreads = OPAQUE_SPREADS) {
+  if (!existsSync(resolve(root, surface.file))) {
+    fail(`surface ${surface.id}: ${surface.file} does not exist — re-point this gate at the renderer.`);
+  }
+  const sf = parse(root, surface.file);
+
+  // `name -> { init, type }`. The TYPE is what `forwardedKeys`' own local map
+  // does not need and this one cannot work without.
+  const locals = new Map();
+  const collectLocals = (node) => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      locals.set(node.name.text, { init: node.initializer, type: node.type ?? null });
+    }
+    ts.forEachChild(node, collectLocals);
+  };
+  collectLocals(sf);
+
+  /**
+   * Strip parens, `as` assertions and `satisfies` down to the payload node,
+   * recording which were crossed. `as` and `satisfies` are opposites here and
+   * the difference is measured, not assumed: `{…} as ActionDef` turns the check
+   * OFF (an assertion asks only for comparability), `{…} satisfies ActionDef`
+   * leaves it ON.
+   */
+  const strip = (node) => {
+    let n = node;
+    let asserted = false;
+    let satisfied = false;
+    for (;;) {
+      if (!n) break;
+      if (ts.isParenthesizedExpression(n)) {
+        n = n.expression;
+        continue;
+      }
+      if (ts.isAsExpression(n) || (ts.isTypeAssertionExpression?.(n) ?? false)) {
+        asserted = true;
+        n = n.expression;
+        continue;
+      }
+      if (ts.isSatisfiesExpression?.(n)) {
+        satisfied = satisfied || isActionDefType(n.type);
+        n = n.expression;
+        continue;
+      }
+      break;
+    }
+    return { node: n, asserted, satisfied };
+  };
+
+  const explicitKeysOf = (obj) =>
+    obj.properties
+      .filter((p) => !ts.isSpreadAssignment(p))
+      .map((p) => (p.name && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) ? p.name.text : "<computed>"));
+
+  const violations = [];
+  const seen = new Set();
+
+  /**
+   * @param obj     an object literal contributing to the payload
+   * @param checked is it contextually typed AND not behind a type assertion?
+   * @param origin  how a reader finds it
+   */
+  const walk = (obj, checked, origin, depth) => {
+    if (depth > 4) fail(`surface ${surface.id}: spread nesting too deep to resolve in ${surface.file}.`);
+    if (seen.has(obj)) return;
+    seen.add(obj);
+
+    const opaque = [];
+    for (const prop of obj.properties) {
+      if (!ts.isSpreadAssignment(prop)) continue;
+      const spread = strip(prop.expression);
+
+      // An inline `...{ … }` is part of THIS literal's check, either way.
+      if (ts.isObjectLiteralExpression(spread.node) && !spread.asserted) {
+        walk(spread.node, checked, origin, depth + 1);
+        continue;
+      }
+
+      if (ts.isIdentifier(spread.node) && !spread.asserted) {
+        const local = locals.get(spread.node.text);
+        const resolved = local ? strip(local.init) : null;
+        const branches = [];
+        if (resolved && !resolved.asserted) {
+          if (ts.isConditionalExpression(resolved.node)) {
+            const whenTrue = strip(resolved.node.whenTrue);
+            const whenFalse = strip(resolved.node.whenFalse);
+            if (
+              ts.isObjectLiteralExpression(whenTrue.node) &&
+              ts.isObjectLiteralExpression(whenFalse.node) &&
+              !whenTrue.asserted &&
+              !whenFalse.asserted
+            ) {
+              branches.push(whenTrue.node, whenFalse.node);
+            }
+          } else if (ts.isObjectLiteralExpression(resolved.node)) {
+            branches.push(resolved.node);
+          }
+        }
+        if (branches.length > 0) {
+          // Resolvable: transparent for THIS literal, judged on its own terms.
+          const sourceChecked = isActionDefType(local.type) || resolved.satisfied;
+          for (const branch of branches) {
+            walk(branch, sourceChecked, `\`const ${spread.node.text}\` in ${surface.file}`, depth + 1);
+          }
+          continue;
+        }
+      }
+
+      opaque.push(
+        ts.isIdentifier(spread.node) && !spread.asserted ? `...${spread.node.text}` : "...<unresolvable expression>"
+      );
+    }
+
+    const explicit = explicitKeysOf(obj);
+    if (explicit.length === 0) return; // Only spreads — nothing for freshness to check.
+
+    if (!checked) {
+      violations.push({
+        origin,
+        cause: "it is neither the `execute({…})` argument nor a binding annotated `ActionDef`, or it sits behind an `as` assertion",
+        keys: explicit,
+      });
+      return;
+    }
+    if (opaque.length > 0) {
+      const declared = opaque.filter((s) => opaqueSpreads[`${surface.id}:${s.replace(/^\.\.\./, "")}`]);
+      violations.push({
+        origin,
+        cause:
+          `it spreads ${opaque.join(", ")}, which this gate cannot resolve to object literals` +
+          (declared.length > 0
+            ? " (an OPAQUE_SPREADS entry declares it for the PARITY diff — that says the spread carries no authored key, " +
+              "which is a different question from whether it switches the compiler's check off; the measured live case, " +
+              "`localContext`, is typed `any` and does)"
+            : ""),
+        keys: explicit,
+      });
+    }
+  };
+
+  const calls = [];
+  const findCalls = (node) => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "execute") {
+      if (node.arguments.length === 1) calls.push(node.arguments[0]);
+    }
+    ts.forEachChild(node, findCalls);
+  };
+  findCalls(sf);
+  // Arity/shape failures are `forwardedKeys`' red to raise, with its own message.
+  if (calls.length !== 1) return [];
+
+  const argument = strip(calls[0]);
+  if (!ts.isObjectLiteralExpression(argument.node)) return [];
+  walk(argument.node, !argument.asserted, `the \`execute({…})\` payload in ${surface.file}`, 0);
+
+  return violations;
+}
+
+// ── 5. Diff ──────────────────────────────────────────────────────────────────
 /**
  * `owed − forwarded − excused = ∅`, per surface.
  *
@@ -629,6 +882,7 @@ export function analyze(root = REPO_ROOT, options = {}) {
     justified = JUSTIFIED,
     knownGaps = KNOWN_GAPS,
     opaqueSpreads = OPAQUE_SPREADS,
+    uncheckedForwards = UNCHECKED_FORWARDS,
     spec = null,
     uiActionView = UI_ACTION_VIEW,
     actionKeysModule = ACTION_KEYS_MODULE,
@@ -647,6 +901,7 @@ export function analyze(root = REPO_ROOT, options = {}) {
   const errors = [];
   const matchedJustified = new Set();
   const matchedGaps = new Set();
+  const matchedUnchecked = new Set();
   const report = [];
 
   for (const surface of surfaces) {
@@ -679,6 +934,31 @@ export function analyze(root = REPO_ROOT, options = {}) {
       } else unexcused.push(key);
     }
 
+    // Is the payload even excess-property checked? A surface can forward every
+    // key it owes (green above) and still absorb an invented one in silence —
+    // objectui#4281, where two of the four action renderers did exactly that.
+    const unchecked = uncheckedForwardLiterals(root, surface, opaqueSpreads);
+    if (unchecked.length > 0 && uncheckedForwards[surface.id]) {
+      matchedUnchecked.add(surface.id);
+    } else if (unchecked.length > 0) {
+      for (const violation of unchecked) {
+        errors.push(
+          `${surface.id} writes ${violation.keys.length} forward key` +
+            `${violation.keys.length === 1 ? "" : "s"} into a literal TypeScript does NOT excess-property check.\n` +
+            `      Literal: ${violation.origin}\n` +
+            `      Cause:   ${violation.cause}\n` +
+            `      Keys:    \`${violation.keys.join("`, `")}\`\n` +
+            "      So `ActionDef` being closed (objectui#4046) buys this surface nothing: an invented or\n" +
+            "      misspelled key here compiles, publishes, and reaches a runner that silently does\n" +
+            "      nothing — objectstack#2169's shape, which #4046 exists to make a compile error.\n" +
+            "      FIX: hoist the explicit keys into an annotated binding and compose the spreads around\n" +
+            "      it — `const forwarded: ActionDef = { … }; execute({ ...forwarded, ...rest })`. The\n" +
+            "      annotation is what restores the check; hoisting alone does not (an unannotated\n" +
+            "      `const base = {…}` is not checked either). See objectui#4281 for the measurements."
+        );
+      }
+    }
+
     report.push({
       surface,
       owed,
@@ -687,6 +967,7 @@ export function analyze(root = REPO_ROOT, options = {}) {
       justified: excusedJustified,
       gaps: excusedGaps,
       unexcused,
+      unchecked,
     });
 
     if (unexcused.length > 0) {
@@ -719,6 +1000,15 @@ export function analyze(root = REPO_ROOT, options = {}) {
     errors.push(
       `KNOWN_GAPS entry \`${entry}\` is no longer a gap — delete it (and close #${meta.issue} once\n` +
         "      its last entry is gone). Left in, it re-reserves the key for a future drop."
+    );
+  }
+  for (const [surfaceId, meta] of Object.entries(uncheckedForwards)) {
+    if (matchedUnchecked.has(surfaceId)) continue;
+    errors.push(
+      `UNCHECKED_FORWARDS entry \`${surfaceId}\` excuses nothing — the surface's forward literal is\n` +
+        `      excess-property checked now, or the surface is gone. Delete it (and close #${meta.issue} once\n` +
+        "      its last entry is gone): left in, it re-reserves the surface for a future unchecked\n" +
+        "      literal under a reason nobody re-examined."
     );
   }
   for (const entry of Object.keys(opaqueSpreads)) {
@@ -754,21 +1044,24 @@ if (invokedDirectly) {
   if (errors.length === 0) {
     const gaps = Object.keys(KNOWN_GAPS).length;
     const justifiedCount = Object.keys(JUSTIFIED).length;
+    const exempt = Object.keys(UNCHECKED_FORWARDS).length;
     console.log(
       `✅  action forward parity: ${SURFACES.length} surfaces checked against ${runtimeRead.size} runtime-read keys ` +
         `from ${perFile.size} consumers; ${justifiedCount} justified omission` +
-        `${justifiedCount === 1 ? "" : "s"}, ${gaps} known gap${gaps === 1 ? "" : "s"}.`
+        `${justifiedCount === 1 ? "" : "s"}, ${gaps} known gap${gaps === 1 ? "" : "s"}, ` +
+        `${exempt} payload${exempt === 1 ? "" : "s"} exempt from the freshness rule.`
     );
     for (const r of report) {
       console.log(
         `    ${r.surface.id.padEnd(14)} owes ${String(r.owed.length).padStart(2)}, ` +
-          `forwards ${String(r.forwarded.length).padStart(2)}`
+          `forwards ${String(r.forwarded.length).padStart(2)}, ` +
+          `payload ${r.unchecked.length === 0 ? "excess-property CHECKED" : "unchecked (declared)"}`
       );
     }
     process.exit(0);
   }
 
-  console.error("❌  an action renderer drops a key the runtime reads:\n");
+  console.error("❌  an action renderer drops a key the runtime reads, or writes one into an unchecked literal:\n");
   for (const message of errors) console.error(`    • ${message}\n`);
   console.error(
     "Every instance of this class shipped green: the key parses, publishes, and reads as\n" +

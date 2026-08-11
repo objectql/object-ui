@@ -14,9 +14,11 @@ import {
   runtimeReadKeys,
   retiredKeys,
   uiActionViewKeys,
+  uncheckedForwardLiterals,
   JUSTIFIED,
   KNOWN_GAPS,
   OPAQUE_SPREADS,
+  UNCHECKED_FORWARDS,
   SURFACES,
   RUNTIME_CONSUMERS,
 } from '../check-action-forward-parity.mjs';
@@ -129,6 +131,7 @@ function judge(
       justified: {},
       knownGaps: {},
       opaqueSpreads: {},
+      uncheckedForwards: {},
       uiActionView: UI_VIEW,
       actionKeysModule: KEYS_MODULE,
       ...options,
@@ -298,10 +301,29 @@ describe('extraction failure throws rather than returning a clean verdict', () =
   });
 
   it('but an OPAQUE_SPREADS entry declares one whose source cannot carry action keys', () => {
+    // The PARITY dimension is excused: the spread carries no authored key, so it
+    // can neither satisfy nor violate the owed-set diff. That is a different
+    // question from whether it switches the compiler's check off — which it
+    // does, and which the freshness half reports separately (objectui#4281).
+    // Both exemptions together are what "green" costs for this shape.
+    const { errors } = judge(repoWith('{ target, undoable, description, ...mystery }'), {
+      opaqueSpreads: { 'action:x:mystery': { reason: 'the host context bag, not the action' } },
+      uncheckedForwards: { 'action:x': { reason: 'declared unchecked', issue: 1 } },
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it('and an OPAQUE_SPREADS entry alone does NOT excuse the literal being unchecked', () => {
+    // The regression this pins: excusing a spread for parity used to be the only
+    // judgement the gate made about it, so `action:button` and `action:icon` were
+    // green while absorbing invented keys (objectui#4281). One exemption, two
+    // questions — the parity one must not silently answer the freshness one.
     const { errors } = judge(repoWith('{ target, undoable, description, ...mystery }'), {
       opaqueSpreads: { 'action:x:mystery': { reason: 'the host context bag, not the action' } },
     });
-    expect(errors).toEqual([]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('does NOT excess-property check');
+    expect(errors[0]).toContain('...mystery');
   });
 
   it('resolves a conditional payload fragment and unions BOTH branches', () => {
@@ -310,9 +332,12 @@ describe('extraction failure throws rather than returning a clean verdict', () =
     const fixture: Fixture = {
       files: {
         ...repoWith('{}').files,
+        // Annotated because the freshness half judges a spread SOURCE too (see
+        // the `objectui#4281` describe below); the parity property under test —
+        // that BOTH branches count as forwarded — is unaffected either way.
         [RENDERER]:
           'export const R = () => {\n' +
-          '  const frag = cond ? { undoable } : { description };\n' +
+          '  const frag: ActionDef = cond ? { undoable } : { description };\n' +
           '  void execute({ target, ...frag });\n' +
           '};\n',
       },
@@ -388,6 +413,185 @@ describe('extraction failure throws rather than returning a clean verdict', () =
   });
 });
 
+// -- freshness: is the forward literal CHECKED at all? ------------------------
+
+/**
+ * objectui#4281 — the second half of the guarantee.
+ *
+ * #4046 closed `ActionDef` so an invented key at a forward site is a `TS2353`.
+ * It held at two of the four action renderers and not the other two, and nothing
+ * said so: the parity half above was green for all four, because a key nobody
+ * MEANT to write is not a key that was DROPPED. These cases pin the structural
+ * rule that separates them.
+ *
+ * The rule is deliberately STRICTER than TypeScript's own, because this gate has
+ * no type checker — see the script's section 4. Where a case below is red but
+ * the compiler would accept it, that is the conservative direction and is noted
+ * on the case.
+ */
+describe('a forward literal must be one the compiler excess-property checks', () => {
+  const OWED = '{ target, undoable, description }';
+
+  it('is green when the payload is a plain literal — the action:group / action:menu shape', () => {
+    const { errors, report } = judge(repoWith(OWED));
+    expect(errors).toEqual([]);
+    expect(report[0].unchecked).toEqual([]);
+  });
+
+  it('is red when an unresolvable spread rides in the literal — the action:button / action:icon shape', () => {
+    // Measured cause (objectui#4281): `localContext` is `any`, because
+    // `PropsWithoutRef` collapses an index-signature props interface, and a
+    // literal spreading an `any` is not checked. An AST cannot see the type, so
+    // any unresolvable spread is red.
+    const { errors } = judge(repoWith(`{ target, undoable, description, ...localContext }`), {
+      opaqueSpreads: { 'action:x:localContext': { reason: 'the host context bag' } },
+    });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('action:x');
+    expect(errors[0]).toContain('does NOT excess-property check');
+    expect(errors[0]).toContain('`target`');
+  });
+
+  it('is green once the keys are hoisted into an ActionDef-annotated binding — the fix', () => {
+    const fixture: Fixture = {
+      files: {
+        ...repoWith('{}').files,
+        [RENDERER]:
+          'export const R = () => {\n' +
+          '  const forwarded: ActionDef = { target, undoable, description };\n' +
+          '  void execute({ ...forwarded, ...localContext });\n' +
+          '};\n',
+      },
+    };
+    const { errors, report } = judge(fixture, {
+      opaqueSpreads: { 'action:x:localContext': { reason: 'the host context bag' } },
+    });
+    expect(errors).toEqual([]);
+    expect(report[0].forwarded).toEqual(['description', 'target', 'undoable']);
+  });
+
+  it('is red when the hoisted binding carries no annotation — hoisting alone is not the fix', () => {
+    // The hole a naive reading of "hoist the spread out" leaves: an unannotated
+    // `const base = {…}` has no contextual type, so its own keys are not checked
+    // either. Measured — probe M in objectui#4281.
+    const fixture: Fixture = {
+      files: {
+        ...repoWith('{}').files,
+        [RENDERER]:
+          'export const R = () => {\n' +
+          '  const forwarded = { target, undoable, description };\n' +
+          '  void execute({ ...forwarded, ...localContext });\n' +
+          '};\n',
+      },
+    };
+    const { errors } = judge(fixture, {
+      opaqueSpreads: { 'action:x:localContext': { reason: 'the host context bag' } },
+    });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('neither the `execute({…})` argument nor a binding annotated `ActionDef`');
+  });
+
+  it('is red when the payload is cast away — `as any` switches the check off entirely', () => {
+    // element:button's live shape, and why it needs a declared exemption rather
+    // than the hoist: an assertion asks only for comparability, so excess keys
+    // are accepted whatever the asserted type is.
+    const { errors } = judge(repoWith(`${OWED} as any`));
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('sits behind an `as` assertion');
+  });
+
+  it('judges a resolvable spread SOURCE by the same rule — its keys are not checked either', () => {
+    // The second hole objectui#4281 measured (probe Q): a spread source's own
+    // keys ride unchecked through the spread. `action:button`'s `paramsPayload`
+    // was exactly this, and the fix annotates it too.
+    const unannotated: Fixture = {
+      files: {
+        ...repoWith('{}').files,
+        [RENDERER]:
+          'export const R = () => {\n' +
+          '  const frag = cond ? { undoable } : { description };\n' +
+          '  void execute({ target, ...frag });\n' +
+          '};\n',
+      },
+    };
+    // One violation per BRANCH — each is its own literal, and each names the key
+    // riding free in it, so a reader is not left to guess which arm is unchecked.
+    const { errors } = judge(unannotated);
+    expect(errors).toHaveLength(2);
+    for (const error of errors) expect(error).toContain('`const frag`');
+    expect(errors.join('\n')).toContain('`undoable`');
+    expect(errors.join('\n')).toContain('`description`');
+
+    const annotated: Fixture = {
+      files: {
+        ...repoWith('{}').files,
+        [RENDERER]:
+          'export const R = () => {\n' +
+          '  const frag: ActionDef = cond ? { undoable } : { description };\n' +
+          '  void execute({ target, ...frag });\n' +
+          '};\n',
+      },
+    };
+    expect(judge(annotated).errors).toEqual([]);
+  });
+
+  it('accepts `satisfies ActionDef` as well as an annotation — both keep the check on', () => {
+    // Measured in both directions: `satisfies` preserves the excess-property
+    // check, `as` removes it. The gate must not conflate them.
+    const fixture: Fixture = {
+      files: {
+        ...repoWith('{}').files,
+        [RENDERER]:
+          'export const R = () => {\n' +
+          '  const forwarded = { target, undoable, description } satisfies ActionDef;\n' +
+          '  void execute({ ...forwarded, ...localContext });\n' +
+          '};\n',
+      },
+    };
+    const { errors } = judge(fixture, {
+      opaqueSpreads: { 'action:x:localContext': { reason: 'the host context bag' } },
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it('is green for a literal that is nothing but spreads — there is no key to check', () => {
+    const fixture: Fixture = {
+      files: {
+        ...repoWith('{}').files,
+        [RENDERER]:
+          'export const R = () => {\n' +
+          '  const forwarded: ActionDef = { target, undoable, description };\n' +
+          '  void execute({ ...forwarded });\n' +
+          '};\n',
+      },
+    };
+    expect(judge(fixture).errors).toEqual([]);
+  });
+
+  it('an UNCHECKED_FORWARDS entry excuses the surface, and is ratcheted like the others', () => {
+    const broken = repoWith(`${OWED} as any`);
+    expect(judge(broken, { uncheckedForwards: { 'action:x': { reason: 'declared', issue: 1 } } }).errors).toEqual([]);
+
+    // …and an entry that excuses nothing must go, or it reserves the surface for
+    // a future unchecked literal under a reason nobody re-examined.
+    const { errors } = judge(repoWith(OWED), {
+      uncheckedForwards: { 'action:x': { reason: 'stale — the payload is checked now', issue: 4321 } },
+    });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('excuses nothing');
+    expect(errors[0]).toContain('#4321');
+  });
+
+  it('reports the unchecked keys, not just the fact — a reader must see what rides free', () => {
+    const { errors } = judge(repoWith('{ target, undoable, description, ...ctx }'), {
+      opaqueSpreads: { 'action:x:ctx': { reason: 'the host context bag' } },
+    });
+    for (const key of ['target', 'undoable', 'description']) {
+      expect(errors[0], `${key} is not named`).toContain(`\`${key}\``);
+    }
+  });
+});
+
 // -- the real repository ------------------------------------------------------
 
 describe('the real repository', () => {
@@ -410,6 +614,35 @@ describe('the real repository', () => {
     expect(real.runtimeRead.size).toBeGreaterThan(20);
     for (const consumer of RUNTIME_CONSUMERS) {
       expect(real.perFile.get(consumer.file)?.size ?? 0, `${consumer.file} read nothing`).toBeGreaterThan(0);
+    }
+  });
+
+  it('holds objectui#4281: all four action renderers write into a CHECKED literal', () => {
+    // The card's measurement, pinned. `action:group` / `action:menu` were always
+    // checked; `action:button` / `action:icon` absorbed invented keys until their
+    // explicit keys were hoisted into an `ActionDef`-annotated binding. A future
+    // renderer written in the broken shape fails here rather than shipping.
+    for (const id of ['action:button', 'action:icon', 'action:group', 'action:menu']) {
+      const surface = SURFACES.find((s) => s.id === id);
+      expect(surface, `${id} is no longer a surface`).toBeDefined();
+      expect(uncheckedForwardLiterals(repoRoot, surface), `${id}'s forward literal is unchecked`).toEqual([]);
+      expect(UNCHECKED_FORWARDS[id], `${id} must not be exempt — it is fixed`).toBeUndefined();
+    }
+  });
+
+  it('every UNCHECKED_FORWARDS entry names a surface that really is unchecked', () => {
+    // Same shrink-only governance as the tables above: the exemption cannot
+    // outlive the shape it excuses. `analyze()` enforces this too; asserting it
+    // here as well is what keeps the entry honest if the CLI half ever changes.
+    for (const [id, meta] of Object.entries(UNCHECKED_FORWARDS)) {
+      const surface = SURFACES.find((s) => s.id === id);
+      expect(surface, `UNCHECKED_FORWARDS names ${id}, which is not a surface`).toBeDefined();
+      expect(
+        uncheckedForwardLiterals(repoRoot, surface).length,
+        `${id} is checked now — delete its exemption`,
+      ).toBeGreaterThan(0);
+      expect(meta.reason.length, `${id} has no reason`).toBeGreaterThan(80);
+      expect(typeof meta.issue, `${id} cites no issue`).toBe('number');
     }
   });
 
