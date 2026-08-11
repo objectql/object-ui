@@ -14,7 +14,7 @@ import { RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFi
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
-import { ActionProvider, useObjectTranslation, useObjectLabel, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, InlineEditProvider, useGlobalUndo, useDataInvalidation, notifyDataChanged } from '@object-ui/react';
+import { ActionProvider, useObjectTranslation, useObjectLabel, useActionTextLocalizer, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, InlineEditProvider, useGlobalUndo, useDataInvalidation, notifyDataChanged } from '@object-ui/react';
 import { buildExpandFields } from '@object-ui/core';
 import { toast } from 'sonner';
 import { useRecordPresence, PresenceAvatars } from '@object-ui/collaboration';
@@ -263,7 +263,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     };
   }, [originFromState, location.search, appName]);
   const { t, language } = useObjectTranslation();
-  const { objectLabel, viewLabel: _vLabel, sectionLabel, actionLabel, actionConfirm, actionSuccess, actionParamText, actionParamOptionLabel, actionDescription, actionResultDialog, fieldLabel, fieldOptionLabel } = useObjectLabel();
+  const { objectLabel, viewLabel: _vLabel, sectionLabel, actionParamText, actionParamOptionLabel, actionDescription, actionResultDialog, fieldLabel, fieldOptionLabel } = useObjectLabel();
+  // label + confirmText + successMessage through ONE call (objectui#4265) —
+  // the three keys of an `_actions.<name>` bundle entry can no longer be
+  // localized apart from one another on this surface.
+  const localizeActionTexts = useActionTextLocalizer();
   const { isFavorite, toggleFavorite, refreshLabel: refreshFavoriteLabel } = useFavorites();
   const { addRecentItem } = useRecentItems();
   const [isLoading, setIsLoading] = useState(true);
@@ -1725,16 +1729,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         if (seen.has(a.name)) return false;
         seen.add(a.name);
         return true;
-      }).map((a: any) => ({
-        ...a,
-        label: actionLabel(objectDef.name, a.name, a.label || a.name),
-        ...(a.confirmText !== undefined && {
-          confirmText: actionConfirm(objectDef.name, a.name, a.confirmText),
-        }),
-        ...(a.successMessage !== undefined && {
-          successMessage: actionSuccess(objectDef.name, a.name, a.successMessage),
-        }),
-      }));
+      }).map((a: any) => localizeActionTexts(objectDef.name, a));
 
       // ⛔ No approval actions are injected here any more (objectui#3055).
       // They used to be two hand-written buttons (approve/reject only, no
@@ -2163,7 +2158,6 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                 appName={appName}
                 objects={objects}
                 dataSource={dataSource}
-                actionLabel={actionLabel}
                 parentObjectName={objectName}
                 parentRecordId={pureRecordId ?? undefined}
                 parentTitle={recordTitle}

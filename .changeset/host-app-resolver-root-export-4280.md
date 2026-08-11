@@ -1,0 +1,14 @@
+---
+'@object-ui/app-shell': minor
+'@object-ui/console': minor
+---
+
+`resolveHostAppSegment` is published from `@object-ui/app-shell`'s package root, and the console's local copy of it is deleted
+
+Which app should host a framework-owned, app-INDEPENDENT page — the Approvals Inbox, the full inbox, an internal form's created record — is one hard-won definition, and `resolveHostAppSegment`'s docblock says so at length: prefer the app the user is in or last had open RE-CHECKED against the live active list, else their first active app, else the two last resorts. It lived in `app-shell/src/utils/appRoute.ts`, and `packages/app-shell` published only its package root, which re-exported `./utils` nowhere. So the definition was unreachable from every consumer outside the package.
+
+Something outside the package needed it anyway. objectui#4109 had to name a host app for the record an internal `/forms/:name` submit creates, could not import the resolver, and shipped a documented local subset instead: steps 1 and 2 only, returning `null` where upstream falls through further. That is the "two readers of one prose contract" shape this repo keeps paying for (#3367 / #3842) — the next edit to the resolution order lands on one copy — and the divergence was disclosed rather than smuggled precisely so it could be collected later. This is that collection.
+
+`resolveHostAppSegment` is now exported from the package root, alongside the two predicates it is defined in terms of (`appRouteSegment`, `filterActiveApps`), and the console's copy is gone: `createdRecordPath.ts` holds the URL shape and delegates the choice. The app record type it accepts is derived from the resolver's own signature rather than re-declared, so the call site cannot drift from it either.
+
+**Behaviour change on the created-record redirect.** Converging on the full resolver means the two cases the subset answered `null` for now name an app. An empty openable list with a preferred app keeps that preferred app unchecked — an empty list means "not loaded yet" at least as often as "this user has no apps", and demoting someone demonstrably rendering inside `/apps/{preferred}/…` would reintroduce the defect objectui#4074 removed. Anything else unresolvable — no apps and nothing preferred, or apps carrying neither `_packageId` nor `name` — lands on `setup`, the least-surprising last resort rather than a broken link. Concretely: an internal form submit that previously stopped on FormPage's in-place confirmation ("no record page to land on") now navigates to the record under the resolved app, which is the same answer every other record link in the console already gives. The write itself was never at stake, only where the user is put afterwards. The remaining `null` from `buildCreatedRecordPath` means what it always should have: there is no record to point at, because the caller has no object or no id.

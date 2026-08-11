@@ -70,7 +70,7 @@ import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
-import { ActionProvider, useNavigationOverlay, SchemaRenderer } from '@object-ui/react';
+import { ActionProvider, useNavigationOverlay, SchemaRenderer, useActionTextLocalizer } from '@object-ui/react';
 import { toast } from 'sonner';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
 import { useEnvironmentEntitlements } from '../environment/useEnvironmentEntitlements';
@@ -521,7 +521,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const location = useLocation();
     const { showDebug } = useMetadataInspector();
     const { t } = useObjectTranslation();
-    const { objectLabel, objectDescription: objectDesc, viewLabel, viewEmptyState, actionLabel, actionConfirm, actionSuccess, actionParamText, fieldLabel, fieldOptionLabel } = useObjectLabel();
+    const { objectLabel, objectDescription: objectDesc, viewLabel, viewEmptyState, actionParamText, fieldLabel, fieldOptionLabel } = useObjectLabel();
+    // label + confirmText + successMessage through ONE call (objectui#4265).
+    const localizeActionTexts = useActionTextLocalizer();
     const { isFavorite, toggleFavorite } = useFavorites();
     // ADR-0105: under group posture default list columns get a trailing
     // organization_id attribution column (reads span all the user's orgs).
@@ -743,13 +745,8 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // Localized `list_toolbar` actions, shared by the generic action bar and the
     // environment-aware toolbar (the action:bar renderer filters by location).
     const localizedToolbarActions = useMemo(
-        () => (objectDef.actions || []).map((a: any) => ({
-            ...a,
-            label: actionLabel(objectDef.name, a.name, a.label || a.name),
-            ...(a.confirmText !== undefined && { confirmText: actionConfirm(objectDef.name, a.name, a.confirmText) }),
-            ...(a.successMessage !== undefined && { successMessage: actionSuccess(objectDef.name, a.name, a.successMessage) }),
-        })),
-        [objectDef, actionLabel, actionConfirm, actionSuccess],
+        () => (objectDef.actions || []).map((a: any) => localizeActionTexts(objectDef.name, a)),
+        [objectDef, localizeActionTexts],
     );
 
     // Resolve which generic CRUD affordances belong in the toolbar for
@@ -1637,20 +1634,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     .filter((a: any) =>
                       Array.isArray(a?.locations) && a.locations.includes('list_item'))
                     // Localize label / confirm / success the same way the
-                    // record_header and list_toolbar paths do — the row kebab
-                    // previously rendered raw English `a.label`. The `visible`
-                    // CEL is forwarded untouched (spread) and evaluated per-row
-                    // at render time inside RowActionMenu.
-                    .map((a: any) => ({
-                      ...a,
-                      label: actionLabel(objectDef.name, a.name, a.label || a.name),
-                      ...(a.confirmText !== undefined && {
-                        confirmText: actionConfirm(objectDef.name, a.name, a.confirmText),
-                      }),
-                      ...(a.successMessage !== undefined && {
-                        successMessage: actionSuccess(objectDef.name, a.name, a.successMessage),
-                      }),
-                    }))
+                    // record_header and list_toolbar paths do — through the ONE
+                    // shared resolver (objectui#4265), so this surface cannot
+                    // drift back to a label-only resolution. The `visible` CEL
+                    // is forwarded untouched (spread inside the localizer) and
+                    // evaluated per-row at render time inside RowActionMenu.
+                    .map((a: any) => localizeActionTexts(objectDef.name, a))
                 : []),
             /**
              * Selection-bar actions. Unlike `rowActionDefs` above, these are

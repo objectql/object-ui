@@ -40,7 +40,19 @@ const conflictError = () =>
     currentRecord: { id: 'r1', name: 'Theirs', updated_at: NEWER_VERSION },
   });
 
-const makeDS = (update = vi.fn(async (_o: string, _id: string, d: any) => ({ id: 'r1', ...d }))) => ({
+// The stub declares the FOURTH parameter because that is the one under test:
+// `DataSource.update` is `(resource, id, data, opts?: { ifMatch?: string })`
+// (packages/types/src/data.ts), and the whole point of these cases is which
+// `ifMatch` the save carries. A stub with three parameters still records the
+// real fourth argument at runtime — vitest does — so `mock.calls[0][3]` passed
+// while the compiler was told the call tuple has length 3, and the assertion
+// that the unguarded write sends NO options was reading past the end of a
+// declared tuple rather than checking the declared option bag (#4040).
+const makeDS = (
+  update = vi.fn(
+    async (_o: string, _id: string, d: any, _opts?: { ifMatch?: string }) => ({ id: 'r1', ...d }),
+  ),
+) => ({
   getObjectSchema: vi.fn().mockResolvedValue(objectSchema),
   findOne: vi.fn().mockResolvedValue({ id: 'r1', name: 'Mine', updated_at: VERSION }),
   create: vi.fn(),

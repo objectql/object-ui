@@ -320,9 +320,16 @@ describe('deriveDetail hydrates explicit-but-untyped override columns', () => {
 describe('resolveInlineMode (grid vs form)', () => {
   const thin = { fields: { name: { type: 'text' }, amount: { type: 'currency' }, parent: { type: 'master_detail', reference: 'p' } } };
   const rich = { fields: { name: { type: 'text' }, notes: { type: 'textarea' }, parent: { type: 'master_detail', reference: 'p' } } };
+  // The entry type is written out because the nine plain fields and the tenth
+  // relation field do NOT have the same shape — only the relation carries
+  // `reference`. Left to inference the `.map()` produces `{ type: string }`
+  // entries and `.concat()` then rejects the relation for the extra key, which
+  // reads as "the fixture is wrong" when the fixture is exactly right.
+  type FieldEntry = [string, Record<string, string>];
   const wide = {
     fields: Object.fromEntries(
-      ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map((n) => [n, { type: 'text' }])
+      ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']
+        .map((n): FieldEntry => [n, { type: 'text' }])
         .concat([['parent', { type: 'master_detail', reference: 'p' }]]),
     ),
   };

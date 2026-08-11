@@ -1,7 +1,7 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import { describe, it, expect } from 'vitest';
-import { resolveLandingPath } from './RootLandingRedirect';
+import { resolveLandingPath, isAppListConclusive } from './RootLandingRedirect';
 
 describe('resolveLandingPath', () => {
   it('routes to the App marked isDefault (isDefault now ROUTES, not just badges)', () => {
@@ -135,5 +135,41 @@ describe('resolveLandingPath', () => {
 
   it('ignores entries without a name', () => {
     expect(resolveLandingPath([{ isDefault: true }, { name: 'real' }])).toBe('/apps/real');
+  });
+});
+
+// ── objectui#4233 — "empty" and "unknown" are different facts ────────────
+//
+// Note what is NOT changed above: every `resolveLandingPath` pin, including
+// `[]` → `/home`, still holds. `[]` remains a legitimate input with a
+// legitimate answer — the fallthrough is correct when the emptiness is REAL.
+// What the resolver never had was the ability to tell a real emptiness from a
+// `GET /meta/app` that 401'd or 5xx'd, because `MetadataProvider.ensureType`
+// catches and resolves `[]`: nothing rejects, `loading` goes false, and the
+// error arrives wearing the same shape as the answer.
+//
+// This predicate is the seam, and it deliberately reads the metadata context's
+// OWN per-type status rather than introducing a second dialect of
+// loading/auth state for the landing path to consult.
+describe('isAppListConclusive — is this list an answer, or an unknown?', () => {
+  it('trusts a settled `ready` list — the fetch happened and this is what came back', () => {
+    expect(isAppListConclusive('ready')).toBe(true);
+  });
+
+  it('THE FIX: refuses an `error` list — empty-because-401 is UNKNOWN, not "no apps"', () => {
+    expect(isAppListConclusive('error')).toBe(false);
+  });
+
+  it('refuses a list that is still in flight or was never asked for', () => {
+    expect(isAppListConclusive('loading')).toBe(false);
+    expect(isAppListConclusive('idle')).toBe(false);
+  });
+
+  it('treats an absent status as ready — the context documents `getTypeStatus` as optional', () => {
+    // `MetadataContextValue.getTypeStatus` is declared optional so hand-rolled
+    // context values (tests, embedders) keep working, and its own doc comment
+    // states "absent means always ready". Reading `undefined` as inconclusive
+    // would hang every such consumer on the loading fallback forever.
+    expect(isAppListConclusive(undefined)).toBe(true);
   });
 });
