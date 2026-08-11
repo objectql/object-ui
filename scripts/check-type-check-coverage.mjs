@@ -602,8 +602,29 @@ export function auditPackages(packages, tables = {}) {
   // files with a `tsconfig.typetests.json` that lists them explicitly, instead of
   // waiting for the whole backlog. This section keeps that project honest — it is
   // worth exactly as much as the gate that runs it, and nothing at all otherwise.
+  //
+  // It is a RESCUE HATCH, so it is scoped to the emergency: once the package's
+  // full test project compiles everything, the narrow one names a file that is
+  // already compiled, and the repo is back to two spellings of what gets checked
+  // — the shape objectui#3009/#4040 exist to remove, costing one extra `tsc` per
+  // `type-check` and one more config to keep in step. objectui#4291 retired the
+  // six that had graduated; this ratchet is what stops the seventh appearing.
   for (const pkg of packages) {
     if (!pkg.hasTypeTestsConfig) continue;
+
+    // Redundant, not merely unnecessary: `testsCovered` is true only when every
+    // test file the build program skips is read by the chained `tsconfig.test.json`
+    // — which includes whichever file this narrow project names.
+    if (testsCovered(pkg)) {
+      errors.push(
+        `${pkg.name} (${pkg.dir}) type-checks its whole test tree now, so its tsconfig.typetests.json\n` +
+          `      is redundant: every file it names is already compiled by the tsconfig.test.json chained\n` +
+          `      off "type-check". Delete the narrow project and its "type-check" chain entry — keeping\n` +
+          `      both is a second spelling of what gets compiled, and one extra tsc per run (objectui#4291).\n` +
+          `      It exists only as a rescue hatch for a package still in TEST_DEBT.`
+      );
+      continue;
+    }
 
     if (!pkg.chainsTypeTestsConfig) {
       errors.push(

@@ -131,7 +131,8 @@ describe('the renderers are components, and the spec names are metadata', () => 
 
 /* -------------------------------------------------------------------------- */
 /* Compile-time pins. A violation is a `tsc` error, not a runtime failure.      */
-/* Compiled by this package's `tsconfig.typetests.json` (objectui#3181).       */
+/* Compiled by this package's `tsconfig.test.json` (objectui#3181; the narrow  */
+/* project that named this file alone was retired in objectui#4291).           */
 /* -------------------------------------------------------------------------- */
 
 type Assert<T extends true> = T;
@@ -169,9 +170,11 @@ describe('ViewTab derives from the spec schema, on the authoring side', () => {
     // — passing on nothing — which is the swap objectui#4189 avoided for
     // `ThemeInput`/`Theme` in the same release. Same fix, different package;
     // this one was invisible until objectui#4163 cleared the `I18nLabel`
-    // errors in `TabBar.tsx`, because `type-check` is
+    // errors in `TabBar.tsx`, because `type-check` was at the time
     // `tsc --noEmit && tsc -p tsconfig.typetests.json` and the `&&` never
-    // reached this project.
+    // reached that project. The `&&` short-circuit is still the shape to watch:
+    // a type error anywhere earlier in the chain stops these pins being checked
+    // at all, which is why the chain is kept as short as it now is.
     type _ParsedRequiresPinned = Assert<Equal<IsOptional<SpecViewTabParsed, 'pinned'>, false>>;
     type _ParsedRequiresVisible = Assert<Equal<IsOptional<SpecViewTabParsed, 'visible'>, false>>;
     type _AuthoredMayOmitPinned = Assert<IsOptional<ViewTab, 'pinned'>>;
