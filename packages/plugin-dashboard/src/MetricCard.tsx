@@ -9,22 +9,22 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, getLazyIcon } from '@object-ui/components';
 import { cn } from '@object-ui/components';
+import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
+import type { I18nLabel } from '@object-ui/types';
 import { ArrowDownIcon, ArrowUpIcon, MinusIcon, AlertCircle, Loader2 } from 'lucide-react';
 
-/** Resolve an I18nLabel (string or {key, defaultValue}) to a plain string. */
-function resolveLabel(label: string | { key?: string; defaultValue?: string } | undefined): string | undefined {
-  if (label === undefined || label === null) return undefined;
-  if (typeof label === 'string') return label;
-  return label.defaultValue || label.key;
-}
-
 export interface MetricCardProps {
-  title?: string | { key?: string; defaultValue?: string };
+  /**
+   * Card heading, in @objectstack/spec's `I18nLabel` vocabulary — a plain
+   * string or an inline per-locale map. See `MetricWidget.label` for why the
+   * retired `{ key, defaultValue }` form is no longer accepted (objectui#4032).
+   */
+  title?: string | I18nLabel;
   value: string | number;
   icon?: string;
   trend?: 'up' | 'down' | 'neutral';
   trendValue?: string;
-  description?: string | { key?: string; defaultValue?: string };
+  description?: string | I18nLabel;
   className?: string;
   /** When true, the card is in a loading state (fetching data from server). */
   loading?: boolean;
@@ -50,12 +50,14 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 }) => {
   // Resolve icon via lazy resolver — each icon ships as its own micro-chunk
   const IconComponent = icon ? getLazyIcon(icon) : null;
+  // Label text follows the active UI language (not the tenant's number locale).
+  const { language } = useObjectTranslation();
 
   return (
     <Card className={cn("h-full", className)} {...props}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">
-          {resolveLabel(title)}
+          {pickLocalized(title, language)}
         </CardTitle>
         {IconComponent && (
           // eslint-disable-next-line react-hooks/static-components -- getLazyIcon returns a module-cached stable component per name, not one created during render
@@ -91,7 +93,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
                     {trendValue}
                   </span>
                 )}
-                {resolveLabel(description)}
+                {pickLocalized(description, language)}
               </p>
             )}
           </>

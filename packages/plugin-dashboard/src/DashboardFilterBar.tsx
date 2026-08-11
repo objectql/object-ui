@@ -32,12 +32,41 @@ import {
   SelectValue,
 } from '@object-ui/components';
 import { CalendarIcon, RotateCcw } from 'lucide-react';
-import { useSafeTranslate } from '@object-ui/i18n';
+import { useSafeTranslate, useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import {
   DATE_RANGE_PRESETS,
   type DashboardFilterDef,
   type DateRangeValue,
 } from '@object-ui/core';
+
+/**
+ * The filter's display name for the active UI language (objectui#4032, merged
+ * scope from the #4163 part-1 audit).
+ *
+ * `GlobalFilterSchema.label` is the spec's `I18nLabel`, so an author may write
+ * an inline per-locale map. Every read site below used to be `def.label ||
+ * def.name`, which is wrong TWICE over:
+ *
+ *  1. a map reached a text node / `aria-label` / `placeholder` and stringified
+ *     to `[object Object]` — in the Select's case inside a template literal,
+ *     rendering `[object Object]: All`;
+ *  2. an object is ALWAYS TRUTHY, so `||` never fell through to `def.name` —
+ *     not even for `{}`, or a map with no entry for any locale. The same
+ *     truthiness fact #4163 pinned on `DashboardGridLayout`'s header gate.
+ *
+ * Resolving FIRST and testing the resolved string fixes both at once: there is
+ * one call, it yields a string, and the `||` fallback below is reached exactly
+ * when that string is empty.
+ *
+ * Returns `''` rather than applying a fallback itself, because the three
+ * controls do not share one: the built-in `dateRange` falls back to a
+ * TRANSLATED "Date range", the others to the raw `def.name`. Folding those
+ * together here would have made an unlabelled date filter read `dateRange`.
+ */
+function useFilterLabel(def: DashboardFilterDef): string {
+  const { language } = useObjectTranslation();
+  return pickLocalized(def.label, language);
+}
 
 /** Sentinel for the Select's clear item (Radix Select forbids empty values). */
 const ALL_VALUE = '__all__';
@@ -70,6 +99,7 @@ function toIsoDate(d: Date): string {
 
 function DateRangeFilter({ def, value, onChange }: { def: DashboardFilterDef; value: DateRangeValue | undefined; onChange: (v: DateRangeValue | undefined) => void }) {
   const tt = useSafeTranslate();
+  const label = useFilterLabel(def);
   const [customOpen, setCustomOpen] = useState(false);
   const allowCustom = def.allowCustomRange !== false;
   const presetLabel = (p: string) => tt(`dashboard.filters.range.${p}`, p.replace(/_/g, ' '));
@@ -86,7 +116,7 @@ function DateRangeFilter({ def, value, onChange }: { def: DashboardFilterDef; va
           else onChange({ preset: v });
         }}
       >
-        <SelectTrigger className="h-8 w-auto min-w-36 gap-1" aria-label={def.label || tt('dashboard.filters.dateRange', 'Date range')}>
+        <SelectTrigger className="h-8 w-auto min-w-36 gap-1" aria-label={label || tt('dashboard.filters.dateRange', 'Date range')}>
           <CalendarIcon className="size-3.5 opacity-60" />
           <SelectValue placeholder={tt('dashboard.filters.dateRange', 'Date range')}>
             {rangeLabel(value, presetLabel) ?? tt('dashboard.filters.allTime', 'All time')}
@@ -133,6 +163,8 @@ function DateRangeFilter({ def, value, onChange }: { def: DashboardFilterDef; va
 
 function SelectFilter({ def, value, onChange, dataSource }: { def: DashboardFilterDef; value: string | undefined; onChange: (v: string | undefined) => void; dataSource?: any }) {
   const tt = useSafeTranslate();
+  const { language } = useObjectTranslation();
+  const resolvedLabel = useFilterLabel(def);
   const [dynamicOptions, setDynamicOptions] = useState<Array<{ value: string; label: string }> | null>(null);
 
   // Dynamic options, server-side first (#2578 item 5): when the data source
@@ -217,13 +249,17 @@ function SelectFilter({ def, value, onChange, dataSource }: { def: DashboardFilt
   }, [from?.object, from?.valueField, from?.labelField, dataSource]);
 
   const options = useMemo(() => {
-    // def.options is already normalized to { value, label } pairs by
-    // resolveDashboardFilterDefs (spec object form and string shorthand alike).
-    if (def.options?.length) return def.options;
-    return dynamicOptions ?? [];
-  }, [def.options, dynamicOptions]);
+    // `def.options` is already normalized to `{ value, label }` PAIRS by
+    // `resolveDashboardFilterDefs`; the label's own vocabulary is not, and
+    // deliberately so (`@object-ui/core` is locale-free — see
+    // `normalizeFilterOptions`). Collapsing each label to the active language
+    // is this layer's job, and it happens once here so both the dropdown and
+    // the trigger's selected-value text read the same resolved string.
+    const authored = def.options?.length ? def.options : (dynamicOptions ?? []);
+    return authored.map((o) => ({ value: o.value, label: pickLocalized(o.label, language) || o.value }));
+  }, [def.options, dynamicOptions, language]);
 
-  const label = def.label || def.name;
+  const label = resolvedLabel || def.name;
   const selectedLabel = value
     ? options.find((o) => o.value === String(value))?.label ?? String(value)
     : undefined;
@@ -248,6 +284,7 @@ function SelectFilter({ def, value, onChange, dataSource }: { def: DashboardFilt
 }
 
 function TextFilter({ def, value, onChange }: { def: DashboardFilterDef; value: any; onChange: (v: any) => void }) {
+  const label = useFilterLabel(def) || def.name;
   const [draft, setDraft] = useState<string>(value == null ? '' : String(value));
   useEffect(() => { setDraft(value == null ? '' : String(value)); }, [value]);
   const commit = () => {
@@ -259,12 +296,12 @@ function TextFilter({ def, value, onChange }: { def: DashboardFilterDef; value: 
     <Input
       className="h-8 w-36"
       type={def.type === 'number' ? 'number' : 'text'}
-      placeholder={def.label || def.name}
+      placeholder={label}
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => { if (e.key === 'Enter') commit(); }}
-      aria-label={def.label || def.name}
+      aria-label={label}
       data-testid={`dashboard-filter-${def.name}`}
     />
   );

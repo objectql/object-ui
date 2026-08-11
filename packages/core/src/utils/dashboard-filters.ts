@@ -20,7 +20,7 @@
  * are unit-testable in isolation from React and the data layer.
  */
 
-import type { DashboardComponentSchema, DashboardWidgetSchema, PageVariable } from '@object-ui/types';
+import type { DashboardComponentSchema, DashboardWidgetSchema, I18nLabel, PageVariable } from '@object-ui/types';
 import { liftLegacyGlobalFilterDefault } from '@object-ui/types';
 import { DATE_RANGE_PRESETS, type DateRangePreset } from '@objectstack/spec/ui';
 import { resolveDateMacros } from './date-macros.js';
@@ -36,15 +36,35 @@ export interface DashboardFilterDef {
   name: string;
   /** Default target field when a widget declares no explicit binding. */
   field: string;
-  label?: string;
+  /**
+   * Display label, in @objectstack/spec's `I18nLabel` vocabulary — a plain
+   * string, or an inline per-locale map (`{ en: 'Owner', 'zh-CN': '负责人' }`).
+   *
+   * Widened from `string` under the objectstack#5428 ruling of 2026-08-06
+   * (option A): `GlobalFilterSchema.label` has been `I18nLabel` on the spec
+   * side since 17.0.0-rc.6, so declaring it `string` here made this module
+   * NARROWER than the contract it implements — which is exactly why the filter
+   * bar's map reads were invisible to `tsc` (objectui#4163).
+   *
+   * This module is locale-free BY DESIGN (`@object-ui/core` is logic-only), so
+   * it carries the authored vocabulary through unresolved and the RENDER side
+   * collapses it to the active language. Resolving here would need a locale
+   * this layer has no business knowing.
+   */
+  label?: string | I18nLabel;
   type: 'text' | 'select' | 'date' | 'number' | 'lookup' | 'dateRange';
   /**
    * Static options, NORMALIZED to `{ value, label }` pairs by
    * `resolveDashboardFilterDefs` — authors may write either the
    * @objectstack/spec object form (`{ value, label }`) or the bare-string
    * shorthand; consumers always see the object form.
+   *
+   * The PAIR SHAPE is normalized; the label's own vocabulary is not. `label`
+   * is `I18nLabel` in `GlobalFilterSchema.options[]` too, and it reaches the
+   * renderer as authored — see `normalizeFilterOptions` for why collapsing it
+   * here was data loss rather than normalization.
    */
-  options?: Array<{ value: string; label: string }>;
+  options?: Array<{ value: string; label: string | I18nLabel }>;
   optionsFrom?: {
     object: string;
     valueField: string;
@@ -288,25 +308,47 @@ function normalizeDateDefault(type: DashboardFilterDef['type'], defaultValue: un
 /**
  * Normalize a filter's static `options` declaration to `{ value, label }`
  * pairs. The @objectstack/spec `GlobalFilterSchema.options` form is
- * `{ value, label }` objects (label possibly an i18n record); the bare-string
- * shorthand (`options: ['EMEA', …]`) is also accepted. Rendering an
- * un-normalized object child crashes React — this is the single place both
- * shapes converge.
+ * `{ value, label }` objects; the bare-string shorthand (`options: ['EMEA', …]`)
+ * is also accepted. Rendering an un-normalized option crashes React — this is
+ * the single place both shapes converge.
+ *
+ * ## What is normalized, and what is deliberately NOT (objectui#4032 / #4163)
+ *
+ * The PAIR SHAPE is normalized (`value` stringified, a bare string lifted to a
+ * pair). The LABEL's authoring vocabulary is carried through untouched, because
+ * `label` is `I18nLabel` — a string OR an inline per-locale map.
+ *
+ * This line used to read:
+ *
+ * ```ts
+ * label: typeof label === 'string' && label ? label : String(value),
+ * ```
+ *
+ * which looks like defensive normalization and is data loss. An option authored
+ * `{ value: 'domestic', label: { en: 'Domestic', 'zh-CN': '国内' } }` normalized
+ * to `label: 'domestic'` — the raw STORED VALUE — so the control lost the
+ * authored text in *every* locale, English included. Nothing downstream could
+ * recover it: by the time a renderer saw the def, the map was gone.
+ *
+ * A map is therefore preserved and the render side resolves it against the
+ * active language. Anything that is neither a string nor an object is not a
+ * label in any vocabulary the spec admits, and still falls back to the value.
  */
 function normalizeFilterOptions(
   options: unknown,
-): Array<{ value: string; label: string }> | undefined {
+): Array<{ value: string; label: string | I18nLabel }> | undefined {
   if (!Array.isArray(options) || options.length === 0) return undefined;
-  const normalized: Array<{ value: string; label: string }> = [];
+  const normalized: Array<{ value: string; label: string | I18nLabel }> = [];
   for (const o of options) {
     if (o === null || o === undefined) continue;
     if (typeof o === 'object') {
       const value = (o as any).value;
       if (value === undefined || value === null) continue;
       const label = (o as any).label;
+      const isMap = label !== null && typeof label === 'object' && !Array.isArray(label);
       normalized.push({
         value: String(value),
-        label: typeof label === 'string' && label ? label : String(value),
+        label: (typeof label === 'string' && label) || isMap ? label : String(value),
       });
     } else {
       normalized.push({ value: String(o), label: String(o) });

@@ -4,9 +4,12 @@ import { cn } from '@object-ui/components';
 import {
   createSafeTranslation,
   useDisplayLocale,
+  useObjectTranslation,
+  pickLocalized,
   formatDisplayNumber,
   type DisplayNumberFormatOptions,
 } from '@object-ui/i18n';
+import type { I18nLabel } from '@object-ui/types';
 import { ArrowDownIcon, ArrowUpIcon, MinusIcon, AlertCircle, Loader2 } from 'lucide-react';
 import { VARIANT_ICON_CLASSES, VARIANT_TEXT_CLASSES, type MetricColorVariant } from './colorVariants';
 
@@ -136,13 +139,6 @@ function formatMetricValue(
   });
 }
 
-/** Resolve an I18nLabel (string or {key, defaultValue}) to a plain string. */
-function resolveLabel(label: string | { key?: string; defaultValue?: string } | undefined): string | undefined {
-  if (label === undefined || label === null) return undefined;
-  if (typeof label === 'string') return label;
-  return label.defaultValue || label.key;
-}
-
 /**
  * The variant vocabulary and its two class tables now live in
  * `./colorVariants` — the dataset-bound KPI (`DatasetWidget`, objectui#3359)
@@ -153,16 +149,27 @@ function resolveLabel(label: string | { key?: string; defaultValue?: string } | 
 export type { MetricColorVariant };
 
 export interface MetricWidgetProps {
-  label: string | { key?: string; defaultValue?: string };
+  /**
+   * The KPI's heading, in @objectstack/spec's `I18nLabel` vocabulary — a plain
+   * string or an inline per-locale map (`{ en: 'Revenue', 'zh-CN': '收入' }`).
+   *
+   * Was `string | { key?, defaultValue? }` — the key-reference form
+   * objectstack#5055 RETIRED. It is not accepted here any more because the spec
+   * rejects it at authoring time, and because reading it was never the point:
+   * the private resolver behind it ended `defaultValue || key` and never
+   * consulted a bundle, so the escape hatch was declared and inert
+   * (objectui#4032).
+   */
+  label: string | I18nLabel;
   value: string | number;
   trend?: {
     value: number;
-    label?: string | { key?: string; defaultValue?: string };
+    label?: string | I18nLabel;
     direction?: 'up' | 'down' | 'neutral';
   };
   icon?: React.ReactNode | string;
   className?: string;
-  description?: string | { key?: string; defaultValue?: string };
+  description?: string | I18nLabel;
   /** When true, the widget is in a loading state (fetching data from server). */
   loading?: boolean;
   /** Error message from a failed data fetch. When set, the widget shows an error state. */
@@ -207,14 +214,22 @@ export const MetricWidget = ({
 }: MetricWidgetProps) => {
   const iconClasses = VARIANT_ICON_CLASSES[colorVariant] || VARIANT_ICON_CLASSES.default;
   const { t: tTrend } = useTrendT();
+  // Two locale channels, deliberately distinct. `useDisplayLocale` is the
+  // NUMBER locale (objectui#4033 — tenant regional default outranks UI
+  // language); `language` is the UI language, which is what label text follows.
+  // Keep them separate: swapping either for the other silently changes the
+  // other surface's behaviour.
   const locale = useDisplayLocale();
+  const { language } = useObjectTranslation();
+
+  const resolvedLabel = useMemo(() => pickLocalized(label, language) || undefined, [label, language]);
 
   const localizedTrendLabel = useMemo(() => {
-    const raw = resolveLabel(description) || resolveLabel(trend?.label);
+    const raw = pickLocalized(description, language) || pickLocalized(trend?.label, language) || undefined;
     if (!raw) return raw;
     const key = trendLabelKey(raw);
     return key ? tTrend(key) : raw;
-  }, [description, trend?.label, tTrend]);
+  }, [description, trend?.label, tTrend, language]);
 
   const displayValue = useMemo(() => {
     const formatted = typeof value === 'number' || (typeof value === 'string' && value.trim() !== '' && isFinite(Number(value)))
@@ -260,7 +275,7 @@ export const MetricWidget = ({
         ) : (
           <>
             <div className={cn('text-[2rem] leading-none font-extrabold tabular-nums tracking-tight truncate', textClasses)}>{displayValue}</div>
-            <div className="text-xs font-medium text-muted-foreground truncate">{resolveLabel(label)}</div>
+            <div className="text-xs font-medium text-muted-foreground truncate">{resolvedLabel}</div>
           </>
         )}
       </div>
@@ -287,7 +302,7 @@ export const MetricWidget = ({
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium truncate">
-          {resolveLabel(label)}
+          {resolvedLabel}
         </CardTitle>
         {resolvedIcon && (
           <div

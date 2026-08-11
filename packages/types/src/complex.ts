@@ -15,7 +15,10 @@
  * @packageDocumentation
  */
 
-import type { DashboardWidget as SpecDashboardWidget } from '@objectstack/spec/ui';
+import type {
+  DashboardWidget as SpecDashboardWidget,
+  GlobalFilter as SpecGlobalFilter,
+} from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base';
 
 /**
@@ -753,35 +756,26 @@ export interface DashboardComponentSchema extends BaseSchema {
   /**
    * Global filter configurations.
    * Applied across all dashboard widgets.
-   * Aligned with @objectstack/spec GlobalFilterSchema.
+   *
+   * BOUND to `@objectstack/spec`'s `GlobalFilter` rather than restated
+   * (objectui#4032, merged scope from the #4163 part-1 audit). It used to be a
+   * hand-written inline object literal that happened to carry the same nine
+   * keys, and the copy drifted in the one direction that costs the most:
+   * `label` was declared `string` here long after the spec widened it (and its
+   * `options[].label`) to `I18nLabel`. Because the restatement was NARROWER
+   * than the contract, an authored per-locale map was a legal document that
+   * objectui's own types said could not exist — so every read site that
+   * stringified one was invisible to `tsc`, which is precisely how the filter
+   * bar shipped `[object Object]: All` and how `normalizeFilterOptions` shipped
+   * a coercion that discarded map labels in every locale.
+   *
+   * `DashboardWidgetSchema` above already takes this route (`extends
+   * Omit<Partial< SpecDashboardWidget >, …>`), which is why the widget half of
+   * the same widening WAS compile-visible and got repaired in #4208. Binding is
+   * preferred over restating for exactly that asymmetry: the key set and the
+   * value vocabularies now track the protocol instead of a snapshot of it.
    */
-  globalFilters?: Array<{
-    /**
-     * Stable filter name used as the dashboard-variable key and as the key
-     * widgets reference in `filterBindings`. Defaults to `field`.
-     * Aligned with @objectstack/spec GlobalFilterSchema.name
-     * (framework#2501).
-     */
-    name?: string;
-    field: string;
-    label?: string;
-    type?: 'text' | 'select' | 'date' | 'number' | 'lookup';
-    /**
-     * Static options. The @objectstack/spec form is `{ value, label }`
-     * objects; the bare-string shorthand is also accepted (normalized by
-     * the runtime).
-     */
-    options?: Array<string | { value: string | number | boolean; label?: string }>;
-    optionsFrom?: {
-      object: string;
-      valueField: string;
-      labelField?: string;
-      filter?: any;
-    };
-    defaultValue?: any;
-    scope?: string;
-    targetWidgets?: string[];
-  }>;
+  globalFilters?: SpecGlobalFilter[];
   /**
    * Date range filter configuration.
    * Aligned with @objectstack/spec DashboardSchema.dateRange.

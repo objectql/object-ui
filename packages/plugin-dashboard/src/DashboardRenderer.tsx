@@ -8,7 +8,7 @@
 
 import type { DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
 import { SchemaRenderer, useActionEngine, useObjectLabel, PageVariablesProvider, usePageVariables } from '@object-ui/react';
-import { useObjectTranslation } from '@object-ui/i18n';
+import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ActionDef, ActionResult, ActionContext, ModalHandler } from '@object-ui/core';
 import {
   resolveDashboardFilterDefs,
@@ -86,13 +86,6 @@ function SortableWidgetWrapper({ id, disabled, gridSpan, className, children }: 
 function resolveLucideIcon(name?: string): React.ElementType | null {
   if (!name) return null;
   return getLazyIcon(name);
-}
-
-/** Resolve an I18nLabel (string or {key, defaultValue}) to a plain string. */
-function resolveLabel(label: string | { key?: string; defaultValue?: string } | undefined): string | undefined {
-  if (label === undefined || label === null) return undefined;
-  if (typeof label === 'string') return label;
-  return label.defaultValue || label.key;
 }
 
 // Color palette for charts
@@ -253,7 +246,30 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
     // action text. The dashboard name (`schema.name`) keys all lookups; when
     // it's missing we silently degrade to the raw English fallbacks.
     const { dashboardLabel, dashboardDescription, dashboardActionLabel, widgetTitle, widgetDescription, fieldLabel } = useObjectLabel();
-    const { t } = useObjectTranslation();
+    const { t, language } = useObjectTranslation();
+
+    /**
+     * Collapse an authored `I18nLabel` to the active UI language.
+     *
+     * This replaces a private `resolveLabel` copy that read the RETIRED
+     * `{ key, defaultValue }` key-reference form (objectstack#5055) and ended
+     * `return label.defaultValue || label.key`. Handed the vocabulary the spec
+     * actually admits today — an inline per-locale map — that copy answered
+     * `undefined`, so the metric dispatch's `|| widgetType` fallback took over
+     * and KPI cards rendered the literal string `"metric"` (objectui#4032).
+     *
+     * `pickLocalized` is the seam #4208 already landed for this vocabulary on
+     * the sibling surface (`DashboardGridLayout`), pinned limb-for-limb against
+     * the spec's own `resolveI18nLabel`. Reused rather than re-implemented: a
+     * fourth dialect is what objectstack#4115 exists to prevent.
+     */
+    const resolveLabel = useCallback(
+      (label: unknown): string | undefined => {
+        if (label === undefined || label === null) return undefined;
+        return pickLocalized(label, language) || undefined;
+      },
+      [language],
+    );
     /**
      * Resolve a chart series label. When the y-field defaults to a synthetic
      * key like 'value' (used by count aggregations that have no real field),
@@ -291,6 +307,13 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
      * Translate a widget title / description using the
      * `{ns}.dashboards.{dashName}.widgets.{widgetId}.title|description`
      * convention. Falls back to the metadata-supplied string.
+     *
+     * The two channels compose in a fixed order, the same one
+     * `useActionTextLocalizer` (objectui#4265) applies to declared actions: the
+     * authored value is collapsed to the active language FIRST, and the plain
+     * string that falls out is what the bundle receives as its fallback. So a
+     * per-locale literal and a bundle entry can never disagree about what "the
+     * authored title" is, and a bundle entry always wins over an inline map.
      */
     const tWidgetTitle = useCallback(
       (widget: DashboardWidgetSchema): string | undefined => {
@@ -298,7 +321,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
         if (!dashName || !widget.id || fallback === undefined) return fallback;
         return widgetTitle(dashName, widget.id, fallback);
       },
-      [dashName, widgetTitle],
+      [dashName, widgetTitle, resolveLabel],
     );
 
     const tWidgetDescription = useCallback(
@@ -307,7 +330,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
         if (!dashName || !widget.id) return fallback;
         return widgetDescription(dashName, widget.id, fallback);
       },
-      [dashName, widgetDescription],
+      [dashName, widgetDescription, resolveLabel],
     );
 
     // Install host-supplied modal/script handlers on the underlying ActionRunner.
@@ -526,7 +549,22 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
             // and never routed the widget, so four spec chart types fell through
             // to a red error box (#2943).
             if (dispatch.family === 'metric') {
-                const label = resolveLabel(widget.title) || widgetType;
+                // objectui#4032 — the KPI card's heading comes from the SAME
+                // convention channel every other widget's header uses
+                // (`{ns}.dashboards.{dash}.widgets.{id}.title`), not from the
+                // raw authored `widget.title`.
+                //
+                // A self-contained metric renders no shared Card header, so
+                // `resolvedTitle` was computed below and then thrown away while
+                // this line built its own untranslated label — which is exactly
+                // why a `type: 'metric'` tile showed raw English on a dashboard
+                // whose every other widget showed the translation.
+                //
+                // `|| widgetType` is kept as the last resort for an untitled
+                // widget, but it is now genuinely last: it used to swallow the
+                // spec-valid inline map that `resolveLabel` could not read, so
+                // an authored title silently became the string `"metric"`.
+                const label = tWidgetTitle(widget) || widgetType;
                 // provider: 'object' — ObjectMetricWidget aggregates server-side.
                 if (isObjectProvider(widgetData)) {
                     const providerAgg = widgetData.aggregate;

@@ -366,7 +366,14 @@ export function DashboardWidgetInspector({
               <div key={def.name} className="space-y-1.5" data-testid={`widget-filter-binding-${def.name}`}>
                 <div className="flex items-center justify-between gap-2">
                   <Label className="text-xs font-medium text-muted-foreground truncate">
-                    {def.label || def.name}
+                    {/* objectui#4032 — `DashboardFilterDef.label` widened to the
+                        spec's `I18nLabel`, so this read (and the aria-label
+                        below) resolve the inline per-locale map exactly as the
+                        widget title above already does. Resolving BEFORE the
+                        `||` also fixes the truthiness gate: an object is always
+                        truthy, so a map that resolves to nothing never reached
+                        `def.name`. */}
+                    {resolveInlineI18nLabel(def.label, locale) || def.name}
                   </Label>
                   <InspectorCheckboxField
                     label={t('engine.inspector.widget.filterBindingApply', locale)}
@@ -386,7 +393,7 @@ export function DashboardWidgetInspector({
                         // (objectui#3997). Includes the filter name because a
                         // dashboard has several of these rows.
                         ariaLabel={tFormat('engine.inspector.widget.filterBindingField', locale, {
-                          filter: def.label || def.name,
+                          filter: resolveInlineI18nLabel(def.label, locale) || def.name,
                         })}
                         value={override}
                         onCommit={(v) => setBinding(v ? v : undefined)}
