@@ -43,11 +43,29 @@
  * that changes on one side and not the other fails here rather than in a
  * screenshot.
  *
- * The ONE deliberate difference is normalized explicitly rather than hidden:
+ * The ONE remaining difference is normalized explicitly rather than hidden:
  * the spec's resolver reports a miss as `undefined` (so a caller's `?? name`
  * fallback chain can proceed), `pickLocalized` reports it as `''` (so a text
  * node renders nothing). `specForRender` states that conversion in one place;
  * if the two ever disagree about anything else, the table row fails.
+ *
+ * ## The two RULE divergences are gone as of objectui#3907
+ *
+ * They are recorded here because this file is where the claim "one difference"
+ * has to stay true. `resolveI18nLabel` shipped (objectstack#6765) with two
+ * documented departures from `pickLocalized`, both narrowings: it read **own
+ * properties only**, and it applied the `typeof === 'string'` filter on **every**
+ * limb rather than only on limbs 3 and 6. Neither was reachable by an input
+ * `I18nLabelSchema` accepts, so both were filed as an observation
+ * (objectui#3907) instead of a defect.
+ *
+ * objectui#3907 landed the same two guards in `pickLocalized`, so the rule
+ * divergence is now **zero** and the surviving difference is purely the
+ * miss SPELLING above — a return-shape choice each side's callers need, not a
+ * disagreement about which entry to pick. The convergence is asserted, not
+ * asserted-in-prose: `CONVERGED` below carries the exact vectors that used to
+ * tell the two implementations apart, and every one of them is now answered
+ * identically. If either side regresses, those rows fail here.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -103,6 +121,56 @@ const TABLE: ReadonlyArray<readonly [unknown, string | undefined, string]> = [
   [{}, 'en', ''],
 ];
 
+/**
+ * The vectors that used to separate the two implementations (objectui#3907).
+ *
+ * Every row here is OUT of the declared domain — no BCP-47 tag is an
+ * `Object.prototype` member, and `InlineLocaleMapSchema` is
+ * `z.record(<tag>, z.string())` so no in-contract map holds a non-string value.
+ * That is exactly why they are worth pinning separately from `TABLE`: they are
+ * the only inputs that could ever have told the two ends apart, so they are the
+ * only rows whose agreement is evidence rather than restatement.
+ *
+ * Note the expected answers are NOT `''`. A prototype-named locale, or an
+ * off-spec value, makes that LIMB miss — it does not abort the resolution. The
+ * chain continues to the next limb, so these resolve by the ordinary rule.
+ */
+const CONVERGED: ReadonlyArray<readonly [unknown, string | undefined, string]> = [
+  // Own properties only — the locale names an `Object.prototype` member, so the
+  // limb misses and `en` (limb 5) answers. Before #3907 the objectui side
+  // returned the member's source text, e.g. 'function Object() { [native code] }'.
+  [{ en: 'Sales' }, 'constructor', 'Sales'],
+  [{ en: 'Sales' }, 'toString', 'Sales'],
+  [{ en: 'Sales' }, 'valueOf', 'Sales'],
+  [{ en: 'Sales' }, 'hasOwnProperty', 'Sales'],
+  [{ en: 'Sales' }, 'isPrototypeOf', 'Sales'],
+  [{ en: 'Sales' }, 'propertyIsEnumerable', 'Sales'],
+  [{ en: 'Sales' }, 'toLocaleString', 'Sales'],
+  // …and with no `en`, the last-resort limb answers instead. Only a map with
+  // nothing usable resolves to the miss.
+  [{ ja: '営業' }, 'constructor', '営業'],
+  [{}, 'constructor', ''],
+  // An own key really named like a prototype member is still the author's key:
+  // the guard is `hasOwnProperty`, not a denylist of names.
+  [{ constructor: 'Ctor', en: 'Sales' }, 'constructor', 'Ctor'],
+
+  // `string` values only, on every limb — an off-spec value is treated as
+  // absent. Before #3907 the objectui side short-circuited on limbs 1/2/4/5 and
+  // rendered '[object Object]'.
+  [{ 'zh-CN': { nested: 'x' }, en: 'Sales' }, 'zh-CN', 'Sales'], // limb 1
+  [{ zh: { nested: 'x' }, en: 'Sales' }, 'zh-CN', 'Sales'], // limb 2
+  [{ default: { nested: 'x' }, ja: '営業' }, 'fr', '営業'], // limb 4
+  [{ en: { nested: 'x' }, ja: '営業' }, 'fr', '営業'], // limb 5
+  [{ en: 42, ja: '営業' }, 'fr', '営業'],
+  [{ en: null, ja: '営業' }, 'fr', '営業'],
+  // Nothing usable anywhere is a miss on both sides.
+  [{ en: { nested: 'x' } }, 'fr', ''],
+  // The boundary the value filter must not cross: `''` is a string, so the limb
+  // HITS and the chain stops. A truthiness filter would pass every row above
+  // and break this one.
+  [{ en: '', 'zh-CN': '销售' }, 'en', ''],
+];
+
 describe('inline per-locale label resolution agrees across both resolvers (#4163)', () => {
   it.each(TABLE)(
     'resolves %j at locale %j to %j identically',
@@ -123,13 +191,41 @@ describe('inline per-locale label resolution agrees across both resolvers (#4163
     expect(pickLocalized(undefined, 'en')).toBe('');
   });
 
+  it.each(CONVERGED)(
+    'agrees on %j at locale %j (the objectui#3907 convergence)',
+    (label, locale, expected) => {
+      expect(pickLocalized(label, locale)).toBe(expected);
+      expect(specForRender(label, locale)).toBe(expected);
+    },
+  );
+
+  it('has no rule divergence left — only the miss spelling differs (objectui#3907)', () => {
+    // The whole claim of this file in one pass, over BOTH tables. Before #3907
+    // the `CONVERGED` rows disagreed; the header's "one difference" is only
+    // true while this stays empty.
+    const disagreements = [...TABLE, ...CONVERGED]
+      .filter(([label, locale]) => pickLocalized(label, locale) !== specForRender(label, locale))
+      .map(([label, locale]) => `${JSON.stringify(label)} @ ${String(locale)}`);
+    expect(disagreements).toEqual([]);
+  });
+
   it('neither resolver ever hands a text node the stringified object', () => {
     // The harm #4163 exists for, stated once over the whole table rather than
     // per site — a resolver that started returning the map would satisfy no
     // assertion above but would also fail none of them for an untabled input.
-    for (const [label, locale] of TABLE) {
+    for (const [label, locale] of [...TABLE, ...CONVERGED]) {
       expect(pickLocalized(label, locale)).not.toBe('[object Object]');
       expect(specForRender(label, locale)).not.toBe('[object Object]');
+    }
+  });
+
+  it('neither resolver ever hands a text node a function body', () => {
+    // The other half of the same harm, and the one objectui#3907 fixed: a
+    // locale that names an `Object.prototype` member used to render that
+    // member's SOURCE TEXT as the label on the objectui side.
+    for (const [label, locale] of [...TABLE, ...CONVERGED]) {
+      expect(pickLocalized(label, locale)).not.toContain('native code');
+      expect(specForRender(label, locale)).not.toContain('native code');
     }
   });
 });
