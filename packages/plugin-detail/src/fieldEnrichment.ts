@@ -20,11 +20,28 @@ import { isInlineExcludedFieldType } from '@object-ui/fields';
  * machine-computed is part of resolving a detail field's shape out of the view
  * entry plus the object schema, not the private business of any one component.
  * Re-exported from `InlineFieldInput` under its historical name.
+ *
+ * **Both spellings of the auto-number type are members** (objectui#4219).
+ * `@objectstack/spec` — and the designer, and the importer — spell it
+ * `autonumber`; `auto_number` is the widget map's key, and the alias table
+ * (`fields/src/field-type-alias.ts`) maps both onto `field:auto_number`. This
+ * set is matched by RAW spelling, so carrying one of them is carrying half the
+ * type: `plugin-form` lists both in each of its non-input sets, and this is the
+ * shape that was missing here. The gap was not academic — the reader that has
+ * no host gate in front of it is `InlineFieldInput`'s reference fallback
+ * (`!!field.reference_to && !TEXTUAL_REF_FALLBACK_TYPES.has(type)`), on
+ * exported public API, so a spec-spelled auto-number carrying a `reference_to`
+ * resolved into the RECORD PICKER — a list of records offered as replacements
+ * for a machine-generated identity. The editability half of the same report is
+ * held by the alias-aware shared exclusion since #4228; the two gates are a
+ * union, and matching spellings is what stops that union's survivability from
+ * depending on which spelling the metadata happens to use.
  */
 export const TEXTUAL_REF_FALLBACK_TYPES = new Set([
   'formula',
   'summary',
   'rollup',
+  'autonumber',
   'auto_number',
 ]);
 
