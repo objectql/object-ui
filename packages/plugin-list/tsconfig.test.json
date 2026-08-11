@@ -3,6 +3,15 @@
   // See `packages/types/tsconfig.test.json` for why that exclusion was a hole:
   // the build correctly keeps tests out of `dist`, but nothing else compiled
   // them, so a test could assert a contract the compiler never checked.
+  //
+  // This project is now the ONLY one that compiles `spec-symbol-batch6.test.tsx`,
+  // whose compile-time pins are erased at runtime — vitest proves nothing about
+  // them and `tsc` is the only thing that can (objectui#3181). A narrow
+  // `tsconfig.typetests.json` next door used to name that one file while the rest
+  // of the tree was in TEST_DEBT; the package graduated in objectui#4040 and the
+  // narrow project was retired in objectui#4291, after `--listFiles` showed this
+  // project reads the same file and a provably-false `Assert` appended to it
+  // turned this project red.
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "noEmit": true,

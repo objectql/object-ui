@@ -4,12 +4,15 @@
   // the build correctly keeps tests out of `dist`, but nothing else compiled
   // them, so a test could assert a contract the compiler never checked.
   //
-  // `tsconfig.typetests.json` next door is the narrow rescue this supersedes for
-  // this package: it compiles `auth-spec-parity.test.ts` alone, because that one
-  // file's whole value is compile-time assertions and it could not wait for the
-  // rest of the tree to compile (objectui#3181). It stays chained — the file is
-  // now read by both projects, which costs one extra compile and keeps the
-  // narrow project's reasoning where it was written.
+  // This project is now the ONLY one that compiles `auth-spec-parity.test.ts`,
+  // whose whole value is compile-time assertions (objectui#3181). It used to be
+  // rescued by a narrow `tsconfig.typetests.json` next door, which named that one
+  // file while the rest of the tree was still in TEST_DEBT; the package graduated
+  // in objectui#4040 and the narrow project was retired in objectui#4291, after
+  // `--listFiles` showed this project reads the same file and a provably-false
+  // `Assert` appended to it turned this project red. Keep the file compiling
+  // here: those assertions are erased at runtime, so vitest proves nothing
+  // about them and `tsc` is the only thing that can.
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "noEmit": true,

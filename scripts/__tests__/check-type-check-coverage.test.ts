@@ -403,6 +403,146 @@ describe('section 5b — a chained test project that does not read the tests', (
   });
 });
 
+/**
+ * objectui#4291 — section 5½, the narrow type-assertion project.
+ *
+ * It is a RESCUE HATCH: a package still in TEST_DEBT can compile the one file
+ * whose whole value is compile-time assertions, instead of waiting for its whole
+ * backlog (objectui#3181). Once the package graduates and its `tsconfig.test.json`
+ * compiles everything, that project names a file which is already compiled — two
+ * spellings of what gets checked, plus one extra `tsc` per `type-check` run.
+ *
+ * The section had no test coverage at all until this suite: the gate that keeps
+ * the rescue hatch honest was itself unchecked, which is the same shape as the
+ * defect it exists to report.
+ */
+describe('the narrow type-assertion project is scoped to packages still in debt', () => {
+  const buildConfig = JSON.stringify({ include: ['src/**/*'], exclude: ['node_modules', 'dist', 'test'] }, null, 2);
+  const narrowConfig = JSON.stringify(
+    { compilerOptions: { noEmit: true }, include: ['test/pins.test.ts'] },
+    null,
+    2,
+  );
+
+  it('reports the narrow project as redundant once the full test project covers everything', () => {
+    withWorkspace(
+      (write) => {
+        write(
+          'examples/catalog/package.json',
+          manifest('@fixture/catalog', 'tsc --noEmit && tsc -p tsconfig.typetests.json && tsc -p tsconfig.test.json'),
+        );
+        write('examples/catalog/tsconfig.json', buildConfig);
+        write(
+          'examples/catalog/tsconfig.test.json',
+          JSON.stringify(
+            {
+              compilerOptions: { noEmit: true },
+              include: ['test/**/*.test.ts', 'test/**/*.test.tsx'],
+              exclude: [],
+            },
+            null,
+            2,
+          ),
+        );
+        write('examples/catalog/tsconfig.typetests.json', narrowConfig);
+        write('examples/catalog/test/pins.test.ts', A_TEST);
+      },
+      ({ errors }) => {
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toContain('is redundant');
+        expect(errors[0]).toContain('objectui#4291');
+      },
+    );
+  });
+
+  it('still allows it while the package IS in debt — the rescue hatch it exists to be', () => {
+    // No `tsconfig.test.json`: the build skips the tests and nothing else reads
+    // them, which is the state a TEST_DEBT entry declares. The narrow project
+    // rescuing one file is exactly right here, so section 5½ must stay quiet
+    // about it — the only error is the undeclared gap, because this fixture runs
+    // with an empty TEST_DEBT table.
+    withWorkspace(
+      (write) => {
+        write(
+          'examples/catalog/package.json',
+          manifest('@fixture/catalog', 'tsc --noEmit && tsc -p tsconfig.typetests.json'),
+        );
+        write('examples/catalog/tsconfig.json', buildConfig);
+        write('examples/catalog/tsconfig.typetests.json', narrowConfig);
+        write('examples/catalog/test/pins.test.ts', A_TEST);
+      },
+      ({ errors }) => {
+        expect(errors.some((e) => e.includes('is redundant'))).toBe(false);
+        expect(errors.some((e) => e.includes('that no `tsc`'))).toBe(true);
+      },
+    );
+  });
+
+  it('keeps reporting a narrow project that "type-check" never runs (objectui#3181)', () => {
+    // The pre-existing half of the section, pinned here for the first time: an
+    // in-debt package whose narrow project is not chained is compiling nothing,
+    // and the redundancy rule above must not swallow that message.
+    withWorkspace(
+      (write) => {
+        write('examples/catalog/package.json', manifest('@fixture/catalog', 'tsc --noEmit'));
+        write('examples/catalog/tsconfig.json', buildConfig);
+        write('examples/catalog/tsconfig.typetests.json', narrowConfig);
+        write('examples/catalog/test/pins.test.ts', A_TEST);
+      },
+      ({ errors }) => {
+        expect(errors.some((e) => e.includes('never\n      runs'))).toBe(true);
+      },
+    );
+  });
+});
+
+describe('every surviving narrow project is a package still in debt, in this repository', () => {
+  const packages = collect(repoRoot);
+  const withNarrow = packages.filter((p) => p.hasTypeTestsConfig);
+
+  it('is a set this gate can see at all', () => {
+    // Deliberately not a count — objectui#4291 retired six and the rest follow as
+    // #4040 burns down. What matters is that some remain to be judged.
+    expect(withNarrow.length).toBeGreaterThan(0);
+  });
+
+  it('holds each survivor to being genuinely unrescued elsewhere', () => {
+    // The invariant objectui#4291 established: a narrow project is worth keeping
+    // only where the full test project does not already compile the same file.
+    // Graduate a package without deleting its narrow project and this goes red,
+    // as does the gate itself.
+    for (const pkg of withNarrow) {
+      expect(testsCovered(pkg), `${pkg.name} type-checks its tests now — its narrow project is redundant`).toBe(
+        false,
+      );
+      expect(pkg.chainsTypeTestsConfig, `${pkg.name} does not chain its narrow project`).toBe(true);
+    }
+  });
+
+  it('pins the six objectui#4291 retired as having none', () => {
+    // Named rather than counted: each of these had its guard file proven covered
+    // by `tsc -p tsconfig.test.json --listFiles`, and a provably-false `Assert`
+    // appended to that file turned the FULL project red. A narrow project
+    // reappearing on any of them is the redundancy coming back.
+    const retired = [
+      '@object-ui/auth',
+      '@object-ui/plugin-chatbot',
+      '@object-ui/plugin-detail',
+      '@object-ui/plugin-form',
+      '@object-ui/plugin-grid',
+      '@object-ui/plugin-list',
+    ];
+    for (const name of retired) {
+      const pkg = packages.find((p) => p.name === name);
+      expect(pkg, `${name} is not a workspace package any more`).toBeDefined();
+      expect(pkg!.hasTypeTestsConfig, `${name} has a tsconfig.typetests.json again`).toBe(false);
+      expect(pkg!.typeCheck, `${name} still chains a narrow project`).not.toContain('tsconfig.typetests.json');
+      // The other half: retirement moved the coverage, it did not drop it.
+      expect(testsCovered(pkg), `${name} no longer type-checks its tests`).toBe(true);
+    }
+  });
+});
+
 describe('examples/schema-catalog is wired up, in this repository', () => {
   const packages = collect(repoRoot);
   const pkg = packages.find((p) => p.name === '@object-ui/example-schema-catalog');

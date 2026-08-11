@@ -1707,7 +1707,12 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.data.goDesignFields': 'Go to “Form · Layout” to design fields',
   'engine.studio.data.form.layout': 'Layout',
   'engine.studio.data.form.preview': 'Preview',
+  // Two captions for the same tab: `layoutBadge` additionally CLAIMS pending
+  // local edits, so it may only render when there are some and they can be
+  // saved; `layoutBadgeClean` is the neutral caption for every other case
+  // (objectui#4036).
   'engine.studio.data.form.layoutBadge': 'Draft layout — your unsaved changes',
+  'engine.studio.data.form.layoutBadgeClean': 'Draft layout',
   'engine.studio.data.form.previewBadge': 'Preview of the published version',
   'engine.studio.data.form.previewWarn':
     'You have unpublished changes — this preview shows the pre-publish (published) state; confirm the draft in “Layout”, and to see the post-publish result, click “Publish” in the top bar first.',
@@ -3473,6 +3478,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.data.form.layout': '布局',
   'engine.studio.data.form.preview': '预览',
   'engine.studio.data.form.layoutBadge': '草稿布局 · 含未保存改动',
+  'engine.studio.data.form.layoutBadgeClean': '草稿布局',
   'engine.studio.data.form.previewBadge': '预览已发布版本(不含草稿改动)',
   'engine.studio.data.form.previewWarn':
     '有未发布改动 — 此预览为发布前(已发布)的效果;草稿确认用「布局」,看发布后效果请先点顶栏「发布」',

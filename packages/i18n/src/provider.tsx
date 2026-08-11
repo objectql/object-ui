@@ -59,6 +59,71 @@ function clearStoredLanguage(): void {
 }
 
 /**
+ * `localStorage` key caching the TENANT's server-side locale — a *seed*, not a
+ * choice (objectui#4035).
+ *
+ * Deliberately a separate slot from {@link LOCALE_STORAGE_KEY}, and that
+ * separation is the whole point rather than a tidiness preference. The two
+ * values have different provenance and therefore different rights:
+ *
+ * - {@link LOCALE_STORAGE_KEY} is what the *user* picked. It outranks
+ *   everything and must survive a tenant reconfiguration.
+ * - This slot is what the *admin* configured, cached so the next boot can apply
+ *   it synchronously. It outranks only the environment (browser language).
+ *
+ * Writing the server seed into the explicit-choice slot would erase that
+ * difference permanently: the seed would then be indistinguishable from a
+ * deliberate user choice, so it would (a) outrank a later tenant change and pin
+ * the device to a stale locale forever, and (b) suppress browser detection for
+ * a user who never expressed a preference. Only a real switch promotes a
+ * language to the explicit slot — see the `languageChanged` choke point.
+ */
+export const LOCALE_SEED_STORAGE_KEY = 'objectui-locale-seed';
+
+/**
+ * Read the cached tenant locale seed, or `null` when nothing is cached.
+ *
+ * Same defensive posture as {@link readStoredLanguage}: `localStorage` is
+ * absent under SSR and *throws* in Safari private mode / partitioned iframes,
+ * and a language seed is never worth taking the app down for.
+ */
+export function readCachedLanguageSeed(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(LOCALE_SEED_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cache the tenant locale the server just answered with — the "revalidate" half
+ * of the stale-while-revalidate contract (objectstack#5419, ruling point 2).
+ *
+ * Call this with whatever `/auth/me/localization` actually returned for an
+ * authenticated caller. A `null`/`undefined` locale CLEARS the cache rather
+ * than leaving the old value: a tenant that unsets its locale must reach
+ * choice-less devices on their next boot, and "keep the last good seed forever"
+ * is precisely the being-pinned-by-a-stale-seed failure the ruling forbids.
+ *
+ * A *failed* fetch must simply not call this — the cache is then left intact,
+ * which is the correct stale-while-revalidate behaviour when revalidation
+ * cannot complete.
+ */
+export function cacheLanguageSeed(locale: string | null | undefined): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (typeof locale === 'string' && locale.length > 0) {
+      window.localStorage.setItem(LOCALE_SEED_STORAGE_KEY, locale);
+    } else {
+      window.localStorage.removeItem(LOCALE_SEED_STORAGE_KEY);
+    }
+  } catch {
+    // Storage blocked or full — this boot simply goes unseeded.
+  }
+}
+
+/**
  * Languages `createI18n(config)` will know about *synchronously*: the built-in
  * packs plus any extra `config.resources`.
  *
@@ -131,6 +196,46 @@ function canResolveLanguage(lang: string, config?: I18nConfig, hasLoader = false
 }
 
 /**
+ * Adjudicate a tenant locale seed into a language this renderer can actually
+ * boot in, or `null` to fall through to the next tier (objectui#4035).
+ *
+ * {@link canResolveLanguage} is the verdict — the same predicate the language
+ * menu uses, deliberately not a second "do we have this locale" check
+ * (objectstack#5418 / objectui#4039). Two things are layered on top of it, both
+ * of which are about *which question to ask it*, not about second-guessing the
+ * answer:
+ *
+ * **1. Region subtags are normalised away as a fallback.** A tenant locale is a
+ * full BCP-47 tag — the platform answers `zh-CN`, not `zh` (see
+ * `LocalizationFetchProvider`'s fixtures) — while the packs are keyed by base
+ * language. Asking only about `zh-CN` would reject the single most common
+ * tenant configuration there is. The exact tag is tried first so a genuine
+ * `pt-BR` pack still wins over `pt`; this mirrors `createI18n`'s own browser
+ * detection (`navigator.language.split('-')[0]`) and `pickLocalized`'s
+ * documented exact-then-base order, so it is this codebase's existing
+ * convention rather than a new rule.
+ *
+ * **2. The seed does NOT get the dynamic loader's credit** (`hasLoader` is left
+ * at its default `false`). That credit exists for a *user-picked* value: the
+ * user chose it from a menu built out of the app's real locale list, and a
+ * stored choice that turns out unshippable is adjudicated afterwards by the
+ * `provisional` self-heal. A tenant seed has neither property — it is an
+ * arbitrary admin-authored string that passed through no menu, and there is no
+ * self-heal behind it. Extending the credit would mean booting into a locale we
+ * cannot confirm we ship and then retracting it, i.e. manufacturing exactly the
+ * flash that ruling point 3 bounds, on the very first-visit path it bounds it
+ * on. Falling through instead is what ruling point 4 asks for, and it is
+ * self-correcting in one step: the user switches once, and that switch is a
+ * real explicit choice which outranks the seed from then on.
+ */
+function resolveSeedLanguage(seed: string, config?: I18nConfig): string | null {
+  if (canResolveLanguage(seed, config)) return seed;
+  const base = seed.split('-')[0];
+  if (base && base !== seed && canResolveLanguage(base, config)) return base;
+  return null;
+}
+
+/**
  * Resolve the bootstrap config for a provider-owned i18next instance, applying
  * a stored language choice when there is a usable one.
  *
@@ -148,6 +253,18 @@ function canResolveLanguage(lang: string, config?: I18nConfig, hasLoader = false
  *
  * A stored value the app no longer offers is dropped *and purged*, so one stale
  * entry can never lock the UI to a locale that has no translations.
+ *
+ * The full precedence chain, in order (objectstack#5419 ruling point 1):
+ *
+ * 1. the user's explicit choice ({@link LOCALE_STORAGE_KEY})
+ * 2. the tenant's server locale, cached at {@link LOCALE_SEED_STORAGE_KEY}
+ * 3. the browser language (`createI18n`'s `detectBrowserLanguage`)
+ * 4. `en`
+ *
+ * Tiers 2 and 3 are both "nobody here chose this", but they are not equally
+ * informed: the tenant locale is an administrator's deliberate statement about
+ * this deployment, while the browser language is an artefact of whoever set up
+ * the machine. The deliberate signal wins.
  */
 interface BootstrapResolution {
   /** The config to build the i18next instance from. */
@@ -162,17 +279,50 @@ interface BootstrapResolution {
   provisional: string | null;
 }
 
+/**
+ * The tenant tier: a cached server seed, applied only when the user has
+ * expressed no choice of their own (objectui#4035).
+ *
+ * Returns the bootstrap resolution for the seed, or `null` when there is no
+ * usable seed and the caller should fall through to browser detection.
+ *
+ * `provisional` is deliberately always `null` here: that flag marks a value
+ * accepted on the loader's optimistic credit so the app's locale list can
+ * adjudicate it later, and {@link resolveSeedLanguage} never extends that
+ * credit — a seed is either resolvable right now or it falls through.
+ */
+function resolveSeedBootstrap(config: I18nConfig | undefined): BootstrapResolution | null {
+  const seed = readCachedLanguageSeed();
+  if (!seed) return null;
+  const resolved = resolveSeedLanguage(seed, config);
+  if (!resolved) return null;
+  return {
+    // `detectBrowserLanguage: false` is what makes the tenant tier outrank the
+    // environment tier. The admin's deliberate configuration beats the
+    // browser's incidental one — ruling point 1.
+    config: { ...config, defaultLanguage: resolved, detectBrowserLanguage: false },
+    provisional: null,
+  };
+}
+
 function resolveBootstrapConfig(
   config: I18nConfig | undefined,
   persist: boolean,
   hasLoader: boolean,
 ): BootstrapResolution {
+  // `persistLanguage: false` surfaces (previews, demos, screenshot harnesses)
+  // must stay on a fixed language regardless of what is on this origin — that
+  // covers the tenant seed too, not just the user's choice.
   if (!persist) return { config, provisional: null };
   const stored = readStoredLanguage();
-  if (!stored) return { config, provisional: null };
+  // No explicit choice at all → the tenant seed gets its turn.
+  if (!stored) return resolveSeedBootstrap(config) ?? { config, provisional: null };
   if (!canResolveLanguage(stored, config, hasLoader)) {
     clearStoredLanguage();
-    return { config, provisional: null };
+    // A purged choice is no choice, so this falls to the same tenant tier —
+    // otherwise dropping one unshippable stored value would skip the seed and
+    // land straight on the browser language.
+    return resolveSeedBootstrap(config) ?? { config, provisional: null };
   }
   return {
     config: { ...config, defaultLanguage: stored, detectBrowserLanguage: false },

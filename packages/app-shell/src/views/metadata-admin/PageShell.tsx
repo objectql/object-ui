@@ -43,8 +43,96 @@ export interface PageShellProps {
    * navigation).
    */
   embedded?: boolean;
+  /**
+   * Host-level read-only gate — set by a Studio pillar when the surrounding
+   * PACKAGE is read-only. Independent of, and dominant over, the TYPE-level
+   * writability the badge below otherwise reports: the registry may well allow
+   * org overlays for this type (`permission` is one of the 15 overlay-allowed
+   * types) while THIS package forbids every write, and the header must report
+   * the state that actually governs the screen.
+   *
+   * Display-side only — the shell gates nothing. It exists because the header
+   * used to render a "writable" badge above 207 disabled checkboxes and a
+   * disabled Publish (objectui#4036, B-half of the objectstack#5768 split
+   * ruling): the host already computed the right answer for its controls and
+   * simply had no way to tell the chrome.
+   */
+  readOnly?: boolean;
   /** Page body. */
   children: React.ReactNode;
+}
+
+/**
+ * The writability badge slot — one of four mutually exclusive states, rendered
+ * identically in the compact (detail) and hero (list) headers. Extracted so the
+ * host read-only gate cannot be honoured in one header and forgotten in the
+ * other, which is the shape of the bug that motivated it.
+ */
+function WritabilityBadge({
+  entry,
+  readOnly,
+  locale,
+  compact,
+}: {
+  entry: RichMetadataTypeEntry | undefined;
+  readOnly: boolean;
+  locale: string;
+  compact?: boolean;
+}): React.ReactElement {
+  const size = compact ? 'text-[10px] h-5 px-1.5' : 'text-[10px]';
+
+  // Host gate first: a read-only package overrides whatever the type registry
+  // says, because no write can be initiated from this screen regardless. The
+  // tooltip names the package as the reason, matching the wording the Studio
+  // top bar and the identity strip already use for the same gate.
+  if (readOnly) {
+    return (
+      <Badge
+        variant="outline"
+        className={`${size} text-muted-foreground`}
+        title={t('engine.studio.pkg.readonlyHint', locale)}
+      >
+        {t('engine.badge.readOnly', locale)}
+      </Badge>
+    );
+  }
+
+  if (entry?.allowOrgOverride) {
+    return (
+      <Badge
+        className={
+          `${size} ` +
+          (entry.overrideSource === 'env'
+            ? 'bg-amber-100 text-amber-800 hover:bg-amber-100'
+            : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100')
+        }
+        title={
+          entry.overrideSource === 'env'
+            ? 'Writable via OBJECTSTACK_METADATA_WRITABLE env var'
+            : 'Writable per ADR-0005 overlay opt-in'
+        }
+      >
+        {t('engine.badge.writable', locale)}
+      </Badge>
+    );
+  }
+
+  if (entry?.allowRuntimeCreate) {
+    return (
+      <Badge
+        className={`${size} bg-sky-100 text-sky-800 hover:bg-sky-100`}
+        title="Code-shipped items are locked; new items can be created at runtime"
+      >
+        {t('engine.badge.createOnly', locale)}
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge variant="outline" className={`${size} text-muted-foreground`}>
+      {t('engine.badge.readOnly', locale)}
+    </Badge>
+  );
 }
 
 export function PageShell({
@@ -54,6 +142,7 @@ export function PageShell({
   stats,
   actions,
   embedded = false,
+  readOnly = false,
   children,
 }: PageShellProps) {
   const type = entry?.type ?? '';
@@ -112,37 +201,7 @@ export function PageShell({
                 {translateMetadataDomain(entry.domain, locale)}
               </Badge>
             )}
-            {entry?.allowOrgOverride ? (
-              <Badge
-                className={
-                  'text-[10px] h-5 px-1.5 ' +
-                  (entry.overrideSource === 'env'
-                    ? 'bg-amber-100 text-amber-800 hover:bg-amber-100'
-                    : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100')
-                }
-                title={
-                  entry.overrideSource === 'env'
-                    ? 'Writable via OBJECTSTACK_METADATA_WRITABLE env var'
-                    : 'Writable per ADR-0005 overlay opt-in'
-                }
-              >
-                {t('engine.badge.writable', locale)}
-              </Badge>
-            ) : entry?.allowRuntimeCreate ? (
-              <Badge
-                className="text-[10px] h-5 px-1.5 bg-sky-100 text-sky-800 hover:bg-sky-100"
-                title="Code-shipped items are locked; new items can be created at runtime"
-              >
-                {t('engine.badge.createOnly', locale)}
-              </Badge>
-            ) : (
-              <Badge
-                variant="outline"
-                className="text-[10px] h-5 px-1.5 text-muted-foreground"
-              >
-                {t('engine.badge.readOnly', locale)}
-              </Badge>
-            )}
+            <WritabilityBadge entry={entry} readOnly={readOnly} locale={locale} compact />
           </div>
           {subtitle && (
             <div className="text-xs text-muted-foreground truncate">{subtitle}</div>
@@ -191,34 +250,7 @@ export function PageShell({
                     {translateMetadataDomain(entry.domain, locale)}
                   </Badge>
                 )}
-                {entry?.allowOrgOverride ? (
-                  <Badge
-                    className={
-                      'text-[10px] ' +
-                      (entry.overrideSource === 'env'
-                        ? 'bg-amber-100 text-amber-800 hover:bg-amber-100'
-                        : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100')
-                    }
-                    title={
-                      entry.overrideSource === 'env'
-                        ? 'Writable via OBJECTSTACK_METADATA_WRITABLE env var'
-                        : 'Writable per ADR-0005 overlay opt-in'
-                    }
-                  >
-                    {t('engine.badge.writable', locale)}
-                  </Badge>
-                ) : entry?.allowRuntimeCreate ? (
-                  <Badge
-                    className="text-[10px] bg-sky-100 text-sky-800 hover:bg-sky-100"
-                    title="Code-shipped items are locked; new items can be created at runtime"
-                  >
-                    {t('engine.badge.createOnly', locale)}
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                    {t('engine.badge.readOnly', locale)}
-                  </Badge>
-                )}
+                <WritabilityBadge entry={entry} readOnly={readOnly} locale={locale} />
               </div>
               {subtitle && (
                 <div className="text-sm text-muted-foreground mt-1">{subtitle}</div>

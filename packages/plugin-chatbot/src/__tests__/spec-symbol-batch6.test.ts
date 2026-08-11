@@ -205,7 +205,8 @@ describe('the vendored directory stays vendored', () => {
 
 /* -------------------------------------------------------------------------- */
 /* Compile-time pins. A violation is a `tsc` error, not a runtime failure.      */
-/* Compiled by this package's `tsconfig.typetests.json` (objectui#3181).       */
+/* Compiled by this package's `tsconfig.test.json` (objectui#3181; the narrow  */
+/* project that named this file alone was retired in objectui#4291).           */
 /* -------------------------------------------------------------------------- */
 
 type Assert<T extends true> = T;

@@ -46,8 +46,9 @@ describe('FeedFilterMode is the spec enum, at runtime as well as in types', () =
 });
 
 /* -------------------------------------------------------------------------- */
-/* Compile-time pins — compiled by tsconfig.typetests.json, chained off        */
-/* "type-check" (this package's test tree is still in TEST_DEBT).              */
+/* Compile-time pins — compiled by tsconfig.test.json, chained off             */
+/* "type-check" (objectui#4291 retired the narrow project that named this      */
+/* file alone, once the package left TEST_DEBT in objectui#4040).              */
 /* -------------------------------------------------------------------------- */
 
 type Assert<T extends true> = T;

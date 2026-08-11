@@ -15,13 +15,18 @@
  * attempt meant one 503 during warm-up degraded currency and locale for the
  * WHOLE session, silently and permanently, long after the kernel was ready.
  *
+ * It also refreshes the UI-language seed cache from the same answer
+ * (objectui#4035) — see the write inside the success branch. That is a cache
+ * write only: it never changes this boot's language, and it leaves the fetch's
+ * cosmetic / never-fail-closed / retried-in-the-background contract untouched.
+ *
  * It shares the "is this transient / how long to wait" primitives with
  * `MePermissionsProvider` but not its policy: that one is fail-closed and holds
  * its loading state across the waits, this one keeps rendering throughout and
  * simply fills the value in if and when an attempt succeeds.
  */
 import { useEffect, useState } from 'react';
-import { LocalizationProvider, type LocalizationValue } from '@object-ui/i18n';
+import { LocalizationProvider, cacheLanguageSeed, type LocalizationValue } from '@object-ui/i18n';
 import {
   HttpFetchError,
   backoffMs,
@@ -69,6 +74,17 @@ export function LocalizationFetchProvider({
           if (!res.ok) throw new HttpFetchError(res.status, retryAfterFrom(res));
 
           const json = (await res.json()) as MeLocalizationResponse;
+          // Refresh the UI-language seed cache (objectui#4035) — the
+          // "revalidate" half of stale-while-revalidate. This boot has already
+          // committed to a language; what this write buys is the NEXT one, so a
+          // tenant that changes its locale reaches every choice-less device
+          // without either an extra request or an old seed pinning it there.
+          //
+          // Outside the `cancelled` guard on purpose: the answer is about the
+          // tenant, not about this component instance, so it is worth keeping
+          // even if we unmounted while it was in flight. An unauthenticated
+          // reply is not authoritative and must not clear a good seed.
+          if (json.authenticated !== false) cacheLanguageSeed(json.locale);
           if (cancelled) return;
           setValue({ currency: json.currency ?? undefined, locale: json.locale ?? undefined });
           return;
