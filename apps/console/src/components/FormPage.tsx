@@ -7,13 +7,17 @@
  * + `POST /api/v1/data/:object`).
  *
  * Both modes share the same renderer; the difference is only in how the
- * spec is loaded and where submissions go. This is the same shape as
- * Airtable Forms — the form view metadata is identical whether it is
- * embedded publicly or used by logged-in operators.
+ * spec is loaded, where submissions go, and — since objectui#4109 — what
+ * happens after a successful submit when the form view declares nothing:
+ * an internal submit lands on the record it just created, while the public
+ * path keeps the anonymous `thank-you` confirmation. See
+ * {@link resolveSubmitBehavior}. This is the same shape as Airtable Forms —
+ * the form view metadata is identical whether it is embedded publicly or
+ * used by logged-in operators.
  */
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || '') + '/api/v1';
@@ -63,6 +67,25 @@ type SubmitBehavior =
   | { kind: 'redirect'; url: string; delayMs?: number }
   | { kind: 'continue' }
   | { kind: 'next-record' };
+
+/** Which surface is rendering the form — see {@link FormPageProps.mode}. */
+export type FormPageMode = 'public' | 'internal';
+
+/**
+ * What the renderer actually does after a successful submit: every authorable
+ * {@link SubmitBehavior}, plus the one behaviour the PLATFORM supplies rather
+ * than the author.
+ *
+ * `created-record` is deliberately NOT a member of the spec's authorable union
+ * (`thank-you | redirect | continue | next-record` — a STRICT discriminated
+ * union in `@objectstack/spec`, so authoring `kind: 'created-record'` is
+ * rejected at publish time and always will be). Nothing ever parses it out of
+ * metadata: it exists only as the value {@link resolveSubmitBehavior} returns
+ * when an internal form declares nothing. That is what lets the platform
+ * default differ from every authorable kind WITHOUT widening the contract or
+ * teaching authors a second dialect for something they never write.
+ */
+type EffectiveSubmitBehavior = SubmitBehavior | { kind: 'created-record' };
 
 interface FormSectionSpec {
   label?: string;
@@ -173,6 +196,84 @@ export function buildSections(
       fields,
     };
   });
+}
+
+/**
+ * The post-submit behaviour actually applied, given what the form view
+ * declared and which surface is rendering it.
+ *
+ * Maintainer ruling, 2026-08-10 (objectstack#7245, quoted verbatim on
+ * objectui#4109):
+ *
+ * > **the `type: 'form'` contract means in-shell, and an internal submit lands
+ * > on the record.**
+ * >
+ * > 2. Internal-mode submit defaults to redirect-to-created-record;
+ * >    `thank-you` stays the default for the public `/f/:slug` path only.
+ *
+ * Before this, the default was `{ kind: 'thank-you' }` for BOTH modes, so a
+ * signed-in operator who had just created a record was told "Your submission
+ * has been received" with no link to it — the anonymous-form confirmation,
+ * shown to someone who is not anonymous and is not done.
+ *
+ * The DECLARED behaviour still wins in both modes, and that precedence is the
+ * point: per ruling point 3 the corpus must never have to opt out of a wrong
+ * default, so this only ever fills the gap an author left empty.
+ */
+export function resolveSubmitBehavior(
+  mode: FormPageMode,
+  declared: SubmitBehavior | undefined,
+): EffectiveSubmitBehavior {
+  if (declared) return declared;
+  return mode === 'internal' ? { kind: 'created-record' } : { kind: 'thank-you' };
+}
+
+/**
+ * The id of the record an internal submit just created, read off the
+ * `POST /api/v1/data/:object` response.
+ *
+ * The response contract is spec-declared — `CreateDataResponse = { object, id,
+ * record, droppedFields? }` (`@objectstack/spec`, `api/protocol.zod.ts`) — and
+ * the top-level `id` IS the created record's id. We read that one declared key
+ * and no alias: `record.id` carries the same value, but reading both would be
+ * exactly the second de-facto contract AGENTS.md #0.1 forbids.
+ *
+ * What this DOES have to absorb is the transport envelope, which is not a
+ * metadata dialect but a platform fact: two transports serve this route and
+ * only one wraps the body. `packages/rest`'s server answers the bare object
+ * (`res.status(201).json(result)`), while the runtime's http-dispatcher wraps
+ * every success as `{ success, data, meta }`. The platform already resolves
+ * this in exactly ONE rule, in `@objectstack/client`:
+ *
+ *     async unwrapResponse(res) {
+ *       const body = await res.json();
+ *       if (body && typeof body.success === 'boolean' && 'data' in body) return body.data;
+ *       return body;
+ *     }
+ *
+ * `FormPage` hand-rolls `fetch` instead of going through that client (it
+ * predates having one here), so the same rule has to be applied at this call
+ * site. Mirroring it is not inventing a dialect — spelling a DIFFERENT rule
+ * would be.
+ *
+ * Returns null when the payload names no id, so the caller can confirm the
+ * submit instead of navigating to `…/record/undefined`.
+ */
+export function readCreatedRecordId(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const body = payload as Record<string, unknown>;
+  const unwrapped =
+    typeof body.success === 'boolean' && 'data' in body
+      ? (body.data as Record<string, unknown> | null | undefined)
+      : body;
+  if (!unwrapped || typeof unwrapped !== 'object') return null;
+  const id = (unwrapped as Record<string, unknown>).id;
+  // The spec declares `id: z.string()`. The numeric branch is a coercion of
+  // that SAME key for drivers whose primary key surfaces as an integer — one
+  // key, one meaning, so it cannot mask a producer emitting the wrong shape.
+  if (typeof id === 'string') return id === '' ? null : id;
+  if (typeof id === 'number' && Number.isFinite(id)) return String(id);
+  return null;
 }
 
 /** Apply `?prefill_<field>=<value>` query params to the initial form state. */
@@ -501,7 +602,23 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
 
 export interface FormPageProps {
   /** `'public'` for /f/:slug (anonymous), `'internal'` for /forms/:name (authed). */
-  mode: 'public' | 'internal';
+  mode: FormPageMode;
+  /**
+   * Builds the console path of a record an INTERNAL submit just created, so
+   * the default `created-record` behaviour has somewhere to land.
+   *
+   * Injected rather than computed here because the answer is not a property of
+   * the form: a record page is app-scoped (`/apps/<segment>/<object>/record/
+   * <id>` — ADR-0048), and WHICH app should host an app-independent page for
+   * this user is a policy with a home of its own. `InternalFormRoute` owns it;
+   * `FormPage` stays a renderer and keeps working outside a metadata catalog
+   * (which is what the public `/f/:slug` mount is — no catalog, no app, and no
+   * business having either).
+   *
+   * Returning `null` — or omitting the prop, as the public mount does — means
+   * "no record page to land on", and the submit falls back to confirming.
+   */
+  recordPath?: (objectName: string, recordId: string) => string | null;
 }
 
 /**
@@ -512,9 +629,10 @@ export interface FormPageProps {
  * *submit target* differ. Forking the component would duplicate the
  * field-rendering branch which is the bulk of the code.
  */
-export function FormPage({ mode }: FormPageProps) {
+export function FormPage({ mode, recordPath }: FormPageProps) {
   const params = useParams();
   const [search] = useSearchParams();
+  const navigate = useNavigate();
   const identifier = (mode === 'public' ? params.slug : params.name) ?? '';
 
   const [loading, setLoading] = useState(true);
@@ -552,8 +670,10 @@ export function FormPage({ mode }: FormPageProps) {
     [loaded],
   );
 
-  const behavior: SubmitBehavior =
-    loaded?.form?.submitBehavior ?? { kind: 'thank-you' };
+  const behavior: EffectiveSubmitBehavior = resolveSubmitBehavior(
+    mode,
+    loaded?.form?.submitBehavior,
+  );
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -561,14 +681,30 @@ export function FormPage({ mode }: FormPageProps) {
     setSubmitting(true);
     setError(null);
     try {
-      if (mode === 'public') {
-        await submitPublic(identifier, values);
-      } else {
-        await submitInternal(loaded.object, values);
-      }
+      const result =
+        mode === 'public'
+          ? await submitPublic(identifier, values)
+          : await submitInternal(loaded.object, values);
       toast.success('Submitted');
       // Behaviour after submit
       switch (behavior.kind) {
+        case 'created-record': {
+          // The internal default (ruling point 2): land on what was just
+          // created. Client-side `navigate` — NOT `window.location.assign` —
+          // because the record page lives in the same SPA and a full reload
+          // would throw away the shell this route now renders inside.
+          const id = readCreatedRecordId(result);
+          const to = id ? recordPath?.(loaded.object, id) : null;
+          if (to) {
+            navigate(to);
+            break;
+          }
+          // No id in the response, or no record page to land on. Confirm the
+          // submit rather than navigate somewhere broken — the create itself
+          // succeeded, so silence would be the worse answer.
+          setSubmitted(true);
+          break;
+        }
         case 'redirect': {
           const delay = behavior.delayMs ?? 0;
           setTimeout(() => window.location.assign(behavior.url), delay);
@@ -614,15 +750,21 @@ export function FormPage({ mode }: FormPageProps) {
   }
   if (!loaded) return null;
 
-  if (submitted && behavior.kind === 'thank-you') {
+  // `created-record` reaches this branch only on the fallback path above (no
+  // id in the response, or nowhere to land) — a successful redirect navigates
+  // away instead. It carries no author-supplied title/message, so it renders
+  // the generic confirmation.
+  if (submitted && (behavior.kind === 'thank-you' || behavior.kind === 'created-record')) {
+    const title = behavior.kind === 'thank-you' ? behavior.title : undefined;
+    const message = behavior.kind === 'thank-you' ? behavior.message : undefined;
     return (
       <div className="mx-auto max-w-2xl p-6">
         <div className="rounded-md border bg-card p-6 text-center">
           <h2 className="mb-2 text-lg font-semibold">
-            {behavior.title ?? 'Thanks!'}
+            {title ?? 'Thanks!'}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {behavior.message ?? 'Your submission has been received.'}
+            {message ?? 'Your submission has been received.'}
           </p>
         </div>
       </div>

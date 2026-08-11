@@ -11,8 +11,10 @@ import {
   buildSections,
   normalizeColumns,
   normalizeOptions,
+  readCreatedRecordId,
   readPrefill,
   resolveInternalForm,
+  resolveSubmitBehavior,
 } from './FormPage';
 
 describe('normalizeColumns', () => {
@@ -285,5 +287,100 @@ describe('resolveInternalForm', () => {
     });
     expect(out.object).toBe('task');
     expect(out.form.type).toBe('simple');
+  });
+});
+
+/**
+ * objectui#4109 — the mode-aware post-submit default, from the maintainer
+ * ruling of 2026-08-10 (objectstack#7245): an internal submit lands on the
+ * record; `thank-you` stays the default for the public `/f/:slug` path only;
+ * an explicitly declared behaviour still wins in BOTH modes.
+ */
+describe('resolveSubmitBehavior', () => {
+  it('defaults an INTERNAL form to landing on the created record', () => {
+    expect(resolveSubmitBehavior('internal', undefined)).toEqual({ kind: 'created-record' });
+  });
+
+  it('keeps thank-you as the PUBLIC default', () => {
+    expect(resolveSubmitBehavior('public', undefined)).toEqual({ kind: 'thank-you' });
+  });
+
+  it('lets an explicit behaviour win in internal mode', () => {
+    const declared = { kind: 'thank-you', title: 'All set' } as const;
+    expect(resolveSubmitBehavior('internal', declared)).toBe(declared);
+  });
+
+  it('lets an explicit behaviour win in public mode', () => {
+    const declared = { kind: 'continue' } as const;
+    expect(resolveSubmitBehavior('public', declared)).toBe(declared);
+  });
+
+  /**
+   * Ruling point 3 — "the corpus must not have to opt out of a wrong default".
+   * Every authorable kind reaches the renderer unchanged in both modes, so a
+   * form that DOES declare one is never second-guessed.
+   */
+  it('passes every authorable kind through untouched, in both modes', () => {
+    const kinds = [
+      { kind: 'thank-you' },
+      { kind: 'redirect', url: 'https://example.test/done' },
+      { kind: 'continue' },
+      { kind: 'next-record' },
+    ] as const;
+    for (const declared of kinds) {
+      expect(resolveSubmitBehavior('internal', declared)).toBe(declared);
+      expect(resolveSubmitBehavior('public', declared)).toBe(declared);
+    }
+  });
+});
+
+/**
+ * The seam the redirect depends on: what `POST /api/v1/data/:object` returns.
+ * Spec-declared as `CreateDataResponse = { object, id, record }`, served bare
+ * by `packages/rest` and `{ success, data, meta }`-wrapped by the runtime's
+ * http-dispatcher — the one envelope rule `@objectstack/client.unwrapResponse`
+ * already owns, mirrored here because FormPage hand-rolls `fetch`.
+ */
+describe('readCreatedRecordId', () => {
+  it('reads the spec-declared top-level id from a bare CreateDataResponse', () => {
+    expect(
+      readCreatedRecordId({
+        object: 'showcase_task',
+        id: 'task-1',
+        record: { id: 'task-1', title: 'Write the report' },
+      }),
+    ).toBe('task-1');
+  });
+
+  it('reads it through the { success, data } transport envelope too', () => {
+    expect(
+      readCreatedRecordId({
+        success: true,
+        data: { object: 'showcase_task', id: 'task-2', record: { id: 'task-2' } },
+        meta: undefined,
+      }),
+    ).toBe('task-2');
+  });
+
+  it('coerces a numeric primary key to its string form', () => {
+    expect(readCreatedRecordId({ object: 'o', id: 42, record: { id: 42 } })).toBe('42');
+  });
+
+  it('returns null when the payload names no id, so the caller can confirm instead', () => {
+    expect(readCreatedRecordId(null)).toBeNull();
+    expect(readCreatedRecordId('nope')).toBeNull();
+    expect(readCreatedRecordId({})).toBeNull();
+    expect(readCreatedRecordId({ object: 'o', id: '' })).toBeNull();
+    expect(readCreatedRecordId({ success: true, data: null })).toBeNull();
+  });
+
+  /**
+   * `record.id` carries the same value, and reading it as an alias would be the
+   * second de-facto contract AGENTS.md #0.1 forbids: one declared key, one
+   * reader. A response missing the declared `id` is a producer bug and must
+   * surface as "no redirect", not be papered over here.
+   */
+  it('does not fall back to record.id when the declared id is absent', () => {
+    expect(readCreatedRecordId({ object: 'o', record: { id: 'task-3' } })).toBeNull();
   });
 });
