@@ -29,18 +29,38 @@
 
 import type { DetailViewField } from '@object-ui/types';
 
-/** Field types that should span full width in multi-column layouts */
+/**
+ * Field types that should span full width in multi-column layouts.
+ *
+ * Two spellings per type on purpose: the BARE entries are `@objectstack/spec`
+ * `FieldType` names (a raw `objectDef.fields[x].type` reaches here from the
+ * detail synth and from app-shell's form designer), the `field:` entries are
+ * the widget ids `mapFieldTypeToFormType` produces. Both are matched RAW, so a
+ * bare member that is not a spec type name — and a `field:` member that is not
+ * a registered widget id — silently matches nothing.
+ *
+ * That is what `rich-text` / `field:rich-text` were: the spec spells the type
+ * `richtext` (widget `field:richtext`) and REJECTS `rich-text`, which survives
+ * only as a typo key in the spec's own `suggestFieldType` table. The set
+ * therefore never widened a rich-text field, while `markdown` and `html` right
+ * beside it did (#4250). The dead spellings are dropped rather than kept
+ * alongside: the alias table is the one place aliases belong.
+ *
+ * `grid` is NOT a spec `FieldType` — it is a sanctioned objectui-local key
+ * (`GridFieldMetadata` in `@object-ui/types`), which is why it is exempt from
+ * the spec-name pin in the tests.
+ */
 const WIDE_FIELD_TYPES = new Set([
   'textarea',
   'markdown',
   'html',
   'grid',
-  'rich-text',
+  'richtext',
   'field:textarea',
   'field:markdown',
   'field:html',
   'field:grid',
-  'field:rich-text',
+  'field:richtext',
 ]);
 
 /**

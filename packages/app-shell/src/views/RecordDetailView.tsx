@@ -133,9 +133,24 @@ export function resolveActionUser(
  * audit-by-name fields drop down.
  */
 const SECONDARY_FIELD_NAME_HINTS = ['description', 'notes', 'note', 'remark', 'remarks', 'comments'];
-const SECONDARY_FIELD_TYPES = new Set(['textarea', 'markdown', 'html', 'rich-text', 'json', 'code']);
+/**
+ * Matched against the RAW `objectDef.fields[x].type`, so every member must be a
+ * `@objectstack/spec` `FieldType` name. `rich-text` was not one: the spec spells
+ * the type `richtext` and REJECTS `rich-text`, which survives only as a typo key
+ * in the spec's own `suggestFieldType` table — a spelling no producer can emit.
+ * The member therefore demoted nothing while a real `richtext` field stayed in
+ * the dense primary section, and the same field failed to read wide in the
+ * detail and form auto-layouts, which carried the identical hole (#4250).
+ */
+const SECONDARY_FIELD_TYPES = new Set(['textarea', 'markdown', 'html', 'richtext', 'json', 'code']);
 
-function isSecondaryField(fieldName: string, fieldDef: any): boolean {
+/**
+ * Exported for the cross-surface pin in `richtextSurfaceParity.test.ts` — the
+ * rule is the behaviour under test, not the set's string membership. Not
+ * re-exported from the package barrel (`views/index.ts` names `RecordDetailView`
+ * only), so this widens no public API.
+ */
+export function isSecondaryField(fieldName: string, fieldDef: any): boolean {
   if (SECONDARY_FIELD_TYPES.has(fieldDef?.type)) return true;
   const lc = fieldName.toLowerCase();
   return SECONDARY_FIELD_NAME_HINTS.some((hint) => lc === hint || lc.endsWith(`_${hint}`));

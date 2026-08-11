@@ -17,9 +17,14 @@ describe('autoLayout', () => {
     it('returns true for wide form field types', () => {
       expect(isWideFieldType('field:textarea')).toBe(true);
       expect(isWideFieldType('field:markdown')).toBe(true);
-      expect(isWideFieldType('field:html')).toBe(true);
       expect(isWideFieldType('field:grid')).toBe(true);
-      expect(isWideFieldType('field:rich-text')).toBe(true);
+      expect(isWideFieldType('field:html')).toBe(true);
+      // `field:richtext` — the widget id `mapFieldTypeToFormType('richtext')`
+      // actually returns. This line used to read `field:rich-text` and was
+      // green only because the set held that string; no field has ever reached
+      // it with that type (objectui#4250). The derived pin lives in
+      // `autoLayout.wideSpelling.test.ts`.
+      expect(isWideFieldType('field:richtext')).toBe(true);
     });
 
     it('returns true for raw wide field types', () => {
@@ -27,7 +32,9 @@ describe('autoLayout', () => {
       expect(isWideFieldType('markdown')).toBe(true);
       expect(isWideFieldType('html')).toBe(true);
       expect(isWideFieldType('grid')).toBe(true);
-      expect(isWideFieldType('rich-text')).toBe(true);
+      // The spec's spelling, replacing the vacuous `'rich-text'` assertion
+      // (objectui#4250) — the spec rejects `rich-text` outright.
+      expect(isWideFieldType('richtext')).toBe(true);
     });
 
     it('returns false for narrow field types', () => {

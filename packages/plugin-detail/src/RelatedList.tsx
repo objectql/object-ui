@@ -976,7 +976,26 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     // receipt attachment (objectui#2360). Only types with no useful tabular
     // rendering stay excluded. (`attachment` is intentionally absent — it is not
     // a `@objectstack/spec` field type, so the renderer does not model it, #2655.)
-    const SKIP_TYPES = new Set(['rich_text', 'html', 'json']);
+    //
+    // SPELLING: matched against the RAW `def.type`, so every member must be a
+    // `@objectstack/spec` `FieldType` name. `rich_text` was not one. The spec
+    // spells the type `richtext` and REJECTS `rich_text` / `rich-text`
+    // outright — they survive only as typo keys in the spec's own
+    // `suggestFieldType` table, i.e. spellings no producer can emit. So the
+    // member excluded nothing while a real `richtext` field fell straight
+    // through into a derived column (#4250).
+    //
+    // `markdown` joins its siblings on MEASURED behaviour, not on the
+    // raw-markup story: markdown, richtext and html all render FORMATTED here
+    // (the first two via `MarkdownCellRenderer`, html via `HtmlCellRenderer`).
+    // What makes all three unusable in a table is that the formatted output is
+    // BLOCK-level (`<h1>` / `<p>` / `<ul>`) inside a `truncate` single-line
+    // cell, so a document renders as one clipped heading with the rest
+    // invisible. `textarea` stays OUT by the same measurement read the other
+    // way — it renders as plain truncated text, which is a useful cell.
+    // Author-declared columns are unaffected: this set only filters the
+    // zero-config auto-derive walk.
+    const SKIP_TYPES = new Set(['richtext', 'markdown', 'html', 'json']);
     const PRIORITY_NAMES = [
       'name',
       'full_name',
