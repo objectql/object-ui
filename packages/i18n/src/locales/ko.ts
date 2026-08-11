@@ -545,6 +545,7 @@ const ko = {
     sortByIdSuffix: "(ID 기준)",
     sortRelationalHint:
       "다른 레코드를 참조하는 열은 목록에 없습니다. 저장된 ID로만 정렬할 수 있고 셀에 표시되는 이름으로는 정렬할 수 없습니다. 그 이름으로 정렬하려면 이름을 담는 수식 필드를 추가하세요.",
+    resetSortToDefault: "뷰 기본 정렬로 재설정",
     group: "그룹",
     groupBy: "그룹 기준",
     export: "내보내기",

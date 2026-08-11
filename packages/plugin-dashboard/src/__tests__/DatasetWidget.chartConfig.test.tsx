@@ -15,8 +15,15 @@
  *    `title`, `subtitle`, `description`, `height`, `colors`, `showDataLabels`,
  *    `annotations`, `interaction` — beside the pre-existing `showLegend`;
  *  - refused, because the value is DERIVED from the dataset selection and an
- *    authored one would shadow it: `xAxis`, `yAxis`, `series`, `type`;
+ *    authored one would shadow it: `type`, and the BINDING keys inside
+ *    `xAxis`/`yAxis`/`series` (`ChartAxis.field`, `ChartSeries.name`);
  *  - refused, because nothing on this path reads it: `aria`.
+ *
+ * ⚠️ `xAxis`/`yAxis`/`series` were refused WHOLESALE until objectui#4229, which
+ * split them: their presentation half (per-series mark and axis binding, axis
+ * scale and chrome) is the author's and now merges onto the derived bindings —
+ * see `DatasetWidget.comboPresentation.test.tsx`. Only the data half is still
+ * refused, and it is pinned below.
  *
  * The refusals are pinned as hard as the forwards. Today's behaviour for them is
  * the contract until objectstack#5175's narrowing half rules on the shape, and a
@@ -161,19 +168,23 @@ describe('DatasetWidget — chartConfig keys that ARE lowered (objectstack#7016)
 });
 
 describe('DatasetWidget — chartConfig keys that are REFUSED (objectstack#7016)', () => {
-  // Criterion 2: the axes and the series are derived from the dataset selection
-  // (`buildChartSeries`). An authored `xAxis`/`yAxis`/`series` would shadow the
-  // derived binding inside `normalizeChartSchema` and blank the chart, so they
-  // are not lowered at all. This is the negative pin the issue asks for: the key
-  // is written, and it stays ignored.
-  it('ignores an authored xAxis / yAxis and keeps the derived axis binding', async () => {
+  // `xAxis` / `yAxis` / `series` were refused here too until objectui#4229,
+  // under the same criterion 2 — and that was half wrong. The DATA half of
+  // those keys is derived and still refused (below, and in
+  // `DatasetWidget.comboPresentation.test.tsx`); their PRESENTATION half is the
+  // author's and now merges forward, which is what makes an authored combo
+  // render as a combo. What remains refused, and is pinned here, is the part
+  // that would shadow the dataset's own derivation: the BINDINGS, i.e. the
+  // spec's `ChartAxis.field` and `ChartSeries.name`.
+  it('ignores an authored axis `field` and keeps the derived axis binding', async () => {
     await renderWidget({
       type: 'bar',
       xAxis: { field: 'not_a_column', title: 'Authored X' },
       yAxis: [{ field: 'not_a_measure', min: 0, max: 5 }],
     });
-    expect('xAxis' in lastChartSchema).toBe(false);
-    expect('yAxis' in lastChartSchema).toBe(false);
+    // The axes travel, stripped of the one key that names a column.
+    expect(lastChartSchema.xAxis).toEqual({ title: 'Authored X' });
+    expect(lastChartSchema.yAxis).toEqual([{ min: 0, max: 5 }]);
     // The derived binding is untouched: the dimension is still the category axis.
     expect(lastChartSchema.xAxisKey).toBe('status');
   });
@@ -181,7 +192,9 @@ describe('DatasetWidget — chartConfig keys that are REFUSED (objectstack#7016)
   it('ignores an authored series and keeps one derived series per measure', async () => {
     await renderWidget({ type: 'bar', series: [{ name: 'not_a_measure', stack: 'g' }] });
     // `series` on the emitted schema is the DERIVED one (internal `dataKey`
-    // shape, one entry per selected measure) — not the authored array.
+    // shape, one entry per selected measure) — not the authored array. An entry
+    // naming a measure outside the selection matches nothing, so its
+    // presentation is dropped with it: membership belongs to the dataset.
     expect(lastChartSchema.series).toHaveLength(1);
     expect(lastChartSchema.series[0].dataKey).toBe('total');
     expect(lastChartSchema.series[0].name).toBeUndefined();

@@ -123,12 +123,9 @@ export const TEST_DEBT = {
   "@object-ui/plugin-form": { errors: 12, issue: 4118, note: "TS2322x10" },
   "@object-ui/plugin-dashboard": { errors: 6, issue: 4118 },
   "@object-ui/plugin-list": { errors: 6, issue: 4118, note: "TS2353x3 — dialect keys" },
-  "@object-ui/permissions": { errors: 5, issue: 4118, note: "TS2741x5" },
   "@object-ui/plugin-detail": { errors: 5, issue: 4118, note: "TS2353x3 — dialect keys" },
   "@object-ui/plugin-gantt": { errors: 3, issue: 4118 },
-  "@object-ui/auth": { errors: 2, issue: 4118 },
   "@object-ui/plugin-grid": { errors: 2, issue: 4118 },
-  "@object-ui/plugin-map": { errors: 1, issue: 4118 },
 };
 
 // ── Collect workspace packages ───────────────────────────────────────────────

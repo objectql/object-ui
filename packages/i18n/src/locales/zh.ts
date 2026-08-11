@@ -525,6 +525,7 @@ const zh = {
     sortByIdSuffix: '(按 ID)',
     sortRelationalHint:
       '指向其他记录的列未列出:它们只能按存储的 ID 排序,而不是单元格中显示的名称。若要按该名称排序,请添加一个存放该名称的公式字段。',
+    resetSortToDefault: '恢复视图默认排序',
     group: '分组',
     groupBy: '分组依据',
     export: '导出',

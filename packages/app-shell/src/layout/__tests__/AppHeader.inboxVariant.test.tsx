@@ -19,7 +19,7 @@
  */
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 
 // ── Chrome the header pulls in but that this test does not exercise ──────────
 
@@ -202,6 +202,16 @@ const ACTIVITY_ROW = {
 let activityRows: Array<Record<string, unknown>> = [];
 
 /**
+ * What the fake `sys_notification_receipt` collection holds. `null` keeps the
+ * original behaviour — one `delivered` receipt whenever the inbox is non-empty
+ * — so every case written before #4230 reads exactly as it did. The #4230 block
+ * sets it explicitly, because a read/unread MIX is the only payload that can
+ * tell "Unread is empty because everything is read" apart from "the panel was
+ * handed nothing", and that distinction is the whole oracle down there.
+ */
+let receiptRows: Array<Record<string, unknown>> | null = null;
+
+/**
  * What `/api/v1/approvals/requests?status=pending` answers for the current
  * test. Two rows ⇒ `pendingApprovalsCount` 2, which is the second badge addend.
  */
@@ -212,7 +222,9 @@ const fakeAdapter = {
     finds.push({ object, query });
     if (object === 'sys_inbox_message') return Promise.resolve({ data: inboxRows });
     if (object === 'sys_notification_receipt') {
-      return Promise.resolve({ data: inboxRows.length ? [DELIVERED_RECEIPT] : [] });
+      return Promise.resolve({
+        data: receiptRows ?? (inboxRows.length ? [DELIVERED_RECEIPT] : []),
+      });
     }
     if (object === 'sys_activity') return Promise.resolve({ data: activityRows });
     return Promise.resolve({ data: [] });
@@ -239,6 +251,7 @@ beforeEach(() => {
   // exact badge arithmetic they were written against (approvals addend 0).
   activityRows = [];
   approvalRows = [];
+  receiptRows = null;
   // Drop the shared feeds' cache and poll timer so cases do not inherit each
   // other's reads — the store deliberately outlives any one render tree.
   __resetSharedUserFeeds();
@@ -524,5 +537,215 @@ describe('AppHeader — presence stays app-only chrome (#4197 boundary)', () => 
     await waitFor(() => expect(activityReads().length).toBeGreaterThan(0));
     // Not one read names presence — in the variant that DOES render it.
     expect(finds.some((f) => String(f.object).includes('presence'))).toBe(false);
+  });
+});
+
+/**
+ * #4230 — the three-way oracle, pinned as a *panel* assertion.
+ *
+ * ## Why this block exists even though #4230 turned out not to be a regression
+ *
+ * #4230 was filed as "#4110 is back on console `09987b68`", and it is not: that
+ * console is objectui `09987b680d53801c` (2026-08-09 02:35:56Z) and #4110's fix
+ * is `7b07832327ea07af` (#4199, 2026-08-10 20:39:10Z) — **42 hours later**, so
+ * the vendored build never contained the fix. `git merge-base --is-ancestor
+ * 7b0783232 09987b68` exits non-zero, and that console's `AppHeader.tsx:338`
+ * still reads `if (!dataSource || !isApp || !user?.id) return;` — the very gate
+ * #4199 removed. #4230 is #4110 observed on a build predating its fix.
+ *
+ * What the round nonetheless exposed is a hole in the pin above: every case up
+ * there holds ONE row and never touches the Unread/All sub-filter. But the
+ * symptom both cards actually report is a *pair* of readings — "You're all
+ * caught up" under Unread AND "No notifications" under All — and "All" is the
+ * load-bearing half, because it applies no predicate at all. A panel showing
+ * nothing under All has been handed nothing, full stop; a panel empty only
+ * under Unread may simply have no unread rows, which is correct behaviour.
+ * Nothing in this file could tell those two apart, so a recurrence that left
+ * the poll running but dropped rows on the way to the popover — the OTHER
+ * branch #4110's investigation named, and the one still open on #4230 — would
+ * have found every case above green.
+ *
+ * So these drive the QA payload (10 rows, mixed read-state, including the
+ * `approval.reminder` #4230 names) through the real `AppHeader` → `InboxPopover`
+ * pair and assert what a user sees under BOTH filters. Reverse verification:
+ * restoring the `isApp` gate on the poll turns every `variant="home"` case here
+ * red and leaves `variant="app"` green — the same signature #4110 had.
+ *
+ * Oracle boundary, stated rather than implied: this mounts the real components
+ * over a fake adapter. It pins everything from `dataSource.find` to the rendered
+ * row — the whole span both cards localise the defect to — and it does NOT pin
+ * the adapter, the REST layer or `/api/v1/notifications` itself.
+ */
+describe('AppHeader — the bell panel renders what the inbox returns, under BOTH filters (#4230)', () => {
+  /**
+   * The QA payload from objectstack#7517: ten `sys_inbox_message` rows for one
+   * user, newest-first, five of them already read. Three share a `(topic,
+   * title)` so the coalescing pass (#2765) is exercised rather than avoided —
+   * grouping is the one transform between the poll and the rendered list, and
+   * "10 rows in, 0 rows out" is exactly the failure being pinned against.
+   */
+  const QA_ROWS = [
+    { id: 'ibx_01', notification_id: 'ntf_01', topic: 'approval.reminder', title: 'Approval reminder: INV-1008', body_md: 'A dual sign-off is waiting on you.', created_at: '2026-08-11T04:30:00Z' },
+    { id: 'ibx_02', notification_id: 'ntf_02', topic: 'hr.contract.expiring', title: 'Contract expiring: Zhang San', body_md: 'Expires in 30 days.', created_at: '2026-08-11T04:00:00Z' },
+    { id: 'ibx_03', notification_id: 'ntf_03', topic: 'project.digest', title: 'Scheduled project digest', body_md: 'Hourly digest.', created_at: '2026-08-11T03:00:00Z' },
+    { id: 'ibx_04', notification_id: 'ntf_04', topic: 'project.digest', title: 'Scheduled project digest', body_md: 'Hourly digest.', created_at: '2026-08-11T02:00:00Z' },
+    { id: 'ibx_05', notification_id: 'ntf_05', topic: 'task.mention', title: 'You were mentioned in Task T-42', body_md: '@zhangsan can you confirm?', created_at: '2026-08-11T01:00:00Z' },
+    { id: 'ibx_06', notification_id: 'ntf_06', topic: 'project.digest', title: 'Scheduled project digest', body_md: 'Hourly digest.', created_at: '2026-08-11T00:00:00Z' },
+    { id: 'ibx_07', notification_id: 'ntf_07', topic: 'crm.lead.assigned', title: 'Lead assigned: Acme Corp', body_md: 'Assigned to you.', created_at: '2026-08-10T23:00:00Z' },
+    { id: 'ibx_08', notification_id: 'ntf_08', topic: 'invoice.paid', title: 'Invoice INV-1004 paid', body_md: 'Payment cleared.', created_at: '2026-08-10T22:00:00Z' },
+    { id: 'ibx_09', notification_id: 'ntf_09', topic: 'deal.won', title: 'Deal won: Globex renewal', body_md: 'Closed-won.', created_at: '2026-08-10T21:00:00Z' },
+    { id: 'ibx_10', notification_id: 'ntf_10', topic: 'system.maintenance', title: 'Scheduled maintenance Sunday 02:00', body_md: 'Two hours of downtime.', created_at: '2026-08-10T20:00:00Z' },
+  ].map((r) => ({ ...r, user_id: 'u1', action_url: `/apps/showcase/sys_inbox_message/record/${r.id}` }));
+
+  /** Read rows: 06 (one member of the digest group), 07, 08, 09, 10. */
+  const READ_NOTIFICATION_IDS = ['ntf_06', 'ntf_07', 'ntf_08', 'ntf_09', 'ntf_10'];
+
+  /**
+   * One receipt per row — `read` for the five above, `delivered` for the rest.
+   * `delivered` is NOT read (ADR-0030), which is the distinction #4110 pinned
+   * and the reason a row can carry a receipt and still be unread.
+   */
+  const qaReceipts = (readIds: string[]) =>
+    QA_ROWS.map((r, i) => ({
+      id: `rcp_${i + 1}`,
+      notification_id: r.notification_id,
+      user_id: 'u1',
+      channel: 'inbox',
+      state: readIds.includes(r.notification_id) ? 'read' : 'delivered',
+    }));
+
+  /** Titles of the five UNREAD rows, deduped by the (topic, title) coalescing. */
+  const UNREAD_TITLES = [
+    'Approval reminder: INV-1008',
+    'Contract expiring: Zhang San',
+    'Scheduled project digest',
+    'You were mentioned in Task T-42',
+  ];
+  /** Every distinct title in the payload — what "All" must list, always. */
+  const ALL_TITLES = [
+    ...UNREAD_TITLES,
+    'Lead assigned: Acme Corp',
+    'Invoice INV-1004 paid',
+    'Deal won: Globex renewal',
+    'Scheduled maintenance Sunday 02:00',
+  ];
+
+  /** The popover's Unread/All sub-filter. Their names are exactly these words. */
+  const clickAll = () => fireEvent.click(screen.getByRole('button', { name: /^All$/ }));
+  const clickUnread = () =>
+    fireEvent.click(screen.getByRole('button', { name: /^Unread\s*\d*$/ }));
+
+  beforeEach(() => {
+    inboxRows = QA_ROWS;
+    receiptRows = qaReceipts(READ_NOTIFICATION_IDS);
+  });
+
+  it('lists the unread rows under Unread — the default filter', async () => {
+    render(<AppHeader variant="home" />);
+
+    for (const title of UNREAD_TITLES) {
+      expect(await screen.findByText(title)).toBeInTheDocument();
+    }
+    // A read row must NOT leak into the unread filter — the assertion that
+    // keeps "renders everything" from passing this case vacuously.
+    expect(screen.queryByText('Invoice INV-1004 paid')).not.toBeInTheDocument();
+    expect(screen.queryByText("You're all caught up")).not.toBeInTheDocument();
+  });
+
+  it('lists ALL ten rows under All — the filter that applies no predicate', async () => {
+    render(<AppHeader variant="home" />);
+
+    await screen.findByText('Approval reminder: INV-1008');
+    clickAll();
+
+    for (const title of ALL_TITLES) {
+      expect(await screen.findByText(title)).toBeInTheDocument();
+    }
+    // The exact copy #4230 reports. "All" filters nothing, so this string and a
+    // non-empty inbox cannot both be true.
+    expect(screen.queryByText('No notifications')).not.toBeInTheDocument();
+  });
+
+  it('surfaces the `approval.reminder` row #4230 names, on the surface it names', async () => {
+    render(<AppHeader variant="home" />);
+
+    expect(await screen.findByText('Approval reminder: INV-1008')).toBeInTheDocument();
+  });
+
+  it('separates "everything is read" from "the panel got nothing"', async () => {
+    // Every row read: Unread is *correctly* empty, and All must still hold ten.
+    // Neither #4110 nor #4230 could make this distinction from the outside —
+    // both saw two empty tabs and had to guess which one meant what.
+    receiptRows = qaReceipts(QA_ROWS.map((r) => r.notification_id));
+    render(<AppHeader variant="home" />);
+
+    expect(await screen.findByText("You're all caught up")).toBeInTheDocument();
+    clickAll();
+    for (const title of ALL_TITLES) {
+      expect(await screen.findByText(title)).toBeInTheDocument();
+    }
+    expect(screen.queryByText('No notifications')).not.toBeInTheDocument();
+  });
+
+  it('coalesces the repeated digest instead of dropping it (#2765 ∩ #4230)', async () => {
+    render(<AppHeader variant="home" />);
+
+    // Unread: two of the three digests are unread, so the group reads ×2 …
+    const unreadGroup = (await screen.findByText('Scheduled project digest')).closest('button');
+    expect(within(unreadGroup as HTMLElement).getByText('×2')).toBeInTheDocument();
+
+    // … and All shows the full run of three. Grouping is a fold, never a drop:
+    // the count pill is what makes "10 rows in, 8 rows listed" readable as
+    // correct rather than as eight-of-ten silently lost.
+    clickAll();
+    await waitFor(() => {
+      const allGroup = screen.getByText('Scheduled project digest').closest('button');
+      expect(within(allGroup as HTMLElement).getByText('×3')).toBeInTheDocument();
+    });
+  });
+
+  it('reconciles the badge with the rows on show — 4 unread topics, 0 approvals', async () => {
+    render(<AppHeader variant="home" />);
+
+    // 5 unread rows fold into 4 unread topics (two digests are one topic), and
+    // the breakdown line spells that out unclamped next to the listed rows.
+    await waitFor(() => expect(screen.getByTestId('inbox-bell-badge')).toHaveTextContent('4'));
+    expect(screen.getByTestId('inbox-badge-breakdown-notifications')).toHaveTextContent(
+      '4 notifications',
+    );
+    expect(screen.getByTestId('inbox-badge-breakdown-approvals')).toHaveTextContent(
+      '0 pending approvals',
+    );
+  });
+
+  it('holds on every console surface, not only inside an app', async () => {
+    // The #4110/#4230 signature is variant-shaped: `app` kept working while the
+    // off-app surfaces went dark. Both filters, both off-app variants.
+    for (const variant of ['home', 'orgs'] as const) {
+      const view = render(<AppHeader variant={variant} />);
+      expect(await screen.findByText('Approval reminder: INV-1008')).toBeInTheDocument();
+      clickAll();
+      expect(await screen.findByText('Invoice INV-1004 paid')).toBeInTheDocument();
+      expect(screen.queryByText('No notifications')).not.toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it('returns to the unread cut when the user switches back', async () => {
+    render(<AppHeader variant="home" />);
+
+    await screen.findByText('Approval reminder: INV-1008');
+    clickAll();
+    expect(await screen.findByText('Invoice INV-1004 paid')).toBeInTheDocument();
+    clickUnread();
+    // Round-trip: the sub-filter is client-side over rows already in hand
+    // (switching never re-fetches), so the read row leaves and the unread ones
+    // stay — a panel that lost its rows on the way back would show the empty
+    // state here instead.
+    await waitFor(() =>
+      expect(screen.queryByText('Invoice INV-1004 paid')).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText('Approval reminder: INV-1008')).toBeInTheDocument();
+    expect(screen.queryByText("You're all caught up")).not.toBeInTheDocument();
   });
 });
