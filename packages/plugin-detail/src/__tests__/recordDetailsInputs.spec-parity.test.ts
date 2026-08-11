@@ -43,9 +43,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { ComponentRegistry } from '@object-ui/core';
 import { RecordDetailsProps } from '@objectstack/spec/ui';
 import '../index';
+
+const SRC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 type ShapeCarrier = { shape?: unknown; _def?: { shape?: unknown } };
 
@@ -78,8 +83,33 @@ function arrayElement(schema: unknown): unknown {
   return arr?.element ?? arr?.def?.element ?? arr?._def?.element ?? arr?._def?.type;
 }
 
-/** Top-level keys of the spec's `RecordDetailsProps`. */
+/** Top-level keys of the spec's `RecordDetailsProps`, INCLUDING tombstones. */
 const specTopLevelKeys = (): string[] => shapeKeys(RecordDetailsProps);
+
+/**
+ * Is this top-level key an ADR-0087 tombstone — declared, but typed `never` so
+ * every value is rejected with a named migration message?
+ *
+ * This distinction is load-bearing, and objectui#3818 is what proved it. A D2
+ * retirement does NOT delete the key from the shape; it REPLACES the member
+ * with `z.never()` carrying the "removed in 17.0.0, run `os migrate meta`"
+ * text. So a retired key still answers `Object.keys(shape)` — which is why
+ * `layout` survived the 17.0.0-rc.6 pin bump on the published surface below
+ * with every derived gate green: the gate asked "is this key in the shape",
+ * the tombstone said yes, and the manifest kept offering an input the spec
+ * rejects on parse. Filtering tombstones out is what makes the gate mean what
+ * its name says.
+ */
+const isTombstoned = (key: string): boolean => {
+  const member = shapeMember(RecordDetailsProps, key) as
+    | { _def?: { type?: string }; def?: { type?: string } }
+    | undefined;
+  return (member?._def?.type ?? member?.def?.type) === 'never';
+};
+
+/** Top-level keys the spec actually ACCEPTS — tombstones removed. */
+const specAcceptedTopLevelKeys = (): string[] =>
+  specTopLevelKeys().filter((key) => !isTombstoned(key));
 
 /** Member keys of one `sections[]` entry, per the spec. */
 const specSectionKeys = (): string[] =>
@@ -191,7 +221,11 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
   });
 
   it('declares no top-level input the spec does not accept', () => {
-    const allowed = new Set(specTopLevelKeys());
+    // ACCEPTED keys, not merely DECLARED ones — a tombstone is present in the
+    // shape and rejects every value (see `isTombstoned`). Reading raw shape
+    // keys here is what let the retired `layout` input stay published and green
+    // through the 17.0.0-rc.6 bump (objectui#3818).
+    const allowed = new Set(specAcceptedTopLevelKeys());
     const offSpec = inputs().map((i) => i.name).filter((name) => !allowed.has(name));
     expect(offSpec).toEqual([]);
   });
@@ -260,5 +294,82 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     const description = input('fields')?.description ?? '';
     expect(description).not.toBe('');
     expect(description).not.toContain('{');
+  });
+});
+
+/**
+ * objectui#3818 — the retired `layout` key, pinned on the published surface.
+ *
+ * `record:details` published `layout: enum ['auto','custom']` with
+ * `defaultValue: 'auto'` and the description "auto uses the object
+ * highlightFields; custom uses explicit sections". None of that was ever
+ * implemented: the renderer's ONLY `schema.layout` read tested `'inline'` |
+ * `'compact'` — two values the schema never permitted — so both legal values
+ * fell through the same ternary to `'vertical'` and the key selected nothing.
+ * A two-value enum whose values do the same thing is a false affordance with
+ * zero diagnostics: an author writing `layout: 'custom'` believed it took
+ * effect. @objectstack/spec 17.0.0 removed the key (objectstack#6946,
+ * ADR-0087 D2) and the maintainer ruling of 2026-08-09 on objectui#3818 is
+ * REMOVAL on this side too.
+ *
+ * Why these pins are not redundant with the derived gate above: a D2 tombstone
+ * stays IN the shape (see `isTombstoned`), so every key-presence check kept
+ * passing while the input was still published. The gate is now
+ * tombstone-aware, and the assertions below name this key so the repair stays
+ * legible if that helper is ever loosened.
+ */
+describe('record:details — `layout` is retired, not merely undocumented (#3818)', () => {
+  it('the spec REJECTS `layout`, with the ADR-0087 migration message', () => {
+    // The premise, checked first: if upstream ever un-retires the key, this
+    // fails before the negative pins below start guarding a dead rule.
+    expect(specTopLevelKeys()).toContain('layout'); // tombstone is still declared
+    expect(isTombstoned('layout')).toBe(true);
+    expect(specAcceptedTopLevelKeys()).not.toContain('layout');
+
+    // A rejection case, so the assertion set is the envelope and not a bare
+    // "it failed": path + code + the named migration text. Both formerly
+    // published values AND both values the dead renderer branch tested — all
+    // four are unauthorable now, which is the whole point.
+    for (const value of ['auto', 'custom', 'inline', 'compact']) {
+      const parsed = RecordDetailsProps.safeParse({ layout: value });
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues.map((i) => i.path.join('.'))).toContain('layout');
+      expect(parsed.error?.issues.map((i) => i.code)).toContain('invalid_type');
+      expect(parsed.error?.issues[0]?.message).toMatch(/removed in @objectstack\/spec 17\.0\.0/);
+    }
+  });
+
+  it('the published surface offers no `layout` input', () => {
+    // Non-empty FIRST — `inputs()` returning `[]` would satisfy every
+    // absence assertion below for the wrong reason (the vacuous-green trap
+    // the `hideFields` block above documents from objectui#3808's reverse run).
+    expect(inputs().length).toBeGreaterThan(0);
+    expect(inputs().map((i) => i.name)).toContain('sections');
+
+    expect(inputs().map((i) => i.name)).not.toContain('layout');
+    expect(input('layout')).toBeUndefined();
+  });
+
+  it('no input description still teaches `layout` as an authorable key', () => {
+    // The declaration and its prose died together: `sections` used to end
+    // "Required when layout is 'custom'", which would have kept teaching the
+    // key from a neighbouring description after the input itself was gone.
+    const descriptions = inputs().map((i) => i.description ?? '');
+    expect(descriptions.join('')).not.toBe('');
+    for (const description of descriptions) {
+      expect(description).not.toMatch(/\blayout is\b/i);
+      expect(description).not.toMatch(/layout:\s*['"]?(auto|custom)/i);
+    }
+  });
+
+  it('the renderer contains no `schema.layout` read', () => {
+    // Source-text half. The behavioural twin lives in
+    // `recordDetailsBodySource.test.tsx` (authoring the key changes no output);
+    // this one catches a re-added branch that a render assertion could miss if
+    // the branch were re-introduced behind a condition the fixtures never hit.
+    const src = readFileSync(join(SRC_DIR, 'renderers/record-details.tsx'), 'utf8');
+    expect(src).toContain('RecordDetailsRenderer'); // the file really is the renderer
+    expect(src).not.toMatch(/schema\s*\.\s*layout/);
+    expect(src).not.toMatch(/['"]compact['"]/);
   });
 });

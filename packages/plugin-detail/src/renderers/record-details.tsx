@@ -100,9 +100,6 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
     }
   }
 
-  const layout: 'vertical' | 'horizontal' =
-    schema.layout === 'inline' || schema.layout === 'compact' ? 'horizontal' : 'vertical';
-
   const enforceFLS = (schema as any).enforceFieldSecurity === true;
   const redact: string[] = Array.isArray((schema as any).redactFields)
     ? (schema as any).redactFields
@@ -241,7 +238,15 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
     objectName: ctx.objectName,
     resourceId: ctx.recordId as any,
     data: ctx.data,
-    layout,
+    // Constant by contract, not by omission. `record:details` HAD a `layout`
+    // key; @objectstack/spec 17.0.0 removed it (objectstack#6946, ADR-0087 D2)
+    // because its published `auto` | `custom` values were never implemented —
+    // the only read here tested `inline` | `compact`, two values the schema
+    // never permitted, so both legal values took this same branch. What
+    // actually chooses the body is what you author: `sections` renders the
+    // explicit groups, omitting it falls back to the object's highlightFields
+    // (see `filteredSections` / `filteredFields` above). objectui#3818.
+    layout: 'vertical',
     columns: schema.columns,
     sections: filteredSections,
     fields: filteredFields,

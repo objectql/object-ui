@@ -259,8 +259,18 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
   // `array`), `validateComponentProps` upstream is advisory, and
   // `RecordDetailsRenderer` maps every entry as an object (`s.name` /
   // `s.label` / `s.fields`), so a string entry contributes no fields at all.
-  // With `layout: 'custom'` sections are the ONLY source of the body, so the
-  // author who trusted the old text got a blank detail page. objectui#3807.
+  // Once `sections` is authored at all it is the ONLY source of the body, so
+  // the author who trusted the old text got a blank detail page. objectui#3807.
+  //
+  // There is deliberately NO `layout` input. `record:details` published one
+  // (`enum ['auto','custom']`, `defaultValue: 'auto'`) until objectui#3818;
+  // @objectstack/spec 17.0.0 removed the key outright (objectstack#6946,
+  // ADR-0087 D2) because those semantics were never implemented — the
+  // renderer's only read tested `inline` | `compact`, values the schema never
+  // permitted, so `auto` and `custom` took the same branch and the key
+  // selected nothing. Re-adding it here would republish a key the spec now
+  // rejects on parse; the body-source contract is `sections`-presence, stated
+  // in the `sections` description below.
   //
   // Documented member keys are exactly the spec's four (`name`, `label`,
   // `columns`, `fields`) — deliberately NOT the extras `RecordDetailsRenderer`
@@ -271,8 +281,7 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
   // below. The renderer tolerating them is not a licence to teach them.
   inputs: [
     { name: 'columns', type: 'enum', label: 'Columns', enum: ['1', '2', '3', '4'], defaultValue: '2', description: 'Number of columns for field layout (1-4)' },
-    { name: 'layout', type: 'enum', label: 'Layout', enum: ['auto', 'custom'], defaultValue: 'auto', description: 'auto uses the object highlightFields; custom uses explicit sections' },
-    { name: 'sections', type: 'array', label: 'Sections', description: 'Field groups rendered as the detail body, in order. Every entry is an OBJECT — `{ name?, label?, columns?, fields }` — a bare section-id string is NOT accepted (the spec retired that spelling in objectstack#5611, and the renderer reads name/label/fields off each entry, so a string entry renders no fields at all). `fields` (required) are the field names shown in this section, in order. `label` is the section heading; omit it for an untitled, borderless section. `name` is a stable snake_case identifier and the i18n anchor — the heading resolves through objects.<object>._sections.<name>.label, so a section without a name shows its authored label in every locale. `columns` (1-4) is THIS section\'s field-grid width; omit it and the renderer derives the width. Required when layout is "custom", where sections are the only source of the detail body.' },
+    { name: 'sections', type: 'array', label: 'Sections', description: 'Field groups rendered as the detail body, in order. Every entry is an OBJECT — `{ name?, label?, columns?, fields }` — a bare section-id string is NOT accepted (the spec retired that spelling in objectstack#5611, and the renderer reads name/label/fields off each entry, so a string entry renders no fields at all). `fields` (required) are the field names shown in this section, in order. `label` is the section heading; omit it for an untitled, borderless section. `name` is a stable snake_case identifier and the i18n anchor — the heading resolves through objects.<object>._sections.<name>.label, so a section without a name shows its authored label in every locale. `columns` (1-4) is THIS section\'s field-grid width; omit it and the renderer derives the width. Authoring `sections` at all makes it the only source of the detail body; omit it and the body falls back to the object\'s highlightFields.' },
     { name: 'fields', type: 'array', label: 'Fields', description: 'Explicit field list (overrides highlightFields)' },
     // `hideFields` is DECLARED, not merely honoured (objectui#3808). The spec
     // declares it (objectstack#5611) and `RecordDetailsRenderer` has read it
