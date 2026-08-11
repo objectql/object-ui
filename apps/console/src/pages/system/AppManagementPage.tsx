@@ -28,6 +28,18 @@
  * objectui#4233's other half: because these controls never wrote, an operator
  * could not set `isDefault` from the UI at all — the app had to be republished
  * through metadata — so the landing bug had no in-product workaround.
+ *
+ * ## The chrome is keyed, the server's words are not (objectui#4307)
+ *
+ * Every string this page AUTHORS goes through `t('appManagement.…')`. Every
+ * string the SERVER authored is interpolated raw, and the split is deliberate
+ * rather than incidental: a refusal like `forbidden: manage_metadata required`
+ * is the server's diagnosis of a specific request, so keying it would mean
+ * inventing a fixed catalogue of sentences the server does not promise to keep
+ * sending. So the failure toasts are keyed **templates with a `{{reason}}`
+ * hole** — the frame is localized, what fills it is passed through byte for
+ * byte. `AppManagementPage.i18n.test.tsx` pins both halves at once, against a
+ * `t` that answers in no natural language at all.
  */
 
 import { useState, useCallback } from 'react';
@@ -54,6 +66,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMetadata, useAdapter } from '@object-ui/app-shell';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { resolveKeyedI18nLabel } from '../../utils';
 
 /**
@@ -70,13 +83,20 @@ interface AdapterWithClient {
   getClient?: () => { meta?: MetaWriteClient } | null | undefined;
 }
 
-/** What the server said, when it said anything — never a swallowed failure. */
-function reason(e: unknown): string {
+/**
+ * What the server said, when it said anything — never a swallowed failure.
+ *
+ * The message is returned UNTRANSLATED by construction (objectui#4307): it is
+ * the server's own sentence about this request, and the only localized part is
+ * `unknown`, which is what this page says when the server said nothing at all.
+ */
+function reason(e: unknown, unknown: string): string {
   const message = e instanceof Error ? e.message : String(e ?? '');
-  return message || 'unknown error';
+  return message || unknown;
 }
 
 export function AppManagementPage() {
+  const { t } = useObjectTranslation();
   const navigate = useNavigate();
   const { appName } = useParams();
   const basePath = appName ? `/apps/${appName}` : '';
@@ -94,6 +114,24 @@ export function AppManagementPage() {
     const client = (adapter as AdapterWithClient | null | undefined)?.getClient?.();
     return client?.meta ?? null;
   }, [adapter]);
+
+  /** The page's own word for "the server told us nothing" — see `reason`. */
+  const unknownError = t('appManagement.toast.unknownError', { defaultValue: 'unknown error' });
+
+  /**
+   * One display name for an app, used by every label and toast below.
+   *
+   * `t` is passed on deliberately: an app's `label` may be objectui's KEYED
+   * form (`{ key, defaultValue }`), and the resolver only reaches the pack when
+   * it is handed a translator — the same call shape `AppSidebar` and
+   * `DashboardView` already use. Without it a keyed label renders its authoring
+   * `defaultValue` on every locale; interpolating `app.label` directly (what
+   * these labels did before this page was keyed) renders `[object Object]`.
+   */
+  const appTitle = useCallback(
+    (app: any): string => resolveKeyedI18nLabel(app?.label, t) || app?.name || '',
+    [t],
+  );
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -131,7 +169,7 @@ export function AppManagementPage() {
   const handleToggleActive = useCallback(async (app: any) => {
     const meta = metaClient();
     if (!meta) {
-      toast.error('Cannot reach the metadata service');
+      toast.error(t('appManagement.toast.noClient', { defaultValue: 'Cannot reach the metadata service' }));
       return;
     }
     setProcessing(true);
@@ -142,19 +180,27 @@ export function AppManagementPage() {
       // for the `navigation` key. Rebuilding a minimal payload instead would
       // drop every field of the app the console does not model.
       await meta.saveItem('app', app.name, { ...app, active: newActive });
-      toast.success(`${app.label || app.name} ${newActive ? 'enabled' : 'disabled'}`);
+      toast.success(
+        newActive
+          ? t('appManagement.toast.appEnabled', { defaultValue: '{{name}} enabled', name: appTitle(app) })
+          : t('appManagement.toast.appDisabled', { defaultValue: '{{name}} disabled', name: appTitle(app) }),
+      );
       await refresh();
     } catch (e: unknown) {
-      toast.error(`Failed to toggle app status: ${reason(e)}`);
+      // The frame is localized; `{{reason}}` is the server's own sentence, raw.
+      toast.error(t('appManagement.toast.toggleFailed', {
+        defaultValue: 'Failed to toggle app status: {{reason}}',
+        reason: reason(e, unknownError),
+      }));
     } finally {
       setProcessing(false);
     }
-  }, [refresh, metaClient]);
+  }, [refresh, metaClient, t, appTitle, unknownError]);
 
   const handleSetDefault = useCallback(async (app: any) => {
     const meta = metaClient();
     if (!meta) {
-      toast.error('Cannot reach the metadata service');
+      toast.error(t('appManagement.toast.noClient', { defaultValue: 'Cannot reach the metadata service' }));
       return;
     }
     setProcessing(true);
@@ -173,14 +219,20 @@ export function AppManagementPage() {
         await meta.saveItem('app', prev.name, { ...prev, isDefault: false });
       }
       await meta.saveItem('app', app.name, { ...app, isDefault: true });
-      toast.success(`${app.label || app.name} set as default`);
+      toast.success(t('appManagement.toast.setDefaultDone', {
+        defaultValue: '{{name}} set as default',
+        name: appTitle(app),
+      }));
       await refresh();
     } catch (e: unknown) {
-      toast.error(`Failed to set default app: ${reason(e)}`);
+      toast.error(t('appManagement.toast.setDefaultFailed', {
+        defaultValue: 'Failed to set default app: {{reason}}',
+        reason: reason(e, unknownError),
+      }));
     } finally {
       setProcessing(false);
     }
-  }, [apps, refresh, metaClient]);
+  }, [apps, refresh, metaClient, t, appTitle, unknownError]);
 
   const handleDelete = useCallback(async (appToDelete: any) => {
     if (confirmDelete !== appToDelete.name) {
@@ -189,26 +241,32 @@ export function AppManagementPage() {
     }
     const meta = metaClient();
     if (!meta) {
-      toast.error('Cannot reach the metadata service');
+      toast.error(t('appManagement.toast.noClient', { defaultValue: 'Cannot reach the metadata service' }));
       return;
     }
     setProcessing(true);
     try {
       await meta.deleteItem('app', appToDelete.name);
-      toast.success(`${appToDelete.label || appToDelete.name} deleted`);
+      toast.success(t('appManagement.toast.appDeleted', {
+        defaultValue: '{{name}} deleted',
+        name: appTitle(appToDelete),
+      }));
       setConfirmDelete(null);
       await refresh();
     } catch (e: unknown) {
-      toast.error(`Failed to delete app: ${reason(e)}`);
+      toast.error(t('appManagement.toast.deleteFailed', {
+        defaultValue: 'Failed to delete app: {{reason}}',
+        reason: reason(e, unknownError),
+      }));
     } finally {
       setProcessing(false);
     }
-  }, [confirmDelete, refresh, metaClient]);
+  }, [confirmDelete, refresh, metaClient, t, appTitle, unknownError]);
 
   const handleBulkToggle = useCallback(async (active: boolean) => {
     const meta = metaClient();
     if (!meta) {
-      toast.error('Cannot reach the metadata service');
+      toast.error(t('appManagement.toast.noClient', { defaultValue: 'Cannot reach the metadata service' }));
       return;
     }
     setProcessing(true);
@@ -227,47 +285,72 @@ export function AppManagementPage() {
           await meta.saveItem('app', name, { ...app, active });
           saved += 1;
         } catch (e: unknown) {
-          failures.push(`${app.label || name} (${reason(e)})`);
+          // Keyed for its PUNCTUATION as much as its words — the CJK packs set
+          // the bracket pair and the space before it, exactly as
+          // `detail.userStatusTitle` does. `{{reason}}` stays the server's.
+          failures.push(t('appManagement.toast.bulkFailureEntry', {
+            defaultValue: '{{name}} ({{reason}})',
+            name: appTitle(app),
+            reason: reason(e, unknownError),
+          }));
         }
       }
       if (saved > 0) {
-        toast.success(`${saved} apps ${active ? 'enabled' : 'disabled'}`);
+        toast.success(
+          active
+            ? t('appManagement.toast.bulkEnabled', { defaultValue: '{{n}} apps enabled', n: saved })
+            : t('appManagement.toast.bulkDisabled', { defaultValue: '{{n}} apps disabled', n: saved }),
+        );
         setSelectedIds(new Set());
       }
       if (failures.length > 0) {
-        toast.error(`Failed for ${failures.length}: ${failures.join('; ')}`);
+        // The joiner is a locale property, not a code constant — same rule (and
+        // same past defect) as `validation.formInvalidJoiner`.
+        const joiner = t('appManagement.toast.bulkFailureJoiner', { defaultValue: '; ' });
+        toast.error(t('appManagement.toast.bulkFailed', {
+          defaultValue: 'Failed for {{n}}: {{details}}',
+          n: failures.length,
+          details: failures.join(joiner),
+        }));
       }
       await refresh();
     } catch (e: unknown) {
-      toast.error(`Bulk operation failed: ${reason(e)}`);
+      toast.error(t('appManagement.toast.bulkOperationFailed', {
+        defaultValue: 'Bulk operation failed: {{reason}}',
+        reason: reason(e, unknownError),
+      }));
     } finally {
       setProcessing(false);
     }
-  }, [apps, selectedIds, refresh, metaClient]);
+  }, [apps, selectedIds, refresh, metaClient, t, appTitle, unknownError]);
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Applications</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+            {t('appManagement.title', { defaultValue: 'Applications' })}
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage all configured applications
+            {t('appManagement.subtitle', { defaultValue: 'Manage all configured applications' })}
           </p>
         </div>
         <Button onClick={() => navigate(`${basePath}/create-app`)} data-testid="create-app-btn">
           <Plus className="h-4 w-4 mr-2" />
-          New App
+          {t('appManagement.newApp', { defaultValue: 'New App' })}
         </Button>
       </div>
 
       {/* Search & Bulk Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
         <div className="relative flex-1 max-w-sm">
-          <label htmlFor="app-search" className="sr-only">Search apps</label>
+          <label htmlFor="app-search" className="sr-only">
+            {t('appManagement.searchLabel', { defaultValue: 'Search apps' })}
+          </label>
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             id="app-search"
-            placeholder="Search apps..."
+            placeholder={t('appManagement.searchPlaceholder', { defaultValue: 'Search apps...' })}
             value={searchQuery}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
             className="pl-8"
@@ -276,12 +359,14 @@ export function AppManagementPage() {
         </div>
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-2">
-            <Badge variant="secondary">{selectedIds.size} selected</Badge>
+            <Badge variant="secondary">
+              {t('appManagement.selectedCount', { defaultValue: '{{n}} selected', n: selectedIds.size })}
+            </Badge>
             <Button variant="outline" size="sm" onClick={() => handleBulkToggle(true)} disabled={processing}>
-              Enable
+              {t('appManagement.bulkEnable', { defaultValue: 'Enable' })}
             </Button>
             <Button variant="outline" size="sm" onClick={() => handleBulkToggle(false)} disabled={processing}>
-              Disable
+              {t('appManagement.bulkDisable', { defaultValue: 'Disable' })}
             </Button>
           </div>
         )}
@@ -295,7 +380,9 @@ export function AppManagementPage() {
             checked={selectedIds.size === filteredApps.length && filteredApps.length > 0}
             onCheckedChange={() => toggleSelectAll()}
           />
-          <label htmlFor="select-all-apps" className="cursor-pointer">Select all ({filteredApps.length})</label>
+          <label htmlFor="select-all-apps" className="cursor-pointer">
+            {t('appManagement.selectAll', { defaultValue: 'Select all ({{n}})', n: filteredApps.length })}
+          </label>
         </div>
       )}
 
@@ -303,7 +390,7 @@ export function AppManagementPage() {
       {filteredApps.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground" data-testid="no-apps-message">
           <LayoutGrid className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p>No apps found.</p>
+          <p>{t('appManagement.empty', { defaultValue: 'No apps found.' })}</p>
         </div>
       ) : (
         <div className="grid gap-3">
@@ -311,6 +398,9 @@ export function AppManagementPage() {
             const isActive = app.active !== false;
             const isDefault = app.isDefault === true;
             const isDeleting = confirmDelete === app.name;
+            // One resolved display name for the row: the visible heading and
+            // all six control labels below name the app the SAME way.
+            const title = appTitle(app);
 
             return (
               <Card key={app.name} className={!isActive ? 'opacity-60' : ''} data-testid={`app-card-${app.name}`}>
@@ -319,7 +409,7 @@ export function AppManagementPage() {
                     id={`select-app-${app.name}`}
                     checked={selectedIds.has(app.name)}
                     onCheckedChange={() => toggleSelect(app.name)}
-                    aria-label={`Select ${app.label || app.name}`}
+                    aria-label={t('appManagement.selectApp', { defaultValue: 'Select {{name}}', name: title })}
                     className="shrink-0"
                   />
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -327,22 +417,28 @@ export function AppManagementPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium truncate">{resolveKeyedI18nLabel(app.label) || app.name}</span>
-                      {isDefault && <Badge variant="default" className="text-xs">Default</Badge>}
+                      <span className="font-medium truncate">{title}</span>
+                      {isDefault && (
+                        <Badge variant="default" className="text-xs">
+                          {t('appManagement.defaultBadge', { defaultValue: 'Default' })}
+                        </Badge>
+                      )}
                       <Badge variant={isActive ? 'secondary' : 'outline'} className="text-xs">
-                        {isActive ? 'Active' : 'Inactive'}
+                        {isActive
+                          ? t('appManagement.active', { defaultValue: 'Active' })
+                          : t('appManagement.inactive', { defaultValue: 'Inactive' })}
                       </Badge>
                     </div>
                     {app.description && (
-                      <p className="text-xs text-muted-foreground truncate">{resolveKeyedI18nLabel(app.description)}</p>
+                      <p className="text-xs text-muted-foreground truncate">{resolveKeyedI18nLabel(app.description, t)}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <Button
                       variant="ghost"
                       size="icon"
-                      title="Open app"
-                      aria-label={`Open ${app.label || app.name}`}
+                      title={t('appManagement.openApp', { defaultValue: 'Open app' })}
+                      aria-label={t('appManagement.openAppNamed', { defaultValue: 'Open {{name}}', name: title })}
                       // ADR-0048 — open via the canonical package-id route segment
                       // (falls back to name for runtime apps without a package id).
                       onClick={() => navigate(`/apps/${app._packageId ?? app.name}`)}
@@ -352,8 +448,8 @@ export function AppManagementPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      title="Edit app"
-                      aria-label={`Edit ${app.label || app.name}`}
+                      title={t('appManagement.editApp', { defaultValue: 'Edit app' })}
+                      aria-label={t('appManagement.editAppNamed', { defaultValue: 'Edit {{name}}', name: title })}
                       onClick={() => navigate(`${basePath}/edit-app/${app.name}`)}
                     >
                       <Pencil className="h-4 w-4" />
@@ -362,8 +458,11 @@ export function AppManagementPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        title="Edit with AI"
-                        aria-label={`Edit ${app.label || app.name} with AI`}
+                        title={t('appManagement.editWithAi', { defaultValue: 'Edit with AI' })}
+                        aria-label={t('appManagement.editWithAiNamed', {
+                          defaultValue: 'Edit {{name}} with AI',
+                          name: title,
+                        })}
                         // ADR-0070 — open the build agent in a fresh conversation
                         // pre-scoped to this app's package (passed as the chat
                         // context.packageId the cloud seeds as the active package),
@@ -378,8 +477,12 @@ export function AppManagementPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      title={isActive ? 'Disable app' : 'Enable app'}
-                      aria-label={isActive ? `Disable ${app.label || app.name}` : `Enable ${app.label || app.name}`}
+                      title={isActive
+                        ? t('appManagement.disableApp', { defaultValue: 'Disable app' })
+                        : t('appManagement.enableApp', { defaultValue: 'Enable app' })}
+                      aria-label={isActive
+                        ? t('appManagement.disableAppNamed', { defaultValue: 'Disable {{name}}', name: title })
+                        : t('appManagement.enableAppNamed', { defaultValue: 'Enable {{name}}', name: title })}
                       onClick={() => handleToggleActive(app)}
                       disabled={processing}
                     >
@@ -388,8 +491,11 @@ export function AppManagementPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      title="Set as default"
-                      aria-label={`Set ${app.label || app.name} as default`}
+                      title={t('appManagement.setDefault', { defaultValue: 'Set as default' })}
+                      aria-label={t('appManagement.setDefaultNamed', {
+                        defaultValue: 'Set {{name}} as default',
+                        name: title,
+                      })}
                       onClick={() => handleSetDefault(app)}
                       disabled={processing || isDefault}
                     >
@@ -398,8 +504,15 @@ export function AppManagementPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      title={isDeleting ? 'Click again to confirm delete' : 'Delete app'}
-                      aria-label={isDeleting ? `Confirm delete ${app.label || app.name}` : `Delete ${app.label || app.name}`}
+                      title={isDeleting
+                        ? t('appManagement.confirmDelete', { defaultValue: 'Click again to confirm delete' })
+                        : t('appManagement.deleteApp', { defaultValue: 'Delete app' })}
+                      aria-label={isDeleting
+                        ? t('appManagement.confirmDeleteNamed', {
+                            defaultValue: 'Confirm delete {{name}}',
+                            name: title,
+                          })
+                        : t('appManagement.deleteAppNamed', { defaultValue: 'Delete {{name}}', name: title })}
                       onClick={() => handleDelete(app)}
                       disabled={processing}
                       className={isDeleting ? 'text-destructive' : ''}

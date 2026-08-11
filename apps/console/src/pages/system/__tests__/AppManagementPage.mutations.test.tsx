@@ -58,6 +58,34 @@ vi.mock('sonner', () => ({
   toast: { success: toastSuccess, error: toastError },
 }));
 
+/**
+ * The page's chrome is keyed as of objectui#4307, so every label and toast
+ * below now arrives through `t`. This stands in for the pack the console
+ * convention's way (`useConsoleActionRuntime.test.tsx`,
+ * `sharedInboxFeed.twoSurfaces.test.tsx`): echo the call site's own
+ * `defaultValue` and fill its `{{holes}}` from the arguments.
+ *
+ * That choice is what keeps this file's assertions UNCHANGED across the i18n
+ * conversion — they still read `'Set Ops as default'` and `'2 apps disabled'`,
+ * because those are still the sentences an English console renders. What these
+ * cases pin is the WRITE, not the wording, and re-spelling them as key names
+ * would have quietly moved them off that subject. The keying itself is pinned
+ * next door, in `AppManagementPage.i18n.test.tsx`.
+ */
+// Partial, via `importOriginal`: `@object-ui/components` builds its own
+// `createSafeTranslation` probes at module scope, so replacing the whole module
+// breaks the dialog graph on re-import (the `no adapter` case below resets the
+// registry and re-imports the page).
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useObjectTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) =>
+      String(options?.defaultValue ?? key).replace(/\{\{(\w+)\}\}/g, (_m, name: string) =>
+        String(options?.[name] ?? ''),
+      ),
+  }),
+}));
+
 vi.mock('@object-ui/app-shell', () => ({
   useMetadata: () => ({ apps: apps.value, refresh }),
   useAdapter: () => ({ getClient: () => ({ meta: { saveItem, deleteItem } }) }),

@@ -3568,6 +3568,84 @@ const en = {
   wizard: {
     missingRequired: 'Please complete the required fields: {{fields}}',
   },
+  // Console › System › Applications (objectui#4307). The page's OWN chrome —
+  // headings, controls, badges and the frames of its toasts.
+  //
+  // What is deliberately NOT here: the server's refusal text. Each failure
+  // toast is a template with a `{{reason}}` hole, and what fills that hole is
+  // whatever `PUT/DELETE /api/v1/meta/app/:name` answered (`forbidden:
+  // manage_metadata required`, a 5xx body, an offline message), passed through
+  // untranslated. The server does not promise a fixed catalogue of sentences,
+  // so there is nothing here for those to key against — see PR #4300 and the
+  // page's own header.
+  appManagement: {
+    title: 'Applications',
+    subtitle: 'Manage all configured applications',
+    newApp: 'New App',
+    // `searchLabel` is the input's sr-only `<label>`; `searchPlaceholder` is
+    // what a sighted user reads. Both, because a placeholder is not a label.
+    searchLabel: 'Search apps',
+    searchPlaceholder: 'Search apps...',
+    selectedCount: '{{n}} selected',
+    // The two bulk buttons. Bare verbs — the selection badge beside them is
+    // what says how many rows they act on.
+    bulkEnable: 'Enable',
+    bulkDisable: 'Disable',
+    selectAll: 'Select all ({{n}})',
+    empty: 'No apps found.',
+    defaultBadge: 'Default',
+    active: 'Active',
+    inactive: 'Inactive',
+    // Row controls. Each is a pair: the `title` tooltip names the ACTION, the
+    // `aria-label` names the action AND its target, because a screen reader
+    // reaching an icon button has no row context to borrow from.
+    selectApp: 'Select {{name}}',
+    openApp: 'Open app',
+    openAppNamed: 'Open {{name}}',
+    editApp: 'Edit app',
+    editAppNamed: 'Edit {{name}}',
+    editWithAi: 'Edit with AI',
+    editWithAiNamed: 'Edit {{name}} with AI',
+    enableApp: 'Enable app',
+    disableApp: 'Disable app',
+    enableAppNamed: 'Enable {{name}}',
+    disableAppNamed: 'Disable {{name}}',
+    setDefault: 'Set as default',
+    setDefaultNamed: 'Set {{name}} as default',
+    deleteApp: 'Delete app',
+    deleteAppNamed: 'Delete {{name}}',
+    // Delete is a two-click control: the first click arms it and the label
+    // becomes the confirmation prompt.
+    confirmDelete: 'Click again to confirm delete',
+    confirmDeleteNamed: 'Confirm delete {{name}}',
+    toast: {
+      noClient: 'Cannot reach the metadata service',
+      // What `reason()` says when the failure carried no message at all. The
+      // ONE localized part of an otherwise verbatim server string.
+      unknownError: 'unknown error',
+      appEnabled: '{{name}} enabled',
+      appDisabled: '{{name}} disabled',
+      toggleFailed: 'Failed to toggle app status: {{reason}}',
+      setDefaultDone: '{{name}} set as default',
+      setDefaultFailed: 'Failed to set default app: {{reason}}',
+      appDeleted: '{{name}} deleted',
+      deleteFailed: 'Failed to delete app: {{reason}}',
+      // `{{n}}` is the count that actually LANDED, not the selection size — a
+      // bulk toggle is N independent writes with no transaction behind them.
+      bulkEnabled: '{{n}} apps enabled',
+      bulkDisabled: '{{n}} apps disabled',
+      bulkFailed: 'Failed for {{n}}: {{details}}',
+      // One entry of `{{details}}`. The bracket pair and the space before it
+      // are part of the translation, so the CJK packs can set their own — the
+      // same reason `detail.userStatusTitle` is keyed rather than composed.
+      bulkFailureEntry: '{{name}} ({{reason}})',
+      // Separator between those entries. Per-locale because list punctuation
+      // is a locale property, not a code constant — `validation.
+      // formInvalidJoiner` is the same key for the same past defect.
+      bulkFailureJoiner: '; ',
+      bulkOperationFailed: 'Bulk operation failed: {{reason}}',
+    },
+  },
 } as const;
 
 export default en;
