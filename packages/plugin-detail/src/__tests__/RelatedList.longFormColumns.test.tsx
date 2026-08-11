@@ -41,7 +41,7 @@ import React from 'react';
 // alias; the package's `exports` map publishes only `.` and `./style.css`, so
 // nothing but that alias makes this path resolvable — which is why
 // `tsconfig.test.json` has to restate it as a `paths` entry (see there, and
-// #4324 for the packaging gap itself).
+// #4325 for the packaging gap itself).
 import '@object-ui/fields/widgets/MarkdownContent';
 import { RelatedList } from '../RelatedList';
 

@@ -30,7 +30,7 @@
     // program vitest runs; without it the import is TS2882 and the file cannot
     // be type-checked at all. Narrow on purpose — `widgets/*` only, so no other
     // sibling source can leak in behind it. The packaging gap it works around
-    // is filed as #4324; when `fields` publishes the subpath this entry goes.
+    // is filed as #4325; when `fields` publishes the subpath this entry goes.
     // `paths` resolves against `baseUrl`, and the inherited one points at the
     // REPO ROOT (the root tsconfig declares `"baseUrl": "."` and `extends`
     // keeps it relative to the config that declared it). Re-anchor it here so
