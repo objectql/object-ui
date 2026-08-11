@@ -3,12 +3,16 @@
  */
 
 /**
- * Resolves an I18nLabel to a plain string.
- * I18nLabel can be either a string or an object { key, defaultValue?, params? }.
- * When it's an object and a `t` function is provided, it resolves the key
- * through the i18n translation system. Otherwise returns defaultValue or key.
+ * Resolves objectui's KEYED i18n label (`{ key, defaultValue?, params? }`) to a
+ * plain string.
+ *
+ * When a `t` function is provided the key is resolved through the i18n
+ * translation system; otherwise `defaultValue`, then the key itself. NOT the
+ * spec's `resolveI18nLabel`, which resolves the INLINE per-locale map form —
+ * see `packages/react/src/utils/i18n.ts` for why the names diverge
+ * (objectui#4167).
  */
-export function resolveI18nLabel(
+export function resolveKeyedI18nLabel(
   label: string | { key: string; defaultValue?: string; params?: Record<string, any> } | undefined,
   t?: (key: string, options?: any) => string,
 ): string | undefined {

@@ -32,7 +32,7 @@ import { useRecordSearch } from '@object-ui/react';
 import { useTheme } from './ThemeProvider';
 import { useExpressionContext, evaluateVisibility } from '../providers/ExpressionProvider';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { resolveI18nLabel, getRecordDisplayName, appRouteSegment } from '../utils';
+import { resolveKeyedI18nLabel, getRecordDisplayName, appRouteSegment } from '../utils';
 import { getIcon } from '../utils/getIcon';
 import { useRecentItems } from '../context/RecentItemsProvider';
 import { useCommandPalette } from '../context/CommandPaletteProvider';
@@ -144,7 +144,7 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
         // Prefer the i18n-resolved object label; fall back to the hit's plain
         // label (already objectName when the def had no string label).
         const objDef = objectsByName.get(hit.objectName);
-        const label = resolveI18nLabel(objDef?.label, t) || hit.objectLabel;
+        const label = resolveKeyedI18nLabel(objDef?.label, t) || hit.objectLabel;
         group = { objectLabel: label, icon: hit.icon, hits: [] };
         byObject.set(hit.objectName, group);
         order.push(hit.objectName);
@@ -262,11 +262,11 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
                 return (
                   <CommandItem
                     key={item.id}
-                    value={`object ${resolveI18nLabel(item.label, t)} ${item.objectName}`}
+                    value={`object ${resolveKeyedI18nLabel(item.label, t)} ${item.objectName}`}
                     onSelect={() => runCommand(() => navigate(resolveHref(item, baseUrl, templateContext).href))}
                   >
                     <Icon className="mr-2 h-4 w-4" />
-                    <span>{resolveI18nLabel(item.label, t)}</span>
+                    <span>{resolveKeyedI18nLabel(item.label, t)}</span>
                   </CommandItem>
                 );
               })}
@@ -281,11 +281,11 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
               .map(item => (
                 <CommandItem
                   key={item.id}
-                  value={`dashboard ${resolveI18nLabel(item.label, t)} ${item.dashboardName}`}
+                  value={`dashboard ${resolveKeyedI18nLabel(item.label, t)} ${item.dashboardName}`}
                   onSelect={() => runCommand(() => navigate(resolveHref(item, baseUrl, templateContext).href))}
                 >
                   <LayoutDashboard className="mr-2 h-4 w-4" />
-                  <span>{resolveI18nLabel(item.label, t)}</span>
+                  <span>{resolveKeyedI18nLabel(item.label, t)}</span>
                 </CommandItem>
               ))}
           </CommandGroup>
@@ -299,11 +299,11 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
               .map(item => (
                 <CommandItem
                   key={item.id}
-                  value={`page ${resolveI18nLabel(item.label, t)} ${item.pageName}`}
+                  value={`page ${resolveKeyedI18nLabel(item.label, t)} ${item.pageName}`}
                   onSelect={() => runCommand(() => navigate(resolveHref(item, baseUrl, templateContext).href))}
                 >
                   <FileText className="mr-2 h-4 w-4" />
-                  <span>{resolveI18nLabel(item.label, t)}</span>
+                  <span>{resolveKeyedI18nLabel(item.label, t)}</span>
                 </CommandItem>
               ))}
           </CommandGroup>
@@ -317,11 +317,11 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
               .map(item => (
                 <CommandItem
                   key={item.id}
-                  value={`report ${resolveI18nLabel(item.label, t)} ${item.reportName}`}
+                  value={`report ${resolveKeyedI18nLabel(item.label, t)} ${item.reportName}`}
                   onSelect={() => runCommand(() => navigate(resolveHref(item, baseUrl, templateContext).href))}
                 >
                   <BarChart3 className="mr-2 h-4 w-4" />
-                  <span>{resolveI18nLabel(item.label, t)}</span>
+                  <span>{resolveKeyedI18nLabel(item.label, t)}</span>
                 </CommandItem>
               ))}
           </CommandGroup>
@@ -339,11 +339,11 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
                   return (
                     <CommandItem
                       key={app.name}
-                      value={`app ${resolveI18nLabel(app.label, t)} ${app.name}`}
+                      value={`app ${resolveKeyedI18nLabel(app.label, t)} ${app.name}`}
                       onSelect={() => runCommand(() => onAppChange(appRouteSegment(app) ?? app.name))}
                     >
                       <Icon className="mr-2 h-4 w-4" />
-                      <span>{resolveI18nLabel(app.label, t)}</span>
+                      <span>{resolveKeyedI18nLabel(app.label, t)}</span>
                       {app.name === activeApp?.name && (
                         <span className="ml-auto text-xs text-muted-foreground">{t('console.commandPalette.current')}</span>
                       )}

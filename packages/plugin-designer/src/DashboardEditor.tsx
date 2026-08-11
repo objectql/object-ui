@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { pickLocalized } from '@object-ui/i18n';
 import { useUndoRedo } from './hooks/useUndoRedo';
 import { useDesignerTranslation } from './hooks/useDesignerTranslation';
 
@@ -97,6 +98,64 @@ function createWidgetId(): string {
 }
 
 // ============================================================================
+// Widget title — display vs authoring
+// ============================================================================
+
+/**
+ * Resolve `DashboardWidget.title` for DISPLAY.
+ *
+ * `@objectstack/spec` 17.0.0-rc.6 widened `I18nLabel` from `string` to
+ * `string | Record<string, string>`, so a widget title may be an inline
+ * per-locale map (`{ en: 'Pipeline', 'zh-CN': '销售漏斗' }`). Every read that
+ * lands in a text node has to resolve it or React stringifies the object to
+ * `[object Object]`.
+ *
+ * `pickLocalized` is objectui's render-side resolver for that vocabulary,
+ * paired with the active UI language; `@objectstack/spec`'s own
+ * `resolveI18nLabel` implements the same rule, and the two are held limb for
+ * limb by `@object-ui/plugin-list`'s
+ * `src/__tests__/i18nLabel-resolver-parity.test.ts` — so the designer's preview
+ * of a dashboard and the runtime dashboard itself cannot start disagreeing
+ * about which locale entry wins.
+ *
+ * ⛔ This is for DISPLAY only. The title INPUT must not resolve through here —
+ * see `isAuthorableTitle`.
+ */
+function resolveWidgetTitle(
+  title: DashboardWidgetSchema['title'],
+  language: string | undefined,
+): string {
+  return pickLocalized(title, language);
+}
+
+/**
+ * Is this widget title editable in a single-line text input?
+ *
+ * The conservative branch PR #4169 took on `DashboardWidgetInspector`, applied
+ * to the other authoring surface, and the reason is data loss rather than
+ * types: resolving a per-locale map into one `<input value>` and writing
+ * `e.target.value` straight back would collapse **every other locale** on the
+ * first keystroke. An author who opened a dashboard to move a widget and
+ * happened to focus the title field would silently destroy the translations.
+ *
+ * So a map-valued title is shown resolved and **read-only**, and the stored map
+ * passes through an edit-and-save round trip untouched. Nothing can reach this
+ * path from stored metadata yet — `I18nLabel` was plain `string` through
+ * rc.5, so no persisted widget title can be a map — which is why the branch is
+ * safe to take without a ruling on the authoring UX.
+ *
+ * The real answer (a per-locale editor, a "translate this label" affordance, or
+ * a deliberate decision that Studio only ever authors the string form) is
+ * objectui#4163 **part 2**, which is unclaimed and pending design. This is a
+ * placeholder that cannot lose data, not that answer.
+ */
+function isAuthorableTitle(
+  title: DashboardWidgetSchema['title'],
+): title is string | undefined {
+  return title == null || typeof title === 'string';
+}
+
+// ============================================================================
 // Widget Card
 // ============================================================================
 
@@ -125,6 +184,9 @@ function WidgetCard({
 }: WidgetCardProps) {
   const wType = widget.type || 'metric';
   const meta = WIDGET_TYPES.find((t) => t.type === wType) || WIDGET_TYPES[0];
+  const { language } = useDesignerTranslation();
+  // DISPLAY read of `widget.title` — see `resolveWidgetTitle`.
+  const title = resolveWidgetTitle(widget.title, language);
 
   return (
     <div
@@ -140,7 +202,7 @@ function WidgetCard({
           <GripVertical className="h-4 w-4 text-gray-300" />
           <meta.Icon className="h-4 w-4 text-gray-500" />
           <span className="text-sm font-medium text-gray-800">
-            {widget.title || `Widget ${index + 1}`}
+            {title || `Widget ${index + 1}`}
           </span>
         </div>
 
@@ -203,7 +265,10 @@ function WidgetPropertyPanel({
   onChange,
   onClose,
 }: WidgetPropertyPanelProps) {
-  const { t } = useDesignerTranslation();
+  const { t, language } = useDesignerTranslation();
+  // Shown in the title input when the stored title is a map the input cannot
+  // safely author — resolved for reading, never written back.
+  const titleDisplay = resolveWidgetTitle(widget.title, language);
   return (
     <div
       data-testid="widget-property-panel"
@@ -221,17 +286,27 @@ function WidgetPropertyPanel({
         </button>
       </div>
 
-      {/* Title */}
+      {/* Title — the ONE authoring (not display) read of `widget.title`, and the
+          only place where following rc.6's widening mechanically would destroy
+          data. A map-valued title is shown resolved and READ-ONLY so the other
+          locales survive; see `isAuthorableTitle` for why, and objectui#4163
+          part 2 for the authoring design this is standing in for. */}
       <div className="space-y-1">
         <label htmlFor="widget-title" className="text-xs font-medium text-gray-600">Title</label>
         <input
           id="widget-title"
           data-testid="widget-prop-title"
           type="text"
-          value={widget.title ?? ''}
-          onChange={(e) => onChange({ title: e.target.value })}
+          value={isAuthorableTitle(widget.title) ? widget.title ?? '' : titleDisplay}
+          onChange={(e) => {
+            // Guarded, not cast: without this the keystroke would replace an
+            // inline locale map with one locale's string.
+            if (!isAuthorableTitle(widget.title)) return;
+            onChange({ title: e.target.value });
+          }}
+          readOnly={!isAuthorableTitle(widget.title)}
           disabled={readOnly}
-          className="block w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
+          className="block w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 read-only:bg-gray-50 read-only:text-gray-500"
         />
       </div>
 
@@ -320,7 +395,7 @@ function WidgetPropertyPanel({
 // ============================================================================
 
 function DashboardPreview({ schema }: { schema: DashboardComponentSchema }) {
-  const { t } = useDesignerTranslation();
+  const { t, language } = useDesignerTranslation();
   const widgets = schema.widgets || [];
   return (
     <div data-testid="dashboard-preview" className="rounded-lg border border-gray-200 bg-gray-50 p-4">
@@ -338,7 +413,8 @@ function DashboardPreview({ schema }: { schema: DashboardComponentSchema }) {
               <div key={w.id} className="rounded-md border border-gray-200 bg-white p-2">
                 <div className="flex items-center gap-1.5">
                   <meta.Icon className="h-3 w-3 text-gray-400" />
-                  <span className="text-xs font-medium text-gray-600">{w.title || 'Untitled'}</span>
+                  {/* DISPLAY read — resolve the inline locale map form. */}
+                  <span className="text-xs font-medium text-gray-600">{resolveWidgetTitle(w.title, language) || 'Untitled'}</span>
                 </div>
                 <div className="mt-1 text-[10px] text-gray-400">{meta.label}</div>
               </div>

@@ -127,7 +127,7 @@ vi.mock('../../providers/ExpressionProvider', () => ({
 }));
 
 vi.mock('../../utils', () => ({
-  resolveI18nLabel: (label: unknown) => (typeof label === 'string' ? label : ''),
+  resolveKeyedI18nLabel: (label: unknown) => (typeof label === 'string' ? label : ''),
   matchAppBySegment: (apps: Array<{ name?: string }>, segment?: string) =>
     apps.find((a) => a?.name === segment),
   appRouteSegment: (app: { name?: string }) => app?.name,

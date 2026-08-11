@@ -296,115 +296,38 @@ const EXPECTED_WITHOUT_INPUTS = [
  * is an upstream issue plus an entry here, never a local widening. Every reason
  * therefore has to cite an issue, which `references a tracking issue` asserts.
  *
- * All eight entries below were verified against renderer read sites, not
- * assumed — see objectui#3797 and objectstack#6776 for the per-key evidence.
+ * ## EMPTY as of @objectstack/spec 17.0.0-rc.6 (objectui#4167)
+ *
+ * All twelve entries were deleted on the rc.6 bump, by the `carries no stale
+ * exemption` test below, which named every one of them at once. Emptying it is
+ * the discipline working end to end rather than an absence of divergence: each
+ * entry cited the upstream issue that owned it, and rc.6 is where both of those
+ * issues landed. Verified per key against the resolved
+ * `ComponentPropsMap[type].shape` at this pin, not from the issues' wording:
+ *
+ *  - **objectstack#6776** — `page:header` now declares `recordChrome`,
+ *    `showStar` and `showCopyId`; `page:accordion` declares `variant`;
+ *    `page:tabs` declares `tabStyle`. The five keys the renderer had read all
+ *    along are contract now. `page:tabs` is the interesting one: the spec
+ *    declares BOTH `tabStyle` and `type`, so the carrier collision written up in
+ *    the deleted entry was resolved upstream by declaring the alias rather than
+ *    by renaming — which is why `page:tabs.type` stays in
+ *    `UNPUBLISHED_EXEMPTIONS` below (spec-declared, unpublishable in a flat
+ *    carrier) while `tabStyle` needs no cover at all.
+ *  - **objectstack#5775 / PR objectstack#6281** — `element:record_picker`
+ *    declares `labelField`, `valueField` and `label`; `page:card` declares
+ *    `children` (replacing the retired `body`); and `page:section` /
+ *    `page:footer` / `page:sidebar` carry the shared `PageContainerProps`, whose
+ *    one key is `children`. Those seven were the objectui#4027 stale-pin set,
+ *    predicted in their own reasons ("Delete this entry when the pin moves") and
+ *    deleted exactly there.
+ *
+ * The map stays declared rather than removed: a future divergence needs
+ * somewhere to be registered, and `exemptedFor` below reads it. Empty is a
+ * state, not a deletion — every forward-direction assertion now runs with no
+ * cover of any kind, which is the strongest reading this gate has ever had.
  */
-const OFF_SPEC_EXEMPTIONS: Record<string, string> = {
-  // ── page:header — three author-facing booleans the spec never declared ────
-  // Read at `containers.tsx:979/980/981` and consumed at `:1453` (which of the
-  // two header layouts renders) and `:1531/:1532` (the RecordTitleChip star and
-  // copy-id affordances). Author-reachable, NOT host-injected: this block's
-  // host injections come through RecordContext (`headerSystemActions`,
-  // `isFavorite`, `onToggleFavorite`) and are deliberately undeclared.
-  // `recordChrome` already has in-repo authors — `preview-samples.ts:68` writes
-  // it under `properties`, the exact shape the upstream linter warns on, and
-  // `plugin-detail/src/synth/buildDefaultPageSchema.ts:413` emits it on every
-  // synthesized record page. Direction is therefore "the spec should declare
-  // it", filed as objectstack#6776; withdrawing them here would delete live,
-  // author-reachable configuration.
-  //
-  // (objectui#3797 suggested these might be renderer-only props deliberately
-  // kept by objectui#3226 / PR #3265. Checked: #3265 (`d2363e710`) narrowed the
-  // LEGACY `page-header` alias in `packages/layout`, not this canonical block —
-  // there is no such deliberate-retention record.)
-  'page:header.recordChrome':
-    'Renderer reads it (containers.tsx:979) to pick the bare-h1 layout; authored in-repo by preview-samples.ts:68 and emitted by buildDefaultPageSchema.ts:413. Awaiting the spec declaration in objectstack#6776.',
-  'page:header.showStar':
-    'Renderer reads it (containers.tsx:980) and passes it to RecordTitleChip (:1531) to hide the follow star. Awaiting the spec declaration in objectstack#6776.',
-  'page:header.showCopyId':
-    'Renderer reads it (containers.tsx:981) and passes it to RecordTitleChip (:1532) to hide the copy-id button. Awaiting the spec declaration in objectstack#6776.',
-
-  // ── page:accordion.variant ───────────────────────────────────────────────
-  // Read at `containers.tsx:734` and consumed at `:735` to pick each panel's
-  // border class, so `variant: 'card'` renders visibly differently. The spec
-  // declares no equivalent at all.
-  'page:accordion.variant':
-    "Renderer reads it (containers.tsx:734) and it changes per-panel borders (:735); the renderer's own comment documents `variant: 'card'` as an author opt-in. Awaiting the spec declaration in objectstack#6776.",
-
-  // ── page:tabs.tabStyle — a carrier collision, not ordinary drift ──────────
-  // The spec DOES declare this concept, spelled `type` (`PageTabsProps.type`),
-  // and `containers.tsx:381` reads both (`properties.type || tabStyle`). Two
-  // spellings for one semantic is exactly what #0.1 forbids, so the local
-  // instinct is to withdraw `tabStyle` — but both local moves are wrong:
-  //   - withdrawing it deletes the only spelling the FLAT carrier can express.
-  //     `SchemaRenderer.tsx:251-270` deliberately refuses to hoist
-  //     `properties.type` onto the node (it would shadow the dispatch key, and
-  //     its comment names this very case), and a flat node is
-  //     `{ type: 'page:tabs', tabStyle: 'card' }` where `type` is the tag;
-  //   - publishing `type` instead declares a key this repo's own parser cannot
-  //     validate: `sdui-parser/src/validate.ts:20-30` lists `'type'` in
-  //     `BASE_PROPS`, so it is skipped as a base prop on every node.
-  // The only remaining lever is upstream, where the shape (rename `type` to
-  // `tabStyle` per objectstack#5775's precedent, vs declare an alias) is a spec
-  // contract decision this repo must not guess. Both options and their costs are
-  // written out in objectstack#6776.
-  'page:tabs.tabStyle':
-    "Renderer reads it (containers.tsx:381) and it is the only spelling the flat SDUI carrier can express — the spec's `type` is unhoistable (SchemaRenderer.tsx:251-270) and unvalidatable as an input (validate.ts BASE_PROPS). Convergence is an upstream contract decision: objectstack#6776.",
-
-  // ── element:record_picker — ALREADY settled upstream, stale pin only ──────
-  // objectstack#5775 (ADR-0087 D2) declared `labelField` / `valueField` /
-  // `label` (plus `sort` / `limit` / `emptyText`) and turned `displayField` /
-  // `searchFields` / `multiple` into `retiredKey()` tombstones — converging on
-  // the `labelField` this renderer actually reads
-  // (`renderers/basic/record-picker.tsx:80-81`), which is the direction
-  // objectui#3797 guessed at. Verified on objectstack `origin/main`
-  // (`packages/spec/src/ui/component.zod.ts:715-786`). It is not in a published
-  // release yet: the newest `@objectstack/spec` on npm is `17.0.0-rc.5`, which
-  // predates #5775 and is what this repo pins. So these three flags are a
-  // stale-pin artifact with NOTHING to do in either repo — and the
-  // `no stale exemption` test below deletes them for us, loudly, the moment the
-  // pin moves.
-  'element:record_picker.labelField':
-    'Already declared upstream by objectstack#5775 (converging on the spelling this renderer reads); flagged only because the pinned @objectstack/spec@17.0.0-rc.5 predates it. Delete this entry when the pin moves.',
-  'element:record_picker.valueField':
-    'Already declared upstream by objectstack#5775; flagged only because the pinned @objectstack/spec@17.0.0-rc.5 predates it. Delete this entry when the pin moves.',
-  'element:record_picker.label':
-    'Already declared upstream by objectstack#5775; flagged only because the pinned @objectstack/spec@17.0.0-rc.5 predates it. Delete this entry when the pin moves.',
-
-  // ── page container `children` — ALREADY settled upstream, stale pin only ───
-  // The other half of the same upstream issue as the record_picker trio above,
-  // and the same stale-pin shape (objectui#4027). objectstack#5775
-  // (PR objectstack#6281, merged 2026-08-07) declared `PageCardProps.children`
-  // as the canonical composition slot — retiring `body`, its second spelling —
-  // and gave `page:section` / `page:footer` / `page:sidebar` the shared
-  // `PageContainerProps`, whose one key is `children`, replacing the
-  // `EmptyProps` that had declared "zero props" for three components whose only
-  // job is to render a child list. Verified in that PR's merged diff
-  // (`packages/spec/src/ui/component.zod.ts`, `PageContainerProps` + the
-  // `ComponentPropsMap` entries), not from the issue's wording.
-  //
-  // The pinned `@objectstack/spec@17.0.0-rc.5` predates all of it: its
-  // `PageCardProps` still lists `body` and no `children`, and the three thin
-  // containers are still `EmptyProps` — so this gate reads four correct,
-  // contract-following declarations as off-spec. Nothing to do in either repo;
-  // the `no stale exemption` test below deletes these four for us, loudly, the
-  // moment the pin moves.
-  //
-  // Nothing about `children` moves a validation verdict either way, which is
-  // why publishing it ahead of the pin is safe: `validate.ts` lists `children`
-  // in `BASE_PROPS` (never an `unknown-prop`), and `codegen.ts:emitInterface`
-  // filters `slot` inputs out of the generated `.d.ts`, where
-  // `SduiBaseProps.children` already types it. The designer panel is the only
-  // surface that changes.
-  'page:card.children':
-    'Already declared upstream by objectstack#5775 / PR objectstack#6281 as the canonical card content slot (replacing the retired `body`); flagged only because the pinned @objectstack/spec@17.0.0-rc.5 predates it. objectui#4027. Delete this entry when the pin moves.',
-  'page:section.children':
-    'Already declared upstream by objectstack#5775 / PR objectstack#6281 via the shared `PageContainerProps` (this renderer has always rendered `schema.children`); flagged only because the pinned @objectstack/spec@17.0.0-rc.5 still maps this block to `EmptyProps`. objectui#4027. Delete this entry when the pin moves.',
-  'page:footer.children':
-    'Already declared upstream by objectstack#5775 / PR objectstack#6281 via the shared `PageContainerProps` (this renderer has always rendered `schema.children`); flagged only because the pinned @objectstack/spec@17.0.0-rc.5 still maps this block to `EmptyProps`. objectui#4027. Delete this entry when the pin moves.',
-  'page:sidebar.children':
-    'Already declared upstream by objectstack#5775 / PR objectstack#6281 via the shared `PageContainerProps` (this renderer has always rendered `schema.children`); flagged only because the pinned @objectstack/spec@17.0.0-rc.5 still maps this block to `EmptyProps`. objectui#4027. Delete this entry when the pin moves.',
-};
+const OFF_SPEC_EXEMPTIONS: Record<string, string> = {};
 
 /**
  * Spec-declared top-level keys deliberately NOT published, each with the reason.
@@ -718,5 +641,67 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
       expect(declaredInputs(type) ?? [], `${type} does not publish ${key}`).toContain(key);
       expect(Object.keys(UNPUBLISHED_EXEMPTIONS)).not.toContain(`${type}.${key}`);
     }
+  });
+
+  it('the three keys the rc.6 bump added to element:record_picker are discoverable', () => {
+    // objectui#4167, and pinned by name for exactly the reason the five above
+    // are: the derived reverse-direction assertion would go green just as
+    // readily if these three were added to `UNPUBLISHED_EXEMPTIONS` instead of
+    // declared, and "exempt it" is the cheaper move under time pressure. The
+    // exemption that covered the retired `displayField` / `searchFields` /
+    // `multiple` trio predicted this red in writing and called it "correct and
+    // wanted"; this is what banking that prediction looks like.
+    //
+    // The first assertion is not redundant with the second. It is the
+    // non-vacuity half: if a later pin dropped these from
+    // `ElementRecordPickerProps`, `undiscoverableSpecKeys` would stop naming
+    // them and every derived assertion would pass while the inputs sat there
+    // publishing keys the contract no longer has.
+    for (const key of ['sort', 'limit', 'emptyText']) {
+      expect(
+        specTopLevelKeys('element:record_picker'),
+        `spec no longer declares element:record_picker.${key}`,
+      ).toContain(key);
+      expect(
+        declaredInputs('element:record_picker') ?? [],
+        `element:record_picker does not publish ${key}`,
+      ).toContain(key);
+      expect(Object.keys(UNPUBLISHED_EXEMPTIONS)).not.toContain(`element:record_picker.${key}`);
+    }
+  });
+
+  it('the twelve rc.6-obsoleted off-spec exemptions are gone, and their keys are contract now', () => {
+    // The tombstone for the emptied `OFF_SPEC_EXEMPTIONS` (see its comment).
+    // Without this, "the list is empty" and "the list was accidentally deleted
+    // along with the divergences it covered" look identical, and every forward
+    // assertion passes either way — the same misdiagnosis objectui#4027 records
+    // for the `SPEC_SHAPE_EMPTY_ON_THE_PIN` carve-out, which is why that one
+    // also left an assertion behind rather than just a comment.
+    //
+    // Asserted as "the spec declares it AND the block publishes it", not merely
+    // "no longer exempted": these twelve keys were author-reachable
+    // configuration the renderers had always honoured, so a pin that regressed
+    // any of them must fail here loudly rather than quietly re-open an
+    // exemption-shaped hole.
+    const settledUpstream: Array<[string, string]> = [
+      ['page:header', 'recordChrome'],
+      ['page:header', 'showStar'],
+      ['page:header', 'showCopyId'],
+      ['page:accordion', 'variant'],
+      ['page:tabs', 'tabStyle'],
+      ['element:record_picker', 'labelField'],
+      ['element:record_picker', 'valueField'],
+      ['element:record_picker', 'label'],
+      ['page:card', 'children'],
+      ['page:section', 'children'],
+      ['page:footer', 'children'],
+      ['page:sidebar', 'children'],
+    ];
+    for (const [type, key] of settledUpstream) {
+      expect(specTopLevelKeys(type), `${type} spec no longer declares ${key}`).toContain(key);
+      expect(declaredInputs(type) ?? [], `${type} stopped publishing ${key}`).toContain(key);
+      expect(Object.keys(OFF_SPEC_EXEMPTIONS)).not.toContain(`${type}.${key}`);
+    }
+    expect(Object.keys(OFF_SPEC_EXEMPTIONS)).toEqual([]);
   });
 });

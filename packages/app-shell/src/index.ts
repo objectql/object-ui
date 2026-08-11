@@ -36,7 +36,7 @@ export type {
 } from './types';
 
 export type {
-  MetadataState,
+  MetadataCacheState,
   MetadataContextValue,
   MetadataTypeStatus,
 } from './providers/MetadataProvider';

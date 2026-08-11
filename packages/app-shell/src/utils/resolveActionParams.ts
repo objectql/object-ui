@@ -30,6 +30,11 @@
  * names it via {@link RESOLVED_ONLY_PARAM_KEYS} rather than reading it.
  */
 import type { ActionParamDef, ActionParamOption } from '@object-ui/core';
+import type { I18nLabel } from '@objectstack/spec/ui';
+// Aliased per PR #4169's convention — app-shell has its OWN `resolveI18nLabel`
+// (renamed `resolveKeyedI18nLabel` by objectui#4167) over the translation-KEY
+// vocabulary, which does not accept the inline per-locale map this resolves.
+import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 
 /**
  * Resolved params keep raw `FieldType` values (`text` / `email` / `select` /
@@ -39,12 +44,58 @@ import type { ActionParamDef, ActionParamOption } from '@object-ui/core';
  * adapter (ADR-0059).
  */
 
+/**
+ * One option as AUTHORED on an action param — {@link ActionParamOption} with
+ * the label on the authoring side of rc.6's `I18nLabel` widening.
+ *
+ * The distinction is the whole point of the authored/resolved split: an author
+ * may write `{ value: 'high', label: { en: 'High', 'zh-CN': '高' } }`, and
+ * `ActionParamDialog` reads `ActionParamOption.label` as a plain `string`. Left
+ * un-narrowed, the map would ride an INLINE option list straight through to the
+ * select widget (inline options pass through verbatim — see `resolvedOptions`),
+ * and render as `[object Object]` with no diagnostic anywhere. So the two types
+ * are kept apart and {@link resolveOptionLabels} is the one crossing point.
+ *
+ * Spelled out rather than `Omit<ActionParamOption, 'label'> & { … }`: `Omit`
+ * over a type carrying `[key: string]: unknown` resolves `Exclude<keyof T,
+ * 'label'>` back to `string | number`, so it drops `value`'s type AND keeps
+ * `label` as `unknown` — the derivation silently erases exactly the two keys it
+ * is supposed to be about.
+ */
+export type RawActionParamOption = {
+  /** Authored label — a plain string, or rc.6's inline per-locale map. */
+  label?: I18nLabel;
+  value: string;
+  /**
+   * Everything else an option declares (`visibleWhen` / `color` / `icon` /
+   * `disabled`), preserved verbatim — objectui#3559.
+   */
+  [key: string]: unknown;
+};
+
 /** Raw param as authored on a schema action (post-zod). */
 export interface RawActionParam {
   name?: string;
   field?: string;
   objectOverride?: string;
-  label?: string;
+  /**
+   * Display label, as authored. `@objectstack/spec` 17.0.0-rc.6 widened
+   * `I18nLabel` from `string` to `string | Record<string, string>`, so an
+   * author may inline a per-locale map here
+   * (`label: { en: 'Reason', 'zh-CN': '原因' }`) — the same widening the spec's
+   * `ActionParamSchema.label` carries.
+   *
+   * This restatement is the load-bearing half (objectui#3174): when it drifts
+   * from what `@object-ui/types`' `ActionParam` says an author may write, this
+   * resolver stops accepting the public authoring type. That drift is exactly
+   * what a widened `I18nLabel` produced, and it is why the fix belongs on this
+   * DECLARATION rather than on the test that surfaced it.
+   *
+   * `resolveActionParams` emits `ActionParamDef.label`, which is a plain
+   * `string` — so the map is resolved on the way out (see {@link
+   * ResolveActionParamsContext.locale}), never forwarded.
+   */
+  label?: I18nLabel;
   type?: string;
   required?: boolean;
   /**
@@ -52,8 +103,13 @@ export interface RawActionParam {
    * resolved side ({@link ActionParamOption}): the two keys this resolver reads
    * plus a catch-all for whatever else an option declares (`visibleWhen`,
    * `color`, `icon`, `disabled`) — objectui#3559.
+   *
+   * One key differs, and it is the same rc.6 widening as {@link
+   * RawActionParam.label} one level down: an option's `label` is authored as
+   * `I18nLabel` and RESOLVED to a `string` before it reaches
+   * `ActionParamOption`. See {@link RawActionParamOption}.
    */
-  options?: ActionParamOption[];
+  options?: RawActionParamOption[];
   placeholder?: string;
   helpText?: string;
   defaultValue?: unknown;
@@ -102,6 +158,49 @@ export interface RawActionParam {
  */
 function paramName(param: RawActionParam): string | undefined {
   return param.name ?? param.field;
+}
+
+/**
+ * The one crossing point from {@link RawActionParamOption} to
+ * {@link ActionParamOption}: resolve each authored `label` — a plain string or
+ * rc.6's inline per-locale map — to the single string the dialog renders.
+ *
+ * Everything else is preserved by spread, for the same reason
+ * {@link normaliseOptions} preserves it (objectui#3559): rebuilding a fresh
+ * `{ label, value }` silently drops `visibleWhen` / `color` / `icon` /
+ * `disabled`. A label that resolves to nothing falls back to `value`, which is
+ * what a bare-string option already means (`{ label: s, value: s }`).
+ */
+function resolveOptionLabels(
+  options: RawActionParamOption[] | undefined,
+  locale: string | undefined,
+): ActionParamOption[] | undefined {
+  if (!options) return undefined;
+  // Identity-preserving fast path, and it is load-bearing rather than an
+  // optimisation: objectui#3559 pins that an INLINE option list reaches the
+  // dialog *verbatim* — `toBe`, not `toEqual` — because the bug it closed was a
+  // rebuild that dropped `visibleWhen`. A list with nothing to resolve is
+  // therefore returned untouched, so that pin stays true as written; only a
+  // list that actually carries a map is rebuilt, and then by spread.
+  if (everyLabelResolved(options)) return options;
+  return options.map((option) =>
+    typeof option.label === 'string'
+      ? (option as ActionParamOption)
+      : {
+          ...option,
+          // `?? option.value` is what a bare-string option already means
+          // (`{ label: s, value: s }`), and it is forced rather than chosen:
+          // `ActionParamOption.label` is a required `string`.
+          label: resolveInlineI18nLabel(option.label, locale) ?? option.value,
+        },
+  );
+}
+
+/** True when no option carries a label the dialog cannot render as-is. */
+function everyLabelResolved(
+  options: RawActionParamOption[],
+): options is ActionParamOption[] {
+  return options.every((option) => typeof option.label === 'string');
 }
 
 /**
@@ -234,6 +333,17 @@ export interface ResolveActionParamsContext {
    * the row's current values pre-filled.
    */
   row?: Record<string, unknown>;
+  /**
+   * Active UI language (BCP-47) used to resolve an inline per-locale
+   * {@link RawActionParam.label} down to the one string `ActionParamDef.label`
+   * can carry. Both callers thread `useObjectTranslation().language`.
+   *
+   * Optional and nullish-tolerant: omitted means "no locale known", which the
+   * spec's resolver documents as resolving to `en`. It is a context field
+   * rather than a hook read because this is a pure function — the caller is
+   * the component that already knows the language.
+   */
+  locale?: string;
 }
 
 /**
@@ -306,14 +416,26 @@ export function resolveActionParam(
       ? ctx.row[rowKey]
       : undefined;
 
+  /**
+   * The authored label, resolved to the one string `ActionParamDef` carries.
+   *
+   * `?? param.name` / `?? ctx.fieldLabel(…)` keeps working unchanged: the
+   * resolver answers `undefined` for an absent label AND for a map no limb
+   * matched, and returns `''` verbatim for an authored empty string — which is
+   * what `param.label ?? …` did before, since `''` is not nullish.
+   */
+  const authoredLabel = resolveInlineI18nLabel(param.label, ctx.locale);
+  /** Inline options, with each authored label narrowed to the resolved side. */
+  const authoredOptions = resolveOptionLabels(param.options, ctx.locale);
+
   // Inline param — no field reference, just normalise.
   if (!param.field) {
     return {
       name: param.name ?? '',
-      label: param.label ?? param.name ?? '',
+      label: authoredLabel ?? param.name ?? '',
       type: param.type ?? 'text',
       required: param.required ?? false,
-      options: param.options,
+      options: authoredOptions,
       placeholder: param.placeholder,
       helpText: param.helpText,
       defaultValue: rowDefault ?? param.defaultValue,
@@ -338,10 +460,10 @@ export function resolveActionParam(
     // partial (e.g. tests).
     return {
       name: paramName(param) ?? param.field,
-      label: param.label ?? ctx.fieldLabel(ownerName, param.field, param.field),
+      label: authoredLabel ?? ctx.fieldLabel(ownerName, param.field, param.field),
       type: param.type ?? 'text',
       required: param.required ?? false,
-      options: param.options,
+      options: authoredOptions,
       placeholder: param.placeholder,
       helpText: param.helpText,
       defaultValue: rowDefault ?? param.defaultValue,
@@ -356,9 +478,9 @@ export function resolveActionParam(
   }
 
   const resolvedType = param.type ?? field.type ?? 'text';
-  const resolvedOptions = param.options
+  const resolvedOptions = authoredOptions
     ?? normaliseOptions(field.options, ownerName, param.field, ctx.fieldOptionLabel);
-  const resolvedLabel = param.label
+  const resolvedLabel = authoredLabel
     ?? ctx.fieldLabel(ownerName, param.field, field.label ?? param.field);
 
   /** Lookup/reference params carry extra picker config that the dialog

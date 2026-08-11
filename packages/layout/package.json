@@ -30,6 +30,7 @@
     "@object-ui/core": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
+    "@objectstack/spec": "^17.0.0-rc.6",
     "clsx": "^2.1.1",
     "lucide-react": "^1.29.0",
     "react": "19.2.8",
@@ -42,7 +43,6 @@
     "react-router-dom": "^6.0.0 || ^7.0.0"
   },
   "devDependencies": {
-    "@objectstack/spec": "^17.0.0-rc.6",
     "@vitejs/plugin-react": "^6.0.5",
     "react-router-dom": "^7.18.2",
     "vite": "^8.2.1",

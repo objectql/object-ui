@@ -10,7 +10,7 @@ import { ComponentRegistry } from '@object-ui/core';
 import type { BreadcrumbSchema } from '@object-ui/types';
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from '../../ui/breadcrumb';
 import { renderChildren } from '../../lib/utils';
-import { resolveI18nLabel } from '@object-ui/react';
+import { resolveKeyedI18nLabel } from '@object-ui/react';
 
 ComponentRegistry.register('breadcrumb', 
   ({ schema, ...props }: { schema: BreadcrumbSchema; [key: string]: any }) => {
@@ -32,9 +32,9 @@ ComponentRegistry.register('breadcrumb',
             <div key={idx} className="flex items-center">
               <BreadcrumbItem>
                 {idx === (schema.items?.length || 0) - 1 ? (
-                  <BreadcrumbPage>{resolveI18nLabel(item.label) ?? ''}</BreadcrumbPage>
+                  <BreadcrumbPage>{resolveKeyedI18nLabel(item.label) ?? ''}</BreadcrumbPage>
                 ) : (
-                  <BreadcrumbLink href={item.href}>{resolveI18nLabel(item.label) ?? ''}</BreadcrumbLink>
+                  <BreadcrumbLink href={item.href}>{resolveKeyedI18nLabel(item.label) ?? ''}</BreadcrumbLink>
                 )}
               </BreadcrumbItem>
               {idx < (schema.items?.length || 0) - 1 && <BreadcrumbSeparator />}

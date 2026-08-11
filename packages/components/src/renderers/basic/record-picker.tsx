@@ -265,6 +265,50 @@ ComponentRegistry.register('record_picker', ElementRecordPickerRenderer, {
     { name: 'valueField', type: 'string', label: 'Value Field' },
     { name: 'placeholder', type: 'string', label: 'Placeholder' },
     { name: 'label', type: 'string', label: 'Label' },
+    // ── sort / limit / emptyText — declared on the rc.6 bump (objectui#4167) ──
+    // `@objectstack/spec` 17.0.0-rc.6 lands objectstack#5775's other half: these
+    // three arrive as newly DECLARED keys on `ElementRecordPickerProps`, and the
+    // reverse direction of the parity gate went red demanding them the moment
+    // the pin moved. That red was predicted, in writing, by the exemption that
+    // covered the retired trio ("`sort` / `limit` / `emptyText` … become
+    // brand-new A-class gaps, and this gate will go RED demanding them. That red
+    // is correct and wanted"). All three were already READ here before they were
+    // declared anywhere, which is the objectui#3407 shape — honoured, and
+    // undiscoverable to every layer that reads a manifest.
+    {
+      name: 'sort',
+      // `'array'` is the spec's shape, not a chosen arm: `sort` is
+      // `z.array(z.object({ field, order: 'asc'|'desc' })).optional()`. Verified
+      // against `ElementRecordPickerPropsSchema.safeParse` — the array of
+      // `{ field, order }` parses, and the terse string spelling `'name asc'`
+      // does NOT, which is worth saying in the description because it is the
+      // form an author is most likely to reach for.
+      type: 'array',
+      label: 'Sort',
+      description:
+        'Row order, as an array of `{ field, order }` entries — `[{ field: "name", order: "asc" }]`. It becomes the `$orderby` of the picker\'s own query, so it decides the order records are offered in. `order` is `asc` or `desc`; the terse string form (`"name asc"`) is not accepted by the contract. PRECEDENCE: identical to `filter` above and for the same reason — the renderer reads `dataSource.sort ?? sort`, so a node-level `dataSource` binding (or the saved view its `view` names) REPLACES this key outright rather than merging with it; it applies only when the node carries no `dataSource`, or that `dataSource` and its view both leave `sort` unset.',
+    },
+    {
+      name: 'limit',
+      type: 'number',
+      label: 'Limit',
+      description:
+        'Maximum number of records the picker offers, as a whole number. It becomes the `$top` of the picker\'s own query, so it bounds what the user can choose from rather than how the list is displayed — a record outside the limit cannot be picked at all, and the control gives no sign that more exist. DEFAULT: 50 when neither this nor `dataSource.limit` is set, applied by the renderer (`record-picker.tsx:107`), not by the schema. PRECEDENCE: `dataSource.limit ?? limit ?? 50` — a node-level binding wins outright.',
+    },
+    {
+      name: 'emptyText',
+      // A NARROWED type, named here for the objectui#3832 reason: the contract
+      // is `string | Record< string, string >` — rc.6 widened it to the same
+      // `I18nLabel` union it widened everywhere else — and `ComponentInput.type`
+      // is one coarse control kind with no way to spell a union. Publishing
+      // `'string'` therefore describes the form this renderer actually resolves,
+      // and the description carries the half the type cannot, which is the same
+      // treatment `element:text_input.defaultValue`'s `string | number` gets.
+      type: 'string',
+      label: 'Empty Text',
+      description:
+        'Text shown in place of the row list when the query returns no records (renderer default "No records", `record-picker.tsx:213`). Unlike `filter` / `sort` / `limit` this is display-only — it never reaches the query, and a node-level `dataSource` binding does not override it. KNOWN GAP: the contract also accepts an inline per-locale map (`{ en: "None", "zh-CN": "无记录" }`) — rc.6 widened this key to `I18nLabel` — and this renderer passes the value straight into a text node with no locale resolution, so only the plain-string form renders today. Tracked with the rest of the widened-`I18nLabel` render-site audit in objectui#4163; this input publishes the string form deliberately rather than advertising a shape the renderer drops.',
+    },
   ],
 });
 
