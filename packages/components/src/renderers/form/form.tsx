@@ -920,10 +920,22 @@ ComponentRegistry.register('form',
         if (!hasOptionPredicate && !dependsOn) continue;
         const current = form.getValues(name);
         if (current === undefined || current === null || current === '') continue;
-        // While gated (a dependency is empty) the whole list is withheld — clear
-        // any prior value so it can't linger past a parent reset. Same shared
-        // resolver the widgets use, so gating/filtering stays in lockstep.
-        const { options: visible } = resolveCascadingOptions(opts, ruleRecord, dependsOn, predicateScope);
+        // Same shared resolver the widgets use, so gating/filtering stays in
+        // lockstep — including the guard below.
+        const { options: visible, gated } = resolveCascadingOptions(opts, ruleRecord, dependsOn, predicateScope);
+        // Gated ≠ invalid (objectui#4247). While a dependency is empty the whole
+        // list is WITHHELD, so `visible` is empty for a reason that says nothing
+        // about the stored value — and this effect runs on mount, so a record
+        // that merely ARRIVES with its controlling field empty (a later-cleared
+        // parent, an import, a partially-migrated row) had the dependent
+        // picklist wiped before the user touched anything, while the field
+        // rendered "select the parent first" beside it. Gating is missing
+        // information, not a verdict; the cascade converges when the parent IS
+        // chosen and the resolved set genuinely excludes the value, which is the
+        // clear below, unchanged. The four option WIDGETS carry the matching
+        // guard — this effect is an independent second clear on the form host,
+        // and the widgets' fix does not reach it.
+        if (gated) continue;
         if (!isValueStillOffered(current, visible)) {
           form.setValue(name, Array.isArray(current) ? [] : undefined, {
             shouldValidate: false,

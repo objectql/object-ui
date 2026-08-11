@@ -53,16 +53,33 @@ export function MultiSelectField({
   // the scalar case we prune per-element rather than clearing the whole field.
   useEffect(() => {
     if (readonly) return;
-    // Nothing was ever CONFIGURED to prune against (objectui#4220). An empty
-    // offered set has two very different causes: a list that cascaded down to
-    // zero (a real decision — clear), and a field authored with no `options` at
-    // all (no decision — the widget renders its "unfillable" state below). In
-    // the second case pruning is not a cascade, it is deleting the stored value
-    // of a field the user was only ever shown a hint for — measured on the
-    // detail page's inline editor, which stages that empty array into the
-    // record draft the moment the row enters edit mode, and on the grid's
-    // inline cell editor, which has always taken this path.
+    // An empty offered set has THREE very different causes, and only one of them
+    // is a decision to prune against. This is the canonical copy of the guards;
+    // the other three option widgets carry the same pair.
+    //
+    // 1. Nothing was ever CONFIGURED (objectui#4220) — a field authored with no
+    //    `options` at all. No decision was made anywhere, and the widget renders
+    //    its "unfillable" state below. Pruning here is not a cascade, it is
+    //    deleting the stored value of a field the user was only ever shown a
+    //    hint for — measured on the detail page's inline editor, which stages
+    //    that empty array into the record draft the moment the row enters edit
+    //    mode, and on the grid's inline cell editor, which has always taken this
+    //    path.
     if (rawOptions.length === 0) return;
+    // 2. The list is GATED (objectui#4247) — an authored list withheld because a
+    //    declared `dependsOn` parent is still empty, so `resolveCascadingOptions`
+    //    returns nothing at all. Gated means UNKNOWN, not invalid: the widget has
+    //    no information about which stored values are valid, which is exactly
+    //    what the `OptionsEmptyState` below tells the user ("select Country
+    //    first"). Clearing here fired on MOUNT with no interaction — a record
+    //    that merely ARRIVES with the parent empty (a later-cleared parent, an
+    //    import, a partially-migrated row) had its picklist silently staged for
+    //    deletion. Read from the resolver's own `gated` flag rather than
+    //    re-derived from `options.length === 0`, which would collide with case 1.
+    if (gated) return;
+    // 3. The list RESOLVED and genuinely excludes the value — a real cascade
+    //    (the parent changed, a predicate flipped). That is the ADR-0058
+    //    contract and it still prunes, below.
     if (selected.length === 0) return;
     const stillOffered = selected.filter((v) => options.some((o) => o.value === v));
     if (stillOffered.length !== selected.length) onChange(stillOffered);

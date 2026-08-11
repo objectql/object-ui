@@ -53,6 +53,11 @@ export function RadioField({
     // Never configured → nothing to prune against; see `MultiSelectField`'s
     // copy of this guard for the measured failure (objectui#4220).
     if (rawOptions.length === 0) return;
+    // Gated → the authored list is withheld until the `dependsOn` parent is
+    // chosen, so the empty offered set is missing information, not a verdict on
+    // the stored value; clearing here fired on mount (objectui#4247). Same
+    // reasoning, at length, in `MultiSelectField`.
+    if (gated) return;
     if (value === undefined || value === null || (value as unknown) === '') return;
     if (!isValueStillOffered(value, options)) onChange?.(undefined as unknown as string);
     // eslint-disable-next-line react-hooks/exhaustive-deps

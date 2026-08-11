@@ -55,6 +55,11 @@ export function CheckboxesField({
     // Never configured → nothing to prune against; see `MultiSelectField`'s
     // copy of this guard for the measured failure (objectui#4220).
     if (rawOptions.length === 0) return;
+    // Gated → the authored list is withheld until the `dependsOn` parent is
+    // chosen, so the empty offered set is missing information, not a verdict on
+    // the stored value; clearing here fired on mount (objectui#4247). Same
+    // reasoning, at length, in `MultiSelectField`.
+    if (gated) return;
     if (selected.length === 0) return;
     const stillOffered = selected.filter((v) => options.some((o) => o.value === v));
     if (stillOffered.length !== selected.length) onChange(stillOffered);
