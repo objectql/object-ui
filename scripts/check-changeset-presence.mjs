@@ -31,13 +31,32 @@
  *
  * `.github/workflows/changeset-guard.yml` already exists and looks like the
  * natural home. It is not: its trigger is `paths: ['.changeset/**']`, and that
- * INVERSION is deliberate and documented in its own header — `ci.yml` and
- * `lint.yml` both list `.changeset/**` under `paths-ignore`, so a PR that adds
- * ONLY a changeset starts no other workflow at all, and that guard exists to see
- * exactly that PR. A PR which forgot its changeset, by definition, does not touch
- * `.changeset/**`: the one check that could notice is the one check guaranteed
- * not to run. Widening its paths would break the case it was built for, so this
- * gate is forward-triggered and lives alongside it.
+ * INVERSION is deliberate and documented in its own header.
+ *
+ * Its reason is NOT the one this comment used to give — "`ci.yml` and `lint.yml`
+ * both list `.changeset/**` under `paths-ignore`, so a PR that adds ONLY a
+ * changeset starts no other workflow at all". objectui#3523 step 2 deleted
+ * `paths-ignore` from those two workflows' `pull_request` trigger; it survives
+ * only on `push`. Such a PR therefore DOES start them and DOES produce their
+ * contexts — measured: PR #3856 (one markdown file) started 16 checks, PR #4339
+ * (one line added to AGENTS.md) started 17. objectui#3857 pinned the correction
+ * after an author acted on the old sentence and got the opposite result.
+ *
+ * What #3523 moved rather than deleted is the path DECISION. It is now the
+ * `Decide whether this change needs a full run` step in `ci.yml`, with a twin in
+ * `lint.yml`, and its exclusion list is that `push` filter unchanged — markdown
+ * and `.changeset/**` included, held identical to it by
+ * `scripts/__tests__/merge-queue-reporting.test.ts`. So on a changeset-only PR
+ * both workflows start, report, and skip every expensive step: no gate inside
+ * either of them ever reads the changeset. The conclusion survives its premise —
+ * `changeset-guard.yml` runs outside that in-job switch, with no install and no
+ * build, so it is still the only thing that judges such a PR at all.
+ *
+ * This gate faces the other way. A PR which forgot its changeset, by definition,
+ * does not touch `.changeset/**`: the one check that could notice is the one
+ * check guaranteed not to run. Widening that workflow's paths would break the
+ * case it was built for, so this gate is forward-triggered and lives alongside
+ * it.
  *
  * ## What is guarded, and why it is derived rather than listed
  *

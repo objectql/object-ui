@@ -1,11 +1,27 @@
 name: Changeset Guard
 
-# Why this is its own workflow instead of a job in `ci.yml`: a changeset is a
-# markdown file under `.changeset/`, and both `ci.yml` and `lint.yml` list
-# `'**/*.md'` AND `.changeset/**` under `paths-ignore`. A PR that adds only a
-# changeset therefore starts no workflow at all — which is exactly the PR this
-# check needs to see. GitHub has no per-job path filter, so the gate lives here,
-# with the inverse trigger: it runs *only* when `.changeset/**` changes.
+# Why this is its own workflow instead of a job in `ci.yml`: on a PR that adds
+# only a changeset, every gate inside `ci.yml` and `lint.yml` skips, so nothing
+# in either of them ever reads the changeset — which is exactly the PR this check
+# needs to see. It has to run outside that decision.
+#
+# That is no longer the reason this header used to give. It said both `ci.yml`
+# and `lint.yml` list `'**/*.md'` AND `.changeset/**` under `paths-ignore`, so a
+# changeset-only PR "starts no workflow at all". objectui#3523 step 2 deleted
+# `paths-ignore` from their `pull_request` trigger; it remains ONLY on `push`.
+# Such a PR does start both workflows and does produce their contexts — measured:
+# PR #3856 (one markdown file) 16 checks, PR #4339 (one line added to AGENTS.md)
+# 17. The correction is objectui#3857; an author had already acted on the old
+# sentence and got the opposite result.
+#
+# What #3523 moved rather than deleted is the path DECISION: it is now the
+# `Decide whether this change needs a full run` step in `ci.yml`, with a twin in
+# `lint.yml`, and its exclusion list is that `push` filter unchanged —
+# `'**/*.md'` and `.changeset/**` included, held identical to it by
+# `scripts/__tests__/merge-queue-reporting.test.ts`. Both workflows therefore
+# start, report, and skip every expensive step on precisely this PR. GitHub has
+# no per-job path filter either, so the gate lives here, with the inverse
+# trigger: it runs *only* when `.changeset/**` changes.
 #
 # It needs no install and no build — a checkout plus one `node` call, a few
 # seconds — so keep it that way if you add checks to it.
