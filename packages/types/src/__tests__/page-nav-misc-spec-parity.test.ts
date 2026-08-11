@@ -50,8 +50,15 @@ import type {
   ActionParamSchema as SpecActionParamSchema,
   I18nLabel as SpecI18nLabel,
   NavigationArea as SpecNavigationArea,
-  Theme as SpecTheme,
-  ThemeInput as SpecThemeInput,
+  // Re-pointed BY SIDE on the rc.6 bump (objectui#4167), not by name.
+  // Up to rc.5 the spec published `Theme` (= `z.infer`) alongside `ThemeInput`
+  // (= `z.input`); rc.6 retired every `…Input` alias and moved the bare name
+  // onto the INPUT side, so `Theme` is now `z.input` and `ThemeParsed` is the
+  // `z.infer` side. Following the old NAMES here would have swapped both pins
+  // silently — which is why `ThemeInput` became `Theme` and `Theme` became
+  // `ThemeParsed`, rather than either binding staying where it was written.
+  Theme as SpecThemeInput,
+  ThemeParsed as SpecThemeParsed,
 } from '@objectstack/spec/ui';
 import { NavigationAreaSchema } from '../zod/app.zod.js';
 import type { NavigationArea, NavigationItem } from '../app.js';
@@ -271,7 +278,7 @@ describe('NavigationArea derives from the spec', () => {
 // Theme — derived (re-export of the spec's AUTHORING shape)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('Theme is the spec ThemeInput, not the parsed Theme', () => {
+describe('Theme is the spec AUTHORING theme, not the parsed one', () => {
   it('accepts a theme with no `mode` (the authoring side)', () => {
     const authored: Theme = { name: 'acme', label: 'Acme', colors: { primary: '#0af' } };
     expect(authored.mode).toBeUndefined();
@@ -283,12 +290,17 @@ describe('Theme is the spec ThemeInput, not the parsed Theme', () => {
     expect(back.name).toBe('acme');
   });
 
-  it('is NOT the spec parsed Theme, whose `mode` is required', () => {
+  it('is NOT the spec parsed theme, whose `mode` is required', () => {
     // `.default('auto')` has already run in `z.infer`, so the parsed type would
     // make `mode` mandatory and every stored objectui theme unrepresentable.
     // If the spec ever drops that default the two collapse and this pin fails,
     // which is the moment to re-read the derivation comment in `theme.ts`.
-    type ModeOfParsed = undefined extends SpecTheme['mode'] ? 'optional' : 'required';
+    //
+    // rc.6 spells the `z.infer` side `ThemeParsed`. The pin reads the same fact
+    // it always did — following the NAME `Theme` here instead would have made
+    // this assertion compare the authoring side against itself and go green on
+    // nothing, which is exactly the swap the import comment warns about.
+    type ModeOfParsed = undefined extends SpecThemeParsed['mode'] ? 'optional' : 'required';
     const parsedModeIs: ModeOfParsed = 'required';
     expect(parsedModeIs).toBe('required');
 

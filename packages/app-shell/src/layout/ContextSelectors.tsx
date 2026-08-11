@@ -45,7 +45,7 @@ import {
   SelectValue,
 } from '@object-ui/components';
 import { getIcon } from '../utils/getIcon';
-import { resolveI18nLabel } from '../utils';
+import { resolveKeyedI18nLabel } from '../utils';
 
 export interface ContextSelectorFilter {
   key: string;
@@ -404,7 +404,7 @@ function SelectorControl({
 }) {
   const { options, refetch } = useSelectorOptions(def);
   const Icon = getIcon(def.icon);
-  const rawLabel = resolveI18nLabel(def.label as any, t) || def.id;
+  const rawLabel = resolveKeyedI18nLabel(def.label as any, t) || def.id;
   const label = rawLabel === 'Package'
     ? (t?.('common.package', { defaultValue: rawLabel }) ?? rawLabel)
     : rawLabel;

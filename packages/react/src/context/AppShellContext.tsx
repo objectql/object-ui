@@ -15,7 +15,26 @@ export function useAdapter(): ObjectStackAdapter | null {
 // MetadataContext
 // ---------------------------------------------------------------------------
 
-export interface MetadataState {
+/**
+ * The metadata PROVIDER's cache — the collections `<MetadataProvider>` holds in
+ * React state, plus its aggregate load flags.
+ *
+ * Renamed from `MetadataState` in objectui#4167. `@objectstack/spec` 17.0.0-rc.6
+ * publishes `MetadataState` from `@objectstack/spec/system`, and it names a
+ * different thing in the SAME domain and the SAME two words: a metadata item's
+ * LIFECYCLE state, `'draft' | 'active' | 'deprecated' | 'archived'`
+ * (`MetadataStateSchema`). That is the `AuthProviderConfig` judgement from
+ * objectstack#4115 batch 5, not the `AuthProvider` one — nothing about a JSX
+ * element can be mistaken for a zod enum, but "the metadata state" absolutely
+ * can be read as canonical for the lifecycle enum by the next agent, and the
+ * two are mutually unassignable (an object of five arrays vs a string union),
+ * so nothing would have caught the misreading at the point it was made.
+ *
+ * `Cache` rather than a bare disambiguating prefix because it is what this is:
+ * `MetadataProvider` is a TTL cache with per-type entries, and these five
+ * arrays are its materialized contents.
+ */
+export interface MetadataCacheState {
   apps: any[];
   objects: any[];
   dashboards: any[];
@@ -27,7 +46,7 @@ export interface MetadataState {
 
 export type MetadataTypeStatus = 'idle' | 'loading' | 'ready' | 'error';
 
-export interface MetadataContextValue extends MetadataState {
+export interface MetadataContextValue extends MetadataCacheState {
   refresh: (type?: string) => Promise<void>;
   invalidate: (type: string, name?: string) => void;
   ensureType: (type: string) => Promise<any[]>;

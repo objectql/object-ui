@@ -32,6 +32,84 @@
  * type, mirroring the framework's "single Zod source per type" rule.
  */
 
+import type { RuntimeAuthoringIssue } from '@objectstack/spec/api';
+
+/**
+ * One advisory finding the framework's runtime authoring gate produced for a
+ * save that SUCCEEDED (objectstack#7435, landed as `89d7b35a7`).
+ *
+ * Re-exported from `@objectstack/spec` rather than restated: this is the D3
+ * finding shape, declared once as `RuntimeAuthoringIssueSchema` and shared with
+ * the 422 `issues[]` so the two cannot drift apart. Hand-copying the six keys
+ * here is exactly the fork `check:spec-symbol-derivation` exists to reject, and
+ * it is the same discipline `DroppedFieldsEvent` already follows one module over.
+ *
+ * `severity` carries the spec's full `error | warning | info` union. On THIS
+ * channel it is never `'error'` — an error-severity finding is a 422 and never
+ * reaches a 2xx body — but the union is copied whole rather than narrowed,
+ * because a consumer-side re-spelling of a producer's enum is the drift the
+ * gate above is about.
+ */
+export type { RuntimeAuthoringIssue };
+
+/**
+ * Emitted after a {@link MetadataClient.save} whose response carried a
+ * non-empty `advisories` array. The save SUCCEEDED — the row persisted and the
+ * server returned 200 — so this is advisory, never a failure.
+ *
+ * Deliberately the same shape of seam as `ObjectStackAdapter.onWriteWarning`
+ * (#3431/#3455): a successful write whose response carries something the author
+ * needs to be told, surfaced to the shell as an event so the data layer never
+ * imports a toaster. The difference is only which door produced it — that one
+ * is record CRUD, this one is the metadata save door.
+ */
+export interface MetadataSaveAdvisoryEvent {
+  /** Metadata type saved (e.g. `'flow'`). */
+  type: string;
+  /** Item name saved. */
+  name: string;
+  /**
+   * The save mode the call used. `'draft'` writes are **never gated** — the
+   * framework returns at `runtime-authoring-gate.ts`'s D1 early-return
+   * (`if (args.state !== 'active') return null`), so a draft save produces no
+   * findings at all and this event never fires for one. Carried anyway so a
+   * consumer reading the event can tell which door it came through.
+   */
+  mode: 'draft' | 'publish';
+  /** The findings. Never empty — the event is not emitted otherwise. */
+  advisories: RuntimeAuthoringIssue[];
+}
+
+/** Event listener type for save-advisory events. */
+export type MetadataSaveAdvisoryListener = (event: MetadataSaveAdvisoryEvent) => void;
+
+/**
+ * Read the `advisories` array off a save response, defensively.
+ *
+ * The server omits the key entirely on a clean save, so `undefined` is the
+ * common case and means "nothing to say". Anything that is not an array of
+ * objects carrying the six required keys is dropped rather than rendered: a
+ * half-shaped finding would print blanks at the author, and this channel must
+ * never turn a successful save into noise.
+ */
+export function readSaveAdvisories(body: unknown): RuntimeAuthoringIssue[] {
+  if (!body || typeof body !== 'object') return [];
+  const raw = (body as { advisories?: unknown }).advisories;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((f): f is RuntimeAuthoringIssue => {
+    if (!f || typeof f !== 'object') return false;
+    const c = f as Record<string, unknown>;
+    return (
+      typeof c.rule === 'string' &&
+      typeof c.path === 'string' &&
+      typeof c.where === 'string' &&
+      typeof c.message === 'string' &&
+      typeof c.hint === 'string' &&
+      typeof c.severity === 'string'
+    );
+  });
+}
+
 export interface MetadataClientConfig {
   /** Base URL of the ObjectStack server (no trailing slash needed). */
   baseUrl: string;
@@ -55,6 +133,22 @@ export interface MetadataClientConfig {
    * nothing the preview shows is live until Publish.
    */
   previewDrafts?: boolean;
+  /**
+   * Called after a {@link MetadataClient.save} whose 2xx response carried a
+   * non-empty `advisories` array (objectstack#7435). The save already
+   * succeeded; this is how the shell learns there is something to tell the
+   * author instead of the findings being discarded client-side.
+   *
+   * Set on the CONFIG rather than exposed as a `subscribe()` method on purpose:
+   * console metadata clients are minted per-component by `useMetadataClient`,
+   * so there is no long-lived instance to subscribe to — but every one of them
+   * is built by the single `createConsoleMetadataClient` factory, which is
+   * where this gets wired exactly once for every save call site in the app.
+   *
+   * A throw from this callback is swallowed — an advisory channel must never
+   * be able to fail a save that the server already committed.
+   */
+  onSaveAdvisory?: MetadataSaveAdvisoryListener;
 }
 
 export interface MetadataListOptions {
@@ -384,12 +478,15 @@ export class MetadataClient {
   private readonly headers: Record<string, string>;
   /** ADR-0037: when true, reads render the draft-overlaid world. */
   readonly previewDrafts: boolean;
+  /** #4133 — sink for post-save advisory findings; see the config field. */
+  private readonly onSaveAdvisory: MetadataSaveAdvisoryListener | undefined;
 
   constructor(config: MetadataClientConfig) {
     this.base = buildBase(config);
     this.fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
     this.headers = { Accept: 'application/json', ...(config.headers ?? {}) };
     this.previewDrafts = config.previewDrafts === true;
+    this.onSaveAdvisory = config.onSaveAdvisory;
   }
 
   /** Update the client's environment scope at runtime. */
@@ -402,6 +499,11 @@ export class MetadataClient {
       fetch: this.fetchImpl,
       headers: this.headers,
       previewDrafts: this.previewDrafts,
+      // #4133: the advisory sink must survive the clone. `useMetadataClient`
+      // routes EVERY environment-scoped console client through here, so
+      // dropping it would silently disable the channel for exactly the
+      // multi-environment tenants the gate is loudest for.
+      ...(this.onSaveAdvisory ? { onSaveAdvisory: this.onSaveAdvisory } : {}),
     });
   }
 
@@ -423,6 +525,10 @@ export class MetadataClient {
       fetch: this.fetchImpl,
       headers: this.headers,
       previewDrafts,
+      // #4133: carried for the same reason as in `withEnvironment` — preview
+      // mode swaps the whole renderer tree's client, and writes are unaffected
+      // by ADR-0037, so the save door behind this clone still advises.
+      ...(this.onSaveAdvisory ? { onSaveAdvisory: this.onSaveAdvisory } : {}),
     });
   }
 
@@ -570,7 +676,28 @@ export class MetadataClient {
       body: JSON.stringify(item),
     });
     if (!res.ok) throw await parseError(res);
-    return (await res.json()) as T;
+    const body = await res.json();
+    // #4133 — the runtime authoring gate's advisory findings (objectstack#7435).
+    // The server emits `advisories` ONLY when non-empty, so a clean save costs
+    // nothing here. Everything below is best-effort by construction: the save
+    // has already been committed server-side and returning it must not depend
+    // on anything the advisory channel does.
+    if (this.onSaveAdvisory) {
+      try {
+        const advisories = readSaveAdvisories(body);
+        if (advisories.length > 0) {
+          this.onSaveAdvisory({
+            type,
+            name,
+            mode: options.mode === 'draft' ? 'draft' : 'publish',
+            advisories,
+          });
+        }
+      } catch {
+        /* an advisory must never turn a committed save into a thrown error */
+      }
+    }
+    return body as T;
   }
 
   /**

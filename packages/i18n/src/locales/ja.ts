@@ -1286,6 +1286,7 @@ const ja = {
     },
   },
   console: {
+    saveAdvisoryTitle: "保存しました — 編集チェックで {{count}} 件の推奨事項が見つかりました",
     settingsHub: {
       title: "設定",
       subtitle: "ワークスペース、連携、機能フラグを設定します。",

@@ -17,7 +17,7 @@ import {
 } from '@object-ui/components';
 import { ChevronDown, Check } from 'lucide-react';
 import { useMetadata } from '../providers/MetadataProvider';
-import { resolveI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
+import { resolveKeyedI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { getIcon } from '../utils/getIcon';
 
@@ -41,7 +41,7 @@ export function AppSwitcher({ activeAppName, onAppChange }: AppSwitcherProps) {
 
   if (!activeApp) return null;
 
-  const appLabelText = appLabel({ name: activeApp.name, label: resolveI18nLabel(activeApp.label, t) });
+  const appLabelText = appLabel({ name: activeApp.name, label: resolveKeyedI18nLabel(activeApp.label, t) });
 
   return (
     <DropdownMenu>
@@ -58,7 +58,7 @@ export function AppSwitcher({ activeAppName, onAppChange }: AppSwitcherProps) {
         <DropdownMenuSeparator />
         {activeApps.map((app: any) => {
           const AppIcon = getIcon(app.icon);
-          const label = appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) });
+          const label = appLabel({ name: app.name, label: resolveKeyedI18nLabel(app.label, t) });
           const isActive = activeApp.name === app.name;
           return (
             <DropdownMenuItem

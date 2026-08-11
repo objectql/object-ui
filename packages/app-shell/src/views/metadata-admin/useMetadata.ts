@@ -15,10 +15,13 @@
  *     consumers.
  */
 
-import { useEffect, useMemo, useState } from 'react';
-import { type MetadataClient, type MetadataDiagnosticsSummary, type MetadataDiagnosticsEntry } from '@object-ui/data-objectstack';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type MetadataClient, type MetadataDiagnosticsSummary, type MetadataDiagnosticsEntry, type MetadataSaveAdvisoryEvent } from '@object-ui/data-objectstack';
+import { useObjectTranslation } from '@object-ui/i18n';
+import { toast } from 'sonner';
 import { usePreviewDrafts } from '../../preview/PreviewModeContext';
 import { createConsoleMetadataClient } from './metadataClientFactory';
+import { emitSaveAdvisories, type TranslateFn } from '../../providers/saveAdvisoryToast';
 
 /**
  * A declarative **type-level** action surfaced on a metadata type by the
@@ -105,9 +108,32 @@ export function useMetadataClient(environmentId?: string): MetadataClient {
   // ADR-0037: inside a draft-preview tree (?preview=draft), reads overlay
   // pending drafts on the active registry. Writes are unaffected.
   const previewDrafts = usePreviewDrafts();
+
+  // #4133 — the runtime authoring gate's advisory findings, rendered ONCE for
+  // every save call site in the app.
+  //
+  // This hook is why the wiring belongs here rather than at the ~20 places
+  // that call `client.save(...)`: every app-shell write path takes its client
+  // from `useMetadataClient` (ResourceEditPage, StudioDesignSurface,
+  // EmbeddedItemEditor, DatasourceResourcePage, ObjectHooksPanel, …), so one
+  // sink here covers all of them and any future one for free. The factory
+  // below stays render-free; this is the layer that has React context, which
+  // is what the translation needs.
+  //
+  // `t` is read through a ref so a locale change does not re-mint the client
+  // (which would remount every consumer) while the toast still renders in the
+  // CURRENT language — the same shape `AdapterProvider` uses for its sibling
+  // write-warning channel.
+  const { t } = useObjectTranslation();
+  const tRef = useRef(t);
+  tRef.current = t;
+  const onSaveAdvisory = useCallback((ev: MetadataSaveAdvisoryEvent) => {
+    emitSaveAdvisories(ev, tRef.current as TranslateFn, toast);
+  }, []);
+
   return useMemo(
-    () => createConsoleMetadataClient({ previewDrafts, environmentId }),
-    [environmentId, previewDrafts],
+    () => createConsoleMetadataClient({ previewDrafts, environmentId, onSaveAdvisory }),
+    [environmentId, previewDrafts, onSaveAdvisory],
   );
 }
 

@@ -16,7 +16,7 @@ import { useMemo, useState } from 'react';
 import { LayoutGrid, Store, Star } from 'lucide-react';
 import { Button, cn } from '@object-ui/components';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
-import { resolveI18nLabel } from '../../utils';
+import { resolveKeyedI18nLabel } from '../../utils';
 import { getIcon } from '../../utils/getIcon';
 import type { FavoriteItem } from '../../hooks/useFavorites';
 
@@ -104,7 +104,7 @@ export function HomeAppsStrip({
       <div className="grid grid-cols-4 gap-1 sm:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10">
         {visible.map((app) => {
           const Icon = getIcon(app.icon);
-          const label = appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) });
+          const label = appLabel({ name: app.name, label: resolveKeyedI18nLabel(app.label, t) });
           const fav = favNames.has(app.name);
           const grad = ICON_GRADIENTS[hashStr(app.name) % ICON_GRADIENTS.length];
           return (

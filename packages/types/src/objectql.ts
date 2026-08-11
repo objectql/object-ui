@@ -95,6 +95,7 @@ import type {
   RowColorConfig,
   GalleryConfig,
   TimelineConfig,
+  GanttConfig as SpecGanttConfig,
 } from '@objectstack/spec/ui';
 
 /**
@@ -120,56 +121,55 @@ export type ListViewTimelineConfig = TimelineConfig & {
 /**
  * Kanban Configuration
  * Canonical definition from @objectstack/spec/ui (KanbanConfigSchema).
+ *
+ * A RE-EXPORT since objectui#4167, not a copy. The three keys the copy spelled
+ * out (`groupByField` / `summarizeField` / `columns`) were the spec's three
+ * exactly, and `KanbanConfigSchema` is `$strict`, so there was never a
+ * divergence to preserve — only a second declaration under the spec's own name
+ * for the next agent to read as canonical (objectstack#4115). The zod side has
+ * derived from the spec all along (`zod/objectql.zod.ts`, which additionally
+ * carries the `groupField` / `cardFields` legacy aliases); this alias is now
+ * bound to the same source.
  */
-export type KanbanConfig = {
-  /** Field to group columns by (usually status/select) */
-  groupByField: string;
-  /** Field to sum at top of column (e.g. amount) */
-  summarizeField?: string;
-  /** Fields to show on cards */
-  columns: string[];
-};
+export type { KanbanConfig } from '@objectstack/spec/ui';
 
 /**
  * Calendar Configuration
  * Canonical definition from @objectstack/spec/ui (CalendarConfigSchema).
+ *
+ * A RE-EXPORT since objectui#4167, for the same reason as `KanbanConfig` above:
+ * the copy's four keys were the spec's four, on a `$strict` schema.
  */
-export type CalendarConfig = {
-  /** Start date field */
-  startDateField: string;
-  /** End date field */
-  endDateField?: string;
-  /** Title field */
-  titleField: string;
-  /** Color field */
-  colorField?: string;
-};
+export type { CalendarConfig } from '@objectstack/spec/ui';
 
 /**
- * Gantt Configuration
- * Canonical definition from @objectstack/spec/ui (GanttConfigSchema).
+ * Gantt Configuration — the spec's `GanttConfigSchema`, plus objectui's one
+ * remaining display-only extension.
+ *
+ * DERIVED since objectui#4167, and the copy it replaces was carrying two false
+ * claims of exactly the kind objectstack#4115 was filed about:
+ *
+ *  - it declared SIX keys and called itself "canonical", while rc.6's
+ *    `GanttConfigSchema` declares seventeen. The eleven it never mentioned —
+ *    `parentField`, `typeField`, `baselineStartField`, `baselineEndField`,
+ *    `groupByField`, `resourceView`, `assigneeField`, `effortField`,
+ *    `capacity`, `quickFilters`, `autoZoomToFilter` — are not hypothetical
+ *    upstream additions: `plugin-gantt/src/ObjectGantt.tsx` reads every one of
+ *    them, through a local `GanttConfigEx` intersection that re-declared them
+ *    because this type did not;
+ *  - the `tooltipFields` comment said "not part of the upstream
+ *    GanttConfigSchema". It is, as of rc.6, so the key now arrives from the
+ *    spec and the note is gone with it.
+ *
+ * `timeSegments` is the one key the spec genuinely does not model, and it stays
+ * here declared as objectui's own. That is legal metadata rather than a second
+ * dialect: `GanttConfigSchema` is `$loose` upstream (see the note at
+ * `zod/objectql.zod.ts` — "the renderers grow config knobs"), so a key the spec
+ * does not declare passes its parse instead of being rejected. The intersection
+ * inherits that looseness, which is the spec's own decision for this vocabulary
+ * and not a widening taken here.
  */
-export type GanttConfig = {
-  /** Start date field */
-  startDateField: string;
-  /** End date field */
-  endDateField: string;
-  /** Title field */
-  titleField: string;
-  /** Progress field (0-100) */
-  progressField?: string;
-  /** Dependencies field */
-  dependenciesField?: string;
-  /** Color field */
-  colorField?: string;
-  /**
-   * Fields to surface in the hover tooltip (悬浮详情), in display order.
-   * ObjectUI display extension — not part of the upstream GanttConfigSchema.
-   * Each entry is either a field name (string) or `{ field, label? }` to
-   * override the label; values are formatted by field type. When omitted the
-   * tooltip falls back to the built-in start → end · duration · progress line.
-   */
-  tooltipFields?: Array<string | { field: string; label?: string }>;
+export type GanttConfig = SpecGanttConfig & {
   /**
    * Shift segmentation (班次/排班分段). ObjectUI display extension — not part of the
    * upstream GanttConfigSchema. When set, the day-mode timeline splits each

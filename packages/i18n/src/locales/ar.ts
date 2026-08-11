@@ -1290,6 +1290,7 @@ const ar = {
     },
   },
   console: {
+    saveAdvisoryTitle: "تم الحفظ — أنتج فحص التأليف {{count}} ملاحظة إرشادية",
     settingsHub: {
       title: "الإعدادات",
       subtitle: "اضبط مساحة العمل والتكاملات وأعلام الميزات.",

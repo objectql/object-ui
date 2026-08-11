@@ -35,12 +35,23 @@ export { preferLocal } from './preferLocal';
 export { appRouteSegment, matchAppBySegment, appStudioDesignPath, appStudioSurfacePath, appStudioRoutePath } from './appRoute';
 
 /**
- * Resolves an I18nLabel to a plain string.
- * I18nLabel can be either a string or an object { key, defaultValue?, params? }.
- * When it's an object and a `t` function is provided, it resolves the key
- * through the i18n translation system. Otherwise returns defaultValue or key.
+ * Resolves objectui's KEYED i18n label to a plain string.
+ *
+ * The keyed form is `{ key, defaultValue?, params? }` — a reference INTO a
+ * translation bundle. With a `t` function it resolves the key through i18next;
+ * without one it falls back to `defaultValue`, then the key itself.
+ *
+ * Renamed from `resolveI18nLabel` in objectui#4167: `@objectstack/spec`
+ * 17.0.0-rc.6 publishes a function of that exact name over the INLINE LOCALE MAP
+ * vocabulary (`{ en: 'Owner', 'zh-CN': '负责人' }`, resolved against a BCP-47
+ * locale), and rc.6's widening of `I18nLabel` to `string | Record< string,
+ * string >` means the same authored value can now reach either function — each
+ * answering wrongly, and silently, for the other's input. The full account is at
+ * the `@object-ui/react` twin (`packages/react/src/utils/i18n.ts`), which is the
+ * same vocabulary without a `t`. Import the spec's as `resolveInlineI18nLabel`
+ * when you need the map form; the two names now say which is which.
  */
-export function resolveI18nLabel(
+export function resolveKeyedI18nLabel(
   label: string | { key: string; defaultValue?: string; params?: Record<string, any> } | undefined,
   t?: (key: string, options?: any) => string,
 ): string | undefined {

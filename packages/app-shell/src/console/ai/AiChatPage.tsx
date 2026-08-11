@@ -22,7 +22,7 @@ import { Package as PackageIcon, Sparkles as SparklesIcon } from 'lucide-react';
 import { useAdapter } from '../../providers/AdapterProvider';
 import { useMetadata } from '../../providers/MetadataProvider';
 import { formatPublishFailures, type PublishFailure } from '../../views/studio-design/metadataError';
-import { resolveI18nLabel } from '../../utils';
+import { resolveKeyedI18nLabel } from '../../utils';
 import { ExcelImportBar } from './ExcelImportBar';
 import {
   Select,
@@ -260,7 +260,7 @@ export function isPlatformBuiltinApp(app: { _packageId?: unknown }): boolean {
  */
 interface MetadataAppItem {
   name: string;
-  label?: Parameters<typeof resolveI18nLabel>[0];
+  label?: Parameters<typeof resolveKeyedI18nLabel>[0];
   _packageId?: string;
 }
 
@@ -1749,7 +1749,7 @@ export function ChatPane({
     const app = (metadataApps ?? []).find(
       (a) => a._packageId === boundPackageId,
     );
-    return app ? appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) }) : boundPackageId;
+    return app ? appLabel({ name: app.name, label: resolveKeyedI18nLabel(app.label, t) }) : boundPackageId;
   }, [boundPackageId, metadataApps, appLabel, t]);
 
   // ADR-0057 A1.b edit mode — the resolved name of the app being EDITED
@@ -1761,7 +1761,7 @@ export function ChatPane({
     const app = (metadataApps ?? []).find(
       (a) => a._packageId === editPackageId,
     );
-    return app ? appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) }) : undefined;
+    return app ? appLabel({ name: app.name, label: resolveKeyedI18nLabel(app.label, t) }) : undefined;
   }, [editPackageId, metadataApps, appLabel, t]);
 
   // Per-surface empty-state branding (Build = authoring, Ask = data Q&A). On the
@@ -1810,7 +1810,7 @@ export function ChatPane({
       if (!pkg || byPackage.has(pkg) || isPlatformBuiltinApp(app)) {
         continue;
       }
-      byPackage.set(pkg, appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) }));
+      byPackage.set(pkg, appLabel({ name: app.name, label: resolveKeyedI18nLabel(app.label, t) }));
     }
     return Array.from(byPackage, ([id, label]) => ({ id, label }));
   }, [metadataApps, appLabel, t]);
