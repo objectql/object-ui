@@ -260,6 +260,51 @@ function toNodeArray(slot: any | any[] | undefined): any[] {
 }
 
 /**
+ * Build ONE page component node — the single place this synthesizer decides
+ * where a component's props live (objectui#4232).
+ *
+ * A page component's own shape is CLOSED. `PageComponentSchema` declares
+ * `type` / `id` / `label` / `properties` / `events` / `style` / `className` /
+ * `responsiveStyles` / `visibleWhen` / `visibility` / `dataSource` /
+ * `responsive` / `aria` and nothing else, and ADR-0089 D3a flipped it to
+ * `.strict()` — so a widget prop written at the TOP level of the node is not
+ * dropped, it is a parse error:
+ *
+ * ```
+ * unrecognized_keys | regions.0.components.0 |
+ *   Unrecognized key(s) on this view/page schema: `recordChrome`, `actions`.
+ *   Before ADR-0089 D3a these were dropped silently, shipping inert metadata;
+ *   a mis-layered or stale key is now a loud parse error.
+ * ```
+ *
+ * That error is what made Studio's page-create never complete: the create path
+ * seeds `regions` from `buildDefaultPageSchema(objectDef)`
+ * (`app-shell/views/metadata-admin/anchors.ts` → `createSeed`), the console
+ * PUT carried the flat props, the server refused the body, and no page row was
+ * ever stored.
+ *
+ * The canonical carrier is the node's `properties` bag — which is exactly
+ * where the spec declares these props (`ComponentPropsMap`:
+ * `PageHeaderProps.recordChrome`, `PageTabsProps.items`, …), and what
+ * `SchemaRenderer` hoists back onto the node before dispatching to a renderer
+ * (`packages/react/src/SchemaRenderer.tsx`, "COMPAT: Hoist 'properties' up to
+ * schema level"). So the semantics are unchanged in both directions: the same
+ * props reach the same renderers, and the body now parses.
+ *
+ * `undefined` values are dropped rather than written as present-but-undefined
+ * keys, and a component with no props at all emits no `properties` key —
+ * `PageComponentSchema.properties` is `.optional().default({})`, so `{ type }`
+ * is complete.
+ */
+function componentNode(type: string, props: Record<string, unknown> = {}): any {
+  const properties: Record<string, unknown> = {};
+  for (const key of Object.keys(props)) {
+    if (props[key] !== undefined) properties[key] = props[key];
+  }
+  return Object.keys(properties).length > 0 ? { type, properties } : { type };
+}
+
+/**
  * Detect the canonical "status" / "stage" field on an object definition.
  *
  * The implementation moved to `@object-ui/types` (`detectStatusField`) so
@@ -409,13 +454,12 @@ export function buildDefaultHeader(
   _def: ObjectDefLike | undefined,
   options: Pick<BuildPageOptions, 'recordChrome'> & { actions?: any[] } = {},
 ): any {
-  return {
-    type: 'page:header',
+  return componentNode('page:header', {
     recordChrome: options.recordChrome !== false,
     ...(Array.isArray(options.actions) && options.actions.length > 0
       ? { actions: options.actions }
       : {}),
-  };
+  });
 }
 
 /**
@@ -429,11 +473,10 @@ export function buildDefaultActions(
   headerActions: any[] | undefined,
 ): any | null {
   if (!Array.isArray(headerActions) || headerActions.length === 0) return null;
-  return {
-    type: 'record:quick_actions',
+  return componentNode('record:quick_actions', {
     actions: headerActions,
     location: 'record_header',
-  };
+  });
 }
 
 /**
@@ -455,10 +498,10 @@ export function buildDefaultHighlights(
     options.highlightFields ?? deriveHighlightFields(def, statusField);
   const out: any[] = [];
   if (!options.hideHighlights && highlightFields.length > 0) {
-    out.push({ type: 'record:highlights', fields: highlightFields });
+    out.push(componentNode('record:highlights', { fields: highlightFields }));
   }
   if (!options.hidePath && statusField && stages && stages.length > 0) {
-    out.push({ type: 'record:path', statusField, stages });
+    out.push(componentNode('record:path', { statusField, stages }));
   }
   return out;
 }
@@ -556,11 +599,10 @@ export function buildDefaultDetails(
   sections?: BuildPageOptions['sections'],
   hideFields?: string[],
 ): any {
-  return {
-    type: 'record:details',
+  return componentNode('record:details', {
     sections: resolveDetailSections(def, sections),
     ...(hideFields && hideFields.length > 0 ? { hideFields } : {}),
-  };
+  });
 }
 
 /**
@@ -592,15 +634,15 @@ export function buildDefaultTabs(
     Array.isArray(options.related) &&
     options.related.length > 0
   ) {
-    const relatedNode = (rel: NonNullable<BuildPageOptions['related']>[number]) => ({
-      type: 'record:related_list',
-      title: rel.title,
-      objectName: rel.objectName,
-      relationshipField: rel.relationshipField,
-      ...(rel.columns ? { columns: rel.columns } : {}),
-      ...(rel.limit ? { limit: rel.limit } : {}),
-      ...(rel.icon ? { icon: rel.icon } : {}),
-    });
+    const relatedNode = (rel: NonNullable<BuildPageOptions['related']>[number]) =>
+      componentNode('record:related_list', {
+        title: rel.title,
+        objectName: rel.objectName,
+        relationshipField: rel.relationshipField,
+        ...(rel.columns ? { columns: rel.columns } : {}),
+        ...(rel.limit ? { limit: rel.limit } : {}),
+        ...(rel.icon ? { icon: rel.icon } : {}),
+      });
     const asOwnTab = (rel: NonNullable<BuildPageOptions['related']>[number]) => ({
       label: rel.title || rel.objectName,
       value: `related:${rel.objectName}`,
@@ -638,7 +680,7 @@ export function buildDefaultTabs(
       label: 'Approvals',
       value: 'approvals',
       ...(options.approvals.count != null ? { count: options.approvals.count } : {}),
-      children: [{ type: 'record:approvals', ...(options.approvals.node || {}) }],
+      children: [componentNode('record:approvals', { ...(options.approvals.node || {}) })],
     });
   }
   // Attachments tab (objectstack#4358) — emitted for `enable.files: true`
@@ -651,31 +693,30 @@ export function buildDefaultTabs(
     items.push({ label: 'Attachments', value: 'attachments', children: [buildDefaultAttachments()] });
   }
   if (options.showActivity) {
-    items.push({ label: 'Activity', value: 'activity', children: [{ type: 'record:activity' }] });
+    items.push({ label: 'Activity', value: 'activity', children: [componentNode('record:activity')] });
   }
   if (options.history) {
     items.push({
       label: 'History',
       value: 'history',
       children: [
-        {
-          type: 'record:history',
+        componentNode('record:history', {
           entries: options.history.entries,
           loading: options.history.loading,
           emptyText: options.history.emptyText,
           unknownUserText: options.history.unknownUserText,
-        },
+        }),
       ],
     });
   }
-  return { type: 'page:tabs', items };
+  return componentNode('page:tabs', { items });
 }
 
 /**
  * Sub-builder: the inline `record:discussion` footer slot.
  */
 export function buildDefaultDiscussion(): any {
-  return { type: 'record:discussion' };
+  return componentNode('record:discussion');
 }
 
 /**
@@ -684,7 +725,7 @@ export function buildDefaultDiscussion(): any {
  * on `sys_attachment` rows (403 FILES_DISABLED otherwise).
  */
 export function buildDefaultAttachments(): any {
-  return { type: 'record:attachments' };
+  return componentNode('record:attachments');
 }
 
 /**
@@ -794,9 +835,12 @@ export function buildDefaultPageSchema(
       relatedLayout: options.relatedLayout,
       hideAttachments: options.hideAttachments,
     });
-    // Replace the first tab's children (Details) with the override.
-    if (Array.isArray(tabsNode.items) && tabsNode.items.length > 0) {
-      tabsNode.items[0] = { ...tabsNode.items[0], children: detailsBody };
+    // Replace the first tab's children (Details) with the override. The items
+    // live in the node's `properties` bag — the canonical carrier per
+    // ADR-0089 D3a (see `componentNode`).
+    const tabItems = tabsNode.properties?.items;
+    if (Array.isArray(tabItems) && tabItems.length > 0) {
+      tabItems[0] = { ...tabItems[0], children: detailsBody };
     }
     components.push(tabsNode);
   } else {
@@ -842,8 +886,7 @@ export function buildDefaultPageSchema(
   if (willEmitAside) {
     const asideComponents: any[] = [];
     if (willEmitRail) {
-      asideComponents.push({
-        type: 'record:reference_rail',
+      asideComponents.push(componentNode('record:reference_rail', {
         entries: (options.related as any[]).map((rel) => ({
           objectName: rel.objectName,
           relationshipField: rel.relationshipField,
@@ -852,7 +895,7 @@ export function buildDefaultPageSchema(
           displayField: rel.displayField,
           limit: 3,
         })),
-      });
+      }));
     }
     // Author-contributed right-rail nodes follow the reference rail so the
     // canonical "related" summary stays anchored at the top.
