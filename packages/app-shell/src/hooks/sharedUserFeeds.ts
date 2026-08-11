@@ -80,6 +80,36 @@ const MAX_BACKOFF_MS = 120_000;
  * a beat before the page body does.
  */
 const FRESH_MS = 30_000;
+/**
+ * How many times a RETIRED feed re-probes before it is retired for good, and
+ * how long it waits between those probes (#4289).
+ *
+ * `markUnavailable()` used to be a one-way door: `unavailable` was set, and
+ * `refresh`, `schedule` and `onVisibilityChange` all returned early on it, so
+ * only a key change (a different user or adapter) or a page reload could revive
+ * the feed. That is sound for the case it was written for — a deployment
+ * without the approvals plugin / `sys_activity` / the messaging pipeline will
+ * answer 404 forever, and re-asking is pure noise — but `isMissingResource` is
+ * STATUS-shaped, not code-shaped: `httpStatus === 404` alone qualifies, and the
+ * ObjectStack client stamps `httpStatus` from `res.status` on every non-ok
+ * response before it looks at the body. So a 404 from anywhere in the transport
+ * (an edge router mid-deploy, a host's catch-all before the API is mounted)
+ * enters this door wearing the same clothes as the registry's considered
+ * `OBJECT_NOT_FOUND` — and used to cost the page its inbox until reload, on
+ * BOTH surfaces at once now that the bell and Home read one feed (#4225).
+ *
+ * A bounded re-probe separates them without giving either the wrong answer: the
+ * lost race is recovered within a probe cadence, and the genuinely-absent
+ * object costs `UNAVAILABLE_PROBE_LIMIT` extra reads over the page's whole
+ * lifetime and is then silent — against the ~360/hour an un-retired 10s poll
+ * would have issued. Nothing about the retired STATE changes: the status stays
+ * `ready`, the value stays empty, and the affirmative empty copy stays earned
+ * (#4315). Exported because the pins assert the ceiling, and a ceiling whose
+ * number lives only in the test is not the same ceiling as the code's.
+ */
+export const UNAVAILABLE_PROBE_LIMIT = 3;
+/** @see UNAVAILABLE_PROBE_LIMIT */
+export const UNAVAILABLE_PROBE_MS = 60_000;
 
 /**
  * Stable empty value — `useSyncExternalStore` re-renders in a loop if
@@ -156,6 +186,10 @@ class SharedFeed<T> {
   private consumers = 0;
   private inFlight = false;
   private unavailable = false;
+  /** When the feed last retired or spent a probe — gates the probe cadence. */
+  private retiredAt = 0;
+  /** Re-probes left before the retirement becomes permanent (#4289). */
+  private probesLeft = UNAVAILABLE_PROBE_LIMIT;
   private fetchedAt = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
   /** Current inter-poll delay: `pollMs`, doubled per failure, capped. */
@@ -201,6 +235,8 @@ class SharedFeed<T> {
     if (key !== this.key) {
       this.key = key;
       this.unavailable = false;
+      this.retiredAt = 0;
+      this.probesLeft = UNAVAILABLE_PROBE_LIMIT;
       this.fetchedAt = 0;
       this.backoffMs = this.pollMs;
       // A different key means the cached value belongs to someone else, and
@@ -232,8 +268,12 @@ class SharedFeed<T> {
    */
   private async refresh(force = false): Promise<void> {
     const runner = this.runner;
-    if (!runner || this.unavailable || this.inFlight) return;
-    if (!force && this.fetchedAt && Date.now() - this.fetchedAt < FRESH_MS) return;
+    if (!runner || this.inFlight) return;
+    // A retired feed is not dead, it is quiet: it still re-probes, a bounded
+    // number of times and no faster than the probe cadence (#4289).
+    const probing = this.unavailable;
+    if (probing && !this.mayProbe()) return;
+    if (!force && !probing && this.fetchedAt && Date.now() - this.fetchedAt < FRESH_MS) return;
     this.inFlight = true;
     // Only announce "loading" when there is no prior answer to show. A poll
     // tick over a `ready` feed must not flash its consumers back through the
@@ -242,33 +282,72 @@ class SharedFeed<T> {
     let failed = false;
     try {
       const next = await runner({
-        markUnavailable: () => {
-          this.unavailable = true;
-          this.stopPolling();
-          // A missing resource IS an answer: this deployment has none, so
-          // nothing is waiting. Degrading to empty and calling it `ready` is
-          // the split `useHomeInbox` already applied to its own read (#4235).
-          this.fetchedAt = Date.now();
-          this.publish(this.snapshot.value, 'ready');
-        },
+        // Already retired ⇒ this WAS a probe, and it came back missing again.
+        // Spend it and stay exactly as we were; the status must not move.
+        markUnavailable: () => (probing ? this.spendProbe() : this.retire()),
         markFailed: () => {
           failed = true;
         },
       });
       if (next !== undefined) {
+        // An answer with a value: the feed is alive, whatever it was before.
+        // This is the ONLY way out of retirement, and it restores the full
+        // budget — a feed that has answered once has earned the next lost race.
+        this.unavailable = false;
+        this.probesLeft = UNAVAILABLE_PROBE_LIMIT;
         this.fetchedAt = Date.now();
         this.backoffMs = this.pollMs;
         this.publish(next, 'ready');
       } else if (failed) {
-        this.fail();
+        // A probe that fails for some OTHER reason is still not an answer, and
+        // it does not get to drag a retired feed into `error`: the surface has
+        // been showing the earned empty state and a 404-then-500 sequence is no
+        // reason to start telling a community build its inbox is broken. Spend
+        // the probe, keep the state, let the next one decide (#4315).
+        if (probing) this.spendProbe();
+        else this.fail();
       }
     } catch {
       // Not swallowed into "keep the last value and say nothing": the value
       // stays, but consumers are told it is no longer an answer (#4225).
-      this.fail();
+      if (probing) this.spendProbe();
+      else this.fail();
     } finally {
       this.inFlight = false;
+      // Re-arm from one place. `schedule` is a no-op while a timer is pending,
+      // so the poll tick's own re-arm below is unaffected; what this adds is
+      // the probe timer for a feed that has just retired (and for a
+      // non-polled feed, whose only other scheduling point is attach).
+      if (this.consumers > 0) this.schedule();
     }
+  }
+
+  /** Whether a retired feed is due another probe. */
+  private mayProbe(): boolean {
+    return this.probesLeft > 0 && Date.now() - this.retiredAt >= UNAVAILABLE_PROBE_MS;
+  }
+
+  /**
+   * The resource is missing — an answer, so `ready` and the poll stops. What
+   * used to be a one-way door now leaves the probe budget standing.
+   */
+  private retire(): void {
+    this.unavailable = true;
+    this.retiredAt = Date.now();
+    // A missing resource IS an answer: this deployment has none, so nothing is
+    // waiting. Degrading to empty and calling it `ready` is the split
+    // `useHomeInbox` already applied to its own read (#4235).
+    this.fetchedAt = Date.now();
+    this.stopPolling();
+    this.publish(this.snapshot.value, 'ready');
+  }
+
+  /** A probe that did not answer: spend one, publish nothing, stay retired. */
+  private spendProbe(): void {
+    this.probesLeft = Math.max(0, this.probesLeft - 1);
+    this.retiredAt = Date.now();
+    this.fetchedAt = Date.now();
+    this.stopPolling();
   }
 
   /** A read that should have worked did not — report it and back the poll off. */
@@ -278,16 +357,31 @@ class SharedFeed<T> {
   }
 
   private schedule(): void {
-    if (this.pollMs <= 0 || this.unavailable || this.timer) return;
+    if (this.timer) return;
+    // A retired feed schedules PROBES, not polls — including a feed whose
+    // `pollMs` is 0 (`sys_activity` fetches once), whose only other re-read
+    // point is a consumer attaching and which the retirement therefore used to
+    // silence just as permanently.
+    if (this.unavailable) {
+      if (this.probesLeft <= 0) return;
+      this.timer = setTimeout(() => {
+        this.timer = null;
+        void this.refresh(true);
+      }, UNAVAILABLE_PROBE_MS);
+      return;
+    }
+    if (this.pollMs <= 0) return;
     // Backgrounded tabs poll at the slower cadence — but never FASTER than the
     // current backoff, so a failing feed stays backed off either way.
     const hidden = typeof document !== 'undefined' && document.hidden;
     const delay = hidden ? Math.max(HIDDEN_POLL_MS, this.backoffMs) : this.backoffMs;
     this.timer = setTimeout(() => {
       this.timer = null;
-      void this.refresh(true).finally(() => {
-        if (this.consumers > 0) this.schedule();
-      });
+      // `refresh` re-arms in its own `finally`, for the poll tick and the probe
+      // tick alike — one re-arm point, so a feed that changes state mid-read
+      // (a poll that retires, a probe that revives) cannot end up scheduling
+      // the cadence it just left.
+      void this.refresh(true);
     }, delay);
   }
 
@@ -298,12 +392,15 @@ class SharedFeed<T> {
    */
   private readonly onVisibilityChange = (): void => {
     if (typeof document === 'undefined' || document.hidden) return;
-    if (this.consumers === 0 || this.unavailable) return;
+    if (this.consumers === 0) return;
+    // Returning to a tab is exactly when a bell should be current, so a retired
+    // feed re-probes here too — but under the same cadence gate as the timer,
+    // or a user switching tabs would spend the whole budget in three seconds
+    // and turn a bounded recovery into a request storm (#4289).
+    if (this.unavailable && !this.mayProbe()) return;
     this.stopPolling();
-    this.backoffMs = this.pollMs;
-    void this.refresh(true).finally(() => {
-      if (this.consumers > 0) this.schedule();
-    });
+    if (!this.unavailable) this.backoffMs = this.pollMs;
+    void this.refresh(true);
   };
 
   private bindVisibility(): void {
@@ -342,6 +439,8 @@ class SharedFeed<T> {
     this.consumers = 0;
     this.inFlight = false;
     this.unavailable = false;
+    this.retiredAt = 0;
+    this.probesLeft = UNAVAILABLE_PROBE_LIMIT;
     this.fetchedAt = 0;
     this.backoffMs = this.pollMs;
   }
