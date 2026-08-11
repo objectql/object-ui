@@ -86,7 +86,12 @@ vi.mock('../../../context/NavigationContext', () => ({
 vi.mock('../../../hooks/useRecentItems', () => ({ useRecentItems: () => ({ recentItems: [] }) }));
 vi.mock('../../../hooks/useFavorites', () => ({ useFavorites: () => ({ favorites: [] }) }));
 vi.mock('../../../hooks/useHomeInbox', () => ({
-  useHomeInbox: () => ({ pendingApprovalsCount: 3, notifications: [], activities: [] }),
+  useHomeInbox: () => ({
+    pendingApprovalsCount: 3,
+    notifications: [],
+    unreadTopicCount: 0,
+    activities: [],
+  }),
 }));
 vi.mock('../../../hooks/useAiSurface', () => ({ resolveAiApiBase: () => '' }));
 vi.mock('../../../views/metadata-admin/useMetadata', () => ({

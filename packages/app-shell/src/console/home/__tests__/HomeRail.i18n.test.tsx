@@ -33,6 +33,7 @@ function renderRail() {
         notifications={[
           { id: 'n1', title: '系统文件已分配给你', createdAt: threeDaysAgo() } as any,
         ]}
+        unreadTopicCount={1}
         notificationsStatus="ready"
         onOpenApprovals={() => {}}
         onOpenNotification={() => {}}

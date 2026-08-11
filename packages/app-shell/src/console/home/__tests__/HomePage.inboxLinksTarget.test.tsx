@@ -91,6 +91,7 @@ vi.mock('../../../hooks/useHomeInbox', () => ({
   useHomeInbox: () => ({
     pendingApprovalsCount: 0,
     notifications: notificationsFixture,
+    unreadTopicCount: notificationsFixture.length,
     activities: activitiesFixture,
   }),
 }));

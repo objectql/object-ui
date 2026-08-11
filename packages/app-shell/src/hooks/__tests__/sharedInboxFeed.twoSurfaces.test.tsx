@@ -31,6 +31,31 @@
  *   - drop only the `!m.is_read` filter ⇒ the #4316 block goes red, the
  *     one-read block stays GREEN — which is why the read-count pin cannot stand
  *     in for the read-state pin, and both are here.
+ *
+ * ## #4329 — one question, one number
+ *
+ * Read-state was only half of "the two surfaces agree". The other half is HOW
+ * MANY: Home badged `pendingApprovalsCount + notifications.length`, and
+ * `notifications` is the list it renders — which `useHomeInbox` caps at 5. So
+ * with nine unread the bell said 9 and the card two hundred pixels below said
+ * 5, for the same question about the same rows. The badge was reporting the
+ * size of a preview as if it were a total.
+ *
+ * The badge now counts unread TOPICS through `groupNotifications` — the bell's
+ * own fold, over the bell's own rows — while the list stays capped. Badge =
+ * "how much is waiting", list = "the newest few of it": two semantics, each
+ * truthful, one number.
+ *
+ * Reverse verification (predictions first, measured in PR #4344):
+ *   - restore `total = pendingApprovalsCount + notifications.length` ⇒ the
+ *     #4329 block goes red (Home badges its capped 5 against the bell's 9) and
+ *     the whole #4316 read-state block stays GREEN — the cap and the join are
+ *     different defects and neither pin stands in for the other;
+ *   - count the pre-slice list length instead of the topic fold (title-folded,
+ *     blank titles dropped) ⇒ every case here stays green EXCEPT
+ *     "counts unread TOPICS, not the titles the list happens to show", which is
+ *     the only fixture where the two folds disagree — that case is why the
+ *     count is taken from `groupNotifications` rather than re-derived.
  */
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -198,6 +223,29 @@ const READ_TITLES = [
   'Scheduled maintenance Sunday 02:00',
 ];
 
+/**
+ * Two unread messages sharing a TITLE across two different topics — the one
+ * fixture where the surfaces' two folds disagree. The bell folds by
+ * `(topic, title)` and sees two topics; Home's LIST folds by title alone (its
+ * digest-collapsing rule, deliberately unchanged here) and renders one row.
+ * The badge is the bell's question, so it answers the bell's fold: 2.
+ */
+const TWIN_TITLES = [
+  { id: 'ibx_t1', notification_id: 'ntf_t1', topic: 'crm.lead.assigned', title: 'Acme Corp needs you', created_at: '2026-08-11T05:00:00Z' },
+  { id: 'ibx_t2', notification_id: 'ntf_t2', topic: 'approval.reminder', title: 'Acme Corp needs you', created_at: '2026-08-11T04:00:00Z' },
+].map((r) => ({ ...r, user_id: 'u1', action_url: `/apps/showcase/x/record/${r.id}` }));
+
+/** Twelve unread topics — past the bell's "9+" display clamp. */
+const TWELVE = Array.from({ length: 12 }, (_, i) => ({
+  id: `ibx_d${i + 1}`,
+  user_id: 'u1',
+  notification_id: `ntf_d${i + 1}`,
+  topic: `topic.${i + 1}`,
+  title: `Waiting item ${i + 1}`,
+  action_url: `/apps/crm/x/record/d_${i + 1}`,
+  created_at: `2026-08-${String(i + 1).padStart(2, '0')}T09:00:00Z`,
+}));
+
 /** `read` for the listed notification ids, `delivered` (= NOT read) for the rest. */
 const receiptsFor = (rows: Array<{ notification_id: string }>, readIds: string[]) =>
   rows.map((r, i) => ({
@@ -239,12 +287,14 @@ import { __resetSharedUserFeeds } from '../sharedUserFeeds';
  * works, so every assertion has to say WHICH panel it is talking about.
  */
 function HomeProbe() {
-  const { pendingApprovalsCount, notifications, notificationsStatus } = useHomeInbox();
+  const { pendingApprovalsCount, notifications, notificationsStatus, unreadTopicCount } =
+    useHomeInbox();
   return (
     <div data-testid="home-cards">
       <HomeActionCenter
         pendingApprovalsCount={pendingApprovalsCount}
         notifications={notifications}
+        unreadTopicCount={unreadTopicCount}
         notificationsStatus={notificationsStatus}
         onOpenApprovals={() => {}}
         onOpenNotification={() => {}}
@@ -299,6 +349,25 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
 });
+
+/**
+ * Approvals answer with `ids` pending requests; every other fetch still 404s.
+ *
+ * The count is the number of DISTINCT request ids (`sharedUserFeeds` dedupes by
+ * `id` before counting), degrading to 0 on 404 — the second addend BOTH badges
+ * have always had, and the one rule #4329 deliberately leaves alone.
+ */
+const approvalsPending = (ids: string[]) =>
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: unknown) =>
+      Promise.resolve(
+        String(url).includes('/api/v1/approvals/requests')
+          ? new Response(JSON.stringify({ data: ids.map((id) => ({ id })) }), { status: 200 })
+          : new Response('{}', { status: 404 }),
+      ),
+    ),
+  );
 
 describe('#4316 — an already-read message is not "needs your attention"', () => {
   it('nine messages, all read: the bell badges nothing AND Home lists nothing', async () => {
@@ -386,11 +455,72 @@ describe('#4316 — an already-read message is not "needs your attention"', () =
 
     render(<HomeSurfaces />);
 
-    await waitFor(() => expect(homeBadge()).toBe('5'));
-    // Home caps its list at `limit` (5) …
+    // Nine unread, and both surfaces say nine. Home's LIST is still capped at
+    // `limit` (5) — the cap is a presentation slice, and #4329 is the pin that
+    // it may not leak into the badge.
+    await waitFor(() => expect(homeBadge()).toBe('9'));
     expect(within(home()).queryAllByText(/Approval request \d+ needs your decision/)).toHaveLength(5);
-    // … while the bell, which lists the full window, badges all nine topics.
     expect(screen.getByTestId('inbox-bell-badge')).toHaveTextContent('9');
+  });
+});
+
+describe('#4329 — the badge is the total, the list is the preview', () => {
+  it('counts unread TOPICS, not the titles the list happens to show', async () => {
+    // The discriminating fixture. Two unread topics that share a title: the
+    // bell's fold sees two, a title fold sees one. Deriving Home's badge from
+    // its own (pre-slice) list length would agree with the bell on every other
+    // case in this file and disagree here — "agrees usually" is precisely the
+    // shape of the defect #4316 was, so the badge takes the bell's own fold of
+    // the bell's own rows instead of re-deriving a second one.
+    inboxRows = TWIN_TITLES;
+    receiptRows = [];
+
+    render(<HomeSurfaces />);
+
+    await waitFor(() => expect(screen.getByTestId('inbox-bell-badge')).toHaveTextContent('2'));
+    expect(homeBadge()).toBe('2');
+    // The LIST still collapses repeats by title — that is its digest-collapsing
+    // rule and #4329 does not touch it. One row under a badge of two is the
+    // badge/preview split doing its job, exactly as five rows under nine is.
+    expect(inHome('Acme Corp needs you')).toHaveLength(1);
+    expect(inBell('Acme Corp needs you')).toHaveLength(2);
+  });
+
+  it('adds the same pending-approvals count on both surfaces', async () => {
+    // Approvals are the badge's other addend and their rule is unchanged: the
+    // distinct pending request ids from the shared REST feed, added once on
+    // each surface. Four unread topics + two approvals = six, twice.
+    inboxRows = MIXED;
+    receiptRows = receiptsFor(MIXED, MIXED_READ_IDS);
+    approvalsPending(['ar_1', 'ar_2']);
+
+    render(<HomeSurfaces />);
+
+    await waitFor(() => expect(screen.getByTestId('inbox-bell-badge')).toHaveTextContent('6'));
+    expect(homeBadge()).toBe('6');
+    // …and the approvals row is still listed with its own count, unchanged.
+    expect(within(home()).getByTestId('home-action-approvals')).toHaveTextContent(
+      '2 pending approvals',
+    );
+  });
+
+  it('reports the same count past the bell’s "9+" display clamp', async () => {
+    // Measured, and pinned as measured: twelve unread topics reach both
+    // surfaces as twelve. The bell CLAMPS its rendering at "9+" because its
+    // badge is a 20px circle in the top bar (#2765); Home's card badge has the
+    // room and prints the number. Same count, two renderings of it — not two
+    // counts, which is what #4329 was filed about. Left as-is deliberately:
+    // "9+" and "12" do not contradict each other, and clamping Home would mean
+    // teaching the shared card badge a display rule it has no other use for.
+    inboxRows = TWELVE;
+    receiptRows = [];
+
+    render(<HomeSurfaces />);
+
+    await waitFor(() => expect(homeBadge()).toBe('12'));
+    expect(screen.getByTestId('inbox-bell-badge')).toHaveTextContent('9+');
+    // The list is unmoved by any of it — still five rows.
+    expect(within(home()).queryAllByText(/Waiting item \d+/)).toHaveLength(5);
   });
 });
 

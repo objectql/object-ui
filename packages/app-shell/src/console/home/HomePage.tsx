@@ -253,7 +253,8 @@ export function HomePage() {
   const { favorites } = useFavorites();
   const { user } = useAuth();
   const isAdmin = useIsWorkspaceAdmin();
-  const { pendingApprovalsCount, notifications, notificationsStatus, activities } = useHomeInbox();
+  const { pendingApprovalsCount, notifications, unreadTopicCount, notificationsStatus, activities } =
+    useHomeInbox();
   // Home renders OUTSIDE the `/apps/:appName/*` router, so there is no
   // `params.appName` to read — `currentAppName` (published by ConsoleLayout on
   // every app mount) is the only "which app is the user in" signal available
@@ -462,6 +463,9 @@ export function HomePage() {
             <HomeActionCenter
               pendingApprovalsCount={pendingApprovalsCount}
               notifications={notifications}
+              /* The badge's total — every unread topic, not the capped list
+                 (#4329); the same number the bell above shows. */
+              unreadTopicCount={unreadTopicCount}
               notificationsStatus={notificationsStatus}
               onOpenApprovals={() => navigate(`/apps/${hostAppSegment}/system/approvals`)}
               /* The fallback arm runs whenever a notification carries no
