@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 // Helper: a component that calls useSchemaContext (mimics plugin pattern)
-const ContextConsumer: React.FC<any> = ({ schema }) => {
+const ContextConsumer: React.FC<any> = () => {
   const { dataSource } = useSchemaContext();
   return <div data-testid="ctx-consumer">dataSource: {JSON.stringify(dataSource)}</div>;
 };

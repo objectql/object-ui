@@ -122,9 +122,6 @@ export const TEST_DEBT = {
   // remeasure before planning against any number here.
   "@object-ui/core": { errors: 56, issue: 4118, note: "TS2322x17, TS7006x10 — mostly the input-vs-output fixture confusion (was declared 72)" },
   "@object-ui/app-shell": { errors: 62, issue: 4118, note: "TS2339x8, TS2698x8, TS2739x7 — implementation wider than the type; needs lib ES2022 (was declared 53)" },
-  // Graduating in the tranche-4 sibling PR; the line stays until that one lands
-  // so this branch's gate describes this branch. Remeasured 43 (was declared 27).
-  "@object-ui/react": { errors: 43, issue: 4118, note: "TS2322x18, TS2769x11 — untyped mocks and createElement children" },
   "@object-ui/plugin-dashboard": { errors: 6, issue: 4118 },
 };
 

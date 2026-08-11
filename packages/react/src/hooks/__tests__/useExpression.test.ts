@@ -161,7 +161,7 @@ describe('useRowPredicate (canonical CEL row predicate — issue #1584)', () => 
 
   it('merges the ambient predicate scope (features/user)', () => {
     const wrapper = ({ children }: { children: React.ReactNode }) =>
-      createElement(PredicateScopeProvider, { scope: { features: { canEdit: true } } }, children);
+      createElement(PredicateScopeProvider, { scope: { features: { canEdit: true } }, children });
     expect(
       renderHook(() => useRowPredicate('features.canEdit == true', { id: '1' }), { wrapper }).result.current,
     ).toBe(true);
@@ -209,7 +209,7 @@ describe('usePredicateRecordContext — no row binds NOTHING (objectui#4075)', (
     // `{ ...scope, ...context }`, so an empty-row bag would shadow the scope's
     // `record` with `{}` and a correctly-authored predicate would read false.
     const wrapper = ({ children }: { children: React.ReactNode }) =>
-      createElement(PredicateScopeProvider, { scope: { record: { status: 'pending' } } }, children);
+      createElement(PredicateScopeProvider, { scope: { record: { status: 'pending' } }, children });
     const { result } = renderHook(
       () => useCondition('${record.status === "pending"}', usePredicateRecordContext(undefined)),
       { wrapper },

@@ -37,7 +37,7 @@ const SELF_ID = 'user-self';
 
 function withProvider(providerContext: any) {
   return ({ children }: { children: React.ReactNode }) =>
-    React.createElement(ActionProvider, { context: providerContext }, children);
+    React.createElement(ActionProvider, { context: providerContext, children });
 }
 
 describe('useActionEngine — shared ActionProvider runner', () => {

@@ -5,15 +5,25 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { ActionLocationSchema } from '@objectstack/spec/ui';
+import type { ActionDef } from '@object-ui/core';
 import { useActionEngine } from '../useActionEngine';
 
 describe('useActionEngine', () => {
-  const sampleActions = [
+  // Annotated rather than inferred: without it every `useActionEngine({ actions:
+  // sampleActions })` below re-reported the same widening as a call-site error
+  // once this package started type-checking its tests (objectui#4040), and the
+  // one entry that is deliberately off-spec could not be told apart from an
+  // accident.
+  const sampleActions: ActionDef[] = [
     {
       name: 'mark_complete',
       type: 'script',
       target: 'true',
       locations: ['list_toolbar', 'record_header'],
+      // @ts-expect-error `bulkEnabled` is a retired key on `ActionDef`, kept
+      // here as the only input that can prove `getBulkActions()` does not
+      // harvest it (see the inverse test below). The directive is
+      // self-invalidating: un-retiring the key makes it unused, i.e. TS2578.
       bulkEnabled: true,
     },
     {
@@ -40,7 +50,14 @@ describe('useActionEngine', () => {
       name: 'global_search',
       type: 'script',
       target: 'true',
+      // @ts-expect-error `global_nav` is no longer an `ActionLocation` — that
+      // rejection IS the premise of the inverse test below, so the directive
+      // pins it: were the location ever re-admitted to the spec, this line
+      // would stop erroring and TS2578 would report the now-unused directive.
       locations: ['global_nav'],
+      // @ts-expect-error `shortcut` is retired on `ActionDef` too, and for the
+      // same reason as `bulkEnabled` above: the inverse test needs metadata
+      // that still declares one.
       shortcut: 'ctrl+k',
     },
   ];

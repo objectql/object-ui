@@ -23,11 +23,10 @@ import { I18nProvider, useObjectTranslation } from '@object-ui/i18n';
 import { useActionTextLocalizer } from '../useActionTextLocalizer';
 
 const wrapper = ({ children }: { children: React.ReactNode }) =>
-  React.createElement(
-    I18nProvider,
-    { config: { defaultLanguage: 'en', detectBrowserLanguage: false } },
+  React.createElement(I18nProvider, {
+    config: { defaultLanguage: 'en', detectBrowserLanguage: false },
     children,
-  );
+  });
 
 /** The authored action, exactly as `src/actions/lead.actions.ts` declares it. */
 const CONVERT_LEAD = {

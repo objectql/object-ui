@@ -103,7 +103,7 @@ describe('useRecordSearch', () => {
   it('discards stale results when query changes mid-flight', async () => {
     const accountResolvers: Array<(v: any) => void> = [];
     const ds = {
-      find: vi.fn((objectName: string, q: any) => {
+      find: vi.fn((objectName: string, _query: any) => {
         if (objectName === 'account') {
           return new Promise((resolve) => {
             accountResolvers.push((v) => resolve(v));
@@ -301,7 +301,17 @@ describe('useRecordSearch', () => {
     function makeSearchDataSource(hits: any[]) {
       return {
         find: vi.fn(async () => ({ data: [] })),
-        searchAll: vi.fn(async () => ({ query: 'wayne', hits })),
+        // The parameters are declared even though the body ignores them: the
+        // hook calls `searchAll(term, { objects, limit })`, and a zero-arity
+        // `vi.fn` types `mock.calls[0]` as the empty tuple `[]`, so every
+        // `const [term, opts] = ...` below read `undefined` as far as the
+        // compiler was concerned (objectui#4040).
+        searchAll: vi.fn(
+          async (
+            _term: string,
+            _options: { objects?: string[]; limit?: number },
+          ) => ({ query: 'wayne', hits }),
+        ),
       };
     }
 
@@ -420,7 +430,15 @@ describe('useRecordSearch', () => {
       }));
       const ds = {
         find: vi.fn(),
-        searchAll: vi.fn(async () => ({ hits: [] })),
+        // Parameters declared for the same reason as `makeSearchDataSource`
+        // above — a zero-arity `vi.fn` makes `mock.calls[0]` the empty tuple,
+        // and the `opts.objects` assertion below is the whole regression.
+        searchAll: vi.fn(
+          async (
+            _term: string,
+            _options: { objects?: string[]; limit?: number },
+          ) => ({ hits: [] }),
+        ),
       };
 
       renderHook(() =>

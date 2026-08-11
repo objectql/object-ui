@@ -31,7 +31,7 @@ describe('ActionContext', () => {
 
     it('returns true with provider', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) =>
-        React.createElement(ActionProvider, { context: {} }, children);
+        React.createElement(ActionProvider, { context: {}, children });
 
       const { result } = renderHook(() => useHasActionProvider(), { wrapper });
 
@@ -42,7 +42,7 @@ describe('ActionContext', () => {
   describe('ActionProvider basic', () => {
     it('children can access execute function', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) =>
-        React.createElement(ActionProvider, { context: {} }, children);
+        React.createElement(ActionProvider, { context: {}, children });
 
       const { result } = renderHook(() => useAction(), { wrapper });
 
@@ -58,7 +58,7 @@ describe('ActionContext', () => {
   describe('ActionProvider execute', () => {
     it('executes a toast action and returns result', async () => {
       const wrapper = ({ children }: { children: React.ReactNode }) =>
-        React.createElement(ActionProvider, { context: {} }, children);
+        React.createElement(ActionProvider, { context: {}, children });
 
       const { result } = renderHook(() => useAction(), { wrapper });
 
@@ -86,7 +86,7 @@ describe('ActionContext', () => {
   describe('ActionProvider execute error', () => {
     it('executes an action that fails and sets error state', async () => {
       const wrapper = ({ children }: { children: React.ReactNode }) =>
-        React.createElement(ActionProvider, { context: {} }, children);
+        React.createElement(ActionProvider, { context: {}, children });
 
       const { result } = renderHook(() => useAction(), { wrapper });
 
@@ -110,7 +110,7 @@ describe('ActionContext', () => {
   describe('ActionProvider executeChain', () => {
     it('executes a chain of actions', async () => {
       const wrapper = ({ children }: { children: React.ReactNode }) =>
-        React.createElement(ActionProvider, { context: {} }, children);
+        React.createElement(ActionProvider, { context: {}, children });
 
       const { result } = renderHook(() => useAction(), { wrapper });
 
@@ -135,7 +135,7 @@ describe('ActionContext', () => {
   describe('ActionProvider updateContext', () => {
     it('updateContext is callable', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) =>
-        React.createElement(ActionProvider, { context: {} }, children);
+        React.createElement(ActionProvider, { context: {}, children });
 
       const { result } = renderHook(() => useAction(), { wrapper });
 
@@ -151,11 +151,12 @@ describe('ActionContext', () => {
       const onNavigate = vi.fn();
 
       const wrapper = ({ children }: { children: React.ReactNode }) =>
-        React.createElement(
-          ActionProvider,
-          { context: {}, onToast, onNavigate },
+        React.createElement(ActionProvider, {
+          context: {},
+          onToast,
+          onNavigate,
           children,
-        );
+        });
 
       const { result } = renderHook(() => useAction(), { wrapper });
 

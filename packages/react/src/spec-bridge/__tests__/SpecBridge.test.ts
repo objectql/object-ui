@@ -136,8 +136,13 @@ describe('SpecBridge', () => {
               type: 'badge',
               pinned: 'left',
               summary: { type: 'count' },
-              link: { href: '/status' },
-              action: { type: 'navigate' },
+              // `ListColumn.link` is a BOOLEAN in @objectstack/spec and
+              // `action` is the NAME of an action — not the `{ href }` /
+              // `{ type }` envelopes this fixture used to author. The bridge
+              // forwards both keys verbatim, so the old assertions passed on
+              // any value at all and proved only pass-through (objectui#4040).
+              link: true,
+              action: 'navigate',
             },
           ],
         },
@@ -152,25 +157,27 @@ describe('SpecBridge', () => {
       expect(col.type).toBe('badge');
       expect(col.pinned).toBe('left');
       expect(col.summary).toEqual({ type: 'count' });
-      expect(col.link).toEqual({ href: '/status' });
-      expect(col.action).toEqual({ type: 'navigate' });
+      expect(col.link).toBe(true);
+      expect(col.action).toBe('navigate');
     });
 
-    it('maps rowHeight to density', () => {
+    // All FIVE spellings `RowHeightSchema` admits, and only those. The fixture
+    // used to author `comfortable` / `spacious` / `small` as well — three values
+    // no spec-valid list view can carry — and it type-checked against nothing,
+    // so `mapDensity`'s branches for them read as live capability. What a caller
+    // can actually hand this bridge is the enum below (objectui#4040).
+    it('maps every spec rowHeight to a density', () => {
       const compact = bridgeListView({ rowHeight: 'compact' }, {});
       expect(compact.density).toBe('compact');
 
-      const comfortable = bridgeListView({ rowHeight: 'comfortable' }, {});
-      expect(comfortable.density).toBe('comfortable');
-
-      const spacious = bridgeListView({ rowHeight: 'spacious' }, {});
-      expect(spacious.density).toBe('spacious');
-
-      const small = bridgeListView({ rowHeight: 'small' }, {});
-      expect(small.density).toBe('compact');
-
       const short = bridgeListView({ rowHeight: 'short' }, {});
       expect(short.density).toBe('compact');
+
+      const medium = bridgeListView({ rowHeight: 'medium' }, {});
+      expect(medium.density).toBe('comfortable');
+
+      const tall = bridgeListView({ rowHeight: 'tall' }, {});
+      expect(tall.density).toBe('spacious');
 
       const extraTall = bridgeListView({ rowHeight: 'extra_tall' }, {});
       expect(extraTall.density).toBe('spacious');
@@ -179,18 +186,27 @@ describe('SpecBridge', () => {
     it('includes optional list properties', () => {
       const node = bridgeListView(
         {
-          sort: { field: 'name', direction: 'asc' },
-          filter: { status: 'active' },
-          grouping: { field: 'region' },
+          // Spec spellings throughout: `sort` is a list of `{ field, order }`
+          // (not a single `{ field, direction }`), `filter` is a list of
+          // `{ field, operator, value }` predicates (not a field→value map),
+          // and `grouping` wraps its levels in `fields`. The bridge forwards
+          // each key verbatim, so the previous fixture's dialect round-tripped
+          // and the assertions passed while describing metadata that cannot be
+          // authored (objectui#4040).
+          sort: [{ field: 'name', order: 'asc' }],
+          filter: [{ field: 'status', operator: 'equals', value: 'active' }],
+          grouping: { fields: [{ field: 'region' }] },
           rowColor: { field: 'priority' },
           searchableFields: ['name', 'email'],
         },
         {},
       );
 
-      expect(node.sort).toEqual({ field: 'name', direction: 'asc' });
-      expect(node.filter).toEqual({ status: 'active' });
-      expect(node.grouping).toEqual({ field: 'region' });
+      expect(node.sort).toEqual([{ field: 'name', order: 'asc' }]);
+      expect(node.filter).toEqual([
+        { field: 'status', operator: 'equals', value: 'active' },
+      ]);
+      expect(node.grouping).toEqual({ fields: [{ field: 'region' }] });
       expect(node.rowColor).toEqual({ field: 'priority' });
       expect(node.searchableFields).toEqual(['name', 'email']);
     });

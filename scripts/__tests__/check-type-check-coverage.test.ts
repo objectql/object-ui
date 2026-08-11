@@ -525,6 +525,7 @@ describe('every surviving narrow project is a package still in debt, in this rep
     // appended to that file turned the FULL project red. A narrow project
     // reappearing on any of them is the redundancy coming back.
     const retired = [
+      // objectui#4291, the six that had graduated by then.
       '@object-ui/auth',
       '@object-ui/plugin-chatbot',
       '@object-ui/plugin-detail',
@@ -534,6 +535,7 @@ describe('every surviving narrow project is a package still in debt, in this rep
       // objectui#4040 tranche 4 — retired in the same PR that graduated the
       // package, which is what #4291's ratchet now requires.
       '@object-ui/components',
+      '@object-ui/react',
     ];
     for (const name of retired) {
       const pkg = packages.find((p) => p.name === name);
