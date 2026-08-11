@@ -249,6 +249,24 @@ describe('/setup deep link — the routed chain', () => {
     expect(pathname()).toBe('/setup');
   });
 
+  it('CONTROL (objectui#4048): the deep link still wins on a Setup-ONLY deployment', async () => {
+    // #4048 changed `resolveLandingPath([setup])` from `/apps/setup` to
+    // `/home`, so this is the one app list where the two policies could be
+    // confused for each other. They are different questions and must stay
+    // that way: `/` is "where does an arrival with NO target belong" (the env
+    // home), `/setup` is an EXPLICIT target and still resolves into Setup.
+    // Asserted on the same list the fix redirects, because a control drawn
+    // from a multi-app list could not have caught a regression here.
+    auth = { isAuthenticated: true, isLoading: false, user: { id: 'u1' } };
+    apps = [SETUP_APP];
+    expect(resolveLandingPath([SETUP_APP])).toBe('/home');
+
+    renderSetupDeepLink();
+    expect(await screen.findByTestId('app-subtree')).toBeInTheDocument();
+    expect(pathname()).toBe('/apps/com.objectstack.setup');
+    expect(screen.queryByTestId('home-launcher')).not.toBeInTheDocument();
+  });
+
   it('a viewer whose metadata has no Setup app gets "app not available", not home', async () => {
     // `SETUP_APP.requiredPermissions = ['setup.access']`, so this is a normal
     // permission outcome. The target is the canonical package-id URL, which

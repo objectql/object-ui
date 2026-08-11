@@ -17,7 +17,9 @@
  *      be selectable with `homePageId`, retired in spec 17.0.0
  *      (objectstack#4667 / #4709);
  *   2. else the single visible App (`active !== false && hidden !== true`)
- *      → `/apps/<it>` (a one-app deployment shouldn't show a one-tile launcher);
+ *      → `/apps/<it>` (a one-app deployment shouldn't show a one-tile launcher)
+ *      — UNLESS that one App is the platform's built-in Setup console, which
+ *      means the environment has no product apps yet (objectui#4048, below);
  *   3. else `/home` — the multi-app workspace launcher (the legacy default).
  *
  * NOTE: this gives `isDefault` ROUTING semantics; it was previously a
@@ -28,7 +30,12 @@
  */
 
 import { Navigate } from 'react-router-dom';
-import { useMetadata, LoadingFallback } from '@object-ui/app-shell';
+import {
+  useMetadata,
+  LoadingFallback,
+  SETUP_APP_PACKAGE_ID,
+  SETUP_APP_NAME,
+} from '@object-ui/app-shell';
 
 /** Minimal shape this resolver needs off each App metadata record. */
 interface LandingApp {
@@ -36,6 +43,20 @@ interface LandingApp {
   isDefault?: boolean;
   active?: boolean;
   hidden?: boolean;
+  /** ADR-0048 owning package — the canonical identity of a shipped app. */
+  _packageId?: string;
+}
+
+/**
+ * Is this the platform's built-in Setup console (objectui#4048)?
+ *
+ * Package id first, app name as the fallback — the SAME order
+ * `resolveSetupAppPath` resolves Setup in, so the `/` landing policy and the
+ * `/setup` deep link cannot disagree about which app Setup is. A runtime/DB
+ * app carries no `_packageId`, which is why the name alias is kept.
+ */
+function isPlatformSetupApp(app: LandingApp): boolean {
+  return app._packageId === SETUP_APP_PACKAGE_ID || app.name === SETUP_APP_NAME;
 }
 
 /**
@@ -49,9 +70,32 @@ export function resolveLandingPath(apps: readonly LandingApp[] | null | undefine
   const defaultApp = list.find((a) => a.isDefault === true);
   if (defaultApp) return `/apps/${defaultApp.name}`;
 
-  // 2. A single-app deployment lands straight in that App (no one-tile launcher).
+  // 2. A single-app deployment lands straight in that App (no one-tile
+  //    launcher) — but Setup alone is NOT a one-app deployment.
+  //
+  //    objectui#4048: a new builder arriving on a just-created environment
+  //    landed on Setup's System Overview, an audit/health dashboard reading all
+  //    zeros because a fresh environment has no audit history yet. The path was
+  //    this rule: the only app such a viewer can see is the platform
+  //    administration console that @objectstack/platform-objects ships into
+  //    EVERY deployment, so `visible.length === 1` was true and the resolver
+  //    read it as "this deployment's product is Setup". `/apps/setup` then
+  //    resolves to the app's first navigation item (`AppContent
+  //    .resolveLandingRoute`), which for Setup is `dashboard/system_overview`.
+  //
+  //    "The only app I can see is Setup" means the environment has no product
+  //    apps yet — and under ADR-0075 the environment layer's home is the
+  //    environment's own responsibility, which is `/home` (build with AI, start
+  //    from a template, Your apps). Rule 1 is deliberately left alone: a
+  //    deployment that genuinely wants Setup as its first screen DECLARES it
+  //    with `isDefault`, and a declared landing still wins.
+  //
+  //    Scoped to the SINGLE-app case on purpose. Dropping Setup from the
+  //    `visible` count instead would re-route every ordinary `[product, setup]`
+  //    deployment from `/home` into the product app — a far larger change than
+  //    this card asks for, and one nobody measured.
   const visible = list.filter((a) => a.active !== false && a.hidden !== true);
-  if (visible.length === 1) return `/apps/${visible[0].name}`;
+  if (visible.length === 1 && !isPlatformSetupApp(visible[0])) return `/apps/${visible[0].name}`;
 
   // 3. Multi-app default: the workspace launcher.
   return '/home';
