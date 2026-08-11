@@ -17,7 +17,7 @@ export * from './data-invalidation';
 export * from './element-data-source/ElementDataSourceGate';
 
 // i18n utilities
-export { resolveI18nLabel } from './utils/i18n';
+export { resolveKeyedI18nLabel } from './utils/i18n';
 
 // Write-error surfacing utilities (shared by drag-write plugins so a failed
 // PATCH — e.g. an RLS 403 — is never silently swallowed).

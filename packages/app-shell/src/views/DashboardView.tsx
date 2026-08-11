@@ -34,7 +34,7 @@ import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { SkeletonDashboard } from '../skeletons';
 import { useMetadata } from '../providers/MetadataProvider';
 import { useExpressionContext } from '../providers/ExpressionProvider';
-import { resolveI18nLabel, preferLocal } from '../utils';
+import { resolveKeyedI18nLabel, preferLocal } from '../utils';
 import { useAdapter } from '../providers/AdapterProvider';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 
@@ -182,8 +182,8 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
             // fall back to `label` (the metadata display name) and finally to
             // the raw `name`.
             const headerSrc = (previewSchema as any) || dashboard;
-            const resolvedTitle = resolveI18nLabel(headerSrc.title, t);
-            const resolvedLabel = resolveI18nLabel(dashboard.label, t);
+            const resolvedTitle = resolveKeyedI18nLabel(headerSrc.title, t);
+            const resolvedLabel = resolveKeyedI18nLabel(dashboard.label, t);
             const fallbackLabel = dashboardLabel({ name: dashboard.name, label: resolvedLabel });
             const display = resolvedTitle || fallbackLabel || dashboard.name;
             return (
@@ -195,7 +195,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
             const rawDesc = headerSrc.description ?? dashboard.description;
             const desc = dashboardDescription({
               name: dashboard.name,
-              description: resolveI18nLabel(rawDesc, t),
+              description: resolveKeyedI18nLabel(rawDesc, t),
             });
             return desc ? (
               <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{desc}</p>

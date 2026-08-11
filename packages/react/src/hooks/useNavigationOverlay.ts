@@ -19,7 +19,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 
-import type { NavigationConfigSchema } from '@objectstack/spec/ui';
+import type { NavigationConfigSchema, NavigationMode as SpecNavigationMode } from '@objectstack/spec/ui';
 import type { SpecAuthoredInput } from '../spec-input';
 
 /**
@@ -85,7 +85,23 @@ export function resolveOverlayWidth(navigation: NavigationConfig | undefined): s
   return undefined;
 }
 
-export type NavigationMode = NavigationConfig['mode'];
+/**
+ * The overlay modes — the spec's own union, DERIVED since objectui#4167.
+ *
+ * rc.6 publishes `NavigationMode` (`z.input<typeof NavigationModeSchema>`), and
+ * this alias resolved to exactly it already: `NavigationConfig['mode']` above is
+ * `NonNullable<…['mode']>`, and stripping the `undefined` that the schema's
+ * `.default()` puts on the authoring side leaves the seven-member enum itself.
+ * So the spec reference was one hop away rather than absent — the alias just
+ * reached it through a member access, which reads as a hand-written union to
+ * `check:spec-symbols` and, more to the point, to a person.
+ *
+ * Bound to the spec directly instead: the seven members now arrive from the
+ * schema that validates them. `__tests__/offline-nav-performance-spec-parity.test.ts`
+ * pins that this stays the same type as `NavigationConfig['mode']`, so the two
+ * spellings cannot silently come apart if the spec ever stops defaulting `mode`.
+ */
+export type NavigationMode = SpecNavigationMode;
 
 export interface UseNavigationOverlayOptions {
   /** The navigation configuration from the schema */

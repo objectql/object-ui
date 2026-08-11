@@ -13,6 +13,7 @@ import {
   buildFilterCondition,
   buildWidgetScopedFilter,
   DATE_RANGE_FILTER_NAME,
+  DATE_RANGE_PRESETS,
   type DashboardFilterDef,
 } from '../dashboard-filters';
 import { mergeFilters } from '../merge-filters';
@@ -432,5 +433,52 @@ describe('mergeFilters', () => {
     expect(mergeFilters({ a: 1 }, undefined)).toEqual({ a: 1 });
     expect(mergeFilters(undefined, { b: 2 })).toEqual({ b: 2 });
     expect(mergeFilters({}, undefined)).toBeUndefined();
+  });
+});
+
+/**
+ * `DATE_RANGE_PRESETS` stopped being `Object.keys(PRESET_RANGES)` and became a
+ * re-export of the spec's const in objectui#4167 (objectstack#4115).
+ *
+ * A COPY of a const passes every value comparison — that insight is why the
+ * guard's own header says reference identity is the only check that separates a
+ * re-export from a fork, and it is the one assertion a `toEqual` on the member
+ * list cannot make. So the first test asks `toBe`, deliberately.
+ *
+ * The second is the other half of the burn-down and the one with teeth at
+ * runtime: the spec owns which presets EXIST, this module owns what each one
+ * RESOLVES TO, and nothing but the `satisfies` in `dashboard-filters.ts` ties
+ * them together. That is a compile-time pin, so it is erased here — this test
+ * is what makes the same claim visible in a suite run, and what would catch a
+ * future edit that re-annotated the table as `Record<string, …>` (a string index
+ * signature satisfies every literal key, so the `satisfies` would go vacuously
+ * green while the bounds table quietly went missing entries).
+ */
+describe('DATE_RANGE_PRESETS is the spec\'s list, not a copy of it', () => {
+  it('is the spec\'s own array by REFERENCE, not an equal one', async () => {
+    const spec = await import('@objectstack/spec/ui');
+    expect(DATE_RANGE_PRESETS).toBe(spec.DATE_RANGE_PRESETS);
+  });
+
+  it('every offered preset resolves to date-macro bounds', () => {
+    // `buildFilterCondition` warns and drops a preset it has no bounds for, so a
+    // preset in this list with no entry in the bounds table is a filter that
+    // validates clean and then selects nothing — the exact failure the spec's
+    // own comment on DATE_RANGE_PRESETS describes.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      for (const preset of DATE_RANGE_PRESETS) {
+        const built = buildFilterCondition(
+          { name: 'd', field: 'created_at', type: 'dateRange' },
+          { preset },
+        );
+        expect(built, `preset "${preset}" produced no condition`).toBeDefined();
+      }
+      expect(
+        warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('unknown date range preset')),
+      ).toEqual([]);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

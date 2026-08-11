@@ -28,7 +28,7 @@ import { useRecordSearch } from '@object-ui/react';
 import { useMetadata } from '../providers/MetadataProvider';
 import { useAdapter } from '../providers/AdapterProvider';
 import { matchAppBySegment } from '../utils/appRoute';
-import { resolveI18nLabel, getRecordDisplayName } from '../utils';
+import { resolveKeyedI18nLabel, getRecordDisplayName } from '../utils';
 import { getIcon } from '../utils/getIcon';
 import { resolveHref } from '@object-ui/layout';
 import { useAuth } from '@object-ui/auth';
@@ -174,7 +174,7 @@ export function SearchResultsPage() {
       let group = byObject.get(hit.objectName);
       if (!group) {
         const objDef = objectsByName.get(hit.objectName);
-        const label = resolveI18nLabel(objDef?.label, t) || hit.objectLabel;
+        const label = resolveKeyedI18nLabel(objDef?.label, t) || hit.objectLabel;
         group = { label, icon: objDef?.icon ?? hit.icon, hits: [] };
         byObject.set(hit.objectName, group);
         order.push(hit.objectName);

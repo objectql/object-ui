@@ -48,10 +48,11 @@ import { useRecentItems } from '../hooks/useRecentItems';
 import { useFavorites } from '../hooks/useFavorites';
 import { useNavPins } from '../hooks/useNavPins';
 import { useNavActionDispatch } from '../hooks/useNavActionDispatch';
-import { resolveI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
-// Aliased to keep it apart from objectui's own `resolveI18nLabel` above: this is
-// the spec's resolver (new in @objectstack/spec 17.0.0-rc.6) for the INLINE
-// per-locale map form of `I18nLabel`, not for a translation-key ref.
+import { resolveKeyedI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
+// Aliased for symmetry with objectui's own `resolveKeyedI18nLabel` above (the
+// names stopped colliding in objectui#4167): this is the spec's resolver (new in
+// @objectstack/spec 17.0.0-rc.6) for the INLINE per-locale map form of
+// `I18nLabel`, not for a translation-key ref.
 import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 // useObjectLabel provides appLabel/appDescription for convention-based

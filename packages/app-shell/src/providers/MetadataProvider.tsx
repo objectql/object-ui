@@ -10,12 +10,12 @@ import { expandViewContainer } from '@objectstack/spec/ui';
 import { type ObjectStackAdapter } from '@object-ui/data-objectstack';
 import { normalizeSchemaReferenceKeys } from '@object-ui/core';
 import { resolveInlineMode } from '@object-ui/plugin-form';
-import { MetadataCtx, useMetadata, type MetadataContextValue, type MetadataState } from '@object-ui/react';
+import { MetadataCtx, useMetadata, type MetadataContextValue, type MetadataCacheState } from '@object-ui/react';
 import { usePreviewDrafts } from '../preview/PreviewModeContext';
 import { createConsoleMetadataClient } from '../views/metadata-admin/metadataClientFactory';
 import { subscribeCanvasInvalidate, subscribeMetadataRefresh } from '../assistant/assistantBus';
 
-export type { MetadataState, MetadataContextValue };
+export type { MetadataCacheState, MetadataContextValue };
 export { useMetadataItem } from '@object-ui/react';
 export { useMetadata };
 
@@ -68,7 +68,7 @@ const EAGER_TYPES = ['app', 'view'] as const;
  */
 const ERROR_RETRY_COOLDOWN_MS = 1000;
 
-const TYPE_BY_STATE_KEY: Record<keyof Omit<MetadataState, 'loading' | 'error'>, string> = {
+const TYPE_BY_STATE_KEY: Record<keyof Omit<MetadataCacheState, 'loading' | 'error'>, string> = {
   apps: 'app',
   objects: 'object',
   dashboards: 'dashboard',

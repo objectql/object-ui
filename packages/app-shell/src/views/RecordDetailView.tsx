@@ -485,6 +485,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         fieldLabel,
         fieldOptionLabel,
         row,
+        // Resolves an inline per-locale `label` map (rc.6's widened
+        // `I18nLabel`) for the active language — objectui#4163.
+        locale: language,
       });
       // Localize param label/placeholder/helpText (see ObjectView for the
       // convention); falls back to the metadata literal.
