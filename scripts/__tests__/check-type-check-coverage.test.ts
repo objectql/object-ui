@@ -519,18 +519,22 @@ describe('every surviving narrow project is a package still in debt, in this rep
     }
   });
 
-  it('pins the six objectui#4291 retired as having none', () => {
+  it('pins every package whose narrow project has been retired as having none', () => {
     // Named rather than counted: each of these had its guard file proven covered
     // by `tsc -p tsconfig.test.json --listFiles`, and a provably-false `Assert`
     // appended to that file turned the FULL project red. A narrow project
     // reappearing on any of them is the redundancy coming back.
     const retired = [
+      // objectui#4291, the six that had graduated by then.
       '@object-ui/auth',
       '@object-ui/plugin-chatbot',
       '@object-ui/plugin-detail',
       '@object-ui/plugin-form',
       '@object-ui/plugin-grid',
       '@object-ui/plugin-list',
+      // objectui#4040 tranche 4 — retired in the same PR that graduated the
+      // package, which is what #4291's ratchet now requires.
+      '@object-ui/react',
     ];
     for (const name of retired) {
       const pkg = packages.find((p) => p.name === name);

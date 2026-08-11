@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { render } from '@testing-library/react';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
@@ -19,7 +19,12 @@ const PassthroughDiv: React.FC<any> = (props) => {
 };
 
 describe('SchemaRenderer — dev-mode validation', () => {
-  let warnSpy: ReturnType<typeof vi.spyOn>;
+  // `ReturnType<typeof vi.spyOn>` resolves to the un-instantiated
+  // `MockInstance<Procedure | Constructable>` union, whose `mock.calls` degrades
+  // to an implicitly-`any` element type — so every `.filter((call) => ...)`
+  // below was unchecked (objectui#4040). Naming the spied signature keeps
+  // `calls` a real tuple array.
+  let warnSpy: MockInstance<typeof console.warn>;
 
   beforeEach(() => {
     ComponentRegistry.register('valid-host', PassthroughDiv);

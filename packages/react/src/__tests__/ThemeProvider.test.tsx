@@ -32,8 +32,13 @@ const lightTheme: Theme = {
     error: '#EF4444',
   },
   typography: {
+    // `fontFamily.base` is the only surviving typography key: `fontSize` (and
+    // `fontWeight` / `lineHeight` / `letterSpacing`) became tombstones in
+    // @objectstack/spec 17.0.0-rc.3, prescribing `theme.customVars` instead
+    // (objectstack#5021). The fixture carried `fontSize: { base: '1rem' }`
+    // until this package started type-checking its tests (objectui#4040); no
+    // assertion in this file ever read it.
     fontFamily: { base: 'Inter, sans-serif' },
-    fontSize: { base: '1rem' },
   },
   borderRadius: { base: '0.25rem', lg: '0.5rem' },
 };

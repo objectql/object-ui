@@ -70,7 +70,10 @@ describe('useDensityMode persistence', () => {
     const { result, rerender } = renderHook(
       ({ initial }: { initial: 'compact' | 'comfortable' | 'spacious' }) =>
         useDensityMode(initial, { onChange }),
-      { initialProps: { initial: 'compact' as const } }
+      // No `as const` on `initial`: it would pin the hook's Props to the
+      // literal `'compact'` and make the `rerender` below — the whole point of
+      // the case — a type error rather than an external change.
+      { initialProps: { initial: 'compact' } }
     );
 
     expect(result.current.mode).toBe('compact');
