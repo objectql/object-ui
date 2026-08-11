@@ -111,28 +111,6 @@ const ALLOW = {
       "adds a key, retires one, claims an extension name, or widens `value` itself.",
     issue: 4115,
   },
-  "@object-ui/types:GlobalFilterSchema": {
-    reason:
-      "Spec-derived dialect composed the same way as `SelectOptionSchema` above, and excused " +
-      "for the same reason: the spec's keys flow in BY REFERENCE via " +
-      "`SpecGlobalFilterSchema.shape`, which this guard cannot see because a const's object " +
-      "literal is deliberately not descended into (a spread inside `z.object({…})` is " +
-      "indistinguishable, to an AST pass, from a hand-typed shape). Three keys are then " +
-      "replaced, each a documented divergence at the declaration: `options` and `optionsFrom` " +
-      "(objectui's wire forms) and `defaultValue` (widened to carry the `{ preset }` object " +
-      "`@object-ui/core`'s `normalizeDateDefault` produces and stored dashboards hold, " +
-      "framework#4475). Drift guard: " +
-      "packages/types/src/__tests__/report-chart-query-spec-parity.test.ts. " +
-      "The SPELLING is new, not the dialect: this was `SpecGlobalFilterSchema.extend({…})` " +
-      "until @objectstack/spec 17.0.0-rc.6 put a refinement on the schema, which makes " +
-      "`.extend()` throw at module load and types every override as `never` under " +
-      "`.safeExtend()`. The spread is the only remaining spelling that preserves the shape " +
-      "byte-for-byte, and it is what moved the derivation out of this guard's sight — so the " +
-      "collision is an artifact of the forced rewrite, not a new fork (objectui#4167). " +
-      "The refinement itself is deliberately NOT carried across and the standstill is pinned; " +
-      "which side moves is a producer/consumer contract decision owned by objectui#4165.",
-    issue: 4167,
-  },
   "@object-ui/types:ListViewSchema": {
     reason:
       "TS twin of the spec-derived `ListViewSchema` zod node (objectql.zod.ts), which DOES " +

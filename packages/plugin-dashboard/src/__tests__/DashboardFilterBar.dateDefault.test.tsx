@@ -62,3 +62,38 @@ describe('DashboardFilterBar — date filter default (framework#4475)', () => {
     expect(screen.getByTestId('dashboard-filter-created_at').textContent).toMatch(/All time/i);
   });
 });
+
+/**
+ * objectui#4165 — a stored dashboard carrying the LEGACY `{ preset }` spelling
+ * of the same declaration must render identically.
+ *
+ * The maintainer ruling made the bare preset name the single canonical
+ * spelling and turned the object form into an ADR-0089 legacy alias, lifted on
+ * read by `resolveDashboardFilterDefs`. "Lifted" is only worth anything if the
+ * user cannot tell: this is the display half of that claim, and it is asserted
+ * against the framework#4475 fixture above rather than a fresh one, so the two
+ * spellings are compared on identical input.
+ */
+describe('DashboardFilterBar — legacy `{ preset }` default (objectui#4165)', () => {
+  const LEGACY_FILTERS = [
+    { field: 'created_at', type: 'date', label: 'Date Range', scope: 'dashboard', defaultValue: { preset: 'last_7_days' } },
+  ] as any;
+
+  it('renders a lifted legacy default exactly like the canonical one', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const legacyDefs = resolveDashboardFilterDefs({ globalFilters: LEGACY_FILTERS });
+      const canonicalDefs = resolveDashboardFilterDefs({ globalFilters: SYSTEM_OVERVIEW_FILTERS });
+      expect(legacyDefs).toEqual(canonicalDefs);
+
+      const values = Object.fromEntries(legacyDefs.map((d) => [d.name, d.defaultValue]));
+      render(<DashboardFilterBar defs={legacyDefs} values={values} onChange={vi.fn()} />);
+
+      const control = screen.getByTestId('dashboard-filter-created_at');
+      expect(control.textContent).not.toMatch(/All time/i);
+      expect(control.textContent).toMatch(/last 7 days/i);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});

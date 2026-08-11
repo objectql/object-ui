@@ -482,3 +482,99 @@ describe('DATE_RANGE_PRESETS is the spec\'s list, not a copy of it', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// objectui#4165 — the ADR-0089 legacy-alias window for a date filter's
+// declared `defaultValue`.
+//
+// Maintainer ruling (2026-08-11): the spec stays strict, the bare preset NAME
+// is the single canonical spelling, and the stored `{ preset }` object form is
+// a documented legacy alias — lifted on read, rewritten on next save.
+//
+// READ THE STRENGTHS OF THESE PINS HONESTLY — reverse verification (deleting
+// the lift call in `resolveDashboardFilterDefs`, re-running, restoring) turned
+// exactly ONE of them red: the warning. The convergence and rendering pins were
+// green with the lift and green without it, and it is worth knowing why rather
+// than mistaking them for proof.
+//
+// A legacy DECLARATION (`defaultValue: { preset }`) happens to be shaped like
+// the runtime VALUE `normalizeDateDefault` produces for the canonical spelling,
+// and `normalizeDateDefault` passes non-strings straight through. So a stored
+// `{ preset }` dashboard already rendered correctly before this change and
+// still would with the lift removed. That coincidence is the whole reason the
+// object form looked harmless for so long — and it is how the divergence prose
+// drifted into calling it "the on-disk form".
+//
+// So what each pin is for:
+//  - the WARNING pin is the one that can detect the lift's absence, and it is
+//    what makes the window closable at all (ADR-0078);
+//  - the CONVERGENCE and BOUNDS pins are regression guards, not evidence: they
+//    say the lift did not break the shape everything downstream reads. Kept
+//    deliberately, labelled deliberately;
+//  - the behavioural teeth of #4165 are elsewhere and DO go red — the schema's
+//    refusal (`@object-ui/types` parity suite) and the rewrite-on-save
+//    (`@object-ui/plugin-designer`'s DashboardDesignPage pin).
+// ---------------------------------------------------------------------------
+describe('[#4165] legacy `{ preset }` declaration — ADR-0089 alias lift', () => {
+  const legacy = { field: 'created_at', type: 'date', label: 'Date Range', defaultValue: { preset: 'last_7_days' } };
+  const canonical = { field: 'created_at', type: 'date', label: 'Date Range', defaultValue: 'last_7_days' };
+
+  const resolveQuietly = (globalFilters: unknown[]) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      return {
+        defs: resolveDashboardFilterDefs({ globalFilters } as any),
+        warnings: warn.mock.calls.map((c) => String(c[0])),
+      };
+    } finally {
+      warn.mockRestore();
+    }
+  };
+
+  // Regression guard (see the block note): green with or without the lift.
+  it('resolves to defs identical to the canonical spelling', () => {
+    const { defs: fromLegacy } = resolveQuietly([legacy]);
+    const { defs: fromCanonical } = resolveQuietly([canonical]);
+    expect(fromLegacy).toEqual(fromCanonical);
+    // …and specifically to the runtime VALUE shape the date consumers read.
+    // Note this is `{ preset }` again — the round trip is not a no-op, it is
+    // declaration → canonical name → value. See `normalizeDateDefault`'s note
+    // on declaration space vs value space; conflating the two is what #4165
+    // was filed about.
+    expect(fromLegacy[0].defaultValue).toEqual({ preset: 'last_7_days' });
+  });
+
+  it('produces the same query bounds as the canonical spelling', () => {
+    const { defs } = resolveQuietly([legacy]);
+    expect(buildFilterCondition(defs[0], defs[0].defaultValue)).toEqual({
+      $gte: '{7_days_ago}',
+      $lte: '{today}',
+    });
+  });
+
+  it('warns when it lifts, so a surviving legacy document is visible', () => {
+    // ADR-0078 — a silent lift can never be retired: nothing would ever show
+    // that the last legacy document is gone.
+    const { warnings } = resolveQuietly([legacy]);
+    const lift = warnings.filter((m) => m.includes('LEGACY'));
+    expect(lift).toHaveLength(1);
+    expect(lift[0]).toContain('created_at');
+    expect(lift[0]).toContain('last_7_days');
+    expect(lift[0]).toContain('#4165');
+  });
+
+  it('says nothing at all for a canonical declaration', () => {
+    const { warnings } = resolveQuietly([canonical]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('does not lift a `{ preset, from, to }` value — it has no canonical spelling', () => {
+    // Left exactly as declared; `buildFilterCondition` still reads the bounds
+    // off it, so nothing breaks, but no data is silently dropped to fit the
+    // bare-name form.
+    const withBounds = { field: 'created_at', type: 'date', defaultValue: { preset: 'last_7_days', from: '2026-01-01' } };
+    const { defs, warnings } = resolveQuietly([withBounds]);
+    expect(defs[0].defaultValue).toEqual({ preset: 'last_7_days', from: '2026-01-01' });
+    expect(warnings.filter((m) => m.includes('LEGACY'))).toEqual([]);
+  });
+});

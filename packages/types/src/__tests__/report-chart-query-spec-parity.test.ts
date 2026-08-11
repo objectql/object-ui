@@ -29,9 +29,6 @@
  */
 
 import { describe, it, expect } from 'vitest';
-// Needed to isolate the rc.6 `GlobalFilterSchema` refinement from the field type
-// it hides behind — see the objectui#4165 pin below.
-import { z } from 'zod';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -44,6 +41,10 @@ import {
 import type { JoinedReportBlock as SpecJoinedReportBlock } from '@objectstack/spec/ui';
 import { AppContextSelectorSchema } from '../zod/app.zod.js';
 import { DashboardWidgetSchema, GlobalFilterSchema } from '../zod/complex.zod.js';
+import {
+  liftLegacyGlobalFilterDefault,
+  liftLegacyDashboardFilterDefaults,
+} from '../dashboard-filter-alias.js';
 
 const shapeOf = (s: unknown) => (s as { shape: Record<string, unknown> }).shape;
 
@@ -141,89 +142,6 @@ describe('GlobalFilterSchema pinned divergences', () => {
     expect(SpecGlobalFilterSchema.safeParse({ field: 'region', options: [{ value: 'emea' }] }).success).toBe(false);
   });
 
-  it('accepts the normalized date-preset default object', () => {
-    // framework#4475: `normalizeDateDefault` lifts a preset NAME into `{ preset }`,
-    // and stored dashboards carry that object form.
-    expect(GlobalFilterSchema.safeParse({
-      field: 'created_at', type: 'date', defaultValue: { preset: 'last_7_days' },
-    }).success).toBe(true);
-    expect(SpecGlobalFilterSchema.safeParse({
-      field: 'created_at', type: 'date', defaultValue: { preset: 'last_7_days' },
-    }).success).toBe(false);
-  });
-
-  /**
-   * OPEN CONFLICT, pinned rather than resolved — objectui#4165.
-   *
-   * The divergence above used to be about a FIELD TYPE, and only that: the spec
-   * typed `defaultValue` as `string | number | boolean`, objectui widened the key
-   * to `z.any()`, and widening the key was ENOUGH — nothing else in the spec had
-   * an opinion about the object form.
-   *
-   * @objectstack/spec 17.0.0-rc.6 added a whole-object refinement that refuses
-   * `{ preset }` BY NAME, with a message enumerating the three spellings a
-   * `type: 'date'` filter may use (a preset name, an ISO date, a date-macro
-   * token). A refinement is not a field type, so widening the key no longer
-   * escapes it: any derivation that CARRIES the refinement refuses the object
-   * form regardless of how `defaultValue` is typed.
-   *
-   * Read the two assertions below in that light, because the obvious shorter
-   * version is a trap. `SpecGlobalFilterSchema.safeParse({ …, defaultValue: {
-   * preset } })` does fail — but it fails with `invalid_union` on the FIELD, the
-   * same way it failed at rc.5, and the refinement never runs. Asserting that
-   * would pin the OLD behaviour while reading like a pin on the new one. The
-   * refinement is only observable once the field admits the object, so it is
-   * isolated here by widening the key first — which is exactly the shape
-   * objectui's own dialect has.
-   *
-   * The conflict this leaves is a producer/consumer one with three possible
-   * answers (follow the spec and migrate stored dashboards; keep the divergence;
-   * the spec's refinement is an upstream defect), and it is filed rather than
-   * guessed — the deciding half belongs to the spec owner. Until it is ruled,
-   * `GlobalFilterSchema` is composed by spreading the spec's `.shape`, carrying
-   * the FIELDS by reference and leaving the refinement behind: the exact
-   * behaviour this schema had before rc.6, so the bump changes nothing here. The
-   * spread is not a preference — rc.6 closed both other doors (`.extend()`
-   * throws at module load, `.safeExtend()` types the three overrides as `never`),
-   * so some spelling had to change, and this is the one that decides nothing.
-   *
-   * This test is the tripwire on that standstill and goes red from EITHER side:
-   * if objectui stops accepting the object form (resolved consumer-side), or if
-   * the refinement is withdrawn or reworded upstream (resolved producer-side).
-   */
-  it('does NOT carry the spec rc.6 refinement that refuses `{ preset }` (objectui#4165)', () => {
-    const stored = { field: 'created_at', type: 'date', defaultValue: { preset: 'last_7_days' } };
-
-    // objectui side: still accepts what its own normalizer writes.
-    expect(GlobalFilterSchema.safeParse(stored).success).toBe(true);
-
-    // Spec side, refinement ISOLATED from the field type: widen `defaultValue`
-    // exactly as objectui's dialect does, but keep the spec's checks (that is
-    // what `.safeExtend` preserves). What refuses the value now can only be the
-    // rc.6 refinement, and asserting its MESSAGE is what separates "the spec's
-    // `defaultValue` is narrow" (true since forever) from "the spec has a rule
-    // about this exact shape" (new in rc.6, and the reason #4165 exists).
-    const specWithRefinement = SpecGlobalFilterSchema.safeExtend({
-      defaultValue: z.any().optional(),
-    });
-    const refused = specWithRefinement.safeParse(stored);
-    expect(refused.success).toBe(false);
-    expect(
-      refused.error?.issues?.some((i) => /is not a value a .*date.* filter can resolve/.test(i.message)),
-      'the spec no longer refuses `{ preset }` with its rc.6 refinement message — ' +
-        'either the refinement was withdrawn or its wording changed. Re-read objectui#4165 ' +
-        'before touching this: the standstill it documents may be over.',
-    ).toBe(true);
-
-    // …and the bare preset NAME, which the refinement's message points authors
-    // at, is already legal on both sides. That is why #4165's leading candidate
-    // is a rewrite rather than a capability loss.
-    const bare = { field: 'created_at', type: 'date', defaultValue: 'last_7_days' };
-    expect(specWithRefinement.safeParse(bare).success).toBe(true);
-    expect(SpecGlobalFilterSchema.safeParse(bare).success).toBe(true);
-    expect(GlobalFilterSchema.safeParse(bare).success).toBe(true);
-  });
-
   it('keeps `optionsFrom.labelField` optional', () => {
     expect(GlobalFilterSchema.safeParse({
       field: 'owner', optionsFrom: { object: 'users', valueField: 'id' },
@@ -231,6 +149,206 @@ describe('GlobalFilterSchema pinned divergences', () => {
     expect(SpecGlobalFilterSchema.safeParse({
       field: 'owner', optionsFrom: { object: 'users', valueField: 'id' },
     }).success).toBe(false);
+  });
+});
+
+/**
+ * The rc.6 date-`defaultValue` refinement, ADOPTED — objectui#4165.
+ *
+ * This block replaces the standstill tripwire that used to live here. That
+ * tripwire pinned "objectui does NOT carry the spec's refinement" and was
+ * designed to go red from either side the moment the conflict was resolved;
+ * the maintainer ruling of 2026-08-11 resolved it consumer-side, the tripwire
+ * went red exactly as designed, and it is deleted with its note rather than
+ * repaired. What follows pins the RESOLUTION, in both directions.
+ *
+ * The ruling, verbatim (objectui#4165):
+ *
+ * > 「spec stays strict — no widening。rc.6 的 refinement 成立，bare preset NAME
+ * > 是唯一 canonical spelling。」stored `{ preset }` becomes a documented legacy
+ * > alias per the ADR-0089 alias-retirement pattern — lift on read, rewrite on
+ * > next save, retirement window recorded at the read site.
+ *
+ * So there are two facts to hold apart, and a test that pins only one of them
+ * would read as coverage while missing half the contract:
+ *
+ *  - the SCHEMA refuses the object form (the contract now matches the platform,
+ *    so the designer can no longer go green on metadata the server rejects);
+ *  - the READ PATH lifts it first, so a stored document carrying the alias is
+ *    still loadable for the length of the window.
+ */
+describe('GlobalFilterSchema carries the spec rc.6 date refinement (objectui#4165)', () => {
+  const legacy = { field: 'created_at', type: 'date', defaultValue: { preset: 'last_7_days' } };
+  const canonical = { field: 'created_at', type: 'date', defaultValue: 'last_7_days' };
+
+  it('accepts the canonical bare preset NAME, on both sides', () => {
+    expect(GlobalFilterSchema.safeParse(canonical).success).toBe(true);
+    expect(SpecGlobalFilterSchema.safeParse(canonical).success).toBe(true);
+  });
+
+  it('accepts the refinement\'s two other spellings — ISO date and date macro', () => {
+    // Named here because the rejection message enumerates exactly three, and a
+    // consumer that adopted the rule but only ever tested presets would not
+    // notice if a future composition dropped the other two.
+    for (const defaultValue of ['2026-01-15', '2026-01-15T08:30:00Z', '{today}', '{30_days_ago}']) {
+      expect(
+        GlobalFilterSchema.safeParse({ field: 'created_at', type: 'date', defaultValue }).success,
+        `expected \`${defaultValue}\` to be accepted`,
+      ).toBe(true);
+    }
+  });
+
+  /**
+   * MIND THE LAYER — the issue's "the obvious probe is misleading" warning
+   * applies to this schema now too, in mirror image.
+   *
+   * #4165's body warned that probing the SPEC with `{ preset }` measures
+   * nothing about the refinement, because the narrow `defaultValue` field type
+   * rejects first (`invalid_union`) and the refinement never runs. Dropping
+   * objectui's `z.any()` divergence gives this schema that same narrow field —
+   * so the same shadowing now happens HERE, and it is measured, not assumed:
+   *
+   *   {"preset":"last_7_days"}  → invalid_union@defaultValue: "Invalid input"
+   *   "last_5_fortnights"       → custom@defaultValue: "…is not a value a
+   *                               `type: 'date'` filter can resolve…"
+   *
+   * So the two facts need two different probes, and swapping them produces a
+   * test that passes for the wrong reason:
+   *
+   *  - that `{ preset }` is REFUSED is pinned below on the outcome and the
+   *    issue path, deliberately NOT on the refinement's message — demanding
+   *    that message here would be pinning a rule that never ran;
+   *  - that the refinement is CARRIED needs a value the field type admits, so
+   *    it is isolated with a bogus preset STRING in the test after this one.
+   *    That is the only assertion in this file that can go red if the
+   *    delegation in `complex.zod.ts` is dropped.
+   */
+  it('REFUSES the legacy `{ preset }` object form', () => {
+    const refused = GlobalFilterSchema.safeParse(legacy);
+    expect(refused.success).toBe(false);
+    expect(refused.error?.issues?.map((i) => i.path.join('.'))).toContain('defaultValue');
+    // The spec refuses it the same way and at the same layer — which is the
+    // point of retiring the divergence: one contract, one verdict.
+    expect(SpecGlobalFilterSchema.safeParse(legacy).success).toBe(false);
+  });
+
+  it('carries the REFINEMENT, not just the narrow field type', () => {
+    // A bogus preset NAME is a string, so it clears `string | number | boolean`
+    // and can only be refused by the rc.6 cross-field rule. Asserting the
+    // spec's own message is what separates "objectui re-implemented the rule"
+    // from "objectui delegates to the spec": a hand-written local copy would
+    // keep the verdict and lose the wording, and then drift silently on the
+    // next spec change.
+    const refused = GlobalFilterSchema.safeParse({
+      field: 'created_at', type: 'date', defaultValue: 'last_5_fortnights',
+    });
+    expect(refused.success).toBe(false);
+    expect(
+      refused.error?.issues?.some((i) => /is not a value a .*date.* filter can resolve/.test(i.message)),
+      'the refinement is no longer reaching this schema (or its message changed ' +
+        'upstream). Re-read objectui#4165 before relaxing this: adopting the rule ' +
+        'IS the resolution the maintainer ruled for.',
+    ).toBe(true);
+  });
+
+  it('leaves a NON-date filter\'s defaultValue alone', () => {
+    // The refinement is scoped to `type: 'date'`. Adopting it must not start
+    // policing a select/text filter's default.
+    expect(GlobalFilterSchema.safeParse({ field: 'region', type: 'select', defaultValue: 'EMEA' }).success).toBe(true);
+    expect(GlobalFilterSchema.safeParse({ field: 'amount', type: 'number', defaultValue: 42 }).success).toBe(true);
+  });
+
+  it('still applies the two surviving divergences while carrying the refinement', () => {
+    // The composition has to do BOTH. A version that adopted the refinement by
+    // simply deriving from the spec would silently take the options divergence
+    // away with it.
+    expect(GlobalFilterSchema.safeParse({
+      field: 'created_at', type: 'date', defaultValue: 'last_7_days', options: ['EMEA'],
+      optionsFrom: { object: 'users', valueField: 'id' },
+    }).success).toBe(true);
+  });
+
+  describe('the ADR-0089 legacy-alias lift', () => {
+    it('turns a stored `{ preset }` declaration into something the schema accepts', () => {
+      // The read path's contract, end to end: refused raw, accepted lifted.
+      expect(GlobalFilterSchema.safeParse(legacy).success).toBe(false);
+      const lifted = liftLegacyGlobalFilterDefault(legacy);
+      const parsed = GlobalFilterSchema.safeParse(lifted);
+      expect(parsed.success).toBe(true);
+      expect((parsed as { data: { defaultValue?: unknown } }).data.defaultValue).toBe('last_7_days');
+    });
+
+    it('is identity — same reference — when there is nothing to lift', () => {
+      // Load-bearing for the designer: a new object on every load would read as
+      // an edit and mark a pristine dashboard dirty.
+      expect(liftLegacyGlobalFilterDefault(canonical)).toBe(canonical);
+      const noDefault = { field: 'region', type: 'select' };
+      expect(liftLegacyGlobalFilterDefault(noDefault)).toBe(noDefault);
+    });
+
+    it('does NOT lift a `{ preset, from, to }` value — that has no canonical spelling', () => {
+      // Lifting it would have to drop `from`/`to` to fit the bare-name form,
+      // losing data silently. It falls through to the spec's named rejection
+      // instead, which is the loud outcome we want.
+      const withBounds = {
+        field: 'created_at', type: 'date',
+        defaultValue: { preset: 'last_7_days', from: '2026-01-01', to: '2026-01-31' },
+      };
+      expect(liftLegacyGlobalFilterDefault(withBounds)).toBe(withBounds);
+      expect(GlobalFilterSchema.safeParse(withBounds).success).toBe(false);
+    });
+
+    it('lifts every entry of a dashboard document, and only when one is legacy', () => {
+      const legacyDoc: { type: string; globalFilters: Array<Record<string, unknown>> } = {
+        type: 'dashboard',
+        globalFilters: [legacy, { field: 'region' }],
+      };
+      const liftedDoc = liftLegacyDashboardFilterDefaults(legacyDoc);
+      expect(liftedDoc).not.toBe(legacyDoc);
+      expect(liftedDoc.globalFilters[0].defaultValue).toBe('last_7_days');
+      // Untouched entries keep their identity.
+      expect(liftedDoc.globalFilters[1]).toBe(legacyDoc.globalFilters[1]);
+
+      const canonicalDoc = { type: 'dashboard', globalFilters: [canonical] };
+      expect(liftLegacyDashboardFilterDefaults(canonicalDoc)).toBe(canonicalDoc);
+      const noFilters = { type: 'dashboard' };
+      expect(liftLegacyDashboardFilterDefaults(noFilters)).toBe(noFilters);
+    });
+
+    it('is idempotent', () => {
+      const once = liftLegacyGlobalFilterDefault(legacy);
+      expect(liftLegacyGlobalFilterDefault(once)).toBe(once);
+    });
+  });
+
+  /**
+   * The window's documentation is part of the deliverable, not commentary
+   * (maintainer ruling: "retirement window recorded at the read site"). An
+   * alias whose removal conditions are not written down is an alias nobody
+   * dares remove — which is how a "temporary" tolerance becomes permanent.
+   *
+   * Source-text pin rather than a behavioural one, because there is no runtime
+   * surface for a doc comment. It asks only for the three elements ADR-0089
+   * requires — what the alias is, why it is lifted, and when it may go — plus
+   * the issue number that carries the ruling.
+   */
+  it('records the retirement window at the read site', () => {
+    const readSite = resolve(
+      dirname(new URL(import.meta.url).pathname),
+      '../../../core/src/utils/dashboard-filters.ts',
+    );
+    const source = readFileSync(readSite, 'utf8');
+    for (const required of [
+      'liftLegacyGlobalFilterDefault', // the lift, imported not re-implemented
+      '#4165', // the ruling's issue
+      'ADR-0089', // the pattern being followed
+      'What it is', // what the alias is
+      'Why it is lifted here rather than tolerated', // why
+      'When it may be removed', // the window's end
+      '18.0.0', // …stated as a concrete version, not "later"
+    ]) {
+      expect(source, `the read site no longer documents: ${required}`).toContain(required);
+    }
   });
 });
 

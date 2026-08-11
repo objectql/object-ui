@@ -10,6 +10,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardEditor } from '../DashboardEditor';
 import type { DashboardComponentSchema } from '@object-ui/types';
+import { liftLegacyDashboardFilterDefaults } from '@object-ui/types';
 import { toast } from 'sonner';
 import { useAdapter } from '@object-ui/react';
 import { useMetadata } from '@object-ui/react';
@@ -25,7 +26,17 @@ export function DashboardDesignPage() {
 
   const [schema, setSchema] = useState<DashboardComponentSchema>(
     () =>
-      (dashboard as DashboardComponentSchema) || {
+      // REWRITE-ON-SAVE half of the ADR-0089 alias window (objectui#4165): the
+      // stored document is lifted off the legacy `defaultValue: { preset }`
+      // spelling as it enters the editable draft, so the next `handleChange`
+      // — every widget move, every import, every Ctrl+S — persists the
+      // canonical bare preset name through `saveSchema` below. Without this the
+      // window could never close: nothing else in objectui writes a dashboard
+      // document back, so a legacy document would stay legacy forever.
+      //
+      // The lift returns the SAME reference when there is nothing to lift, so a
+      // canonical dashboard is untouched and this cannot manufacture an edit.
+      liftLegacyDashboardFilterDefaults(dashboard as DashboardComponentSchema) || {
         type: 'dashboard',
         name: dashboardName ?? '',
         title: dashboardName ?? '',
@@ -55,8 +66,14 @@ export function DashboardDesignPage() {
 
   const handleChange = useCallback(
     async (updated: DashboardComponentSchema) => {
-      setSchema(updated);
-      await saveSchema(updated);
+      // Lift here too, not only on load: this is the single funnel every write
+      // passes through, and `handleImport` feeds it a document from OUTSIDE the
+      // load path (a user-picked JSON file), which may carry the legacy
+      // spelling. Lifting at the funnel is what makes "nothing legacy is ever
+      // persisted" true rather than merely likely (#4165).
+      const canonical = liftLegacyDashboardFilterDefaults(updated);
+      setSchema(canonical);
+      await saveSchema(canonical);
     },
     [saveSchema],
   );

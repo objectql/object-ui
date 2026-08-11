@@ -70,6 +70,14 @@ export { menuItemToNavigationItem, isValidAppName, wizardDraftToAppSchema } from
 export { detectStatusField } from './record-semantics';
 export type { StatusFieldSource } from './record-semantics';
 
+// Dashboard global-filter legacy alias (ADR-0089 retirement window, #4165) —
+// `{ preset: <name> }` → the canonical bare preset name. Read-site helpers, so
+// they live on the main entry rather than under `/zod` (they carry no zod).
+export {
+  liftLegacyGlobalFilterDefault,
+  liftLegacyDashboardFilterDefaults,
+} from './dashboard-filter-alias';
+
 // ============================================================================
 // Base Types - The Foundation
 // ============================================================================

@@ -21,6 +21,7 @@
  */
 
 import type { DashboardComponentSchema, DashboardWidgetSchema, PageVariable } from '@object-ui/types';
+import { liftLegacyGlobalFilterDefault } from '@object-ui/types';
 import { DATE_RANGE_PRESETS, type DateRangePreset } from '@objectstack/spec/ui';
 import { resolveDateMacros } from './date-macros.js';
 
@@ -170,8 +171,91 @@ function warnDateFilter(message: string): void {
 }
 
 /**
+ * Apply the ADR-0089 legacy-alias lift to ONE stored `globalFilters` entry, and
+ * say so out loud when it fires (objectui#4165).
+ *
+ * ## The alias, at this read site
+ *
+ * **What it is.** `defaultValue: { preset: 'last_7_days' }` on a `type: 'date'`
+ * filter. The canonical spelling is the bare preset NAME,
+ * `defaultValue: 'last_7_days'` — one of the three the spec's rc.6 refinement
+ * accepts (preset name / ISO date / date-macro token).
+ *
+ * **Why it is lifted here rather than tolerated.** Maintainer ruling on
+ * objectui#4165 (2026-08-11): 「spec stays strict — no widening」. objectui's
+ * `GlobalFilterSchema` now carries that refinement, so a document holding the
+ * object form fails validation; lifting it BEFORE anything reads the entry
+ * makes the declaration canonical by construction. The lift itself lives in
+ * `@object-ui/types`' `dashboard-filter-alias.ts` (one implementation, shared
+ * with the designer's rewrite-on-save path); this is one of its two call sites.
+ *
+ * **What it does NOT buy, measured.** It does not rescue rendering. A legacy
+ * declaration already resolved correctly before #4165 and still does with this
+ * call deleted — reverse-verified, only the warning below changes. The reason
+ * is a coincidence worth knowing: `{ preset }` is also the runtime VALUE shape
+ * `normalizeDateDefault` produces for the canonical name, and that function
+ * passes non-strings through untouched. That coincidence is why the object form
+ * looked harmless for so long, and how the schema's own prose drifted into
+ * calling it "the on-disk form". Read this call as canonicalization plus
+ * observability, not as a repair — claiming more would be claiming coverage the
+ * tests in `__tests__/dashboard-filters.test.ts` do not have.
+ *
+ * **When it may be removed.** At the next MAJOR of `@object-ui/types` (18.0.0).
+ * By then every dashboard opened in the designer has been rewritten to the bare
+ * name, because `DashboardDesignPage` lifts into the editable draft and the
+ * next save persists it. Delete this function and its call below together with
+ * the lift itself; a document still carrying the object form then gets the
+ * spec's named rejection, which is the intended end state.
+ *
+ * The warning is not decoration: a silent lift can never be retired, because
+ * nothing would ever show that the last legacy document is gone (ADR-0078 —
+ * nothing silently inert).
+ */
+function liftLegacyFilterDeclaration<T>(filter: T): T {
+  const lifted = liftLegacyGlobalFilterDefault(filter);
+  if (lifted === filter) return filter;
+  const name = (filter as { name?: string; field?: string })?.name
+    ?? (filter as { field?: string })?.field
+    ?? '?';
+  const preset = (lifted as { defaultValue?: unknown })?.defaultValue;
+  warnDateFilter(
+    `filter "${name}": \`defaultValue: { preset: ${JSON.stringify(preset)} }\` is a LEGACY ` +
+      `spelling (objectui#4165) and was lifted to the canonical bare preset name ` +
+      `${JSON.stringify(preset)}. Rewrite the stored dashboard — the object form is ` +
+      `refused by @objectstack/spec and its acceptance here ends with @object-ui/types 18.`,
+  );
+  return lifted;
+}
+
+/**
  * Normalize a date filter's DECLARED default into the `DateRangeValue` shape
  * every date consumer in this module reads (framework#4475).
+ *
+ * ## Declaration space vs value space — the distinction objectui#4165 turned on
+ *
+ * These are two different things that share the name `defaultValue`, and
+ * conflating them is what produced #4165:
+ *
+ *  - the **declaration** is `globalFilters[].defaultValue` in a stored
+ *    dashboard. `@objectstack/spec` owns it, it is `string | number | boolean`,
+ *    and since rc.6 a refinement holds a `type: 'date'` one to a preset NAME,
+ *    an ISO date or a date-macro token. A bare preset name is the canonical
+ *    spelling and the object form is a retiring alias (see
+ *    `liftLegacyFilterDeclaration` above);
+ *  - the **value** is what this function RETURNS: `DashboardFilterDef
+ *    .defaultValue`, which seeds the filter variable and is read by
+ *    `DateRangeFilter` (`.preset`/`.from`/`.to`) and `buildFilterCondition`.
+ *    That shape is `DateRangeValue`, it is objectui-internal, the spec has no
+ *    opinion about it, and for a preset it is `{ preset }`.
+ *
+ * So this function converts declaration → value. It is NOT a producer of stored
+ * metadata: nothing writes a resolved `DashboardFilterDef` back into a
+ * dashboard document (measured in #4165 — `resolveDashboardFilterDefs`' only
+ * callers are `DashboardRenderer` and `DashboardWidgetInspector`, both read
+ * side). Making it emit the bare name instead would therefore not change one
+ * byte on disk; it would only hand `DateRangeFilter` a string it cannot read
+ * and `buildFilterCondition` a value it warns-and-skips — i.e. re-open
+ * framework#4475 exactly, which is why it keeps emitting `{ preset }`.
  *
  * The built-in `dateRange` declaration has always been normalized this way —
  * `schema.dateRange.defaultRange` is a preset NAME and
@@ -254,8 +338,13 @@ export function resolveDashboardFilterDefs(
     });
   }
 
-  for (const f of schema.globalFilters ?? []) {
-    if (!f?.field) continue;
+  for (const raw of schema.globalFilters ?? []) {
+    if (!raw?.field) continue;
+    // ADR-0089 legacy-alias lift (#4165) — a stored `defaultValue: { preset }`
+    // becomes the canonical bare name BEFORE anything else reads the entry, so
+    // a legacy dashboard resolves to byte-identical defs. See
+    // `liftLegacyFilterDeclaration` for the retirement window.
+    const f = liftLegacyFilterDeclaration(raw);
     const name = f.name || f.field;
     if (byName.has(name) && typeof console !== 'undefined') {
       console.warn(`[dashboard-filters] duplicate filter name "${name}" — the later definition wins`);
