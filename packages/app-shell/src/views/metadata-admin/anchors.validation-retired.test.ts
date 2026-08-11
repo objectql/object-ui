@@ -137,14 +137,26 @@ describe('anchors.ts source: the retirement is written down, not just absent', (
   });
 
   it('does not carry the stale "standalone variants do exist" justification', () => {
-    expect(ANCHORS_SOURCE).not.toMatch(/standalone variants do exist/i);
+    // The phrase WRAPS in the source it is guarding against —
+    //   `// validation: usually embedded in the object, but standalone variants`
+    //   `// do exist. Match anything whose `object` points back at us.`
+    // — so a flat `/standalone variants do exist/` matches nothing and passes
+    // for free. Measured on #4132's reverse verification: with the original
+    // file restored, the flat spelling stayed GREEN. Anything between the two
+    // halves is newline + comment prefix, hence the bounded gap.
+    expect(ANCHORS_SOURCE).not.toMatch(/standalone variants[\s\S]{0,24}do exist/i);
   });
 
   it('records the retirement where the registration used to be', () => {
     // Same shape as the `workflow` (ADR-0020) and `trigger` (ADR-0088)
     // retirement notes already in this file: the next reader learns why there
-    // is no group rather than re-adding one.
-    expect(ANCHORS_SOURCE).toMatch(/ADR-0088[\s\S]{0,400}validation/);
+    // is no group rather than re-adding one. Asserted on wording unique to
+    // THIS note — a bare `/ADR-0088/` is already satisfied by the neighbouring
+    // `trigger` note, so it would pass on a file that still registers the door
+    // (measured on #4132's reverse verification).
+    expect(ANCHORS_SOURCE).toMatch(/`validation` retired as a metadata type/);
+    expect(ANCHORS_SOURCE).toContain('ADR-0088 / objectstack#4509');
+    expect(ANCHORS_SOURCE).toContain('objectui#4132');
   });
 
   it('non-vacuity: this really is anchors.ts and the embedded entry is in it', () => {
