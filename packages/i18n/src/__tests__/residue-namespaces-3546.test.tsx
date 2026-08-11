@@ -111,7 +111,13 @@ const KEYS = [
   ...STATUS_MEMBERS.map((m) => `organization.invitations.status.${m}`),
 ];
 
-const LANGS = Object.keys(builtInLocales);
+// Derived from the map rather than left as `string[]`: `Object.keys` erases
+// which keys it enumerated, so `builtInLocales[lang]` below would be an
+// implicit-`any` index into a `const` map (TS7053) and the suite would compare
+// packs the compiler never confirmed exist. Same convention as
+// `authRemediation-locale-parity.test.ts` next door.
+type LocaleCode = keyof typeof builtInLocales;
+const LANGS = Object.keys(builtInLocales) as LocaleCode[];
 
 // ── the owning surfaces ──────────────────────────────────────────────────────
 const INVITE_DIALOG = 'packages/app-shell/src/console/organizations/manage/InviteMemberDialog.tsx';
@@ -667,7 +673,7 @@ describe('objectui#3546 slice seven — the ratchet residue', () => {
     expect(dialog).toContain("const fieldLabel = conflict?.label || conflict?.field || '';");
     expect(sourceOf(SAVE_BAR)).toContain("label: t('detail.concurrentUpdateRecordLabel', { defaultValue: 'this record' }),");
 
-    const composed = (lang: string) =>
+    const composed = (lang: LocaleCode) =>
       (at(builtInLocales[lang], 'detail.concurrentUpdateDescription') as string).replace(
         '{{field}}',
         at(builtInLocales[lang], 'detail.concurrentUpdateRecordLabel') as string,
@@ -817,7 +823,7 @@ describe('objectui#3546 slice seven — the ratchet residue', () => {
       expect(sourceOf(GANTT_VIEW)).toContain('const { t, language } = useGanttTranslation();');
     });
 
-    it.each(['en', 'zh'])('%s resolves every sampled key from the pack', (lang) => {
+    it.each(['en', 'zh'] as const)('%s resolves every sampled key from the pack', (lang) => {
       const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor(lang) });
       for (const [key, owner] of SAMPLE) {
         const value = result.current.t(key);

@@ -85,8 +85,17 @@ import { describe, it, expect } from 'vitest';
 import { builtInLocales } from '../locales';
 
 type Bag = Record<string, any>;
-const draftBar = (lang: string) => (builtInLocales[lang] as Bag)?.preview?.draftBar as Bag;
-const at = (lang: string, key: string) => draftBar(lang)?.[key] as string;
+
+// Derived from the map rather than left as `string`: `builtInLocales[lang]` on a
+// plain `string` is an implicit-`any` index into a `const` map (TS7053), and the
+// `as Bag` cast is about the pack's untyped inner shape — it could never have
+// covered the index itself. Only `'es'` and `'en'` are ever passed here, and now
+// a typo in either is a compile error rather than a silent `undefined` that the
+// anti-empty-green case would have to catch at runtime. Same convention as
+// `authRemediation-locale-parity.test.ts` next door.
+type LocaleCode = keyof typeof builtInLocales;
+const draftBar = (lang: LocaleCode) => (builtInLocales[lang] as Bag)?.preview?.draftBar as Bag;
+const at = (lang: LocaleCode, key: string) => draftBar(lang)?.[key] as string;
 
 /** The four `es` values this file owns, at their post-objectui#3844 final bytes. */
 const ES_FINAL = {

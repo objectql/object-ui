@@ -7,8 +7,7 @@ import { useObjectLabel } from '../useObjectLabel';
 const wrapper = ({ children }: { children: React.ReactNode }) =>
   React.createElement(
     I18nProvider,
-    { config: { defaultLanguage: 'en', detectBrowserLanguage: false } },
-    children,
+    { config: { defaultLanguage: 'en', detectBrowserLanguage: false }, children },
   );
 
 /**

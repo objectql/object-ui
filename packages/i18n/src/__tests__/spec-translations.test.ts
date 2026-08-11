@@ -88,7 +88,11 @@ describe('transformSpecTranslations', () => {
           label: 'Account',
           fields: {},
           _futureScope: { foo: { label: 'Bar' } },
-        } as SpecTranslationData['objects'][string],
+          // `objects` is optional on `SpecTranslationData`, so indexing it
+          // directly is `Record<…> | undefined` — which has no index signature
+          // and cannot be indexed by `string` (TS2537). `NonNullable` names the
+          // record itself, which is what this fixture is one entry of.
+        } as NonNullable<SpecTranslationData['objects']>[string],
       },
     });
     const obj = (out as { app: { objects: Record<string, any> } }).app.objects.account;

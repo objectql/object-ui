@@ -49,10 +49,16 @@
 import { describe, it, expect } from 'vitest';
 import { builtInLocales } from '../locales';
 
-const LANGS = Object.keys(builtInLocales);
+// Derived from the map rather than left as `string[]`: `Object.keys` erases
+// which keys it enumerated, so `builtInLocales[lang]` below would be an
+// implicit-`any` index into a `const` map (TS7053) and the suite would compare
+// packs the compiler never confirmed exist. Same convention as
+// `authRemediation-locale-parity.test.ts` next door.
+type LocaleCode = keyof typeof builtInLocales;
+const LANGS = Object.keys(builtInLocales) as LocaleCode[];
 
-const tooltipOf = (lang: string) => (builtInLocales[lang] as any)?.view?.readonlyTooltip as string;
-const sysViewOf = (lang: string) =>
+const tooltipOf = (lang: LocaleCode) => (builtInLocales[lang] as any)?.view?.readonlyTooltip as string;
+const sysViewOf = (lang: LocaleCode) =>
   (builtInLocales[lang] as any)?.console?.objectView?.systemViewReadonly as string;
 
 /** `en`'s current copy, and the sentence it retired. Neither may appear elsewhere. */
@@ -100,7 +106,11 @@ const ANCHORS: Record<string, { systemView: RegExp; inCode: RegExp; readOnly: Re
 };
 
 /** Packs where "is this value written in the pack's language?" is decidable. */
-const NATIVE_SCRIPT: Record<string, RegExp> = {
+// Keyed by locale, not by bare `string`: these five packs are the non-Latin
+// subset, and `Partial` says so — while `Object.keys` below is asserted back to
+// `LocaleCode[]`, which `entries`/`keys` erase by design. A typo'd pack name is
+// now a compile error rather than a case that silently never runs.
+const NATIVE_SCRIPT: Partial<Record<LocaleCode, RegExp>> = {
   zh: /\p{Script=Han}/u,
   ja: /\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Han}/u,
   ko: /\p{Script=Hangul}/u,
@@ -156,12 +166,12 @@ describe('view.readonlyTooltip semantic coverage (objectui#3625)', () => {
     expect(readOnly.test(value), `${lang} tooltip lost "read-only": ${value}`).toBe(true);
   });
 
-  it.each(Object.keys(NATIVE_SCRIPT))('%s writes the tooltip in its own script', (lang) => {
+  it.each(Object.keys(NATIVE_SCRIPT) as LocaleCode[])('%s writes the tooltip in its own script', (lang) => {
     // Green before this fix as well — the stale values were properly
     // translated Japanese/Korean/Russian/Arabic. Kept as a guard against a
     // future paste, not as evidence for objectui#3625.
     expect(
-      NATIVE_SCRIPT[lang].test(tooltipOf(lang)),
+      NATIVE_SCRIPT[lang]!.test(tooltipOf(lang)),
       `${lang} tooltip has no native script`,
     ).toBe(true);
   });

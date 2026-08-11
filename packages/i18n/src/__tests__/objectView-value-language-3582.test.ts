@@ -26,13 +26,19 @@
 import { describe, it, expect } from 'vitest';
 import { builtInLocales } from '../locales';
 
-const LANGS = Object.keys(builtInLocales);
+// Derived from the map rather than left as `string[]`: `Object.keys` erases
+// which keys it enumerated, so `builtInLocales[lang]` below would be an
+// implicit-`any` index into a `const` map (TS7053) and the suite would compare
+// packs the compiler never confirmed exist. Same convention as
+// `authRemediation-locale-parity.test.ts` next door.
+type LocaleCode = keyof typeof builtInLocales;
+const LANGS = Object.keys(builtInLocales) as LocaleCode[];
 
-const objectViewOf = (lang: string) =>
+const objectViewOf = (lang: LocaleCode) =>
   (builtInLocales[lang] as any)?.console?.objectView as Record<string, string>;
 
-const readonlyOf = (lang: string) => objectViewOf(lang)?.systemViewReadonly;
-const expandOf = (lang: string) => objectViewOf(lang)?.expandToPage;
+const readonlyOf = (lang: LocaleCode) => objectViewOf(lang)?.systemViewReadonly;
+const expandOf = (lang: LocaleCode) => objectViewOf(lang)?.expandToPage;
 
 /**
  * Both English spellings that must not survive outside `en`: the CURRENT `en`
@@ -53,7 +59,11 @@ const EN_STALE_READONLY = 'System view defined in code - duplicate to customize.
  * criterion for them, which is the reason objectui#3582 recorded a repo-wide
  * ASCII gate as a SEPARATE, non-acceptance item rather than folding it in here.
  */
-const NATIVE_SCRIPT: Record<string, RegExp> = {
+// Keyed by locale, not by bare `string`: these five packs are the non-Latin
+// subset, and `Partial` says so — while `Object.keys` below is asserted back to
+// `LocaleCode[]`, which `entries`/`keys` erase by design. A typo'd pack name is
+// now a compile error rather than a case that silently never runs.
+const NATIVE_SCRIPT: Partial<Record<LocaleCode, RegExp>> = {
   zh: /\p{Script=Han}/u,
   ja: /\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Han}/u,
   ko: /\p{Script=Hangul}/u,
@@ -108,8 +118,8 @@ describe('console.objectView value-language coverage (objectui#3582)', () => {
     expect(leaked).toEqual([]);
   });
 
-  it.each(Object.keys(NATIVE_SCRIPT))('%s writes both values in its own script', (lang) => {
-    const re = NATIVE_SCRIPT[lang];
+  it.each(Object.keys(NATIVE_SCRIPT) as LocaleCode[])('%s writes both values in its own script', (lang) => {
+    const re = NATIVE_SCRIPT[lang]!;
     expect(re.test(readonlyOf(lang)!), `${lang} systemViewReadonly has no native script`).toBe(true);
     expect(re.test(expandOf(lang)!), `${lang} expandToPage has no native script`).toBe(true);
   });

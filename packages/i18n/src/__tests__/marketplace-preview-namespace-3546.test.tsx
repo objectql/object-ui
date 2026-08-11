@@ -115,7 +115,13 @@ const KEYS = [
 /** The 37 the guard measured; the other 3 are the prefix family. */
 const MEASURED_KEYS = KEYS.filter((k) => !k.startsWith('marketplace.disclosure.runtime.'));
 
-const LANGS = Object.keys(builtInLocales);
+// Derived from the map rather than left as `string[]`: `Object.keys` erases
+// which keys it enumerated, so `builtInLocales[lang]` below would be an
+// implicit-`any` index into a `const` map (TS7053) and the suite would compare
+// packs the compiler never confirmed exist. Same convention as
+// `authRemediation-locale-parity.test.ts` next door.
+type LocaleCode = keyof typeof builtInLocales;
+const LANGS = Object.keys(builtInLocales) as LocaleCode[];
 
 const DISCLOSURE = 'packages/app-shell/src/console/marketplace/PluginDisclosure.tsx';
 const PACKAGE_PAGE = 'packages/app-shell/src/console/marketplace/MarketplacePackagePage.tsx';
@@ -349,7 +355,7 @@ describe('objectui#3546 slice five — the marketplace and preview namespaces', 
       }
     });
 
-    it.each(['en', 'zh'])('%s renders every tier through the real template call', (lang) => {
+    it.each(['en', 'zh'] as const)('%s renders every tier through the real template call', (lang) => {
       const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor(lang) });
       for (const tier of ['node', 'sandbox', 'worker']) {
         const full = `marketplace.disclosure.runtime.${tier}`;
@@ -538,7 +544,10 @@ describe('objectui#3546 slice five — the marketplace and preview namespaces', 
     // BYTE-IDENTICAL `en` strings, and `common.itemCount`'s en is `{{count}} items`,
     // not `item(s)` — so a neighbour expressing the same concept with different
     // English is invisible to that search. Hence this assertion, by hand.
-    const UNIT: Record<string, string> = {
+    // Keyed by locale, not by bare `string`: a typo'd pack name is now a
+    // compile error, and the `Object.entries` cast below is the one place
+    // the key type has to be restated — `entries` erases it by design.
+    const UNIT: Partial<Record<LocaleCode, string>> = {
       zh: '项',
       ja: '件',
       de: 'Elemente',
@@ -548,7 +557,7 @@ describe('objectui#3546 slice five — the marketplace and preview namespaces', 
       ru: 'элементов',
       ar: 'عناصر',
     };
-    for (const [lang, unit] of Object.entries(UNIT)) {
+    for (const [lang, unit] of Object.entries(UNIT) as [LocaleCode, string][]) {
       expect(at(builtInLocales[lang], 'preview.history.items'), `${lang} items`).toBe(unit);
       // the premise: that unit really is what common.itemCount uses
       expect(at(builtInLocales[lang], 'common.itemCount'), `${lang} common.itemCount`).toBe(
@@ -634,7 +643,7 @@ describe('objectui#3546 slice five — the marketplace and preview namespaces', 
       }
     });
 
-    it.each(['en', 'zh'])('%s resolves every sampled key from the pack', (lang) => {
+    it.each(['en', 'zh'] as const)('%s resolves every sampled key from the pack', (lang) => {
       const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor(lang) });
       for (const [key, owner] of SAMPLE) {
         const value = result.current.t(key);

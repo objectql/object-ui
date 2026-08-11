@@ -138,7 +138,13 @@ const RETIRED_ACCEPT_INVITATION_KEYS = [
   'acceptInvitation.invalidDescription',
 ] as const;
 
-const LANGS = Object.keys(builtInLocales);
+// Derived from the map rather than left as `string[]`: `Object.keys` erases
+// which keys it enumerated, so `builtInLocales[lang]` below would be an
+// implicit-`any` index into a `const` map (TS7053) and the suite would compare
+// packs the compiler never confirmed exist. Same convention as
+// `authRemediation-locale-parity.test.ts` next door.
+type LocaleCode = keyof typeof builtInLocales;
+const LANGS = Object.keys(builtInLocales) as LocaleCode[];
 
 /**
  * `lang :: key` pairs whose value is legitimately byte-identical to `en`.
@@ -313,7 +319,7 @@ describe('objectui#3546 slice three — the auth / oauth namespaces', () => {
       ['oauth.consent.authorize', 'OAuthConsentPage'],
     ];
 
-    it.each(['en', 'zh'])('%s resolves every sampled key from the pack', (lang) => {
+    it.each(['en', 'zh'] as const)('%s resolves every sampled key from the pack', (lang) => {
       const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor(lang) });
       for (const [key, owner] of SAMPLE) {
         const value = result.current.t(key);
