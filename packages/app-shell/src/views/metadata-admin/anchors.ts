@@ -342,47 +342,18 @@ export function registerBuiltinAnchors(): void {
   // a `hook` (lifecycle events); async automation is a `record_change` flow.
   // Neither anchors here, so there is no standalone "Triggers" group.
 
-  // validation: usually embedded in the object, but standalone variants
-  // do exist. Match anything whose `object` points back at us.
-  registerMetadataResource({
-    type: 'validation',
-    anchors: [{
-      anchorType: 'object',
-      match: anchorByField('object'),
-      groupLabel: 'Validations',
-      order: 25,
-    }],
-    createFields: ['label', 'name', 'message'],
-    createDerive: [
-      { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
-    ],
-    createSchema: {
-      type: 'object',
-      required: ['label', 'name', 'message'],
-      properties: {
-        label: { type: 'string', title: 'Label', description: 'Human-readable rule name.' },
-        name: {
-          type: 'string',
-          title: 'Name',
-          description: 'Machine name (snake_case). Used in URLs.',
-          pattern: '^[a-z_][a-z0-9_]*$',
-        },
-        message: {
-          type: 'string',
-          title: 'Error message',
-          description: 'Shown to the user when the rule blocks save.',
-        },
-      },
-    },
-    createDefaults: {
-      type: 'script',
-      active: true,
-      events: ['insert', 'update'],
-      priority: 10,
-      severity: 'error',
-      condition: 'false',
-    },
-  });
+  // ADR-0088 / objectstack#4509: `validation` retired as a metadata type. A
+  // validation rule is embedded in its object (`object.validations`) and only
+  // there — that anchor is `__object_validation` at the top of this file, and it
+  // stays. There is no standalone "Validations" group and no create affordance,
+  // because a standalone rule was never evaluated: the schema has no
+  // object-binding key, every variant is `.strict()` so an author could not add
+  // one, and no merge code ever read such an item. It saved cleanly and gated
+  // nothing (framework ledger, `packages/spec/liveness/validation.json`).
+  // Re-measured at `@objectstack/spec` 17.0.0-rc.6: `validation` is in neither
+  // the registered-kind registry nor the unregistered-kind schema list.
+  // Console history: this file registered that door (with `createFields` /
+  // `createSchema`) until objectui#4132 removed it.
 
   // permission has a sparse object-keyed map under `objects`. Match by
   // membership of the parent name in that map.

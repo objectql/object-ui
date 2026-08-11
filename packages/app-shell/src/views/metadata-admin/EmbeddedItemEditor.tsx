@@ -14,12 +14,22 @@
  *
  * If the sub-type isn't registered (e.g. `index` has no `editAs`), we
  * fall back to a raw-JSON editor so users can still hand-edit and save.
+ *
+ * When the sub-type has a registered Preview renderer, it is mounted above the
+ * form on the live draft (objectui#4132). Previews used to be reachable only
+ * from `ResourceEditPage`'s Preview tab, i.e. only for STANDALONE metadata —
+ * which meant `ValidationPreview` rendered only on the standalone `validation`
+ * door ADR-0088 retired, and never on `object.validations`, the path the
+ * framework actually evaluates. The lookup is generic (`getMetadataPreview`),
+ * so any embedded sub-type that has a preview gets it; one that has none is
+ * unchanged, with no empty preview chrome.
  */
 
 import * as React from 'react';
 import { Loader2, Save, AlertTriangle } from 'lucide-react';
 import { Button } from '@object-ui/components';
 import { SchemaForm, type SchemaFormIssue } from './SchemaForm';
+import { getMetadataPreview } from './preview-registry';
 import { useMetadataClient, useMetadataTypes } from './useMetadata';
 import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n';
 import { errorCodeIsAnyOf } from '@object-ui/types';
@@ -60,6 +70,10 @@ export function EmbeddedItemEditor({
   const fallback = !subEntry?.schema && editAs ? FALLBACK_SCHEMAS[editAs] : undefined;
   const schema = (subEntry?.schema as Record<string, unknown> | undefined) ?? fallback?.schema;
   const form = (subEntry?.form as any) ?? fallback?.form;
+  // Opt-in per sub-type, exactly like the Preview tab on the full page: a type
+  // with no registered renderer gets no surface at all (never a "preview not
+  // available" placeholder).
+  const Preview = editAs ? getMetadataPreview(editAs) : undefined;
 
   const [draft, setDraft] = React.useState<Record<string, unknown>>(initialRaw);
   const [saving, setSaving] = React.useState(false);
@@ -188,6 +202,20 @@ export function EmbeddedItemEditor({
         <div className="text-xs text-amber-800 border border-amber-300 bg-amber-50 rounded p-2">
           {t('engine.embedded.readOnlyParent', locale)}
         </div>
+      )}
+
+      {Preview && (
+        // Read-only: the drawer edits through the form below, so no `onPatch`
+        // is handed over and `editing` stays false. `draft` is the live value,
+        // so the preview follows keystrokes the way the full-page tab does.
+        /* eslint-disable-next-line react-hooks/static-components -- getMetadataPreview returns a registered component (stable), not one created during render */
+        <Preview
+          type={editAs as string}
+          name={itemName}
+          draft={draft}
+          locale={locale}
+          editing={false}
+        />
       )}
 
       <SchemaForm

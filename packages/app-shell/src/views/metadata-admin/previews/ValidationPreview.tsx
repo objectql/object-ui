@@ -40,9 +40,21 @@
  * mistake, while a publish strips the key and the rule silently does
  * nothing. That is the second de-facto contract AGENTS.md #0.1 forbids.
  *
- * `object` is NOT residue and stays: `anchors.ts` registers a standalone
- * `validation` resource matched by `anchorByField('object')`, so a
- * standalone rule really does carry it.
+ * `object` WAS read here, on the strength of one fact that has since gone:
+ * `anchors.ts` registered a standalone `validation` resource matched by
+ * `anchorByField('object')`, so a standalone rule was assumed to carry the
+ * key. ADR-0088 / objectstack#4509 retired the kind and objectui#4132 removed
+ * that registration, which leaves the read with no producer — and it never had
+ * one on the governed path either: `ValidationRuleSchema` rejects `object` BY
+ * NAME. Measured against the installed `@objectstack/spec` 17.0.0-rc.6:
+ *
+ *   ValidationRuleSchema.safeParse({ type: 'script', …, object: 'account' })
+ *   → unrecognized_keys: ['object']
+ *
+ * So the pill could only ever paint a key that makes the rule unsaveable — the
+ * AGENTS.md #0.1 shape this file already deleted `expression` and `pattern`
+ * for. Where the object name comes from now: the parent. A rule is edited
+ * inside its object (`object.validations`), and the drawer header names it.
  */
 
 import * as React from 'react';
@@ -101,7 +113,6 @@ export function ValidationPreview({ name, draft }: MetadataPreviewProps) {
   const label = String(d.label ?? ruleName);
   const description = (d.description as string | undefined) ?? '';
   const type = (d.type as string | undefined) ?? 'script';
-  const object = d.object as string | undefined;
   const message = (d.message as string | undefined) ?? '';
   const severity: Severity = ((d.severity as Severity | undefined) ?? 'error');
   const active = d.active !== false;
@@ -137,7 +148,6 @@ export function ValidationPreview({ name, draft }: MetadataPreviewProps) {
                 )}
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
                   <Pill icon={Power} label={active ? 'Active' : 'Disabled'} tone={active ? 'green' : 'gray'} />
-                  {object && <Pill label={`object: ${object}`} mono />}
                   {priority != null && <Pill label={`priority ${priority}`} />}
                   {events.length > 0 && (
                     <Pill label={`on ${events.join(', ')}`} />

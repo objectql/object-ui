@@ -24,13 +24,18 @@
  *    VALID conditional rule displayed "No expression set".
  *  • `json_schema` had no branch, so a VALID rule displayed "Unknown rule type".
  *
- * `object` is deliberately still read: `anchors.ts` registers a standalone
- * `validation` resource matched by `anchorByField('object')`, so a standalone
- * rule genuinely carries it. Not every key the union omits is residue.
+ * `object` USED to be exempt from that list, on one stated ground: `anchors.ts`
+ * registered a standalone `validation` resource matched by
+ * `anchorByField('object')`, so a standalone rule was taken to carry the key.
+ * ADR-0088 / objectstack#4509 retired the kind, objectui#4132 removed that
+ * registration, and the exemption goes with it — the last case in this file is
+ * now the negative, with the schema's own verdict as its instrument rather than
+ * a claim about a registration.
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
+import { ValidationRuleSchema } from '@objectstack/spec/data';
 import { ValidationPreview } from './ValidationPreview';
 
 afterEach(cleanup);
@@ -171,13 +176,48 @@ describe('ValidationPreview renders the branches it previously got wrong', () =>
 });
 
 describe('ValidationPreview still renders the shared envelope', () => {
-  it('keeps label, name, severity, message and the object pill', () => {
-    // `object` is NOT residue — standalone validations are anchored by it.
-    renderPreview({ ...BASE, type: 'script', object: 'sales_order', condition: 'record.amount <= 0' });
+  it('keeps label, name, severity and message', () => {
+    renderPreview({ ...BASE, type: 'script', condition: 'record.amount <= 0' });
     expect(screen.getByText('Amount Must Be Positive')).toBeTruthy();
     expect(screen.getByText('amount_positive')).toBeTruthy();
     expect(screen.getByText('Order amount must be greater than zero.')).toBeTruthy();
-    expect(screen.getByText('object: sales_order')).toBeTruthy();
     expect(screen.getByText('error')).toBeTruthy();
+  });
+});
+
+describe('`object` is residue after ADR-0088 (objectui#4132)', () => {
+  /**
+   * The old case here asserted the `object: …` pill and justified it with the
+   * standalone resource registration. Re-spelling that case would have kept a
+   * passing test for a key nothing can produce, so it is replaced outright: the
+   * schema is asked directly, and the preview is asserted NOT to paint the key.
+   */
+  const rejectedKeysIn = (draft: Record<string, unknown>): string[] => {
+    const parsed = ValidationRuleSchema.safeParse(draft);
+    if (parsed.success) return [];
+    return parsed.error.issues.flatMap((issue) =>
+      issue.code === 'unrecognized_keys' ? ((issue as { keys: string[] }).keys ?? []) : [],
+    );
+  };
+
+  it('the schema rejects `object` by name — this is why the read is gone', () => {
+    expect(
+      rejectedKeysIn({ ...BASE, type: 'script', condition: 'record.amount <= 0', object: 'sales_order' }),
+    ).toContain('object');
+  });
+
+  it('non-vacuity: the same draft WITHOUT `object` is not rejected for its keys', () => {
+    // Guards the probe above against a schema that rejects everything (or a
+    // renamed export), which would make the assertion meaningless.
+    expect(rejectedKeysIn({ ...BASE, type: 'script', condition: 'record.amount <= 0' })).toEqual([]);
+  });
+
+  it('the preview paints no object pill even when a draft carries the key', () => {
+    renderPreview({ ...BASE, type: 'script', object: 'sales_order', condition: 'record.amount <= 0' });
+    expect(screen.queryByText('object: sales_order')).toBeNull();
+    expect(screen.queryByText(/sales_order/)).toBeNull();
+    // The rest of the envelope is untouched — this deleted one pill, not a tab.
+    expect(screen.getByText('Amount Must Be Positive')).toBeTruthy();
+    expect(screen.getByText('record.amount <= 0')).toBeTruthy();
   });
 });

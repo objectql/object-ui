@@ -42,6 +42,11 @@ export function registerBuiltinPreviews(): void {
   // Data
   registerMetadataPreview('object', ObjectPreview);
   registerMetadataPreview('datasource', DatasourcePreview);
+  // ADR-0088 retired STANDALONE `validation` items, and objectui#4132 removed
+  // the console door that authored them. This registration is not residue: a
+  // rule lives embedded in `object.validations`, and `EmbeddedItemEditor` looks
+  // the renderer up by the anchor's `editAs` — so the preview now runs on the
+  // path the framework evaluates instead of the one it retired.
   registerMetadataPreview('validation', ValidationPreview);
   // Analytics (ADR-0021): live cross-object dataset preview.
   registerMetadataPreview('dataset', DatasetPreview);
