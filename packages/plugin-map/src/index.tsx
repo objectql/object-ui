@@ -28,14 +28,12 @@ export type { ObjectMapProps };
  * config names (latitude/longitude/title/description) and its fetch issues no
  * `$top`, so neither key has a read site to write to.
  *
- * One caveat that belongs next to `filter: true` rather than in a changelog:
- * `getMapConfig` ALSO accepts the map's own configuration stashed under
- * `schema.filter.map` (a legacy shape predating the `map` input). A binding whose
- * filter actually composes replaces that object with an AND node, so the legacy
- * stash stops being found — authoring the map config under `map` (the declared
- * input) is the supported spelling and the only one the binding is compatible
- * with. Filed separately as the overload it is; nothing here relies on it, and a
- * schema with no composing filter passes `schema.filter` through untouched.
+ * `filter` here means the query filter and nothing else. `getMapConfig` used to
+ * ALSO accept the map's own configuration stashed under `schema.filter.map` (a
+ * shape predating the `map` input); that read is gone as of objectui#4034 —
+ * the map config is read from the declared `map` input only, and a schema still
+ * carrying the legacy stash gets a dev-mode warning instead of silently losing
+ * its markers. Nothing here ever relied on it.
  */
 const OBJECT_MAP_DATA_SOURCE: ElementDataSourceMapping = {
   filter: true,
