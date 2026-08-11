@@ -63,9 +63,25 @@ function BundleLoader({ bundle, children }: { bundle?: unknown; children: React.
   return ready ? <>{children}</> : null;
 }
 
+/**
+ * The handler signatures, taken from `ActionProvider` rather than restated.
+ *
+ * These mocks are the assertion surface of every case below — each one reads
+ * `.mock.calls[0][0]` to check WHICH STRING the provider was handed. Declared as
+ * bare `vi.fn(async () => true)` / `vi.fn()` they had no parameters at all, so
+ * `calls[0]` was the empty tuple and `calls[0][0]` did not exist: the compiler
+ * could not see the argument these tests exist to inspect, and reported it the
+ * moment this package's tests were type-checked (TS2493). Deriving from the
+ * component's own props types the argument as the message it is, and keeps the
+ * mocks from drifting off the handler contract they impersonate.
+ */
+type ActionProviderProps = React.ComponentProps<typeof ActionProvider>;
+type ConfirmHandler = NonNullable<ActionProviderProps['onConfirm']>;
+type ToastHandler = NonNullable<ActionProviderProps['onToast']>;
+
 function mount(opts: { bundle?: unknown; action?: Record<string, unknown> } = {}) {
-  const onConfirm = vi.fn(async () => true);
-  const onToast = vi.fn();
+  const onConfirm = vi.fn<ConfirmHandler>(async () => true);
+  const onToast = vi.fn<ToastHandler>();
   const handler = vi.fn(async () => ({ success: true }));
   const utils = render(
     <I18nProvider config={{ defaultLanguage: 'en', detectBrowserLanguage: false }}>

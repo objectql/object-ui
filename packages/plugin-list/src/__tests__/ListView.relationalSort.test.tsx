@@ -90,6 +90,30 @@ describe('ListView sort picker — relational fields (objectui#3096)', () => {
     );
   });
 
+  /**
+   * objectui#4294 — the remedy the hint names has to be one the server will
+   * actually sort by. It used to say "add a formula field holding it", and a
+   * formula field is precisely the type the server refuses to order by
+   * (objectstack `UNMATERIALIZED_SORT_TYPES`, a hard 400 since
+   * objectstack#6994): an author who followed the hint landed on a refusal —
+   * and, since #4243 withheld formula fields from the picker, on a field this
+   * very panel does not offer. The wording now tracks the server's own
+   * refusal-door hint (a STORED, denormalised field, written when the source
+   * changes), so this pins both halves: the remedy it gives, and the one it
+   * must never give again.
+   */
+  it('points at a stored denormalised field, never a formula field (objectui#4294)', async () => {
+    await openSortPopover({ ...baseSchema, sort: [{ field: 'name', order: 'asc' }] } as any);
+
+    const hint = screen.getByTestId('sort-relational-hint');
+    expect(hint).toHaveTextContent(/denormalize it onto this object as a stored field/i);
+    // A formula field is still named — to be ruled OUT. So the pin cannot be
+    // "the word formula is absent"; it is the recommendation shape that must
+    // have flipped, in both directions.
+    expect(hint).toHaveTextContent(/not a formula field/i);
+    expect(hint.textContent ?? '').not.toMatch(/add a formula field/i);
+  });
+
   it('keeps a relational field the current sort already uses, flagged as by-ID', async () => {
     await openSortPopover({ ...baseSchema, sort: [{ field: 'owner', order: 'asc' }] } as any);
 

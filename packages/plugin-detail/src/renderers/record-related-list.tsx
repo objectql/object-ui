@@ -52,7 +52,28 @@ const splitDesigner = (props: Record<string, any>) => {
 };
 
 export interface RecordRelatedListRendererProps {
-  schema?: RecordRelatedListComponentProps & Record<string, any>;
+  /**
+   * The AUTHORED node, before the per-element `dataSource` binding is resolved.
+   *
+   * `objectName` is optional HERE and required everywhere else, and the
+   * difference is the whole point of objectstack#6953: the exported name is the
+   * `ElementDataSourceGate` wrapper below, and the gate maps the binding's
+   * `object` onto `objectName` (its default target — see `ElementDataSourceGate`
+   * `objectKey = 'objectName'`) before `RecordRelatedListBody` ever sees the
+   * schema. A related list authored as `{ relationshipField, dataSource: {
+   * object, view } }` is therefore legal input to this component and illegal
+   * input to the spec's `RecordRelatedListProps`, which is correct on both
+   * sides — one describes what an author writes, the other what the block reads.
+   *
+   * Spelling it `RecordRelatedListComponentProps` flat said the opposite, and
+   * said it about the wrapper: the exact authoring shape #6953 added did not
+   * type-check against the component that exists to accept it. The body already
+   * reads the key defensively (`objectName && …`, `objectName || ''`) precisely
+   * because it can arrive unbound; this declaration now agrees with that code.
+   */
+  schema?: Omit<RecordRelatedListComponentProps, 'objectName'> &
+    Partial<Pick<RecordRelatedListComponentProps, 'objectName'>> &
+    Record<string, any>;
   className?: string;
   [k: string]: any;
 }

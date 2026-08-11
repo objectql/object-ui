@@ -25,8 +25,13 @@ import type { ObjectPermissionConfig, RoleDefinition } from '@object-ui/types';
  * so they're independent of the /auth/me endpoint.
  */
 
+// `permissions: []` is accurate and required: a role's DIRECT object grants live
+// on `RoleDefinition.permissions`, and this role has none — every grant it uses
+// comes from the `ObjectPermissionConfig` below. (That the field is required and
+// read by nothing is the dormancy filed as #4288; this fixture states the truth
+// for its own role rather than pre-judging that finding.)
 const roles: RoleDefinition[] = [
-  { name: 'restricted', description: 'denies one field' },
+  { name: 'restricted', label: 'Restricted', description: 'denies one field', permissions: [] },
 ];
 
 function makeRestrictedConfig(deniedField: string): ObjectPermissionConfig {
@@ -34,8 +39,22 @@ function makeRestrictedConfig(deniedField: string): ObjectPermissionConfig {
     object: 'account',
     roles: {
       restricted: {
-        roleName: 'restricted',
-        objectPermissions: { read: true, create: false, update: false, delete: false },
+        // `actions` is the declared channel for a role's object-level grants and
+        // the only one `evaluatePermission` reads. This entry used to spell them
+        // `objectPermissions: { read: true, create: false, … }` beside a
+        // `roleName` echo of its own map key — neither key exists on
+        // `ObjectPermissionConfig['roles'][string]`, so both were inert, and the
+        // role in fact granted nothing at all. The rewrite says what the old
+        // shape meant: read allowed, no writes.
+        //
+        // No assertion in this file moves as a result, which is the point worth
+        // recording rather than hiding: the field gate below runs through
+        // `checkField`, which reads `fieldPermissions` directly and never
+        // consults `actions`, so these cases were testing what they claim to
+        // test even while the object grant was empty. The DetailView write gate
+        // (`perms.can(object,'update'|'delete')`) reads `actions` and stays
+        // false either way — 'update'/'delete' are absent before and after.
+        actions: ['read'],
         fieldPermissions: [{ field: deniedField, read: false, write: false }],
       },
     },

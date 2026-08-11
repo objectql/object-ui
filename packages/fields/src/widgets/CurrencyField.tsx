@@ -2,7 +2,7 @@ import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
-import { useLocalization } from '@object-ui/i18n';
+import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
 import { resolveFieldCurrency } from '../currency';
 
 /**
@@ -10,24 +10,33 @@ import { resolveFieldCurrency } from '../currency';
  * is rendered as a plain number with thousands separators (no symbol),
  * because silently assuming USD is misleading for non-USD businesses.
  */
-function formatAmount(value: number, currency: string | undefined, precision: number): string {
+function formatAmount(
+  value: number,
+  currency: string | undefined,
+  precision: number,
+  locale?: string,
+): string {
   if (currency) {
     try {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
+      return formatDisplayNumber(value, {
+        locale,
         currency,
         minimumFractionDigits: precision,
         maximumFractionDigits: precision,
-      }).format(value);
+      });
     } catch {
       return `${currency} ${value.toFixed(precision)}`;
     }
   }
   try {
-    return new Intl.NumberFormat('en-US', {
+    // No `scale` passed: this is a currency widget whose `precision` is a
+    // display width, so a `precision: 0` amount keeps its separators rather
+    // than being read as an ordinal (objectui#4033).
+    return formatDisplayNumber(value, {
+      locale,
       minimumFractionDigits: precision,
       maximumFractionDigits: precision,
-    }).format(value);
+    });
   } catch {
     return value.toFixed(precision);
   }
@@ -41,6 +50,7 @@ export function CurrencyField({ value, onChange, field, readonly, error, classNa
   const currencyField = field as any;
   // Shared precedence: field currency → currencyConfig → tenant default (ADR-0053).
   const { currency: tenantCurrency } = useLocalization();
+  const locale = useDisplayLocale();
   const currency: string | undefined = resolveFieldCurrency(currencyField, tenantCurrency);
   const precision = currencyField?.precision ?? 2;
 
@@ -48,7 +58,7 @@ export function CurrencyField({ value, onChange, field, readonly, error, classNa
     if (value == null) return <EmptyValue />;
     return (
       <span className="text-sm font-medium tabular-nums">
-        {formatAmount(Number(value), currency, precision)}
+        {formatAmount(Number(value), currency, precision, locale)}
       </span>
     );
   }
