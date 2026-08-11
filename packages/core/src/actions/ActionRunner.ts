@@ -638,6 +638,81 @@ function withIdentityAlias(context: ActionContext): ActionContext {
   return { ...context, os: { ...(os && typeof os === 'object' ? os : {}), user } };
 }
 
+/**
+ * The query param naming the record a form route opens (`?recordId=<id>`).
+ *
+ * The console's reserved-param registry (`@object-ui/app-shell`,
+ * `src/urlParams.ts` → `RECORD_DRAWER_PARAM`) owns this spelling and
+ * `apps/console`'s `FormPage` re-declares it as `FORM_RECORD_ID_PARAM`. It is a
+ * literal in all three places because `@object-ui/core` sits BELOW both in the
+ * dependency graph and cannot import either; the console's `FormPage.test.ts`
+ * pins the spellings equal so they cannot drift apart in silence.
+ */
+const FORM_RECORD_ID_PARAM = 'recordId';
+
+/**
+ * The query param carrying the OBJECT the forwarded {@link FORM_RECORD_ID_PARAM}
+ * belongs to (objectui#4292).
+ *
+ * It is an ASSERTION, never an override: the form's object always comes from the
+ * FormView metadata, and this param exists solely so the consumer can refuse
+ * when the two disagree. (The registry's `formObject` is the other thing — it
+ * SELECTS which object the record-form overlay edits. Same `<param>Object`
+ * naming, deliberately opposite powers, which is why they are separate names on
+ * separate surfaces.) Widening it into a selector would hand any hand-authored
+ * URL the ability to point a form at an arbitrary object — the hole this closes,
+ * re-opened from the other side.
+ */
+const FORM_RECORD_OBJECT_PARAM = 'recordObject';
+
+/**
+ * The object the firing context's record belongs to, or `undefined` when the
+ * host did not say (objectui#4292).
+ *
+ * `context.objectName` is MEASURED to be this repo's one spelling of that fact,
+ * not a new convention invented here:
+ *
+ *  - `@object-ui/react`'s `ActionProvider` documents the flat trio `record`,
+ *    `user`, `objectName` and mirrors it into the canonical `ctx.*` scope;
+ *  - `useConsoleActionRuntime` seeds `context: { ...(objectName ? { objectName }
+ *    : {}), … }` — so every console surface that fires a record action
+ *    (`DeclaredActionsBar`, `ObjectView`, `RecordDetailView`) already publishes
+ *    it, and `RecordDetailView` passes it explicitly a second time;
+ *  - `app-shell`'s `recordFormNavigation` resolver already reads exactly this
+ *    key as its last precedence step for `navigate_create` / `navigate_edit`.
+ *
+ * `action.objectName` is deliberately NOT consulted. It declares which object an
+ * ACTION belongs to, which is a statement about the action's placement, not
+ * about the record the id was read from — and trusting metadata about the action
+ * to describe the record is precisely the conflation that made this defect
+ * possible.
+ */
+function readContextObjectName(context: ActionContext): string | undefined {
+  const name = context.objectName;
+  return typeof name === 'string' && name.trim() !== '' ? name.trim() : undefined;
+}
+
+/**
+ * Whether opening FormView `viewName` from a record of `contextObject` would
+ * cross an object boundary (objectui#4292).
+ *
+ * View identity is `<object>.<key>` (ADR-0017; `viewEnvelope` builds exactly
+ * that, `defaultListViewId` compares exactly this way), so the question is
+ * answered as a PREFIX match against the object we already hold rather than by
+ * parsing an object name out of the view name — the target's object is a fact
+ * the metadata owns, and this runner only asks whether it is the one in hand.
+ *
+ * Answers `false` — "not comparable, carry on" — whenever either end is missing:
+ * no `contextObject` (host published none), or an unqualified `viewName` (no
+ * dot, so it names no object). Only a qualified name under a DIFFERENT object
+ * is a boundary crossing.
+ */
+function crossesObjectBoundary(viewName: string, contextObject: string | undefined): boolean {
+  if (!contextObject) return false;
+  if (!viewName.includes('.')) return false;
+  return !viewName.startsWith(`${contextObject}.`);
+}
+
 /*
  * ## The two predicate gates in `execute`, and the one question they ask first
  *
@@ -1424,6 +1499,37 @@ export class ActionRunner {
    * through to `executeActionSchema` and silently no-opped (the "Log Time does
    * nothing" report). The current record id is forwarded as `?recordId=` for
    * hosts that support it; the form route ignores unknown query params.
+   *
+   * ## An id never travels without its object (objectui#4292)
+   *
+   * `?recordId=` names an id and nothing else, so the consumer has to pick an
+   * object to resolve it against, and the only one it can pick is the FormView's
+   * own target object (`/forms/:name` does exactly that since objectui#4278).
+   * That is right whenever the action fired from a record OF that object, and
+   * nothing here used to check that it did: `target: 'showcase_task.edit'` on an
+   * Account record header is publishable metadata, and with per-table integer
+   * keys `GET /data/showcase_task/42` cheerfully answers for Account 42. Before
+   * #4278 the damage stopped at a duplicate insert; now that the route honours
+   * the param, the same mis-scoped action PATCHes a different object's record
+   * with no error anywhere. So the id is forwarded only when the two objects
+   * MATCH, and the object identity rides along as the consumer's second half of
+   * the check ({@link FORM_RECORD_OBJECT_PARAM}).
+   *
+   * The three outcomes, and why the third preserves rather than refuses:
+   *
+   *  - **match** — forward `?recordId=&recordObject=`. The #4278 edit path,
+   *    plus the identity the consumer re-checks against its own view metadata;
+   *  - **mismatch** — forward NEITHER, i.e. the bare `/forms/:name`. A "log
+   *    time" action fired from a Task at another object's create view is not a
+   *    broken edit, it is a CREATE that happens to be launched from a record —
+   *    which is exactly what this route did before #4278 taught it to read the
+   *    param. Refusing here would break a shape that works;
+   *  - **not comparable** — either end unknown ⇒ forward as before. A host that
+   *    publishes no `objectName`, or an unqualified target name, gives this
+   *    runner nothing to compare; tightening on absent information would turn
+   *    working edit flows into creates on every such host. The guard only ever
+   *    fires on information it actually has, and the consumer half applies the
+   *    same rule to a missing `recordObject`.
    */
   private async executeForm(action: ActionDef): Promise<ActionResult> {
     const name = this.evaluator.evaluate(action.target) as string;
@@ -1434,7 +1540,14 @@ export class ActionRunner {
       (this.context.record && (this.context.record as { id?: unknown }).id) ??
       (this.context.data && (this.context.data as { id?: unknown }).id);
     const base = `/forms/${name}`;
-    const to = recordId != null ? `${base}?recordId=${encodeURIComponent(String(recordId))}` : base;
+    const contextObject = readContextObjectName(this.context);
+    const to =
+      recordId == null || crossesObjectBoundary(name, contextObject)
+        ? base
+        : `${base}?${FORM_RECORD_ID_PARAM}=${encodeURIComponent(String(recordId))}` +
+          (contextObject
+            ? `&${FORM_RECORD_OBJECT_PARAM}=${encodeURIComponent(contextObject)}`
+            : '');
 
     if (this.navigationHandler) {
       this.navigationHandler(to, { external: false });

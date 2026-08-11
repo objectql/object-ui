@@ -26,6 +26,14 @@
  * |             | internal form route `/forms/:name`, where it   |              |
  * |             | means "edit THIS record" (objectui#4278).      |              |
  * |             | URL is the source of truth for both.           |              |
+ * | `recordObject` | Travels WITH `recordId` on `/forms/:name`: the |           |
+ * |             | object that id belongs to, so the route can    | with         |
+ * |             | refuse a cross-object link instead of editing  | `recordId`   |
+ * |             | a same-id row of the wrong object              |              |
+ * |             | (objectui#4292). An assertion, never an        |              |
+ * |             | override — unlike `formObject` below. Declared |              |
+ * |             | by `apps/console`'s `FormPage`; listed here so |              |
+ * |             | no page repurposes the name.                   |              |
  * | `form`      | The global record-form overlay: `new` = create,|              |
  * |             | a record id = edit (framework#2604 D1/D2).     | push (open), |
  * |             | Back closes the overlay.                       | replace (close) |
