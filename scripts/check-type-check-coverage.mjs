@@ -129,7 +129,6 @@ export const TEST_DEBT = {
   "@object-ui/auth": { errors: 2, issue: 4118 },
   "@object-ui/plugin-chatbot": { errors: 2, issue: 4118 },
   "@object-ui/plugin-grid": { errors: 2, issue: 4118 },
-  "@object-ui/plugin-map": { errors: 1, issue: 4118 },
 };
 
 // ── Collect workspace packages ───────────────────────────────────────────────
