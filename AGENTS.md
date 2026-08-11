@@ -216,6 +216,7 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
 - **绝不 `git push --force`/`--force-with-lease`,绝不推 `main`**(会覆盖并行 agent 的工作;`main` 共享,一律走 PR)。
 - **每次 commit/push 前先确认当前分支**(`git rev-parse --abbrev-ref HEAD`);HEAD 可能被别的 agent 切走 —— 不是你的分支就停下重新 checkout。
 - 改**共享文件**(barrel/注册表):编辑→`git add`→commit 一气呵成,并核验提交确实含你的改动(`git show HEAD:<file> | grep <你的改动>`);真冲突只重加*你自己*那几行,其余交给 PR 合并。
+- **要做反向验证(删掉修复 → 看预期的钉子变红 → 还原)就先把修复 commit 掉。** 提交之后,还原是 `git checkout <你的分支> -- <path>`,对着一个真实存在的 commit 取回;直接对**未提交**的改动做同一个删除(`git checkout origin/main -- <path>`)则没有任何还原点 —— 工作区就是唯一副本,而 `git stash` 一律禁用(共享 stash 栈,见 CLAUDE.md),改动当场就没了。同一天两次踩实:#4278(PR #4293)、#4243(PR #4299),两次都靠会话 transcript 逐行重打才找回来 —— transcript 不全就是净损失。#4243 那次是先 commit、再重跑一遍反向验证,最终那组红绿数字才可信。
 - **本仓由 ruleset 强制走合并队列(merge queue):直接合并会被 405 拒绝。** 实测(objectui#3243,对 15/15 全绿、`mergeable_state: clean`、非 draft 的 PR #3241):
 
   ```
