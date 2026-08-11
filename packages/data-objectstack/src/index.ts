@@ -924,6 +924,54 @@ function viewItemObjectName(item: any): string | undefined {
 }
 
 /**
+ * Unwrap a `?state=draft` view read into its bare body, or `null` when there
+ * is nothing pending (#4139).
+ *
+ * The framework answers draft reads in a `{type, name, item}` envelope while a
+ * published read is the bare body — an asymmetry `MetadataClient.getDraft`
+ * documents and deliberately preserves. An empty body is normalized to `null`
+ * so the caller's "is this view draft-backed?" test is a plain truthiness
+ * check. Mirrors app-shell's `unwrapDraftBody` (ADR-0034 seam); the two live
+ * apart because the seam sits above this adapter, not beside it.
+ */
+function unwrapViewDraft(resp: unknown): Record<string, any> | null {
+  if (!resp || typeof resp !== 'object') return null;
+  const env = resp as Record<string, any>;
+  const body = 'item' in env ? env.item : env;
+  if (!body || typeof body !== 'object') return null;
+  // Same `{list: {...}}` artifact wrapper the published read unwraps.
+  const spec = body.list ?? body;
+  if (!spec || typeof spec !== 'object') return null;
+  return Object.keys(spec).length > 0 ? (spec as Record<string, any>) : null;
+}
+
+/**
+ * Merge a partial view patch onto the CURRENT view document.
+ *
+ * ADR-0005 overlay rows store the *full* view document, so a partial update is
+ * a read-merge-write cycle and the merge must start from real current state —
+ * merging onto `{}` yields a `{label, name, object}` fragment the server
+ * rejects (422), which is exactly how a rename used to be lost (#4139).
+ *
+ * `name` is forced to the URL segment so the row key and `body.name` agree
+ * (#2767 P1), and `object` falls back through the two spellings a stored view
+ * may carry before defaulting to the caller's object.
+ */
+function mergeViewPatch(
+  current: Record<string, any>,
+  partial: Record<string, any>,
+  viewName: string,
+  objectName: string,
+): Record<string, any> {
+  return {
+    ...current,
+    ...partial,
+    name: viewName,
+    object: current?.object || current?.data?.object || objectName,
+  };
+}
+
+/**
  * ObjectStack Data Source Adapter
  *
  * Bridges the ObjectStack Client SDK with the ObjectUI DataSource interface.
@@ -3005,9 +3053,41 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
 
   /**
    * Apply a partial update to an existing overlay view. Reads the current
-   * overlay (or seeds from artifact), merges, and writes back. ADR-0005
-   * overlay rows store the *full* view document, so partial updates require
-   * a read-merge-write cycle.
+   * document, merges, and writes it back. ADR-0005 overlay rows store the
+   * *full* view document, so partial updates require a read-merge-write cycle.
+   *
+   * **Both halves address the same row (#4139).** A view has two possible
+   * homes and the read must resolve the one the write will target:
+   *
+   * - a pending per-item **draft** (`?state=draft` / `?mode=draft`) — where
+   *   ADR-0034 stages every runtime-created view, so a view made from the `+`
+   *   tab lives ONLY here until an explicit Publish;
+   * - the **published** overlay (`client.meta.getItem` / `saveItem`).
+   *
+   * The draft is probed FIRST, and a hit is merged and written straight back
+   * as a draft. Two things that ordering buys, both load-bearing:
+   *
+   * 1. A draft-only view is no longer invisible to the read. It used to 404,
+   *    and a `catch {}` labelled "treat missing as create-equivalent"
+   *    substituted `current = {}` — so a rename merged onto nothing and went
+   *    out as a `{label, name, object}` partial the server rejects (422),
+   *    while the draft row the UI reads back through `?preview=draft` kept the
+   *    old label. The edit was lost with no error surfaced to the user.
+   * 2. A draft is never bypassed. Writing the published row while a draft is
+   *    pending would put the edit somewhere the draft shadows — and Publish
+   *    would then overwrite it with the pre-edit body, losing the change a
+   *    second time, later, where nothing connects it to this call.
+   *
+   * A draft edit stays a draft: `mode: 'draft'` keeps ADR-0037's guarantee
+   * that nothing the preview shows goes live until Publish. Renaming a
+   * *published* view (no draft pending) is unchanged — it writes the
+   * published overlay, as before.
+   *
+   * @throws when the view resolves in neither home, or when either read fails
+   *   for any other reason (network, permission). Both used to be swallowed
+   *   and converted into the bad partial write above; a caller that wants a
+   *   view created should call {@link createView}, which is the operation that
+   *   actually means "create".
    */
   async updateView(
     objectName: string,
@@ -3015,21 +3095,47 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     partial: Record<string, any>,
   ): Promise<Record<string, any> | void> {
     await this.connect();
-    let current: any = {};
+
+    // ── Draft-addressed path ────────────────────────────────────────────
+    // `MetadataClient.get` answers `null` on 404 (no draft pending) and throws
+    // on anything else, so a transport failure here is NOT read as "published".
+    const metaClient = this.metadataClient();
+    const draft = unwrapViewDraft(
+      await metaClient.get('view', viewName, { state: 'draft' }),
+    );
+    if (draft) {
+      const mergedDraft = mergeViewPatch(draft, partial, viewName, objectName);
+      await metaClient.save('view', viewName, mergedDraft, { mode: 'draft' });
+      this.metadataCache.invalidate?.(`views:${objectName}`);
+      this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
+      return mergedDraft;
+    }
+
+    // ── Published-overlay path (unchanged addressing) ────────────────────
+    let current: any;
     try {
       const r: any = await this.client.meta.getItem('view', viewName);
       current = (r && (r.item || r)) || {};
       // Some endpoints return the bare item; others wrap as {type,name,item}
       if (current?.list) current = current.list;
-    } catch {
-      // Treat missing as create-equivalent
+    } catch (err) {
+      if (is404Error(err)) {
+        // Not a draft, not published, not an artifact — there is nothing to
+        // merge onto. Fail loudly instead of emitting the partial write.
+        throw Object.assign(
+          new Error(
+            `updateView: view "${viewName}" not found on object "${objectName}"` +
+              ' — no pending draft and no published overlay. Use createView() to create one.',
+          ),
+          { cause: err },
+        );
+      }
+      // Network / permission / server fault: surface it. Degrading to a
+      // create-equivalent write here is what corrupted the row before.
+      throw err;
     }
-    const merged = {
-      ...current,
-      ...partial,
-      name: viewName,
-      object: current?.object || (current as any)?.data?.object || objectName,
-    };
+
+    const merged = mergeViewPatch(current, partial, viewName, objectName);
     const result: any = await this.client.meta.saveItem('view', viewName, merged);
     this.metadataCache.invalidate?.(`views:${objectName}`);
     this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);

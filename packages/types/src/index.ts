@@ -1188,13 +1188,19 @@ export type {
 // ============================================================================
 // v2.0.7 Spec UI Types — I18n
 // ============================================================================
+// `I18nObject`, `LocaleConfig`, `PluralRule`, `DateFormat` and `NumberFormat`
+// (and their `…Schema` values) were retired from `@objectstack/spec/ui` in
+// 17.0.0-rc.6. Nothing in this repo imported them from here — the only names
+// that looked like consumers are `Intl.NumberFormat` call sites and
+// `@object-ui/i18n`'s own locally declared formatter vocabulary in
+// `utils/spec-formatters.ts`, which never bound the spec symbols. So these five
+// were dead re-exports and are dropped rather than re-declared locally.
+// `I18nLabel` SURVIVES rc.6 and stays bound by reference: it is the authoring
+// label union (`string | Record<string, string>`) that `ActionParam.label` and
+// friends are typed against, and rc.6 additionally publishes the inline-map
+// half as `InlineLocaleMap` plus the shared `resolveI18nLabel` resolver.
 export type {
   I18nLabel,
-  I18nObject,
-  LocaleConfig,
-  PluralRule,
-  DateFormat,
-  NumberFormat,
 } from '@objectstack/spec/ui';
 
 // ============================================================================

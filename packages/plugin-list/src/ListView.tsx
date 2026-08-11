@@ -2797,8 +2797,24 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             // Distinguish "filtered/searched to empty" from "truly empty
             // (first run)". A new user with no filters shouldn't be told to
             // "adjust your filters" — they should be invited to create.
+            //
+            // The VIEW's own `filter` counts as an active query too
+            // (objectui#4155). It used to be excluded, so a view that returns
+            // nothing *because it is filtered* — the declared `status not_in
+            // [archived]`, or a stale stored condition — rendered the first-run
+            // copy ("no data yet / create your first record") over an object
+            // full of records. That reads as data loss or a permission problem
+            // and sends triage away from the view layer, which is exactly what
+            // this issue reported.
+            const hasBaseFilter =
+              Array.isArray(schema.filter)
+                ? schema.filter.length > 0
+                : !!schema.filter && typeof schema.filter === 'object'
+                  ? Object.keys(schema.filter).length > 0
+                  : false;
             const hasActiveQuery =
               !!(searchTerm && searchTerm.trim()) ||
+              hasBaseFilter ||
               (Array.isArray(userFilterConditions) && userFilterConditions.length > 0) ||
               (Array.isArray(currentFilters?.conditions) && currentFilters.conditions.length > 0);
             const title = (typeof schema.emptyState?.title === 'string' ? schema.emptyState.title : undefined)

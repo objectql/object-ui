@@ -661,7 +661,10 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.option.location.record_related': 'Record related',
   'engine.inspector.pageBlock.option.location.list_toolbar': 'List toolbar',
   'engine.inspector.pageBlock.option.location.list_item': 'List item',
-  'engine.inspector.pageBlock.option.location.global_nav': 'Global nav',
+  // `…option.location.global_nav` retired with the location itself
+  // (objectstack#6888, @objectstack/spec 17.0.0-rc.6). Its only reader was the
+  // dropdown option removed from `previews/block-config.ts`; a key kept past its
+  // option is dead vocabulary that the next author reads as a live surface.
   'engine.inspector.pageBlock.field.ai:input.agentName': 'Agent',
   'engine.inspector.pageBlock.placeholder.ai:input.agentName': 'agent name',
   'engine.inspector.pageBlock.field.ai:input.placeholder': 'Input placeholder',
@@ -2392,7 +2395,9 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.option.location.record_related': '记录关联列表',
   'engine.inspector.pageBlock.option.location.list_toolbar': '列表工具栏',
   'engine.inspector.pageBlock.option.location.list_item': '列表行',
-  'engine.inspector.pageBlock.option.location.global_nav': '全局导航',
+  // `…option.location.global_nav` retired with the location itself — see the
+  // matching note in the `en` table above. Removed from BOTH tables in the same
+  // edit so the two key sets stay identical.
   'engine.inspector.pageBlock.field.ai:input.agentName': '智能体',
   'engine.inspector.pageBlock.placeholder.ai:input.agentName': '智能体名称',
   'engine.inspector.pageBlock.field.ai:input.placeholder': '输入框占位提示',

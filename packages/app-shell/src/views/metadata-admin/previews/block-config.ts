@@ -472,7 +472,10 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
         { value: 'record_related', label: 'engine.inspector.pageBlock.option.location.record_related' },
         { value: 'list_toolbar', label: 'engine.inspector.pageBlock.option.location.list_toolbar' },
         { value: 'list_item', label: 'engine.inspector.pageBlock.option.location.list_item' },
-        { value: 'global_nav', label: 'engine.inspector.pageBlock.option.location.global_nav' },
+        // No `global_nav` option: the location was retired from the spec's
+        // `ACTION_LOCATIONS` in @objectstack/spec 17.0.0-rc.6 (objectstack#6888).
+        // Offering it here would let the designer author a value the schema now
+        // rejects by name. Pinned negatively in `__tests__/block-config.test.ts`.
       ],
     },
   ],

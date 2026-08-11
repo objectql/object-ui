@@ -40,11 +40,19 @@
  * when translating a Report column into an ObjectQL `AggregationNode`.
  */
 
+// `@objectstack/spec` 17.0.0-rc.6 retired every `…Input` alias and moved the
+// bare name onto the `z.input` side: `Report`/`ReportChart` are now
+// `z.input<typeof …Schema>` and `ReportParsed`/`ReportChartParsed` carry the
+// `z.infer` shape these bindings used to read under the bare name. Both pairs
+// below are therefore re-pointed so that each local alias keeps the meaning it
+// had at rc.5 — `SpecReport`/`SpecReportChart` stay PARSED, `SpecReportInput`/
+// `SpecReportChartInput` stay INPUT. Following the rename by name alone (`X` →
+// `X`) would have silently swapped the two.
 import type {
-  Report as SpecReportType_,
-  ReportInput as SpecReportInputType_,
-  ReportChart as SpecReportChartType_,
-  ReportChartInput as SpecReportChartInputType_,
+  ReportParsed as SpecReportType_,
+  Report as SpecReportInputType_,
+  ReportChartParsed as SpecReportChartType_,
+  ReportChart as SpecReportChartInputType_,
 } from '@objectstack/spec/ui';
 
 import {

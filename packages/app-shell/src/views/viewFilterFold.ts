@@ -50,6 +50,33 @@ interface FilterGroupLike {
     conditions?: unknown[];
 }
 
+/**
+ * Operators that are COMPLETE without a value — in both the FilterBuilder's
+ * dialect and the canonical spelling `normalizeFilterOperator` maps it to.
+ *
+ * The builder renders no value input for these (`needsValueInput` in
+ * `@object-ui/components`'s `filter-builder.tsx`), so "no value" is the row's
+ * finished state, not an unfinished one. `exists` / `notExists` have no
+ * canonical spec spelling and pass through verbatim for the server's enum to
+ * reject loudly (see the operator note above) — they are listed so that
+ * rejection stays the reason they fail, rather than being silently dropped here
+ * as incomplete.
+ *
+ * `viewFilterFold.emptyValue.test.ts` pins this set against the builder's own
+ * list so the two cannot drift apart unnoticed.
+ */
+export const VALUELESS_FILTER_OPERATORS: ReadonlySet<string> = new Set([
+    // FilterBuilder vocabulary
+    'isEmpty', 'isNotEmpty', 'isNull', 'isNotNull', 'exists', 'notExists',
+    // …and their canonical spec spellings
+    'is_empty', 'is_not_empty', 'is_null', 'is_not_null',
+]);
+
+/** A value the user has not supplied yet — the same predicate the live query uses. */
+function isMissingValue(value: unknown): boolean {
+    return value == null || value === '' || (Array.isArray(value) && value.length === 0);
+}
+
 function isGroupLike(value: unknown): value is FilterGroupLike {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
     const v = value as Record<string, unknown>;
@@ -89,9 +116,20 @@ function isGroupLike(value: unknown): value is FilterGroupLike {
  *      and `parseSingleOrNested` / `toFilterGroup` fall back to one — so the
  *      builder round-trip is lossless without it.
  *   `viewFilterFold.test.ts` pins both.
- * - **`value` is carried verbatim**, including `''` (the row the toolbar emits
- *   the moment a field is picked). `ViewFilterRuleSchema.value` accepts it and
- *   rewriting it here would silently change what the user saved.
+ * - **An INCOMPLETE row is dropped, exactly as the live query drops it**
+ *   (objectui#4155). `Add filter` inserts `{ field: <first column>, operator:
+ *   'equals', value: '' }` — a row with a real field but no value yet. The live
+ *   grid never applies it: `ListView.convertFilterGroupToAST` skips conditions
+ *   whose value is `null` / `''` / `[]`, because `[field, '=', '']` is a
+ *   silently-wrong filter (matches only the empty string) rather than "no
+ *   filter". This fold used to carry that same row through VERBATIM, so the one
+ *   condition the screen ignores was the one condition that got written to
+ *   storage — and on the next read it became the view's whole filter, replacing
+ *   the source-declared one and emptying the list for every user of that view.
+ *   The two sides now agree: what is not applied is not persisted. A value-less
+ *   OPERATOR ({@link VALUELESS_FILTER_OPERATORS} — `isEmpty` / `isNull` and
+ *   friends) is complete without a value and is kept; only a row that WANTS a
+ *   value and has none is dropped.
  *
  * Refusals (objectstack#5159, maintainer adjudication A1): a shape that cannot
  * fold LOSSLESSLY is refused, never downgraded. `logic: 'or'` has no at-rest
@@ -117,9 +155,17 @@ export function foldFilterGroupToSpecRules(group: unknown): FilterFoldResult {
         const c = condition as Record<string, unknown>;
         // Blank row the builder inserts before a column is chosen.
         if (typeof c.field !== 'string' || c.field === '') continue;
+        const operator = normalizeFilterOperator(c.operator) as ViewFilterRule['operator'];
+        // Row with a column but no value yet (objectui#4155). The live query
+        // skips it; persisting it would store a filter the screen never
+        // applied — and it would then REPLACE the source-declared filter on
+        // the next read.
+        const takesValue = !VALUELESS_FILTER_OPERATORS.has(String(c.operator))
+            && !VALUELESS_FILTER_OPERATORS.has(String(operator));
+        if (takesValue && isMissingValue(c.value)) continue;
         const rule: ViewFilterRule = {
             field: c.field,
-            operator: normalizeFilterOperator(c.operator) as ViewFilterRule['operator'],
+            operator,
         };
         if (c.value !== undefined) rule.value = c.value as ViewFilterRule['value'];
         rules.push(rule);

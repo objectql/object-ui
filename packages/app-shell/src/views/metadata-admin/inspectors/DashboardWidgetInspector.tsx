@@ -33,6 +33,9 @@ import type { DashboardWidgetSchema } from '@object-ui/types';
 import { resolveDashboardFilterDefs, type DashboardFilterDef } from '@object-ui/core';
 import type { MetadataInspectorProps } from '../inspector-registry';
 import { t, tFormat } from '../i18n';
+// The spec's `I18nLabel` resolver (new in @objectstack/spec 17.0.0-rc.6),
+// aliased apart from objectui's same-named translation-KEY resolver.
+import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { InspectorCheckboxField, InspectorReorderButtons, moveArray } from './_shared';
 import { InspectorComboField, type InspectorComboOption } from './InspectorComboField';
 import { DatasetNamesEditor } from './ReportDefaultInspector';
@@ -183,7 +186,11 @@ export function DashboardWidgetInspector({
   function moveWidget(to: number) {
     onPatch({ widgets: moveArray(widgetsAll, index, to) });
     if (widget.id) {
-      onSelectionChange?.({ kind: 'widget', id: widget.id, label: widget.title ?? undefined });
+      onSelectionChange?.({
+        kind: 'widget',
+        id: widget.id,
+        label: resolveInlineI18nLabel(widget.title, locale),
+      });
     }
   }
 
@@ -195,7 +202,9 @@ export function DashboardWidgetInspector({
             {t('engine.inspector.widget.kind', locale)}
           </div>
           <div className="truncate text-sm font-semibold">
-            {widget.title || selection.label || `Widget ${index + 1}`}
+            {resolveInlineI18nLabel(widget.title, locale) ||
+              selection.label ||
+              `Widget ${index + 1}`}
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -221,12 +230,30 @@ export function DashboardWidgetInspector({
         </div>
       </div>
 
+      {/* The ONE authoring — not display — read of `widget.title`, and the only
+          site in this change where following the rc.6 widening mechanically
+          would have destroyed data. `I18nLabel` now admits an inline per-locale
+          map, and this is a single-line text input: resolving the map into it
+          and writing `e.target.value` straight back would silently collapse
+          every other locale the author wrote, on the first keystroke. So the
+          input stays the plain-string editor it has always been, and a
+          map-valued title is shown resolved and READ-ONLY instead of being
+          flattened. Nothing in any corpus can hit this path yet — `I18nLabel`
+          was plain `string` through 17.0.0-rc.5, so no stored widget title can
+          be a map — which is exactly why the conservative branch is safe to
+          take now and why authoring the map form is follow-up work
+          (objectui#4163, part 2) rather than a guess made here. */}
       <Field id="widget-title" label={t('engine.inspector.widget.title', locale)}>
         <Input
           id="widget-title"
-          value={widget.title ?? ''}
+          value={
+            typeof widget.title === 'string' || widget.title == null
+              ? widget.title ?? ''
+              : resolveInlineI18nLabel(widget.title, locale) ?? ''
+          }
           onChange={(e) => patchWidget({ title: e.target.value })}
           disabled={readOnly}
+          readOnly={widget.title != null && typeof widget.title !== 'string'}
         />
       </Field>
 

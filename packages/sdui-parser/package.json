@@ -33,6 +33,6 @@
   "devDependencies": {
     "@object-ui/core": "workspace:*",
     "@object-ui/react": "workspace:*",
-    "@objectstack/spec": "^17.0.0-rc.5"
+    "@objectstack/spec": "^17.0.0-rc.6"
   }
 }
