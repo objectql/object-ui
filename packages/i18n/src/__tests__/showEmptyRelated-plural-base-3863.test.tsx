@@ -263,16 +263,37 @@ describe('objectui#3863 — detail.showEmptyRelated carries a base key in all te
 
   describe('the provider-less path — the same key through the defaults table', () => {
     it("fallbackT resolves the base key literally, which is why the table needed one", () => {
-      // `createSafeTranslation`'s `fallbackT` reads `defaults[key] || key` and never
-      // appends a plural suffix, so the two suffixed rows are unreachable through it:
-      // before this fix the provider-less path answered with the RAW KEY. Pinned
-      // against the source so a refactor that teaches `fallbackT` plural resolution
-      // has to come past this comment.
+      // `createSafeTranslation`'s `fallbackT` indexes the table with the key AS GIVEN
+      // and never appends a plural suffix, so the two suffixed rows are unreachable
+      // through it: before this fix the provider-less path answered with the RAW KEY.
+      // Pinned against the source so a refactor that teaches `fallbackT` plural
+      // resolution has to come past this comment.
+      //
+      // objectui#3865 moved the line this used to quote verbatim (`let value =
+      // defaults[key] || key;`): the chain gained the call site's inline
+      // `defaultValue` between the table and the key, so a key the table lacks now
+      // renders the call site's English instead of the raw key. That is a change to
+      // WHAT ANSWERS ON A MISS, not to how the table is indexed — the premise this
+      // case rests on is untouched, and the base row is still the only way a plural
+      // family is reachable here. Re-pinned in two halves so the next move of that
+      // line cannot quietly take the invariant with it: the literal index below, and
+      // the absence of any suffix machinery.
       const defaults = sourceOf(DEFAULTS);
       expect(defaults).toContain("'detail.showEmptyRelated': '+ {{count}} empty',");
       expect(defaults).toContain("'detail.showEmptyRelated_one': '+ {{count}} empty',");
       const helper = sourceOf('packages/i18n/src/useSafeTranslation.ts');
-      expect(helper).toContain('let value = defaults[key] || key;');
+      // The table is read at the key itself — no suffix is ever built.
+      expect(helper).toContain('defaults[key] ||');
+      // …and the fallback carries no plural machinery of any kind. `count` may still
+      // be interpolated into a `{{count}}` hole; what must not appear is a SUFFIX
+      // being appended to the lookup key.
+      const fallbackBody = helper.slice(
+        helper.indexOf('const fallbackT ='),
+        helper.indexOf('return function useSafeTranslation()'),
+      );
+      expect(fallbackBody).not.toMatch(/_one|_other|_few|_many|_zero|_two/);
+      expect(fallbackBody).not.toMatch(/PluralRules|select\(/);
+      expect(fallbackBody).not.toMatch(/defaults\[[^\]]*\+/);
     });
   });
 
