@@ -13,10 +13,7 @@
  *     name matches /pass|secret|key|token|credential/i is replaced
  *     with `••••••` and a "redacted" badge. Other primitives render
  *     verbatim; nested objects render as their key count.
- *   • Pool, SSL, retry, health-check pills derived from optional
- *     sibling blocks.
- *   • Capabilities chip strip — the `DatasourceCapabilities` flags set to
- *     `true`.
+ *   • Pool and SSL pills derived from optional sibling blocks.
  *
  * Three reads were deleted in objectui#3275 because `DatasourceSchema` is
  * `.strict()` and rejects every one of them, so each made an unsaveable
@@ -27,6 +24,20 @@
  * backwards, lighting up only for the array form the schema refuses and
  * staying dark for the object form it requires.
  *
+ * A second wave went the same way in objectui#4131, for keys the spec
+ * itself dropped rather than ones this file spelled wrong: the `Retry
+ * Policy` and `Health Check` SideBlocks, the `Capabilities` chip strip and
+ * the `enabledCapabilities()` helper behind it, with their reads at
+ * `d.retryPolicy` / `d.healthCheck` / `d.capabilities`. All three key
+ * groups were removed from `DatasourceSchema` by objectstack#4583 (the
+ * 11-flag `capabilities` block, the 4-key `retryPolicy` block, the 3-key
+ * `healthCheck` block) under ADR-0049 enforce-or-remove — declared,
+ * strict-guarded and read by nobody: connection retry and health probing
+ * belong to the runtime driver, and pushdown is decided by that driver's
+ * own `supports.*`, never by datasource metadata. `.strict()` now rejects
+ * each of them by name, so every one of those blocks was again painting a
+ * draft that cannot be saved. `pool` and `ssl` are still declared and stay.
+ *
  * A read-replica count pill used to sit in that strip. It is gone with
  * `datasource.readReplicas` itself (objectstack#4468): nothing in the
  * platform ever opened a replica connection, so the pill reported a
@@ -35,20 +46,19 @@
  * that it worked. A preview echoes what was typed; it can never stand in
  * for a runtime consumer (`packages/spec/liveness/README.md`).
  *
+ * Three waves of the same defect on one file is why the read set is now
+ * PINNED rather than merely corrected: `DatasourcePreview.spec-keys.test.ts`
+ * derives the keys this file reads off the draft from its own AST and the
+ * keys `DatasourceSchema` accepts from the schema object, and fails on any
+ * read the schema would reject. A fourth wave lands as a red test, not as
+ * another issue eight days later.
+ *
  * The preview never attempts a live "test connection" — it runs
  * inside the editor sandbox and must remain side-effect free.
  */
 
 import * as React from 'react';
-import {
-  Activity,
-  Database,
-  HardDrive,
-  Lock,
-  Power,
-  RotateCcw,
-  ShieldCheck,
-} from 'lucide-react';
+import { Activity, Database, HardDrive, Lock, Power, ShieldCheck } from 'lucide-react';
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
 import { ExternalDatasourcePanel } from '../external/ExternalDatasourcePanel';
@@ -62,23 +72,6 @@ function isSecretKey(k: string): boolean {
 function redactValue(v: unknown): string {
   if (v == null || v === '') return '∅';
   return '••••••';
-}
-
-/**
- * The capability names an author has switched ON.
- *
- * `DatasourceCapabilities` is a flat object of optional booleans, each
- * defaulting to `false`. Only `true` is an assertion the author made, so
- * only `true` earns a chip — listing the falses would bury the two facts
- * that matter under nine that don't. A non-object (e.g. the pre-17 string
- * array) yields nothing: the block staying empty IS the signal that the
- * shape is wrong.
- */
-function enabledCapabilities(raw: unknown): string[] {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
-  return Object.entries(raw as Record<string, unknown>)
-    .filter(([, v]) => v === true)
-    .map(([k]) => k);
 }
 
 function renderValue(v: unknown): string {
@@ -104,16 +97,6 @@ export function DatasourcePreview({ name, draft }: MetadataPreviewProps) {
   const config = (d.config as Record<string, unknown> | undefined) ?? {};
   const pool = d.pool as Record<string, unknown> | undefined;
   const ssl = d.ssl as Record<string, unknown> | boolean | undefined;
-  const retryPolicy = d.retryPolicy as Record<string, unknown> | undefined;
-  const healthCheck = d.healthCheck as Record<string, unknown> | undefined;
-  // `capabilities` is a DatasourceCapabilities OBJECT of boolean flags
-  // (`{ readOnly, queryAggregations, joins, … }`), never a token array.
-  // Reading it with `Array.isArray` meant a spec-valid draft rendered NO
-  // capabilities block at all, while the old array form — which the schema
-  // rejects — was the only thing that lit it up. Show the flags the author
-  // turned ON; a flag left false is the schema's own default, not a
-  // statement worth a chip.
-  const capabilities = enabledCapabilities(d.capabilities);
 
   // External Datasource Federation (ADR-0015): a non-'managed' schemaMode
   // marks this datasource as federated. The panel keys off the *saved* item
@@ -214,25 +197,7 @@ export function DatasourcePreview({ name, draft }: MetadataPreviewProps) {
               icon={ShieldCheck}
               value={typeof ssl === 'boolean' ? { enabled: ssl } : ssl}
             />
-            <SideBlock title="Retry Policy" icon={RotateCcw} value={retryPolicy} />
-            <SideBlock title="Health Check" icon={Activity} value={healthCheck} />
           </div>
-
-          {/* Capabilities */}
-          {capabilities.length > 0 && (
-            <Section title="Capabilities" icon={ShieldCheck}>
-              <div className="flex flex-wrap gap-1">
-                {capabilities.map((c) => (
-                  <span
-                    key={c}
-                    className="inline-flex items-center gap-1 rounded border bg-muted/40 px-1.5 py-0.5 text-[11px] font-mono"
-                  >
-                    {c}
-                  </span>
-                ))}
-              </div>
-            </Section>
-          )}
         </div>
       </PreviewErrorBoundary>
     </PreviewShell>
