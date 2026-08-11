@@ -959,6 +959,9 @@ const zh = {
     nextRecordKey: '下一条记录 (→)',
     lastRecord: '最后一条记录 (End)',
     noRecords: '无记录',
+    // objectui#3863 — base key. zh has a single plural category (`other`), so this
+    // slot is unreachable here and equals `_other` for key-set parity.
+    showEmptyRelated: '+ {{count}} 个为空',
     showEmptyRelated_one: '+ {{count}} 个为空',
     showEmptyRelated_other: '+ {{count}} 个为空',
     searchWhileNavigating: '导航时搜索',

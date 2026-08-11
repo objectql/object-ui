@@ -947,6 +947,9 @@ const ja = {
     updatedBy: "更新者",
     created: "作成",
     updated: "更新",
+    // objectui#3863 — base key. ja has a single plural category (`other`), so this
+    // slot is unreachable here and equals `_other` for key-set parity.
+    showEmptyRelated: "+ {{count}} 件（空）",
     showEmptyRelated_one: "+ {{count}} 件（空）",
     showEmptyRelated_other: "+ {{count}} 件（空）",
     copyEmail: "メールをコピー",

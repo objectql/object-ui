@@ -951,6 +951,12 @@ const ar = {
     highlightFields: "الحقول الرئيسية",
     createdBy: "أنشأه",
     updatedBy: "حدّثه",
+    // objectui#3863 — base key, and in ar this is the slot users actually hit: `zero`,
+    // `two` (2), `few` (3-10) and `many` (11-99) are unenumerated, so before this key
+    // those counts rendered ENGLISH. It uses the «{{count}} مفرد(جمع)» marker this
+    // pack writes throughout (perm.facet.objects, and the sibling toggle
+    // showEmptyFields below), which reads correctly for every count.
+    showEmptyRelated: "+ {{count}} فارغ(فارغة)",
     showEmptyRelated_one: "+ {{count}} فارغ",
     showEmptyRelated_other: "+ {{count}} فارغة",
     copyEmail: "نسخ البريد الإلكتروني",

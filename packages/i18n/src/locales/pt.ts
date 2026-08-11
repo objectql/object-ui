@@ -946,6 +946,9 @@ const pt = {
     highlightFields: "Campos principais",
     createdBy: "Criado por",
     updatedBy: "Atualizado por",
+    // objectui#3863 — base key. pt's third category `many` starts at a million, where
+    // the plural form is correct, so the base repeats `_other`.
+    showEmptyRelated: "+ {{count}} vazios",
     showEmptyRelated_one: "+ {{count}} vazio",
     showEmptyRelated_other: "+ {{count}} vazios",
     copyEmail: "Copiar e-mail",
