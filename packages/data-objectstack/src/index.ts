@@ -3906,8 +3906,11 @@ export type { IntegrationConfig, IntegrationTrigger, IntegrationProvider, SlackI
 // Used by plugin-designer to back the Setup-app Object Manager and Field
 // Designer surfaces; kept separate from ObjectStackAdapter so callers
 // can use it without the full data-source surface.
-export { MetadataClient } from './metadata-client';
+export { MetadataClient, readSaveAdvisories } from './metadata-client';
 export type {
+  RuntimeAuthoringIssue,
+  MetadataSaveAdvisoryEvent,
+  MetadataSaveAdvisoryListener,
   MetadataClientConfig,
   MetadataListOptions,
   MetadataDraftHeader,
