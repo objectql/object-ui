@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { isInlineExcludedFieldType } from '@object-ui/fields';
+
 /**
  * Field types the PLATFORM computes — the value is machine-owned and no user
  * write is legitimate. They carry a `reference_to` for relational metadata but
@@ -58,6 +60,71 @@ export function isComputedFieldType(
     TEXTUAL_REF_FALLBACK_TYPES.has(viewFieldType as string) ||
     TEXTUAL_REF_FALLBACK_TYPES.has(objectFieldType as string)
   );
+}
+
+/**
+ * Members of the fields package's `INLINE_EXCLUDED_FIELD_TYPES` that the DETAIL
+ * editor nevertheless routes to a dedicated widget, and therefore keeps.
+ *
+ * The shared set is one list carrying several arguments, and only some of them
+ * are about the value. The binary/attachment family is excluded there for a
+ * GRID-cell reason — its own comment reads "edited from the record form, shown
+ * read-only **in the grid**" — because a cell cannot host an upload dropzone.
+ * A detail row can, and does: `InlineFieldInput` routes `image`/`avatar`/
+ * `signature`/`file` (and the `video`/`audio` spellings of `file`) to the very
+ * widgets the record form uses, added deliberately so inline edit could preview,
+ * replace and remove files instead of showing a bare storage URL.
+ *
+ * The credential and container members are excluded for a VALUE reason — masked
+ * on read, or object-shaped — and that argument transfers to the detail page
+ * verbatim, because the detail fallback is the same plain text input the grid's
+ * is. Those stay excluded here.
+ *
+ * Every entry is pinned twice by `__tests__/inlineCredentialGate.test.tsx`: it
+ * must be a real member of the shared set, and `InlineFieldInput` must really
+ * render something other than the terminal text input for it. An exemption that
+ * outlives its routing therefore fails, rather than silently re-opening the
+ * plain-text path this gate exists to close.
+ */
+export const DETAIL_ROUTED_INLINE_TYPES = new Set<string>([
+  'image',
+  'avatar',
+  'signature',
+  'file',
+  'video',
+  'audio',
+]);
+
+/**
+ * Is this field one the fields package excludes from inline editing, given the
+ * type authored on the view entry and the type declared on the object schema?
+ *
+ * The rule itself is NOT restated here — it is `isInlineExcludedFieldType()`
+ * from `@object-ui/fields`, the same alias-aware contract the grid consults
+ * (`plugin-grid/src/inline-edit-options.ts`). The detail hosts used to gate on
+ * readonly / computed / system only, so `password` and `secret` — masked on
+ * read, with no real value to seed an editor from — reached the terminal plain
+ * text input, which rendered the mask as if it were the value and wrote it
+ * straight back over the credential (objectui#4221). The container family
+ * (`object`/`composite`/`record`/`grid`/`repeater`/`vector`) rode the same
+ * fallback with an object-shaped value.
+ *
+ * **Narrow-only, like {@link isComputedFieldType}** — the answer is the UNION of
+ * the two types, so an authored display `type` can lock a field but never
+ * unlock one (objectui#3355). An `image` authored over an object `secret` stays
+ * locked: the exemption is consulted per type, before the union.
+ */
+export function isInlineExcludedDetailFieldType(
+  viewFieldType: unknown,
+  objectFieldType: unknown,
+): boolean {
+  return isExcludedForDetail(viewFieldType) || isExcludedForDetail(objectFieldType);
+}
+
+function isExcludedForDetail(fieldType: unknown): boolean {
+  if (typeof fieldType !== 'string') return false;
+  if (DETAIL_ROUTED_INLINE_TYPES.has(fieldType)) return false;
+  return isInlineExcludedFieldType(fieldType);
 }
 
 /**

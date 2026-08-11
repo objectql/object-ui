@@ -20,7 +20,11 @@ import { getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import { useSafeFieldLabel, useInlineEdit } from '@object-ui/react';
 import { Check, X, Pencil } from 'lucide-react';
 import { InlineFieldInput } from './InlineFieldInput';
-import { enrichDetailField, isComputedFieldType } from './fieldEnrichment';
+import {
+  enrichDetailField,
+  isComputedFieldType,
+  isInlineExcludedDetailFieldType,
+} from './fieldEnrichment';
 import { NON_EDITABLE_SYSTEM_FIELDS } from './systemFields';
 import { useDetailTranslation } from './useDetailTranslation';
 
@@ -112,7 +116,15 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
             const isReadonly =
               field.readonly === true || objectDefField?.readonly === true;
             const isSystem = NON_EDITABLE_SYSTEM_FIELDS.has(field.name);
-            const fieldEditable = !isComputed && !isReadonly && !isSystem;
+            // Same shared exclusion the details body and the grid consult, so a
+            // credential chip never opens the plain text editor that would show
+            // its mask as the value and write it back (objectui#4221). Union of
+            // the two types, like the computed gate above.
+            const isInlineExcluded = isInlineExcludedDetailFieldType(
+              field.type,
+              objectDefField?.type,
+            );
+            const fieldEditable = !isComputed && !isReadonly && !isSystem && !isInlineExcluded;
             const canInlineEditField = canEdit && fieldEditable;
             const editorActive = editing && canInlineEditField;
 

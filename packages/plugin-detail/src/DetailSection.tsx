@@ -34,7 +34,11 @@ import { useSafeFieldLabel } from '@object-ui/react';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
 import { NON_EDITABLE_SYSTEM_FIELDS } from './systemFields';
 import { InlineFieldInput } from './InlineFieldInput';
-import { enrichDetailField, isComputedFieldType } from './fieldEnrichment';
+import {
+  enrichDetailField,
+  isComputedFieldType,
+  isInlineExcludedDetailFieldType,
+} from './fieldEnrichment';
 
 /**
  * Section-header icon. `fieldGroups[].icon` declares a Lucide name (spec),
@@ -238,7 +242,15 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     // (created_at / id / …), in case a schema surfaces one as a section row.
     const isReadonly = field.readonly === true || objectDefField?.readonly === true;
     const isSystemField = NON_EDITABLE_SYSTEM_FIELDS.has(field.name);
-    const fieldEditable = !isReadonly && !isComputedField && !isSystemField;
+    // Types the fields package excludes from in-place editing — the SAME
+    // alias-aware contract the grid consults, not a second list (objectui#4221).
+    // `password` / `secret` are masked on read, so the row has no real value to
+    // seed an editor with and the fallback below is a PLAIN TEXT input: it
+    // rendered the mask as the value and wrote it back over the credential.
+    // The container family rode the same fallback with an object-shaped value.
+    // Read as the same narrow-only UNION as `isComputedFieldType` (#3355).
+    const isInlineExcluded = isInlineExcludedDetailFieldType(field.type, objectDefField?.type);
+    const fieldEditable = !isReadonly && !isComputedField && !isSystemField && !isInlineExcluded;
     const canInlineEditField = fieldEditable && !!onEnterInlineEdit;
 
     const displayValue = (() => {
