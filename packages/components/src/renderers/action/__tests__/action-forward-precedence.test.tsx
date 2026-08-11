@@ -1,0 +1,185 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * objectui#4281 — the hoist that restored the compiler's excess-property check
+ * must not have changed what reaches the runner.
+ *
+ * `action:button` and `action:icon` used to compose their payload as ONE literal
+ * with the spreads inline:
+ *
+ *   execute({ type, name, …, ...paramsPayload, …, resultDialog, ...localContext })
+ *
+ * A literal that spreads an `any` is not excess-property checked (`localContext`
+ * is `any` — `PropsWithoutRef` collapses these index-signature props interfaces),
+ * so an invented key was absorbed in silence while `action:group` / `action:menu`
+ * rejected it. The fix hoists the explicit keys into an `ActionDef`-annotated
+ * binding and composes the spreads around it.
+ *
+ * That is a REFACTOR of an object literal, and object literals have two
+ * observable properties a refactor can silently change — which key wins a
+ * collision, and what order the keys end up in. Both are pinned here.
+ *
+ * ## What the collision semantics actually are (measured, not assumed)
+ *
+ *   `...localContext` is spread LAST, so a host-supplied context key OVERRIDES
+ *   the authored action's own value for that key. That is pre-existing
+ *   behaviour and is deliberately preserved: `context` is documented as an
+ *   "Override context for this specific action".
+ *
+ *   `...paramsPayload` (`action:button` only) can carry only `params` or
+ *   `actionParams`, and NEITHER is an explicit key of the surrounding literal —
+ *   the two key sets are disjoint, so its position cannot decide a collision.
+ *   It is nonetheless kept in its original position, so the resulting key ORDER
+ *   is unchanged too, and that is asserted rather than argued.
+ *
+ * ## Why key ORDER is worth pinning and not over-pinning
+ *
+ * Nothing in the runner reads `Object.keys(def)` today, so order is not a
+ * contract — but it is the sharpest available evidence that the composition is
+ * byte-for-byte what it was. Moving `...paramsPayload` to the end (the obvious
+ * way to write this fix) changes the order and nothing else; without this
+ * assertion that refactor would be indistinguishable from the correct one.
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, fireEvent, waitFor } from '@testing-library/react';
+import React from 'react';
+import { ComponentRegistry } from '@object-ui/core';
+import { ActionProvider } from '@object-ui/react';
+// Module-scope side-effect imports — the light `dom` project does not load the
+// `@object-ui/components` graph, and these renderers register themselves on
+// import. Module scope, not a `beforeAll`, per AGENTS.md §测试纪律.
+import '../action-button';
+import '../action-icon';
+
+/**
+ * A declaration touching every key whose FORWARD ORDER the hoist could have
+ * disturbed. `params` is a plain object (a values map), so `action:button` takes
+ * the `{ params }` branch of `paramsPayload` — the branch that sits mid-literal.
+ */
+const ACTION = {
+  name: 'create_environment',
+  type: 'api',
+  label: 'Create Environment',
+  description: 'Provision a new environment for this project',
+  target: 'authoredTarget',
+  openIn: 'new-tab',
+  endpoint: '/api/v1/environments',
+  method: 'POST',
+  params: { region: 'eu-west-1' },
+  bodyExtra: { source: 'console' },
+  bodyShape: { wrap: 'data' },
+  locations: ['list_toolbar'],
+};
+
+/** The host's override bag: one COLLIDING key, one the action never declared. */
+const CONTEXT = { target: 'contextWins', extraFromHost: 'present' };
+
+/**
+ * The exact key order `action:button` composes, top to bottom of its literal.
+ * `params` sits where `...paramsPayload` sits — ninth, not last.
+ */
+const BUTTON_ORDER = [
+  'type', 'name', 'label', 'description', 'target', 'openIn', 'endpoint', 'method',
+  'params',
+  'bodyExtra', 'bodyShape', 'confirmText', 'successMessage', 'errorMessage', 'refreshAfter',
+  'undoable', 'recordIdField', 'locations', 'toast', 'resultDialog',
+];
+
+/** `action:icon` has no `paramsPayload`; `params` is an ordinary explicit key. */
+const ICON_ORDER = [
+  'type', 'name', 'label', 'description', 'target', 'openIn', 'endpoint', 'method',
+  'params',
+  'bodyExtra', 'bodyShape', 'confirmText', 'successMessage', 'errorMessage', 'refreshAfter',
+  'locations', 'toast', 'resultDialog',
+];
+
+let api: ReturnType<typeof vi.fn>;
+
+beforeEach(() => {
+  api = vi.fn(async () => ({ success: true }));
+});
+
+function Renderer({ type, context }: { type: string; context?: Record<string, any> }) {
+  const C = ComponentRegistry.get(type);
+  if (!C) throw new Error(`${type} is not registered`);
+  // eslint-disable-next-line react-hooks/static-components -- ComponentRegistry.get returns a registered renderer (stable reference), not a component created during render
+  return <C schema={{ ...ACTION, type: 'api' }} context={context} />;
+}
+
+/** Renders the surface, fires the click, and returns the def the runner got. */
+async function forwarded(type: string, context?: Record<string, any>): Promise<Record<string, any>> {
+  const { container } = render(
+    <ActionProvider handlers={{ api }}>
+      <Renderer type={type} context={context} />
+    </ActionProvider>,
+  );
+  const button = container.querySelector('button');
+  expect(button, `${type} rendered no button`).not.toBeNull();
+  fireEvent.click(button!);
+  await waitFor(() => expect(api).toHaveBeenCalledTimes(1));
+  // The runner hands the handler the very object the renderer composed
+  // (`handler(action, this.context)`, ActionRunner.ts:1014) — no copy, so key
+  // order survives the hop and this assertion is about the literal itself.
+  return api.mock.calls[0][0] as Record<string, any>;
+}
+
+describe.each([
+  ['action:button', BUTTON_ORDER],
+  ['action:icon', ICON_ORDER],
+])('%s composes its forward payload unchanged by the #4281 hoist', (surface, order) => {
+  it('forwards exactly the declared key set, in the declared order', async () => {
+    const def = await forwarded(surface);
+    expect(Object.keys(def)).toEqual(order);
+  });
+
+  it('carries the authored values through', async () => {
+    const def = await forwarded(surface);
+    expect({
+      name: def.name,
+      label: def.label,
+      description: def.description,
+      target: def.target,
+      endpoint: def.endpoint,
+      method: def.method,
+      params: def.params,
+      bodyExtra: def.bodyExtra,
+      bodyShape: def.bodyShape,
+    }).toEqual({
+      name: 'create_environment',
+      label: 'Create Environment',
+      description: 'Provision a new environment for this project',
+      target: 'authoredTarget',
+      endpoint: '/api/v1/environments',
+      method: 'POST',
+      params: { region: 'eu-west-1' },
+      bodyExtra: { source: 'console' },
+      bodyShape: { wrap: 'data' },
+    });
+  });
+
+  it('lets the host context OVERRIDE a declared key — `...localContext` is still merged last', async () => {
+    // The one live collision this composition admits. Pinned in both directions:
+    // the colliding key takes the context's value, and a key only the context
+    // carries still arrives. If the hoist had merged `localContext` before the
+    // explicit keys, the first assertion would read `authoredTarget`.
+    const def = await forwarded(surface, CONTEXT);
+    expect(def.target).toBe('contextWins');
+    expect(def.extraFromHost).toBe('present');
+  });
+
+  it('appends context-only keys after the declared ones, without moving the collided key', async () => {
+    // JS spread semantics, pinned because they are what makes the assertion
+    // above safe: an overriding key keeps its ORIGINAL position (only its value
+    // changes) and a novel key is appended.
+    const def = await forwarded(surface, CONTEXT);
+    expect(Object.keys(def)).toEqual([...order, 'extraFromHost']);
+    expect(Object.keys(def).indexOf('target')).toBe(order.indexOf('target'));
+  });
+});
