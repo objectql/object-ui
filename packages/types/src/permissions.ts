@@ -34,7 +34,16 @@ export type { PermissionAction };
 /** Permission effect */
 export type PermissionEffect = 'allow' | 'deny';
 
-/** Role definition for RBAC */
+/**
+ * Role definition for RBAC — identity and inheritance only.
+ *
+ * A role's actual grants live in {@link ObjectPermissionConfig.roles}, keyed by
+ * object; that is the single wired home for "what a role may do". This type
+ * used to declare a second one (`permissions: ObjectLevelPermission[]`,
+ * required) that no consumer ever read — the evaluator family walks `inherits`
+ * and matches on `name` — so it was retired rather than left as an authoring
+ * surface whose values are silently ignored (objectui#4288).
+ */
 export interface RoleDefinition {
   /** Unique role identifier */
   name: string;
@@ -46,8 +55,6 @@ export interface RoleDefinition {
   inherits?: string[];
   /** Whether this is a system role */
   system?: boolean;
-  /** Object-level permissions */
-  permissions: ObjectLevelPermission[];
 }
 
 /** Object-level permission assignment */

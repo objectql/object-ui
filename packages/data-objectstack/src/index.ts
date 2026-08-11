@@ -3019,7 +3019,6 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     this.metadataCache.invalidate?.(cacheKey);
     // Also invalidate the batch override map so listViewOverrides re-fetches
     this.metadataCache.invalidate?.(`view-overrides:${objectName}`);
-    this.metadataCache.invalidate?.(`views:${objectName}`);
     if (result && result.item) return result.item;
     return result ?? undefined;
   }
@@ -3180,7 +3179,6 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       data: spec?.data || { provider: 'object', object: objectName },
     };
     const result: any = await this.client.meta.saveItem('view', name, fullSpec);
-    this.metadataCache.invalidate?.(`views:${objectName}`);
     if (result && result.item) return result.item;
     return fullSpec;
   }
@@ -3240,7 +3238,6 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     if (draft) {
       const mergedDraft = mergeViewPatch(draft, partial, viewName, objectName);
       await metaClient.save('view', viewName, mergedDraft, { mode: 'draft' });
-      this.metadataCache.invalidate?.(`views:${objectName}`);
       this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
       return mergedDraft;
     }
@@ -3271,7 +3268,6 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
 
     const merged = mergeViewPatch(current, partial, viewName, objectName);
     const result: any = await this.client.meta.saveItem('view', viewName, merged);
-    this.metadataCache.invalidate?.(`views:${objectName}`);
     this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
     if (result && result.item) return result.item;
     return merged;
@@ -3288,7 +3284,6 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   ): Promise<{ deleted: boolean }> {
     await this.connect();
     const result: any = await this.client.meta.deleteItem('view', viewName);
-    this.metadataCache.invalidate?.(`views:${objectName}`);
     this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
     return { deleted: !!(result?.deleted ?? result?.reset ?? true) };
   }
