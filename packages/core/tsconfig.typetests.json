@@ -27,5 +27,12 @@
     // graph rather than through sibling `src/`.
     "paths": {}
   },
-  "include": ["src/utils/__tests__/dataset-result-field-spec-parity.test.ts"]
+  "include": [
+    "src/utils/__tests__/dataset-result-field-spec-parity.test.ts",
+    // objectstack#4075 step 3 — `ActionDef` is a closed surface. Every
+    // assertion in this file is an `@ts-expect-error` or a bare assignment, so
+    // it is a compile error or it is nothing; the package's build config
+    // excludes `src/**` test files, which is why it has to be listed here.
+    "src/actions/__tests__/actionDef-closed-surface.test.ts"
+  ]
 }

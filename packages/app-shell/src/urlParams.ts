@@ -19,10 +19,13 @@
  *
  * | Param       | Meaning                                        | History      |
  * |-------------|------------------------------------------------|--------------|
- * | `recordId`  | Record detail DRAWER over a list (light        | push (open)  |
- * |             | objects; heavy ones use the `/record/:id`      |              |
- * |             | route instead). URL is the drawer's source of  |              |
- * |             | truth.                                         |              |
+ * | `recordId`  | The record a surface is ABOUT. Two readers on  | push (open)  |
+ * |             | disjoint routes: the record detail drawer over |              |
+ * |             | a list (light objects; heavy ones use the      |              |
+ * |             | `/record/:id` route instead), and the console's|              |
+ * |             | internal form route `/forms/:name`, where it   |              |
+ * |             | means "edit THIS record" (objectui#4278).      |              |
+ * |             | URL is the source of truth for both.           |              |
  * | `form`      | The global record-form overlay: `new` = create,|              |
  * |             | a record id = edit (framework#2604 D1/D2).     | push (open), |
  * |             | Back closes the overlay.                       | replace (close) |
@@ -52,7 +55,16 @@
  * here — but they must not collide with the names above.
  */
 
-/** Record detail drawer over a list (`?recordId=<id>`). */
+/**
+ * Record detail drawer over a list (`?recordId=<id>`).
+ *
+ * The name is shared, deliberately, with the console's internal form route
+ * (`/forms/:name?recordId=` → edit that record — objectui#4278): one meaning,
+ * "the record this surface is about", on route subtrees that can never both
+ * match one URL. `ObjectView` — mounted under `/apps/*` — is this constant's
+ * only reader; `/forms/:name` is a top-level route rendering a form and no
+ * list. A page-scoped param must still never shadow this name.
+ */
 export const RECORD_DRAWER_PARAM = 'recordId';
 
 /** Global record-form overlay: `new` | `<recordId>` (framework#2604). */

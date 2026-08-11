@@ -65,6 +65,7 @@ import {
   buildDatasetFieldHelpers,
   buildDatasetDrillFilter,
   pivotBucketId,
+  pivotDimensionValue,
   pivotCellKey,
   type DatasetResultField,
   type DatasetDrillRange,
@@ -750,9 +751,15 @@ function DatasetReportChart({
  * boundary at all between adjacent values, so `'x'` + `'yz'` and `'xy'` + `'z'`
  * were one bucket and the later row overwrote the earlier one
  * (objectstack#5665; objectstack#5473 is the same defect in the dashboard).
+ *
+ * Each value is normalized by `pivotDimensionValue`, so an absent one encodes
+ * as JSON `null`. It used to be spelled `String(row[d] ?? '∅')`, which put an
+ * ordinary string in the tuple and merged a null value with a value that
+ * literally IS that character — the encoder's own assumption ("no value spells
+ * this") reintroduced by its caller (objectui#4056).
  */
 function bucketId(dims: string[], row: Row): string {
-  return pivotBucketId(dims.map((d) => String(row[d] ?? '∅')));
+  return pivotBucketId(dims.map((d) => pivotDimensionValue(row[d])));
 }
 
 function bucketLabel(dims: string[], row: Row): string {

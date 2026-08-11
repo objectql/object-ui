@@ -30,7 +30,7 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "test": "vitest run",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."
   },
   "peerDependencies": {

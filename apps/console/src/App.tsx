@@ -46,6 +46,7 @@ import { RootLandingRedirect } from './components/RootLandingRedirect';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { SetupRoute } from './components/SetupRoute';
 import { FormPage } from './components/FormPage';
+import { InternalFormRoute } from './components/InternalFormRoute';
 import { MetadataHmrReloader } from './components/MetadataHmrReloader';
 import SharedRecordPage from './pages/SharedRecordPage';
 import DocPage from './pages/DocPage';
@@ -213,10 +214,17 @@ export function App() {
                 <StudioDesignSurface />
               </ProtectedRoute>
             } />
-            {/* Internal authed form — same renderer, different submit path. */}
+            {/* Internal authed form — same renderer as `/f/:slug`, different
+              * submit path, and (objectui#4109) rendered INSIDE the console
+              * shell instead of as a bare page. The route stays exactly where
+              * it is: per the 2026-08-10 ruling on objectstack#7245 the missing
+              * chrome was the defect, not the navigation, so deep links keep
+              * working. `InternalFormRoute` owns the chrome + the "land on the
+              * created record" target; the public path above stays chrome-less
+              * on purpose (an anonymous visitor has no console to be in). */}
             <Route path="/forms/:name" element={
               <ProtectedRoute>
-                <FormPage mode="internal" />
+                <InternalFormRoute />
               </ProtectedRoute>
             } />
             {/* Package documentation (ADR-0046): a platform-level portal

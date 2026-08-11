@@ -21,7 +21,7 @@
  * redirect handling, action chaining, custom handler registration.
  */
 
-import type { RunnableActionType } from '@object-ui/types';
+import type { RunnableActionType, UIActionSchema } from '@object-ui/types';
 import type { Action as SpecActionInput } from '@objectstack/spec/ui';
 import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
 import { hasDeclaredPredicate } from '../evaluator/declaredPredicate';
@@ -84,6 +84,30 @@ export interface ApiConfig {
 /**
  * Action definition accepted by the runner.
  * Compatible with both UIActionSchema (spec v2.0.1) and legacy crud.ts ActionSchema.
+ *
+ * ── CLOSED since objectstack#4075 step 3 ──────────────────────────────────────
+ *
+ * This interface used to end with `[key: string]: any`, so it accepted any key
+ * of any type: deleting `execute` from it produced ZERO compile errors, a typo
+ * (`targt`, `exectue`) type-checked, and a tombstoned key sailed through to a
+ * runner that then silently did nothing — the objectstack#2169 "Mark Done does
+ * nothing" shape. The index signature is gone. Every key this type accepts is
+ * now written down below, and `tsc` rejects the rest at any site that AUTHORS an
+ * action literal in code.
+ *
+ * What it does NOT reach, and what still covers that: stored `sys_metadata` rows
+ * are rehydrated UNPARSED (objectstack#3903), so authored metadata arrives at
+ * `runner.execute()` as a plain object the compiler never saw. The dev-mode
+ * `warnOnUnknownActionKeys` shim from step 1 therefore STAYS — it is not
+ * redundant with the closed type, it is the other half of the same surface, and
+ * the two halves catch disjoint populations (code-authored literals vs. stored
+ * rows).
+ *
+ * {@link ActionContext} keeps ITS index signature, deliberately. It is a runtime
+ * data bag whose keys are genuinely open (`data`, `record`, `pageVariables`,
+ * `user`, plus whatever a host passes); this is a declared metadata contract
+ * mirroring `@objectstack/spec`'s `ActionSchema`. Open key set on a data bag is
+ * correct; open key set on a contract is the bug above.
  */
 export interface ActionDef {
   /** Action type identifier — a `RunnableActionType` (the spec's six plus the
@@ -100,6 +124,24 @@ export interface ActionDef {
   name?: string;
   /** Display label */
   label?: string;
+  /**
+   * Human description of the action, shown as the param-collection dialog's
+   * subtitle (`useConsoleActionRuntime` reads it beside `label`).
+   *
+   * objectui vocabulary, not spec: `@objectstack/spec`'s `ActionSchema` has no
+   * `description`, so this derives from `@object-ui/types`' renderer view of an
+   * action (`UIActionSchema`, `ui-action.ts`) — the same "authorable for a
+   * declared surface" source `check:action-forward-parity` derives its owed set
+   * from, which is why that gate already requires all four action renderers to
+   * forward this key (objectui#4192: `action:menu`'s dialog titled itself
+   * "Action parameters" instead of naming the action).
+   *
+   * Promoted by step 3 (objectstack#4075): the key was authorable, forwarded
+   * and read, but `ActionDef` never declared it, so it reached its reader only
+   * through `[key: string]: any`. Deleting the index signature is what surfaced
+   * it — the two TS2353s the deletion produced repo-wide were both this key.
+   */
+  description?: UIActionSchema['description'];
   /** Confirmation text — shows a confirm dialog before executing */
   confirmText?: string;
   /** Structured confirmation (from crud.ts) */
@@ -115,8 +157,20 @@ export interface ActionDef {
    * the same widening `disabled` already carries below.
    */
   condition?: string | boolean;
-  /** Disabled expression — if truthy, skip action */
-  disabled?: string | boolean;
+  /**
+   * Disabled predicate — the control renders inert while it holds.
+   *
+   * Same three arms as {@link ActionDef.visible}, derived from the same spec
+   * field, because the 2026-08-06 maintainer ruling on objectstack#4075 gave
+   * both keys ONE shape: `boolean | string(CEL) | { dialect, source }` —
+   * "boolean = 条件的退化形字面量,string = CEL 简写,信封 = 完整形". The
+   * envelope arm arrived in `@objectstack/spec` 17.0.0-rc.6 (objectstack#5970,
+   * PR objectstack#6450); until then this was a hand-written `string | boolean`
+   * that could not describe the envelope, which is why `DeclaredActionsBar`
+   * read it through an `(action as any).disabled` cast. Derived, not restated,
+   * so the two keys cannot drift apart again.
+   */
+  disabled?: SpecActionInput['disabled'];
   /**
    * API endpoint (string URL or complex config).
    *
@@ -148,6 +202,43 @@ export interface ActionDef {
    * today (objectstack#4075 step 2).
    */
   navigate?: any;
+
+  // ── The `navigation` alias's own spelling, promoted by step 3 ──────────────
+  //
+  // objectstack#4075 step 3. Step 1's inventory established these four as a
+  // REAL objectui dialect rather than undeclared drift — `executeNavigation`
+  // reads them off the action itself when no nested `navigate` envelope is
+  // present, and `NAVIGATION_ALIAS_KEYS` in `actionKeys.ts` has listed them as
+  // legitimate since then, with a tripwire that fires if the spec ever adopts
+  // one of the names. But step 2 promoted only the 18 SPEC-owned keys, so these
+  // four kept reaching their own reader through `[key: string]: any`. Deleting
+  // the index signature is what surfaced that: `nav.to`, `source.external`,
+  // `source.newTab` and `source.replace` were the four TS2339s the deletion
+  // produced inside this file.
+  //
+  // Declared, deliberately NOT `@deprecated`: step 2's acceptance ruled the
+  // dispatch wrong on exactly this point — "navigation 别名四键不标弃用(第 1 步
+  // 盘点已判定其合法,派发指令有误)". They are objectui vocabulary the runner
+  // itself implements, not an alias of a spec spelling an author should prefer.
+  // Hand-written rather than derived because there is no spec field to derive
+  // FROM — that is what makes them dialect. `replace` is the load-bearing case:
+  // it is documented at its read site as "the one thing the `navigation` shape
+  // carries that `ActionSchema` has no field for".
+
+  /** `navigation` alias: the target URL. `executeNavigation` resolves
+   *  `to || target || redirect`, so a flat spec-style `target` also works. */
+  to?: string;
+  /** `navigation` alias: force the external-URL treatment that the scheme
+   *  heuristic would otherwise decide. */
+  external?: boolean;
+  /** `navigation` alias: open in a new tab. The first-class spec switch is
+   *  `openIn: 'new-tab'`, which WINS over this one — prefer it in new metadata.
+   *  Unrelated to the retired `params.newTab` read (objectui#4097). */
+  newTab?: boolean;
+  /** `navigation` alias: replace the current history entry instead of pushing
+   *  a new one. No `ActionSchema` counterpart in any spelling. */
+  replace?: boolean;
+
   /** onClick callback (legacy) */
   onClick?: () => void | Promise<void>;
   /** Whether to reload data after success */
@@ -231,7 +322,7 @@ export interface ActionDef {
    *  which re-runs every check the POST half would have done). */
   newTabUrl?: string;
 
-  // ── Spec-owned keys, promoted from the index signature ─────────────────────
+  // ── Spec-owned keys, promoted out of the index signature ───────────────────
   //
   // objectstack#4075 step 2. Step 1's inventory found 18 keys that
   // `@objectstack/spec`'s `ActionSchema` owns and that authored metadata
@@ -272,16 +363,23 @@ export interface ActionDef {
   /**
    * Visibility predicate, evaluated against the runner's context.
    *
-   * The `boolean` arm is objectui's own, deliberately wider than the spec:
-   * `ActionSchema.visible` admits only a CEL string or a `{ dialect, source }`
-   * envelope, while `ActionEngine.getActionsForLocation` also honours a literal
-   * `visible: true` / `false` (pinned by `ActionEngine.visibility.test.ts`).
-   * Declared rather than left to the index signature so the tolerance is
-   * auditable instead of invisible — but it IS a dialect, and objectstack#4075
-   * step 3 has to decide whether the spec adopts the boolean or objectui drops
-   * it. Do not widen this further.
+   * Three arms — `boolean | string(CEL) | { dialect, source }` — and all three
+   * now come from the spec. Step 2 had to write `SpecActionInput['visible'] |
+   * boolean` because the literal `visible: true` / `false` that
+   * `ActionEngine.getActionsForLocation` honours (pinned by
+   * `ActionEngine.visibility.test.ts`) was objectui tolerance the spec did not
+   * share, and it left the open question step 3 was blocked on: does the spec
+   * adopt the boolean, or does objectui drop it?
+   *
+   * The maintainer ruled ADOPT on 2026-08-06 (objectstack#4075): "统一形状,
+   * spec 采纳 —— `visible` / `disabled` 两键在 spec 侧统一收敛为
+   * `boolean | string(CEL) | {dialect, source}`(boolean = 条件的退化形字面量,
+   * string = CEL 简写,信封 = 完整形)". `@objectstack/spec` 17.0.0-rc.6 carries
+   * it (objectstack#5970, PR objectstack#6450), so the local `| boolean` is no
+   * longer a tolerance to declare — it is part of the derived type, and adding
+   * it back would restate a spec arm rather than widen anything.
    */
-  visible?: SpecActionInput['visible'] | boolean;
+  visible?: SpecActionInput['visible'];
   /** System permissions the caller must ALL hold for the action to be offered
    *  (ADR-0066 D4 UI half — the server enforces the source of truth). */
   requiredPermissions?: SpecActionInput['requiredPermissions'];
@@ -327,9 +425,6 @@ export interface ActionDef {
    * remains available to a HOST passing it explicitly.
    */
   bulkEnabled?: SpecActionInput['bulkEnabled'];
-
-  /** Any additional properties */
-  [key: string]: any;
 }
 
 /**
@@ -1052,12 +1147,25 @@ export class ActionRunner {
             'build one with createServerActionHandler from @object-ui/core.',
         };
       }
-      // ActionDef is open-ended (`[key: string]: any`), so hand-authored
-      // metadata that never passed through the spec parser still compiles with
-      // the retired key. Carry the same prescription the spec's tombstone does,
-      // for the same reason: a bare "no script provided" reads as "you forgot a
-      // field" to an author who did write one.
-      if (typeof action.execute === 'string') {
+      // Read off an UNTYPED view of the action on purpose, and this branch
+      // survives step 3 on purpose (objectstack#4075).
+      //
+      // `ActionDef` no longer declares `execute` — nor any open index signature
+      // — so `tsc` now catches the retired key at every site that AUTHORS an
+      // action literal in code. That is the half of the problem the type can
+      // reach. It is not this half: #3903 established that stored
+      // `sys_metadata` rows are rehydrated UNPARSED, so metadata written before
+      // spec 17 arrives here as a plain object the compiler never saw, still
+      // carrying `execute`. Declaring the key to make this read compile would
+      // re-legitimize a tombstone (#3855 removed it; the spec keeps it only to
+      // reject it BY NAME), and deleting the branch would send those rows back
+      // to a bare "no script provided" — which reads as "you forgot a field" to
+      // an author who did write one, the objectstack#2169 shape.
+      //
+      // So: the cast is the honest spelling of "a key this type deliberately
+      // does not have, read from a row this type never validated".
+      const retiredExecute = (action as Record<string, unknown>).execute;
+      if (typeof retiredExecute === 'string') {
         return {
           success: false,
           error:
@@ -1527,6 +1635,37 @@ export class ActionRunner {
    */
   private interpolateTarget(target: string, action: ActionDef): string {
     if (typeof target !== 'string' || target.indexOf('${') === -1) return target;
+    // ── The `${param.X}` scope is an INTERNAL runtime value bag, not an
+    //    authoring surface (objectui#4097 ruling B, 2026-08-11) ──────────────
+    //
+    // A non-array `params` reaches this line from ONE direction only: a host
+    // synthesizing a value bag on its way into `runner.execute()` — the
+    // collected values a param dialog just gathered, `_selectedIds` from an
+    // aggregate bulk dispatch, `_rowRecord` from a row surface. Eight internal
+    // producers, measured. No AUTHOR can put a value here: `ActionSchema.params`
+    // is `z.array(ActionParamSchema)`, so the object form is refused at parse,
+    // and the refusal message names the sanctioned spellings.
+    //
+    // That refusal is why this branch survived objectui#4097 while its two
+    // siblings did not. The objectstack#6828 maintainer ruling targeted the
+    // AUTHORING vocabulary — "a key with three meanings and no authorized
+    // spelling for the third" — and both authored meanings are now handled
+    // upstream at parse; PR objectui#4262 removed the third runtime read
+    // (`params.newTab`). What is left here is a channel no author can reach or
+    // observe, so removing it would spend a four-package runtime-contract
+    // migration on an already-unreachable shape. Option A was declined for
+    // exactly that reason: "plumbing expansion with zero pull".
+    //
+    // ⚠️ The hazard the ruling flagged, recorded here so the next reader sees
+    // it at the code rather than in a closed thread: this line's safety rests
+    // ENTIRELY on the producer refusing an authored object-form `params`. If a
+    // future spec loosening ever admits one, an authored scope silently becomes
+    // reachable again — and it would arrive as an interpolation source for URLs
+    // and api targets, which is the shape a params dialog field named for a
+    // navigation directive could steer. The guards are the upstream refusal pin
+    // and the two local pins (`ActionRunner.resultDialog.test.ts`,
+    // `ActionRunner.test.ts`); a spec change that turns them red is the signal,
+    // not a nuisance.
     const params = (action.params && typeof action.params === 'object' && !Array.isArray(action.params))
       ? (action.params as Record<string, unknown>)
       : {};

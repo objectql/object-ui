@@ -7,13 +7,30 @@
  * + `POST /api/v1/data/:object`).
  *
  * Both modes share the same renderer; the difference is only in how the
- * spec is loaded and where submissions go. This is the same shape as
- * Airtable Forms — the form view metadata is identical whether it is
- * embedded publicly or used by logged-in operators.
+ * spec is loaded, where submissions go, and — since objectui#4109 — what
+ * happens after a successful submit when the form view declares nothing:
+ * an internal submit lands on the record it just wrote, while the public
+ * path keeps the anonymous `thank-you` confirmation. See
+ * {@link resolveSubmitBehavior}. This is the same shape as Airtable Forms —
+ * the form view metadata is identical whether it is embedded publicly or
+ * used by logged-in operators.
+ *
+ * ## Create vs edit (objectui#4278)
+ *
+ * The internal route also serves EDIT, and which one it is comes from the URL:
+ * `ActionRunner.executeForm` forwards the record an action was fired from as
+ * `/forms/:name?recordId=<id>`. Until #4278 this route ignored that param
+ * entirely — it rendered empty inputs and its submit was an unconditional
+ * `POST` — so an "edit this record" action produced a blank form and then a
+ * DUPLICATE record. `?recordId=` now selects the whole read/write pair:
+ * `GET /data/:object/:id` to prefill, `PATCH /data/:object/:id` to save. See
+ * {@link readFormRecordTarget} for the create/edit/refuse decision and
+ * {@link readPrefill} for what wins when a `prefill_` param and a stored value
+ * name the same field.
  */
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || '') + '/api/v1';
@@ -63,6 +80,111 @@ type SubmitBehavior =
   | { kind: 'redirect'; url: string; delayMs?: number }
   | { kind: 'continue' }
   | { kind: 'next-record' };
+
+/** Which surface is rendering the form — see {@link FormPageProps.mode}. */
+export type FormPageMode = 'public' | 'internal';
+
+/**
+ * The query param naming the record an internal form edits — the one
+ * `ActionRunner.executeForm` forwards (`/forms/:name?recordId=<id>`).
+ *
+ * ## Why the same spelling as the drawer's reserved param, deliberately
+ *
+ * `recordId` is ALREADY reserved in `@object-ui/app-shell`'s registry
+ * (`src/urlParams.ts` → `RECORD_DRAWER_PARAM`), where it opens a record-detail
+ * drawer over a list. That is not a collision to route around, and #4278 ruling
+ * point 3 asked for the relationship to be measured rather than assumed:
+ *
+ *  - the two readers can never see one URL. React Router renders exactly one
+ *    leaf per location, `/forms/:name` is a TOP-LEVEL route in `App.tsx`
+ *    (sibling of `/apps/*`, where `ObjectView` — the drawer's only reader,
+ *    `views/ObjectView.tsx`, the single `RECORD_DRAWER_PARAM` call site
+ *    outside the registry itself — is mounted), and `InternalFormRoute` renders
+ *    `DefaultHomeLayout` + this component and no list. Disjoint subtrees, so
+ *    the same URL cannot carry both meanings at once;
+ *  - and the MEANING is the same one either way — "the record this surface is
+ *    about". A second spelling (`formRecordId`, …) for that fact would be the
+ *    de-facto second contract AGENTS.md #0.1 forbids, and would make the
+ *    already-reserved name look free to repurpose.
+ *
+ * So this is the registry's name, used as the registry defines it. It is a
+ * literal here rather than an import only because `@object-ui/app-shell`
+ * exports its package root alone and that root does not re-export
+ * `./urlParams` — the same unreachability `createdRecordPath.ts` documents for
+ * `resolveHostAppSegment`. `FormPage.test.ts` pins the two spellings equal so
+ * they cannot drift apart in silence.
+ */
+export const FORM_RECORD_ID_PARAM = 'recordId';
+
+/**
+ * What the URL says this internal form is FOR: creating a record, editing a
+ * named one, or nothing coherent.
+ *
+ * The third case is the point. #4278 ruling point 2 is fail-closed: an edit
+ * intent this route cannot honour must reach the error state, because silently
+ * falling back to create mode is the EXACT harm the card was filed about (an
+ * empty form whose submit inserts a duplicate). A present-but-blank
+ * `?recordId=` — which `ActionRunner` really can emit, since it appends the
+ * param for any `recordId != null` and an empty-string id passes that test —
+ * declares edit intent and names no record, so it refuses rather than degrades.
+ */
+export type FormRecordTarget =
+  | { kind: 'create' }
+  | { kind: 'edit'; recordId: string }
+  | { kind: 'refuse'; reason: string };
+
+/**
+ * Decide {@link FormRecordTarget} from the surface and the query string.
+ *
+ * PUBLIC mode never reads the param, and that is a contract, not an
+ * optimisation: `/f/:slug` is the anonymous surface, where the visitor
+ * controls the URL and the backend resolver deliberately exposes one
+ * submit-only endpoint. Honouring `?recordId=` there would turn a public form
+ * into an arbitrary-record reader and writer. The public path is unchanged by
+ * every part of #4278, and this line is where that holds.
+ */
+export function readFormRecordTarget(
+  mode: FormPageMode,
+  search: URLSearchParams,
+): FormRecordTarget {
+  if (mode !== 'internal') return { kind: 'create' };
+  const raw = search.get(FORM_RECORD_ID_PARAM);
+  if (raw === null) return { kind: 'create' };
+  const recordId = raw.trim();
+  if (!recordId) {
+    return {
+      kind: 'refuse',
+      reason:
+        `This form was opened to edit a record (?${FORM_RECORD_ID_PARAM}=), but no record id was supplied. ` +
+        'Re-open it from the record, or drop the parameter to create a new one.',
+    };
+  }
+  return { kind: 'edit', recordId };
+}
+
+/**
+ * What the renderer actually does after a successful submit: every authorable
+ * {@link SubmitBehavior}, plus the one behaviour the PLATFORM supplies rather
+ * than the author.
+ *
+ * `created-record` is deliberately NOT a member of the spec's authorable union
+ * (`thank-you | redirect | continue | next-record` — a STRICT discriminated
+ * union in `@objectstack/spec`, so authoring `kind: 'created-record'` is
+ * rejected at publish time and always will be). Nothing ever parses it out of
+ * metadata: it exists only as the value {@link resolveSubmitBehavior} returns
+ * when an internal form declares nothing. That is what lets the platform
+ * default differ from every authorable kind WITHOUT widening the contract or
+ * teaching authors a second dialect for something they never write.
+ *
+ * Since objectui#4278 the internal route also EDITS, and this one value covers
+ * both writes: "land on the record this submit wrote" — the created one, or
+ * the one `?recordId=` named. It is one behaviour, so it keeps one name; a
+ * second `updated-record` kind would be two spellings of a single rule, and
+ * the name is #4109's rather than churned here because renaming it would
+ * restate a just-landed contract for cosmetics. The create/edit split lives
+ * where it belongs — in the id the handler navigates with, not in the union.
+ */
+type EffectiveSubmitBehavior = SubmitBehavior | { kind: 'created-record' };
 
 interface FormSectionSpec {
   label?: string;
@@ -175,14 +297,205 @@ export function buildSections(
   });
 }
 
-/** Apply `?prefill_<field>=<value>` query params to the initial form state. */
+/**
+ * The post-submit behaviour actually applied, given what the form view
+ * declared and which surface is rendering it.
+ *
+ * Maintainer ruling, 2026-08-10 (objectstack#7245, quoted verbatim on
+ * objectui#4109):
+ *
+ * > **the `type: 'form'` contract means in-shell, and an internal submit lands
+ * > on the record.**
+ * >
+ * > 2. Internal-mode submit defaults to redirect-to-created-record;
+ * >    `thank-you` stays the default for the public `/f/:slug` path only.
+ *
+ * Before this, the default was `{ kind: 'thank-you' }` for BOTH modes, so a
+ * signed-in operator who had just created a record was told "Your submission
+ * has been received" with no link to it — the anonymous-form confirmation,
+ * shown to someone who is not anonymous and is not done.
+ *
+ * The DECLARED behaviour still wins in both modes, and that precedence is the
+ * point: per ruling point 3 the corpus must never have to opt out of a wrong
+ * default, so this only ever fills the gap an author left empty.
+ */
+export function resolveSubmitBehavior(
+  mode: FormPageMode,
+  declared: SubmitBehavior | undefined,
+): EffectiveSubmitBehavior {
+  if (declared) return declared;
+  return mode === 'internal' ? { kind: 'created-record' } : { kind: 'thank-you' };
+}
+
+/**
+ * Strip the transport envelope off a data-API body, if there is one.
+ *
+ * Not a metadata dialect but a platform fact: two transports serve these
+ * routes and only one wraps the body. `packages/rest`'s server answers the
+ * bare protocol payload (`res.json(result)`), while the runtime's
+ * http-dispatcher wraps every success as `{ success, data, meta }`. The
+ * platform already resolves this in exactly ONE rule, in
+ * `@objectstack/client`:
+ *
+ *     async unwrapResponse(res) {
+ *       const body = await res.json();
+ *       if (body && typeof body.success === 'boolean' && 'data' in body) return body.data;
+ *       return body;
+ *     }
+ *
+ * `FormPage` hand-rolls `fetch` instead of going through that client (it
+ * predates having one here), so the same rule has to be applied at these call
+ * sites. Mirroring it is not inventing a dialect — spelling a DIFFERENT rule
+ * would be, which is why this is ONE function read by every data-API response
+ * this file consumes (create, and since #4278 the record read) rather than the
+ * same three lines written out twice.
+ *
+ * Returns null for anything that is not an object, so callers get one shape to
+ * check instead of two.
+ */
+function unwrapTransportEnvelope(payload: unknown): Record<string, unknown> | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const body = payload as Record<string, unknown>;
+  const unwrapped =
+    typeof body.success === 'boolean' && 'data' in body ? body.data : body;
+  if (!unwrapped || typeof unwrapped !== 'object') return null;
+  return unwrapped as Record<string, unknown>;
+}
+
+/**
+ * The id of the record an internal submit just created, read off the
+ * `POST /api/v1/data/:object` response.
+ *
+ * The response contract is spec-declared — `CreateDataResponse = { object, id,
+ * record, droppedFields? }` (`@objectstack/spec`, `api/protocol.zod.ts`) — and
+ * the top-level `id` IS the created record's id. We read that one declared key
+ * and no alias: `record.id` carries the same value, but reading both would be
+ * exactly the second de-facto contract AGENTS.md #0.1 forbids.
+ *
+ * The transport envelope is absorbed by {@link unwrapTransportEnvelope} —
+ * see there for why that is a platform fact rather than a dialect.
+ *
+ * ## Why the EDIT path does not use this (objectui#4278)
+ *
+ * `UpdateDataResponse` was measured and declares the identical triple
+ * (`{ object, id, record, droppedFields? }`, `api/protocol.zod.ts`), so this
+ * function would fit an update response byte for byte. It is deliberately not
+ * pointed at one: on the edit path the id is already known — it came from the
+ * URL and is the id we just `PATCH`ed — so reading it back would create a
+ * SECOND source for one fact, and the two could only ever disagree by way of a
+ * server bug this renderer would then silently follow. The create path has no
+ * such source, which is exactly why it must read the response. One fact, one
+ * reader, chosen per path.
+ *
+ * Returns null when the payload names no id, so the caller can confirm the
+ * submit instead of navigating to `…/record/undefined`.
+ */
+export function readCreatedRecordId(payload: unknown): string | null {
+  const unwrapped = unwrapTransportEnvelope(payload);
+  if (!unwrapped) return null;
+  const id = unwrapped.id;
+  // The spec declares `id: z.string()`. The numeric branch is a coercion of
+  // that SAME key for drivers whose primary key surfaces as an integer — one
+  // key, one meaning, so it cannot mask a producer emitting the wrong shape.
+  if (typeof id === 'string') return id === '' ? null : id;
+  if (typeof id === 'number' && Number.isFinite(id)) return String(id);
+  return null;
+}
+
+/**
+ * The stored record an edit form starts from, read off the
+ * `GET /api/v1/data/:object/:id` response.
+ *
+ * The response contract is spec-declared — `GetDataResponse = { object, id,
+ * record }` (`@objectstack/spec`, `api/protocol.zod.ts`; the protocol's
+ * `getData` returns exactly that triple and throws `recordNotFoundError`
+ * otherwise, which REST maps to 404). The envelope is handled by
+ * {@link unwrapTransportEnvelope}.
+ *
+ * Throws — rather than returning null — on anything it cannot vouch for,
+ * because #4278 ruling point 2 is fail-closed and this function is the last
+ * place that can tell an unreadable record from an empty one. A null return
+ * would land in the same `values` state as create mode, which is the harm.
+ *
+ * ## The object check, and the honest limit of it
+ *
+ * The `object` key is compared against the FormView's target, and a mismatch
+ * refuses. Measured reachability: the deployed server ECHOES the path object
+ * (`getData` returns `object: request.object`), and we build that path from
+ * the view's own target — so a live `packages/rest` deployment cannot produce
+ * a mismatch here. This is therefore a contract assertion at the consumer, not
+ * a live defect being patched; it costs three lines and it is what makes the
+ * form's object and the record's object one checked fact instead of an
+ * assumption, for any transport that does not echo.
+ *
+ * The case that IS live is the other one, and it is handled by the fetch
+ * rather than by this check: a `recordId` belonging to a DIFFERENT object is
+ * not found under the view's object, so the read 404s and refuses. See
+ * `loadInternalForm`.
+ */
+export function readLoadedRecord(
+  payload: unknown,
+  expectedObject: string,
+  recordId: string,
+): Record<string, unknown> {
+  const unwrapped = unwrapTransportEnvelope(payload);
+  if (!unwrapped) {
+    throw new Error(
+      `Could not read record "${recordId}" of ${expectedObject}: the server returned no record payload.`,
+    );
+  }
+  const servedObject = unwrapped.object;
+  if (typeof servedObject === 'string' && servedObject && servedObject !== expectedObject) {
+    throw new Error(
+      `Record "${recordId}" belongs to ${servedObject}, but this form edits ${expectedObject}. ` +
+        'Refusing to open it — check the action that linked here.',
+    );
+  }
+  const record = unwrapped.record;
+  if (!record || typeof record !== 'object' || Array.isArray(record)) {
+    throw new Error(
+      `Could not read record "${recordId}" of ${expectedObject}: the response carried no "record".`,
+    );
+  }
+  return record as Record<string, unknown>;
+}
+
+/**
+ * The initial form state — every value an input starts life holding.
+ *
+ * Three sources, in strictly increasing precedence (#4278 ruling on prefill):
+ *
+ *  1. the field's `defaultValue` from the object schema — a CREATE-time
+ *     proposal;
+ *  2. the stored `record`, when this form is editing one. Present-but-null
+ *     counts and beats a default: on an edit form the stored value is the
+ *     truth, and letting a default paint over a cleared field would silently
+ *     propose a change the user never made — which a subsequent save would
+ *     then write;
+ *  3. an explicit `?prefill_<field>=` query param, which wins over both.
+ *
+ * Point 3 is the ruling: "explicit `prefill_` params override the loaded
+ * record's values for the fields they name … record values fill the rest". A
+ * producer that forwards `?recordId=` AND `?prefill_x=` in one URL is
+ * expressing intent — edit THIS record, with THIS field pre-changed — and the
+ * narrower, per-field instruction is the more specific one. Fields the params
+ * do not name keep their stored values, so the precedence is per FIELD and
+ * never wholesale.
+ */
 export function readPrefill(
   fields: RenderableField[],
   search: URLSearchParams,
+  record?: Record<string, unknown> | null,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const f of fields) {
     if (f.defaultValue !== undefined) out[f.name] = f.defaultValue;
+    // `hasOwnProperty` rather than a truthiness/undefined test: a stored null
+    // or empty string is a real value on an edit form, and must beat the
+    // default.
+    if (record && Object.prototype.hasOwnProperty.call(record, f.name)) {
+      out[f.name] = record[f.name];
+    }
     const fromQuery = search.get(`prefill_${f.name}`);
     if (fromQuery !== null) out[f.name] = fromQuery;
   }
@@ -209,6 +522,11 @@ interface LoadedForm {
   object: string;
   form: FormViewSpec;
   objectSchema: ObjectSchemaPayload | null;
+  /**
+   * The stored record this form is editing, or null in create mode
+   * (objectui#4278). Non-null iff the load resolved a `?recordId=`.
+   */
+  record: Record<string, unknown> | null;
 }
 
 /** Public mode: hit the anonymous `/forms/:slug` resolver. */
@@ -224,6 +542,9 @@ async function loadPublicForm(slug: string): Promise<LoadedForm> {
     object: payload.object,
     form: payload.form,
     objectSchema: payload.objectSchema,
+    // The anonymous surface never edits a stored record — see
+    // `readFormRecordTarget` for why `?recordId=` is not readable here.
+    record: null,
   };
 }
 
@@ -282,10 +603,22 @@ export function resolveInternalForm(
 
 /**
  * Internal mode: pull the FormView metadata directly + the target object's
- * schema. We use the same `/meta` REST surface the rest of the console
- * already speaks, so anything the user has READ on works automatically.
+ * schema, and — when the URL names a record (objectui#4278) — that record.
+ *
+ * We use the same `/meta` REST surface the rest of the console already speaks,
+ * so anything the user has READ on works automatically.
+ *
+ * ## Why the record read is fatal when the schema read is not
+ *
+ * The object-schema fetch below is deliberately swallowed: without it the
+ * renderer degrades to text inputs, which is a WORSE form but still the right
+ * form, doing the right thing on submit. A failed RECORD read has no such
+ * benign degradation — carrying on would render empty inputs and, on submit,
+ * insert a duplicate. That is #4278's exact harm, so per ruling point 2 this
+ * throws and the caller shows the error state. The gap between the two `catch`
+ * postures is the gap between "less detail" and "wrong operation".
  */
-async function loadInternalForm(name: string): Promise<LoadedForm> {
+async function loadInternalForm(name: string, recordId?: string | null): Promise<LoadedForm> {
   const viewRes = await apiFetch(`/meta/view/${encodeURIComponent(name)}`);
   if (!viewRes.ok) {
     throw new Error(`Form metadata not found: view/${name}`);
@@ -313,11 +646,33 @@ async function loadInternalForm(name: string): Promise<LoadedForm> {
   } catch {
     // Schema fallback is non-fatal — the renderer copes with text inputs.
   }
+
+  // #4278: the edit half. Fetched with the VIEW's object, so a `recordId`
+  // belonging to some other object is simply not found here and 404s into the
+  // refusal below — the live shape of "the record's object doesn't match the
+  // form's" (`readLoadedRecord` documents why the echoed `object` key cannot
+  // be the signal on this server).
+  let record: Record<string, unknown> | null = null;
+  if (recordId) {
+    const recRes = await apiFetch(
+      `/data/${encodeURIComponent(objectName)}/${encodeURIComponent(recordId)}`,
+    );
+    if (!recRes.ok) {
+      const detail = await recRes.text().catch(() => '');
+      throw new Error(
+        `Could not open record "${recordId}" of ${objectName} for editing (${recRes.status})` +
+          `${detail ? `: ${detail}` : recRes.statusText ? `: ${recRes.statusText}` : ''}`,
+      );
+    }
+    record = readLoadedRecord(await recRes.json(), objectName, recordId);
+  }
+
   return {
     label,
     object: objectName,
     form,
     objectSchema,
+    record,
   };
 }
 
@@ -334,18 +689,41 @@ async function submitPublic(slug: string, data: Record<string, unknown>): Promis
   return res.json().catch(() => ({}));
 }
 
-/** Internal mode submit — POST to `/data/:object`. Auth cookie carries identity. */
+/**
+ * Internal mode submit. Auth cookie carries identity.
+ *
+ * `POST /data/:object` to create; `PATCH /data/:object/:id` to update the
+ * record `?recordId=` named (objectui#4278). Before that param was read, this
+ * was an unconditional POST — which is why an "edit" action inserted a second
+ * record instead of changing the one the user was looking at.
+ *
+ * The verb is MEASURED, not chosen: `PATCH /:object/:id → updateData` is the
+ * data plugin's declared route (`@objectstack/spec`,
+ * `api/plugin-rest-api.zod.ts`), it is what `packages/rest`'s server registers,
+ * and `packages/rest/src/openapi-builtin-paths.ts` records that the server
+ * "answers `PATCH` and 405s the `PUT`" — a published document that said `PUT`
+ * was itself filed as a defect (#5588). Every other update client in this
+ * workspace spells the same pair: `ApiDataSource.update` (`packages/core`),
+ * the console's own API discovery and Integrations pages, and app-shell's
+ * `ObjectApiPanel`. The body is the bare field patch, matching create.
+ */
 async function submitInternal(
   objectName: string,
   data: Record<string, unknown>,
+  recordId?: string | null,
 ): Promise<unknown> {
-  const res = await apiFetch(`/data/${encodeURIComponent(objectName)}`, {
-    method: 'POST',
+  const path = recordId
+    ? `/data/${encodeURIComponent(objectName)}/${encodeURIComponent(recordId)}`
+    : `/data/${encodeURIComponent(objectName)}`;
+  const res = await apiFetch(path, {
+    method: recordId ? 'PATCH' : 'POST',
     body: JSON.stringify(data),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Create failed (${res.status}): ${body || res.statusText}`);
+    throw new Error(
+      `${recordId ? 'Update' : 'Create'} failed (${res.status}): ${body || res.statusText}`,
+    );
   }
   return res.json().catch(() => ({}));
 }
@@ -501,7 +879,24 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
 
 export interface FormPageProps {
   /** `'public'` for /f/:slug (anonymous), `'internal'` for /forms/:name (authed). */
-  mode: 'public' | 'internal';
+  mode: FormPageMode;
+  /**
+   * Builds the console path of the record an INTERNAL submit just wrote —
+   * created, or (objectui#4278) updated — so the default `created-record`
+   * behaviour has somewhere to land.
+   *
+   * Injected rather than computed here because the answer is not a property of
+   * the form: a record page is app-scoped (`/apps/<segment>/<object>/record/
+   * <id>` — ADR-0048), and WHICH app should host an app-independent page for
+   * this user is a policy with a home of its own. `InternalFormRoute` owns it;
+   * `FormPage` stays a renderer and keeps working outside a metadata catalog
+   * (which is what the public `/f/:slug` mount is — no catalog, no app, and no
+   * business having either).
+   *
+   * Returning `null` — or omitting the prop, as the public mount does — means
+   * "no record page to land on", and the submit falls back to confirming.
+   */
+  recordPath?: (objectName: string, recordId: string) => string | null;
 }
 
 /**
@@ -512,10 +907,18 @@ export interface FormPageProps {
  * *submit target* differ. Forking the component would duplicate the
  * field-rendering branch which is the bulk of the code.
  */
-export function FormPage({ mode }: FormPageProps) {
+export function FormPage({ mode, recordPath }: FormPageProps) {
   const params = useParams();
   const [search] = useSearchParams();
+  const navigate = useNavigate();
   const identifier = (mode === 'public' ? params.slug : params.name) ?? '';
+  /**
+   * Create, edit, or refuse — decided from the URL alone (objectui#4278), so
+   * the whole read/write pair below has ONE switch rather than a `recordId`
+   * truthiness test at each of the three sites that need it.
+   */
+  const target = readFormRecordTarget(mode, search);
+  const editingId = target.kind === 'edit' ? target.recordId : null;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -524,27 +927,42 @@ export function FormPage({ mode }: FormPageProps) {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  // Load spec on mount / when identifier changes.
+  // Load spec on mount / when identifier or the record it targets changes.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const loader = mode === 'public' ? loadPublicForm(identifier) : loadInternalForm(identifier);
+    // A `?recordId=` we cannot make sense of never reaches a loader: it is an
+    // edit intent this route cannot honour, and #4278 ruling point 2 says
+    // refuse rather than degrade into the create path.
+    const loader =
+      target.kind === 'refuse'
+        ? Promise.reject(new Error(target.reason))
+        : mode === 'public'
+          ? loadPublicForm(identifier)
+          : loadInternalForm(identifier, editingId);
     loader
       .then((result) => {
         if (cancelled) return;
         setLoaded(result);
         const sections = buildSections(result.form, result.objectSchema);
         const allFields = sections.flatMap((s) => s.fields);
-        setValues(readPrefill(allFields, search));
+        setValues(readPrefill(allFields, search, result.record));
       })
       .catch((e) => {
-        if (!cancelled) setError(e?.message ?? String(e));
+        if (!cancelled) {
+          // Clear any previously loaded form: a refusal must not leave an
+          // editable form on screen behind the error.
+          setLoaded(null);
+          setError(e?.message ?? String(e));
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
+    // `target`/`editingId` are derived from `search`, already a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, identifier, search]);
 
   const sections = useMemo<RenderableSection[]>(
@@ -552,8 +970,10 @@ export function FormPage({ mode }: FormPageProps) {
     [loaded],
   );
 
-  const behavior: SubmitBehavior =
-    loaded?.form?.submitBehavior ?? { kind: 'thank-you' };
+  const behavior: EffectiveSubmitBehavior = resolveSubmitBehavior(
+    mode,
+    loaded?.form?.submitBehavior,
+  );
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -561,14 +981,38 @@ export function FormPage({ mode }: FormPageProps) {
     setSubmitting(true);
     setError(null);
     try {
-      if (mode === 'public') {
-        await submitPublic(identifier, values);
-      } else {
-        await submitInternal(loaded.object, values);
-      }
+      const result =
+        mode === 'public'
+          ? await submitPublic(identifier, values)
+          : await submitInternal(loaded.object, values, editingId);
       toast.success('Submitted');
       // Behaviour after submit
       switch (behavior.kind) {
+        case 'created-record': {
+          // The internal default (#4109 ruling point 2): land on the record
+          // this submit wrote. Client-side `navigate` — NOT
+          // `window.location.assign` — because the record page lives in the
+          // same SPA and a full reload would throw away the shell this route
+          // now renders inside.
+          //
+          // On an EDIT (#4278) the destination is the id we already hold: it
+          // came from the URL and is the row we just PATCHed, so there is
+          // nothing to read out of the response and no way for it to be
+          // missing. `readCreatedRecordId` is for the create path, which has
+          // no other source — see its docblock for why the update response's
+          // (identical, measured) `id` is deliberately not read back.
+          const id = editingId ?? readCreatedRecordId(result);
+          const to = id ? recordPath?.(loaded.object, id) : null;
+          if (to) {
+            navigate(to);
+            break;
+          }
+          // No id in the response, or no record page to land on. Confirm the
+          // submit rather than navigate somewhere broken — the write itself
+          // succeeded, so silence would be the worse answer.
+          setSubmitted(true);
+          break;
+        }
         case 'redirect': {
           const delay = behavior.delayMs ?? 0;
           setTimeout(() => window.location.assign(behavior.url), delay);
@@ -576,9 +1020,11 @@ export function FormPage({ mode }: FormPageProps) {
           break;
         }
         case 'continue': {
-          // Reset values to defaults so the user can submit another one.
+          // Reset values so the user can submit again. On an edit form that
+          // means back to the record as loaded — NOT to blank, which would
+          // stage a wipe of every field on the next save.
           const allFields = sections.flatMap((s) => s.fields);
-          setValues(readPrefill(allFields, search));
+          setValues(readPrefill(allFields, search, loaded.record));
           break;
         }
         case 'next-record':
@@ -614,15 +1060,21 @@ export function FormPage({ mode }: FormPageProps) {
   }
   if (!loaded) return null;
 
-  if (submitted && behavior.kind === 'thank-you') {
+  // `created-record` reaches this branch only on the fallback path above (no
+  // id in the response, or nowhere to land) — a successful redirect navigates
+  // away instead. It carries no author-supplied title/message, so it renders
+  // the generic confirmation.
+  if (submitted && (behavior.kind === 'thank-you' || behavior.kind === 'created-record')) {
+    const title = behavior.kind === 'thank-you' ? behavior.title : undefined;
+    const message = behavior.kind === 'thank-you' ? behavior.message : undefined;
     return (
       <div className="mx-auto max-w-2xl p-6">
         <div className="rounded-md border bg-card p-6 text-center">
           <h2 className="mb-2 text-lg font-semibold">
-            {behavior.title ?? 'Thanks!'}
+            {title ?? 'Thanks!'}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {behavior.message ?? 'Your submission has been received.'}
+            {message ?? 'Your submission has been received.'}
           </p>
         </div>
       </div>

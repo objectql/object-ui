@@ -27,7 +27,13 @@ function createMockClient(overrides: Partial<AuthClient> = {}): AuthClient {
     resetPassword: vi.fn().mockResolvedValue(undefined),
     updateUser: vi.fn().mockResolvedValue({ id: '1', name: 'Updated', email: 'test@test.com' }),
     ...overrides,
-  };
+    // `AuthClient` declares ~38 methods; this double implements the eight the
+    // provider reaches on the paths under test, which is the same shape (and
+    // the same assertion) as `LoginForm.test.tsx`, `identifier-trim.test.tsx`
+    // and `SocialSignInButtons.test.tsx` in this package. Asserting at the one
+    // seam keeps the lie in a single named place instead of stubbing thirty
+    // methods no test calls.
+  } as unknown as AuthClient;
 }
 
 function TestConsumer() {

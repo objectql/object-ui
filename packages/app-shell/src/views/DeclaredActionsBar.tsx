@@ -150,16 +150,22 @@ const DeclaredActionButton: React.FC<{
   // `visible` fails CLOSED on a throwing predicate — mirrors action:button and
   // ActionEngine.getActionsForLocation: a guard that can't be evaluated hides
   // the action rather than exposing one whose precondition is broken.
-  const isVisible = useCondition(toPredicateInput((action as any).visible), predicateRecord, {
+  const isVisible = useCondition(toPredicateInput(action.visible), predicateRecord, {
     throwOnError: true,
     label: `declared action "${action.name ?? action.label ?? 'action'}" (visible)`,
   });
-  // Spec `disabled` (boolean | CEL — disabled when TRUE), evaluated against the
-  // same record context as `visible`. #1885 wired it in action-button only;
-  // this bar ignored it, so a spec-authored `disabled` guard on a declared
-  // action did nothing here. (No legacy `enabled` fallback: server-declared
-  // actions are spec-shaped and never carried the non-spec key.)
-  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled), predicateRecord);
+  // Spec `disabled` — the same three arms as `visible` (`boolean | CEL string |
+  // { dialect, source }`, disabled when TRUE), evaluated against the same record
+  // context. #1885 wired it in action-button only; this bar ignored it, so a
+  // spec-authored `disabled` guard on a declared action did nothing here. (No
+  // legacy `enabled` fallback: server-declared actions are spec-shaped and never
+  // carried the non-spec key.)
+  //
+  // Read straight off the typed def since objectstack#4075 step 3: both keys are
+  // now derived from the spec's unified shape, so the `(action as any)` casts
+  // these two lines carried — which existed only because `ActionDef.disabled`
+  // could not describe the envelope arm — have nothing left to reach around.
+  const isDisabledPred = useCondition(toPredicateInput(action.disabled), predicateRecord);
 
   const handleClick = useCallback(async () => {
     if (loading) return;
@@ -239,7 +245,7 @@ const DeclaredActionButton: React.FC<{
   // The verdict stays with the evaluation entry above: `toPredicateInput` passes
   // a boolean through untouched and `useCondition` short-circuits it instead of
   // calling the expression engine, so a declared `false` is `false`.
-  if (hasDeclaredVisibilityGate((action as any).visible) && !isVisible) return null;
+  if (hasDeclaredVisibilityGate(action.visible) && !isVisible) return null;
 
   const iconName = typeof (action as any).icon === 'string' ? (action as any).icon as string : undefined;
   // Map the spec's action `variant` enum (primary|secondary|danger|ghost|link)
@@ -277,7 +283,7 @@ const DeclaredActionButton: React.FC<{
       // a permanently greyed-out Approve / Reject — the mirror image of
       // objectui#3835 on the same surface, and equally impossible to tell from
       // deliberate metadata by looking at it.
-      disabled={(hasDeclaredVisibilityGate((action as any).disabled) ? isDisabledPred : false) || loading}
+      disabled={(hasDeclaredVisibilityGate(action.disabled) ? isDisabledPred : false) || loading}
       onClick={handleClick}
       data-testid={`declared-action-${action.name}`}
     >

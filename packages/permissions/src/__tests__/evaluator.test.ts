@@ -13,9 +13,14 @@ import type {
   ObjectPermissionConfig,
 } from '@object-ui/types';
 
-const adminRole: RoleDefinition = { name: 'admin', label: 'Admin' };
-const editorRole: RoleDefinition = { name: 'editor', label: 'Editor', inherits: ['viewer'] };
-const viewerRole: RoleDefinition = { name: 'viewer', label: 'Viewer' };
+// `RoleDefinition.permissions` is required and carries a role's DIRECT object
+// grants. These three roles grant nothing directly — every grant these cases
+// exercise arrives through the `ObjectPermissionConfig[]` below, keyed by object
+// — so the empty array is the accurate value, not padding. What the fixtures pin
+// here is identity and inheritance, which is all `resolveRoles` reads.
+const adminRole: RoleDefinition = { name: 'admin', label: 'Admin', permissions: [] };
+const editorRole: RoleDefinition = { name: 'editor', label: 'Editor', inherits: ['viewer'], permissions: [] };
+const viewerRole: RoleDefinition = { name: 'viewer', label: 'Viewer', permissions: [] };
 
 const roles: RoleDefinition[] = [adminRole, editorRole, viewerRole];
 

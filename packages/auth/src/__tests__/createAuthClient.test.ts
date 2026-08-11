@@ -151,7 +151,7 @@ describe('createAuthClient', () => {
     const user = { id: '1', name: 'Jack', email: 'jack@test.com' };
     // Bearer-carrying call sees no session (stale token); the cookie-only
     // retry (no Authorization header) sees the live SSO session.
-    const mockFn = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const mockFn = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
       const hasBearer = Boolean(headers.get('Authorization'));
       const body = hasBearer ? null : { user, session };

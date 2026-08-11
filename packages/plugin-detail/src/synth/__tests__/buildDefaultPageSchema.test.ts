@@ -23,6 +23,23 @@ import {
   type ObjectDefLike,
 } from '../buildDefaultPageSchema';
 
+/**
+ * A page component's props live in the node's `properties` bag — the spec's
+ * canonical carrier, and since **ADR-0089 D3a** closed `PageComponentSchema`
+ * with `.strict()`, the only spelling the server accepts on a page write
+ * (objectui#4232: the flat spelling made Studio's page-create PUT fail, so no
+ * page row was ever stored).
+ *
+ * Deliberately NOT tolerant — no `?? node` fallback to a top-level read. A
+ * regression to the flat spelling turns every assertion reached through these
+ * two helpers red, instead of quietly passing on the shape the server refuses.
+ * The payload is pinned against the real spec schema in
+ * `buildDefaultPageSchema.strictPayload.test.ts`.
+ */
+const props = (node: any): Record<string, any> => node?.properties ?? {};
+/** A `page:tabs` node's tab items, out of that same bag. */
+const tabItems = (node: any): any[] => props(node).items ?? [];
+
 const leadDef: ObjectDefLike = {
   name: 'lead',
   label: 'Lead',
@@ -232,25 +249,25 @@ describe('buildDefaultPageSchema', () => {
     });
     const hl = page.regions[0].components.find((c: any) => c.type === 'record:highlights');
     const path = page.regions[0].components.find((c: any) => c.type === 'record:path');
-    expect(hl.fields).toEqual(['email']);
-    expect(path.statusField).toBe('rating');
-    expect(path.stages).toEqual([{ value: 'hot', label: 'Hot' }]);
+    expect(props(hl).fields).toEqual(['email']);
+    expect(props(path).statusField).toBe('rating');
+    expect(props(path).stages).toEqual([{ value: 'hot', label: 'Hot' }]);
   });
 
   it('page:header.recordChrome defaults to true and can be turned off', () => {
     const on = buildDefaultPageSchema(leadDef).regions[0].components[0];
     const off = buildDefaultPageSchema(leadDef, { recordChrome: false }).regions[0].components[0];
-    expect(on.recordChrome).toBe(true);
-    expect(off.recordChrome).toBe(false);
+    expect(props(on).recordChrome).toBe(true);
+    expect(props(off).recordChrome).toBe(false);
   });
 
   it('page:tabs always carries a details tab containing record:details', () => {
     const tabs = buildDefaultPageSchema(leadDef).regions[0].components.find(
       (c: any) => c.type === 'page:tabs',
     );
-    expect(tabs.items).toHaveLength(1);
-    expect(tabs.items[0].label).toBe('Details');
-    expect(tabs.items[0].children[0].type).toBe('record:details');
+    expect(tabItems(tabs)).toHaveLength(1);
+    expect(tabItems(tabs)[0].label).toBe('Details');
+    expect(tabItems(tabs)[0].children[0].type).toBe('record:details');
   });
 
   it('handles undefined def gracefully', () => {
@@ -275,9 +292,9 @@ describe('buildDefaultPageSchema', () => {
       // No separate record:quick_actions sibling — actions live on the header.
       expect(types).not.toContain('record:quick_actions');
       const header = page.regions[0].components[0];
-      expect(Array.isArray(header.actions)).toBe(true);
-      expect(header.actions).toHaveLength(1);
-      expect(header.actions[0].name).toBe('edit');
+      expect(Array.isArray(props(header).actions)).toBe(true);
+      expect(props(header).actions).toHaveLength(1);
+      expect(props(header).actions[0].name).toBe('edit');
     });
 
     it('omits header.actions when headerActions empty or absent', () => {
@@ -285,8 +302,8 @@ describe('buildDefaultPageSchema', () => {
       const emptyOpt = buildDefaultPageSchema(leadDef, { headerActions: [] });
       const header1 = noOpt.regions[0].components[0];
       const header2 = emptyOpt.regions[0].components[0];
-      expect(header1.actions).toBeUndefined();
-      expect(header2.actions).toBeUndefined();
+      expect(props(header1).actions).toBeUndefined();
+      expect(props(header2).actions).toBeUndefined();
     });
 
     it('emits Related tab with one record:related_list per entry', () => {
@@ -308,13 +325,13 @@ describe('buildDefaultPageSchema', () => {
         ],
       });
       const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
-      expect(tabs.items).toHaveLength(2);
-      expect(tabs.items[1].label).toBe('Related');
-      expect(tabs.items[1].children).toHaveLength(2);
-      expect(tabs.items[1].children[0].type).toBe('record:related_list');
-      expect(tabs.items[1].children[0].objectName).toBe('task');
-      expect(tabs.items[1].children[0].relationshipField).toBe('lead_id');
-      expect(tabs.items[1].children[0].limit).toBe(10);
+      expect(tabItems(tabs)).toHaveLength(2);
+      expect(tabItems(tabs)[1].label).toBe('Related');
+      expect(tabItems(tabs)[1].children).toHaveLength(2);
+      expect(tabItems(tabs)[1].children[0].type).toBe('record:related_list');
+      expect(props(tabItems(tabs)[1].children[0]).objectName).toBe('task');
+      expect(props(tabItems(tabs)[1].children[0]).relationshipField).toBe('lead_id');
+      expect(props(tabItems(tabs)[1].children[0]).limit).toBe(10);
     });
 
     it('promotes an isPrimary related list to its OWN tab (rule Z default)', () => {
@@ -323,7 +340,7 @@ describe('buildDefaultPageSchema', () => {
           { objectName: 'opportunity', relationshipField: 'lead_id', title: 'Opportunities', isPrimary: true },
         ],
       });
-      const labels = tabs.items.map((t: any) => t.label);
+      const labels = tabItems(tabs).map((t: any) => t.label);
       expect(labels).toEqual(['Details', 'Opportunities']);
       expect(labels).not.toContain('Related');
     });
@@ -336,11 +353,11 @@ describe('buildDefaultPageSchema', () => {
           { objectName: 'note', relationshipField: 'parent_id', title: 'Notes' },
         ],
       });
-      const labels = tabs.items.map((t: any) => t.label);
+      const labels = tabItems(tabs).map((t: any) => t.label);
       expect(labels).toEqual(['Details', 'Opportunities', 'Related']);
-      const related = tabs.items.find((t: any) => t.label === 'Related');
+      const related = tabItems(tabs).find((t: any) => t.label === 'Related');
       expect(related.children).toHaveLength(2);
-      expect(related.children.map((c: any) => c.objectName)).toEqual(['task', 'note']);
+      expect(related.children.map((c: any) => props(c).objectName)).toEqual(['task', 'note']);
     });
 
     it("relatedLayout:'tabs' gives every related list its own tab, ignoring isPrimary", () => {
@@ -351,7 +368,7 @@ describe('buildDefaultPageSchema', () => {
           { objectName: 'note', relationshipField: 'parent_id', title: 'Notes' },
         ],
       });
-      const labels = tabs.items.map((t: any) => t.label);
+      const labels = tabItems(tabs).map((t: any) => t.label);
       expect(labels).toEqual(['Details', 'Tasks', 'Notes']);
       expect(labels).not.toContain('Related');
     });
@@ -364,9 +381,9 @@ describe('buildDefaultPageSchema', () => {
           { objectName: 'task', relationshipField: 'lead_id', title: 'Tasks' },
         ],
       });
-      const labels = tabs.items.map((t: any) => t.label);
+      const labels = tabItems(tabs).map((t: any) => t.label);
       expect(labels).toEqual(['Details', 'Related']);
-      const related = tabs.items.find((t: any) => t.label === 'Related');
+      const related = tabItems(tabs).find((t: any) => t.label === 'Related');
       expect(related.children).toHaveLength(2);
     });
 
@@ -381,7 +398,7 @@ describe('buildDefaultPageSchema', () => {
       expect(page.regions.find((r: any) => r.name === 'aside')).toBeUndefined();
       // Related tab survives (Details + Related).
       const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
-      const labels = tabs.items.map((t: any) => t.label);
+      const labels = tabItems(tabs).map((t: any) => t.label);
       expect(labels).toContain('Related');
     });
 
@@ -395,14 +412,14 @@ describe('buildDefaultPageSchema', () => {
       });
       // Related tab is suppressed (Details only)
       const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
-      expect(tabs.items).toHaveLength(1);
-      expect(tabs.items[0].label).toBe('Details');
+      expect(tabItems(tabs)).toHaveLength(1);
+      expect(tabItems(tabs)[0].label).toBe('Details');
       // Aside region emitted with the rail
       const aside = page.regions.find((r: any) => r.name === 'aside');
       expect(aside).toBeDefined();
       expect(aside.components[0].type).toBe('record:reference_rail');
-      expect(aside.components[0].entries).toHaveLength(2);
-      expect(aside.components[0].entries[0].objectName).toBe('task');
+      expect(props(aside.components[0]).entries).toHaveLength(2);
+      expect(props(aside.components[0]).entries[0].objectName).toBe('task');
     });
 
     it('emits aside region from slots.rightRail even without any related lists', () => {
@@ -442,9 +459,9 @@ describe('buildDefaultPageSchema', () => {
     it('emits Activity tab when showActivity is true', () => {
       const page = buildDefaultPageSchema(leadDef, { showActivity: true });
       const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
-      const labels = tabs.items.map((t: any) => t.label);
+      const labels = tabItems(tabs).map((t: any) => t.label);
       expect(labels).toContain('Activity');
-      const act = tabs.items.find((t: any) => t.label === 'Activity');
+      const act = tabItems(tabs).find((t: any) => t.label === 'Activity');
       expect(act.children[0].type).toBe('record:activity');
     });
 
@@ -456,11 +473,11 @@ describe('buildDefaultPageSchema', () => {
         history: { entries, loading: false },
       });
       const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
-      const hist = tabs.items.find((t: any) => t.label === 'History');
+      const hist = tabItems(tabs).find((t: any) => t.label === 'History');
       expect(hist).toBeDefined();
       expect(hist.children[0].type).toBe('record:history');
-      expect(hist.children[0].entries).toEqual(entries);
-      expect(hist.children[0].loading).toBe(false);
+      expect(props(hist.children[0]).entries).toEqual(entries);
+      expect(props(hist.children[0]).loading).toBe(false);
     });
 
     it('Details / Related / Activity / History tab order is stable', () => {
@@ -470,7 +487,7 @@ describe('buildDefaultPageSchema', () => {
         history: { entries: [], loading: false },
       });
       const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
-      expect(tabs.items.map((t: any) => t.label)).toEqual([
+      expect(tabItems(tabs).map((t: any) => t.label)).toEqual([
         'Details',
         'Related',
         'Activity',
@@ -502,20 +519,20 @@ describe('buildDefaultPageSchema', () => {
           (c: any) => c.type === 'page:tabs',
         );
         // Details + one tab per related child (no shared 'Related' tab).
-        expect(tabs.items.map((t: any) => t.label)).toEqual([
+        expect(tabItems(tabs).map((t: any) => t.label)).toEqual([
           'Details',
           'Tasks',
           'note',
         ]);
-        const tasksTab = tabs.items[1];
+        const tasksTab = tabItems(tabs)[1];
         expect(tasksTab.icon).toBe('check');
         expect(tasksTab.children).toHaveLength(1);
         expect(tasksTab.children[0].type).toBe('record:related_list');
-        expect(tasksTab.children[0].objectName).toBe('task');
-        expect(tasksTab.children[0].relationshipField).toBe('lead_id');
-        expect(tasksTab.children[0].limit).toBe(10);
+        expect(props(tasksTab.children[0]).objectName).toBe('task');
+        expect(props(tasksTab.children[0]).relationshipField).toBe('lead_id');
+        expect(props(tasksTab.children[0]).limit).toBe(10);
         // The second related child (no title) falls back to its objectName.
-        expect(tabs.items[2].children[0].objectName).toBe('note');
+        expect(props(tabItems(tabs)[2].children[0]).objectName).toBe('note');
       });
 
       it("defaults to the stacked 'Related' tab when relatedLayout is omitted", () => {
@@ -523,11 +540,11 @@ describe('buildDefaultPageSchema', () => {
         const tabs = page.regions[0].components.find(
           (c: any) => c.type === 'page:tabs',
         );
-        expect(tabs.items.map((t: any) => t.label)).toEqual([
+        expect(tabItems(tabs).map((t: any) => t.label)).toEqual([
           'Details',
           'Related',
         ]);
-        expect(tabs.items[1].children).toHaveLength(2);
+        expect(tabItems(tabs)[1].children).toHaveLength(2);
       });
 
       it("still honours hideRelatedTab (no related tabs emitted)", () => {
@@ -539,7 +556,7 @@ describe('buildDefaultPageSchema', () => {
         const tabs = page.regions[0].components.find(
           (c: any) => c.type === 'page:tabs',
         );
-        expect(tabs.items.map((t: any) => t.label)).toEqual(['Details']);
+        expect(tabItems(tabs).map((t: any) => t.label)).toEqual(['Details']);
       });
 
       it("keeps Activity / History after the per-table tabs", () => {
@@ -552,7 +569,7 @@ describe('buildDefaultPageSchema', () => {
         const tabs = page.regions[0].components.find(
           (c: any) => c.type === 'page:tabs',
         );
-        expect(tabs.items.map((t: any) => t.label)).toEqual([
+        expect(tabItems(tabs).map((t: any) => t.label)).toEqual([
           'Details',
           'Tasks',
           'note',
@@ -621,25 +638,31 @@ describe('buildDefaultPageSchema', () => {
         slots: { details: { type: 'div', id: 'custom-details' } },
       });
       const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
-      expect(tabs.items.map((t: any) => t.label)).toEqual([
+      expect(tabItems(tabs).map((t: any) => t.label)).toEqual([
         'Details',
         'Related',
         'History',
       ]);
-      expect(tabs.items[0].children).toEqual([{ type: 'div', id: 'custom-details' }]);
+      expect(tabItems(tabs)[0].children).toEqual([{ type: 'div', id: 'custom-details' }]);
       // record:details default body must be gone
-      const firstBodyType = tabs.items[0].children[0].type;
+      const firstBodyType = tabItems(tabs)[0].children[0].type;
       expect(firstBodyType).toBe('div');
     });
 
     it('tabs slot wins over details slot when both provided', () => {
+      // Authored verbatim, in the caller's own spelling: a slot node is the
+      // author's, and the synthesizer places it UNTOUCHED — it does not
+      // re-shape someone else's tree (objectui#4232 canonicalizes the nodes
+      // this file BUILDS, not the ones it is handed).
+      const slotNode = { type: 'page:tabs', items: [{ label: 'Only', children: [] }] };
       const page = buildDefaultPageSchema(leadDef, {
         slots: {
-          tabs: { type: 'page:tabs', items: [{ label: 'Only', children: [] }] },
+          tabs: slotNode,
           details: { type: 'div', id: 'unused' },
         },
       });
       const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
+      expect(tabs).toEqual(slotNode);
       expect(tabs.items).toHaveLength(1);
       expect(tabs.items[0].label).toBe('Only');
       // details slot was not applied
@@ -674,7 +697,7 @@ describe('buildDefaultPageSchema', () => {
   describe('slice I — sub-builders', () => {
     it('buildDefaultHeader returns a page:header node with recordChrome default true', () => {
       const node = buildDefaultHeader(leadDef);
-      expect(node).toEqual({ type: 'page:header', recordChrome: true });
+      expect(node).toEqual({ type: 'page:header', properties: { recordChrome: true } });
     });
 
     it('buildDefaultActions returns null for empty actions list', () => {
@@ -685,8 +708,8 @@ describe('buildDefaultPageSchema', () => {
     it('buildDefaultActions returns a quick_actions node when actions are provided', () => {
       const node = buildDefaultActions(leadDef, [{ id: 'edit', label: 'Edit' }]);
       expect(node?.type).toBe('record:quick_actions');
-      expect(node?.location).toBe('record_header');
-      expect(node?.actions).toHaveLength(1);
+      expect(props(node).location).toBe('record_header');
+      expect(props(node).actions).toHaveLength(1);
     });
 
     it('buildDefaultHighlights returns [chips, path] when status field is present', () => {
@@ -711,7 +734,7 @@ describe('buildDefaultPageSchema', () => {
         history: { entries: [], loading: false },
       });
       expect(tabs.type).toBe('page:tabs');
-      expect(tabs.items.map((t: any) => t.label)).toEqual([
+      expect(tabItems(tabs).map((t: any) => t.label)).toEqual([
         'Details',
         'Related',
         'Activity',
@@ -742,7 +765,7 @@ describe('buildDefaultPageSchema', () => {
     it('enable.files → tabs carry an Attachments tab wrapping record:attachments', () => {
       const page = buildDefaultPageSchema(filesDef);
       const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
-      const tab = tabs.items.find((t: any) => t.value === 'attachments');
+      const tab = tabItems(tabs).find((t: any) => t.value === 'attachments');
       expect(tab).toBeDefined();
       expect(tab.label).toBe('Attachments');
       expect(tab.children).toEqual([{ type: 'record:attachments' }]);
@@ -758,7 +781,7 @@ describe('buildDefaultPageSchema', () => {
         showActivity: true,
         history: { entries: [], loading: false },
       });
-      expect(tabs.items.map((t: any) => t.value)).toEqual([
+      expect(tabItems(tabs).map((t: any) => t.value)).toEqual([
         'details',
         'related',
         'attachments',
@@ -777,8 +800,8 @@ describe('buildDefaultPageSchema', () => {
         slots: { details: { type: 'div', id: 'custom-details' } },
       });
       const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
-      expect(tabs.items.some((t: any) => t.value === 'attachments')).toBe(true);
-      expect(tabs.items[0].children[0].id).toBe('custom-details');
+      expect(tabItems(tabs).some((t: any) => t.value === 'attachments')).toBe(true);
+      expect(tabItems(tabs)[0].children[0].id).toBe('custom-details');
     });
   });
 
@@ -802,11 +825,11 @@ describe('buildDefaultPageSchema', () => {
         approvals: { count: 2, node: nodePayload },
       });
       const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
-      const tab = tabs.items.find((t: any) => t.value === 'approvals');
+      const tab = tabItems(tabs).find((t: any) => t.value === 'approvals');
       expect(tab).toBeDefined();
       expect(tab.label).toBe('Approvals');
       expect(tab.count).toBe(2);
-      expect(tab.children).toEqual([{ type: 'record:approvals', ...nodePayload }]);
+      expect(tab.children).toEqual([{ type: 'record:approvals', properties: { ...nodePayload } }]);
     });
 
     it('the Approvals tab sits after Related and before Attachments/Activity/History', () => {
@@ -816,7 +839,7 @@ describe('buildDefaultPageSchema', () => {
         history: { entries: [], loading: false },
         approvals: { node: nodePayload },
       });
-      expect(tabs.items.map((t: any) => t.value)).toEqual([
+      expect(tabItems(tabs).map((t: any) => t.value)).toEqual([
         'details',
         'related',
         'approvals',
@@ -832,8 +855,8 @@ describe('buildDefaultPageSchema', () => {
         slots: { details: { type: 'div', id: 'custom-details' } },
       });
       const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
-      expect(tabs.items.some((t: any) => t.value === 'approvals')).toBe(true);
-      expect(tabs.items[0].children[0].id).toBe('custom-details');
+      expect(tabItems(tabs).some((t: any) => t.value === 'approvals')).toBe(true);
+      expect(tabItems(tabs)[0].children[0].id).toBe('custom-details');
     });
   });
 });
@@ -1079,9 +1102,9 @@ describe('buildDefaultPageSchema integration (#2148)', () => {
     };
     const page = buildDefaultPageSchema(def);
     const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
-    const details = tabs.items[0].children[0];
+    const details = tabItems(tabs)[0].children[0];
     expect(details.type).toBe('record:details');
-    expect(details.sections[0]).toMatchObject({ name: 'basic', title: 'Basic' });
+    expect(props(details).sections[0]).toMatchObject({ name: 'basic', title: 'Basic' });
   });
 
   it('stageField: false drops record:path', () => {
@@ -1104,16 +1127,16 @@ describe('buildDefaultTabs — stable tab values (objectui#2257)', () => {
       showActivity: true,
       history: { entries: [], loading: false },
     });
-    expect(tabs.items.map((i: any) => i.value)).toEqual([
+    expect(tabItems(tabs).map((i: any) => i.value)).toEqual([
       'details', 'related:invoice', 'related', 'activity', 'history',
     ]);
   });
 
   it('relatedLayout tabs → every child gets related:<child>; stack → one related', () => {
     const asTabs = buildDefaultTabs(undefined, { related: [relA, relB], relatedLayout: 'tabs' });
-    expect(asTabs.items.map((i: any) => i.value)).toEqual(['details', 'related:invoice', 'related:note']);
+    expect(tabItems(asTabs).map((i: any) => i.value)).toEqual(['details', 'related:invoice', 'related:note']);
     const stacked = buildDefaultTabs(undefined, { related: [relA, relB], relatedLayout: 'stack' });
-    expect(stacked.items.map((i: any) => i.value)).toEqual(['details', 'related']);
+    expect(tabItems(stacked).map((i: any) => i.value)).toEqual(['details', 'related']);
   });
 
   it('values stay stable when the related list shrinks (URL tokens must not shift)', () => {
@@ -1121,7 +1144,7 @@ describe('buildDefaultTabs — stable tab values (objectui#2257)', () => {
     const onlyB = buildDefaultTabs(undefined, { related: [relB] });
     // 'related' names the same (stacked) tab in both trees — an index value
     // would have pointed at 'related:invoice' before and 'related' after.
-    expect(both.items.some((i: any) => i.value === 'related')).toBe(true);
-    expect(onlyB.items.some((i: any) => i.value === 'related')).toBe(true);
+    expect(tabItems(both).some((i: any) => i.value === 'related')).toBe(true);
+    expect(tabItems(onlyB).some((i: any) => i.value === 'related')).toBe(true);
   });
 });

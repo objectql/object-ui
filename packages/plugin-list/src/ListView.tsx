@@ -148,6 +148,30 @@ export function normalizeFilterCondition(condition: any[]): any[] {
  * e.g., 'send_email' → 'Send Email'
  */
 /**
+ * Field types the SERVER refuses to order by, so the sort picker must not
+ * offer them (objectui#4243).
+ *
+ * This mirrors `UNMATERIALIZED_SORT_TYPES` in objectstack
+ * `packages/metadata-protocol/src/protocol.ts` — a `formula` value is computed
+ * on read, no driver materialises a column for it, and since objectstack#6994
+ * a sort naming one is a hard 400 (before that it degraded silently: the
+ * response carried the very values it was asked to order by, out of order,
+ * under a 200, with `asc` and `desc` byte-identical).
+ *
+ * The set is `formula` ALONE, deliberately — NOT the spec's
+ * `COMPUTED_VALUE_TYPES` (`formula` / `summary` / `autonumber`). That set is
+ * the WRITE contract ("never client-written"); `summary` and `autonumber` each
+ * get a real maintained column and order correctly. objectstack's own
+ * conformance test pins that trap by name ("a summary field still sorts, in
+ * both directions — the family is `formula`, not 'computed'"), so widening
+ * this set would withhold two types that work.
+ *
+ * Kept local to this renderer rather than added to `@object-ui/core`: it is
+ * one sortability rule for one picker.
+ */
+const UNSORTABLE_FIELD_TYPES: ReadonlySet<string> = new Set(['formula']);
+
+/**
  * Normalize a view's `sort` declaration to SortItem[]. @objectstack/spec
  * ListViewSchema.sort is `string | Array<{ field, order }>` — the TOP-LEVEL
  * value may be a bare string ("name desc"); array entries may be strings
@@ -633,6 +657,38 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     setCurrentSort(parseSortConfig(schema.sort));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schemaSortKey]);
+
+  /**
+   * The view's DECLARED sort, for the "reset to default" affordance
+   * (objectui#4243).
+   *
+   * One click on a column header replaces the whole sort array with that one
+   * column, so a view shipping a two-level default lost it for the rest of the
+   * session — the declared `sort` acted as an initial value with no way back
+   * short of a page reload.
+   *
+   * Read through `parseSortConfig(schema.sort)` — THE resolver the initial
+   * state and the view-switch effect above already use, not a re-derivation:
+   * "what did this view declare" must have exactly one answer, or the reset
+   * button and the first render could disagree about it.
+   */
+  const declaredSort = React.useMemo(
+    () => parseSortConfig(schema.sort),
+    // Keyed on the same stringified payload as the effect above; `schema.sort`
+    // is a fresh array identity on every parent render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [schemaSortKey],
+  );
+
+  // Compared by (field, order) IN ORDER — never by `id`, which `parseSortConfig`
+  // mints fresh from `crypto.randomUUID()` on every call, so an id comparison
+  // would report "differs" against the view's own declared sort.
+  const sortDiffersFromDeclared = React.useMemo(() => {
+    if (currentSort.length !== declaredSort.length) return true;
+    return currentSort.some(
+      (item, i) => item.field !== declaredSort[i].field || item.order !== declaredSort[i].order,
+    );
+  }, [currentSort, declaredSort]);
 
   const [showFilters, setShowFilters] = React.useState(false);
 
@@ -1816,7 +1872,15 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
   const hasFilters = currentFilters.conditions && currentFilters.conditions.length > 0;
 
-  const filterFields = React.useMemo(() => {
+  /**
+   * Every field this view can name, before any per-builder rule narrows it.
+   *
+   * Was `filterFields` — the whitelist used to be applied inside this memo, so
+   * `filterableFields` was the ONLY base set either builder could see, and the
+   * sort picker inherited a whitelist authored for filtering (objectui#4243).
+   * The two narrowings now sit downstream of it, one per builder.
+   */
+  const candidateFields = React.useMemo(() => {
     let fields: Array<{ value: string; label: string; type: string; options?: any; referenceTo?: string; displayField?: string; idField?: string }>;
 
     // Translate select-field option labels through the i18n resolver.
@@ -1873,17 +1937,33 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         }));
     }
 
-    // Apply filterableFields whitelist restriction
-    if (schema.filterableFields && schema.filterableFields.length > 0) {
-      const allowed = new Set(schema.filterableFields);
-      fields = fields.filter(f => allowed.has(f.value));
-    }
-
     return fields;
-  }, [objectDef, schema.columns, schema.filterableFields, schema.objectName, tFieldLabel, translateOptions]);
+  }, [objectDef, schema.columns, schema.objectName, tFieldLabel, translateOptions]);
 
-  // Sort candidates ⊂ filter candidates (objectui#3096).
+  /**
+   * The FILTER builder's candidates: the view's `filterableFields` whitelist,
+   * applied to the full set. Behaviour is unchanged by objectui#4243 — the
+   * whitelist simply moved out of the shared memo into the one builder it was
+   * authored for, so widening the SORT picker cannot widen this.
+   */
+  const filterFields = React.useMemo(() => {
+    if (!schema.filterableFields || schema.filterableFields.length === 0) return candidateFields;
+    const allowed = new Set(schema.filterableFields);
+    return candidateFields.filter(f => allowed.has(f.value));
+  }, [candidateFields, schema.filterableFields]);
+
+  // Sort candidates: ALL fields the view can name, minus the ones the sort
+  // cannot honestly reach (objectui#4243 — previously ⊂ filter candidates).
   //
+  // The base set used to be `filterFields`, so `filterableFields` doubled as
+  // the sort whitelist: a field meant to be sortable but not offered as a
+  // filter condition could not be expressed, and a view was free to DECLARE a
+  // sort on a field this picker then refused to list — the declared sort
+  // worked on load, while its rows rendered blank and the user could neither
+  // reproduce nor modify it. The whitelist is a FILTER contract; sortability
+  // is a property of the field's type, which is what the two rules below read.
+  //
+
   // This view's sort becomes a server `$orderby` on the FLAT field name, and a
   // relational field stores a foreign-key id — so "sort by Owner" orders the
   // whole collection by `rec_7f3…` while the column shows names. It reads as
@@ -1894,27 +1974,41 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // below points at the supported alternative (a formula field that
   // denormalizes the name onto this object, which sorts like any text column).
   //
-  // Exception: a field the CURRENT sort already uses stays listed — flagged as
-  // ordering by ID — so opening this popover on a view that was authored (or
-  // saved before this change) with a relational sort neither renders a blank
-  // row nor silently drops that sort on the next edit.
+  // Second rule — {@link UNSORTABLE_FIELD_TYPES}: a `formula` field has no
+  // materialised column, so the server answers a sort naming one with a 400.
+  // It matters here precisely BECAUSE the base set widened: a formula field
+  // used to reach this picker only if someone had whitelisted it, and now
+  // every formula field on the object would be offered. Withheld silently —
+  // the relational hint below stays strictly about relations, which is what
+  // its sentence describes.
+  //
+  // Exception (both rules): a field the CURRENT sort already uses stays listed
+  // — relational ones flagged as ordering by ID — so opening this popover on a
+  // view that was authored (or saved before this change) with such a sort
+  // neither renders a blank row nor silently drops that sort on the next edit.
+  // For a formula field that exception is the only way to REMOVE the offending
+  // row, since the sort it names is one the server refuses outright.
   const { sortFields, sortHasRelationalField } = React.useMemo(() => {
     const inUse = new Set(currentSort.map((item) => item.field).filter(Boolean));
     let excluded = false;
     const fields: Array<{ value: string; label: string }> = [];
-    for (const field of filterFields) {
-      if (!EXPANDABLE_FIELD_TYPES.has(field.type)) {
+    for (const field of candidateFields) {
+      const relational = EXPANDABLE_FIELD_TYPES.has(field.type);
+      if (!relational && !UNSORTABLE_FIELD_TYPES.has(field.type)) {
         fields.push({ value: field.value, label: field.label });
         continue;
       }
       if (inUse.has(field.value)) {
-        fields.push({ value: field.value, label: `${field.label} ${t('list.sortByIdSuffix')}` });
+        fields.push({
+          value: field.value,
+          label: relational ? `${field.label} ${t('list.sortByIdSuffix')}` : field.label,
+        });
         continue;
       }
-      excluded = true;
+      if (relational) excluded = true;
     }
     return { sortFields: fields, sortHasRelationalField: excluded };
-  }, [filterFields, currentSort, t]);
+  }, [candidateFields, currentSort, t]);
 
   /**
    * A column-header sort from the child grid (#3106).
@@ -1941,6 +2035,29 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     setServerPage(1);
     onSortChange?.(items);
   }, [onSortChange]);
+
+  /**
+   * "Reset to the view's default sort" (objectui#4243) — the way back the
+   * header click above does not leave.
+   *
+   * It restores the declared array WHOLE: multi-level, in declared order.
+   * Clearing the sort would not put the view back, and rebuilding it by hand
+   * is what the card reports as impossible. Deliberately the SIBLING of
+   * `handleHeaderSort`, not a special case of it — same `currentSort`, same
+   * page reset (a different order makes "page 5" a different set of rows), and
+   * the same `onSortChange` notification, so a host persists a reset exactly
+   * as it persists a header click or a builder edit.
+   *
+   * The header click's own semantics are untouched by this: it still replaces
+   * the whole array. The ruling adds a way back; it does not change the click.
+   */
+  const handleResetSort = React.useCallback(() => {
+    const restored = parseSortConfig(schema.sort);
+    setCurrentSort(restored);
+    setServerPage(1);
+    onSortChange?.(restored);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schemaSortKey, onSortChange]);
 
   // Export handler
   const handleExport = React.useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
@@ -2369,6 +2486,28 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b pb-2">
                   <h4 className="font-medium text-sm">{t('list.sortRecords')}</h4>
+                  {/* Reset to the view's declared sort (objectui#4243).
+                      Rendered only when the view DECLARES one: with nothing
+                      declared there is no default to return to, and a control
+                      under this label that merely cleared the sort would be a
+                      second, differently-named way to do what removing the
+                      rows already does. Disabled — not hidden — while the
+                      active sort already equals the declared one, so the
+                      affordance stays discoverable and says "you are at the
+                      default" instead of vanishing. */}
+                  {declaredSort.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-primary"
+                      disabled={!sortDiffersFromDeclared}
+                      onClick={handleResetSort}
+                      data-testid="sort-reset-default"
+                    >
+                      {t('list.resetSortToDefault')}
+                    </Button>
+                  )}
                 </div>
                 <SortBuilder
                   fields={sortFields}
