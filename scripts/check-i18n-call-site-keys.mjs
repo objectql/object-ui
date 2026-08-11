@@ -4,12 +4,14 @@
  * where the call site also writes an inline `defaultValue`, that dead string
  * must say the same thing the pack does (objectui#3810) — and the interpolation
  * arguments the call site passes must be exactly the holes the `en` value has
- * to receive them (objectui#3845).
+ * to receive them (objectui#3845) — and the OTHER spelling of a fallback,
+ * `t(key) || 'English'`, must not exist at all (objectui#4117).
  *
  * Run:  node scripts/check-i18n-call-site-keys.mjs   (also `pnpm check:i18n-keys`)
  * Exit: 0 = every in-scope call-site key resolves (or is baselined), no inline
- *           default contradicts its `en` value, and no call site's option names
- *           disagree with its `en` value's holes, 1 = otherwise
+ *           default contradicts its `en` value, no call site's option names
+ *           disagree with its `en` value's holes, and no call site carries a
+ *           literal sibling fallback, 1 = otherwise
  *
  * ## The gap this closes (objectui#3530)
  *
@@ -103,7 +105,17 @@
  * every one of them a component that was handed the metadata-admin table's `t`
  * by its parent, and not one of them a real finding.
  *
- * ## Four failure classes
+ * `dead-sibling-fallback` is the sixth, and it was blind to all five — including
+ * the two that read values — for one syntactic reason (objectui#4117): every
+ * rule above reads the call's ARGUMENTS, and this fallback is not an argument.
+ * `t('marketplace.detail.moreOptions') || 'More options'` carries no options
+ * object at all, so class 3 sees no `defaultValue` to compare and class 4 sees
+ * an empty (and correct) argument set. The dead English sits one operator to the
+ * right of everything this file used to look at. `node.parent` is what closes
+ * it, and the rule is the class rather than the instance: the first full run
+ * found 24 such sites in four files, every one of them on a key `en` defines.
+ *
+ * ## Five failure classes
  *
  * 1. `missing-key` — a literal key with no leaf in `en`. i18next plural suffixes
  *    (`_one`, `_other`, …) count as defining the base key, and a key passed with
@@ -189,6 +201,63 @@
  *    product decision about what the string should say — it changes what users
  *    read and obliges the nine other packs through objectui#3650 — so the gate
  *    accepts either resolution and neither is its to make.
+ *
+ * 5. `dead-sibling-fallback` (objectui#4117) — the key EXISTS and the call site
+ *    still writes a literal fallback as the call's SIBLING rather than as an
+ *    argument: `t('detail.moreOptions') || 'More options'`, or the same with
+ *    `??`. Unlike class 3 this rule does not ask what the fallback SAYS. It is
+ *    existence-is-red, and the fix is DELETION, because there is no reading of
+ *    this spelling under which the right operand can render:
+ *
+ *      - With a provider, i18next serves the pack value — the same reason class
+ *        3's `defaultValue` is dead.
+ *      - With NO provider, this spelling is strictly worse than `defaultValue`
+ *        rather than equivalent to it. react-i18next's not-ready `t` returns the
+ *        KEY, and `createSafeTranslation`'s fallback returns `defaults[key] ||
+ *        key` — both truthy — so `||` skips the right operand and the user reads
+ *        a raw `console.objectView.delete`. `defaultValue` at least renders
+ *        English there. Same family as objectui#3865; this is its `||` half.
+ *
+ *    So the two spellings are not two ways to write one thing: one is dead and
+ *    misleading, the other is dead and misleading AND cannot degrade gracefully.
+ *    The ruling on this card keeps ONE blessed fallback spelling — `defaultValue`,
+ *    governed by class 3 — instead of two competing ones, which is also why this
+ *    rule does not simply extend class 3's byte-equality test to the sibling
+ *    position: aligning these strings would bless the spelling.
+ *
+ *    Deliberately NOT judged (counted instead), and each abstention is a
+ *    decision the class above would get wrong:
+ *
+ *      - The same key preconditions as classes 3 and 4 — a dynamic or
+ *        several-literal key, a `returnObjects` subtree, an `en` leaf that is
+ *        not a readable static string (the plural families land here).
+ *      - An `en` value that is the EMPTY STRING. Then `t()` really can return a
+ *        falsy value and `||` really can reach its right operand, so the premise
+ *        of the whole class fails. `en` has no such leaf today; the abstention is
+ *        what stops the first one becoming a wrong red.
+ *      - A NON-LITERAL right operand (`t(key) || label`). What renders is then a
+ *        runtime value, not a second copy of the sentence, and judging it would
+ *        mean claiming something about a variable this parser cannot read —
+ *        exactly how class 3 treats a computed `defaultValue`.
+ *      - An OPTIONAL call, `t?.(key) ?? 'English'`. This one is not a parser
+ *        limitation but a live path: where `t` is an optional prop, the call
+ *        evaluates to `undefined` whenever the prop is absent and the fallback
+ *        is what renders. Both of `packages/app-shell/src/layout/
+ *        ContextSelectors.tsx`'s sites are this shape, and its own
+ *        `ContextSelectors.persist.test.tsx` renders the hook with no `t` — so
+ *        deleting those two would have replaced a rendered placeholder with
+ *        `undefined`. The card that filed this class listed them among the 24;
+ *        measuring the call shape is what took them back out.
+ *
+ *    Only the LEFT operand position is judged. `someLabel || t('common.actions')`
+ *    is the healthy, opposite shape — a runtime value with a translated fallback
+ *    — and `main` has 94 of them against these 24. A rule that read "appears in a
+ *    `||`" rather than "is the left operand of one" would condemn all 94.
+ *
+ *    HARD from day one, like classes 3 and 4: the first full run found 24 sites,
+ *    22 of them judged and deleted in objectui#4117's own PR, so there is no debt
+ *    for a ratchet to hold. And a fallback written on a key `en` does NOT define
+ *    stays legal — that is class 1's business, not this one's.
  *
  * ## Dynamic keys: the explicit policy
  *
@@ -773,6 +842,49 @@ function interpolationOptions(node, source) {
   return { readable: true, names };
 }
 
+/**
+ * The fallback written as this call's SIBLING, i.e. `t(key) || 'English'`
+ * (objectui#4117), or `null` when the call is not in that position at all.
+ *
+ * `node.parent` is the whole mechanism, and the direction matters: only the
+ * LEFT operand of `||`/`??` is this class. The mirror shape,
+ * `someValue || t('key')`, is the healthy one — a runtime value falling back to
+ * a translation — and `main` carries 94 of those.
+ *
+ * `optional` reports `t?.(key)`, where the call itself can evaluate to
+ * `undefined` and the fallback is therefore LIVE. `literal` reports whether the
+ * right operand is a static string or a template literal, which is the only
+ * form this rule judges; `text` is that string, or the right operand's source
+ * for a template, purely so the report can quote it.
+ */
+function siblingFallback(node, source) {
+  let current = node;
+  let parent = node.parent;
+  while (
+    parent &&
+    (ts.isParenthesizedExpression(parent) || ts.isAsExpression(parent) || ts.isNonNullExpression(parent))
+  ) {
+    current = parent;
+    parent = parent.parent;
+  }
+  if (!parent || !ts.isBinaryExpression(parent) || parent.left !== current) return null;
+  const operator = parent.operatorToken.kind;
+  if (operator !== ts.SyntaxKind.BarBarToken && operator !== ts.SyntaxKind.QuestionQuestionToken) return null;
+
+  const right = unwrapExpression(parent.right);
+  const text = staticString(right, source);
+  // A template WITH substitutions is still a literal fallback — the whole point
+  // of the five divergent rows this class was filed over. `staticString` cannot
+  // fold it, so read it as source; the verdict is "delete", never "compare".
+  const isTemplate = !!right && ts.isTemplateExpression(right);
+  return {
+    operator: operator === ts.SyntaxKind.BarBarToken ? '||' : '??',
+    optional: !!node.questionDotToken,
+    literal: text !== null || isTemplate,
+    text: text !== null ? text : right ? right.getText(source).replace(/\s+/g, ' ') : '',
+  };
+}
+
 /** The literal head of a template key, i.e. everything before the first `${`. */
 function staticHead(argument) {
   const inner = unwrapExpression(argument);
@@ -822,6 +934,11 @@ export function analyze(root) {
     judgedInterpolation: 0,
     unjudgedInterpolation: 0,
     opaqueOptions: 0,
+    siblingFallbacks: 0,
+    judgedSiblingFallbacks: 0,
+    computedSiblingFallbacks: 0,
+    optionalCallFallbacks: 0,
+    unjudgedSiblingFallbacks: 0,
   };
 
   for (const file of collectSourceFiles(root)) {
@@ -847,7 +964,11 @@ export function analyze(root) {
       }
     }
 
-    if (!/\bt\s*\(|\btt\s*\(/.test(text)) continue;
+    // `?\.` is not decoration: `packages/app-shell/src/layout/ContextSelectors.tsx`
+    // spells EVERY call `t?.(…)` because its `t` is an optional prop, so it holds
+    // no `t(` at all and this pre-filter used to drop the whole file — silently,
+    // out of all five classes at once (objectui#4117).
+    if (!/\btt?\s*(?:\?\.)?\s*\(/.test(text)) continue;
     const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const bindings = collectBindings(root, file, source);
 
@@ -990,6 +1111,38 @@ export function analyze(root) {
             }
           }
 
+          // objectui#4117 — the fallback spelled as a SIBLING of the call
+          // rather than as one of its arguments. Existence is the defect, so
+          // there is nothing to compare; every abstention below is a case where
+          // "the right operand cannot render" stops being true.
+          const sibling = siblingFallback(node, source);
+          if (sibling !== null) {
+            counters.siblingFallbacks += 1;
+            if (sibling.optional) {
+              // `t?.(key)` is `undefined` when the prop is absent, so the
+              // fallback is LIVE. Not a parser limitation — a real path.
+              counters.optionalCallFallbacks += 1;
+            } else if (enValue === undefined || enValue === '') {
+              // No single readable value — or one that is itself falsy, which is
+              // the one way a non-optional `t()` can let `||` through.
+              counters.unjudgedSiblingFallbacks += 1;
+            } else if (!sibling.literal) {
+              // `t(key) || label` renders a runtime value, not a second copy of
+              // the sentence. Same abstention as a computed `defaultValue`.
+              counters.computedSiblingFallbacks += 1;
+            } else {
+              counters.judgedSiblingFallbacks += 1;
+              findings.push({
+                reason: 'dead-sibling-fallback',
+                ...at,
+                detail: key,
+                expected: enValue,
+                actual: sibling.text,
+                operator: sibling.operator,
+              });
+            }
+          }
+
           if (dynamic) {
             counters.dynamicKeySites += 1;
             const head = staticHead(argument);
@@ -1095,6 +1248,18 @@ const HINTS = {
     ' EXTERNALLY_INTERPOLATED_HOLES with the file that does the substitution — and note that' +
     ' those keys must still NOT be passed the argument, or i18next consumes the hole before the' +
     ' consumer gets to see it.',
+  'dead-sibling-fallback':
+    'The key EXISTS in `en`, and this fallback is written as the call\'s SIBLING' +
+    ' (`t(key) || \'English\'`) rather than as an argument — so it is dead on every path, not just' +
+    ' the provider one (objectui#4117). With a provider the pack wins. WITHOUT one, react-i18next\'s' +
+    ' not-ready `t` returns the KEY, which is truthy, so `||` skips this string too and the user' +
+    ' reads a raw `console.objectView.delete` — strictly worse than an inline `defaultValue`, which' +
+    ' at least renders English there. DELETE the operator and the right-hand string; do NOT align it' +
+    ' with the `en` value, because aligning it would bless a second fallback spelling when the point' +
+    ' is that there is one (`defaultValue`, governed by `default-value-drift`). If this call site' +
+    ' genuinely needs English on a provider-less host, that is `t(key, { defaultValue: \'…\' })`.' +
+    ' Note the mirror shape `someValue || t(key)` is HEALTHY and is not reported: only the LEFT' +
+    ' operand of `||`/`??` is this class.',
 };
 
 /** JSON-quoted, with every non-ASCII byte escaped — `...` vs `…` must be visible. */
@@ -1138,6 +1303,12 @@ if (invokedDirectly) {
       `${counters.unjudgedInterpolation} with no single comparable en value, ${counters.opaqueOptions} with an ` +
       `unreadable option set, ${EXTERNALLY_INTERPOLATED_HOLES.length} key(s) whose holes are filled downstream.`,
   );
+  console.log(
+    `Sibling fallbacks: ${counters.siblingFallbacks} call site(s) sit left of a ||/?? — ` +
+      `${counters.judgedSiblingFallbacks} judged, ${counters.computedSiblingFallbacks} with a non-literal ` +
+      `right operand, ${counters.optionalCallFallbacks} an optional call (fallback is live), ` +
+      `${counters.unjudgedSiblingFallbacks} with no single comparable en value.`,
+  );
 
   // Split by class before printing: the two key classes say "en does not define
   // this", the drift class says "en defines it differently", the parity class
@@ -1145,15 +1316,16 @@ if (invokedDirectly) {
   // introduce all three.
   const drift = unexpected.filter((finding) => finding.reason === 'default-value-drift');
   const parity = unexpected.filter((finding) => finding.reason === 'interpolation-parity');
-  const keyFindings = unexpected.filter(
-    (finding) => finding.reason !== 'default-value-drift' && finding.reason !== 'interpolation-parity',
-  );
+  const siblings = unexpected.filter((finding) => finding.reason === 'dead-sibling-fallback');
+  const VALUE_CLASSES = new Set(['default-value-drift', 'interpolation-parity', 'dead-sibling-fallback']);
+  const keyFindings = unexpected.filter((finding) => !VALUE_CLASSES.has(finding.reason));
 
   if (unexpected.length === 0 && stale.length === 0) {
     console.log(
       `Every in-scope call-site key resolves against the en pack (${enKeyCount} keys), every` +
-        ' literal inline defaultValue matches the value the pack serves, and every call site passes' +
-        ' exactly the arguments that value has holes for.',
+        ' literal inline defaultValue matches the value the pack serves, every call site passes' +
+        ' exactly the arguments that value has holes for, and no call site carries a literal' +
+        ' fallback beside itself.',
     );
     process.exit(0);
   }
@@ -1196,6 +1368,21 @@ if (invokedDirectly) {
       console.error(`      en renders: ${quote(finding.expected)}`);
       if (finding.inert.length > 0) console.error(`      inert (passed, no hole):     ${finding.inert.join(', ')}`);
       if (finding.unfilled.length > 0) console.error(`      unfilled (hole, no argument): ${finding.unfilled.join(', ')}`);
+    }
+  }
+
+  if (siblings.length > 0) {
+    const distinct = new Set(siblings.map((finding) => finding.detail));
+    console.error(
+      `\n${siblings.length} call site${siblings.length === 1 ? '' : 's'} carr${siblings.length === 1 ? 'ies' : 'y'} ` +
+        `a literal fallback as the call's SIBLING (${distinct.size} distinct ` +
+        `key${distinct.size === 1 ? '' : 's'}) — the key exists, so nothing can ever reach the right ` +
+        'operand; delete it:',
+    );
+    for (const finding of siblings) {
+      console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}`);
+      console.error(`      en renders:  ${quote(finding.expected)}`);
+      console.error(`      dead ${finding.operator} operand: ${quote(finding.actual)}`);
     }
   }
 

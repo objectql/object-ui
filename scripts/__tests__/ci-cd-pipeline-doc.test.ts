@@ -664,3 +664,399 @@ describe('ci-cd-pipeline.md — ci.yml job table', () => {
     });
   });
 });
+
+/**
+ * objectui#4170: the `## Merge Queue` section's other current-state claim — the
+ * "Some contexts can never be required, structurally" bullet, which names four
+ * workflows and, for each, quotes the live YAML property that makes it
+ * unrequirable.
+ *
+ * All four were TRUE when this landed, so this pins prose that was not wrong; it
+ * is here because of what happens next. objectui#4154 had just converged the
+ * sibling paragraph one level up onto a pointer, for the reason that prose
+ * nothing reads goes stale silently — and this bullet is that shape with an
+ * expiry date already written into the YAML it describes: `live-e2e.yml`'s own
+ * header says its `continue-on-error: true` comes off once the lane has run
+ * clean long enough to trust. The day that lands, this page states that a lane
+ * which now blocks merges can *never* block them, which is the direction #3197
+ * and #3451 both name as the dangerous one — advertising or denying a guardrail
+ * wrongly is worse than saying nothing, because people stop checking.
+ *
+ * The bullet is kept whole rather than replaced by a pointer (the choice that
+ * fit #4154 and does not fit here): its four entries teach four *different*
+ * structural reasons a context cannot be required — an inverse path filter, an
+ * ordinary one, a job that cannot fail, and a trigger that only fires after the
+ * merge. That is pedagogy, not an inventory, and a pointer would delete it.
+ *
+ * Every expectation below is READ OUT OF the workflow — never a second copy of
+ * the value written here (the objectui#4150 derived-expectation pattern). The
+ * page is then checked against what the YAML actually says, so a path list or a
+ * trigger type cannot be changed in one place and stay green in the other.
+ *
+ * SCOPE, stated so it is not mistaken for more — this pins EXAMPLES TRUE, not a
+ * CENSUS:
+ *
+ *   - Nothing here scans `.github/workflows/` for other structurally
+ *     unrequirable workflows, and a fifth one arriving must NOT turn this red.
+ *     The bullet says "Some contexts", and it is right to: it exists to teach
+ *     the four shapes, not to enumerate their instances.
+ *   - What IS checked in both directions is the page's own claims. A line added
+ *     to that bullet needs an entry here, or it is unpinned prose again — this
+ *     issue verbatim — and an entry here whose line has left the page fails too,
+ *     so a claim cannot be quietly dropped while its pin reports green.
+ *
+ * THE `live-e2e.yml` RED IS EXPECTED, and it is not a bug to be worked around.
+ * When `continue-on-error` comes off that job, `structuralBlocks` fails naming
+ * `live-e2e.yml`. The fix is to DELETE that line from the bullet and its entry
+ * from the map below — the lane has become requirable, so the page must stop
+ * saying otherwise. Do not soften the line ("mostly informational"), and do not
+ * relax the check to keep it green: a page that hedges about whether a gate can
+ * block you is the failure this file was opened for.
+ *
+ * `performance-budget.yml`'s line quotes no value (it says "an ordinary path
+ * filter" and names no globs), so only the existence of the property is pinned
+ * there. The asymmetry is deliberate: `quotes` derives from the YAML, and a
+ * claim that quotes nothing has nothing to derive.
+ *
+ * The small YAML-block helpers below are local copies of the ones in
+ * `merge-queue-reporting.test.ts`. Data is never copied in this repository; a
+ * twenty-line indentation scanner is not data, and neither file is a library.
+ */
+const readWorkflow = (file: string): string => fs.readFileSync(path.join(workflowDir, file), 'utf8');
+
+/**
+ * A workflow's YAML with whole-line comments removed. Load-bearing, not
+ * cosmetic: `live-e2e.yml`'s header discusses `continue-on-error` for eight
+ * lines and `changeset-guard.yml`'s explains why `.changeset/**` is filtered the
+ * way it is, so a scan that counted comments would report properties from prose.
+ */
+function withoutComments(yaml: string): string {
+  return yaml
+    .split('\n')
+    .filter((line) => !/^\s*#/.test(line))
+    .join('\n');
+}
+
+/** A top-level block (`on:`, `jobs:`) up to the next top-level key. */
+function topLevelBlock(yaml: string, key: string): string {
+  const at = yaml.search(new RegExp(`^${key}:`, 'm'));
+  if (at === -1) return '';
+  const rest = yaml.slice(at);
+  const firstLineEnd = rest.indexOf('\n') + 1;
+  if (firstLineEnd === 0) return rest;
+  const after = rest.slice(firstLineEnd);
+  const next = after.search(/^[A-Za-z]/m);
+  return next === -1 ? rest : rest.slice(0, firstLineEnd + next);
+}
+
+/** One two-space child of `on:` / `jobs:`, up to the next child at that indent. */
+function nestedBlock(block: string, key: string): string {
+  const at = block.search(new RegExp(`^ {2}${key}:`, 'm'));
+  if (at === -1) return '';
+  const rest = block.slice(at);
+  const firstLineEnd = rest.indexOf('\n') + 1;
+  if (firstLineEnd === 0) return rest;
+  const after = rest.slice(firstLineEnd);
+  const next = after.search(/^ {2}\S/m);
+  return next === -1 ? rest : rest.slice(0, firstLineEnd + next);
+}
+
+/** The two-space child keys of an `on:` block — the events the workflow subscribes. */
+const triggerKeys = (onBlock: string): string[] =>
+  [...onBlock.matchAll(/^ {2}([a-z_][a-z_-]*):/gm)].map((m) => m[1]);
+
+/** `- 'pattern'` entries — the shape a `paths:` list is written in. */
+const listEntries = (block: string): string[] =>
+  [...block.matchAll(/^\s*-\s*'?([^'\n]+?)'?\s*$/gm)].map((m) => m[1]);
+
+/** A trigger's `types:` list, inline (`types: [closed]`) or block. */
+function declaredTypes(trigger: string): string[] {
+  const inline = trigger.match(/^\s*types:\s*\[([^\]]*)\]\s*$/m);
+  if (inline) {
+    return inline[1]
+      .split(',')
+      .map((t) => t.trim().replace(/^['"]|['"]$/g, ''))
+      .filter(Boolean);
+  }
+  const at = trigger.search(/^\s*types:\s*$/m);
+  if (at === -1) return [];
+  const types: string[] = [];
+  for (const line of trigger.slice(at).split('\n').slice(1)) {
+    const entry = line.match(/^\s*-\s*['"]?([\w-]+)['"]?\s*$/);
+    if (!entry) break;
+    types.push(entry[1]);
+  }
+  return types;
+}
+
+/** The `paths:` entries on a workflow's `pull_request` trigger, if it has any. */
+function pullRequestPaths(file: string): string[] {
+  const trigger = nestedBlock(topLevelBlock(withoutComments(readWorkflow(file)), 'on'), 'pull_request');
+  const at = trigger.search(/^ {4}paths:\s*$/m);
+  if (at === -1) return [];
+  return listEntries(trigger.slice(at));
+}
+
+interface StructuralBlock {
+  /** The property, named the way a failure message should name it. */
+  readonly property: string;
+  /** `null` while the page's claim still holds; otherwise what the YAML says now. */
+  broken(): string | null;
+  /** Values the page's line must still quote, READ FROM the YAML. */
+  quotes(): string[];
+  /** What the fix is when it breaks — different for each, so it is written per claim. */
+  readonly whenItBreaks: string;
+}
+
+/**
+ * `filename -> the YAML property that makes the bullet's claim about it true`.
+ *
+ * Not a `NEVER_REQUIRABLE` inventory, and the page does not point at it: each
+ * entry is a CHECKER for a claim the page makes in its own words. "Can this
+ * context be required?" is still a question about repository settings that no
+ * test here can read — what is checked is the narrower, mechanical thing the
+ * page actually asserts about each workflow's YAML.
+ */
+const STRUCTURAL_BLOCKS = new Map<string, StructuralBlock>([
+  [
+    'changeset-guard.yml',
+    {
+      property: "an inverse path filter — `paths:` on the `pull_request` trigger",
+      broken() {
+        const paths = pullRequestPaths('changeset-guard.yml');
+        return paths.length > 0
+          ? null
+          : 'its `pull_request` trigger no longer declares `paths:`, so it now reports on ' +
+              'pull requests that touch no changeset — which is what would make it requirable';
+      },
+      quotes: () => pullRequestPaths('changeset-guard.yml'),
+      whenItBreaks:
+        'If the filter was removed deliberately, this workflow reports on every pull request ' +
+        'and belongs in the paragraph ABOVE the bullet instead — the one about workflows that ' +
+        'must subscribe `merge_group` — not in the list of contexts that cannot be required.',
+    },
+  ],
+  [
+    'performance-budget.yml',
+    {
+      property: 'a path filter — `paths:` on the `pull_request` trigger',
+      broken() {
+        const paths = pullRequestPaths('performance-budget.yml');
+        return paths.length > 0
+          ? null
+          : 'its `pull_request` trigger no longer declares `paths:`, so Bundle Analysis now ' +
+              'reports on every pull request and the page is denying a guardrail that exists';
+      },
+      // The page's line names no globs, so there is nothing derived to hold it to.
+      quotes: () => [],
+      whenItBreaks:
+        'Same as above: a filterless Bundle Analysis is a context that reports everywhere, so ' +
+        'it stops being an example of this rule and becomes an example of the previous one.',
+    },
+  ],
+  [
+    'live-e2e.yml',
+    {
+      property: '`continue-on-error: true` on the `live-e2e` job',
+      broken() {
+        const job = nestedBlock(topLevelBlock(withoutComments(readWorkflow('live-e2e.yml')), 'jobs'), 'live-e2e');
+        if (job === '') return 'the `live-e2e` job is gone from live-e2e.yml';
+        return /^\s*continue-on-error:\s*true\s*$/m.test(job)
+          ? null
+          : 'the `live-e2e` job no longer carries `continue-on-error: true`, so a failing spec ' +
+              'now fails the run — the lane has been promoted';
+      },
+      quotes() {
+        const job = nestedBlock(topLevelBlock(withoutComments(readWorkflow('live-e2e.yml')), 'jobs'), 'live-e2e');
+        return [(job.match(/^\s*(continue-on-error:\s*true)\s*$/m)?.[1] ?? '').replace(/\s+/g, ' ')];
+      },
+      whenItBreaks:
+        'THIS ONE IS SCHEDULED, and its red is the point of this pin rather than an accident: ' +
+        "live-e2e.yml's header says `continue-on-error` comes off once the lane has run clean " +
+        'long enough to trust. When it does, DELETE the `live-e2e.yml` line from the bullet and ' +
+        'this entry from STRUCTURAL_BLOCKS — the lane is requirable now and the page must stop ' +
+        'saying it can never be. Do not soften the wording and do not relax this check.',
+    },
+  ],
+  [
+    'cross-repo-issue-closer.yml',
+    {
+      property: 'every trigger restricted to `types: [closed]`, plus the job gate on `merged == true`',
+      broken() {
+        const yaml = withoutComments(readWorkflow('cross-repo-issue-closer.yml'));
+        const on = topLevelBlock(yaml, 'on');
+        const keys = triggerKeys(on);
+        if (keys.length === 0) return 'no trigger could be parsed out of its `on:` block';
+
+        const preMerge = keys.filter((key) => {
+          const types = declaredTypes(nestedBlock(on, key));
+          return types.length === 0 || types.some((t) => t !== 'closed');
+        });
+        if (preMerge.length > 0) {
+          return `it now subscribes ${preMerge.map((k) => `\`${k}\``).join(', ')} without ` +
+            'restricting to `types: [closed]`, so the workflow can start while a pull request ' +
+            'is still open';
+        }
+        return /if:.*github\.event\.pull_request\.merged\s*==\s*true/.test(yaml)
+          ? null
+          : 'the job no longer gates on `github.event.pull_request.merged == true`, so a pull ' +
+              'request CLOSED WITHOUT MERGING now runs it too — "only after a merge" is the ' +
+              'half of this claim that gate carries';
+      },
+      quotes() {
+        const on = topLevelBlock(withoutComments(readWorkflow('cross-repo-issue-closer.yml')), 'on');
+        // Both halves the page's line names: which event, and which types of it.
+        return [...triggerKeys(on), ...triggerKeys(on).flatMap((key) => declaredTypes(nestedBlock(on, key)))];
+      },
+      whenItBreaks:
+        'A trigger that can fire before the merge makes this a context that reports on open ' +
+        'pull requests, which is the opposite of what the line says. Rewrite the line to match ' +
+        'the new trigger, or move the workflow out of the bullet.',
+    },
+  ],
+]);
+
+/** The bullet, and the one claim each of its nested lines makes. */
+interface StructuralClaim {
+  /** The workflow file the line names. */
+  readonly workflow: string;
+  /** The line itself, joined onto one string — for `quotes` and for messages. */
+  readonly line: string;
+}
+
+const CLAIM_LEAD_IN = /^- \*\*Some contexts can never be required, structurally\*\*/m;
+
+/**
+ * The nested lines under the bullet, one per claim.
+ *
+ * Parsed rather than matched against a fixed shape so that reflowing the prose
+ * is free: the bullet block runs from its lead-in to the next line starting at
+ * column 0, and inside it a claim starts at each two-space `- ` and continues
+ * through its own continuation lines.
+ */
+function structuralClaims(): StructuralClaim[] {
+  const at = doc.search(CLAIM_LEAD_IN);
+  if (at === -1) return [];
+
+  const lines = doc.slice(at).split('\n');
+  const block: string[] = [lines[0]];
+  for (const line of lines.slice(1)) {
+    if (line.trim() !== '' && !line.startsWith(' ')) break;
+    block.push(line);
+  }
+
+  const claimLines: string[] = [];
+  let current: string[] | null = null;
+  for (const line of block.slice(1)) {
+    if (/^ {2}- /.test(line)) {
+      if (current) claimLines.push(current.join(' '));
+      current = [line.trim()];
+    } else if (line.trim() === '') {
+      // A blank line ends the claim. The bullet closes with a paragraph about
+      // the pin itself, indented into the same list item and naming
+      // `live-e2e.yml` again; swallowed into the last claim it would read as a
+      // second claim about whichever workflow it happened to mention.
+      if (current) claimLines.push(current.join(' '));
+      current = null;
+    } else if (current) {
+      current.push(line.trim());
+    }
+  }
+  if (current) claimLines.push(current.join(' '));
+
+  return claimLines.flatMap((line) => {
+    const named = [
+      ...new Set([...line.matchAll(/(?<![\w/.-])([a-z0-9][a-z0-9-]*\.yml)\b/g)].map((m) => m[1])),
+    ];
+    return named.map((workflow) => ({ workflow, line }));
+  });
+}
+
+describe('ci-cd-pipeline.md — contexts that can never be required (#4170)', () => {
+  it('still carries the bullet, with one workflow named per claim', () => {
+    expect(
+      doc.search(CLAIM_LEAD_IN),
+      'the "Some contexts can never be required, structurally" bullet is gone from ' +
+        'content/docs/guide/ci-cd-pipeline.md. Everything below pins that bullet, so removing it ' +
+        'turns this whole block vacuously green — the failure mode this page keeps meeting ' +
+        '(objectui#3451). If the bullet was deliberately retired, delete these tests with it.',
+    ).toBeGreaterThan(-1);
+
+    const claims = structuralClaims();
+    expect(
+      claims.length,
+      'the bullet parsed to no claims at all. Each entry must be a nested `  - ` line naming ' +
+        'the workflow file it is about (e.g. "`live-e2e.yml`"); a claim that names no file ' +
+        'cannot be pinned to anything, which is what objectui#4170 was filed about.',
+    ).toBeGreaterThan(0);
+  });
+
+  it('pins every workflow the bullet claims', () => {
+    // The page → map direction. A fifth structurally unrequirable workflow may
+    // exist unmentioned (this bullet is examples, not a census), but a fifth
+    // LINE here is a new claim, and an unpinned claim is exactly the defect.
+    const unpinned = structuralClaims()
+      .filter((claim) => !STRUCTURAL_BLOCKS.has(claim.workflow))
+      .map((claim) => `${claim.workflow} — "${claim.line.slice(0, 80)}…"`);
+
+    expect(
+      unpinned,
+      `The "can never be required, structurally" bullet makes claims about workflows that ` +
+        `nothing in this file checks:\n` +
+        unpinned.map((u) => `  - ${u}`).join('\n') +
+        `\n\nAdd an entry to STRUCTURAL_BLOCKS naming the YAML property that makes the claim ` +
+        `true, and read that property out of the workflow rather than restating it here. A ` +
+        `claim on this page that no assertion reads is true only until someone edits the YAML, ` +
+        `and nothing then says so (objectui#4170).`,
+    ).toEqual([]);
+  });
+
+  it.each([...STRUCTURAL_BLOCKS.keys()])('%s — the page still makes the claim this pins', (file) => {
+    // The map → page direction, so a claim cannot be dropped while its pin keeps
+    // reporting green on a property nobody documents any more.
+    expect(
+      structuralClaims().map((c) => c.workflow),
+      `STRUCTURAL_BLOCKS pins a claim about ${file}, but the "can never be required, ` +
+        `structurally" bullet in content/docs/guide/ci-cd-pipeline.md no longer names it.\n\n` +
+        `If the line was removed because the property changed, remove this entry too — that is ` +
+        `the intended sequence for live-e2e.yml. If the line was removed for space, put it ` +
+        `back: each of these teaches a different structural reason a context cannot be ` +
+        `required, which is why the bullet was kept whole rather than replaced by a pointer ` +
+        `(objectui#4170).`,
+    ).toContain(file);
+  });
+
+  it.each([...STRUCTURAL_BLOCKS.entries()])('%s — the property the page quotes still holds', (file, block) => {
+    const broken = block.broken();
+    expect(
+      broken,
+      `content/docs/guide/ci-cd-pipeline.md says ${file} can never produce a required ` +
+        `context, because of ${block.property}. That is no longer what the YAML says: ${broken}.` +
+        `\n\n${block.whenItBreaks}`,
+    ).toBeNull();
+  });
+
+  it.each([...STRUCTURAL_BLOCKS.entries()])('%s — the page quotes the values the YAML declares', (file, block) => {
+    // Skipped when the property itself is gone: that failure belongs to the test
+    // above, and reporting it twice would say a page is quoting a value wrong
+    // when the value no longer exists at all.
+    if (block.broken() !== null) return;
+
+    const claim = structuralClaims().find((c) => c.workflow === file);
+    if (!claim) return; // reported by the presence test above
+
+    const values = block.quotes();
+    const missing = values.filter((value) => value !== '' && !claim.line.includes(value));
+
+    expect(
+      missing,
+      `The ${file} line of the "can never be required, structurally" bullet no longer quotes ` +
+        `what ${file} actually declares:\n` +
+        missing.map((v) => `  - ${v}`).join('\n') +
+        `\n\nThese are read out of the workflow, so the page is behind the YAML, not the other ` +
+        `way round. Update the line to quote the live value. (Quoting the property is what ` +
+        `makes the claim checkable at all — objectui#4170 was filed because a bullet quoting ` +
+        `four YAML properties was pinned to none of them.)`,
+    ).toEqual([]);
+  });
+});

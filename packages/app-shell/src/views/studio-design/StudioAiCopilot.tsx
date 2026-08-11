@@ -118,8 +118,10 @@ export interface StudioChatDockProps {
  * the console rail.
  *
  * Differences from the console rail, on purpose:
- *  - Default EXPANDED (the copilot has always been visible by default) and
- *    NOT persisted (parity with the old panel's in-memory collapse).
+ *  - Default EXPANDED (the copilot has always been visible by default), but a
+ *    collapse IS remembered — per-tab, under this surface's own key (#2477
+ *    item 2). The old panel's in-memory collapse re-opened on every pillar /
+ *    package switch; only the first-visit posture is still "expanded".
  *  - Collapsed state = the {@link ChatDockLauncher} edge button — Studio has
  *    no FAB to double as the launcher.
  *  - Maximize opens `/ai/build?package=…`, which resumes THIS thread (the

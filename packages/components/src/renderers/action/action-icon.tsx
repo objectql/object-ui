@@ -71,6 +71,11 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
         await execute({
           type: schema.type,
           name: schema.name,
+          // See action-button.tsx — the param-collection dialog reads its title
+          // and description off these (objectui#4192, measured on `action:menu`
+          // and found here by `check:action-forward-parity`).
+          label: schema.label,
+          description: (schema as any).description,
           target: schema.target,
           openIn: (schema as any).openIn,
           endpoint: schema.endpoint,
@@ -87,6 +92,10 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
           // Placement declaration — see action-button.tsx (#2210).
           locations: (schema as any).locations,
           toast: schema.toast,
+          // See action-button.tsx — the one-shot reveal spec (2FA setup, fresh
+          // OAuth secret). Without it the runner falls back to the success
+          // toast and the value the user was meant to copy is gone.
+          resultDialog: (schema as any).resultDialog,
           ...localContext,
         });
       } finally {

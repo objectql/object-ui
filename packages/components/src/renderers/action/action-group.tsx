@@ -239,6 +239,11 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
         await execute({
           type: action.type,
           name: action.name,
+          // See action-button.tsx — the param-collection dialog reads its title
+          // and description off these (objectui#4192, measured on `action:menu`
+          // and found here by `check:action-forward-parity`).
+          label: action.label,
+          description: (action as any).description,
           target: action.target,
           openIn: (action as any).openIn,
           endpoint: action.endpoint,
@@ -255,6 +260,10 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
           // Placement declaration — see action-button.tsx (#2210).
           locations: action.locations,
           toast: action.toast,
+          // See action-button.tsx — the one-shot reveal spec (2FA setup, fresh
+          // OAuth secret). Without it the runner falls back to the success
+          // toast and the value the user was meant to copy is gone.
+          resultDialog: (action as any).resultDialog,
         });
       },
       [execute],

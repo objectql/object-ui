@@ -98,9 +98,16 @@ describe('all locale packs are at full key parity with en (objectui#2872)', () =
 
   it('placeholders match en in every pack', () => {
     // A translation that drops `{{count}}` renders a sentence with a hole in it
-    // and no error. Two gantt keys use SINGLE braces on purpose — their call
-    // site does a literal `.replace('{count}', …)` instead of i18next
-    // interpolation — so both forms are compared.
+    // and no error. `gantt.quickFilter.resultSummary` uses SINGLE braces on
+    // purpose — its call site does a literal `.replace('{shown}', …)` instead
+    // of i18next interpolation — so both forms are compared.
+    //
+    // NOTE this comparison is RELATIVE (en vs pack) and cannot see the defect
+    // in objectui#4157: every pack agreed with `en` on `{{count}}` while the
+    // render call site still did `.replace('{count}', …)`, so the shapes
+    // matched and this stayed green while the dialog showed a literal `{2}`.
+    // The absolute pack-vs-call-site form is pinned in
+    // `gantt-count-interpolation-4157.test.ts`.
     const DOUBLE = /\{\{\w+\}\}/g;
     const SINGLE = /(?<!\{)\{\w+\}(?!\})/g;
     const shape = (v: unknown) =>

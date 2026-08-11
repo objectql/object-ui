@@ -749,6 +749,14 @@ const en = {
       start: 'start',
       end: 'end',
     },
+    link: {
+      rejected: {
+        self: 'A task cannot depend on itself.',
+        locked: 'This row is locked and cannot take a new dependency.',
+        group: 'A summary row cannot take a dependency — link one of its tasks instead.',
+        cycle: 'That link would create a circular dependency.',
+      },
+    },
     conflict: {
       title: 'Schedule conflict',
       body: 'This move conflicts with dependency constraints. Auto-reschedule {{count}} affected task(s)?',
@@ -757,8 +765,8 @@ const en = {
     },
     autoScheduleDlg: {
       title: 'Auto-schedule',
-      body: 'Shift {count} task(s) later to satisfy dependency links?',
-      skipped: '{count} locked task(s) also violate links and were skipped.',
+      body: 'Shift {{count}} task(s) later to satisfy dependency links?',
+      skipped: '{{count}} locked task(s) also violate links and were skipped.',
       confirm: 'Apply',
       cancel: 'Cancel',
       none: 'All dependencies satisfied — nothing to reschedule.',
@@ -774,8 +782,11 @@ const en = {
       clear: 'Clear filters',
       empty: 'No options',
       // SINGLE braces on purpose: the ObjectGantt call site resolves these
-      // with a literal `.replace('{shown}', …)`, not i18next interpolation
-      // (same convention as `autoScheduleDlg.body` above).
+      // with a literal `.replace('{shown}', …)`, not i18next interpolation.
+      // The last key in the gantt namespace on that idiom — `conflict.body`
+      // and the two `autoScheduleDlg` counts moved to `{{count}}` + i18next
+      // interpolation in objectui#4157, where the single-brace call site met
+      // a `{{count}}` pack and rendered a literal `{2}`.
       resultSummary: 'Showing {shown} / {total} tasks',
     },
     readOnly: 'Read-only',
@@ -1050,118 +1061,21 @@ const en = {
       first: 'First',
     },
     editor: {
-      // Names the PANEL. Distinct from `title` below, which is the label of the
-      // report's Title *field* — `titlePlaceholder` right under it is that
-      // field's placeholder, which is what makes the pairing unambiguous.
-      // ReportConfigPanel borrowed `title` for both its heading and its
-      // `role="complementary"` aria-label, so the panel was titled "Title" and
-      // the landmark announced "Title" (objectui#4118).
+      // ONE key by design, not by accident (objectui#4145). This namespace held
+      // 106 keys labelling the hand-rolled report editor form; that form is gone
+      // — `ReportConfigPanel`'s body is `ReportDefaultInspector`, a spec-driven
+      // inspector whose labels come from the report spec's own metadata. The
+      // other 105 keys had no reader in any package, in any pack, in any dynamic
+      // `t()` form, so they were retired here rather than left for the next
+      // author to infer a live UI from.
+      //
+      // `panelTitle` names the PANEL (its heading and its `role="complementary"`
+      // landmark). It is minted by objectui#4137 and is the namespace's only
+      // consumer. Do not grow this namespace back: the spec-driven inspector is
+      // the settled direction, and
+      // `packages/i18n/src/__tests__/report-editor-retired-4145.test.ts` fails on
+      // any retired key that returns.
       panelTitle: 'Edit report',
-      breadcrumb: 'Configuration',
-      basic: 'Basic',
-      title: 'Title',
-      titlePlaceholder: 'e.g. Pipeline by Quarter',
-      description: 'Description',
-      descriptionPlaceholder: 'What does this report show?',
-      type: 'Report type',
-      typeTabular: 'Tabular — flat list',
-      typeSummary: 'Summary — grouped with totals',
-      typeMatrix: 'Matrix — pivot rows × columns',
-      typeJoined: 'Joined — multiple blocks',
-      typeHelp: 'Pick the layout that matches what you want to see.',
-      data: 'Data',
-      objectName: 'Data source',
-      objectNamePlaceholder: 'e.g. opportunity',
-      objectNameHelp: 'Which object should this report query?',
-      limit: 'Row limit',
-      limitPlaceholder: 'e.g. 100',
-      columns: 'Columns',
-      columnsHint: 'Pick which fields appear as columns. Add an aggregate (Sum, Count…) on Summary or Matrix reports.',
-      filters: 'Filters',
-      filtersHint: 'Limit the rows that go into this report.',
-      filtersComplex: 'This report uses an advanced filter that cannot be edited here. Save will keep it unchanged.',
-      groupBy: 'Group by',
-      groupByHint: 'Group the data and compute subtotals.',
-      rows: 'Rows',
-      rowsHint: 'Group rows by these fields.',
-      columnsAxis: 'Columns',
-      columnsAxisHint: 'Pivot these fields across the top.',
-      values: 'Values',
-      valuesHint: 'Numbers shown in each cell. Pick one or more fields and add an aggregate (Sum, Count…).',
-      grouping: 'Grouping',
-      addGrouping: 'Add grouping',
-      dateGranularity: 'Date bucket',
-      dateGranularityNone: '(use raw value)',
-      day: 'Day',
-      week: 'Week',
-      month: 'Month',
-      quarter: 'Quarter',
-      year: 'Year',
-      sortAsc: 'Ascending',
-      sortDesc: 'Descending',
-      chart: 'Chart',
-      chartHint: 'Optional visualization rendered alongside the table.',
-      chartType: 'Chart type',
-      chartTitle: 'Chart title',
-      chartTitlePlaceholder: 'Defaults to the report title',
-      chartXAxis: 'X-axis (category)',
-      chartYAxis: 'Y-axis (value)',
-      chartShowLegend: 'Show legend',
-      chartShowDataLabels: 'Show data labels',
-      chartNone: '(no chart)',
-      chartBar: 'Bar',
-      chartLine: 'Line',
-      chartArea: 'Area',
-      chartPie: 'Pie',
-      chartDonut: 'Donut',
-      chartFunnel: 'Funnel',
-      validationNeedsObject: 'Pick a data source before adding columns.',
-      validationMatrixNeedsRowsCols: 'Matrix reports need at least one Row and one Column.',
-      validationSummaryNeedsRows: 'Summary reports need at least one grouping field.',
-      blocks: 'Blocks',
-      blocksHint: 'Each block is its own table or chart. Block-level filters are ANDed with the report filter.',
-      addBlock: 'Add block',
-      removeBlock: 'Remove block',
-      blockName: 'Block name',
-      blockNamePlaceholder: 'unique_block_name',
-      blockLabel: 'Display label',
-      blockLabelPlaceholder: 'Shown above the block',
-      blockDescription: 'Description',
-      blockDescriptionPlaceholder: 'Optional context for this block',
-      validationJoinedNeedsBlocks: 'Joined reports need at least one block.',
-      validationBlockNameRequired: 'Every block needs a non-empty name.',
-      validationBlockNameDuplicate: 'Block names must be unique within the report.',
-      validationBlockNeedsColumns: 'Every block needs at least one column.',
-      noneOption: '(none)',
-      addCondition: 'Add condition',
-      combineLogic: 'Combine with',
-      opContains: 'contains',
-      opIsEmpty: 'is empty',
-      opIsNotEmpty: 'is not empty',
-      formatAuto: 'Auto',
-      formatCurrency: 'Currency',
-      formatPercent: 'Percent',
-      formatInteger: 'Integer',
-      formatDate: 'Date',
-      formatDatetime: 'Date & time',
-      columnLabelPlaceholder: 'Label override',
-      aggregateColumn: 'Aggregate',
-      formatColumn: 'Format',
-      addColumns: 'Add fields',
-      searchFields: 'Search fields…',
-      noMatchingFields: 'No fields match your search.',
-      noFieldsAvailable: 'No fields available.',
-      columnsCount: '{n} column(s) selected',
-      columnsEmpty: 'No columns selected yet.',
-      fieldPickerTitle: 'Select fields',
-      fieldPickerDescription: 'Pick one or more fields to add. Use the search box to narrow the list.',
-      fieldPickerChangeTitle: 'Change field',
-      fieldPickerAddGroupingTitle: 'Add grouping',
-      fieldPickerEmpty: '(pick field)',
-      fieldPickerSelected: '{n} selected',
-      fieldPickerClear: 'Clear selection',
-      fieldPickerAdd: 'Add',
-      fieldPickerAddN: 'Add {n}',
     },
   },
   map: {
@@ -2351,24 +2265,6 @@ const en = {
       footer: 'You can revoke access at any time from your account settings.',
     },
   },
-  // The console's own `/accept-invitation/:invitationId` page. Distinct from
-  // `organization.accept.*`, which belongs to app-shell's richer page for the
-  // same route (it fetches the invitation and shows org/role/expiry). Two
-  // components, two namespaces — see the note in the slice-three test.
-  acceptInvitation: {
-    title: 'Accept organization invitation',
-    description: "You've been invited to join an organization.",
-    accept: 'Accept invitation',
-    accepting: 'Accepting…',
-    accepted: 'Invitation accepted',
-    acceptFailed: 'Could not accept',
-    decline: 'Decline',
-    declining: 'Declining…',
-    declined: 'Invitation declined',
-    declineFailed: 'Could not decline',
-    invalidTitle: 'Invalid invitation link',
-    invalidDescription: 'The invitation id is missing from the URL.',
-  },
   profile: {
     title: 'Profile',
     subtitle: 'Manage your account settings',
@@ -2724,6 +2620,11 @@ const en = {
       title: 'Build history',
       description: 'Every change to this app, newest first. Revert any step to undo it — no publish confirmation needed.',
       loadFailed: 'Could not load history:',
+      // objectui#3529 — the retryable class gets its own sentence: a 503 means
+      // the read never reached the commit store, which is a different operator
+      // disposition from a 404/500 and must not read as a bare status code.
+      loadFailedUnavailable:
+        'Commit store temporarily unreachable — this read did not happen, so no history is shown. Retry in a moment.',
       loading: 'Loading history…',
       empty: 'No history yet for this app.',
       revertLabel: 'Reverted a change',
@@ -2733,6 +2634,10 @@ const en = {
       revertAction: 'Revert',
       reverted: 'Reverted — the change has been undone.',
       revertFailed: 'Revert failed',
+      // The WRITE half of the same fact. Not "try again": the revert may have
+      // landed before the 503, and re-issuing appends a second revert commit.
+      revertUnavailable:
+        'Commit store temporarily unreachable — the revert may not have been applied. Reopen this history to check before retrying.',
     },
   },
   renderer: {

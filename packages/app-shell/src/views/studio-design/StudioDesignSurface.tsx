@@ -19,6 +19,7 @@ import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useAdapter, SchemaRendererProvider } from '@object-ui/react';
 import { StudioChatDock } from './StudioAiCopilot';
 import { nextCenterTab, type StudioCenterTab } from './centerTab';
+import { useIsWideViewport } from './wideViewport';
 import {
   GridFieldAuthoringProvider,
   cn,
@@ -116,31 +117,10 @@ import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
 import { resolveConsoleUrl } from '../../console/organizations/resolveHomeUrl';
 import { toast } from 'sonner';
 
-/**
- * ADR-0057 P3c follow-up — is the viewport wide enough (Tailwind `xl`) to show
- * the folded layout's canvas AND properties side by side beside the chat dock,
- * instead of as tabs? Mirrors `useIsMobile`'s matchMedia idiom.
- *
- * `xl` (1280), lowered from `2xl` per issue #2477 item 3: the common laptop
- * (1280–1512) was falling into tabs, which auto-hide the canvas the moment you
- * select a block — breaking the WYSIWYG "edit and watch it apply" loop. At
- * 1280 the canvas is narrow (~360px after the nav rail, a slimmed side-by-side
- * inspector, and the ~420px dock) but LIVE, which beats hidden; at 1440+ it is
- * comfortable. Below `xl` the tabs remain (there simply isn't room for three
- * columns plus chat).
- */
-const WIDE_VIEWPORT_BREAKPOINT = 1280;
-function useIsWideViewport(): boolean {
-  const [isWide, setIsWide] = React.useState<boolean | undefined>(undefined);
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(min-width: ${WIDE_VIEWPORT_BREAKPOINT}px)`);
-    const onChange = () => setIsWide(window.innerWidth >= WIDE_VIEWPORT_BREAKPOINT);
-    mql.addEventListener('change', onChange);
-    setIsWide(window.innerWidth >= WIDE_VIEWPORT_BREAKPOINT);
-    return () => mql.removeEventListener('change', onChange);
-  }, []);
-  return !!isWide;
-}
+// ADR-0057 P3c follow-up (#2477 item 3) — the folded layout's side-by-side
+// threshold (`xl`, not `2xl`) and its matchMedia hook live in ./wideViewport so
+// the rule is testable without mounting this surface; see that module for why
+// 1280 is the right line and what the canvas measures there.
 
 const PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> = [
   { key: 'data', label: 'Data', Icon: Database },
@@ -1158,8 +1138,9 @@ function InterfacesPillar({
   // to Properties; deselect → back to Canvas) while preserving a manual choice
   // in steady state — see nextCenterTab. Inert when `foldInspector` is off.
   const [centerTab, setCenterTab] = React.useState<StudioCenterTab>('canvas');
-  // Folded layout, wide viewport (2xl+): enough room to show canvas AND
-  // properties side by side beside the chat dock — no tabs, no auto-switch.
+  // Folded layout, wide viewport (xl+, #2477 item 3 — was 2xl): enough room to
+  // show canvas AND properties side by side beside the chat dock — no tabs, no
+  // auto-switch.
   const isWide = useIsWideViewport();
   const showFoldedTabs = foldInspector && !isWide;
   // The right-hand properties aside can be collapsed to a thin rail to give the

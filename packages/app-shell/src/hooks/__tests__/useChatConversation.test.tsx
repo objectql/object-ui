@@ -864,6 +864,130 @@ describe('useChatConversation — same-conversation empty re-read preserves hydr
   });
 });
 
+// objectui#2627 — the same guard's other half. An EMPTY re-read of the held
+// conversation is covered above; a FAILED one used to run into the blanket
+// `catch { setConversationId(undefined) }`, and dropping the id is what the
+// host turns into a pane remount (its ChatPane key is
+// `${chatApi}:${conversationId ?? 'pending'}`), discarding the live thread.
+// The failure that matters is the A1.b re-key's refetch, fired the instant a
+// long build turn ends — precisely when the server is least likely to answer.
+describe('useChatConversation — a FAILED same-conversation re-read keeps the conversation', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    localStorage.clear();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps the id AND the hydrated messages when the scope-change refetch 502s', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        id: 'conv-a',
+        messages: [{ id: 'm1', role: 'user', content: 'build it' }],
+      }),
+    );
+
+    const { result, rerender } = renderHook(
+      ({ scope }: { scope: string }) =>
+        useChatConversation({ userId: 'u1', apiBase: API_BASE, scope, activeId: 'conv-a' }),
+      { initialProps: { scope: 'build' } },
+    );
+    await waitFor(() => expect(result.current.conversationId).toBe('conv-a'));
+    expect(result.current.initialMessages).toHaveLength(1);
+
+    // The re-key flips the scope; the re-resolve of the SAME id hits a busy
+    // server. `fetchConversation` throws on a non-404/403 !ok response.
+    fetchMock.mockResolvedValueOnce(new Response('upstream busy', { status: 502 }));
+    act(() => result.current.rekeyScope('app:crm:build'));
+    rerender({ scope: 'app:crm:build' });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBe('conv-a');
+    expect(result.current.initialMessages).toHaveLength(1);
+  });
+
+  it('survives a rejected (network-level) refetch of the held conversation too', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ id: 'conv-a', messages: [{ id: 'm1', role: 'user', content: 'build it' }] }),
+    );
+    const { result, rerender } = renderHook(
+      ({ scope }: { scope: string }) =>
+        useChatConversation({ userId: 'u1', apiBase: API_BASE, scope, activeId: 'conv-a' }),
+      { initialProps: { scope: 'build' } },
+    );
+    await waitFor(() => expect(result.current.conversationId).toBe('conv-a'));
+
+    fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    act(() => result.current.rekeyScope('app:crm:build'));
+    rerender({ scope: 'app:crm:build' });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBe('conv-a');
+    expect(result.current.initialMessages).toHaveLength(1);
+  });
+
+  it('still clears when the FAILED resolve targeted a DIFFERENT conversation', async () => {
+    // The negative half: a sidebar switch whose fetch fails must not leave the
+    // previous thread on screen under a URL that now names another one.
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ id: 'conv-a', messages: [{ id: 'm1', role: 'user', content: 'a' }] }),
+    );
+    const { result, rerender } = renderHook(
+      ({ activeId }: { activeId: string }) =>
+        useChatConversation({ userId: 'u1', apiBase: API_BASE, scope: 'build', activeId }),
+      { initialProps: { activeId: 'conv-a' } },
+    );
+    await waitFor(() => expect(result.current.conversationId).toBe('conv-a'));
+
+    fetchMock.mockResolvedValueOnce(new Response('upstream busy', { status: 502 }));
+    rerender({ activeId: 'conv-b' });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBeUndefined();
+    expect(result.current.initialMessages).toHaveLength(0);
+  });
+
+  it('still clears when a FIRST resolve (nothing held yet) fails', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('upstream busy', { status: 502 }));
+    const { result } = renderHook(() =>
+      useChatConversation({ userId: 'u1', apiBase: API_BASE, scope: 'build', activeId: 'conv-a' }),
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBeUndefined();
+    expect(result.current.initialMessages).toHaveLength(0);
+  });
+
+  it('still clears when the held conversation is GONE (404) and the replacing create fails', async () => {
+    // The guard covers a transport failure re-reading a LIVE conversation. A
+    // 404 is the server being definitive: the id is dead and its caches have
+    // already been cleared, so a failing create must not resurrect it on screen.
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ id: 'conv-a', messages: [{ id: 'm1', role: 'user', content: 'a' }] }),
+    );
+    const { result, rerender } = renderHook(
+      ({ scope }: { scope: string }) =>
+        useChatConversation({ userId: 'u1', apiBase: API_BASE, scope, activeId: 'conv-a' }),
+      { initialProps: { scope: 'build' } },
+    );
+    await waitFor(() => expect(result.current.conversationId).toBe('conv-a'));
+
+    fetchMock
+      .mockResolvedValueOnce(new Response('gone', { status: 404 })) // GET conv-a
+      .mockResolvedValueOnce(new Response('nope', { status: 500 })); // POST create
+    act(() => result.current.rekeyScope('app:crm:build'));
+    rerender({ scope: 'app:crm:build' });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBeUndefined();
+    expect(result.current.initialMessages).toHaveLength(0);
+  });
+});
+
 // Security — plaintext AI-chat cache (conversation-id pointers + message
 // bodies) must be wiped on logout / user switch so a shared machine doesn't
 // leak the prior user's threads.

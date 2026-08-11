@@ -21,7 +21,7 @@
  * the missing refresh.
  */
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 
@@ -371,5 +371,121 @@ describe('ObjectGrid — dispatchBulkAction keeps selection in sync (#3056)', ()
       expect(screen.queryByTestId('bulk-actions-bar')).not.toBeInTheDocument(),
     );
     await waitFor(() => expect(headerChecked()).toBe('unchecked'));
+  });
+});
+
+/**
+ * The SAME desync, the third selection-clearing site (#4140) — the bulk bar's
+ * own **Clear** button. `resetSelection()` above upholds the #3056 invariant for
+ * every dispatch path, but both `onClearSelection` props were hand-written as
+ * `setSelectedRows([]); setSelectAllMatching(false);` — the two state writes
+ * without the `selectionResetKey` bump. Clicking Clear therefore removed the
+ * toolbar and left every row `data-state="checked"` (header `indeterminate` on a
+ * partial pick): stranded ticks with no toolbar to act on them, which is the
+ * literal failure the reset-key mechanism exists to prevent.
+ *
+ * Found by the records-forms QA run (objectstack#7439, `bulk-select-all-matching`
+ * FAIL, reproduced 2x). These pin the button on BOTH selection sources and on
+ * both bar instances' shared handler, so the next hand-copy cannot drift again.
+ */
+describe('ObjectGrid — bulk bar Clear resets both selection sources (#4140)', () => {
+  const headerChecked = () =>
+    (document.querySelector('thead [role="checkbox"]') as HTMLElement)?.getAttribute('data-state');
+  const rowStates = () =>
+    Array.from(document.querySelectorAll('tbody [role="checkbox"]')).map((el) =>
+      el.getAttribute('data-state'),
+    );
+  const clickClear = () =>
+    fireEvent.click(
+      within(screen.getByTestId('bulk-actions-bar')).getByRole('button', { name: 'Clear' }),
+    );
+
+  it('unticks the row checkboxes (not just the toolbar) on a partial selection', async () => {
+    const ds = makeDataSource();
+    renderGrid(ds, { approve: vi.fn(async () => ({ success: true })) });
+
+    await waitFor(() => expect(screen.getByText('Plan A')).toBeInTheDocument());
+
+    // Tick ONE of the two rows — the header goes `indeterminate`, which is the
+    // exact state the QA repro reported as stuck after Clear.
+    const firstRow = document.querySelectorAll('tbody [role="checkbox"]')[0] as HTMLElement;
+    expect(firstRow).toBeTruthy();
+    fireEvent.click(firstRow);
+    await waitFor(() => expect(headerChecked()).toBe('indeterminate'));
+    expect(rowStates()).toEqual(['checked', 'unchecked']);
+    expect(screen.getByTestId('bulk-actions-bar')).toBeInTheDocument();
+
+    clickClear();
+
+    // Both sources reset in lockstep: toolbar gone AND the boxes untick.
+    await waitFor(() =>
+      expect(screen.queryByTestId('bulk-actions-bar')).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(rowStates()).toEqual(['unchecked', 'unchecked']));
+    expect(headerChecked()).toBe('unchecked');
+  });
+
+  it('unticks the row checkboxes when the whole page was selected', async () => {
+    const ds = makeDataSource();
+    renderGrid(ds, { approve: vi.fn(async () => ({ success: true })) });
+
+    await waitFor(() => expect(screen.getByText('Plan A')).toBeInTheDocument());
+    fireEvent.click(document.querySelector('thead [role="checkbox"]') as HTMLElement);
+    await waitFor(() => expect(headerChecked()).toBe('checked'));
+
+    clickClear();
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('bulk-actions-bar')).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(headerChecked()).toBe('unchecked'));
+    expect(rowStates()).toEqual(['unchecked', 'unchecked']);
+  });
+
+  it('drops the cross-page "all matching" state too, so a fresh pick starts clean', async () => {
+    // `total` exceeds the returned page, so the bar offers "Select all N matching".
+    const ds = makeDataSource();
+    ds.find = vi.fn(async () => {
+      const data = Object.values(ds.store).map((r: any) => ({ ...r }));
+      return { data, total: 5, hasMore: true, pageSize: 50 };
+    });
+    renderGrid(ds, { approve: vi.fn(async () => ({ success: true })) });
+
+    await waitFor(() => expect(screen.getByText('Plan A')).toBeInTheDocument());
+    fireEvent.click(document.querySelector('thead [role="checkbox"]') as HTMLElement);
+    await waitFor(() => expect(headerChecked()).toBe('checked'));
+
+    // Escalate to the cross-page selection, then Clear it.
+    //
+    // The banner's two branches are told apart *structurally*, by whether the
+    // escalation button is still offered — not by its copy. These grid tests
+    // wrap in `ActionProvider` only, with no `I18nProvider`, so `{{count}}`
+    // interpolation never runs and count-bearing strings reach the DOM as the
+    // raw template ("All {{count}} matching records are selected."). See
+    // BulkActionBar.test.tsx, which asserts on that copy and therefore *does*
+    // wrap in an English `I18nProvider`. Asserting the rendered count here
+    // would pin i18n plumbing rather than the reset, and its negation would
+    // pass for the wrong reason — the interpolated text is absent either side
+    // of the fix. Structure is the right probe for a selection-state question.
+    fireEvent.click(await screen.findByTestId('bulk-select-all-matching'));
+    await waitFor(() =>
+      expect(screen.queryByTestId('bulk-select-all-matching')).not.toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('bulk-cross-page-banner')).toBeInTheDocument();
+
+    clickClear();
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('bulk-actions-bar')).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(headerChecked()).toBe('unchecked'));
+
+    // Re-picking the page must start from scratch: the header checkbox is live
+    // again (it would toggle the *other* way if the table still held the old
+    // selection) and the bar offers the escalation rather than remembering it —
+    // the button being back is exactly `selectAllMatching === false`.
+    fireEvent.click(document.querySelector('thead [role="checkbox"]') as HTMLElement);
+    await waitFor(() => expect(headerChecked()).toBe('checked'));
+    expect(await screen.findByTestId('bulk-select-all-matching')).toBeInTheDocument();
   });
 });

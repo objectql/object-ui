@@ -59,6 +59,12 @@ export {
   AuthenticatedRoute,
   RootRedirect,
   SystemRedirect,
+  // objectui#2794 — the stable `/setup` deep link into platform administration,
+  // plus the pure policy behind it and the identifiers it resolves by.
+  SetupRedirect,
+  resolveSetupAppPath,
+  SETUP_APP_PACKAGE_ID,
+  SETUP_APP_NAME,
   LoadingFallback,
 } from './console/ConsoleShell';
 

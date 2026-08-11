@@ -333,9 +333,19 @@ export function AppHeader({
    * Full server-push (SSE / WebSocket) is tracked separately; this adaptive
    * poll keeps perceived latency ~5s and is sufficient for pilots up to ~50
    * concurrent users.
+   *
+   * ⚠️ Deliberately NOT gated on `isApp` (#4110). The bell renders in every
+   * header variant, and its inbox is scoped to the *user*, not to the app in
+   * the URL — unlike the presence avatars and the connection dot, which are
+   * app-shell chrome and are the reason that flag exists. While this poll was
+   * gated the popover held `[]` on Home / Organizations / the full-page AI
+   * screen forever: the "Unread" sub-filter read "You're all caught up" and
+   * "All" — which applies no predicate at all — read "No notifications", on the
+   * very page whose To-do card (`useHomeInbox`, ungated) was listing the same
+   * `sys_inbox_message` row. Scope the read by `user?.id` only.
    */
   useEffect(() => {
-    if (!dataSource || !isApp || !user?.id) return;
+    if (!dataSource || !user?.id) return;
     if (notificationsUnavailableRef.current) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -431,7 +441,7 @@ export function AppHeader({
         document.removeEventListener('visibilitychange', onVisibilityChange);
       }
     };
-  }, [dataSource, isApp, user?.id]);
+  }, [dataSource, user?.id]);
 
   /**
    * M11.C15: poll pending-approvals count for the topbar shortcut badge.

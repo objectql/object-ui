@@ -23,25 +23,14 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import { Card } from '@object-ui/components';
 import { AuthLayout } from './AuthLayout';
 import { followOauthAuthorize } from './followAuthorize';
+// Was module-private here; lifted to a shared module so `SetupPage` (whose
+// first-run exits went without it) and `RegisterPage` (which had copied it)
+// share ONE implementation — objectui#4181. Behaviour here is unchanged.
+import { withConsoleBase } from '../../utils/consoleBase';
 
 /** Restrict the post-login redirect to same-origin paths. */
 function isSafeRedirect(target: string | null): target is string {
   return !!target && target.startsWith('/') && !target.startsWith('//');
-}
-
-/**
- * Prefix a router-relative path with the Console basename for full-page
- * navigations. `window.location.assign` bypasses React Router's `basename`,
- * so a path produced by the router (e.g. `?redirect=/settings` — already
- * basename-stripped) or a literal like `/organizations` would resolve to
- * `http://host/settings`, missing the `/_console` mount and 404-ing.
- * Paths already targeting another absolute SPA mount (`/_studio`,
- * `/_account`, …) pass through untouched.
- */
-function withConsoleBase(path: string): string {
-  if (path.startsWith('/_')) return path;
-  const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
-  return base + (path.startsWith('/') ? path : `/${path}`);
 }
 
 const DEV_HINT_DISMISSED_KEY = 'os.console.devAdminHintDismissed';

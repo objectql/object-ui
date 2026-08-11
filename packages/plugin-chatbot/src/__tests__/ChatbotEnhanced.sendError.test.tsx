@@ -12,6 +12,7 @@ import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ChatbotEnhanced } from '../ChatbotEnhanced';
+import type { ChatMessage } from '../ChatbotEnhanced';
 
 const LABELS = {
   sendFailedRateLimited: 'RATE_LIMIT_MSG',
@@ -116,5 +117,139 @@ describe('ChatbotEnhanced send-failure UX', () => {
     // No error prop → nothing restored; the optimistic clear stands.
     expect(textarea.value).toBe('');
     expect(screen.queryByTestId('chat-send-error')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * objectui#2627 — the ROLLBACK half of the plan card's optimistic approve.
+ * Clicking "Build it" flips the card to a "Building…" badge before the server
+ * has said anything (#2632, pinned in ChatbotEnhanced.test.tsx). When that
+ * approval never left the client — a 429 or an offline send, tagged `notSent` —
+ * the optimistic badge is a lie AND a dead end: the badge replaces the buttons,
+ * so with no rollback the user cannot re-approve at all and the build silently
+ * never starts. The happy flip was pinned on its own; this is the other side.
+ */
+const planMessage: ChatMessage[] = [
+  {
+    id: 'a1',
+    role: 'assistant',
+    content: '',
+    toolInvocations: [
+      {
+        toolCallId: 't1',
+        toolName: 'propose_blueprint',
+        state: 'output-available',
+        proposedPlan: {
+          summary: 'A tiny CRM',
+          objects: [{ name: 'contact', label: 'Contact', fieldCount: 4 }],
+          counts: { objects: 1, views: 1, dashboards: 0, seedData: 0 },
+          questions: [],
+          assumptions: [],
+        },
+      },
+    ],
+  } as unknown as ChatMessage,
+];
+
+describe('ChatbotEnhanced plan approval — optimistic flip rollback (#2627)', () => {
+  it('rolls the "Building…" badge back to the buttons when the approval never left the client', async () => {
+    const onSendMessage = vi.fn();
+    const { rerender } = render(
+      <ChatbotEnhanced
+        placeholder="Ask…"
+        messages={planMessage}
+        onSendMessage={onSendMessage}
+        labels={LABELS}
+        planBuildingLabel="BUILDING_NOW"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('proposed-plan-approve'));
+    expect(screen.getByTestId('proposed-plan-building')).toHaveTextContent('BUILDING_NOW');
+    expect(screen.queryByTestId('proposed-plan-approve')).not.toBeInTheDocument();
+
+    // The approval was rejected before reaching the model (rate limit).
+    rerender(
+      <ChatbotEnhanced
+        placeholder="Ask…"
+        messages={planMessage}
+        onSendMessage={onSendMessage}
+        labels={LABELS}
+        planBuildingLabel="BUILDING_NOW"
+        error={notSentError(429)}
+      />,
+    );
+
+    // The card must be actionable again — nothing is building.
+    await waitFor(() =>
+      expect(screen.getByTestId('proposed-plan-approve')).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('proposed-plan-building')).not.toBeInTheDocument();
+    // …and the failure is surfaced, not swallowed.
+    expect(screen.getByTestId('chat-send-error')).toHaveTextContent('RATE_LIMIT_MSG');
+  });
+
+  it('a STREAMED-response error leaves the badge alone — that approval did reach the server', async () => {
+    const onSendMessage = vi.fn();
+    const { rerender } = render(
+      <ChatbotEnhanced
+        placeholder="Ask…"
+        messages={planMessage}
+        onSendMessage={onSendMessage}
+        labels={LABELS}
+        planBuildingLabel="BUILDING_NOW"
+      />,
+    );
+    fireEvent.click(screen.getByTestId('proposed-plan-approve'));
+
+    // Not `notSent`: the turn started and the stream dropped. Re-offering
+    // "Build it" here invites a SECOND build of the same plan.
+    rerender(
+      <ChatbotEnhanced
+        placeholder="Ask…"
+        messages={planMessage}
+        onSendMessage={onSendMessage}
+        labels={LABELS}
+        planBuildingLabel="BUILDING_NOW"
+        onReload={vi.fn()}
+        error={new Error('stream dropped mid-turn')}
+      />,
+    );
+
+    expect(screen.getByTestId('proposed-plan-building')).toBeInTheDocument();
+    expect(screen.queryByTestId('proposed-plan-approve')).not.toBeInTheDocument();
+  });
+
+  it('a LATER send supersedes the approve — its failure must not re-open the built card', async () => {
+    const onSendMessage = vi.fn();
+    const { rerender } = render(
+      <ChatbotEnhanced
+        placeholder="Ask…"
+        messages={planMessage}
+        onSendMessage={onSendMessage}
+        labels={LABELS}
+        planBuildingLabel="BUILDING_NOW"
+      />,
+    );
+    fireEvent.click(screen.getByTestId('proposed-plan-approve'));
+    // The approval went through; the user then types something that does not.
+    await submit('also add invoices', onSendMessage);
+
+    rerender(
+      <ChatbotEnhanced
+        placeholder="Ask…"
+        messages={planMessage}
+        onSendMessage={onSendMessage}
+        labels={LABELS}
+        planBuildingLabel="BUILDING_NOW"
+        error={notSentError(429)}
+      />,
+    );
+
+    // The composer text is restored, but the plan card stays "Building…" —
+    // rolling it back would offer a second build of a plan already building.
+    await waitFor(() => expect(screen.getByTestId('chat-send-error')).toBeInTheDocument());
+    expect(screen.getByTestId('proposed-plan-building')).toBeInTheDocument();
+    expect(screen.queryByTestId('proposed-plan-approve')).not.toBeInTheDocument();
   });
 });

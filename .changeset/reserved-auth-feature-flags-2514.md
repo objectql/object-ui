@@ -1,0 +1,15 @@
+---
+'@object-ui/auth': patch
+---
+
+`features.passkeys` and `features.magicLink` are documented as reserved, so enabling them no longer implies a login-page entry point that does not exist
+
+`GET /api/v1/auth/config` advertises eight login-surface capability flags. Six of them gate something real — `sso` gates the "Sign in with SSO" button, `phoneNumberOtp` the verification-code mode, `deviceAuthorization` the device-approval page — and each carries a doc comment saying what it gates. Two did not gate anything: `passkeys` and `magicLink` existed only as two undocumented lines in `AuthPublicConfig.features`, consumed by no component, no route and no metadata. A deployer who turned one on got a flag that changed nothing, with nothing anywhere to say so. That is the mirror of the defect the audit was looking for (framework#2874 P2②): not UI advertising a capability the backend lacks, but a backend advertising a capability the UI lacks.
+
+Both flags are now marked reserved at the two places a deployer meets them. The declarations in `packages/auth/src/types.ts` carry doc comments — which ship in the published `.d.ts`, so the warning appears on hover — stating that enabling the flag adds no entry point and naming the follow-up card. `packages/auth/README.md` gains a "Server Feature Flags" section documenting what the `features` map is for and a "Reserved flags" table saying the same thing in prose. Per the maintainer's ruling on objectui#2514, the UI is deliberately not built here; it is filed as objectui#4179 and left unscheduled.
+
+No runtime behaviour changes: nothing read these flags before and nothing reads them now. What changes is that the published types and docs stop being silent about it.
+
+The three artifacts are pinned together by `packages/auth/src/__tests__/reserved-auth-features.test.ts`, which asserts the declarations still exist, that each carries a reserved marking naming the card, that the README section says the same, and — the inverse direction — that no source file under `packages/*/src`, `apps/*/src` or `examples/*/src` references either identifier. The sweep covers `.json` as well as `.ts`/`.tsx` because `AppContent` hands the whole `features` object to `ExpressionProvider`, so authored metadata can reach these flags without any source file naming them. Two calibration cases keep the pin from rotting into a vacuous pass: one asserts the sweep reads a non-trivial number of files, the other that it can still find a flag that *is* consumed. When the UI is eventually built, the pin fails and its docblock spells out the retirement checklist — the doc comments, the README section and the pin itself come out in the same PR.
+
+`features.twoFactor` is untouched and explicitly excluded: two-factor is implemented in this package (`enableTwoFactor` / `verifyTwoFactor`) and its challenge is driven by server-side remediation rather than by the flag, so `LoginForm` not reading it is the design rather than a gap. The README says so, and the pin asserts `twoFactor` never appears in the reserved table.

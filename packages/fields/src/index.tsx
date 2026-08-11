@@ -15,6 +15,9 @@ import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import { SchemaRendererContext as _SchemaRendererContext } from '@object-ui/react';
 import { withFieldCarrier } from './withFieldCarrier';
+// Pure formatting rule shared with `AddressField`'s readonly branch — no React,
+// so this does not pull the widget out of its lazy chunk (objectui#4037).
+import { formatAddress, type AddressValue } from './widgets/address-format';
 
 // Module-level cache so multiple renderers fetching the same lookup ID
 // only trigger one network call. Keyed by `${objectName}:${id}`.
@@ -1779,6 +1782,39 @@ export function LocationCellRenderer({ value }: CellRendererProps): React.ReactE
 }
 
 /**
+ * Renders an `address` value as a formatted single-line postal address instead
+ * of stringified JSON (objectui#4037).
+ *
+ * The detail page's display registry mapped `address` to {@link JsonCellRenderer},
+ * so a populated address read as `{"street":"中策路 1 号","city":"杭州",…}` on the
+ * detail page and in its inline-edit read state — while the very same value
+ * rendered correctly in the create/edit dialog, whose input registry has always
+ * carried `address`. Read side only: nothing about the input widget changes.
+ *
+ * Layout is not invented here. It is {@link formatAddress} — the rule
+ * `AddressField`'s own readonly branch already applied, over the sub-field set
+ * its inputs expose — so a readonly form and a detail page cannot spell one
+ * stored address two ways.
+ *
+ * Anything `formatAddress` cannot recognize falls back to compact JSON rather
+ * than rendering blank: an unknown shape stays visible (today's behaviour) and
+ * is never silently swallowed by the fix.
+ */
+export function AddressCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  if (value == null || value === '') return <EmptyValue />;
+  // A plain string address (some apps store one) is already display-ready.
+  if (typeof value === 'string') return <TruncatedText text={value} className="text-sm" />;
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    const formatted = formatAddress(value as AddressValue);
+    if (formatted) return <TruncatedText text={formatted} className="text-sm" />;
+    // An object carrying no recognized part: `{}` reads as empty, while
+    // `{ foo: 1 }` keeps its JSON so real data is never hidden.
+    if (Object.keys(value as Record<string, unknown>).length === 0) return <EmptyValue />;
+  }
+  return <JsonCellRenderer value={value} field={{} as any} />;
+}
+
+/**
  * Get the appropriate cell renderer for a field type
  */
 export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> {
@@ -1834,7 +1870,7 @@ export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> 
     secret: () => <span>••••••</span>,
     location: LocationCellRenderer,
     geolocation: LocationCellRenderer,
-    address: JsonCellRenderer,
+    address: AddressCellRenderer,
     color: ColorSwatchCellRenderer,
     json: JsonCellRenderer,
     object: JsonCellRenderer,

@@ -1935,11 +1935,18 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // the consumer-provided onBulkDelete (which already knows about confirm +
   // refresh). Other actions fall through to the generic action runner.
   //
-  // [#3056] Both branches must clear BOTH selection sources. `selectedRows` is
-  // ours and drives the toolbar; the row checkboxes live inside the data-table
-  // and only clear when `selectionResetKey` moves. Bumping one without the
-  // other strands the user on a page of ticked rows with no toolbar to act on
-  // them — the exact drift `handleBulkDialogClose` below already guards.
+  // [#3056] Every path that clears the selection must clear BOTH selection
+  // sources. `selectedRows` is ours and drives the toolbar; the row checkboxes
+  // live inside the data-table and only clear when `selectionResetKey` moves.
+  // Bumping one without the other strands the user on a page of ticked rows
+  // with no toolbar to act on them — the exact drift `handleBulkDialogClose`
+  // below already guards.
+  //
+  // [#4140] So this is the ONE reset — dispatch, delete, dialog-close AND the
+  // bulk bar's own `onClearSelection`. Both `BulkActionBar` sites previously
+  // hand-wrote `setSelectedRows([]); setSelectAllMatching(false);`, which is
+  // this function minus the key bump: Clear emptied the toolbar and left every
+  // checkbox ticked. Never re-implement the reset inline — call this.
   const resetSelection = () => {
     setSelectedRows([]);
     setSelectAllMatching(false);
@@ -2953,7 +2960,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 objectFields={objectSchema?.fields}
                 onAction={dispatchBulkAction}
                 onActionDef={dispatchBulkActionDef}
-                onClearSelection={() => { setSelectedRows([]); setSelectAllMatching(false); }}
+                onClearSelection={resetSelection}
                 pageSize={data.length}
                 totalMatching={singleSelection ? undefined : totalMatching}
                 allMatchingSelected={selectAllMatching}
@@ -2991,7 +2998,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         objectFields={objectSchema?.fields}
         onAction={dispatchBulkAction}
         onActionDef={dispatchBulkActionDef}
-        onClearSelection={() => { setSelectedRows([]); setSelectAllMatching(false); }}
+        onClearSelection={resetSelection}
         pageSize={data.length}
         totalMatching={singleSelection ? undefined : totalMatching}
         allMatchingSelected={selectAllMatching}

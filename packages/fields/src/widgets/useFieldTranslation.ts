@@ -99,36 +99,19 @@ const FIELD_DEFAULTS: Record<string, string> = {
   // depend on the number stays correct at 1 without ten plural entries per
   // pack, and matches the sibling key's shape.
   'fields.textarea.charactersRemaining': 'Characters remaining: {{count}}',
-  // objectui#3404 — the shared fullscreen long-text dialog
-  // (`FullscreenFieldEditor`, reached from `TextAreaField` and
-  // `RichTextField` when `mobile_fullscreen` is set).
+  // The fullscreen long-text dialog's copy (objectui#3404) is NOT declared
+  // here any more. It moved with the implementation: `FullscreenFieldEditor` is
+  // a thin wrapper over `FullscreenEditor` in `@object-ui/components`
+  // (objectui#3398), and that primitive carries its own `createSafeTranslation`
+  // defaults for the same `form.fullscreen.*` / `common.cancel` keys — still
+  // the built-in branch's keys, still byte-identical English, so provider-less
+  // rendering is unchanged and the ten locale packs need no edit. Leaving the
+  // entries here would have re-created in the defaults map exactly the
+  // duplication #3398 removed from the components, and this map's own
+  // discipline is that a default is declared where it is read.
   //
-  // Deliberately the SAME `form.fullscreen.*` / `common.cancel` keys the
-  // built-in branch consumes (`FullscreenTextarea` in
-  // `components/src/renderers/form/form.tsx`, objectui#3272) rather than
-  // `fields.fullscreen.*` twins. One form-level setting
-  // (`ObjectFormSchema.mobile.fullscreenLongText`) projects onto BOTH render
-  // paths inside a single form, so a second copy of this copy is guaranteed
-  // drift — the shape #3231/#3263 had to undo — and would mean editing ten
-  // locale packs to say what they already say. `common.cancel` is already
-  // declared above and is reused here for exactly that reason.
-  //
-  // The values are byte-identical to the English literals they replaced, so
-  // a widget rendered with no I18nProvider (standalone/embedded hosts, and
-  // every bare-render test in this package) shows what it always did instead
-  // of a raw key. Measured before the change: with no provider mounted, bare
-  // `useObjectTranslation().t` returns the key itself
-  // (`common.cancel` → "common.cancel"), which is why this goes through
-  // `createSafeTranslation` like the built-in branch does.
-  'form.fullscreen.title': 'Edit text',
-  'form.fullscreen.description': 'Edit the full text value, then save or cancel your changes.',
-  'form.fullscreen.done': 'Done',
-  // Kept as ONE interpolated sentence with a translated generic noun standing
-  // in for a missing label — the literal's own shape
-  // (`Edit ${label ?? 'text'} fullscreen`). A second, label-less sentence key
-  // would need ten new pack entries to say the same thing.
-  'form.fullscreen.toggle': 'Edit {{label}} fullscreen',
-  'form.fullscreen.textFallback': 'text',
+  // `common.cancel` stays above: `RecordPickerDialog` and `PeoplePicker` read
+  // it independently of anything fullscreen.
   // objectui#2600 B5 — capability picker scope group headers.
   'capability.group.platform': 'Platform',
   'capability.group.org': 'Organization',

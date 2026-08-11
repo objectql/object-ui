@@ -69,13 +69,21 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.linkType.sf': 'Start → Finish',
   'gantt.linkEnd.start': 'start',
   'gantt.linkEnd.end': 'end',
+  // Why the built-in drop-target policy refused a dependency link
+  // (objectui#4158). One message per branch of `classifyLinkTarget`, and the
+  // leaf name IS the branch name — a new branch that forgets its copy shows
+  // up as a missing key here rather than as a plausible-but-wrong sentence.
+  'gantt.link.rejected.self': 'A task cannot depend on itself.',
+  'gantt.link.rejected.locked': 'This row is locked and cannot take a new dependency.',
+  'gantt.link.rejected.group': 'A summary row cannot take a dependency — link one of its tasks instead.',
+  'gantt.link.rejected.cycle': 'That link would create a circular dependency.',
   'gantt.conflict.title': 'Schedule conflict',
-  'gantt.conflict.body': 'This move conflicts with dependency constraints. Auto-reschedule {count} affected task(s)?',
+  'gantt.conflict.body': 'This move conflicts with dependency constraints. Auto-reschedule {{count}} affected task(s)?',
   'gantt.conflict.confirm': 'Auto-reschedule',
   'gantt.conflict.cancel': 'Keep as is',
   'gantt.autoScheduleDlg.title': 'Auto-schedule',
-  'gantt.autoScheduleDlg.body': 'Shift {count} task(s) later to satisfy dependency links?',
-  'gantt.autoScheduleDlg.skipped': '{count} locked task(s) also violate links and were skipped.',
+  'gantt.autoScheduleDlg.body': 'Shift {{count}} task(s) later to satisfy dependency links?',
+  'gantt.autoScheduleDlg.skipped': '{{count}} locked task(s) also violate links and were skipped.',
   'gantt.autoScheduleDlg.confirm': 'Apply',
   'gantt.autoScheduleDlg.cancel': 'Cancel',
   'gantt.autoScheduleDlg.none': 'All dependencies satisfied — nothing to reschedule.',
@@ -83,8 +91,13 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.quickFilter.clear': 'Clear filters',
   'gantt.quickFilter.empty': 'No options',
   // SINGLE braces on purpose — the ObjectGantt call site resolves these with a
-  // literal `.replace('{shown}', …)`, not i18next interpolation (same as
-  // `gantt.autoScheduleDlg.body` above).
+  // literal `.replace('{shown}', …)`, not i18next interpolation. This is now
+  // the ONLY key in this table on that idiom: the three `{count}` dialog keys
+  // moved to i18next interpolation in objectui#4157, after `conflict.body`'s
+  // packs were (correctly) written `{{count}}` while its call site still did
+  // `.replace('{count}', …)` and rendered a literal `{2}` on screen. Any new
+  // key here takes `{{name}}` + `t(key, { name })`; this one is pinned as the
+  // deliberate exception by `gantt-quickfilter-locale-parity.test.ts`.
   'gantt.quickFilter.resultSummary': 'Showing {shown} / {total} tasks',
   'gantt.resource.header': 'Resource',
   'gantt.resource.peak': 'Peak',

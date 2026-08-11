@@ -73,11 +73,18 @@ checks it requires are green **on that rebuilt commit**. Those runs are a distin
 `merge_group`, on a throwaway `gh-readonly-queue/**` branch — a workflow that does not subscribe
 to that event simply does not run there.
 
-Five workflows subscribe: `ci.yml`, `lint.yml`, `control-bytes.yml`, `docs-links.yml` and
-`changeset-presence.yml` (the last added with the gate itself, in
-[#3387](https://github.com/objectstack-ai/objectui/issues/3387) — a gate that carries no path
-filter reports on every pull request and is therefore requirable, which is exactly the property
-this list tracks). None of the first four did until
+Which workflows subscribe is deliberately not listed here. `MUST_SUBSCRIBE_MERGE_GROUP` in
+`scripts/__tests__/merge-queue-reporting.test.ts` is the maintained list, and the only copy
+anything reads — it records why each entry is on it, and an assertion fails when one of them drops
+the trigger. A copy of it on this page would be right the day it was written and quietly wrong
+after the next subscriber landed, which is exactly what this paragraph used to do
+([#4154](https://github.com/objectstack-ai/objectui/issues/4154)). What is worth knowing here is
+the rule that decides membership, not the instances: a gate that carries no path filter reports on
+every pull request and is therefore requirable — and a requirable context that skips the queue
+build does not fail it, it stalls it.
+
+That rule was learned the expensive way. `ci.yml`, `lint.yml`, `control-bytes.yml` and
+`docs-links.yml` did not subscribe at all until
 [#3523](https://github.com/objectstack-ai/objectui/issues/3523), and the consequence was not subtle. A queue whose required set
 is empty validates nothing: it rebuilds the PR, sees no failing required check because there are
 no required checks, and merges. On 2026-08-07 three pull requests
@@ -100,15 +107,34 @@ queued PR burns an hour and fails, with nothing red to point at.
 
 Two things follow for anyone editing this directory:
 
-- **A workflow producing a context that could ever be required must subscribe `merge_group`.**
-  `scripts/__tests__/merge-queue-reporting.test.ts` holds the list, along with the reason each
-  entry is on it, and fails when one drops the trigger.
-- **Some contexts can never be required, structurally**, and no amount of triggering changes that:
-  **Changeset Bump Policy** (`changeset-guard.yml`, inverse path filter — absent unless the PR
-  touches `.changeset/**`), **Bundle Analysis** (`performance-budget.yml`, path filter),
-  **Live E2E (informational)** (`continue-on-error: true`, so it is green whatever happens — it
-  cannot serve as a guarantee of anything), and **Close issues referenced in other repositories**
-  (`cross-repo-issue-closer.yml`, which runs only *after* a merge).
+- **A workflow producing a context that could ever be required must subscribe `merge_group`**,
+  and takes an entry in `MUST_SUBSCRIBE_MERGE_GROUP` (above) naming the context it produces. That
+  entry is what fails the build if the workflow later drops the trigger; nothing derives the set,
+  because "may this context be required?" is a property of the repository's settings, which no
+  test here can read.
+- **Some contexts can never be required, structurally**, and no amount of triggering changes
+  that. Each line below is blocked by a *different* property, which is why they are all worth
+  reading; they are examples rather than a census, so a further workflow carrying any of these
+  shapes is just as unrequirable without appearing here.
+  - **Changeset Bump Policy** (`changeset-guard.yml`) — an **inverse** path filter: its
+    `pull_request` trigger declares `paths: ['.changeset/**']`, so on a PR that touches nothing
+    under `.changeset/**` the context is never created at all.
+  - **Bundle Analysis** (`performance-budget.yml`) — an ordinary path filter on the same
+    trigger, with the same consequence for every PR that matches none of its paths.
+  - **Live E2E (informational)** (`live-e2e.yml`) — the job carries `continue-on-error: true`,
+    so the run is green whatever the specs did; it cannot serve as a guarantee of anything.
+  - **Close issues referenced in other repositories** (`cross-repo-issue-closer.yml`) — its only
+    trigger is `pull_request_target` with `types: [closed]`, and the job additionally requires
+    `github.event.pull_request.merged == true`, so it runs only *after* a merge.
+
+  Each of those properties is pinned against the YAML in
+  `scripts/__tests__/ci-cd-pipeline-doc.test.ts`: change one of them without editing its line
+  here and that test fails, naming the workflow
+  ([#4170](https://github.com/objectstack-ai/objectui/issues/4170)). The `live-e2e.yml` line is
+  the one already scheduled to become false — that workflow's header says `continue-on-error`
+  comes off once the lane has run clean long enough to trust, and the day it does, the lane
+  becomes requirable and this line is wrong. Then delete the line and its entry in that test;
+  do not soften it in place.
 
 ## Core CI Workflow (`ci.yml`)
 
@@ -143,7 +169,7 @@ it green — which is how two of `type-check`'s gates came to be missing from th
 | Job key | Appears as | What it runs | When |
 |---|---|---|---|
 | `changeset-check` | Changeset Fixed Group Check | `scripts/check-changeset-fixed.mjs` — every workspace package must be in the changeset `fixed` group or explicitly ignored. It checks group *membership*; it does **not** check whether the PR added a changeset. | Every run |
-| `type-check` | Type Check | `scripts/check-type-check-coverage.mjs`, then `pnpm check:spec-symbols`, then `pnpm check:i18n-keys`, then `pnpm check:i18n-drift`, then `pnpm type-check:scripts`, then `pnpm type-check`, then `pnpm type-check:vitest-setup`. The coverage guard runs first because turbo silently skips packages that have no `type-check` script, so a package without one would otherwise read as passing (#2911). The two locale gates sit in the middle because both parse the sources with `typescript`: they need the install and nothing built. `pnpm check:i18n-keys` fails when a `t()` call site asks for a key the `en` pack does not define ([#3530](https://github.com/objectstack-ai/objectui/issues/3530)); `pnpm check:i18n-drift` fails when a change to an `en` string is not accompanied by the nine translation packs ([#3650](https://github.com/objectstack-ai/objectui/issues/3650)), and it is why this job's checkout sets `fetch-depth: 0` — it diffs against the merge base, which a depth-1 clone cannot resolve. `pnpm type-check:scripts` (`tsconfig.scripts.json`) covers `scripts/**/*.ts`, which `pnpm type-check` cannot reach at all — `scripts/` has no package.json, so turbo never walks it, and the coverage guard decides coverage per *package*. Until [#3494](https://github.com/objectstack-ai/objectui/issues/3494) that left the pin tests in `scripts/__tests__/` — including the one pinning this very page — compiled by nothing. `pnpm type-check:vitest-setup` (`tsconfig.vitest-setup.json`) closes the same gap for the four repo-root `vitest.setup.*` files, uncovered until [#3515](https://github.com/objectstack-ai/objectui/issues/3515); it runs *last*, after `pnpm type-check`, because `vitest.setup.dom.tsx` side-effect-imports four `@object-ui/*` packages and resolves them through the declarations that turbo's `^build` produces. | Every run; on a PR the steps short-circuit when only ignored paths changed |
+| `type-check` | Type Check | `scripts/check-type-check-coverage.mjs`, then `pnpm check:spec-symbols`, then `pnpm check:action-forward-parity`, then `pnpm check:i18n-keys`, then `pnpm check:i18n-drift`, then `pnpm type-check:scripts`, then `pnpm type-check`, then `pnpm type-check:vitest-setup`. The coverage guard runs first because turbo silently skips packages that have no `type-check` script, so a package without one would otherwise read as passing (#2911). `pnpm check:action-forward-parity` fails when an action renderer's forward whitelist drops a key the action runtime reads — the class that shipped six times one key at a time, each time green, because the key parses and publishes while the payload is dropped one hop before the runner ([#4050](https://github.com/objectstack-ai/objectui/issues/4050)). The two locale gates sit in the middle because both parse the sources with `typescript`: they need the install and nothing built. `pnpm check:i18n-keys` fails when a `t()` call site asks for a key the `en` pack does not define ([#3530](https://github.com/objectstack-ai/objectui/issues/3530)); `pnpm check:i18n-drift` fails when a change to an `en` string is not accompanied by the nine translation packs ([#3650](https://github.com/objectstack-ai/objectui/issues/3650)), and it is why this job's checkout sets `fetch-depth: 0` — it diffs against the merge base, which a depth-1 clone cannot resolve. `pnpm type-check:scripts` (`tsconfig.scripts.json`) covers `scripts/**/*.ts`, which `pnpm type-check` cannot reach at all — `scripts/` has no package.json, so turbo never walks it, and the coverage guard decides coverage per *package*. Until [#3494](https://github.com/objectstack-ai/objectui/issues/3494) that left the pin tests in `scripts/__tests__/` — including the one pinning this very page — compiled by nothing. `pnpm type-check:vitest-setup` (`tsconfig.vitest-setup.json`) closes the same gap for the four repo-root `vitest.setup.*` files, uncovered until [#3515](https://github.com/objectstack-ai/objectui/issues/3515); it runs *last*, after `pnpm type-check`, because `vitest.setup.dom.tsx` side-effect-imports four `@object-ui/*` packages and resolves them through the declarations that turbo's `^build` produces. | Every run; on a PR the steps short-circuit when only ignored paths changed |
 | `test` | Test (shard N/4) | `pnpm test --shard=N/4` across a 4-runner matrix with `fail-fast: false`, so every shard reports its own failures. No coverage instrumentation — v8 adds 40–100% overhead. | Pull requests and merge-queue builds (everything but `push`); steps short-circuit on a PR that changed only ignored paths |
 | `test-coverage` | Test (coverage) | One unsharded `pnpm test:coverage`, uploaded to Codecov. Nothing blocks on it, which is why it is not sharded. | **Push only** |
 | `e2e` | Build & E2E | Builds the console with `vite build` (`VITE_BASE_PATH=/console/`), verifies the artifact, then `pnpm test:e2e --project=chromium`. Uploads the Playwright report on failure. | Every run; on a PR the steps short-circuit when only ignored paths changed |
@@ -199,10 +225,11 @@ This is a **real PR gate**, and it is easy to miss because it is not part of CI 
 **It gates errors, not warnings.** `--max-warnings` is deliberately unset: the repository carries
 thousands of warnings (overwhelmingly `no-explicit-any`, plus React Compiler rules the config
 downgrades on purpose), and failing on those would make the gate unusable. What must stay clean are
-the rules `eslint.config.js` sets to `error` — including the custom `object-ui/*` ratchets
-(ADR-0054 Phase 5, #2879, the `objectql.ts` ratchet, `no-dynamic-import-in-test-hook`). Until #2923
-this workflow was `workflow_dispatch`-only, so every one of those `error` ratchets was inert: each
-was written specifically to fail CI, and nothing ran them.
+the rules [`eslint.config.js`](https://github.com/objectstack-ai/objectui/blob/main/eslint.config.js)
+sets to `error` — including the custom `object-ui/*` ratchets, each of which carries the ADR or
+issue it came from in a comment beside the rule itself. Until #2923 this workflow was
+`workflow_dispatch`-only, so every one of those `error` ratchets was inert: each was written
+specifically to fail CI, and nothing ran them.
 
 ## Control Bytes (`control-bytes.yml`)
 

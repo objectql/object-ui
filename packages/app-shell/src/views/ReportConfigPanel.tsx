@@ -136,12 +136,15 @@ export function ReportConfigPanel({
   if (!open) return null;
 
   // The panel's name — its visible heading and the accessible name of the
-  // `role="complementary"` landmark — is `report.editor.panelTitle`, NOT
-  // `report.editor.title`: that key is the label of the report's Title *field*
-  // (`titlePlaceholder` sits right under it in the pack), so asking for it here
+  // `role="complementary"` landmark — is `report.editor.panelTitle`. It was
+  // once `report.editor.title`, the label of the report's Title *field*, which
   // titled the panel "Title" and announced the landmark as "Title"
-  // (objectui#4118). Both slots keep the same string on purpose, so the
-  // landmark's spoken name matches the heading a sighted user reads.
+  // (objectui#4118). That key no longer exists: `report.editor` was cut to this
+  // one key when the hand-rolled editor form it labelled was replaced by the
+  // spec-driven inspector below (objectui#4145), so the wrong-slot borrow is
+  // now unavailable rather than merely discouraged. Both slots keep the same
+  // string on purpose, so the landmark's spoken name matches the heading a
+  // sighted user reads.
   return (
     <aside
       className="hidden sm:flex w-[440px] shrink-0 flex-col border-l bg-background h-full"

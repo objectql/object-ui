@@ -228,9 +228,9 @@
  * illustrative route from an executable one, which is a different gate.
  *
  * (A "Still not bought" list closed this section, naming `QUICK_REFERENCE.md`,
- * `AGENTS.md`, `CLAUDE.md` and `CHANGELOG.md`. It has moved to the end of the
- * objectui#3622 section below, which is the current one; those four are still
- * on it.)
+ * `AGENTS.md`, `CLAUDE.md` and `CHANGELOG.md`. It moved to the end of the
+ * objectui#3622 section below, and objectui#4148 bought all four — the current
+ * list of what is still unscanned is at the end of that card's section.)
  *
  * ## Why this file changed again (objectui#3603)
  *
@@ -314,11 +314,86 @@
  *
  * ### Still not bought
  *
- * `QUICK_REFERENCE.md`, `AGENTS.md`, `CLAUDE.md` and `CHANGELOG.md` remain
- * unscanned, along with the non-README markdown inside packages (`CHANGELOG.md`,
- * `TESTING.md`, `MIGRATION.md`, per-package `docs/` trees). Same one-row price,
- * same caveat — measure the surface first, pay its backlog separately, then add
- * the row.
+ * The list that stood here named `QUICK_REFERENCE.md`, `AGENTS.md`, `CLAUDE.md`
+ * and `CHANGELOG.md`, alongside the non-README markdown inside packages. All
+ * four were bought by objectui#4148 — see the next section, which also carries
+ * the current version of this list.
+ *
+ * ## Why this file changed again (objectui#4148): apps and the repo root
+ *
+ * Two rows, landed together because they are one fact: both surfaces were ones
+ * THIS HEADER named as unscanned, and in the months each spent on that list the
+ * only thing that ever noticed a dead link on either was a person reading the
+ * page. A gap a gate documents about itself is still a gap.
+ *
+ * ### 1. The app READMEs
+ *
+ * `apps/console/README.md` linked twice to `./CONSOLE_ROADMAP.md`. That file left
+ * the directory in `c988277ff` (renamed to a root `ROADMAP_CONSOLE.md`) and was
+ * folded into the root `ROADMAP.md` by `3e814e07a` a week later. Both links then
+ * sat dead for about six months while `pnpm docs:check-links` reported green on
+ * every push — `apps/` was in no scan root, so `apps/console/README.md` and
+ * `apps/site/README.md` alike were unlinted. objectui#4148 is that report, filed
+ * out of objectui#4143.
+ *
+ * The row is objectui#3622's purchase one directory over, and takes the `disk`
+ * rule for a stronger version of the same reason: `@object-ui/console` is a
+ * PUBLISHED package (its manifest declares no `private`), so its README is read
+ * on npm and on GitHub exactly like a package README, and is never served by the
+ * site. It is a wildcard row for the same reason as the package one — the surface
+ * is one file per directory rather than a tree — which also means the next app to
+ * land under `apps/` is scanned on arrival, with no row for anyone to remember.
+ *
+ * Only the READMEs: the `CHANGELOG.md` beside each stays out, with the
+ * package-internal markdown below, so there is one unbought class here and not
+ * two.
+ *
+ * Price: **2** dead links, both halves of the `CONSOLE_ROADMAP.md` pair, repointed
+ * at the root `ROADMAP.md` in the same PR. The filing had assumed that content was
+ * deleted and so had no successor; the history above says it was moved, which is
+ * what makes repointing an answer rather than a guess.
+ *
+ * ### 2. The root-level markdown files
+ *
+ * `AGENTS.md`, `CHANGELOG.md`, `CLAUDE.md`, `LICENSE-THIRD-PARTY.md` and
+ * `QUICK_REFERENCE.md` — one row each, joining the root `README.md`,
+ * `CONTRIBUTING.md` and `ROADMAP.md` already in the table. Per-file rows rather
+ * than a glob, because the root is a fixed short list rather than a directory
+ * that grows, and because `expandWildcard()` deliberately expands only a whole
+ * path SEGMENT: `*.md` is not a spelling this table has, and would throw.
+ *
+ * That completes the surface, and completeness is the point — every tracked
+ * markdown file at the top level of this repo is now scanned, which is an
+ * invariant a test can hold rather than a list that goes stale. It does hold one:
+ * a new root-level page with no row turns `check-doc-links.test.ts` red, so this
+ * particular hole cannot silently reopen.
+ *
+ * `LICENSE-THIRD-PARTY.md` was never on the header's list and is bought anyway,
+ * precisely to make that invariant statable. "These four named files" is a claim
+ * that decays; "all of them" is one that a test can keep true.
+ *
+ * Price: **zero** dead links — the objectui#3572 shape, a check arriving with its
+ * backlog already paid. Measured before landing: 11 links across the five files,
+ * 9 of them decidable here. objectui#4149 had already resolved
+ * `QUICK_REFERENCE.md`'s eight inside its own pin test, explicitly as a stopgap
+ * for one file "to be deleted when a SCAN_ROOTS row makes it redundant". This is
+ * that row, and that block goes with it — a second implementation of a check is
+ * worse than no second implementation, because only one of them gets maintained.
+ *
+ * Two of the five carry nothing for this gate to judge today, and are bought
+ * without argument anyway: `AGENTS.md` has no markdown links at all (its paths
+ * are code spans, which `stripCode()` blanks), and both of `CHANGELOG.md`'s are
+ * external. A row over a file with no decidable links is not vacuous — it is the
+ * row that judges the FIRST dead link written into that file, which is the exact
+ * failure this file exists to prevent. Buying a surface while it is empty is the
+ * cheapest this ever gets.
+ *
+ * ### Still not bought
+ *
+ * The non-README markdown inside packages and apps: each `CHANGELOG.md`,
+ * `TESTING.md`, `MIGRATION.md`, and the per-package `docs/` trees. Same one-row
+ * price, same caveat — measure the surface first, pay its backlog separately,
+ * then add the row.
  *
  * ## Code spans are stripped before scanning
  *
@@ -377,13 +452,16 @@ const UNSCANNED_DIRS = new Set(['node_modules', 'dist', 'build', '.next', '.turb
  *
  * The split is the point (objectui#3536). See the header for why applying the
  * docs rules to the second group would reject links that render perfectly well:
- * over today's `disk` surface it would reject 186 links that all render — 111
- * of them before objectui#3622 widened that surface, 75 in the package READMEs
- * it added.
+ * over today's `disk` surface it would reject 198 links that all render — 112 on
+ * the surfaces that predate objectui#3622, 76 in the package READMEs it added,
+ * and 10 in the app READMEs and root-level files objectui#4148 added. (The first
+ * two figures were 111 and 75 when #3622 measured them; the +1 each is ordinary
+ * link churn on those pages since, remeasured here rather than carried forward.)
  *
  * Adding a surface is one row. Adding one that is read on GitHub needs no new
  * rule class at all — which is why objectui#3572 could take the last three for
- * the price of the table entry, and objectui#3622 the package READMEs.
+ * the price of the table entry, objectui#3622 the package READMEs, and
+ * objectui#4148 the app READMEs and the rest of the repo root.
  *
  * A row's `path` is a directory to walk, a single markdown file, or a pattern
  * whose one wildcard SEGMENT stands for every directory at that level — see
@@ -397,6 +475,15 @@ export const SCAN_ROOTS = [
   { path: 'ROADMAP.md', rule: 'disk' },
   { path: 'docs', rule: 'disk' },
   { path: 'packages/*/README.md', rule: 'disk' },
+  { path: 'apps/*/README.md', rule: 'disk' },
+  // The rest of the root-level markdown, completing that surface (objectui#4148).
+  // `README.md`, `CONTRIBUTING.md` and `ROADMAP.md` are already above, in the
+  // positions the rows that bought them left them in.
+  { path: 'AGENTS.md', rule: 'disk' },
+  { path: 'CHANGELOG.md', rule: 'disk' },
+  { path: 'CLAUDE.md', rule: 'disk' },
+  { path: 'LICENSE-THIRD-PARTY.md', rule: 'disk' },
+  { path: 'QUICK_REFERENCE.md', rule: 'disk' },
 ];
 
 const blank = (text) => text.replace(/[^\n]/g, ' ');
@@ -839,8 +926,8 @@ const HINTS = {
     ' `https://github.com/objectstack-ai/objectui/blob/main/...` URL instead' +
     ' (the "Package README" form used throughout content/docs/plugins/).',
   'example-relative':
-    'Outside content/docs (examples/**, README.md, CONTRIBUTING.md, ROADMAP.md,' +
-    ' docs/** and each package README) a relative link is a' +
+    'Outside content/docs (examples/**, docs/**, each package and app README,' +
+    ' and the root-level markdown files) a relative link is a' +
     ' PATH IN THIS REPO, resolved by GitHub against the linking file — so it' +
     ' must name something that exists and lives inside the repository. A' +
     ' directory or a non-markdown file is fine; an extensionless spelling of a' +

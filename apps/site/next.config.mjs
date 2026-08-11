@@ -5,6 +5,18 @@ const withMDX = createMDX();
 /** @type {import('next').NextConfig} */
 const config = {
   reactStrictMode: true,
+  // Do not let `next dev` mint AGENTS.md / CLAUDE.md in this directory
+  // (objectui#4160). From next 16.3 the dev server detects an AI coding agent
+  // from the environment and writes both files here
+  // (node_modules/next/dist/server/lib/generate-agent-files.js), carrying a
+  // managed block whose own text asks the reader to commit it. This repo's
+  // AGENTS.md / CLAUDE.md are hand-written and binding, and this app's
+  // CLAUDE.md would be a bare `@AGENTS.md` import splicing framework prose into
+  // that authority chain — so we opt out here and additionally gitignore both
+  // paths, since `agentRules` is upstream-owned and a later next release can
+  // rename or drop it. Both halves are pinned by
+  // `scripts/__tests__/site-next-agent-files-4160.test.ts`.
+  agentRules: false,
   // Every entry MUST be a declared dependency of this app (pinned by
   // `scripts/__tests__/site-playground-layout-registration-3904.test.ts`).
   // Next resolves each name as `<pkg>/package.json` FROM THIS APP'S DIRECTORY to

@@ -1,59 +1,20 @@
 import React, { useId } from 'react';
 import { Input, Label, EmptyValue } from '@object-ui/components';
-import type { AddressValue } from '@objectstack/spec/data';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
 import { toHostGroupProps } from './toHostGroupProps';
+// The value shape and the single-line formatting rule now live in a pure module
+// so the display (read) cell renderer formats a stored address exactly the way
+// this widget's readonly branch does — one rule, not two copies that drift
+// (objectui#4037). Behaviour here is unchanged; only the definition moved.
+import {
+  formatAddress,
+  readPostalCode,
+  type AddressValue,
+  type LegacyAddressValue,
+} from './address-format';
 
-/**
- * Address data structure — `z.input` of `@objectstack/spec`'s
- * `AddressValueSchema`, which is what the platform stores and what
- * `/api/v1/data/**` serves back.
- *
- * The postal code is spelled `postalCode` (objectstack#5143). This widget used
- * to read and write `zipCode`, a key that appears nowhere in the spec, so the
- * stored postal code never reached the input — and whatever the user then typed
- * into that apparently-empty box was written under a key `AddressValueSchema`
- * strips: lost outright on a new record, and on an existing one silently
- * discarded while the stale stored value survived. (A postal code nobody
- * touched did survive an unrelated edit, because the write spread the whole
- * stored object through; the issue's account of that half is corrected in
- * `AddressField.postalCode.test.tsx`.) One name, on both sides: the contract's.
- *
- * IMPORTED rather than declared since objectui#4167. rc.6 publishes
- * `AddressValue` under this exact name, and the local copy — whose own comment
- * already claimed to be "the part names of `AddressSchema`" — declared five of
- * the seven parts. `countryCode` and `formatted` were missing, which is
- * objectstack#4115's failure class precisely: a canonical CLAIM over a narrower
- * shape, believed by the next reader. The claim is now the code.
- *
- * The widget still renders five inputs, and that is a deliberate split rather
- * than an omission: `formatted` is a derived one-line rendering of the parts
- * (see {@link formatAddress}, which composes it) and `countryCode` is the ISO
- * pair for `country`, neither of which a human types into a part box. Binding
- * the type does not publish them as inputs — it stops the type from asserting
- * the platform cannot store them, and it means a write from this widget no
- * longer looks type-clean while dropping a key the contract carries: the
- * `{ ...address }` spread in `handleFieldChange` preserves both, and now says so.
- */
 export type { AddressValue };
-
-/**
- * The shape written by builds up to and including 17.0.0-rc.1, whose postal
- * code landed under `zipCode` (objectstack#5143). Read-time compatibility ONLY,
- * and deliberately not part of {@link AddressValue}: authoring code must not be
- * able to spell `zipCode`, and nothing here ever writes it back — the first
- * edit of any part normalizes the record onto `postalCode` (see
- * `handleFieldChange`). This is not a producer alias to be honoured forever;
- * it exists to carry data THIS widget mis-wrote, and can go once no such data
- * remains.
- */
-type LegacyAddressValue = AddressValue & { zipCode?: string };
-
-/** Postal code of a stored address, preferring the canonical key. */
-function readPostalCode(addr: AddressValue): string | undefined {
-  return addr.postalCode ?? (addr as LegacyAddressValue).zipCode;
-}
 
 /**
  * Address field widget - provides a structured address input
@@ -116,16 +77,6 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
       ...(postalCode ? { postalCode } : null),
       [fieldName]: fieldValue,
     });
-  };
-
-  const formatAddress = (addr: AddressValue): string => {
-    const parts = [
-      addr.street,
-      addr.city,
-      [addr.state, readPostalCode(addr)].filter(Boolean).join(' '),
-      addr.country,
-    ].filter(Boolean);
-    return parts.join(', ');
   };
 
   if (readonly) {

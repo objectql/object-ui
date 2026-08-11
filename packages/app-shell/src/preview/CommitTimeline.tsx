@@ -30,7 +30,12 @@ import {
   SheetTitle,
 } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { fetchCommits, revertCommit, type CommitEntry } from './commitHistory';
+import {
+  fetchCommits,
+  isCommitStoreUnreachable,
+  revertCommit,
+  type CommitEntry,
+} from './commitHistory';
 
 export interface CommitTimelineProps {
   open: boolean;
@@ -56,7 +61,14 @@ function relativeTime(iso?: string): string {
 export function CommitTimeline({ open, onOpenChange, packageId, onReverted }: CommitTimelineProps) {
   const { t } = useObjectTranslation();
   const [commits, setCommits] = useState<CommitEntry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  /**
+   * objectui#3529 — the failure is kept whole, not flattened to its `.message`.
+   * An unreachable commit store and a 404 used to read as the same bare status
+   * code, and this panel is the surface an operator uses DURING an outage;
+   * `unreachable` is what lets the copy below say "the read did not happen,
+   * retry" instead of showing them a number.
+   */
+  const [error, setError] = useState<{ message: string; unreachable: boolean } | null>(null);
   const [reverting, setReverting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -65,7 +77,9 @@ export function CommitTimeline({ open, onOpenChange, packageId, onReverted }: Co
     try {
       setCommits(await fetchCommits(packageId));
     } catch (e) {
-      setError((e as Error).message);
+      // Still fail-loud: `commits` stays null, so the empty-history copy below
+      // is unreachable on an error path (ADR-0110 D3 / objectstack#5980).
+      setError({ message: (e as Error).message, unreachable: isCommitStoreUnreachable(e) });
     }
   }, [packageId]);
 
@@ -82,7 +96,17 @@ export function CommitTimeline({ open, onOpenChange, packageId, onReverted }: Co
       await load();
     } catch (e) {
       toast.error(
-        `${t('preview.history.revertFailed', { defaultValue: 'Revert failed' })}: ${(e as Error).message}`,
+        // A WRITE that could not reach the store is not simply "try again": the
+        // revert may or may not have landed (a proxy can shed a 503 after
+        // forwarding), and re-issuing it appends a SECOND revert commit to an
+        // append-only log. So this half's retryable copy tells the operator to
+        // re-read the timeline first — same unreachable fact, honest disposition.
+        isCommitStoreUnreachable(e)
+          ? t('preview.history.revertUnavailable', {
+              defaultValue:
+                'Commit store temporarily unreachable — the revert may not have been applied. Reopen this history to check before retrying.',
+            })
+          : `${t('preview.history.revertFailed', { defaultValue: 'Revert failed' })}: ${(e as Error).message}`,
       );
     } finally {
       setReverting(null);
@@ -103,8 +127,13 @@ export function CommitTimeline({ open, onOpenChange, packageId, onReverted }: Co
         </SheetHeader>
         <div className="mt-4 flex flex-col gap-2 overflow-y-auto px-4 pb-6">
           {error ? (
-            <p className="text-sm text-destructive">
-              {t('preview.history.loadFailed', { defaultValue: 'Could not load history:' })} {error}
+            <p className="text-sm text-destructive" data-testid="commit-history-error">
+              {error.unreachable
+                ? t('preview.history.loadFailedUnavailable', {
+                    defaultValue:
+                      'Commit store temporarily unreachable — this read did not happen, so no history is shown. Retry in a moment.',
+                  })
+                : `${t('preview.history.loadFailed', { defaultValue: 'Could not load history:' })} ${error.message}`}
             </p>
           ) : commits === null ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

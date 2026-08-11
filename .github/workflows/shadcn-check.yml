@@ -12,14 +12,43 @@ on:
 # default token cannot do unless it is asked for. Declared explicitly so an
 # org-wide tightening of the default workflow permissions cannot silently turn
 # the only alarm channel this workflow has back into a no-op.
+#
+# `actions: read` is what lets a run see the PREVIOUS runs' marker steps, which
+# is the cross-run state the consecutive-unreachability escalation is built on
+# (objectui#3586; the alternatives and their costs are in
+# `scripts/shadcn-check-report.mjs`, `readRegistryStreak`).
 permissions:
   contents: read
   issues: write
+  actions: read
 
 jobs:
   check-components:
     name: Check for Shadcn Component Updates
     runs-on: ubuntu-latest
+
+    # objectui#3586 gap ②. Without this the job inherits GitHub's 360-minute
+    # default, and the online step is 46 SERIAL registry requests through
+    # `fetchUrl` in `scripts/shadcn-sync.js`, which sets no socket timeout — so a
+    # black-holed connection is bounded by nothing but this line. Six hours of a
+    # runner, once a week, on a schedule nobody watches.
+    #
+    # The arithmetic, from measurement rather than taste:
+    #
+    #   - all 30 runs in the API history completed in 19-49s wall clock; the
+    #     longest was 49s (2026-04-06). The most recent (31374857502) took 34s.
+    #   - inside it the online step took ~1.7s for all 46 components
+    #     (09:30:22.71 -> 09:30:24.03), i.e. ~37ms per serial request, with
+    #     `Registry: 0 cached, 46 fetched` and 0 errors.
+    #   - degraded-but-alive worst case, at 10s per request: 46 x 10s = 7.7min,
+    #     plus ~35s of checkout/install/upload overhead.
+    #   - `pnpm install --frozen-lockfile` took 7s on a pnpm store cache hit, and
+    #     all 30 observed runs hit it. A lockfile change misses; budget ~5min.
+    #
+    # 8.3min + 5min = ~13min of compound worst case. 20 gives it ~1.5x headroom,
+    # is ~24x the longest run ever observed, and turns a hang from 6 hours into
+    # 20 minutes.
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -42,16 +71,30 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Left tolerant deliberately: `component-analysis.js` has exactly one
-      # non-zero exit (an unhandled crash in `main()`), so there is no verdict
-      # here to swallow — its output is advisory context for the report below.
+      # objectui#3586 gap ③. This step used to carry `continue-on-error: true`,
+      # on the reasoning that `component-analysis.js` has "no verdict here to
+      # swallow" — true of the DRIFT verdict, false of the step itself. Its one
+      # non-zero exit is an uncaught crash, and a crash on a weekly schedule
+      # turned the job red where nobody looks: the same silent-failure shape as
+      # the swallowed exit code, one step over.
+      #
+      # The exit code is captured explicitly instead and classified with the
+      # check step's, into the SAME issue channel — not a second one, and not
+      # behind `continue-on-error`, which is what made the first gap invisible.
+      #
+      # `2>&1` matters: the crash writes its stack to stderr, and the old
+      # `> analysis.txt` sent only stdout to the file the issue body quotes. An
+      # alarm that cannot show the error it is alarming about is half an alarm.
       - name: Analyze components (offline)
         id: analyze
+        shell: bash
         run: |
           echo "Running offline component analysis..."
-          pnpm shadcn:analyze > analysis.txt
-          cat analysis.txt
-        continue-on-error: true
+          set +e
+          pnpm shadcn:analyze 2>&1 | tee analysis.ansi.txt
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
 
       # `pnpm shadcn:check` has carried a REAL exit code since #3455: it exits
       # non-zero for one reason only — a declared local patch that is missing
@@ -64,7 +107,7 @@ jobs:
       # away wholesale — and because the reporting step was gated on `failure()`,
       # which a tolerated step never produces, the issue-creation path below had
       # never once run (objectstack#5805). The code is captured explicitly here
-      # instead, classified, and routed into that issue path: this workflow runs
+      # instead, and classified by the step after this one: this workflow runs
       # weekly on a schedule, and a red run on a page nobody opens is not an
       # alarm — an issue in the triage queue is.
       - name: Check component status (online)
@@ -76,86 +119,50 @@ jobs:
           pnpm shadcn:check 2>&1 | tee check.ansi.txt
           status=${PIPESTATUS[0]}
           set -e
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
 
-          # The script colours every line unconditionally (no TTY or NO_COLOR
-          # check), so the raw capture is dense with ANSI escapes. Strip them for
-          # the artifact and for the issue body. `\e` below is perl's own escape
-          # sequence — never write the byte itself into a repo file
-          # (objectstack#4890).
-          perl -pe 's/\e\[[0-9;]*[A-Za-z]//g' check.ansi.txt > check.txt
-          rm -f check.ansi.txt
+      # Everything the two steps above produce is classified here, in
+      # `scripts/shadcn-check-report.mjs` — ANSI stripping, #3497's three check
+      # classes, the analyze class, the cross-run registry streak, the step
+      # summary, the annotations, and the issue body. It lives in a file because
+      # #3497's version lived in YAML and therefore could not be tested; it is
+      # covered by `scripts/__tests__/shadcn-check-report.test.ts`.
+      #
+      # It exits 0 for every CLASSIFIED outcome, alarms included: the alarm is
+      # the issue, not the job colour. It going red means the classifier itself
+      # crashed, which is the one failure this mechanism cannot route into its
+      # own channel — hence the unit tests.
+      - name: Classify this run
+        id: verdict
+        env:
+          ANALYZE_EXIT_CODE: ${{ steps.analyze.outputs.exit_code }}
+          CHECK_EXIT_CODE: ${{ steps.check.outputs.exit_code }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/shadcn-check-report.mjs
 
-          # How many components the registry could not serve. Both shapes the
-          # script produces for that: a rejected fetch, and a response whose
-          # file content is unusable (proxy error page, egress block, schema
-          # change). Counted for reporting only — see the tolerance rule below.
-          registry_errors=$(grep -cE 'Registry returned no usable file content|Error fetching from registry:' check.txt || true)
+      # ── Cross-run state ─────────────────────────────────────────────────────
+      # These two steps do nothing in this run. Their names and conclusions ARE
+      # the state the NEXT run reads back through the Actions API, which is how
+      # "the registry has been unreachable N runs running" can be known at all
+      # without a database (objectui#3586 gap ①).
+      #
+      # Three-valued by construction, and that is the point: exactly one of them
+      # succeeds in a run that reached a verdict, and NEITHER appears in a run
+      # that died before it — so "we don't know" is distinguishable from
+      # "reachable", and only "unreachable" extends the streak.
+      #
+      # The names are a contract with `MARKER_STEPS` in
+      # `scripts/shadcn-check-report.mjs`; the pin test holds them equal, because
+      # a rename here would silently reset the streak forever.
+      - name: 'Cross-run marker: registry reachable'
+        if: steps.verdict.outputs.registry_state == 'reachable'
+        run: echo "Registry reachable in this run — the unreachable streak is broken here."
 
-          # Three classes. Only the benign one is tolerated, so a failure mode
-          # nobody anticipated cannot fall through the same gap the swallowed
-          # exit code did:
-          #
-          #   patch   the patch gate's own verdict line is present. Upstream
-          #           moved an anchor the next `--update` must re-apply, or a
-          #           required edit vanished from the file on disk. ALARM.
-          #   ok      exit 0 and no such verdict. Includes an unreachable
-          #           registry, which the script reports per component and still
-          #           exits 0 — tolerated, per objectstack#5805.
-          #   broken  any other non-zero exit: the check could not run at all
-          #           (fatal error, bad invocation, tooling). ALARM — a check
-          #           that cannot report is not a passing check.
-          #
-          # The verdict line is tested BEFORE the exit code on purpose: the
-          # message is the evidence, the exit code is a policy that a later
-          # change to the script could revise without touching this workflow.
-          if grep -qF 'component(s) with declared local patch failures' check.txt; then
-            check_class=patch
-          elif [ "$status" -eq 0 ]; then
-            check_class=ok
-          else
-            check_class=broken
-          fi
-
-          alarm=false
-          if [ "$check_class" != 'ok' ]; then
-            alarm=true
-          fi
-
-          {
-            echo "exit_code=$status"
-            echo "class=$check_class"
-            echo "registry_errors=$registry_errors"
-            echo "alarm=$alarm"
-          } >> "$GITHUB_OUTPUT"
-
-          {
-            echo "### Shadcn component check"
-            echo ""
-            echo "- \`pnpm shadcn:check\` exit code: \`$status\` (class: \`$check_class\`)"
-            echo "- components the registry could not serve: $registry_errors"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          case "$check_class" in
-            patch)
-              echo "::error::Declared local patches are failing (exit $status). Opening/updating the tracking issue."
-              echo "- Verdict: a declared local patch failed. Tracking issue opened or updated." >> "$GITHUB_STEP_SUMMARY"
-              ;;
-            broken)
-              echo "::error::shadcn:check exited $status without a patch verdict — the check itself could not run. Opening/updating the tracking issue."
-              echo "- Verdict: the check could not run. Tracking issue opened or updated." >> "$GITHUB_STEP_SUMMARY"
-              ;;
-            ok)
-              if [ "$registry_errors" -gt 0 ]; then
-                # Tolerated, but never reported as a clean bill of health: with
-                # the registry unreachable the upstream-anchor half of the check
-                # did not execute, so this run proved nothing about upstream.
-                echo "::warning::$registry_errors component(s) could not be fetched from the registry, so the upstream-anchor check did not run. Tolerated by design — no issue opened."
-                echo "- Verdict: no patch failure, but the online half did not run (registry unreachable). Tolerated, no issue opened." >> "$GITHUB_STEP_SUMMARY"
-              else
-                echo "- Verdict: all declared local patches still apply to current upstream." >> "$GITHUB_STEP_SUMMARY"
-              fi
-              ;;
-          esac
+      - name: 'Cross-run marker: registry unreachable'
+        if: steps.verdict.outputs.registry_state == 'unreachable'
+        run: |
+          echo "Registry unreachable in this run (${{ steps.verdict.outputs.registry_errors }} component(s))."
+          echo "Consecutive unreachable runs: ${{ steps.verdict.outputs.registry_streak }}."
 
       - name: Upload analysis results
         uses: actions/upload-artifact@v7
@@ -171,64 +178,21 @@ jobs:
       # cannot deliver (missing permission, API outage), the job must go red,
       # because a silently broken alarm channel is the bug this workflow was
       # just fixed for.
+      #
+      # One channel for every reason — patch failure, a check that could not run,
+      # an analyze crash, a registry blind for `ESCALATION_THRESHOLD` runs, or a
+      # cross-run read that failed. Same labels, same de-duplication. The body is
+      # rendered by the classifier step into `alarm-issue.md`; this step only
+      # delivers it.
       - name: Report check failure as an issue
-        if: steps.check.outputs.alarm == 'true'
+        if: steps.verdict.outputs.alarm == 'true'
         uses: actions/github-script@v9
         env:
-          CHECK_CLASS: ${{ steps.check.outputs.class }}
-          CHECK_EXIT: ${{ steps.check.outputs.exit_code }}
-          REGISTRY_ERRORS: ${{ steps.check.outputs.registry_errors }}
+          ISSUE_TITLE: ${{ steps.verdict.outputs.issue_title }}
         with:
           script: |
             const fs = require('fs');
-
-            const checkClass = process.env.CHECK_CLASS;
-            const isPatchFailure = checkClass === 'patch';
-
-            const title = isPatchFailure
-              ? 'Shadcn sync: declared local patches are failing'
-              : 'Shadcn sync: the weekly component check could not run';
-
-            let body = '## Shadcn Components Status Report\n\n';
-            if (isPatchFailure) {
-              body += 'The weekly component sync check found a **declared local patch failure**: ';
-              body += 'either a required edit is missing from the file on disk, or upstream moved ';
-              body += 'the anchor it is applied to, so the next `pnpm shadcn:update` would refuse ';
-              body += 'to write rather than drop it. Details in the check output below.\n\n';
-            } else {
-              body += 'The weekly component sync check **could not complete**: `pnpm shadcn:check` ';
-              body += 'exited `' + process.env.CHECK_EXIT + '` without reaching a patch verdict. ';
-              body += 'Until this is fixed the weekly upstream early-warning is not running.\n\n';
-            }
-            body += '- Exit code: `' + process.env.CHECK_EXIT + '` (class: `' + checkClass + '`)\n';
-            body += '- Components the registry could not serve: ' + process.env.REGISTRY_ERRORS + '\n';
-            body += '- Run: ' + context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo +
-              '/actions/runs/' + context.runId + '\n\n';
-
-            if (fs.existsSync('analysis.txt')) {
-              const analysis = fs.readFileSync('analysis.txt', 'utf8');
-              body += '### Offline Analysis\n\n';
-              body += '```\n' + analysis.substring(0, 5000) + '\n```\n\n';
-            }
-
-            if (fs.existsSync('check.txt')) {
-              const check = fs.readFileSync('check.txt', 'utf8');
-              body += '### Online Check Results\n\n';
-              body += '```\n' + check.substring(0, 5000) + '\n```\n\n';
-            }
-
-            body += '### Next Steps\n\n';
-            if (isPatchFailure) {
-              body += '1. Read the `DECLARED LOCAL PATCHES` section above — it names the patch id, its tracking issue and the reason\n';
-              body += '2. Marker missing from disk: restore it with `pnpm shadcn:update <component>`\n';
-              body += '3. Anchor no longer found upstream: re-target `find`/`occurrences` in `scripts/shadcn-local-patches.mjs`\n';
-              body += '4. See [SHADCN_SYNC.md](../blob/main/docs/SHADCN_SYNC.md) for detailed guide\n\n';
-            } else {
-              body += '1. Open the workflow run linked above and read the failure\n';
-              body += '2. Reproduce locally with `pnpm shadcn:check`\n';
-              body += '3. See [SHADCN_SYNC.md](../blob/main/docs/SHADCN_SYNC.md) for detailed guide\n\n';
-            }
-            body += '> This issue was automatically created by the Shadcn Components Check workflow.\n';
+            const body = fs.readFileSync('alarm-issue.md', 'utf8');
 
             // Check if there's already an open issue
             const issues = await github.rest.issues.listForRepo({
@@ -251,7 +215,7 @@ jobs:
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: title,
+                title: process.env.ISSUE_TITLE,
                 body: body,
                 labels: ['maintenance', 'shadcn-sync', 'dependencies'],
               });

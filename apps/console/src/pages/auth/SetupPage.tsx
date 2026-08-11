@@ -24,8 +24,36 @@ import {
   Input,
   Label,
 } from '@object-ui/components';
+import { withConsoleBase } from '../../utils/consoleBase';
 
 const AUTH_BASE = `${import.meta.env.VITE_SERVER_URL || ''}/api/v1/auth`;
+
+/**
+ * Both exits below are FULL-PAGE navigations, and they have to stay that way —
+ * `withConsoleBase` fixes where they land, not what kind of navigation they are
+ * (objectui#4181).
+ *
+ * A router `navigate('/')` would keep the SPA alive, and the console's shell is
+ * not built to survive an anonymous → owner transition in place:
+ * `ConsoleShell.ConnectedShellInner` mounts `MetadataProvider` once auth merely
+ * RESOLVES (it deliberately does not gate on `isAuthenticated`, objectui#4042)
+ * and keys it on `language` alone. So on a first-run deployment the metadata
+ * tree is already mounted, populated by reads that ran with no session, and
+ * nothing in its effect deps changes when `signUp()` creates one. The landing
+ * resolution the exit hands off to (`RootLandingRedirect.resolveLandingPath`)
+ * reads that app list — which would still be the empty anonymous-era one, so a
+ * router navigation drops the new owner into an appless console.
+ *
+ * The permission grant makes it worse: the bootstrap runs off a permission-grant
+ * middleware that "may land moments after signUp() resolves" (see handleSubmit),
+ * so even a re-fetch raced at exit time is not reliably the owner's world.
+ *
+ * Tearing the document down is what guarantees the console rebuilds with the
+ * session cookie present. It is also what the two sibling auth surfaces already
+ * do for the same reason — `LoginPage` and `RegisterPage` both exit through
+ * `window.location.assign(withConsoleBase(…))`.
+ */
+const POST_BOOTSTRAP_EXIT = '/';
 
 function slugify(input: string): string {
   return input
@@ -87,7 +115,7 @@ export function SetupPage() {
     // navigating here killed that in-flight rename (the org silently kept the
     // "Default Organization" name). handleSubmit owns the redirect on success.
     if (user && !submitting) {
-      window.location.assign('/');
+      window.location.assign(withConsoleBase(POST_BOOTSTRAP_EXIT));
     }
   }, [user, submitting]);
 
@@ -146,7 +174,7 @@ export function SetupPage() {
         }
       }
 
-      window.location.assign('/');
+      window.location.assign(withConsoleBase(POST_BOOTSTRAP_EXIT));
     } catch (err) {
       toast.error(
         t('auth.setup.failed', { defaultValue: 'Setup failed' }),

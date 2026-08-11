@@ -3,10 +3,14 @@
  *
  * Standalone page for accepting or rejecting an organization invitation.
  * Route: /accept-invitation/:invitationId
+ *
+ * Exported as `DefaultAcceptInvitationPage` and routed by `apps/console`
+ * (objectui#3811) as well as by downstream apps. The page paints its own
+ * full-viewport shell, so hosts mount it bare — no auth layout around it.
  */
 
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@object-ui/components';
 import { useAuth } from '@object-ui/auth';
 import type { AuthInvitation } from '@object-ui/auth';
@@ -22,6 +26,7 @@ type InvitationWithOrg = AuthInvitation & {
 export function AcceptInvitationPage() {
   const { t } = useObjectTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { invitationId } = useParams<{ invitationId: string }>();
   const { isAuthenticated, isLoading: isAuthLoading, getInvitation, acceptInvitation, rejectInvitation, switchOrganization } =
     useAuth();
@@ -32,12 +37,21 @@ export function AcceptInvitationPage() {
   const [isAccepting, setIsAccepting] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated.
+  //
+  // The return path comes from the ROUTER (`useLocation`), never from
+  // `window.location.pathname`: `?redirect=` is a basename-stripped path by
+  // contract — a host mounted under `<base href="/console/">` re-prefixes it
+  // before navigating (see `apps/console` `LoginPage.withConsoleBase`), so a
+  // window-derived path that already carries the mount doubles it into
+  // `/console/console/accept-invitation/…`. Under the default `/` mount the two
+  // spellings agree, which is why only the basename case can catch it
+  // (objectui#3811).
   useEffect(() => {
     if (!isAuthLoading && !isAuthenticated) {
-      navigate('/login?redirect=' + encodeURIComponent(window.location.pathname));
+      navigate('/login?redirect=' + encodeURIComponent(location.pathname + location.search));
     }
-  }, [isAuthenticated, isAuthLoading, navigate]);
+  }, [isAuthenticated, isAuthLoading, navigate, location.pathname, location.search]);
 
   // Fetch invitation details
   useEffect(() => {

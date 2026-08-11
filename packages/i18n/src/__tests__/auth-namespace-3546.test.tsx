@@ -1,19 +1,32 @@
 /**
- * The auth family — `auth` / `oauth` / `acceptInvitation`, objectui#3546 slice
- * three — resolves **from the locale packs, with a provider mounted**.
+ * The auth family — `auth` / `oauth`, objectui#3546 slice three — resolves
+ * **from the locale packs, with a provider mounted**.
  *
  * ## What was broken, precisely
  *
- * `scripts/check-i18n-call-site-keys.mjs` measured 54 keys under these three
- * namespaces that a `t()` call site asks for and that NO pack defined — 54
- * distinct keys at 54 call sites (this slice happens to be 1:1; slice two was
- * 90 keys at 93 sites, so the denominator is measured, never counted by hand).
+ * `scripts/check-i18n-call-site-keys.mjs` measured 54 keys under three
+ * namespaces (`auth` 26, `oauth` 16, `acceptInvitation` 12) that a `t()` call
+ * site asks for and that NO pack defined — 54 distinct keys at 54 call sites
+ * (this slice happens to be 1:1; slice two was 90 keys at 93 sites, so the
+ * denominator is measured, never counted by hand).
  * All 54 carried an inline `t(key, { defaultValue: 'English' })`, so this is the
  * milder objectui#3517 class: English rendered correctly at every call site and
  * **all ten languages were stuck on it**. Nothing rendered a raw key here —
  * slice one (PR #3583) held the sites that did, and an AST sweep of all 122
  * call sites in these namespaces found **zero** dead `t(key) || 'English'`
  * fallbacks, which is why this slice touches no component file.
+ *
+ * ## Why 42 keys and not 54 (objectui#3811)
+ *
+ * The third namespace is gone. `acceptInvitation.*` served the console's own
+ * thin `/accept-invitation/:invitationId` page, which shipped alongside
+ * app-shell's richer page for the very same URL under `organization.accept.*`
+ * (backfilled by slice two) — one screen, two components, 26 keys of duplicated
+ * copy across ten packs, and console routed the weaker of the two. The
+ * maintainer ruled option A: console routes `DefaultAcceptInvitationPage`, the
+ * thin page is deleted, and its 12 keys go with it. The slice-three defect and
+ * its fix are unchanged for the 42 keys that remain; the removed 12 are pinned
+ * NEGATIVELY at the bottom of this file so the namespace cannot drift back in.
  *
  * Consequence for test design, same as slice two: `en` output was already
  * correct before the change, so **an `en` assertion cannot discriminate before
@@ -22,9 +35,9 @@
  *
  * ## Why a provider is mounted
  *
- * All six components behind these keys — `LoginPage`, `ForgotPasswordPage`,
- * `VerifyEmailPromptPage`, `DeviceAuthPage`, `OAuthConsentPage` and the
- * console's `AcceptInvitationPage` — bind `t` from a bare
+ * All five components behind these keys — `LoginPage`, `ForgotPasswordPage`,
+ * `VerifyEmailPromptPage`, `DeviceAuthPage` and `OAuthConsentPage` — bind `t`
+ * from a bare
  * `useObjectTranslation()`. None sits behind a `createSafeTranslation` defaults
  * map, so there is no provider-less path to be green on: without
  * `I18nProvider`, i18next is not the thing answering and the test would
@@ -39,13 +52,17 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import React from 'react';
 import { I18nProvider, useObjectTranslation } from '../provider';
 import { builtInLocales } from '../locales/index';
 
-/** The 54 keys this slice backfilled, grouped as the packs group them. */
+/**
+ * The keys this slice backfilled that are still live, grouped as the packs
+ * group them. 54 were backfilled; `acceptInvitation`'s 12 were retired whole
+ * with the console page that read them (objectui#3811), leaving 42.
+ */
 const KEYS = [
   // auth.login — the phone/OTP branch of the sign-in form (10)
   'auth.login.emailOrPhoneLabel',
@@ -94,7 +111,19 @@ const KEYS = [
   'oauth.consent.noRedirect',
   'oauth.consent.failed',
   'oauth.consent.footer',
-  // acceptInvitation — the whole namespace is new (12)
+  // acceptInvitation — 12 more keys stood here until objectui#3811 deleted the
+  // namespace with its page. See RETIRED_ACCEPT_INVITATION_KEYS below.
+] as const;
+
+/**
+ * The third namespace slice three created, retired whole by objectui#3811.
+ *
+ * Listed by name rather than as a count so the pin is specific: any one of
+ * these coming back to any pack fails, whether it returns alone or as the
+ * complete set. That is the shape the defect had — a second namespace for one
+ * screen, each half correct when read on its own.
+ */
+const RETIRED_ACCEPT_INVITATION_KEYS = [
   'acceptInvitation.title',
   'acceptInvitation.description',
   'acceptInvitation.accept',
@@ -167,18 +196,21 @@ beforeEach(() => {
   window.localStorage.clear();
 });
 
-describe('objectui#3546 slice three — the auth / oauth / acceptInvitation namespaces', () => {
-  it('covers all ten packs and all fifty-four keys (guards the loops from emptying)', () => {
+describe('objectui#3546 slice three — the auth / oauth namespaces', () => {
+  it('covers all ten packs and all forty-two live keys (guards the loops from emptying)', () => {
     expect(LANGS).toHaveLength(10);
-    expect(KEYS).toHaveLength(54);
-    expect(new Set(KEYS).size).toBe(54);
-    // The measured split, so a later slice cannot quietly absorb keys from this one.
+    expect(KEYS).toHaveLength(42);
+    expect(new Set(KEYS).size).toBe(42);
+    // The measured split, so a later slice cannot quietly absorb keys from this
+    // one. `acceptInvitation: 12` stood here until objectui#3811 retired it; the
+    // slice total is still 54, and 42 + 12 is where that arithmetic lives.
     const perNamespace = KEYS.reduce<Record<string, number>>((acc, k) => {
       const ns = k.split('.')[0];
       acc[ns] = (acc[ns] ?? 0) + 1;
       return acc;
     }, {});
-    expect(perNamespace).toEqual({ auth: 26, oauth: 16, acceptInvitation: 12 });
+    expect(perNamespace).toEqual({ auth: 26, oauth: 16 });
+    expect(KEYS.length + RETIRED_ACCEPT_INVITATION_KEYS.length).toBe(54);
   });
 
   it.each(LANGS)('%s defines every auth-family key as a non-empty string', (lang) => {
@@ -201,8 +233,8 @@ describe('objectui#3546 slice three — the auth / oauth / acceptInvitation name
       }
     }
     expect(identical.sort()).toEqual(UNTRANSLATED_TOKENS);
-    // 18 permitted pairs out of 486 — i.e. 52 of the 54 keys are translated in
-    // every single pack. The set equality above is vacuous if the packs were
+    // 18 permitted pairs out of 378 — i.e. 40 of the 42 live keys are translated
+    // in every single pack. The set equality above is vacuous if the packs were
     // empty, so pin the two facts it rests on separately: the exempt value is
     // really the shared token, and a neighbour that embeds it is really not.
     expect(UNTRANSLATED_TOKENS).toHaveLength(18);
@@ -251,6 +283,9 @@ describe('objectui#3546 slice three — the auth / oauth / acceptInvitation name
       missingKeys: Record<string, unknown>;
       missingPrefixes: Record<string, unknown>;
     };
+    // `acceptInvitation.` stays in this list on purpose even though the
+    // namespace no longer exists (objectui#3811): a revived call site would
+    // arrive here as a fresh baseline entry, and this is where that goes red.
     const stillBaselined = Object.keys(baseline.missingKeys).filter((k) =>
       ['auth.', 'oauth.', 'acceptInvitation.'].some((ns) => k.startsWith(ns)),
     );
@@ -276,7 +311,6 @@ describe('objectui#3546 slice three — the auth / oauth / acceptInvitation name
       ['auth.verifyEmail.resendUnavailable', 'VerifyEmailPromptPage'],
       ['auth.device.disabledTitle', 'DeviceAuthPage'],
       ['oauth.consent.authorize', 'OAuthConsentPage'],
-      ['acceptInvitation.accept', 'AcceptInvitationPage'],
     ];
 
     it.each(['en', 'zh'])('%s resolves every sampled key from the pack', (lang) => {
@@ -298,20 +332,22 @@ describe('objectui#3546 slice three — the auth / oauth / acceptInvitation name
       expect(t('auth.device.disabledTitle')).toBe('未启用设备授权');
       expect(t('oauth.consent.authorize')).toBe('授权');
       expect(t('oauth.consent.willAllow')).toBe('此应用将能够：');
-      expect(t('acceptInvitation.accept')).toBe('接受邀请');
     });
 
     it('the other eight packs answer in their own language on the user-facing buttons', () => {
       // Spread across the four writing systems the packs cover, so a single
       // pack silently reverting to English cannot hide behind zh.
+      // fr and ko carried an `acceptInvitation.*` button each until objectui#3811
+      // retired that namespace; both moved to another user-facing button in the
+      // same pack, so the spread across writing systems is unchanged.
       const cases: Array<[lang: string, key: string, expected: string]> = [
-        ['fr', 'acceptInvitation.accept', "Accepter l'invitation"],
+        ['fr', 'oauth.consent.deny', 'Refuser'],
         ['de', 'auth.login.usePhoneOtpText', 'Mit Bestätigungscode anmelden'],
         ['es', 'oauth.consent.footer', 'Puede revocar el acceso en cualquier momento desde la configuración de su cuenta.'],
         ['pt', 'auth.forgotPassword.usePhoneResetText', 'Redefinir com código por SMS'],
         ['ru', 'auth.forgotPassword.resetButton', 'Сбросить пароль'],
         ['ja', 'oauth.consent.scope.profile', '基本プロフィール（名前、画像）を読み取る'],
-        ['ko', 'acceptInvitation.declining', '거절 중…'],
+        ['ko', 'auth.login.sendOtpButton', '코드 받기'],
         ['ar', 'auth.device.disabledTitle', 'تفويض الأجهزة غير مُمكَّن'],
       ];
       for (const [lang, key, expected] of cases) {
@@ -376,22 +412,96 @@ describe('objectui#3546 slice three — the auth / oauth / acceptInvitation name
     });
   });
 
-  it('`acceptInvitation` and `organization.accept` stay separate namespaces', () => {
-    // Two components serve `/accept-invitation/:invitationId`: the console's own
-    // thin page (this namespace) and app-shell's richer one exported as
-    // `DefaultAcceptInvitationPage` (`organization.accept.*`, backfilled by
-    // slice two). Merging them would silently repoint whichever page a
-    // consumer actually routes. Same-English keys share the same translation on
-    // purpose; the keys do not.
-    expect(at(builtInLocales.en, 'acceptInvitation.accept')).toBe('Accept invitation');
-    expect(at(builtInLocales.en, 'organization.accept.accept')).toBe('Accept invitation');
-    expect(at(builtInLocales.fr, 'acceptInvitation.accept')).toBe(
-      at(builtInLocales.fr, 'organization.accept.accept'),
-    );
-    // …and the two pages' own copy differs, which is why both namespaces exist.
-    expect(at(builtInLocales.en, 'acceptInvitation.acceptFailed')).toBe('Could not accept');
-    expect(at(builtInLocales.en, 'organization.accept.acceptFailed')).toBe('Failed to accept invitation');
-    expect(at(builtInLocales.en, 'acceptInvitation.expiresAt')).toBeUndefined();
+  describe('`/accept-invitation/:invitationId` has ONE namespace — objectui#3811', () => {
+    /*
+     * This block replaces the assertion that used to pin the opposite fact
+     * ("`acceptInvitation` and `organization.accept` stay separate namespaces").
+     * That assertion was correct and deliberate: slice three found two
+     * components shipped for one URL — the console's own thin page reading
+     * `acceptInvitation.*`, and app-shell's richer page exported as
+     * `DefaultAcceptInvitationPage` reading `organization.accept.*` (slice two)
+     * — and pinned the two-namespace fact in place rather than guessing which
+     * one should win. objectui#3811 escalated that observation and the
+     * maintainer ruled: console routes the richer page, the thin page and its
+     * namespace are deleted.
+     *
+     * So the pin inverts. It has to be a NEGATIVE pin, because the failure it
+     * guards is silent by construction: a second namespace for one screen reads
+     * as perfectly healthy from inside either half — full key parity, real
+     * translations in ten packs, every value gate green — and is only visible
+     * when both halves are laid side by side, which no gate does. Restoring any
+     * `acceptInvitation.*` key to any pack must go red here, and the surviving
+     * namespace must keep serving the screen.
+     */
+    it('no pack defines any `acceptInvitation.*` key, and the namespace itself is gone', () => {
+      expect(RETIRED_ACCEPT_INVITATION_KEYS).toHaveLength(12);
+      const revived: string[] = [];
+      for (const lang of LANGS) {
+        // The namespace root, not just its keys: an empty `acceptInvitation: {}`
+        // left behind is the shape a partial revert produces.
+        if (at(builtInLocales[lang], 'acceptInvitation') !== undefined) {
+          revived.push(`${lang} :: acceptInvitation (namespace root)`);
+        }
+        for (const key of RETIRED_ACCEPT_INVITATION_KEYS) {
+          if (at(builtInLocales[lang], key) !== undefined) revived.push(`${lang} :: ${key}`);
+        }
+      }
+      expect(revived).toEqual([]);
+    });
+
+    it('`organization.accept.*` is the one namespace this screen reads, in all ten packs', () => {
+      // The surviving half must not be hollowed out by the deletion — the two
+      // keys below are the ones the thin page never had, i.e. the capabilities
+      // the ruling was bought with (org / role / expiry on screen).
+      for (const lang of LANGS) {
+        expect(typeof at(builtInLocales[lang], 'organization.accept.accept'), lang).toBe('string');
+        expect(typeof at(builtInLocales[lang], 'organization.accept.expiresAt'), lang).toBe('string');
+        expect(typeof at(builtInLocales[lang], 'organization.accept.organization'), lang).toBe('string');
+        expect(typeof at(builtInLocales[lang], 'organization.accept.role'), lang).toBe('string');
+      }
+      expect(at(builtInLocales.en, 'organization.accept.accept')).toBe('Accept invitation');
+      expect(at(builtInLocales.en, 'organization.accept.acceptFailed')).toBe(
+        'Failed to accept invitation',
+      );
+      expect(at(builtInLocales.en, 'organization.accept.expiresAt')).toBe('Expires');
+    });
+
+    it('neither consuming package asks `t()` for an `acceptInvitation.*` key any more', () => {
+      // Scoped to the two trees that ever read this namespace — the console
+      // (the deleted thin page) and app-shell (the page that replaced it).
+      //
+      // Why pin the READER at all, when `check:i18n-keys` already fails on a
+      // `t()` key that no pack defines: that gate reports it as "key missing
+      // from `en`", and the obvious repair for a missing key is to backfill it
+      // — which is precisely the move that rebuilds the second namespace. This
+      // assertion is where the reason lives, so the next author reads "there is
+      // one namespace for this screen" instead of "one pack is behind".
+      const roots = ['apps/console/src', 'packages/app-shell/src'];
+      const offenders: string[] = [];
+      const walk = (dir: string) => {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+          const full = join(dir, entry.name);
+          if (entry.isDirectory()) {
+            if (entry.name === 'node_modules' || entry.name === 'dist') continue;
+            walk(full);
+          } else if (/\.tsx?$/.test(entry.name)) {
+            const src = readFileSync(full, 'utf8');
+            // Call-SHAPED on purpose (`t('acceptInvitation.…` /
+            // ``t(`acceptInvitation.${…``), not a bare mention of the string:
+            // this file and `apps/console/src/App.tsx` both name the retired
+            // namespace in prose to explain why it is retired, and a naive
+            // substring scan would score its own documentation as the offence.
+            if (/\bt\(\s*['"`]acceptInvitation\./.test(src)) offenders.push(full);
+          }
+        }
+      };
+      for (const root of roots) {
+        const abs = join(process.cwd(), root);
+        expect(existsSync(abs), `scan root missing: ${abs}`).toBe(true);
+        walk(abs);
+      }
+      expect(offenders).toEqual([]);
+    });
   });
 
   it('`oauth` is its own namespace, not a branch of `auth`', () => {

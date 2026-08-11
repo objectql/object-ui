@@ -19,6 +19,9 @@ import {
   FileField,
   AvatarField,
   SignatureField,
+  AddressField,
+  LocationField,
+  GeolocationField,
   coerceToSafeValue,
 } from '@object-ui/fields';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
@@ -77,9 +80,12 @@ export interface InlineFieldInputProps {
  * highlights strip (objectui#2407) — renders an identical editor. Covers every
  * widget the detail body handles: `SelectField`, `BooleanField`, `LookupField`,
  * `UserField`, the `permission-facet-link` read-only facet (#2403), the numeric
- * widgets (`NumberField` / `CurrencyField` / `PercentField`, objectui#2572), and
- * the plain date/text input (with ISO date coercion + object-value guarding so
- * an unexpanded reference never leaks "[object Object]").
+ * widgets (`NumberField` / `CurrencyField` / `PercentField`, objectui#2572), the
+ * structured composites (`AddressField` / `LocationField` / `GeolocationField`,
+ * objectui#4216 — their value is an OBJECT, so the text fallback both displayed
+ * and WROTE it wrong), and the plain date/text input (with ISO date coercion +
+ * object-value guarding so an unexpanded reference never leaks
+ * "[object Object]").
  *
  * Editability GATING (computed types, `readonly`, system fields, object
  * lifecycle) stays with the host — this component only renders the editor once
@@ -204,6 +210,34 @@ export const InlineFieldInput: React.FC<InlineFieldInputProps> = ({
   }
   if (editType === 'percent') {
     return <PercentField field={field as any} value={value} onChange={(v: any) => onChange(v)} autoFocus={autoFocus} />;
+  }
+  // Structured-value composites → the SAME widgets the create/edit dialog uses
+  // (objectui#4216). Their stored value is an OBJECT, and the terminal text
+  // input below is a value-destroying editor for all three: it renders the
+  // object through `coerceToSafeValue`, whose general-object case extracts
+  // `name || label || externalId || id || _id` — none of which an address or a
+  // coordinate pair has — so the box reads the literal "[Object]", and then
+  // emits whatever is typed over it as a bare STRING that replaces the whole
+  // object on save. Routing them here is what makes the sub-fields the editing
+  // surface and keeps the write an object, so the inline path and the form path
+  // cannot diverge on the value SHAPE they write back.
+  //
+  // The widgets are the form's own (`fieldWidgetMap`, and `FieldEditWidget`'s
+  // "structured-value editors" block) — all three are dependency-light, so a
+  // static import here costs the detail bundle nothing a map/code editor would.
+  //
+  // `autoFocus` follows the numeric branches' convention: each widget forwards
+  // the DOM pass-through set onto its FIRST focusable sub-input (street /
+  // latitude / the coordinate box), so entering inline edit on the field lands
+  // the caret in the same place a single-input type would.
+  if (editType === 'address') {
+    return <AddressField field={field as any} value={value} onChange={(v: any) => onChange(v)} autoFocus={autoFocus} />;
+  }
+  if (editType === 'location') {
+    return <LocationField field={field as any} value={value} onChange={(v: any) => onChange(v)} autoFocus={autoFocus} />;
+  }
+  if (editType === 'geolocation') {
+    return <GeolocationField field={field as any} value={value} onChange={(v: any) => onChange(v)} autoFocus={autoFocus} />;
   }
   const isDate = editType === 'date' || editType === 'datetime';
   const inputType = isDate ? 'date' : 'text';

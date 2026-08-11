@@ -584,8 +584,12 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
       if (toColumnId === KANBAN_UNCOLUMNED_ID) return;
 
       // Optimistic local update so the card visibly stays in the new column.
-      // Skipped when data is owned by a parent (ListView) — the parent's
-      // mutation subscription will refetch and propagate the change.
+      // Skipped when data is owned by a parent (ListView): `fetchedData` is not
+      // what renders on that path (`rawData` prefers `externalData`, :219), and
+      // writing it anyway would re-render us and re-bucket from the unchanged
+      // `externalData` — snapping the card back before the server has answered.
+      // The board's own `boardColumns` already shows the move there. The
+      // failure revert below is deliberately NOT gated — see the note on it.
       if (!hasExternalData) {
         setFetchedData((prev) =>
           prev.map((r) =>
@@ -611,16 +615,37 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
             ? tt('errors.unauthorized', 'You are not authorized to perform this action.')
             : extractWriteErrorMessage(err) ?? tt('table.saveFailed', 'Save failed'),
         );
-        if (!hasExternalData) {
-          // Revert optimistic update on failure
-          setFetchedData((prev) =>
-            prev.map((r) =>
-              String(r.id ?? r._id) === String(cardId)
-                ? { ...r, [groupBy]: fromColumnId }
-                : r,
-            ),
-          );
-        }
+        // Roll the optimistic move back, on BOTH data ownerships (#4138).
+        //
+        // The optimistic move is the kanban's own local display state, so
+        // un-saying it on rejection is the kanban's job regardless of who owns
+        // the records. This used to be gated on `!hasExternalData` in the
+        // belief that the parent handles the refresh (:147); a parent does
+        // re-render on its own refetch, but a REJECTED move changes nothing
+        // server-side, so nothing ever triggers that refetch and the card sat
+        // in the target column until a manual reload.
+        //
+        // ONE unconditional call covers both paths, because the card's
+        // on-screen position lives in `KanbanImpl`'s `boardColumns` rather than
+        // here: its `handleDragEnd` moves the card there before calling us, and
+        // an effect re-syncs `boardColumns` from the `columns` prop whenever
+        // that prop's identity changes — which every re-render of this
+        // component causes (`KanbanRenderer` re-buckets into a fresh array).
+        //   - internal data: `fetchedData` is the source of truth, so the map
+        //     below both corrects the record and re-renders.
+        //   - external data: `fetchedData` is unread and normally empty, but
+        //     `Array#map` always allocates, so the fresh identity re-renders us
+        //     and the board re-buckets from `externalData` — which the server
+        //     never changed. That IS the revert: the card returns to
+        //     `fromColumnId`, and an accepted move is left alone because this
+        //     runs only on the failure branch.
+        setFetchedData((prev) =>
+          prev.map((r) =>
+            String(r.id ?? r._id) === String(cardId)
+              ? { ...r, [groupBy]: fromColumnId }
+              : r,
+          ),
+        );
       }
     },
     [schema.groupBy, schema.objectName, dataSource, hasExternalData, tt],

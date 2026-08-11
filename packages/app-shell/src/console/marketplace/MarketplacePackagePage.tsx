@@ -393,7 +393,7 @@ export function MarketplacePackagePage() {
         setCloudInstall({ ...cloudInstall, withSampleData: true });
         setSampleDataMsg({
           ok: true,
-          text: t('marketplace.detail.reseedQueued') || 'Sample data will be re-seeded on next environment access.',
+          text: t('marketplace.detail.reseedQueued'),
         });
       } else {
         setSampleDataMsg({ ok: false, text: r.error || 'Re-seed failed' });
@@ -410,10 +410,7 @@ export function MarketplacePackagePage() {
    */
   const doPurgeSampleData = async () => {
     if (!cloudInstall) return;
-    if (!confirm(
-      t('marketplace.detail.purgeConfirm')
-      || 'Delete all sample records seeded by this package? User-added records will NOT be touched.',
-    )) {
+    if (!confirm(t('marketplace.detail.purgeConfirm'))) {
       return;
     }
     setSampleDataBusy('purge');
@@ -426,9 +423,8 @@ export function MarketplacePackagePage() {
         setSampleDataMsg({
           ok: true,
           text: removed > 0
-            ? (t('marketplace.detail.purgeSuccess', { count: removed })
-                || `Removed ${removed} sample record(s).`)
-            : (t('marketplace.detail.purgeNoData') || 'No sample records found to purge.'),
+            ? t('marketplace.detail.purgeSuccess', { count: removed })
+            : t('marketplace.detail.purgeNoData'),
         });
       } else {
         setSampleDataMsg({ ok: false, text: r.error || 'Purge failed' });
@@ -450,13 +446,12 @@ export function MarketplacePackagePage() {
       const inserted = r.inserted ?? 0;
       const updated = r.updated ?? 0;
       const errored = r.errors ?? 0;
-      const base = t('marketplace.detail.reseedLocalSuccess', { inserted, updated })
-        || `Sample data re-seeded (inserted=${inserted}, updated=${updated}).`;
+      const base = t('marketplace.detail.reseedLocalSuccess', { inserted, updated });
       // A reseed can land some rows and fail others (the server only hard-fails
       // when ZERO rows write). Don't hide the partial failures behind a green
       // success toast — flag them so the user knows the data is incomplete.
       setSampleDataMsg(errored > 0
-        ? { ok: false, text: `${base} ${t('marketplace.detail.reseedPartialErrors', { count: errored }) || `(${errored} record(s) failed to write)`}` }
+        ? { ok: false, text: `${base} ${t('marketplace.detail.reseedPartialErrors', { count: errored })}` }
         : { ok: true, text: base });
     } catch (err: any) {
       setSampleDataMsg({ ok: false, text: err?.message || 'Re-seed failed' });
@@ -467,10 +462,7 @@ export function MarketplacePackagePage() {
 
   const doPurgeLocalSampleData = async () => {
     if (!localInstall) return;
-    if (!confirm(
-      t('marketplace.detail.purgeConfirm')
-      || 'Delete all sample records seeded by this package? User-added records will NOT be touched.',
-    )) {
+    if (!confirm(t('marketplace.detail.purgeConfirm'))) {
       return;
     }
     setSampleDataBusy('purge');
@@ -484,9 +476,8 @@ export function MarketplacePackagePage() {
       setSampleDataMsg({
         ok: true,
         text: removed > 0
-          ? (t('marketplace.detail.purgeSuccess', { count: removed })
-              || `Removed ${removed} sample record(s).`)
-          : (t('marketplace.detail.purgeNoData') || 'No sample records found to purge.'),
+          ? t('marketplace.detail.purgeSuccess', { count: removed })
+          : t('marketplace.detail.purgeNoData'),
       });
     } catch (err: any) {
       setSampleDataMsg({ ok: false, text: err?.message || 'Purge failed' });
@@ -649,8 +640,8 @@ export function MarketplacePackagePage() {
                     ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
                     : <Database className="h-4 w-4 mr-2" aria-hidden="true" />}
                   {localInstall.withSampleData
-                    ? (t('marketplace.detail.reseedAgain') || 'Re-seed sample data')
-                    : (t('marketplace.detail.addSampleData') || 'Add sample data')}
+                    ? t('marketplace.detail.reseedAgain')
+                    : t('marketplace.detail.addSampleData')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={doPurgeLocalSampleData}
@@ -660,7 +651,7 @@ export function MarketplacePackagePage() {
                   {sampleDataBusy === 'purge'
                     ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
                     : <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />}
-                  {t('marketplace.detail.purgeSampleData') || 'Purge sample data'}
+                  {t('marketplace.detail.purgeSampleData')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={doUninstallLocal} disabled={installingLocal} className="text-destructive focus:text-destructive">
                   <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />
@@ -677,7 +668,7 @@ export function MarketplacePackagePage() {
           {!localInstall && cloudInstall && !getRuntimeConfig().cloudUrl && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="lg" className="px-2.5" aria-label={t('marketplace.detail.moreOptions') || 'More options'}>
+                <Button variant="outline" size="lg" className="px-2.5" aria-label={t('marketplace.detail.moreOptions')}>
                   <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </DropdownMenuTrigger>
@@ -687,8 +678,8 @@ export function MarketplacePackagePage() {
                     ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
                     : <Database className="h-4 w-4 mr-2" aria-hidden="true" />}
                   {cloudInstall.withSampleData
-                    ? (t('marketplace.detail.reseedAgain') || 'Re-seed sample data')
-                    : (t('marketplace.detail.addSampleData') || 'Add sample data')}
+                    ? t('marketplace.detail.reseedAgain')
+                    : t('marketplace.detail.addSampleData')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={doPurgeSampleData}
@@ -698,7 +689,7 @@ export function MarketplacePackagePage() {
                   {sampleDataBusy === 'purge'
                     ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
                     : <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />}
-                  {t('marketplace.detail.purgeSampleData') || 'Purge sample data'}
+                  {t('marketplace.detail.purgeSampleData')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

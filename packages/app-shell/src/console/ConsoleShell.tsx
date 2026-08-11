@@ -23,6 +23,7 @@ import { createObjectStackUserStateAdapter } from '@object-ui/data-objectstack';
 import { AdapterProvider, useAdapter } from '../providers/AdapterProvider';
 import { withSettleSignal } from '../observability/settleSignal';
 import { MetadataProvider, useMetadata } from '../providers/MetadataProvider';
+import { appRouteSegment } from '../utils/appRoute';
 import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
 import { PreviewModeProvider } from '../preview/PreviewModeContext';
 import { NavigationProvider } from '../context/NavigationContext';
@@ -404,5 +405,87 @@ export function SystemRedirect() {
   const location = useLocation();
   const suffix = location.pathname.replace(/^\/system/, '');
   const target = suffix ? `/apps/setup/system${suffix}` : '/apps/setup/system';
+  return <Navigate to={`${target}${location.search}${location.hash}`} replace />;
+}
+
+/**
+ * The Setup app's canonical package id (ADR-0048 — one app per package).
+ * `@objectstack/setup` declares it, and `/apps/<packageId>` is the app's
+ * canonical URL (see `utils/appRoute.ts`).
+ */
+export const SETUP_APP_PACKAGE_ID = 'com.objectstack.setup';
+
+/**
+ * The Setup app's metadata `name`. `matchAppBySegment()` treats the name as a
+ * per-tenant friendly alias, so a deployment that registers Setup without an
+ * owning package (runtime/DB apps, older bundles) is still resolvable by it.
+ */
+export const SETUP_APP_NAME = 'setup';
+
+/**
+ * Minimal shape this resolver needs off each App metadata record. Structurally
+ * identical to `appRoute.ts`'s `AppLike` — including the index signature, so an
+ * app read out of metadata stays assignable to `appRouteSegment()`.
+ */
+type SetupAppLike = { name?: unknown; _packageId?: unknown } & Record<string, unknown>;
+
+/**
+ * The path `/setup` should forward to, resolved purely from the App list.
+ * Extracted from the component so the policy is unit-testable without a
+ * router/render — the same shape `resolveLandingPath` uses for `/`.
+ *
+ * The target is the setup app's ROOT (`/apps/<segment>`), never a hardcoded
+ * page inside it: `AppContent.resolveLandingRoute()` already resolves an app
+ * root to that app's first reachable navigation item, which for Setup is its
+ * System Overview dashboard. Naming that dashboard here would fork the
+ * "where does an app open" policy into a second place and let this alias drift
+ * the moment Setup's nav is re-ordered.
+ *
+ * The segment is built by `appRouteSegment()` — the SAME helper the home
+ * launcher's app cards use (`console/home/AppCard.tsx`), so the alias lands on
+ * byte-identical URLs to clicking the 「系统设置」 card.
+ *
+ * ABSENT SETUP APP (a stripped deployment, a viewer without `setup.access` —
+ * the app is server-filtered out of their metadata, or a publish still
+ * landing): the fallback is the canonical package-id URL, NOT home and NOT the
+ * bare `/apps/setup`. That is deliberate on both counts:
+ *   - home is the defect this alias exists to fix (objectui#2794) — a deep link
+ *     that silently lands somewhere else is indistinguishable from a broken one;
+ *   - `/apps/setup` is `AppContent`'s `isSetupRoute` pseudo-route, which falls
+ *     back to the DEFAULT app, i.e. it would silently render a different app.
+ * `/apps/com.objectstack.setup` matches no pseudo-route, so `AppContent`'s own
+ * `requestedAppMissing` branch handles it — the "App not available" screen with
+ * a Retry, exactly what typing any other missing app's URL produces today. It
+ * also self-heals: that branch re-checks metadata once before concluding.
+ */
+export function resolveSetupAppPath(apps: readonly SetupAppLike[] | null | undefined): string {
+  const list = apps ?? [];
+  const setupApp =
+    list.find((a) => a?._packageId === SETUP_APP_PACKAGE_ID) ??
+    list.find((a) => a?.name === SETUP_APP_NAME);
+  return `/apps/${appRouteSegment(setupApp) ?? SETUP_APP_PACKAGE_ID}`;
+}
+
+/**
+ * SetupRedirect — the stable `/setup` deep link for platform administration
+ * (objectui#2794). System settings had no direct URL: it was reachable only by
+ * clicking the home launcher's 「系统设置」 card, so it could not be bookmarked,
+ * shared, or named in a support/runbook instruction.
+ *
+ * Same shape as {@link SystemRedirect} beside it — resolve a target, then one
+ * `<Navigate replace>`; search and hash carry over. The difference is that this
+ * target is READ FROM METADATA rather than spelled out, because the setup app's
+ * canonical address is whatever `appRouteSegment()` builds for it (ADR-0048
+ * keys `/apps/<segment>` on the package id, falling back to the app name).
+ *
+ * Mount it behind the host's authenticated route wrapper, so an unauthenticated
+ * deep link goes to login with a redirect back to `/setup` under the host's
+ * existing auth-redirect contract rather than a second spelling of it.
+ */
+export function SetupRedirect() {
+  const { apps, loading } = useMetadata();
+  const location = useLocation();
+  if (loading) return <LoadingFallback />;
+  const target = resolveSetupAppPath(apps as SetupAppLike[] | undefined);
   return <Navigate to={`${target}${location.search}${location.hash}`} replace />;
 }

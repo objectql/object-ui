@@ -9,7 +9,7 @@ A one-page cheat-sheet for working in the `objectui` monorepo.
 ```bash
 pnpm install              # Install all workspace dependencies
 pnpm build                # Build every package (turbo, parallel & cached)
-pnpm typecheck            # Run tsc --noEmit across the workspace
+pnpm type-check           # Run tsc --noEmit across the workspace (turbo)
 pnpm lint                 # Run eslint across the workspace
 ```
 
@@ -29,7 +29,7 @@ pnpm test                                              # Run every vitest projec
 pnpm exec vitest run packages/core/                    # Run a single package's tests
 pnpm exec vitest run packages/core/src/<file>.test.ts  # Run a single test file
 pnpm exec vitest run apps/console/                     # Run just the console tests
-pnpm playwright test                                   # End-to-end tests
+pnpm test:e2e                                          # End-to-end tests (playwright)
 ```
 
 Not `pnpm --filter <pkg> test`, not `turbo run test`, not `cd packages/x && pnpm exec
@@ -53,10 +53,14 @@ Details in [AGENTS.md](./AGENTS.md) (“怎么跑测试”) and `scripts/vitest-
 ### Run Examples
 
 ```bash
-pnpm --filter @object-ui/example-crm dev          # CRM demo
-pnpm --filter @object-ui/example-todo dev         # Todo demo
-pnpm --filter @object-ui/example-kitchen-sink dev # Kitchen-sink showcase
+pnpm --filter @object-ui/example-console-starter dev     # Fork-ready ObjectStack console
+pnpm --filter @object-ui/example-byo-backend-console dev # ObjectUI on your own backend
 ```
+
+Those are the only two dev servers under `examples/`: `hello-world` is a snippet to paste
+into your own app and `schema-catalog` is a data package, so neither declares a `dev`
+script. [`examples/README.md`](./examples/README.md) is the index — which one to pick,
+what to build first, and the port each one serves on.
 
 ### Release (via changesets)
 
@@ -70,11 +74,10 @@ pnpm changeset publish         # Publish to npm (CI only)
 
 | Path | Purpose |
 | --- | --- |
-| `packages/*` | 39 published packages (`@object-ui/*`) |
+| `packages/*` | 38 published packages (`@object-ui/*`), plus the private `vscode-extension` |
 | `apps/console` | Full ObjectUI console app (Vite + React) |
 | `apps/site` | Public docs site at <https://www.objectui.org> (fumadocs) |
-| `apps/server` | Vercel backend for `demo.objectstack.ai` |
-| `examples/*` | Runnable integration examples (CRM, todo, byo-backend-console, console-starter, …) |
+| `examples/*` | Runnable examples and the schema catalog — see [`examples/README.md`](./examples/README.md) |
 | `content/docs/` | MDX source for the docs site |
 | `e2e/` | Playwright end-to-end tests |
 | `.changeset/` | Pending release notes |
@@ -91,7 +94,7 @@ pnpm changeset publish         # Publish to npm (CI only)
 | Plugins | `packages/plugin-*` | Heavy view widgets (grid, kanban, charts, …) |
 | Runtime | `packages/react`, `packages/runner` | React bindings & bootstrap |
 | Adapters | `packages/data-objectstack`, `packages/providers` | Data source integration |
-| Platform | `packages/auth`, `packages/permissions`, `packages/tenant`, `packages/i18n`, `packages/mobile`, `packages/collaboration` | Cross-cutting concerns |
+| Platform | `packages/auth`, `packages/permissions`, `packages/i18n`, `packages/mobile`, `packages/collaboration` | Cross-cutting concerns |
 | Tooling | `packages/cli`, `packages/create-plugin`, `packages/vscode-extension` | Developer experience |
 
 ## Key Documents
@@ -104,13 +107,22 @@ pnpm changeset publish         # Publish to npm (CI only)
 
 ## Current Release
 
-- **Version:** v3.3.2 (latest published patch; v3.3.0 was the first official release of the 39-package set)
-- **Spec:** `@objectstack/spec` ^4.0.4 (upgraded from 3.3.x — UI sub-export remains backward compatible)
-- **Client:** `@objectstack/client` ^4.0.4
-- **Node.js:** ≥ 20 (see root `engines.node`)
-- **pnpm:** ≥ 9 (the workspace pins `pnpm@10.31.0` via `packageManager`)
-- **React:** 18.x or 19.x
-- **TypeScript:** ≥ 5.0 (strict mode)
+Every value below is pinned to the manifest that owns it by
+`scripts/__tests__/quick-reference-current-release-4143.test.ts` — edit the anchor and
+that test tells you to edit this block. The one exception is called out on its row.
 
-> Pending unreleased work is queued in `.changeset/` (currently: `mobile-ux-round2.md`
-> patches `plugin-kanban`, `plugin-calendar`, `plugin-timeline`).
+- **Version:** 17.4.0 (the version every `@object-ui/*` manifest carries — they are one
+  `fixed` group in `.changeset/config.json`, so a release moves all of them together)
+- **Spec:** `@objectstack/spec` ^17.0.0-rc.5 (declared by the root `package.json` and by
+  `apps/console/package.json`)
+- **Client:** `@objectstack/client` ^17.0.0-rc.5 (declared by `apps/console/package.json`
+  and `packages/data-objectstack/package.json`)
+- **Node.js:** ≥ 22 (see root `engines.node`)
+- **pnpm:** ≥ 9 (the workspace pins `pnpm@10.31.0` via `packageManager`)
+- **React:** 18.x or 19.x (the `peerDependencies.react` range the packages declare)
+- **TypeScript:** ≥ 5.0 (strict mode) — the stack floor stated in AGENTS.md §2, not a
+  manifest fact: nothing in this tree declares a `typescript` range to check it against,
+  so this is the one row above that no test can hold to account.
+
+> Pending unreleased work is queued in `.changeset/` — list that directory to see what is
+> staged for the next release.

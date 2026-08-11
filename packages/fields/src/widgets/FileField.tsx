@@ -7,6 +7,7 @@ import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
 import { toHostGroupProps } from './toHostGroupProps';
 import { useUploadingSignal } from './useUploadingSignal';
+import { maxSizeError, type TranslateFn } from './file-size-guard';
 import {
   fileValueForSubmit,
   readFileValues,
@@ -48,13 +49,11 @@ function useFileUploads(opts: {
     if (selectedFiles.length === 0) return;
     const newErrors: string[] = [];
 
+    // Shared with ImageField — see `file-size-guard`.
     const validFiles = selectedFiles.filter(file => {
-      if (maxSize && file.size > maxSize) {
-        const maxMB = (maxSize / (1024 * 1024)).toFixed(1);
-        newErrors.push(t('fields.file.exceedsMaxSize', {
-          defaultValue: `"${file.name}" exceeds max size (${maxMB} MB)`,
-          name: file.name, max: maxMB,
-        }));
+      const rejection = maxSizeError(t as TranslateFn, file, maxSize);
+      if (rejection) {
+        newErrors.push(rejection);
         return false;
       }
       return true;

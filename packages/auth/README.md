@@ -137,6 +137,42 @@ const authedFetch = createAuthenticatedFetch();
 const apiProviderFetch = createAuthenticatedFetch({ sameOriginOnly: true });
 ```
 
+## Server Feature Flags (`GET /auth/config`)
+
+`createAuthClient().getConfig()` fetches the server's public auth configuration. The
+`features` map on it tells the login surface which capabilities the deployment actually
+has, so the UI never renders an entry point whose endpoint is not mounted — `features.sso`
+gates the "Sign in with SSO" button, `features.phoneNumberOtp` gates the
+verification-code mode, `features.deviceAuthorization` gates the device-approval page,
+and so on.
+
+### Reserved flags — advertised by the server, consumed by nothing
+
+Two members of that map are **declared but deliberately not consumed** by this package:
+
+| Flag | Status | What enabling it does in the UI today |
+| --- | --- | --- |
+| `features.passkeys` | **Reserved** | Nothing. There is no passkey sign-in or registration UI for it to gate. |
+| `features.magicLink` | **Reserved** | Nothing. There is neither a magic-link request step nor a route that consumes the emailed token. |
+
+They are typed so the `/auth/config` payload round-trips without loss, not because
+anything reads them. **Turning either flag on server-side adds no entry point to the login
+page.** If you are enabling one because you expect a button to appear, it will not — and
+that is the whole reason this section exists.
+
+Building the two flows is tracked as a separate, unscheduled feature card,
+[objectui#4179](https://github.com/objectstack-ai/objectui/issues/4179). Documenting them
+as reserved rather than building them now follows the maintainer's ruling on
+[objectui#2514](https://github.com/objectstack-ai/objectui/issues/2514): mark them
+reserved today, build the UI when the login surface gets roadmap time, at which point it
+renders driven by these same flags. When that lands, this section retires with it.
+
+`features.twoFactor` is **not** in this category, despite also not being read by
+`LoginForm`. Two-factor authentication is implemented here (`enableTwoFactor` /
+`verifyTwoFactor` on the auth client) and its challenge is driven by server-side
+remediation rather than by the flag, so the login form ignoring the flag is the design,
+not a gap.
+
 ## Preview Mode
 
 Preview mode allows visitors (e.g. marketplace customers) to explore the platform without registering or logging in. The `AuthProvider` auto-authenticates with a simulated user identity and bypasses login/registration screens.

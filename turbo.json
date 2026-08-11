@@ -11,7 +11,13 @@
         "**/*.tsbuildinfo",
         "!**/node_modules/**"
       ],
-      "env": ["NODE_ENV", "VITE_BASE_PATH", "OBJECTSTACK_CLIENT_DIST"]
+      "env": ["NODE_ENV", "VITE_BASE_PATH", "OBJECTSTACK_CLIENT_DIST"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tsconfig.json",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/scripts/vite-*.ts"
+      ]
     },
     "test": {
       "dependsOn": ["^build"],
@@ -26,6 +32,12 @@
         "tsconfig*.json",
         "package.json",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/vitest.config.mts",
+        "$TURBO_ROOT$/vitest.setup.*",
+        "$TURBO_ROOT$/scripts/vitest-invocation-guard.mjs",
+        "$TURBO_ROOT$/scripts/vite-*.ts",
+        "$TURBO_ROOT$/apps/console/vitest.config.ts",
+        "$TURBO_ROOT$/apps/console/vite.config.ts",
         "!**/*.md",
         "!**/CHANGELOG.md"
       ]
@@ -36,7 +48,12 @@
     },
     "lint": {
       "outputs": [],
-      "cache": true
+      "cache": true,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/eslint.config.js",
+        "$TURBO_ROOT$/eslint-rules/*.js"
+      ]
     },
     "type-check": {
       "dependsOn": ["^build"],
@@ -45,7 +62,9 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/scripts/vite-*.ts",
-        "$TURBO_ROOT$/vitest.config.mts"
+        "$TURBO_ROOT$/vitest.config.mts",
+        "$TURBO_ROOT$/tsconfig.json",
+        "$TURBO_ROOT$/tsconfig.base.json"
       ]
     },
     "clean": {

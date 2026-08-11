@@ -42,10 +42,10 @@ import { fileURLToPath } from 'node:url';
  * `scripts/check-lint-coverage.mjs`: same hand-count, same parenthesised source
  * list, short the same rule. #3261 rewrote only the workflow, so the copy
  * outlived the fix and was found by someone reading the file for an unrelated
- * reason (#3274) rather than by a gate. Both files are scanned now — the two
- * assertions iterate a list of prose surfaces — so a fourth copy fails CI
- * instead of waiting on the next accidental reading. Any future file arguing
- * from the same facts belongs in that list, not in a copy of this test.
+ * reason (#3274) rather than by a gate. Every surface in the list is scanned now
+ * — the two assertions iterate it — so the next copy fails CI instead of waiting
+ * on the next accidental reading. Any future file arguing from the same facts
+ * belongs in that list, not in a copy of this test.
  *
  * The count pattern reads each file's explanatory comment only, never the whole
  * file, and for the script that scoping is load-bearing rather than tidiness:
@@ -53,6 +53,31 @@ import { fileURLToPath } from 'node:url';
  * errors"), which the pattern would otherwise report as a rule count. The
  * rule-name pattern does read the whole file — a rule name anywhere in either
  * file is the same second copy of `eslint.config.js`, wherever it sits.
+ *
+ * ## The doc page, and the two matcher gaps it exposed (objectui#3782)
+ *
+ * `content/docs/guide/ci-cd-pipeline.md` argued from the same facts a fourth
+ * time. It was the one surface that had never hand-*counted* — its main clause
+ * was already the evergreen phrasing — but it closed on a parenthesised source
+ * list that named a rule outright. Adding it to `SURFACES` was meant to be one
+ * entry; it was not, because both assertions were blind to it as written:
+ *
+ *   1. **The rule-name check matched only the config's key.** Prose names a
+ *      rule the way a sentence does, bare: the page said
+ *      `no-dynamic-import-in-test-hook`, never the `object-ui/`-qualified key
+ *      the config is written in. Adding the page under that matcher would have
+ *      produced a green surface entry sitting over a live enumeration — a gate
+ *      that reads exactly as covered as one that works, which is this file's
+ *      own defect one level up. Both spellings are matched now.
+ *   2. **The count check read `one` as a count.** "every one of those `error`
+ *      ratchets was inert" quantifies over whatever the config holds and cannot
+ *      drift; it is the page's account of the pre-#2923 inert state, not a
+ *      cardinality. Three lookbehinds drop that reading and nothing wider.
+ *
+ * The reader's "where did these come from" pointer survives as a *link* to
+ * `eslint.config.js`, where each rule's ADR/issue sits in the comment beside it.
+ * A reference cannot drift out of step with its target; a copy of its contents
+ * is the thing that had already gone stale three times.
  */
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -61,9 +86,11 @@ const read = (relative: string): string => fs.readFileSync(path.join(repoRoot, r
 /** Repo-relative, so the same string labels the surface in failure messages. */
 const WORKFLOW = '.github/workflows/lint.yml';
 const COVERAGE_SCRIPT = 'scripts/check-lint-coverage.mjs';
+const DOC = 'content/docs/guide/ci-cd-pipeline.md';
 
 const workflow = read(WORKFLOW);
 const coverageScript = read(COVERAGE_SCRIPT);
+const doc = read(DOC);
 
 type FlatConfigEntry = { rules?: Record<string, unknown>; files?: string[] };
 
@@ -133,6 +160,25 @@ function unwrap(block: string, marker: RegExp): string {
   return block.replace(marker, '').replace(/\s+/g, ' ').trim();
 }
 
+/** Markdown prose has no line-leading comment marker to strip. */
+const NO_COMMENT_MARKER = /(?!)/g;
+
+/**
+ * One `## …` section of a markdown page, from its heading to the next one. The
+ * markdown equivalent of the two scoping helpers above, and load-bearing for the
+ * same reason: elsewhere on that page `vitest.setup.dom.tsx` "side-effect-imports
+ * four `@object-ui/*` packages", a count of *packages* the count pattern would
+ * otherwise report as a rule count — exactly the trap the coverage script's
+ * `Known gaps` comment sets.
+ */
+function markdownSection(source: string, heading: string, label: string): string {
+  const start = source.indexOf(`\n${heading}\n`);
+  expect(start, `${label} must still have a \`${heading}\` section`).toBeGreaterThan(-1);
+  const rest = source.slice(start + 1 + heading.length);
+  const next = rest.indexOf('\n## ');
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
 /**
  * The prose surfaces that argue from the `object-ui/*` error ratchets. Both
  * explain a gate in terms of those rules, so both are held to the same two
@@ -151,6 +197,11 @@ const SURFACES: ProseSurface[] = [
     label: COVERAGE_SCRIPT,
     text: coverageScript,
     prose: () => unwrap(leadingDocblock(coverageScript, COVERAGE_SCRIPT), /^[ \t]*\*[ \t]?/gm),
+  },
+  {
+    label: DOC,
+    text: doc,
+    prose: () => unwrap(markdownSection(doc, '## Lint (`lint.yml`)', DOC), NO_COMMENT_MARKER),
   },
 ];
 
@@ -172,9 +223,15 @@ for (const surface of SURFACES) {
       const comment = surface.prose();
 
       // `three \`object-ui/*\` rules`, `all four ratchets`, `4 object-ui rules`…
+      //
+      // The lookbehinds drop the quantifier reading of `one`, which asserts no
+      // cardinality at all: "every one of those `error` ratchets was inert" is
+      // the doc page describing the pre-#2923 state (objectui#3782), and it
+      // stays true however many rules there are. Narrow on purpose — "every one
+      // of the four ratchets" still fails, on `four`.
       const counted = [
         ...comment.matchAll(
-          /\b(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b[^.]{0,20}?(`?object-ui|ratchet)/gi,
+          /(?<!\bevery )(?<!\beach )(?<!\bany )\b(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b[^.]{0,20}?(`?object-ui|ratchet)/gi,
         ),
       ].map((m) => m[0]);
 
@@ -195,7 +252,20 @@ for (const surface of SURFACES) {
     it('never enumerates them by name either', () => {
       // Same defect one level down: naming the rules is a list that has to be
       // maintained in lockstep with the config, and nothing makes anyone do it.
-      const named = objectUiErrorRules.filter((rule) => surface.text.includes(rule));
+      //
+      // BOTH spellings count. Prose names a rule bare, without the plugin
+      // prefix the config keys it by: ci-cd-pipeline.md wrote
+      // `no-dynamic-import-in-test-hook`, never `object-ui/no-dynamic-import-
+      // in-test-hook`. Matching only the config key would have added that page
+      // to this list and passed on the very enumeration it was added for — a
+      // surface entry that gates nothing reads exactly as covered as one that
+      // does, which is this issue's own defect wearing a test's clothes
+      // (objectui#3782).
+      const named = objectUiErrorRules.filter((rule) =>
+        [rule, rule.slice(rule.indexOf('/') + 1)].some((spelling) =>
+          surface.text.includes(spelling),
+        ),
+      );
 
       expect(
         named,
@@ -203,7 +273,8 @@ for (const surface of SURFACES) {
           named.map((r) => `  - ${r}`).join('\n') +
           `\n\nThat list is a second copy of eslint.config.js and will drift from it ` +
           `(objectui#3261). This file explains why the gate matters; eslint.config.js ` +
-          `is where the rules are, with each rule's own comment giving its ADR/issue.`,
+          `is where the rules are, with each rule's own comment giving its ADR/issue — ` +
+          `link there instead of copying it.`,
       ).toEqual([]);
     });
   });

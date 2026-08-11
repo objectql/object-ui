@@ -28,8 +28,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../../custom/resizable';
 import { Alert, AlertDescription } from '../../ui/alert';
 import { toast } from '../../ui/sonner';
-import { AlertCircle, ChevronDown, ChevronRight, Loader2, Maximize2, Check, X } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
+import { AlertCircle, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+// The fullscreen long-text affordance, dialog and draft/commit state machine
+// (objectui#3398). The icons and the `Dialog` family that used to be imported
+// here belonged to the hand-written copy this branch no longer carries.
+import { FullscreenEditor } from '../../custom/fullscreen-editor';
 import { cn } from '../../lib/utils';
 import React from 'react';
 import { SchemaRendererContext, usePredicateScope, isPermissionError, extractWriteErrorMessage, extractFieldErrors } from '@object-ui/react';
@@ -406,28 +409,24 @@ function stripRegisteredFieldProps(type: string, props: RenderFieldProps): Rende
  * field's `mobile_fullscreen: true` flag (propagated from
  * `ObjectFormSchema.mobile.fullscreenLongText`).
  *
- * `readOnly` / `disabled` are DECLARED props here, not passengers on `rest`
- * (objectui#3400). This component owns three separate controls — the inline
- * textarea, the expand button, and the dialog's own textarea — and only the
- * first of them ever saw a spread prop. So a long-text field that the form had
- * resolved as read-only or disabled was fully editable through the dialog, and
- * "Done" wrote the edit back into form state. The two states get the two
- * different treatments the rest of the renderer already gives them:
+ * The affordance, the dialog and the draft/commit state machine are NOT written
+ * here: they are the shared `FullscreenEditor` primitive (objectui#3398). This
+ * branch used to carry a second, hand-written copy of the same interaction that
+ * `@object-ui/fields` renders for the registered `field:textarea` /
+ * `field:markdown` widgets — one form-level setting, two implementations, which
+ * drifted exactly as two copies of a state machine do (objectui#3400 on this
+ * side, objectui#3402 on the other). The merge direction follows the measured
+ * import graph: `fields` depends on `components`, never the reverse, so the
+ * primitive lives in `custom/fullscreen-editor.tsx` and both paths render it.
  *
- *   - `readOnly` → NO expand button at all. That is what the registered path
- *     does (`fields/src/widgets/TextAreaField.tsx` early-returns a read-only
- *     display before `showFullscreenButton` is even computed), so both render
- *     paths now give the same metadata the same user-visible behaviour. A
- *     disabled button would be worse: it advertises an affordance the read-only
- *     path does not have.
- *   - `disabled` → the button stays (the field is "not interactive, muted",
- *     not "shown plainly"), but it is `disabled`.
- *
- * Both then get a second line of defence inside the dialog rather than relying
- * on the button alone, because `disabled` is not only static: it is also
- * `isSubmitting`, which can flip to true while the dialog is ALREADY open. In
- * that moment the button is no longer reachable but the dialog is, so the
- * dialog's textarea and its "Done" button have to lock on their own.
+ * What stays here is the part only this branch has: the INLINE textarea, and
+ * the editor injected into the dialog body. `readOnly` / `disabled` are still
+ * DECLARED props rather than passengers on `rest` (objectui#3400) — the inline
+ * control needs them as real attributes, and the primitive needs them to decide
+ * the affordance. Their meaning is now defined once, by the primitive:
+ * `readOnly` renders no affordance at all, `disabled` leaves an inert one. See
+ * `FullscreenEditor`'s own doc comment for why each is gated in more than one
+ * place.
  */
 function FullscreenTextarea({
   value,
@@ -448,20 +447,13 @@ function FullscreenTextarea({
   disabled?: boolean;
   [key: string]: any;
 }) {
-  // A real component (rendered as `<FullscreenTextarea />`), so the hook runs
-  // unconditionally — unlike `renderFieldComponent`, the plain helper below
-  // that had to grow `BuiltinSelectEmptyState` to own its own hook (#3263).
-  const { t } = useSafeFormTranslation();
-  const [open, setOpen] = React.useState(false);
-  const [draft, setDraft] = React.useState(value ?? '');
-  // ONE gate, guarding the single point where a value can leave this component
-  // for form state. Native `readOnly`/`disabled` attributes stop the pointer
-  // and keyboard paths, but `commit` is a click handler on a different control
-  // reading React state — nothing native gates it, so it is gated here.
+  // The inline control's own gate. `readOnly`/`disabled` are real attributes on
+  // the `<Textarea>` below, but the attribute alone is not the write path —
+  // this is, so it is gated here too. The DIALOG's write-back is gated by the
+  // primitive; this function is reused for `onCommit` so the branch keeps a
+  // single expression of "may a value leave this control".
   const locked = readOnly === true || disabled === true;
   const safeOnChange = (v: string) => { if (locked) return; onChange?.(v); };
-  const openDialog = () => { if (locked) return; setDraft(value ?? ''); setOpen(true); };
-  const commit = () => { safeOnChange(draft); setOpen(false); };
   return (
     <div className="relative">
       <Textarea
@@ -477,58 +469,30 @@ function FullscreenTextarea({
         readOnly={readOnly}
         disabled={disabled}
       />
-      {!readOnly && (
-        <button
-          type="button"
-          onClick={openDialog}
-          disabled={disabled}
-          className="absolute top-1.5 right-1.5 inline-flex items-center justify-center size-7 rounded-md bg-background/80 text-muted-foreground hover:text-foreground hover:bg-background border shadow-sm disabled:opacity-50 disabled:pointer-events-none"
-          aria-label={t('form.fullscreen.toggle', {
-            label: label ?? t('form.fullscreen.textFallback'),
-          })}
-          data-testid="form-textarea-fullscreen-toggle"
-        >
-          <Maximize2 className="size-3.5" />
-        </button>
-      )}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent
-          className="sm:max-w-3xl h-[100dvh] sm:h-[80vh] max-h-[100dvh] sm:max-h-[80vh] flex flex-col p-0 gap-0"
-          data-testid="form-textarea-fullscreen-dialog"
-        >
-          <DialogHeader className="p-4 border-b">
-            <DialogTitle className="text-base">{label ?? t('form.fullscreen.title')}</DialogTitle>
-            <DialogDescription className="sr-only">
-              {t('form.fullscreen.description')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 p-4">
-            <Textarea
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder={placeholder}
-              className="h-full min-h-full resize-none text-base"
-              readOnly={readOnly}
-              disabled={disabled}
-              data-testid="form-textarea-fullscreen-input"
-            />
-          </div>
-          <DialogFooter className="p-3 border-t flex-row justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-              <X className="size-4 mr-1" /> {t('common.cancel')}
-            </Button>
-            <Button
-              type="button"
-              onClick={commit}
-              disabled={locked}
-              data-testid="form-textarea-fullscreen-save"
-            >
-              <Check className="size-4 mr-1" /> {t('form.fullscreen.done')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <FullscreenEditor
+        value={value ?? ''}
+        onCommit={safeOnChange}
+        label={label}
+        // Unchanged ids: `form-textarea-fullscreen-toggle` / `-dialog` /
+        // `-save`, distinct from the registered widgets' `textarea-` and
+        // `richtext-` namespaces so a test can still say which render path it
+        // found.
+        testIdPrefix="form-textarea"
+        readOnly={readOnly}
+        disabled={disabled}
+      >
+        {(draft, setDraft, editorDisabled) => (
+          <Textarea
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={placeholder}
+            className="h-full min-h-full resize-none text-base"
+            disabled={editorDisabled}
+            data-testid="form-textarea-fullscreen-input"
+          />
+        )}
+      </FullscreenEditor>
     </div>
   );
 }
@@ -1320,6 +1284,19 @@ ComponentRegistry.register('form',
     const fieldTabsPosition = schema.fieldTabsPosition || 'top';
     const isVerticalFieldTabs = fieldTabsPosition === 'left' || fieldTabsPosition === 'right';
 
+    // The LIVE required verdict, per field name: present ⇒ required right now,
+    // and the value is the message to show; absent ⇒ not required. Republished
+    // by `renderFormField` below on every render, from the very same
+    // `resolveFieldRuleState` result that draws the asterisk — so the
+    // submit-time check and the star can never disagree (objectui#4161). A ref
+    // rather than state: nothing renders off it, it must be readable from
+    // inside a validator react-hook-form may have captured at mount, and
+    // writing it must not itself schedule a render. Lazily initialised rather
+    // than `useRef(new Map())`, whose argument is re-evaluated (and discarded)
+    // on every render — the same React footgun documented at the call site.
+    const requiredMessagesRef = React.useRef<Map<string, string> | undefined>(undefined);
+    const requiredMessages = (requiredMessagesRef.current ??= new Map<string, string>());
+
     // --- Field rendering ---------------------------------------------------
     // Renders ONE field row (or a virtual section divider). Hoisted out of the
     // field loop so a tabbed layout can place the very same row inside a tab
@@ -1439,21 +1416,54 @@ ComponentRegistry.register('form',
       // object-form validate failure under its key, so the error still
       // surfaces as `type: 'required'` for the conditional-required cleanup
       // above.
+      //
+      // The entry is registered UNCONDITIONALLY and decides required-ness when
+      // it RUNS, instead of being added only while the field is required
+      // (objectui#4161). react-hook-form merges a Controller's `rules` INTO the
+      // field descriptor it already holds — `_f: { ...previous._f, ...options }`
+      // — so a rule key that simply stops being spelled is never removed: the
+      // validator installed the first time `requiredWhen` evaluated TRUE
+      // outlived every later FALSE. The two layers then disagreed: the display
+      // layer re-evaluated (asterisk and `aria-required` both disappeared)
+      // while submit stayed refused with "<field> is required" and no write was
+      // ever issued. Always spelling the key gives that merge something to
+      // overwrite, and reading the verdict out of `requiredMessages` at call
+      // time keeps the answer correct even for the closure RHF captured at
+      // mount — the fix must not rest on RHF re-registering per render, which
+      // it does today only as a side effect of `useRef(control.register(…))`
+      // re-evaluating its (discarded) initializer argument.
+      //
+      // Deliberately NOT re-evaluating the predicate inside the validator: that
+      // would be a second evaluation site with its own copy of the record
+      // assembly (the `null` seeding, the `previousRecord` overlay), i.e. the
+      // exact drift this issue is about. The verdict published here IS the one
+      // the asterisk was drawn from.
       delete rules.required;
       if (required) {
-        const requiredMessage = typeof validation.required === 'string'
-          ? validation.required
-          : t('validation.required', { field: label || name });
-        const authoredValidate = rules.validate;
-        rules.validate = {
-          // A field-authored `validate` keeps running, and keeps its own
-          // `type: 'validate'` error key.
-          ...(typeof authoredValidate === 'function'
-            ? { validate: authoredValidate }
-            : (authoredValidate ?? {})),
-          required: (value: unknown) => !isMissingForRequired(value) || requiredMessage,
-        };
+        requiredMessages.set(
+          name,
+          typeof validation.required === 'string'
+            ? validation.required
+            : t('validation.required', { field: label || name }),
+        );
+      } else {
+        requiredMessages.delete(name);
       }
+      const authoredValidate = rules.validate;
+      rules.validate = {
+        // A field-authored `validate` keeps running, and keeps its own
+        // `type: 'validate'` error key.
+        ...(typeof authoredValidate === 'function'
+          ? { validate: authoredValidate }
+          : (authoredValidate ?? {})),
+        required: (value: unknown) => {
+          const requiredMessage = requiredMessages.get(name);
+          // Absent ⇒ not required as of NOW, whatever it was when this
+          // validator was registered.
+          if (requiredMessage === undefined) return true;
+          return !isMissingForRequired(value) || requiredMessage;
+        },
+      };
 
       // Localize the standard validation messages emitted by
       // buildValidationRules. Each such rule carries a `messageKey`
