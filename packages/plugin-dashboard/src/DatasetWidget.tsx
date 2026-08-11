@@ -597,10 +597,30 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // best-effort shape above the symptom was not an error but semantic option
   // colors and dimension labels silently never applying.
   useEffect(() => {
-    if (isMetric || isTable) { setCategoryColors(null); setDimensionLabels(null); setCategoryOrder(null); return; }
     const object = state.object;
-    if (!object || dimensions.length === 0) { setCategoryColors(null); setDimensionLabels(null); setCategoryOrder(null); return; }
+    // The METRIC branch renders ONE measure value plus that measure's header
+    // label — a dimension's value never reaches its output in any spelling — so
+    // there is nothing on that path to relabel and resolving would be a
+    // metadata read nothing consumes (objectui#4263, pinned).
+    if (isMetric || !object || dimensions.length === 0) { setCategoryColors(null); setDimensionLabels(null); setCategoryOrder(null); return; }
     const fieldOf = (dim: string) => (state.dimensionFields && state.dimensionFields[dim]) || dim;
+    // ── Which dimensions this widget type resolves (objectui#4263) ──────────
+    // On table/pivot the SERVER resolves a dimension's display label
+    // (ADR-0021) — that is exactly why objectui#4053's `table` widget rendered
+    // `Education` while its chart rendered `education`. So this client net
+    // stays OFF for LOCAL dimensions there: running it would be a SECOND
+    // resolution of a value the server already resolved. It opens only for
+    // DOTTED paths, the case the server is silent on too (#4053's premise),
+    // where this is the only resolution available and the table would
+    // otherwise show the raw stored enum.
+    //
+    // Charts keep resolving EVERY dimension: the server's silence for an
+    // AI-built select is the whole reason this net exists there.
+    const dottedOnly = isTable;
+    const resolveDims = dottedOnly ? dimensions.filter((d) => fieldOf(d).includes('.')) : dimensions;
+    // A table with no dotted dimension resolves nothing and — the part that
+    // makes "unchanged" literal — never issues the metadata read at all.
+    if (resolveDims.length === 0) { setCategoryColors(null); setDimensionLabels(null); setCategoryOrder(null); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -620,13 +640,17 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
         // yield no entry, so the raw value survives exactly as before.
         const optionsByPath = await resolveDimensionFieldOptions(
           objSchema,
-          dimensions.map(fieldOf),
+          resolveDims.map(fieldOf),
           loadObjectSchema,
         );
-        const firstDimOptions = optionsByPath[fieldOf(dimensions[0])];
+        // Per-category COLOURS and the declared category ORDER are chart wiring
+        // — they key the palette and the axis sequence, neither of which a
+        // table or pivot renders. They stay null on that path exactly as they
+        // did when it returned early (objectui#4263).
+        const firstDimOptions = dottedOnly ? undefined : optionsByPath[fieldOf(dimensions[0])];
         const colorMap = buildOptionColorMap(firstDimOptions);
         const labels: Record<string, Record<string, string>> = {};
-        for (const dim of dimensions) {
+        for (const dim of resolveDims) {
           const m = buildDimensionLabelMap(optionsByPath[fieldOf(dim)]);
           if (m) labels[dim] = m;
         }
@@ -805,6 +829,21 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // Table / pivot — a grouped table or, for a pivot with ≥2 dimensions, a true
   // cross-tab.
   if (isTable) {
+    // ── The dotted gap-fill's display rows (objectui#4263) ──────────────────
+    // The table/pivot branch renders `state.rows` as they arrived, which is
+    // correct for a LOCAL dimension (the server resolved its label) and leaves
+    // a DOTTED one showing the raw stored enum, since nothing resolved it.
+    // `dimensionLabels` is populated on this path for DOTTED dimensions ONLY
+    // (see the resolution effect), so for a table whose dimensions are all
+    // local it is null and `relabelDimensions` returns `state.rows` ITSELF —
+    // the same array identity, hence the same rendered bytes as before this
+    // change. It is value-keyed and idempotent besides, so a value the server
+    // already resolved has no entry and passes through untouched.
+    //
+    // Row ORDER and COUNT are preserved, which is what keeps `openDrill(i)`
+    // and `pivot.cellIndex` aligned with the raw `drillRawRows` they index
+    // into — a drill still filters by the stored value, never the label.
+    const displayRows = relabelDimensions(state.rows, dimensionLabels);
     // Drill-through (canDrill / openDrill / drillDrawer) is computed above and
     // shared with the chart path — tables/pivots drill by flat row index.
     // CSV export — display-label headers + the underlying grouped rows (measures
@@ -836,7 +875,10 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     const exportColumns = [...dimensions, ...measureColumns];
     const exportCsv = () => downloadCsv(String(widget?.title ?? datasetName ?? 'export'), [
       exportColumns.map((c) => columnLabel(c)),
-      ...state.rows.map((r) => exportColumns.map((c) => {
+      // The CSV follows the table's own cells (objectui#4263): a dotted
+      // dimension exports the label the table now shows, and a local one is
+      // unchanged for the same reason its cell is.
+      ...displayRows.map((r) => exportColumns.map((c) => {
         const v = r[c];
         return v == null ? '' : (typeof v === 'number' ? v : String(v));
       })),
@@ -861,7 +903,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // (an avg/min/max can't be recombined). With <2 dimensions a cross-tab is
     // meaningless, so it degrades to the flat grouped table.
     if (isMatrix) {
-      const pivot = buildPivot(state.rows, rowDims, colDim);
+      const pivot = buildPivot(displayRows, rowDims, colDim);
       // Single measure → one column per across-bucket; multiple → bucket × measure.
       const cellCols = pivot.colHeaders.flatMap((col) =>
         values.map((m) => ({ col, measure: m, header: values.length === 1 ? col.label : `${col.label} · ${headerLabel(m)}` })),
@@ -940,8 +982,17 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       // Server-supplied marginal totals (ADR-0021): match each grouping by its
       // dimension array, then its rows to the pivot headers via the same bucket
       // ids. Absent (older server) → maps stay empty and no totals UI renders.
-      const findTotals = (dims: string[]) =>
-        state.totals?.find((t) => Array.isArray(t.dimensions) && t.dimensions.join(',') === dims.join(','))?.rows;
+      const findTotals = (dims: string[]) => {
+        const totalRows = state.totals?.find((t) => Array.isArray(t.dimensions) && t.dimensions.join(',') === dims.join(','))?.rows;
+        // Marginal totals arrive keyed by the RAW dimension value, and their
+        // bucket ids are re-derived below from those values to meet the
+        // pivot's headers. Both sides must speak the same vocabulary, so the
+        // totals take the SAME relabel the display rows took (objectui#4263) —
+        // otherwise a dotted pivot's headers read `Education` while the
+        // row-total lookup still asked for `education` and every total cell
+        // silently fell back to `—`.
+        return totalRows ? relabelDimensions(totalRows, dimensionLabels) : totalRows;
+      };
       const rowTotalById = new Map<string, Row>();
       for (const r of findTotals(rowDims) ?? []) rowTotalById.set(pivotRowId(rowDims.map((d) => String(r[d] ?? '∅'))), r);
       const colTotalById = new Map<string, Row>();
@@ -1051,7 +1102,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
             </tr>
           </thead>
           <tbody>
-            {state.rows.map((row, i) => (
+            {displayRows.map((row, i) => (
               <tr
                 key={i}
                 className={cn('border-t', canDrill && 'cursor-pointer hover:bg-accent/40')}
