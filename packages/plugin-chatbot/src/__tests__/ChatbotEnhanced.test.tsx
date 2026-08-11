@@ -1965,12 +1965,20 @@ describe('ChatbotEnhanced — propose_blueprint live design progress (data-bluep
           targetApp: 'recruiting',
           objects: [{ name: 'interview', label: '面试', fields: 3 }],
         })}
-        labels={{ planExtendLabel: 'Adding to' }}
+        // `planExtendLabel` is a top-level prop of `ChatbotEnhancedProps`, not a
+        // member of `ChatbotLabels` — it was passed inside `labels` here, so the
+        // component never saw the override and rendered its default,
+        // "Adding to existing app". The old expectation was `toContain('Adding
+        // to')`, which that default satisfies, so the case was green while the
+        // thing it names was ignored. The override string below is deliberately
+        // NOT a substring of the default, so the assertion can only pass if the
+        // prop is really read (objectui#4040).
+        planExtendLabel="Extending"
       />,
     );
     const badge = container.querySelector('[data-testid="blueprint-progress-extend"]');
     expect(badge).not.toBeNull();
-    expect(badge?.textContent).toContain('Adding to');
+    expect(badge?.textContent).toContain('Extending');
     expect(badge?.textContent).toContain('recruiting');
   });
 });

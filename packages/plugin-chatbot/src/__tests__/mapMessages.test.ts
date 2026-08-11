@@ -143,7 +143,15 @@ describe('uiMessageToChatMessage', () => {
       role: 'assistant',
       parts: [{ type: 'text', text: 'done' }],
       toolInvocations: [
-        { toolCallId: 'legacy', toolName: 'foo', state: 'result', result: {} },
+        // "legacy" in this case's name is the top-level `msg.toolInvocations`
+        // array (as opposed to `parts: [tool-*]`), which is what the case pins.
+        // The STATE spelling was separately stale: `'result'` is the AI SDK v4
+        // name, `ChatToolInvocation.state` is documented as the v6 lifecycle and
+        // admits only `output-available` for it. Nothing in `mapMessages.ts`
+        // branches on the value — line 642 passes the array through verbatim —
+        // so this is the fixture catching up with the dialect, not the assertion
+        // weakening (objectui#4040).
+        { toolCallId: 'legacy', toolName: 'foo', state: 'output-available', result: {} },
       ],
     });
     expect(out.toolInvocations).toHaveLength(1);
