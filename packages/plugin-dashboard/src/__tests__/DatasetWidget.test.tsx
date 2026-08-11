@@ -419,6 +419,76 @@ describe('DatasetWidget', () => {
     expect(cellAt(p, ['xy', 'z'], 'High')).toBe(1);
   });
 
+  // objectui#4056 — the LAST encoding in this family that still relied on "the
+  // data will not contain this character". Every id above is JSON-encoded, but
+  // the values fed into it were `String(row[d] ?? '∅')`: an absent value became
+  // the STRING "∅", so a row whose dimension value literally IS that character
+  // encoded to the same bucket as a row whose value is null. Same shape as
+  // objectstack#5473 — one bucket, the later row overwriting the earlier one —
+  // reached through the placeholder rather than through the join. An empty value
+  // is now JSON `null`, which no string can collide with.
+  it('buildPivot keeps a null row-dimension value apart from the literal placeholder character', () => {
+    const rows = [
+      { region: null, quarter: 'Q1', amount: 111 },
+      { region: '∅', quarter: 'Q1', amount: 222 },
+    ];
+    const p = buildPivot(rows, ['region'], 'quarter');
+    // Two rows in, two buckets out — one bucket for both is the defect.
+    expect(p.rowHeaders).toHaveLength(2);
+    expect(p.rowHeaders[0].id).not.toBe(p.rowHeaders[1].id);
+    expect(p.cellIndex.size).toBe(2);
+    // Resolved by DISPLAY label, never by id spelling: null renders as the
+    // em-dash placeholder, the literal character renders as itself.
+    expect(cellAt(p, ['—'], 'Q1')).toBe(0);
+    expect(cellAt(p, ['∅'], 'Q1')).toBe(1);
+  });
+
+  it('buildPivot keeps a null COLUMN-dimension value apart from the literal placeholder character', () => {
+    // The across axis is the half the row-id fix could not reach: the column
+    // bucket id was a bare string built by the same `?? '∅'` expression, so it
+    // carried the collision independently of the JSON-encoded row id.
+    const rows = [
+      { status: 'Open', priority: null, task_count: 1 },
+      { status: 'Open', priority: '∅', task_count: 2 },
+    ];
+    const p = buildPivot(rows, ['status'], 'priority');
+    expect(p.colHeaders).toHaveLength(2);
+    expect(p.colHeaders[0].id).not.toBe(p.colHeaders[1].id);
+    expect(p.colHeaders.map((c) => c.label)).toEqual(['—', '∅']);
+    expect(p.cellIndex.size).toBe(2);
+    expect(cellAt(p, ['Open'], '—')).toBe(0);
+    expect(cellAt(p, ['Open'], '∅')).toBe(1);
+  });
+
+  it('buildPivot regroups ordinary data exactly as before (no nulls, no placeholder character)', () => {
+    // Regrouping stability: the encoding changed for BOTH axes, so the control
+    // is that data containing neither a null nor the placeholder character
+    // buckets identically — same header count, same first-seen order, same
+    // labels, same cell→index mapping. The ids are opaque lookup keys (Map keys
+    // and React keys only — never parsed back into a value, never displayed,
+    // never persisted), so what has to hold is the structure, not the spelling.
+    const rows = [
+      { region: 'North', segment: 'SMB', quarter: 'Q1', amount: 1 },
+      { region: 'North', segment: 'Enterprise', quarter: 'Q1', amount: 2 },
+      { region: 'South', segment: 'SMB', quarter: 'Q2', amount: 3 },
+    ];
+    const p = buildPivot(rows, ['region', 'segment'], 'quarter');
+    expect(p.rowHeaders.map((r) => r.labels)).toEqual([
+      ['North', 'SMB'],
+      ['North', 'Enterprise'],
+      ['South', 'SMB'],
+    ]);
+    expect(p.colHeaders.map((c) => c.label)).toEqual(['Q1', 'Q2']);
+    expect(p.cellIndex.size).toBe(3);
+    expect(cellAt(p, ['North', 'SMB'], 'Q1')).toBe(0);
+    expect(cellAt(p, ['North', 'Enterprise'], 'Q1')).toBe(1);
+    expect(cellAt(p, ['South', 'SMB'], 'Q2')).toBe(2);
+    expect(cellAt(p, ['North', 'SMB'], 'Q2')).toBeUndefined();
+    // The row id for all-string values is still exactly the JSON tuple
+    // objectstack#5473 introduced — the placeholder fix did not re-spell it.
+    expect(p.rowHeaders[0].id).toBe(JSON.stringify(['North', 'SMB']));
+  });
+
   it('renders a pivot (≥2 dims) as a true cross-tab, not a flat table', async () => {
     const src = { queryDataset: vi.fn(async () => ({
       rows: [
@@ -495,6 +565,54 @@ describe('DatasetWidget', () => {
     expect((src.find.mock.calls[0][1] as any).$filter).toEqual({ region: 'new', quarter: 'york_q1' });
   });
 
+  it('gives the null bucket its OWN cell and drills it to the null rows, not the placeholder rows (objectui#4056)', async () => {
+    // End-to-end shape of the placeholder collision: an unset region and a
+    // region whose value literally IS the placeholder character shared one
+    // bucket, so the table showed 222 twice, 111 was unreachable, and the null
+    // row's cell drilled into the OTHER row's records — the objectstack#5473
+    // symptom class, reached through the null placeholder.
+    const src = {
+      queryDataset: vi.fn(async () => ({
+        rows: [
+          { region: null, quarter: 'Q1', amount: 111 },
+          { region: '∅', quarter: 'Q1', amount: 222 },
+        ],
+        fields: [
+          { name: 'region', type: 'string', label: 'Region' },
+          { name: 'quarter', type: 'string', label: 'Quarter' },
+          { name: 'amount', type: 'number', label: 'Amount' },
+        ],
+        object: 'showcase_deal',
+        dimensionFields: { region: 'region', quarter: 'quarter' },
+        // Deliberately distinguishable raw values: the drill filter names which
+        // flat index the clicked cell resolved to.
+        drillRawRows: [
+          { region: 'was_null', quarter: 'q1' },
+          { region: 'literal_emptyset', quarter: 'q1' },
+        ],
+      })),
+      find: vi.fn(async () => ({ data: [] })),
+      getObjectSchema: vi.fn(async () => ({ fields: { region: { type: 'text', label: 'Region' } } })),
+    };
+    render(<DatasetWidget widget={{ type: 'pivot', dataset: 'deals', dimensions: ['region', 'quarter'], values: ['amount'] }} dataSource={src} />);
+    const m = await screen.findByTestId('dataset-matrix');
+
+    // Control (display layer untouched): the null dimension still renders as the
+    // em dash `formatDimensionValue` has always produced, and the row whose
+    // value IS the character renders as that character. The placeholders only
+    // ever entered the ids.
+    const rowNull = within(m).getByText('—').closest('tr') as HTMLElement;
+    expect([...rowNull.querySelectorAll('td')].map((td) => td.textContent)).toEqual(['—', '111']);
+    const rowLiteral = within(m).getByText('∅').closest('tr') as HTMLElement;
+    expect([...rowLiteral.querySelectorAll('td')].map((td) => td.textContent)).toEqual(['∅', '222']);
+
+    // Drill-through reads `drillRawRows` by the same index the cell resolved,
+    // so a merged bucket drilled into the wrong records too.
+    fireEvent.click(within(rowNull).getByTestId('dataset-drill-cell'));
+    await waitFor(() => expect(src.find).toHaveBeenCalled());
+    expect((src.find.mock.calls[0][1] as any).$filter).toEqual({ region: 'was_null', quarter: 'q1' });
+  });
+
   it('makes matrix cells drillable when the server returns drill metadata', async () => {
     const src = { queryDataset: vi.fn(async () => ({
       rows: [{ status: 'Open', priority: 'High', task_count: 2 }],
@@ -548,6 +666,40 @@ describe('DatasetWidget', () => {
     expect(within(m).getAllByTestId('matrix-row-total').map((e) => e.textContent)).toEqual(['3', '3']);
     // Grand total.
     expect(within(m).getByTestId('matrix-grand-total').textContent).toBe('6');
+  });
+
+  it('matches column subtotals to the null bucket and the placeholder bucket separately (objectui#4056)', async () => {
+    // The card's radius warning, pinned: the column bucket id and the
+    // `colTotalById` key are built by the same expression, so they must change
+    // together. If either kept the placeholder spelling, the two null-ish
+    // columns would merge — or worse, the headers would split while the
+    // subtotal map still merged, and every column subtotal would land under the
+    // wrong header (the "one id, two encodings" shape objectui#3414 converged
+    // away).
+    const src = { queryDataset: vi.fn(async () => ({
+      rows: [
+        { status: 'Open', priority: null, task_count: 1 },
+        { status: 'Open', priority: '∅', task_count: 2 },
+      ],
+      fields: [
+        { name: 'status', type: 'string', label: 'Status' },
+        { name: 'priority', type: 'string', label: 'Priority' },
+        { name: 'task_count', type: 'number', label: 'Tasks' },
+      ],
+      totals: [
+        { dimensions: ['status'], rows: [{ status: 'Open', task_count: 3 }] },
+        { dimensions: ['priority'], rows: [{ priority: null, task_count: 10 }, { priority: '∅', task_count: 20 }] },
+        { dimensions: [], rows: [{ task_count: 30 }] },
+      ],
+    })) };
+    render(<DatasetWidget widget={{ type: 'pivot', dataset: 'tasks', dimensions: ['status', 'priority'], values: ['task_count'] }} dataSource={src} />);
+    const m = await screen.findByTestId('dataset-matrix');
+    // Two column headers, in first-seen order, labelled by the display layer.
+    const headers = [...m.querySelectorAll('thead th')].map((th) => th.textContent);
+    expect(headers).toEqual(['Status', '—', '∅', 'Total']);
+    // Each column subtotal under ITS OWN header, then the grand total.
+    const totalRow = within(m).getByTestId('matrix-total-row');
+    expect([...totalRow.querySelectorAll('td')].map((td) => td.textContent)).toEqual(['Total', '10', '20', '30']);
   });
 
   it('matches server row subtotals to a MULTI-dimension row bucket', async () => {

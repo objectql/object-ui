@@ -43,11 +43,12 @@ import {
   // The pivot key encoders now live in `@object-ui/core` so this widget and the
   // report renderer's cross-tab share ONE implementation — each having written
   // its own is why the same collision had to be fixed twice (objectstack#5473,
-  // objectstack#5665). Aliased to the local name: `pivotRowId` reads right here
-  // (this widget only ever encodes DOWN buckets — its across axis is a single
-  // dimension), while the shared helper is axis-neutral because the report's
-  // cross-tab keys multi-dimension ACROSS buckets with it too.
-  pivotBucketId as pivotRowId,
+  // objectstack#5665). Imported under the shared name because BOTH of this
+  // widget's axes now use it: the across axis used to spell its single-value id
+  // as a bare string, which was a second encoding of the same kind of id and
+  // carried the placeholder collision on its own (objectui#4056).
+  pivotBucketId,
+  pivotDimensionValue,
   pivotCellKey,
   compareToTrendLabelKey,
   type CompareToConfig,
@@ -81,12 +82,18 @@ export const buildDrillFilter = buildDatasetDrillFilter;
  * live in `@object-ui/core` (`pivotBucketId` / `pivotCellKey`) so this widget
  * and the report renderer's cross-tab key their buckets identically. See that
  * module for why both are `JSON.stringify` rather than a delimiter character,
- * and for the null-placeholder residual tracked in objectstack#5666.
+ * and why an empty value encodes as JSON `null` rather than a placeholder
+ * string (objectui#4056).
  *
- * Every consumer of a row id — the cell index below AND the row-total lookup in
- * the cross-tab renderer — must build its key with these; a second, hand-rolled
- * encoding of the same id is what made the old bug invisible.
+ * Every consumer of a bucket id — the cell index below, the row-total lookup
+ * AND the column-total lookup in the cross-tab renderer — must build its key
+ * with these, over values normalized by `pivotDimensionValue`; a second,
+ * hand-rolled encoding of the same id is what made the old bug invisible.
+ *
+ * `pivotRowId` is the historical name of the axis-neutral encoder, kept as an
+ * alias so this package's published surface does not change.
  */
+const pivotRowId = pivotBucketId;
 export { pivotRowId, pivotCellKey };
 
 /**
@@ -113,13 +120,15 @@ export function buildPivot(
   const cellIndex = new Map<string, number>();
   rows.forEach((row, index) => {
     // Both ids are opaque lookup keys, never displayed — the visible text comes
-    // from `labels`/`label` via formatDimensionValue. The column id stays the
-    // bare value because a single value needs no boundary; only the row id joins
-    // several values, and pivotRowId encodes that join unambiguously. (It used to
-    // join them with a control character no dimension value was ASSUMED to carry;
-    // pivotRowId needs no such assumption.)
-    const rid = pivotRowId(rowDims.map((d) => String(row[d] ?? '∅')));
-    const cid = String(row[colDim] ?? '∅');
+    // from `labels`/`label` via formatDimensionValue. BOTH go through the shared
+    // encoder, over values normalized by `pivotDimensionValue`. The column id
+    // used to be the bare value on the reasoning that a single value needs no
+    // boundary; that is true of the boundary and false of everything else the
+    // encoder does, and it left the across axis on its own encoding — which then
+    // carried the null-placeholder collision independently (objectui#4056). A
+    // one-element tuple costs nothing and keeps one encoding for one kind of id.
+    const rid = pivotBucketId(rowDims.map((d) => pivotDimensionValue(row[d])));
+    const cid = pivotBucketId([pivotDimensionValue(row[colDim])]);
     if (!rowSeen.has(rid)) { rowSeen.add(rid); rowHeaders.push({ id: rid, labels: rowDims.map((d) => formatDimensionValue(row[d])) }); }
     if (!colSeen.has(cid)) { colSeen.add(cid); colHeaders.push({ id: cid, label: formatDimensionValue(row[colDim]) }); }
     cellIndex.set(pivotCellKey(rid, cid), index);
@@ -943,9 +952,9 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       const findTotals = (dims: string[]) =>
         state.totals?.find((t) => Array.isArray(t.dimensions) && t.dimensions.join(',') === dims.join(','))?.rows;
       const rowTotalById = new Map<string, Row>();
-      for (const r of findTotals(rowDims) ?? []) rowTotalById.set(pivotRowId(rowDims.map((d) => String(r[d] ?? '∅'))), r);
+      for (const r of findTotals(rowDims) ?? []) rowTotalById.set(pivotBucketId(rowDims.map((d) => pivotDimensionValue(r[d]))), r);
       const colTotalById = new Map<string, Row>();
-      for (const r of findTotals([colDim]) ?? []) colTotalById.set(String(r[colDim] ?? '∅'), r);
+      for (const r of findTotals([colDim]) ?? []) colTotalById.set(pivotBucketId([pivotDimensionValue(r[colDim])]), r);
       const grandTotal = findTotals([])?.[0];
       const showTotalCol = rowTotalById.size > 0;
       const showTotalRow = colTotalById.size > 0;

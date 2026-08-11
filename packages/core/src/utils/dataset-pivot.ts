@@ -38,20 +38,44 @@
  *
  * Pure (no React / i18n), like its `dataset-format` neighbour.
  *
- * Known residual, tracked separately in objectstack#5666: callers encode a
- * null/undefined dimension value as a placeholder string, so it still collides
- * with a value that literally equals that placeholder. That is a property of
- * the placeholder, not of the encoding below.
+ * The empty-value encoding closed the last instance of the same assumption
+ * (objectui#4056): callers used to spell a null/undefined dimension value as
+ * the STRING `'∅'` before encoding it, so a row whose value literally IS that
+ * character shared a bucket with a row whose value is absent — the placeholder
+ * reintroduced, one level up, exactly the "no value contains this character"
+ * assumption the encoder below had just removed. An empty value is now JSON
+ * `null`, which `JSON.stringify` renders as a bare `null` no string can spell,
+ * and `pivotDimensionValue` owns that normalization so no caller has to hold a
+ * placeholder literal of its own.
  */
 
 /**
- * Encode a pivot BUCKET id from its dimension values.
+ * Normalize ONE raw dimension value for `pivotBucketId`: an absent value (null
+ * or undefined) becomes JSON `null`, everything else its string form.
+ *
+ * This lives here rather than at each call site because a placeholder spelled
+ * by the caller is a placeholder that can collide: `String(v ?? '∅')` put an
+ * ordinary string into the tuple, so `null` and the character `'∅'` encoded
+ * identically (objectui#4056). `null` is not a string, so nothing a dimension
+ * can hold encodes to it — the same reason the tuple is JSON rather than a
+ * delimiter join.
+ */
+export const pivotDimensionValue = (value: unknown): string | null =>
+  value == null ? null : String(value);
+
+/**
+ * Encode a pivot BUCKET id from its dimension values, each already normalized
+ * by `pivotDimensionValue` (empty ⇒ `null`).
  *
  * Axis-neutral on purpose: a DOWN bucket and an ACROSS bucket are the same kind
  * of thing (a dimension-value tuple), and a cross-tab with multiple across
- * dimensions collides on that axis just as readily as on the down axis.
+ * dimensions collides on that axis just as readily as on the down axis. That
+ * holds for a SINGLE-value across bucket too — a bare value is a one-element
+ * tuple, and spelling it as the raw string instead is what left the dashboard's
+ * column ids on a second, colliding encoding after the row ids were fixed.
  */
-export const pivotBucketId = (dimensionValues: string[]): string => JSON.stringify(dimensionValues);
+export const pivotBucketId = (dimensionValues: Array<string | null>): string =>
+  JSON.stringify(dimensionValues);
 
 /**
  * Encode the cell key for a (down bucket, across bucket) pair — the key of the

@@ -200,6 +200,58 @@ describe('DatasetReportRenderer', () => {
     expect(screen.getByTestId('matrix-grand-total')).toHaveTextContent('44');
   });
 
+  it('matrix keeps a null bucket apart from the literal placeholder character, on BOTH axes (objectui#4056)', async () => {
+    // The last encoding in this family that relied on "the data will not
+    // contain this character": `bucketId` fed `String(row[d] ?? '∅')` into the
+    // JSON encoder, so an unset dimension became the STRING "∅" and collided
+    // with a row whose value literally IS that character — one bucket, the later
+    // row overwriting the earlier one (the objectstack#5473 symptom class,
+    // reached through the placeholder). An empty value is now JSON `null`.
+    //
+    // Both axes in one fixture because this renderer keys row headers, column
+    // headers, cells and BOTH subtotal maps off the same `bucketId`.
+    const src = makeSource({
+      task_metrics: {
+        rows: [
+          { status: null, priority: null, est_hours: 1 },
+          { status: null, priority: '∅', est_hours: 2 },
+          { status: '∅', priority: null, est_hours: 3 },
+          { status: '∅', priority: '∅', est_hours: 4 },
+        ],
+        totals: [
+          { dimensions: ['status'], rows: [{ status: null, est_hours: 10 }, { status: '∅', est_hours: 20 }] },
+          { dimensions: ['priority'], rows: [{ priority: null, est_hours: 30 }, { priority: '∅', est_hours: 40 }] },
+          { dimensions: [], rows: [{ est_hours: 50 }] },
+        ],
+      },
+    });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'm', type: 'matrix', dataset: 'task_metrics', rows: ['status'], columns: ['priority'], values: ['est_hours'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-matrix')).toBeInTheDocument());
+
+    // Four distinct (row, column) combinations → four cells, none overwritten.
+    // Display layer untouched: null still renders as the em dash
+    // `formatDimensionValue` has always produced, the literal character as
+    // itself — the placeholders only ever entered the ids.
+    const matrix = screen.getByTestId('dataset-matrix');
+    const bodyRows = [...matrix.querySelectorAll('tbody tr')];
+    expect(bodyRows.slice(0, 2).map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent))).toEqual([
+      ['—', '1', '2', '10'],
+      ['∅', '3', '4', '20'],
+    ]);
+    // Column headers split the same way, and each column subtotal lands under
+    // ITS OWN header — the card's radius: header ids and `colTotalById` keys are
+    // built by the same expression and must change together.
+    expect(screen.getByRole('columnheader', { name: '—' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '∅' })).toBeInTheDocument();
+    const totalRow = screen.getByTestId('matrix-total-row');
+    expect([...totalRow.querySelectorAll('td')].map((td) => td.textContent)).toEqual(['Total', '30', '40', '50']);
+  });
+
   it('matrix degrades gracefully when the server returns no totals (older server)', async () => {
     const src = makeSource({
       task_metrics: [
