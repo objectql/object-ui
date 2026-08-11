@@ -122,7 +122,10 @@ const inlineSurface = [{ id: 'action:x', contract: 'inline', file: RENDERER }];
 function judge(
   fixture: Fixture,
   options: Record<string, unknown> = {},
-): { errors: string[]; report: { owed: string[]; forwarded: string[]; unexcused: string[] }[] } {
+): {
+  errors: string[];
+  report: { owed: string[]; forwarded: string[]; unexcused: string[]; unchecked: unknown[] }[];
+} {
   return withRepo(fixture, (root) =>
     analyze(root, {
       spec: SPEC,
@@ -626,7 +629,10 @@ describe('the real repository', () => {
       const surface = SURFACES.find((s) => s.id === id);
       expect(surface, `${id} is no longer a surface`).toBeDefined();
       expect(uncheckedForwardLiterals(repoRoot, surface), `${id}'s forward literal is unchecked`).toEqual([]);
-      expect(UNCHECKED_FORWARDS[id], `${id} must not be exempt — it is fixed`).toBeUndefined();
+      expect(
+        (UNCHECKED_FORWARDS as Record<string, unknown>)[id],
+        `${id} must not be exempt — it is fixed`,
+      ).toBeUndefined();
     }
   });
 
