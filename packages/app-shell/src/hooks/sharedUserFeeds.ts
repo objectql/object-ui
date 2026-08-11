@@ -168,6 +168,7 @@ class SharedFeed<T> {
     private readonly pollMs: number,
   ) {
     this.snapshot = { value: empty, status: 'idle' };
+    this.idleSnapshot = this.snapshot;
     this.backoffMs = pollMs;
   }
 
@@ -179,6 +180,14 @@ class SharedFeed<T> {
   };
 
   getSnapshot = (): SharedFeedSnapshot<T> => this.snapshot;
+
+  /**
+   * What a consumer that is not driving a fetch reads: nothing, not asked.
+   * A cached `ready` belongs to the key that earned it — a signed-out session
+   * must not inherit the previous user's answer, nor their rows. One frozen
+   * object so it is snapshot-stable like any other published value.
+   */
+  readonly idleSnapshot: SharedFeedSnapshot<T>;
 
   /**
    * Register a consumer. `key` identifies *whose* feed this is (the approver
@@ -360,7 +369,9 @@ function useSharedFeed<T>(
     if (!key) return;
     return feed.attach(key, (ctx) => runnerRef.current(ctx));
   }, [feed, key]);
-  return value;
+  // No key ⇒ this consumer has asked nothing, so it is told nothing — never
+  // the cached answer to a question somebody else asked (#4235's `idle`).
+  return key ? value : feed.idleSnapshot;
 }
 
 // ── Pending approvals ────────────────────────────────────────────────────────
