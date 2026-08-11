@@ -10,7 +10,19 @@
 import React from 'react';
 import { render, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { GanttView, type GanttTask, type GanttViewMode } from './GanttView';
+// `MS_PER_DAY` and `NOMINAL_DAYS` are IMPORTED, not re-declared. This file used
+// to carry hand-written copies of both, under a header claiming it recomputes
+// expectations with "the same linear ms→px mapping the component uses" — and
+// the copy had already drifted: `NOMINAL_DAYS` gained a `year` entry in
+// `GanttView.tsx` that the fork never grew. Nothing noticed, because nothing
+// compiled this file. Importing makes the header's "same" true by construction
+// instead of by hand (objectui#4040, the fork shape of objectui#3009).
+import {
+  GanttView,
+  MS_PER_DAY,
+  NOMINAL_DAYS,
+  type GanttTask,
+} from './GanttView';
 
 // Force the container width to >=1024 so columnWidth=110 (deterministic).
 beforeEach(() => {
@@ -18,8 +30,6 @@ beforeEach(() => {
 });
 
 const COLUMN_WIDTH = 110;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const NOMINAL_DAYS: Record<GanttViewMode, number> = { day: 1, week: 7, month: 30.44, quarter: 91.31 };
 
 function makeTask(id: string, start: string, end: string): GanttTask {
   return { id, title: `Task ${id}`, start: new Date(start), end: new Date(end), progress: 0 };
