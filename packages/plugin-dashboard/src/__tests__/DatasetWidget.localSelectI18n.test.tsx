@@ -57,12 +57,17 @@
  *    one: it waits for the translated cell so the click lands after the
  *    metadata read settles, and that wait is what fails without the seam. Its
  *    assertion — the filter — is direction-independent;
- *  - the `en` case, the no-bundle-entry case and the no-options case are GREEN
- *    on both sides. They are the acceptance boundary: an untranslated app keeps
- *    exactly the label it renders today, and a dimension that owns no options
- *    is untouched.
- *  - the two read-count pins are red before the change for the direct reason:
- *    the read they count did not happen.
+ *  - the `en` case and the no-bundle-entry case are GREEN on both sides. They
+ *    are the acceptance boundary: an untranslated app keeps exactly the label
+ *    it renders today;
+ *  - every pin that counts the READ is red before the change for the direct
+ *    reason — the read did not happen. That includes the no-options pin, whose
+ *    RENDERED half is green in both directions (`renewal risk` either way) and
+ *    whose read-count half is not. The prediction written here first said that
+ *    pin was green on both sides; it was measured red on its second assertion
+ *    and this line is the correction, not a re-run to fit the sentence. The
+ *    distinction is the point of the pin: after this change the read is issued
+ *    for a dimension that owns no options, and it resolves nothing.
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
