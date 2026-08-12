@@ -57,32 +57,69 @@ describe('rowHeight → density: core and the spec bridge give one answer (#4440
   });
 
   describe('off-spec row heights — both abstain', () => {
+    // Two families of off-spec spelling, both pinned here.
+    //
     // `comfortable` / `spacious` / `small` / `large` are the four spellings
     // #4352 deleted from the bridge; `gargantuan` is a string in neither
     // vocabulary. Before #4440 core answered `'comfortable'` for every one of
     // them while the bridge answered nothing.
-    it.each(['comfortable', 'spacious', 'small', 'large', 'gargantuan'])(
-      'neither surface invents a density for the off-spec rowHeight %s',
-      (rowHeight) => {
-        expect(rowHeightToDensityMode(rowHeight)).toBeUndefined();
-        expect(bridgeDensityFor(rowHeight)).toBeUndefined();
-      },
-    );
+    //
+    // The `Object.prototype` member names are the second family (#4442). Both
+    // lookup tables are plain object literals, so indexing one with an
+    // unguarded key reaches the prototype: `rowHeight: 'toString'` used to come
+    // back as `Object.prototype.toString` — a FUNCTION — from a read whose
+    // return type is three strings or nothing. Core closed that hole with
+    // `hasOwnProperty` in #4440, the bridge in #4442; these rows are what keeps
+    // either side from regrowing it.
+    it.each([
+      'comfortable',
+      'spacious',
+      'small',
+      'large',
+      'gargantuan',
+      'toString',
+      'constructor',
+      'valueOf',
+      'hasOwnProperty',
+      'isPrototypeOf',
+      'propertyIsEnumerable',
+      'toLocaleString',
+    ])('neither surface invents a density for the off-spec rowHeight %s', (rowHeight) => {
+      expect(rowHeightToDensityMode(rowHeight)).toBeUndefined();
+      expect(bridgeDensityFor(rowHeight)).toBeUndefined();
+    });
 
-    // NOT pinned here, deliberately: `Object.prototype` member names
-    // (`toString`, `constructor`, …). Core abstains for them since #4440, but
-    // the bridge still indexes its table with an unguarded key and hands back
-    // `Object.prototype.toString` — a FUNCTION — as the density. That is a
-    // different defect from the coercion this file is about, it lives in source
-    // outside #4440's surface, and it is filed as #4442. Extending the two
-    // `it.each` lists above with those keys is the assertion that fails until
-    // #4442 lands, and is the natural test half of its fix.
+    it('never writes a function into the SchemaNode density (#4442)', () => {
+      // The expression #4442 measured, read straight off the node instead of
+      // through the helper above. It is worth stating separately because the
+      // leak was not in the lookup alone: `bridgeListView` writes the key under
+      // `if (density)`, and a function is truthy — so the bad value was not
+      // merely returned, it was STORED on a SchemaNode whose renderer expects
+      // `'compact' | 'comfortable' | 'spacious'`.
+      const node = new SpecBridge().transformListView({ name: 'x', rowHeight: 'toString' });
+      expect(node.density).toBeUndefined();
+      expect(typeof node.density).not.toBe('function');
+    });
 
     it('agrees for every off-spec input without either side being read first', () => {
       // Same assertion phrased as the invariant itself: whatever the answer is,
       // it is ONE answer. A future edit that re-adds a fallback to either
       // surface breaks this even if it re-adds it to both differently.
-      for (const rowHeight of ['comfortable', 'spacious', 'small', 'large', 'gargantuan', '']) {
+      for (const rowHeight of [
+        'comfortable',
+        'spacious',
+        'small',
+        'large',
+        'gargantuan',
+        '',
+        'toString',
+        'constructor',
+        'valueOf',
+        'hasOwnProperty',
+        'isPrototypeOf',
+        'propertyIsEnumerable',
+        'toLocaleString',
+      ]) {
         expect(rowHeightToDensityMode(rowHeight)).toBe(bridgeDensityFor(rowHeight));
       }
     });

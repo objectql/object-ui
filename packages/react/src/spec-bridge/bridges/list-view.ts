@@ -70,10 +70,32 @@ const ROW_HEIGHT_TO_DENSITY: Record<
   extra_tall: 'spacious',
 };
 
+/**
+ * Runtime reader for {@link ROW_HEIGHT_TO_DENSITY} — the five spec row heights
+ * and **nothing else**.
+ *
+ * `hasOwnProperty`, not a bare index (objectui#4442): the table is a plain
+ * object literal, so indexing it with an unchecked key reaches
+ * `Object.prototype`. The parameter is typed `RowHeight`, but the boundary a
+ * host's stored view definition actually crosses is `SpecBridge.transformListView`,
+ * whose parameter is `any` — so `rowHeight: 'toString'` used to come back as
+ * `Object.prototype.toString`, a FUNCTION returned from a signature that
+ * promises three strings or nothing. `bridgeListView` then writes the key under
+ * `if (density)`, and a function is truthy, so it landed on the SchemaNode.
+ *
+ * This is the same guard `@object-ui/core`'s `rowHeightToDensityMode` grew in
+ * objectui#4440, and the repo's existing convention (`freeze-schema.ts:135`,
+ * `metadata-admin/predicate.ts:305`, six more). Both rowHeight surfaces now
+ * abstain identically on every off-spec spelling; the agreement is pinned by
+ * `__tests__/RowHeightDensityAgreement.test.ts`.
+ */
 function mapDensity(
   rowHeight?: RowHeight,
 ): 'compact' | 'comfortable' | 'spacious' | undefined {
   if (!rowHeight) return undefined;
+  if (!Object.prototype.hasOwnProperty.call(ROW_HEIGHT_TO_DENSITY, rowHeight)) {
+    return undefined;
+  }
   return ROW_HEIGHT_TO_DENSITY[rowHeight];
 }
 
