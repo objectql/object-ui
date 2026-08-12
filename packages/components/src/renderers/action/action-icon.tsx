@@ -15,7 +15,7 @@
 import React, { forwardRef, useCallback, useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { ActionDef } from '@object-ui/core';
-import type { ActionSchema } from '@object-ui/types';
+import type { UIActionSchema } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
 import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
 import { Button } from '../../ui';
@@ -25,15 +25,33 @@ import { Loader2 } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
 import { hasDeclaredVisibilityGate } from './visibility-gate';
 
+/**
+ * The declared props. `schema` is `UIActionSchema` (objectui#4418) for the same
+ * reason as `action:button`'s: `target`, `endpoint`, `bodyExtra`, `bodyShape`,
+ * `locations`, `enabled` and `size` are all modern-only keys this renderer
+ * forwards, and the legacy `crud.ts` `ActionSchema` is `@deprecated` and pins
+ * `type: 'action'` where this renderer's own registry `inputs` declare
+ * `'script' | 'url' | 'modal' | 'flow' | 'api'`.
+ */
 export interface ActionIconProps {
-  schema: ActionSchema & { type: string; className?: string };
+  schema: UIActionSchema & { type: string; className?: string };
   className?: string;
   context?: Record<string, any>;
   [key: string]: any;
 }
 
-const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
-  ({ schema, className, context: localContext, ...props }, ref) => {
+// Index signature on the parameter annotation, not on the `forwardRef` type
+// argument — mechanism note on `action:bar` (objectui#4422), pinned by
+// `__tests__/forwardref-props-annotation.guard.test.ts`.
+const ActionIconRenderer = forwardRef<
+  HTMLButtonElement,
+  {
+    schema: ActionIconProps['schema'];
+    className?: ActionIconProps['className'];
+    context?: ActionIconProps['context'];
+  }
+>(
+  ({ schema, className, context: localContext, ...props }: ActionIconProps, ref) => {
     const {
       'data-obj-id': dataObjId,
       'data-obj-type': dataObjType,

@@ -42,7 +42,17 @@ import type { ChatMessage as BarrelChatMessage, ChatbotEnhancedMessage } from '.
 import type { ChatMessage as EnhancedChatMessage } from '../ChatbotEnhanced';
 /** The OTHER side of the seam: the JSON/SDUI authoring contract. */
 import type { ChatMessage as AuthoredChatMessage } from '@object-ui/types';
-import type { authoredToRuntimeMessage, toRuntimeMessages } from '../chatMessageAdapter';
+import type {
+  authoredToRuntimeMessage,
+  toRuntimeMessages,
+  SeamChatMessage,
+} from '../chatMessageAdapter';
+/** The hook's own output contract (objectui#4424). */
+import type {
+  ObjectChatMessage,
+  UseObjectChatOptions,
+  UseObjectChatReturn,
+} from '../useObjectChat';
 
 type Assert<T extends true> = T;
 type IsAny<T> = 0 extends 1 & T ? true : false;
@@ -204,6 +214,145 @@ describe('the authoring ↔ runtime seam is an adapter, not a cast', () => {
   });
 });
 
+describe("useObjectChat's declared message type is honest about both modes", () => {
+  it('is pinned at compile time', () => {
+    // objectui#4424. The hook declared `messages: OuiChatMessage[]` (the
+    // AUTHORING contract) and produced it honestly in local mode only — API
+    // mode built RUNTIME messages and cast them with `as OuiChatMessage[]`,
+    // erasing `buildProgress`, `blueprintProgress`, `charts` and every HITL /
+    // draft-review extension on the tool invocations. The values survived
+    // because nothing on the path rebuilt a message; the declaration was the
+    // trap, and these pins are what keeps it closed.
+
+    // Probe hygiene first — an `any`/`unknown` here answers every question.
+    type _HookMsgNotAny = Assert<Equal<IsAny<ObjectChatMessage>, false>>;
+    type _HookMsgNotUnknown = Assert<Equal<IsUnknown<ObjectChatMessage>, false>>;
+    type _NoIndexSignature = Assert<Equal<HasIndexSignature<ObjectChatMessage>, false>>;
+
+    // 1. The hook's two published surfaces speak it — `messages` and the
+    //    `onSend(content, messages)` callback, which the survey measured as
+    //    carrying the SAME values (both modes hand it the thread they are
+    //    about to hold).
+    type _ReturnIsHonest = Assert<Equal<UseObjectChatReturn['messages'], ObjectChatMessage[]>>;
+    type _OnSendIsHonest = Assert<
+      Equal<
+        NonNullable<UseObjectChatOptions['onSend']>,
+        (content: string, messages: ObjectChatMessage[]) => void
+      >
+    >;
+
+    // 2. WIDE where local mode is wide. An authored `'tool'` role and the
+    //    legacy tool states reach this surface unchanged (`normalizeMessages`
+    //    narrows neither) and are folded only at the render seam. This is the
+    //    line that proves the runtime type would have been a LIE about local
+    //    mode — i.e. why the honest answer is neither of the two existing
+    //    contracts.
+    type _KeepsToolRole = Assert<
+      Equal<ObjectChatMessage['role'], 'user' | 'assistant' | 'system' | 'tool'>
+    >;
+    type _KeepsLegacyToolStates = Assert<
+      Equal<
+        Extract<
+          NonNullable<NonNullable<ObjectChatMessage['toolInvocations']>[number]['state']>,
+          'partial-call' | 'call' | 'result'
+        >,
+        'partial-call' | 'call' | 'result'
+      >
+    >;
+
+    // 3. NARROW where both modes are narrow. Neither mode can emit a `Date`:
+    //    API mode never produces one, and local mode absorbs it in
+    //    `normalizeMessages` before handing anything out. Declaring
+    //    `string | Date` asked every consumer to handle a value that cannot
+    //    arrive.
+    type _TimestampIsString = Assert<Equal<ObjectChatMessage['timestamp'], string | undefined>>;
+    type _TimestampRejectsDate = Assert<
+      Equal<Equal<ObjectChatMessage['timestamp'], AuthoredChatMessage['timestamp']>, false>
+    >;
+
+    // 4. …plus the render-only keys API mode really carries. Named one by one
+    //    so a future narrowing says WHICH capability it dropped — each of these
+    //    is a rendered affordance: the build panel, the design panel, inline
+    //    charts, the approval card, the "Review N changes" entry point, the
+    //    proposed-plan card, the confirm-changes card, "Open in Builder".
+    type _HasBuildProgress = Assert<Has<ObjectChatMessage, 'buildProgress'>>;
+    type _HasBlueprintProgress = Assert<Has<ObjectChatMessage, 'blueprintProgress'>>;
+    type _HasCharts = Assert<Has<ObjectChatMessage, 'charts'>>;
+    type HookToolInvocation = NonNullable<ObjectChatMessage['toolInvocations']>[number];
+    type _HasPendingActionId = Assert<Has<HookToolInvocation, 'pendingActionId'>>;
+    type _HasDraftReview = Assert<Has<HookToolInvocation, 'draftReview'>>;
+    type _HasProposedPlan = Assert<Has<HookToolInvocation, 'proposedPlan'>>;
+    type _HasProposedChanges = Assert<Has<HookToolInvocation, 'proposedChanges'>>;
+    type _HasBuilderHandoff = Assert<Has<HookToolInvocation, 'builderHandoff'>>;
+
+    // 5. The compatibility statement, and the reason this is a MINOR and not a
+    //    break: the honest type is a SUBTYPE of the authoring one it replaces.
+    //    Every consumer that correctly accepted `@object-ui/types`' ChatMessage
+    //    still accepts these values — including a host `onSend` typed against
+    //    the authoring contract, which type-checks by contravariance.
+    type _StillAnAuthoredMessage = Assert<
+      ObjectChatMessage extends AuthoredChatMessage ? true : false
+    >;
+
+    // 6. And the seam is still NECESSARY — this is not option 2 in disguise
+    //    (API mode made to produce the authoring type, i.e. the field-by-field
+    //    rebuild). The hook's shape is deliberately NOT assignable to the
+    //    runtime one: `'tool'` and the legacy states still have to be narrowed,
+    //    by `chatMessageAdapter.ts`, at the render seam.
+    type _AdapterStillNeeded = Assert<
+      Equal<ObjectChatMessage extends EnhancedChatMessage ? true : false, false>
+    >;
+    //    The other direction DOES hold, and that is what deleted the cast: the
+    //    runtime mapper's output is assignable to the hook's declared type, so
+    //    API mode assigns instead of asserting. It is also what keeps a host's
+    //    own narrowing cast to the runtime type legal.
+    type _RuntimeFlowsInWithoutACast = Assert<
+      EnhancedChatMessage extends ObjectChatMessage ? true : false
+    >;
+
+    expect(true).toBe(true);
+  });
+});
+
+describe("the seam's input contract names the keys it passes through", () => {
+  it('is pinned at compile time', () => {
+    // objectui#4424. PR #4416's adapter preserved the runtime-only keys with a
+    // spread over a parameter typed as the AUTHORING message — so the keys were
+    // preserved by faith: `tsc` could not see one of them, and the pass-through
+    // test had to cast its fixture into place. `SeamChatMessage` names them.
+    type _SeamNotAny = Assert<Equal<IsAny<SeamChatMessage>, false>>;
+    type _SeamHasBuildProgress = Assert<Has<SeamChatMessage, 'buildProgress'>>;
+    type _SeamHasBlueprintProgress = Assert<Has<SeamChatMessage, 'blueprintProgress'>>;
+    type _SeamHasCharts = Assert<Has<SeamChatMessage, 'charts'>>;
+    type SeamTool = NonNullable<SeamChatMessage['toolInvocations']>[number];
+    type _SeamToolHasPendingActionId = Assert<Has<SeamTool, 'pendingActionId'>>;
+    type _SeamToolHasDraftReview = Assert<Has<SeamTool, 'draftReview'>>;
+
+    // It is the seam's INPUT, so it stays wide enough for both callers: a host
+    // holding plain authored messages (the reason the adapter is exported from
+    // the barrel at all) and the hook's own output.
+    type _AuthoredStillAccepted = Assert<
+      AuthoredChatMessage extends SeamChatMessage ? true : false
+    >;
+    type _HookOutputAccepted = Assert<ObjectChatMessage extends SeamChatMessage ? true : false>;
+
+    // Which is why it keeps the `Date` the hook's output has already absorbed:
+    // this is where an authored `Date` still dies (`toRuntimeTimestamp`), and
+    // narrowing it here would make that documented decision unreachable.
+    type _SeamStillTakesADate = Assert<
+      Equal<SeamChatMessage['timestamp'], string | Date | undefined>
+    >;
+
+    // The adapter reads it: a signature that drifted back to the bare authoring
+    // type would re-blind the pass-through without changing a line of its body.
+    type _AdapterTakesTheSeamType = Assert<
+      Equal<Parameters<typeof authoredToRuntimeMessage>[0], SeamChatMessage>
+    >;
+
+    expect(true).toBe(true);
+  });
+});
+
 describe('the three renderer call sites go through the adapter', () => {
   // The runtime net over the block above, for the `pnpm test` lane that erases
   // type assertions. The failure it catches is a cast coming BACK: `as any` on
@@ -256,6 +405,31 @@ describe('the Date → ISO absorption is expressed once', () => {
       'useObjectChat.ts converts a timestamp itself again. That conversion is the ' +
         'seam\'s decision and lives in `toRuntimeTimestamp` (objectui#4399); a second ' +
         'copy here is the third dialect the card exists to prevent.',
+    ).toBe(false);
+  });
+
+  it('asserts API-mode messages into the authoring type no more', () => {
+    // objectui#4424, the runtime net over the compile-time pins above. The
+    // defect was ONE expression: `uiMessagesToChatMessages(...)` asserted into
+    // the authoring array type. A cast coming back here re-erases every
+    // render-only key without changing any other line — and `tsc` stays green,
+    // because a cast is exactly the instruction to stop checking.
+    //
+    // Comment lines are dropped first, and that is not incidental: the hook
+    // NAMES the deleted expression in the comment that explains why it is gone
+    // (as does this test), so a guard reading raw source would fire on the
+    // documentation of its own fix. Prose about a cast is not a cast.
+    const codeOnly = source
+      .split('\n')
+      .filter((line) => !/^\s*(\/\/|\/\*|\*)/.test(line))
+      .join('\n');
+    expect(
+      /as\s+OuiChatMessage\[\]/.test(codeOnly),
+      'useObjectChat.ts casts its API-mode messages into the @object-ui/types ' +
+        'authoring contract again. That cast erases `buildProgress`, ' +
+        '`blueprintProgress`, `charts` and the HITL / draft-review extensions on ' +
+        'every tool invocation (objectui#4424). The hook declares ' +
+        '`ObjectChatMessage`, which those values satisfy — assign, do not assert.',
     ).toBe(false);
   });
 });

@@ -102,7 +102,13 @@ function toInternalPath(href: unknown): string | null {
 
 for (const tag of TAGS) {
   const isVoid = VOID_TAGS.has(tag);
-  const Component = forwardRef<HTMLElement, AnyProps>(({ schema, className, ...props }, ref) => {
+  // Index signature on the parameter annotation, not on the `forwardRef` type
+  // argument — mechanism note on `action:bar` (objectui#4422), pinned by
+  // `__tests__/forwardref-props-annotation.guard.test.ts`. `schema` is
+  // genuinely `any` here (one factory over every raw HTML tag), so nothing is
+  // recovered by the annotation; it is written the same way as its 11 siblings
+  // so the guard needs no per-file carve-out.
+  const Component = forwardRef<HTMLElement, { schema: AnyProps['schema']; className?: AnyProps['className'] }>(({ schema, className, ...props }: AnyProps, ref) => {
     const {
       'data-obj-id': dataObjId,
       'data-obj-type': dataObjType,

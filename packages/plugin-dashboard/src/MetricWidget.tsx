@@ -149,7 +149,44 @@ function formatMetricValue(
  */
 export type { MetricColorVariant };
 
-export interface MetricWidgetProps {
+/**
+ * DOM PASS-THROUGH (objectui#4426). `MetricWidget` ends its prop list with a
+ * `...domProps` spread onto the Shadcn `Card` — a `div` — so `id`, `role`,
+ * `aria-*`, `data-*`, `tabIndex`, `title` and the DOM event handlers reach the
+ * element. objectui#4357 (PR #4428) deliberately KEPT that spread: it is the
+ * component's only accessibility passthrough, and removing it would delete the
+ * only way a host can put an `id` or an `aria-label` on a KPI card.
+ *
+ * Until now the type refused what the runtime accepted. A TypeScript consumer
+ * importing the component directly could not write `<MetricWidget id="revenue"
+ * role="region" aria-label="Revenue KPI" … />` without a cast, while a JS
+ * consumer and every SDUI author going through `SchemaRenderer` (untyped at
+ * that boundary) got the passthrough for free. This `extends` is that
+ * declaration — the mirror image of #4357, closing the same question from the
+ * other side: renderer metadata was reaching the DOM because the spread is
+ * open; DOM attributes were unreachable because the type was closed.
+ *
+ * Measured convention, not an invented spelling: an exported `*Props` interface
+ * that spreads onto a host element extends `React.HTMLAttributes<HTMLDivElement>`
+ * here — `PageHeaderComponentProps` (whose own doc says "it extends
+ * `HTMLAttributes` so every DOM prop rides along"), `ChatbotProps`,
+ * `ChatbotEnhancedProps`, `TypingIndicatorProps`, `RefreshIndicatorProps`,
+ * `FieldProps`, and shadcn's own `BadgeProps`.
+ *
+ * What this does NOT declare, deliberately: the schema-shaped keys
+ * `SchemaRenderer` injects (`schema` / `bind` / `events` / `props` /
+ * `ariaLabel` / `ariaDescribedBy` / `dataSource`). None of them is an HTML
+ * attribute name, all seven are destructured out and never reach the DOM, and
+ * declaring them here would re-assert as a public contract exactly what #4357
+ * stripped. They stay in `SchemaHostProps`, intersected in at the component's
+ * own signature — the renderer's private door, not the consumer's front door.
+ * The narrower `FieldWidgetDomProps` shape (objectui#3221) is the other spelling
+ * in this repo, but it exists to be bound key-by-key to a runtime whitelist
+ * (`toDomProps`) in both directions; this component has no such whitelist, and
+ * inventing a half of one here would declare a set the spread does not enforce.
+ * Whether plugin widgets should get that whitelist is objectui#4425.
+ */
+export interface MetricWidgetProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
    * The KPI's heading, in @objectstack/spec's `I18nLabel` vocabulary — a plain
    * string or an inline per-locale map (`{ en: 'Revenue', 'zh-CN': '收入' }`).
@@ -181,11 +218,27 @@ export interface MetricWidgetProps {
   format?: string;
   /** ISO currency code (e.g. `'USD'`); enables currency formatting on numeric values. */
   currency?: string;
-  /** Static prefix appended in front of the formatted value (e.g. `'$'`, `'¥'`). */
+  /**
+   * Static prefix appended in front of the formatted value (e.g. `'$'`, `'¥'`).
+   *
+   * Same name, same `string` type as the inherited RDFa `prefix` attribute, and
+   * this declaration wins: the component reads it and destructures it out, so
+   * it never reaches the DOM. That is the accurate contract — it was already
+   * true before this interface declared its passthrough.
+   */
   prefix?: string;
   /** Static suffix appended after the formatted value (e.g. `' /mo'`). */
   suffix?: string;
-  /** When set, the entire card becomes clickable and emits this handler. */
+  /**
+   * When set, the entire card becomes clickable and emits this handler.
+   *
+   * Deliberately NARROWER than the inherited `MouseEventHandler<HTMLDivElement>`:
+   * the KPI card treats a click as "the tile was activated" and wires the same
+   * handler to Enter/Space, where there is no mouse event to hand over. A
+   * zero-arg function is assignable to the inherited signature, so consumers
+   * already passing `(e) => …` keep compiling; this only stops the component
+   * from promising an event object its keyboard path cannot produce.
+   */
   onClick?: () => void;
   /**
    * Layout variant. `'card'` (default) is the bordered KPI card; `'bare'` drops

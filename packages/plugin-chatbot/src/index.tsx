@@ -242,6 +242,14 @@ export { Chatbot, TypingIndicator }
 // Export the composable chat hook for custom integrations
 export { useObjectChat } from './useObjectChat';
 export type { UseObjectChatOptions, UseObjectChatReturn } from './useObjectChat';
+/**
+ * What `useObjectChat` emits from `messages` and `onSend` — neither the
+ * `@object-ui/types` AUTHORING contract (which the hook used to declare while
+ * API mode cast RUNTIME values into it) nor the runtime one (which would be a
+ * lie about local mode's authored `'tool'` role and legacy tool states). See
+ * the type's own doc for the survey that decided it (objectui#4424).
+ */
+export type { ObjectChatMessage } from './useObjectChat';
 // ADR-0057 #8 — the AI-usage-indicator refresh seam (emitted on turn-finish / 429).
 export { AI_USAGE_REFRESH_EVENT, emitAiUsageRefresh } from './useObjectChat';
 
@@ -370,6 +378,16 @@ export {
   toRuntimeToolInvocation,
   toRuntimeToolState,
 } from './chatMessageAdapter';
+
+/**
+ * The seam's INPUT contract: the authoring shape widened by the render-only
+ * keys an API-mode value already carries. A host converting its own messages
+ * with `toRuntimeMessages` never needs to name this — `ChatMessage` from
+ * `@object-ui/types` is assignable to it — but a host that HOLDS such values
+ * (having driven `useChat` itself, say) can now say so instead of casting
+ * (objectui#4424).
+ */
+export type { SeamChatMessage, SeamToolInvocation } from './chatMessageAdapter';
 
 // Display helpers used internally by ChatbotEnhanced. Exported so app
 // authors composing their own chat surface get the same pretty tool-call

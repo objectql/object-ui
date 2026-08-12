@@ -14,7 +14,25 @@ import type { I18nLabel } from '@object-ui/types';
 import { ArrowDownIcon, ArrowUpIcon, MinusIcon, AlertCircle, Loader2 } from 'lucide-react';
 import type { SchemaHostProps } from './schemaHostProps';
 
-export interface MetricCardProps {
+/**
+ * DOM PASS-THROUGH (objectui#4426) — see `MetricWidget.tsx`'s interface header
+ * for the full argument; this is the same widening on the same spread, onto the
+ * same Shadcn `Card` (`div`).
+ *
+ * `title` is the one key `Omit`-ed, and the omission is the accurate contract
+ * rather than a workaround. HTML's `title` is a tooltip string; this card's
+ * `title` is its HEADING, in the `I18nLabel` vocabulary — an incompatible type,
+ * and one the component destructures out and renders into `CardTitle`, so no
+ * `title` attribute has ever reached this element. Declaring the inherited DOM
+ * `title` here would be the "declared but not delivered" failure this repo
+ * treats as first-class (objectui#3290, objectui#3222): it would type-check,
+ * read as a supported tooltip, and silently do nothing. `MetricWidget` has no
+ * such collision — its heading is `label` — so it extends the DOM attributes
+ * whole. The repo's spelling for this carve-out is `ComboboxProps`
+ * (`extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "value" | "onChange">`),
+ * omitted there for the same reason: the component's own contract owns the name.
+ */
+export interface MetricCardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
   /**
    * Card heading, in @objectstack/spec's `I18nLabel` vocabulary — a plain
    * string or an inline per-locale map. See `MetricWidget.label` for why the

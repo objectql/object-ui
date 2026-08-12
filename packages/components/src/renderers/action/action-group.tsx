@@ -18,7 +18,7 @@
 
 import React, { forwardRef, useCallback, useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
-import type { ActionSchema, UIActionSchema, ActionGroup, ActionLocation } from '@object-ui/types';
+import type { UIActionSchema, ActionGroup, ActionLocation } from '@object-ui/types';
 import { actionRendersAt } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
 import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
@@ -44,7 +44,7 @@ export interface ActionGroupSchema {
   /** Group icon */
   icon?: string;
   /** Actions in this group */
-  actions?: ActionSchema[];
+  actions?: UIActionSchema[];
   /** Display mode: inline button row or dropdown */
   display?: 'dropdown' | 'inline';
   /** Filter actions by location */
@@ -207,8 +207,11 @@ export const DropdownActionItem: React.FC<{
 
 DropdownActionItem.displayName = 'DropdownActionItem';
 
-const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSchema; [key: string]: any }>(
-  ({ schema, className, ...props }, ref) => {
+// Index signature on the parameter annotation, not on the `forwardRef` type
+// argument — see the mechanism note on `action:bar` (objectui#4422), pinned by
+// `__tests__/forwardref-props-annotation.guard.test.ts`.
+const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSchema; className?: string }>(
+  ({ schema, className, ...props }: { schema: ActionGroupSchema; className?: string; [key: string]: any }, ref) => {
     const {
       'data-obj-id': dataObjId,
       'data-obj-type': dataObjType,
@@ -232,14 +235,11 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
     // Placement is `actionRendersAt`'s call (objectui#3142) — this used to
     // show an action with `locations: undefined` while hiding one with
     // `locations: []`, a third reading of the same key.
-    // Annotated, not inferred, and `UIActionSchema` rather than the legacy
-    // `ActionSchema` — see the long derivation on `action:bar`'s equivalent
-    // line (objectui#4353). In short: `forwardRef` routes props through
-    // `PropsWithoutRef`, whose `Omit` collapses a props type carrying
-    // `[key: string]: any` to the bare index signature, so `schema` arrives as
-    // `any`; and the legacy type has no `locations`, which `actionRendersAt`
-    // on the very next line requires. One annotation where the list enters
-    // types both display modes' `.map()` callbacks below by inference.
+    // `UIActionSchema` by declaration now (objectui#4418) — the exported
+    // `ActionGroupSchema.actions` key used to say the legacy `ActionSchema`,
+    // which has no `locations` for `actionRendersAt` on the very next line to
+    // read. The local restates the declared type; both `.map()` callbacks
+    // below still infer from it.
     const declaredActions: UIActionSchema[] = schema.actions || [];
     const actions = declaredActions.filter(a => actionRendersAt(a, schema.location));
 

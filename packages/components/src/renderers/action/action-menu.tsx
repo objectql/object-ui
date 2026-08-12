@@ -9,13 +9,13 @@
 /**
  * action:menu — Dropdown menu for overflow actions.
  *
- * Renders a Shadcn DropdownMenu populated from ActionSchema[].
+ * Renders a Shadcn DropdownMenu populated from UIActionSchema[].
  * Each menu item triggers the corresponding action via ActionRunner.
  */
 
 import React, { forwardRef, useCallback, useMemo, useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
-import type { ActionSchema, UIActionSchema } from '@object-ui/types';
+import type { UIActionSchema } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
 import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
 import { useObjectTranslation } from '@object-ui/i18n';
@@ -49,7 +49,7 @@ export interface ActionMenuSchema {
   /** Menu trigger icon (defaults to more-horizontal) */
   icon?: string;
   /** Actions to render as menu items */
-  actions?: ActionSchema[];
+  actions?: UIActionSchema[];
   /** Trigger variant */
   variant?: string;
   /** Trigger size */
@@ -172,8 +172,11 @@ const ActionAutoTrigger: React.FC<{
 
 ActionAutoTrigger.displayName = 'ActionAutoTrigger';
 
-const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSchema; [key: string]: any }>(
-  ({ schema, className, ...props }, ref) => {
+// Index signature on the parameter annotation, not on the `forwardRef` type
+// argument — see the mechanism note on `action:bar` (objectui#4422), pinned by
+// `__tests__/forwardref-props-annotation.guard.test.ts`.
+const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSchema; className?: string }>(
+  ({ schema, className, ...props }: { schema: ActionMenuSchema; className?: string; [key: string]: any }, ref) => {
     const {
       'data-obj-id': dataObjId,
       'data-obj-type': dataObjType,
@@ -255,13 +258,10 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
 
     if (schema.visible && !isVisible) return null;
 
-    // Annotated, not inferred, and `UIActionSchema` rather than the legacy
-    // `ActionSchema` — see the long derivation on `action:bar`'s equivalent
-    // line (objectui#4353). `forwardRef` routes props through
-    // `PropsWithoutRef`, whose `Omit` collapses a props type carrying
-    // `[key: string]: any` to the bare index signature, so `schema` arrives as
-    // `any`. One annotation where the list enters types both `.map()`
-    // callbacks below by inference.
+    // `UIActionSchema` by declaration now (objectui#4418) — the exported
+    // `ActionMenuSchema.actions` key used to say the legacy `ActionSchema`
+    // while every item below was written against the modern one. The local
+    // restates the declared type; both `.map()` callbacks still infer from it.
     const actions: UIActionSchema[] = schema.actions || [];
     if (actions.length === 0) return null;
 

@@ -13,7 +13,13 @@ import { forwardRef } from 'react';
 const tags = ['aside', 'main', 'header', 'nav', 'footer', 'section', 'article'] as const;
 
 tags.forEach(tag => {
-  const Component = forwardRef<HTMLElement, any>(({ schema, className, ...props }, ref) => {
+  // Index signature on the parameter annotation, not on the `forwardRef` type
+  // argument — mechanism note on `action:bar` (objectui#4422), pinned by
+  // `__tests__/forwardref-props-annotation.guard.test.ts`. This factory covers
+  // seven semantic tags with no schema type of their own, so `schema` stays
+  // `any`; the annotation is written like its siblings' so the guard needs no
+  // per-file carve-out.
+  const Component = forwardRef<HTMLElement, { schema: any; className?: string }>(({ schema, className, ...props }: { schema: any; className?: string; [key: string]: any }, ref) => {
       // Extract designer-related props
       const { 
           'data-obj-id': dataObjId, 

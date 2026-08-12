@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@object-ui/components';
 import { Edit, Trash2, MoreVertical } from 'lucide-react';
-import { evalRowPredicate } from '@object-ui/core';
+import { evalRowPredicate, type CrudAffordances } from '@object-ui/core';
 import { useObjectTranslation, useRowPredicate, useCapabilityGate, usePredicateScope } from '@object-ui/react';
 
 const ROW_ACTION_FALLBACKS: Record<string, string> = {
@@ -54,16 +54,47 @@ export interface RowActionDef {
   [key: string]: any;
 }
 
-/** Per-record CEL predicates gating a built-in Edit/Delete row action
- * (objectui#2614). Bare CEL string or `{ dialect, source }` envelope,
- * evaluated per row via `useRowPredicate` — same machinery as custom
- * actions' `visible` / `disabled`. */
-export interface BuiltinRowActionPredicates {
-  /** Evaluates false → the item is not rendered for this row. Fail-closed. */
-  visibleWhen?: unknown;
-  /** Evaluates true → the item renders disabled for this row. Fail-soft. */
-  disabledWhen?: unknown;
-}
+/**
+ * Per-record CEL predicates gating a built-in Edit/Delete row action
+ * (objectui#2614) — DERIVED from the type whose values this file actually
+ * receives, never restated by hand (objectui#4429, inheriting PR #4423).
+ *
+ * The source is NOT the data-table's `DataTableSchema.rowEditPredicates` /
+ * `rowDeletePredicates`: this surface is never handed those keys. `ObjectGrid`
+ * resolves the OBJECT's `userActions.edit` / `delete` through
+ * `resolveRowCrudAffordances` (`../rowCrudAffordances`), which returns
+ * `CrudAffordances['editPredicates']` / `['deletePredicates']` — the spec-owned
+ * `RowCrudPredicates` (ADR-0103), parsed in exactly one place
+ * (`@object-ui/core`'s `normalizeUserAction`) and re-exported there from
+ * `@objectstack/spec/data`. Deriving from the data-table's twins would have
+ * bound this file to a schema key it never sees: a NEW wrong coupling in place
+ * of the old missing one.
+ *
+ * The union of the two twins is deliberate, exactly as in PR #4423: every
+ * consumer that reads this alias serves BOTH built-ins (`name: 'edit' |
+ * 'delete'`), so it may only read keys that BOTH affordance keys declare — if
+ * either twin dropped one, the read stops compiling instead of silently reading
+ * `undefined`. Today the twins are declared as one named type, so the union
+ * collapses onto it; the construction is what states the constraint that
+ * outlives that coincidence.
+ *
+ * Deriving also TIGHTENS what this file accepts, and that is the point rather
+ * than a side effect: the hand-written pair typed both keys `unknown`, while
+ * the spec types them `Expression | ExpressionInput` — the authored CEL
+ * shorthand or its `{ dialect, source }` envelope. `@object-ui/core` retired
+ * the same imprecision at its own seam and said so in as many words ("The local
+ * `unknown` was imprecision, not a deliberate dialect"); this was the last copy
+ * of it.
+ *
+ * Behavior is unchanged and stays the posture `RowCrudActionOverrideSchema`
+ * specifies: `visibleWhen` fails CLOSED (the item is not rendered for this row),
+ * `disabledWhen` fails soft (the item renders disabled), both evaluated per row
+ * on the canonical CEL engine — the same machinery as custom actions'
+ * `visible` / `disabled`.
+ */
+export type BuiltinRowActionPredicates = NonNullable<
+  CrudAffordances['editPredicates'] | CrudAffordances['deletePredicates']
+>;
 
 export interface RowActionMenuProps {
   /** The row data record */
@@ -166,9 +197,14 @@ function evalRowActionVisibility(
  * `visibleWhen` counts as a declared gate by `!= null`, not by truthiness —
  * `visibleWhen: false` hides the item rather than reading as "ungated". This is
  * the item's historical rule, extracted verbatim.
+ *
+ * The parameter is consumption-shaped — visibility is all this decides, so
+ * `disabledWhen` is deliberately absent — but `Pick`ed from the derived
+ * authoring shape rather than hand-written, so it is a SUBSET of that shape by
+ * construction (objectui#4429).
  */
 export function isBuiltinRowActionVisible(
-  predicates: BuiltinRowActionPredicates | undefined,
+  predicates: Pick<BuiltinRowActionPredicates, 'visibleWhen'> | undefined,
   name: 'edit' | 'delete',
   row: any,
   scope: Record<string, unknown>,
@@ -253,7 +289,11 @@ export interface RowActionMenuPlan {
  * `_actions` column's `cell`, so the decision lives here.
  *
  * Only visibility is decided here — a `disabled` item still renders (greyed
- * out) and still COUNTS, exactly as before. Capability filtering
+ * out) and still COUNTS, exactly as before. That counting is pinned where it
+ * can be OBSERVED, on the rendered menu, by `RowActionMenu.emptyGuard.test.tsx`'s
+ * "keeps the trigger for a row whose only item renders merely DISABLED"
+ * (objectui#4429) — this function never reads `disabledWhen`, so no assertion on
+ * its return value can pin that claim. Capability filtering
  * (ADR-0066 D4 / framework#3923) happens upstream of this call, on the declared
  * set, so its verdict reaches the guard the same way.
  *
@@ -290,8 +330,17 @@ export function planRowActionMenu(input: {
   canDelete?: boolean;
   onEdit?: unknown;
   onDelete?: unknown;
-  editPredicates?: BuiltinRowActionPredicates;
-  deletePredicates?: BuiltinRowActionPredicates;
+  /**
+   * The predicate parameters are consumption-shaped — this function reads
+   * `visibleWhen` and nothing else, and the signatures keep saying so — but each
+   * is `Pick`ed from the exact affordance key its production caller passes
+   * (`ObjectGrid` → `resolveRowCrudAffordances`), rather than hand-restated
+   * (objectui#4429). Same subset as before, minus the drift: a rename in the
+   * spec-owned `RowCrudPredicates` fails here at compile time instead of leaving
+   * a stale hand-copy that still type-checks against nothing.
+   */
+  editPredicates?: Pick<NonNullable<CrudAffordances['editPredicates']>, 'visibleWhen'>;
+  deletePredicates?: Pick<NonNullable<CrudAffordances['deletePredicates']>, 'visibleWhen'>;
   objectFields?: unknown;
 }): RowActionMenuPlan {
   const { row, scope, objectFields } = input;
@@ -384,6 +433,13 @@ const RowActionMenuItem: React.FC<{
  */
 export const BuiltinRowActionItem: React.FC<{
   name: 'edit' | 'delete';
+  /**
+   * The whole authoring shape, because this component reads BOTH keys —
+   * derived from the affordance type rather than hand-copied (objectui#4429).
+   * This is the site with the most to gain: a hand-copy that keeps one key in
+   * common with a renamed source satisfies TS weak-type detection and drifts
+   * with ZERO diagnostics (measured on the data-table twin in PR #4423).
+   */
   predicates?: BuiltinRowActionPredicates;
   row: any;
   icon: React.ReactNode;

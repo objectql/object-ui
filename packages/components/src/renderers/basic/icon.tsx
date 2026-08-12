@@ -26,8 +26,11 @@ const iconNameMap: Record<string, string> = {
   'Home': 'House', // "Home" was renamed to "House" in lucide-react's icons object
 };
 
-const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?: string; [key: string]: any }>(
-  ({ schema, className, ...props }, ref) => {
+// Index signature on the parameter annotation, not on the `forwardRef` type
+// argument — mechanism note on `action:bar` (objectui#4422), pinned by
+// `__tests__/forwardref-props-annotation.guard.test.ts`.
+const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?: string }>(
+  ({ schema, className, ...props }: { schema: IconSchema; className?: string; [key: string]: any }, ref) => {
     // Extract designer-related props
     const { 
       'data-obj-id': dataObjId, 
