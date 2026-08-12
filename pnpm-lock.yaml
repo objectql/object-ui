@@ -784,6 +784,9 @@ importers:
       '@object-ui/plugin-view':
         specifier: workspace:*
         version: link:../plugin-view
+      '@object-ui/test-support':
+        specifier: workspace:*
+        version: link:../test-support
       '@types/node':
         specifier: ^26.1.2
         version: 26.1.2
@@ -1257,6 +1260,9 @@ importers:
         specifier: ^3.6.0
         version: 3.6.0
     devDependencies:
+      '@object-ui/test-support':
+        specifier: workspace:*
+        version: link:../test-support
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -2732,6 +2738,12 @@ importers:
       '@objectstack/spec':
         specifier: ^17.0.0-rc.6
         version: 17.0.0-rc.6(ai@7.0.56(zod@4.4.3))
+
+  packages/test-support:
+    devDependencies:
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   packages/types:
     dependencies:

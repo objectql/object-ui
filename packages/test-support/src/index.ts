@@ -1,0 +1,31 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * `@object-ui/test-support` — the surface.
+ *
+ * This package is `private: true` and is never published, so this index is not
+ * public API; it is the ONE specifier other packages' test suites import. The
+ * indirection is the objectui#4325 lesson applied ahead of time: a deep
+ * subpath into another package (`@object-ui/fields/widgets/MarkdownContent`)
+ * resolved only through this repo's vitest alias, was TS2882 for `tsc`, and was
+ * ruled out rather than minted as permanent public API. A package's surface is
+ * its index — including this one.
+ */
+
+export {
+  ATTRIBUTE_TO_IDL_ALIAS,
+  GLOBAL_HTML_ATTRIBUTES,
+  HAPPY_DOM_IDL_GAPS,
+  OPEN_PREFIXES,
+  SVG_ATTRIBUTES,
+  findLeaks,
+  isKnownAttribute,
+  leakReport,
+} from './dom-leak-judge';
+export type { Leak } from './dom-leak-judge';
