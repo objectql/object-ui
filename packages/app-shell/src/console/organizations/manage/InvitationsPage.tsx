@@ -26,14 +26,9 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, Copy, Check, X, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOrgContext } from './orgContext';
+import { resolveConsoleUrl } from '../resolveHomeUrl';
 
 type StatusFilter = 'all' | 'pending' | 'accepted' | 'rejected' | 'canceled';
-
-function buildAcceptUrl(invitationId: string): string {
-  const base = (import.meta as any).env?.BASE_URL ?? '/';
-  const normalized = base.endsWith('/') ? base : `${base}/`;
-  return `${window.location.origin}${normalized}accept-invitation/${invitationId}`;
-}
 
 function statusBadgeVariant(status: string): 'outline' | 'default' | 'destructive' | 'secondary' {
   switch (status) {
@@ -79,7 +74,11 @@ export function InvitationsPage() {
   }, [fetchInvitations]);
 
   const handleCopyLink = async (inv: AuthInvitation) => {
-    const url = buildAcceptUrl(inv.id);
+    // The recipient opens this link outside React Router, so it must carry the
+    // deployment mount (`/_console/`). Rebuilding it from `BASE_URL` produced a
+    // trailing-dot host in the portable build and dropped the mount — see
+    // resolveHomeUrl's header for that history (objectui#4472).
+    const url = resolveConsoleUrl(`accept-invitation/${inv.id}`);
     try {
       await navigator.clipboard.writeText(url);
       setCopiedId(inv.id);

@@ -28,18 +28,13 @@ import type { AuthInvitation, DelegableScope, OrgRole } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { resolveConsoleUrl } from '../resolveHomeUrl';
 
 interface InviteMemberDialogProps {
   organizationId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onInvited?: (invitation: AuthInvitation) => void;
-}
-
-function buildAcceptUrl(invitationId: string): string {
-  const base = (import.meta as any).env?.BASE_URL ?? '/';
-  const normalized = base.endsWith('/') ? base : `${base}/`;
-  return `${window.location.origin}${normalized}accept-invitation/${invitationId}`;
 }
 
 export function InviteMemberDialog({
@@ -138,18 +133,26 @@ export function InviteMemberDialog({
     [email, role, organizationId, inviteMember, onInvited, canPlace, businessUnitId, positions],
   );
 
+  // The invitee opens this link outside React Router, so it must carry the
+  // deployment mount (`/_console/`). Rebuilding it from `BASE_URL` produced a
+  // trailing-dot host in the portable build and dropped the mount — see
+  // resolveHomeUrl's header for that history (objectui#4472). Resolved once so
+  // the displayed field and the clipboard cannot drift apart.
+  const acceptUrl = createdInvitation
+    ? resolveConsoleUrl(`accept-invitation/${createdInvitation.id}`)
+    : null;
+
   const handleCopy = useCallback(async () => {
-    if (!createdInvitation) return;
-    const url = buildAcceptUrl(createdInvitation.id);
+    if (!acceptUrl) return;
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(acceptUrl);
       setCopied(true);
       toast.success(t('organization.invitations.linkCopied', { defaultValue: 'Invitation link copied' }));
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error(t('organization.invitations.copyFailed', { defaultValue: 'Failed to copy link' }));
     }
-  }, [createdInvitation, t]);
+  }, [acceptUrl, t]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -171,7 +174,7 @@ export function InviteMemberDialog({
               <div className="flex items-center gap-2">
                 <Input
                   readOnly
-                  value={buildAcceptUrl(createdInvitation.id)}
+                  value={acceptUrl ?? ''}
                   className="font-mono text-xs"
                   onFocus={(e) => e.currentTarget.select()}
                 />
