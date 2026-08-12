@@ -924,8 +924,15 @@ function withoutNoOpDrops(
  * framework's overlay heals onto identity-less personalization rows —
  * objectstack#2555); `data.object` is the config's data-provider target and
  * `objectName` the legacy artifact spelling.
+ *
+ * **Exported** since objectui#4373, for the same one-spelling reason: a writer
+ * outside this module that holds a view BODY but not its object name (app-shell's
+ * `MetadataService`) needs the object to name the keys
+ * {@link ObjectStackAdapter.invalidateViewKeys} drops, and a fourth private copy
+ * of "which object is this?" is exactly the drift this accessor exists to
+ * prevent. Identity only — it names no cache key.
  */
-function viewItemObjectName(item: any): string | undefined {
+export function viewItemObjectName(item: any): string | undefined {
   // Handle both bare view spec and `{list: {...}}` artifact wrapper
   const spec = item?.list ?? item;
   return spec?.data?.object ?? spec?.object ?? spec?.objectName;
@@ -2890,6 +2897,53 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   }
 
   /**
+   * **The one place that knows which cache keys a view-row write invalidates.**
+   *
+   * Two reads are cached under view-shaped keys, and both go stale when any
+   * writer touches a view row for `objectName`:
+   *
+   * | reader                     | key                        |
+   * |----------------------------|----------------------------|
+   * | {@link getView}            | `view:{object}:{viewName}` |
+   * | {@link listViewOverrides}  | `view-overrides:{object}`  |
+   *
+   * Every writer routes here rather than restating that pair. The repo has now
+   * paid twice for restatement: objectui#3778 removed five copies of a key
+   * (`views:{object}`) that no reader had ever populated, and objectui#4363
+   * fixed four copies that named only half the live set — and objectui#4373 is
+   * the measured proof that the failure recurs by default, because the console's
+   * real create/publish flow writes these same rows through the ADR-0034
+   * metadata seam and never learned the key list at all. A pin suite can only
+   * guard the writers that exist; a mandatory seam makes the next writer
+   * structurally unable to forget.
+   *
+   * The rule is uniform per WRITE, not per branch: a write to a view row drops
+   * both keys, in that order. Draft-addressed writes over-invalidate on purpose
+   * — both readers enumerate PUBLISHED rows, so a draft write stales neither —
+   * because the costs are not symmetric. An unnecessary invalidation costs one
+   * refetch; a missed one costs up to the cache's 5-minute TTL of stale
+   * overrides, and "which half am I in?" is not a question a future writer
+   * should have to re-answer to stay correct.
+   *
+   * Public because the writers are not all in this class: app-shell's ADR-0034
+   * seam (`runtime-metadata-persistence.ts`) and `MetadataService` write the
+   * same rows through `client.meta` / the `/meta` draft-publish API, and they
+   * reach this adapter as the `dataSource` they were already handed.
+   *
+   * @param objectName - Object the view belongs to (the `{object}` in both keys)
+   * @param viewName - The view's canonical `name` — the identity
+   *   {@link getView} reads back by and {@link listViewOverrides} keys its map
+   *   with. Callers that hold a qualified `<object>.<key>` name pass it as-is:
+   *   it is the row key, not a path to be split.
+   */
+  invalidateViewKeys(objectName: string, viewName: string): void {
+    // Ordered per-view key first, then the object's map — the order the pin
+    // suite records, so a reordering is a visible decision rather than drift.
+    this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
+    this.metadataCache.invalidate?.(`view-overrides:${objectName}`);
+  }
+
+  /**
    * Batch-fetch all persisted view overrides for an object.
    *
    * Per-view runtime overrides (density, column widths, sort, hidden
@@ -2917,10 +2971,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * (the cache stores on success only), so a transient failure does not
    * pin an empty answer for the TTL.
    *
-   * Result is cached identically to {@link getView}, and EVERY view write path
-   * on this adapter invalidates it — {@link updateViewConfig},
-   * {@link createView}, {@link updateView} and {@link deleteView}. For a long
-   * time only the first did (objectui#4363), which left the other three stale
+   * Result is cached identically to {@link getView}, and EVERY view write —
+   * on this adapter and above it — invalidates it through the one seam,
+   * {@link invalidateViewKeys}. For a long time only {@link updateViewConfig}
+   * did (objectui#4363), which left the other three adapter paths stale
    * for the cache's 5-minute TTL. That gap does not self-heal: the consumer
    * (`loadViewOverrides`, app-shell `ObjectView`) treats a RESOLVED map as
    * authoritative and deliberately does not re-probe per view — objectui#3774,
@@ -3022,11 +3076,8 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       viewId,
       merged
     );
-    // Invalidate cached read so next getView reflects the change
-    const cacheKey = `view:${objectName}:${viewId}`;
-    this.metadataCache.invalidate?.(cacheKey);
-    // Also invalidate the batch override map so listViewOverrides re-fetches
-    this.metadataCache.invalidate?.(`view-overrides:${objectName}`);
+    // One seam names the key set for every writer (objectui#4373).
+    this.invalidateViewKeys(objectName, viewId);
     if (result && result.item) return result.item;
     return result ?? undefined;
   }
@@ -3159,9 +3210,9 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * Generates a snake_case name if `spec.name` is not provided by appending
    * a short timestamp suffix to the source-name hint.
    *
-   * Invalidates both view-shaped cache keys for the object, exactly as
-   * {@link updateViewConfig} does — see {@link listViewOverrides} for why the
-   * batch map is the one that cannot heal itself (objectui#4363).
+   * Invalidates through {@link invalidateViewKeys}, like every other writer —
+   * see {@link listViewOverrides} for why the batch map is the one that cannot
+   * heal itself (objectui#4363).
    */
   async createView(
     objectName: string,
@@ -3191,14 +3242,11 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       data: spec?.data || { provider: 'object', object: objectName },
     };
     const result: any = await this.client.meta.saveItem('view', name, fullSpec);
-    // Same key set as `updateViewConfig` — this is the other `saveItem('view', …)`
-    // write, and `saveItem` is an UPSERT: an explicit `spec.name` that already
-    // exists overwrites the published row, which a prior `getView` may hold.
-    // (A generated name cannot collide, and a miss is a `Map.delete` on an absent
+    // `saveItem` is an UPSERT: an explicit `spec.name` that already exists
+    // overwrites the published row, which a prior `getView` may hold. (A
+    // generated name cannot collide, and a miss is a `Map.delete` on an absent
     // key, so the uniform rule costs nothing on the create-a-new-row path.)
-    this.metadataCache.invalidate?.(`view:${objectName}:${name}`);
-    // The batch override map gains a row and cannot notice on its own (#4363).
-    this.metadataCache.invalidate?.(`view-overrides:${objectName}`);
+    this.invalidateViewKeys(objectName, name);
     if (result && result.item) return result.item;
     return fullSpec;
   }
@@ -3235,14 +3283,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * *published* view (no draft pending) is unchanged — it writes the
    * published overlay, as before.
    *
-   * **Both halves invalidate the same two keys** (objectui#4363): the per-view
-   * {@link getView} key and the batch {@link listViewOverrides} map. On the
-   * draft half that is deliberate over-invalidation — both readers enumerate
-   * PUBLISHED rows, so a draft write stales neither, exactly as was already
-   * true of the per-view line this joins. The costs are not symmetric: an
-   * unnecessary invalidation costs one refetch, a missed one costs up to the
-   * cache's 5-minute TTL of stale overrides, and "which half am I in?" is not
-   * a question a future edit to this method should have to re-answer.
+   * **Both halves invalidate through {@link invalidateViewKeys}** (objectui#4363,
+   * #4373) — same call, same key set, so the draft half's deliberate
+   * over-invalidation is the seam's uniform rule rather than a per-branch
+   * decision this method has to keep re-making.
    *
    * @throws when the view resolves in neither home, or when either read fails
    *   for any other reason (network, permission). Both used to be swallowed
@@ -3267,8 +3311,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     if (draft) {
       const mergedDraft = mergeViewPatch(draft, partial, viewName, objectName);
       await metaClient.save('view', viewName, mergedDraft, { mode: 'draft' });
-      this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
-      this.metadataCache.invalidate?.(`view-overrides:${objectName}`);
+      this.invalidateViewKeys(objectName, viewName);
       return mergedDraft;
     }
 
@@ -3298,8 +3341,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
 
     const merged = mergeViewPatch(current, partial, viewName, objectName);
     const result: any = await this.client.meta.saveItem('view', viewName, merged);
-    this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
-    this.metadataCache.invalidate?.(`view-overrides:${objectName}`);
+    this.invalidateViewKeys(objectName, viewName);
     if (result && result.item) return result.item;
     return merged;
   }
@@ -3309,9 +3351,9 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * remove entirely if it was a user-created view). Routes to
    * `DELETE /api/v1/meta/view/:name`.
    *
-   * Invalidates both view-shaped keys: the deleted row leaves the batch
-   * override map too, and a ghost entry there is what the object page would
-   * keep applying (objectui#4363).
+   * Invalidates through {@link invalidateViewKeys}: the deleted row leaves the
+   * batch override map too, and a ghost entry there is what the object page
+   * would keep applying (objectui#4363).
    */
   async deleteView(
     objectName: string,
@@ -3319,8 +3361,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   ): Promise<{ deleted: boolean }> {
     await this.connect();
     const result: any = await this.client.meta.deleteItem('view', viewName);
-    this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
-    this.metadataCache.invalidate?.(`view-overrides:${objectName}`);
+    this.invalidateViewKeys(objectName, viewName);
     return { deleted: !!(result?.deleted ?? result?.reset ?? true) };
   }
 

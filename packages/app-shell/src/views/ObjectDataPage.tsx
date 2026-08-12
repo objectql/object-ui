@@ -367,7 +367,13 @@ export function ObjectDataPage({ dataSource, objects }: any) {
           name: config.name,
           label: config.label,
         });
-        const createdId = await createRuntimeMetadata('view', env.name, env, { metadataClient });
+        // #4373: the third writer into the `/meta/view` rows the adapter caches
+        // — same seam, same key set, decided by the adapter.
+        const createdId = await createRuntimeMetadata('view', env.name, env, {
+          metadataClient,
+          dataSource,
+          objectName,
+        });
         if (createdId) {
           const previewSuffix = previewDrafts
             ? ''
@@ -378,7 +384,7 @@ export function ObjectDataPage({ dataSource, objects }: any) {
         console.error('[ObjectDataPage] Failed to save view:', err);
       }
     },
-    [columns, urlFilters, metadataClient, navigate, objectName, previewDrafts],
+    [columns, urlFilters, metadataClient, dataSource, navigate, objectName, previewDrafts],
   );
 
   if (!objectDef) {

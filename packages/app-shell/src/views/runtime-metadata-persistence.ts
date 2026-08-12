@@ -16,6 +16,16 @@
  * The bespoke per-type tables (`sys_view` / `sys_report` / `sys_dashboard`) and
  * their shape adapters have been retired — there is no longer a feature flag or
  * a legacy write path here.
+ *
+ * **This seam is a view WRITER, so it invalidates the DataSource's view caches**
+ * (objectui#4373). `ObjectStackAdapter` caches two view-shaped reads, and the
+ * rows this module writes are the rows those reads enumerate — but the two
+ * writers were disjoint: the adapter's own `createView`/`updateView`/… fixed
+ * their key lists in objectui#4363, while the console's real create-and-publish
+ * flow comes through HERE and invalidated nothing. Which keys they are stays the
+ * adapter's business ({@link ViewCacheInvalidator}); all this module decides is
+ * whether a given write is a view write, and it hands the object name down from
+ * the call site.
  */
 
 import { slugify } from './metadata-admin/createDerive';
@@ -57,10 +67,85 @@ export function recordPageEnvelope(
   };
 }
 
-/** Everything the seam needs to persist any of the three artifact types. */
+/**
+ * The adapter-side cache seam this module routes view writes through.
+ *
+ * Structural on purpose: the only implementation is `ObjectStackAdapter`
+ * (`@object-ui/data-objectstack`), and the call sites already hold it as the
+ * `dataSource` prop `AppContent` takes from `useAdapter()` — so this module
+ * needs the SHAPE, not the class, and app-shell gains no import it did not have.
+ * Every other `dataSource` view call in `ObjectView` is duck-typed the same way.
+ */
+export interface ViewCacheInvalidator {
+  /** Drop `view:{object}:{name}` + `view-overrides:{object}`. */
+  invalidateViewKeys(objectName: string, viewName: string): void;
+}
+
+/** Everything the seam needs to persist any of the four artifact types. */
 export interface RuntimePersistCtx {
   /** Studio metadata client — the `/meta` draft/publish/version API. */
   metadataClient: any;
+  /**
+   * The DataSource whose view caches this write stales (objectui#4373).
+   *
+   * `metadataClient` writes the `/meta/view/:name` rows that
+   * `ObjectStackAdapter` caches under two view-shaped keys, and until #4373
+   * nothing connected the two: a user created a view in the console and
+   * published it, and the object's override map kept answering from its
+   * pre-publish snapshot for the rest of the cache's 5-minute TTL. It does not
+   * self-heal — `loadViewOverrides` treats a RESOLVED map as authoritative and
+   * deliberately does not re-probe per view (objectui#3774) — so the per-view
+   * `getView` fallback that would have masked it is by design unreachable.
+   *
+   * Optional: report / dashboard / page writes need nothing here, and a call
+   * site without an adapter still persists exactly as before.
+   */
+  dataSource?: Partial<ViewCacheInvalidator> | null;
+  /**
+   * The object a `view` write belongs to — the `{object}` half of both keys.
+   *
+   * Required to invalidate, and taken from the call site rather than parsed out
+   * of `name`. A runtime-created view's name is the qualified `<object>.<key>`
+   * ({@link viewEnvelope}), but a source-declared view's is not, so splitting
+   * the name would be a second, silently-wrong identity rule (AGENTS.md #0.1).
+   * Absent → nothing object-scoped can be named, and the write is left alone.
+   */
+  objectName?: string | null;
+}
+
+/**
+ * Drop the view-shaped cache keys a just-written view row stales.
+ *
+ * The key set itself lives in ONE place — the adapter's `invalidateViewKeys`
+ * (objectui#4373) — so this module never spells `view-overrides:` and cannot
+ * drift from it. Here we only decide WHETHER a write is a view write.
+ *
+ * Applied uniformly to every function in this module, including the draft-only
+ * ones, and that is deliberate over-invalidation: both cached readers enumerate
+ * PUBLISHED rows, so a draft save or a discard stales neither. It matches the
+ * rule the adapter's own draft half already follows, for the same reason — an
+ * unnecessary invalidation costs one refetch, a missed one costs up to the
+ * 5-minute TTL, and a per-function exception list is precisely how this key set
+ * got forgotten twice already.
+ *
+ * Never throws: a cache drop that fails must not fail the persist that
+ * succeeded. The worst case is the staleness this fix removes.
+ */
+function invalidateViewCaches(
+  type: RuntimeArtifactType,
+  name: string,
+  ctx: RuntimePersistCtx,
+): void {
+  if (type !== 'view') return;
+  const objectName = ctx.objectName;
+  if (!objectName || !name) return;
+  const invalidate = ctx.dataSource?.invalidateViewKeys;
+  if (typeof invalidate !== 'function') return;
+  try {
+    invalidate.call(ctx.dataSource, objectName, name);
+  } catch (err) {
+    console.warn('[runtime-metadata] view cache invalidation failed:', err);
+  }
 }
 
 /**
@@ -98,6 +183,7 @@ export async function persistRuntimeMetadata(
   ctx: RuntimePersistCtx,
 ): Promise<void> {
   await ctx.metadataClient.save(type, name, body, { mode: 'draft' });
+  invalidateViewCaches(type, name, ctx);
 }
 
 /**
@@ -204,6 +290,7 @@ export async function createRuntimeMetadata(
     );
   }
   await ctx.metadataClient.save(type, name, body, { mode: 'draft' });
+  invalidateViewCaches(type, name, ctx);
   return name;
 }
 
@@ -231,11 +318,18 @@ export async function discardRuntimeDraft(
   ctx: RuntimePersistCtx,
 ): Promise<void> {
   await ctx.metadataClient.reset(type, name, { state: 'draft' });
+  invalidateViewCaches(type, name, ctx);
 }
 
 /**
  * Publish a previously-staged runtime edit: promote the pending draft to the
  * active overlay and record a version.
+ *
+ * **This is the moment objectui#4373 measures.** Publish is what turns an
+ * invisible draft into a published row, which is the world both cached readers
+ * enumerate — so it is the write that genuinely stales
+ * `view-overrides:{object}`, and the one that used to leave it stale for the
+ * full TTL. See {@link RuntimePersistCtx.dataSource}.
  */
 export async function publishRuntimeMetadata(
   type: RuntimeArtifactType,
@@ -243,4 +337,5 @@ export async function publishRuntimeMetadata(
   ctx: RuntimePersistCtx,
 ): Promise<void> {
   await ctx.metadataClient.publish(type, name);
+  invalidateViewCaches(type, name, ctx);
 }
