@@ -183,6 +183,46 @@ describe('SpecBridge', () => {
       expect(extraTall.density).toBe('spacious');
     });
 
+    // The other half of that enum: `comfortable` / `spacious` / `small` /
+    // `large` used to be mapped too, so four values `RowHeightSchema` does not
+    // admit read as live capability. They are gone (objectui#4352) — AGENTS.md
+    // #0.1, one strict contract beats N dialects — and an off-spec `rowHeight`
+    // now falls through to no density at all rather than being quietly
+    // rehabilitated into one.
+    //
+    // Routed through `SpecBridge.transformListView`, whose parameter is `any`:
+    // that untyped boundary is the one a host's stored JSON actually crosses,
+    // and it is the only way left to get these values into the bridge. Writing
+    // them on `bridgeListView` directly no longer type-checks, which is the
+    // static half of the same fix.
+    it.each(['comfortable', 'spacious', 'small', 'large'])(
+      'leaves density unset for the off-spec rowHeight %s',
+      (rowHeight) => {
+        const node = new SpecBridge().transformListView({
+          name: 'off_spec_density',
+          rowHeight,
+        });
+
+        expect(node.density).toBeUndefined();
+        // Not merely undefined — the key is never written, so the renderer's
+        // own default applies instead of an explicit `density: undefined`.
+        expect('density' in node).toBe(false);
+      },
+    );
+
+    // Control: a string in neither vocabulary already fell through before the
+    // four keys were deleted, and still does. Green on both sides of the
+    // change — it pins the fall-through itself, not the deletion.
+    it('leaves density unset for a rowHeight in no vocabulary at all', () => {
+      const node = new SpecBridge().transformListView({
+        name: 'off_spec_density',
+        rowHeight: 'gargantuan',
+      });
+
+      expect(node.density).toBeUndefined();
+      expect('density' in node).toBe(false);
+    });
+
     it('includes optional list properties', () => {
       const node = bridgeListView(
         {
