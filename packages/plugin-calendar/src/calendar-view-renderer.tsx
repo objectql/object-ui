@@ -11,6 +11,41 @@ import type { CalendarViewSchema } from '@object-ui/types';
 import { CalendarView, type CalendarEvent } from './CalendarView';
 import React from 'react';
 
+/**
+ * Resolve the authored `currentDate` into the type `CalendarView` declares.
+ *
+ * The registry input below declares `currentDate` as `type: 'string'` —
+ * "ISO date string for initial calendar date" — while
+ * `CalendarViewProps.currentDate` is a `Date`. Nothing converted between them,
+ * so the authored string rode the `{...props}` spread into `useState`'s initial
+ * `selectedDate` and the header's `selectedDate.toLocaleDateString(…)` threw:
+ * the one spelling the input documents was the one spelling that could not work
+ * (objectui#4452). Authored metadata is the contract, so the conversion is owed
+ * HERE, at the renderer boundary — not by widening the component's prop type,
+ * and not by asking authors for a value the declared type cannot express.
+ *
+ * One resolver, one answer for every off-spec input: the SAME answer as an
+ * absent key — `undefined`, so `CalendarView`'s own default parameter applies.
+ * An `Invalid Date` is deliberately never manufactured and passed on. It does
+ * not throw; it renders the literal text "Invalid Date" into the header and the
+ * date picker, i.e. a silent wrong answer where the absent-key path gives a
+ * usable calendar.
+ *
+ * A `Date` INSTANCE passes through untouched. That value is not authored
+ * metadata — `type: 'string'` cannot express it — it is a React host handing
+ * the widget its real declared prop type (`<SchemaRenderer … currentDate={d} />`
+ * spreads a host's extra props onto the component). Its behaviour, invalid
+ * instances included, is unchanged by this card: a host's own value is the
+ * host's to own, and narrowing it here would be a second contract change
+ * nobody asked for.
+ */
+function resolveAuthoredCurrentDate(raw: unknown): Date | undefined {
+  if (raw instanceof Date) return raw;
+  if (typeof raw !== 'string') return undefined;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
 // Calendar View Renderer - Airtable-style calendar for displaying records as events
 ComponentRegistry.register('calendar-view',
   ({
@@ -37,6 +72,13 @@ ComponentRegistry.register('calendar-view',
     // and an ARRAY silently replaced the computed calendar with itself. This
     // component's real action channel is `onAction` below, which is untouched.
     events: _authoredEvents,
+    // The declared `currentDate` input, destructured out for the same reason
+    // and by the same pattern: a CONSUMED key must not also ride the spread.
+    // Unlike `events` this one is not dropped — it is converted below and
+    // passed on as the `Date` the component's prop type declares
+    // (objectui#4452). Both authoring channels land here, the node's own
+    // `currentDate` key and a `props: { currentDate }` container.
+    currentDate: authoredCurrentDate,
     ...props
   }: { schema: CalendarViewSchema; className?: string; onAction?: (action: any) => void; [key: string]: any }) => {
     // Transform schema data to CalendarEvent format
@@ -67,6 +109,17 @@ ComponentRegistry.register('calendar-view',
       });
     }, [schema.data, schema.titleField, schema.startDateField, schema.endDateField, schema.colorField, schema.allDayField]);
 
+    // Memoised on the AUTHORED value, so one authored string is one `Date`
+    // identity for the life of the node. `CalendarView` re-seeds its
+    // `selectedDate` state from this prop in an effect keyed on the prop
+    // itself, and a fresh `Date` per render would re-seed on every render:
+    // the user's own Previous/Next navigation would snap straight back, and
+    // the effect would drive its own `setState` in a loop.
+    const currentDate = React.useMemo(
+      () => resolveAuthoredCurrentDate(authoredCurrentDate),
+      [authoredCurrentDate],
+    );
+
     const handleEventClick = (event: CalendarEvent) => {
       onAction?.({ 
         type: 'event-click',
@@ -88,6 +141,10 @@ ComponentRegistry.register('calendar-view',
         // Always the computed array: the authored `events` key is destructured
         // out above, so this spread can no longer reach it (objectui#4433).
         events={events}
+        // The parsed authored date (objectui#4452). `undefined` for an absent
+        // or off-spec value, which is what lets `CalendarView`'s own default
+        // parameter apply — the key having never been authored at all.
+        currentDate={currentDate}
         onEventClick={handleEventClick}
         // Pass validation or other props
         {...props}
