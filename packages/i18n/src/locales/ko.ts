@@ -72,7 +72,6 @@ const ko = {
     delete: "삭제",
     edit: "편집",
     create: "생성",
-    search: "검색",
     filter: "필터",
     reset: "초기화",
     confirm: "확인",

@@ -72,7 +72,6 @@ const ja = {
     delete: "削除",
     edit: "編集",
     create: "作成",
-    search: "検索",
     filter: "フィルター",
     reset: "リセット",
     confirm: "確認",

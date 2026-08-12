@@ -72,7 +72,6 @@ const fr = {
     delete: "Supprimer",
     edit: "Modifier",
     create: "Créer",
-    search: "Rechercher",
     filter: "Filtrer",
     reset: "Réinitialiser",
     confirm: "Confirmer",

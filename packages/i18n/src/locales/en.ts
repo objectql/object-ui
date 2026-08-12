@@ -84,7 +84,6 @@ const en = {
     delete: 'Delete',
     edit: 'Edit',
     create: 'Create',
-    search: 'Search',
     filter: 'Filter',
     reset: 'Reset',
     confirm: 'Confirm',

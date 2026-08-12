@@ -7,7 +7,6 @@ import { createSafeTranslation } from '@object-ui/i18n';
 const FIELD_DEFAULTS: Record<string, string> = {
   'common.selectOption': 'Select an option',
   'common.select': 'Select…',
-  'common.search': 'Search',
   'common.loading': 'Loading…',
   'common.noResults': 'No results found',
   'common.cancel': 'Cancel',
