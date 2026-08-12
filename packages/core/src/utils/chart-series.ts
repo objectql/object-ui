@@ -548,3 +548,135 @@ export async function resolveDimensionFieldMeta(
   }
   return out;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The analytics label net's REACT-FREE half (objectui#4389)
+ *
+ * Everything below composes the helpers above into the two steps every dataset
+ * surface takes: LOAD the metadata for a query's dimensions, then DERIVE the
+ * `{dimension → {value|authoredLabel → displayLabel}}` maps from it. Both were
+ * written out longhand twice — once in `plugin-dashboard`'s `DatasetWidget` and
+ * once in `plugin-report`'s `useDatasetDimensionLabels` (objectui#4330 / PR
+ * #4388) — and the duplication was filed as objectui#4389.
+ *
+ * The card's first ruling named `@object-ui/core` as the whole glue's home;
+ * that half of it was retired by measurement (PM RULING #2 on the card):
+ * `SchemaRendererContext` is defined in `@object-ui/react`, which DEPENDS on
+ * this package, so core importing it back is a cycle — and core is React-free
+ * by declaration, by content, and by AGENTS.md §3. The layering was already
+ * ruled in this exact direction by objectui#3367 (core-canonical logic, react
+ * re-exports; never core importing react).
+ *
+ * So the split is: the parts that are just data — a load composition and a
+ * pure derivation — live HERE, beside the helpers they call. The React wiring
+ * that cannot (useState / useEffect / useMemo / the context read) lives once in
+ * `@object-ui/react`'s `useDatasetDimensionLabels`, which both plugins consume.
+ * Neither half knows about the other's layer, and neither is written twice.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The locale-bundle resolver a caller supplies to translate one option label —
+ * `useSafeFieldLabel().fieldOptionLabel` in every current caller, i.e. the
+ * `{ns}.fieldOptions.<object>.<field>.<value>` convention list and form
+ * surfaces already translate select options through (objectui#4030).
+ *
+ * Taken as a plain function so this package needs no knowledge of i18n, React,
+ * or which provider is mounted — the same reason {@link OptionLabelTranslator}
+ * is a bare function type.
+ */
+export type FieldOptionLabelResolver = (
+  object: string,
+  field: string,
+  value: string,
+  authoredLabel: string,
+) => string;
+
+/**
+ * Bind a {@link FieldOptionLabelResolver} to ONE resolved dimension field,
+ * yielding the {@link OptionLabelTranslator} the option helpers take.
+ *
+ * The binding is the part that is easy to get wrong, which is why it is stated
+ * once here rather than at each call site: the translator must be bound to the
+ * object that OWNS the terminal field — `crm_account` for `crm_account.industry`,
+ * NOT the dataset's base object — because that owner is the key the locale
+ * bundle is written under. {@link resolveDimensionFieldMeta} already walked the
+ * relationship chain and kept that owner; this just reads it.
+ *
+ * Returns `undefined` — i.e. "no translation, keep the authored labels" — when
+ * the owner could not be resolved or no resolver was supplied. Every helper
+ * downstream then behaves exactly as it did before the #4030 seam existed.
+ */
+export function dimensionOptionTranslator(
+  meta: DimensionFieldMeta | undefined,
+  fieldOptionLabel?: FieldOptionLabelResolver,
+): OptionLabelTranslator | undefined {
+  const owner = meta?.object;
+  if (!owner || !fieldOptionLabel) return undefined;
+  const field = meta.field;
+  return (value, authoredLabel) => fieldOptionLabel(owner, field, value, authoredLabel);
+}
+
+/** One dimension paired with the field path its values resolve through. */
+export interface DimensionRelabelTarget {
+  /** The dimension name as the surface renders it (the row key). */
+  dim: string;
+  /** That dimension's underlying field path, as the dataset query reported it. */
+  path: string;
+}
+
+/**
+ * Derive the `{ dimension → { value|authoredLabel → displayLabel } }` maps that
+ * {@link relabelDimensions} consumes, from metadata {@link loadDimensionFieldMeta}
+ * (or {@link resolveDimensionFieldMeta}) already resolved.
+ *
+ * This is the LOCALE-APPLYING step, and keeping it separate from the load is
+ * the whole point of the split (objectui#4030 / PR #4324): the fetched metadata
+ * stays locale-free, so switching language re-derives these maps in a render
+ * memo instead of re-issuing the metadata read. A caller that folds the two
+ * together reintroduces a refetch on every language switch — the defect #4324
+ * fixed, and the property objectui#4389 lifted here so it is stated once.
+ *
+ * Best-effort per dimension, exactly as the longhand copies were: a path that
+ * resolved no metadata, or whose field carries no `options`, contributes no
+ * entry, and `relabelDimensions` then returns the caller's rows by identity.
+ * Returns `null` — never an empty object — when nothing resolved, so callers
+ * can skip the relabel entirely.
+ */
+export function deriveDimensionLabelMaps(
+  metaByPath: Record<string, DimensionFieldMeta> | null | undefined,
+  relabel: readonly DimensionRelabelTarget[] | null | undefined,
+  fieldOptionLabel?: FieldOptionLabelResolver,
+): Record<string, Record<string, string>> | null {
+  if (!metaByPath || !relabel || relabel.length === 0) return null;
+  const labels: Record<string, Record<string, string>> = {};
+  for (const { dim, path } of relabel) {
+    const meta = metaByPath[path];
+    const map = buildDimensionLabelMap(meta?.options, dimensionOptionTranslator(meta, fieldOptionLabel));
+    if (map) labels[dim] = map;
+  }
+  return Object.keys(labels).length > 0 ? labels : null;
+}
+
+/**
+ * Load one dataset query's dimension field metadata: fetch the base object's
+ * schema, then resolve every dimension's field path against it.
+ *
+ * The two-step composition every caller wrote out by hand. `loadObjectSchema`
+ * stays the CALLER's channel — this package issues no reads of its own and has
+ * no opinion about transport, which is what keeps it free of React, of
+ * `SchemaRendererContext`, and of the authenticated-`apiFetch` concern
+ * (objectui#4121) that belongs to the layer holding the host context.
+ *
+ * The same loader serves both steps by design: {@link resolveDimensionFieldMeta}
+ * memoizes it per call and seeds the cache with the base schema under its own
+ * `name`, so the base object is read ONCE even when several dotted dimensions
+ * walk back through it. That read count is pinned on both consuming surfaces.
+ */
+export async function loadDimensionFieldMeta(
+  loadObjectSchema: (objectName: string) => Promise<unknown>,
+  object: string,
+  fieldPaths: Array<string | undefined | null>,
+): Promise<Record<string, DimensionFieldMeta>> {
+  const baseSchema = await loadObjectSchema(object);
+  return resolveDimensionFieldMeta(baseSchema, fieldPaths, loadObjectSchema);
+}
