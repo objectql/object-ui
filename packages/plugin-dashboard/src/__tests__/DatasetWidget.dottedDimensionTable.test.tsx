@@ -12,24 +12,50 @@
  * or `pivot` a dotted dimension still rendered the raw stored enum
  * (`education`), which is exactly the symptom #4053 reports for charts.
  *
- * The ruling on #4263 is a DOTTED-ONLY GAP-FILL, and these pins are shaped to
- * hold both halves of it apart:
+ * The ruling on #4263 was a DOTTED-ONLY GAP-FILL:
  *
  *  - For a LOCAL dimension the server resolves the display label (ADR-0021) —
  *    that is why #4053's widget B (a `table`) rendered `Education` correctly.
- *    The client net must stay OFF there, or a table would double-resolve a
- *    label the server already produced. Pinned by `renders a LOCAL dimension
- *    exactly as the server sent it` and by the local column of the mixed test.
+ *    The client net stayed OFF there, so a table would not double-resolve a
+ *    label the server already produced — and, the part that made "unchanged"
+ *    literal, issued NO metadata read at all.
  *  - For a DOTTED dimension the server is silent too (that is #4053's premise),
  *    so the value reaches the table unresolved and the client net is the only
  *    resolution available. Pinned red-first below.
  *
- * The mixed test puts BOTH on ONE table widget for the same reason the #4053
- * suite does: the two dimensions carry the SAME option set, so any difference
- * between the two rendered cells is the bug and nothing else — and an
- * implementation that simply switched the early return off (resolving local
- * dimensions on tables too) fails it, which a dotted-only fixture could not
- * detect.
+ * ## ⚠️ THE LOCAL HALF OF THAT BOUNDARY IS AMENDED — objectui#4330
+ *
+ * The no-metadata-read half was an acceptance boundary for label RESOLUTION,
+ * ruled in that context: "the label already exists, do not produce it twice."
+ * It held exactly as long as resolution was the only consumer of the read.
+ * objectui#4030 / PR #4324 added a second one — the LOCALE BUNDLE, which is
+ * keyed by the option's stored value and therefore needs the option LIST, not
+ * the label. Under that pin a zh-CN console rendered `Domestic` in a table cell
+ * while the related list beside it rendered 国内, with nothing on the client to
+ * translate against (objectui#4330).
+ *
+ * So the PM amended it deliberately, in the PR that uses it: a table / pivot
+ * takes the ONE read needed to feed the SAME seam #4324 landed, for EVERY
+ * dimension. Concretely, in this file:
+ *
+ *  - the LOCAL cell of the mixed test now resolves too — it was pinned as
+ *    `education` (raw, because that fixture models a server that did not
+ *    resolve it) and now reads `Education`;
+ *  - `a LOCAL-only table … resolving nothing` becomes `… issues the ONE read`:
+ *    it still renders the server's string untouched under `en`, but the read
+ *    that makes it translatable is now expected rather than forbidden;
+ *  - the CSV follows its table's cells, as it always has.
+ *
+ * What did NOT change, and is still pinned here: the dotted walk itself, the
+ * multi-hop walk, the METRIC branch's silence (it renders no dimension value,
+ * so it resolves nothing and reads nothing), and identity keys — a drill still
+ * filters by the stored value. `DatasetWidget.localSelectI18n.test.tsx` is the
+ * new behaviour's own suite; this file keeps the #4263 shape so the amendment
+ * is legible as a diff.
+ *
+ * The mixed test still puts BOTH dimension kinds on ONE table widget for the
+ * reason the #4053 suite does — the two carry the SAME option set, so any
+ * difference between the two rendered cells is the widget's own doing.
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -97,8 +123,8 @@ const firstRowCells = (): string[] =>
     (td) => td.textContent ?? '',
   );
 
-describe('DatasetWidget dotted-dimension labels on table / pivot (objectui#4263)', () => {
-  it('resolves a DOTTED dimension on a table, and leaves the LOCAL one exactly as it arrived', async () => {
+describe('DatasetWidget dotted-dimension labels on table / pivot (objectui#4263, amended by #4330)', () => {
+  it('resolves a DOTTED dimension on a table, and the LOCAL one alongside it (#4330)', async () => {
     // Both dimensions carry the SAME option set. The server sent both
     // value-keyed — for the local one that is the server's own business
     // (ADR-0021 resolution is its job and this fixture models a server that
@@ -125,26 +151,41 @@ describe('DatasetWidget dotted-dimension labels on table / pivot (objectui#4263)
       />,
     );
 
-    // THE GAP: the dotted dimension resolves to its option label. Pre-fix this
-    // cell held the raw stored `education`.
+    // THE GAP: the dotted dimension resolves to its option label. Pre-#4263
+    // this cell held the raw stored `education`.
     await waitFor(() => expect(firstRowCells()[1]).toBe('Education'));
 
-    // THE BOUNDARY: the local dimension is untouched in the same render. The
-    // server owns that label on a table; resolving it here would be a second
-    // resolution of the same value.
-    expect(firstRowCells()[0]).toBe('education');
+    // AMENDED BY #4330 — the local dimension resolves in the same render.
+    // Under #4263 this asserted `education`: the client net was OFF for a local
+    // dimension because the server owns that label on a table. The read is now
+    // issued for every dimension (the locale bundle needs the option list), and
+    // resolving a value the server left raw is the same map doing the same
+    // thing — value-keyed, idempotent, so a label the server DID resolve is
+    // still not touched twice (pinned under `en` in
+    // `DatasetWidget.localSelectI18n.test.tsx`).
+    expect(firstRowCells()[0]).toBe('Education');
 
     // It got there through the same `GET /meta/object/:name` channel #4261
     // already uses, walking to the relationship target.
     expect(requested).toEqual(['crm_opportunity', 'crm_account']);
   });
 
-  it('renders a LOCAL-only table exactly as the server sent it, resolving nothing', async () => {
-    // Control for the acceptance boundary: a table whose dimensions are all
-    // local must render byte-identically to today. The server-resolved label
-    // passes through untouched AND no object metadata is fetched at all — the
-    // early return still holds for this widget, so there is no resolution that
-    // could double-apply.
+  it('renders a LOCAL-only table exactly as the server sent it, and issues the ONE read (#4330)', async () => {
+    // ⚠️ THE AMENDED PIN (objectui#4330). Under #4263 this asserted
+    // `expect(requested).toEqual([])` — a local-only table issued NO metadata
+    // read at all, which was the acceptance boundary for dotted-dimension
+    // label resolution.
+    //
+    // The boundary now reads: the read IS issued (it is what gives the locale
+    // bundle an option list to translate against — see the file header), and
+    // what stays untouched is the RENDERED STRING. With no bundle mounted the
+    // display equals the authored label, so `buildDimensionLabelMap` emits no
+    // key, `relabelDimensions` returns the server's rows BY IDENTITY, and the
+    // cell is byte-identical to #4263's. That identity — not the absence of a
+    // fetch — is what "no double resolution" means after the amendment.
+    //
+    // Exactly ONE read: `resolveDimensionFieldMeta` memoizes per call, and a
+    // local path never walks a relationship.
     const { requested } = installMetaRouter({ crm_opportunity: OPPORTUNITY, crm_account: ACCOUNT });
     render(
       <DatasetWidget
@@ -163,7 +204,7 @@ describe('DatasetWidget dotted-dimension labels on table / pivot (objectui#4263)
     );
 
     await waitFor(() => expect(firstRowCells()[0]).toBe('Education'));
-    expect(requested).toEqual([]);
+    expect(requested).toEqual(['crm_opportunity']);
   });
 
   it('resolves BOTH the row and the column dimension of a dotted pivot, keeping server totals aligned', async () => {
@@ -269,10 +310,11 @@ describe('DatasetWidget dotted-dimension labels on table / pivot (objectui#4263)
     expect(requested).toEqual(['crm_opportunity', 'crm_account', 'crm_user']);
   });
 
-  it('exports the resolved label for a dotted column and the untouched value for a local one', async () => {
-    // The CSV is the table's data, so it follows the table's cells: a dotted
-    // dimension exports what the table now shows. For a LOCAL dimension the
-    // export is unchanged for the same reason the cell is.
+  it('exports the resolved label for BOTH the dotted and the local column (#4330)', async () => {
+    // The CSV is the table's data, so it follows the table's cells — unchanged
+    // as a rule, and the cells it follows are the amended ones. Under #4263
+    // this expected `education,Education,10`; the local column now resolves for
+    // the same reason its cell does. Measures stay numeric either way.
     const origCreate = URL.createObjectURL;
     const origRevoke = URL.revokeObjectURL;
     const blobs: any[] = [];
@@ -307,7 +349,7 @@ describe('DatasetWidget dotted-dimension labels on table / pivot (objectui#4263)
       // downloadCsv prepends a UTF-8 BOM so Excel reads non-ASCII labels.
       const text: string = (await blobs[0].text()).replace(/^\uFEFF/, '');
       const [, body] = text.split('\r\n');
-      expect(body).toBe('education,Education,10');
+      expect(body).toBe('Education,Education,10');
     } finally {
       (URL as any).createObjectURL = origCreate;
       (URL as any).revokeObjectURL = origRevoke;

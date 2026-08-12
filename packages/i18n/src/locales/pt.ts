@@ -530,7 +530,7 @@ const pt = {
       },
     },
     refresh: "Atualizar",
-    loading: 'Loading records…',
+    loading: "Carregando registros…",
     recordCount: "{{count}} registros",
     recordCountOne: "{{count}} registro",
     addRecord: "Adicionar registro",
@@ -770,8 +770,8 @@ const pt = {
     readonlyTooltip: "Exibição do sistema — definida no código, somente leitura.",
   },
   designer: {
-    undo: 'Undo',
-    redo: 'Redo',
+    undo: "Desfazer",
+    redo: "Refazer",
   },
   detail: {
     editInlineHint: "Clique duas vezes para editar",
@@ -1125,7 +1125,7 @@ const pt = {
     faviconUrl: "Favicon URL",
     preview: "Pré-visualização",
     complete: "Concluir",
-    snakeCaseHint: "Must be snake_case (e.g. my_app)",
+    snakeCaseHint: "Deve ser snake_case (ex. my_app)",
     modeEdit: "Editar",
     modePreview: "Pré-visualizar",
     modeCode: "Código",

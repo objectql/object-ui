@@ -37,6 +37,14 @@
  *    "downstream impact" is precisely about not losing it), and the STORED
  *    value must keep addressing the data (display translates, identity keys do
  *    not — objectui#4263's convention).
+ *
+ * ⚠️ AMENDED BY objectui#4330. The last pin in this file was #4263's
+ * no-metadata-read boundary restated under a mounted bundle, and it was the
+ * measured record of what #4324 did NOT close: a LOCAL select on a table
+ * rendered `Orion Engineered Carbons` under `zh` because the client had no
+ * option list to translate against. The PM amended that boundary deliberately
+ * (see the pin's own comment); the widened behaviour has its own suite in
+ * `DatasetWidget.localSelectI18n.test.tsx`. Everything else here is untouched.
  */
 
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
@@ -323,12 +331,18 @@ describe('DatasetWidget table/pivot — the dotted gap-fill translates too (obje
     expect(requested).toEqual(['crm_opportunity', 'crm_account']);
   });
 
-  it('BOUNDARY — a LOCAL-only table still resolves nothing and fetches nothing', async () => {
-    // #4263's acceptance boundary, restated under a mounted bundle: the client
-    // net stays OFF for a local dimension on a table (the server owns that
-    // label there), so no metadata read is issued and the server's string is
-    // rendered untouched. Green on both sides — this change adds no new
-    // resolution, only a translation of the one that already ran.
+  it('AMENDED (#4330) — a LOCAL select on a table now reads the bundle too', async () => {
+    // ⚠️ This pin is the one objectui#4330 amended, and it is where #4324's
+    // measured gap was recorded. It used to read "a LOCAL-only table still
+    // resolves nothing and fetches nothing": `expect(requested).toEqual([])`
+    // and the cell asserted as `Orion Engineered Carbons` UNDER A MOUNTED zh
+    // BUNDLE — i.e. this test's own green was the bug's pin. #4324's summary
+    // said so out loud ("what this does NOT close"): the server resolves that
+    // label in English, the bundle is keyed by the stored VALUE, and #4263's
+    // boundary forbade the one read that could connect the two.
+    //
+    // Amended by PM ruling on #4330: the read is issued, the same seam applies,
+    // and the cell reads the translation the related list beside it reads.
     const { requested } = installMetaRouter({ crm_opportunity: OPPORTUNITY, crm_account: ACCOUNT });
     renderIn(
       'zh',
@@ -345,7 +359,10 @@ describe('DatasetWidget table/pivot — the dotted gap-fill translates too (obje
         })}
       />,
     );
-    await waitFor(() => expect(screen.getByText('Orion Engineered Carbons')).toBeTruthy());
-    expect(requested).toEqual([]);
+    await waitFor(() => expect(screen.getByText('欧励隆')).toBeTruthy());
+    expect(screen.queryByText('Orion Engineered Carbons')).toBeNull();
+    // ONE read, on the dataset's base object — a local path walks no
+    // relationship, so `crm_account` is never fetched.
+    expect(requested).toEqual(['crm_opportunity']);
   });
 });

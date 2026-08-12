@@ -790,12 +790,13 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature]);
 
-  // Resolve the dimensions' select/lookup field options (charts only;
-  // metric/table don't use per-category colors or axis relabeling). The dataset
-  // query gives us the base `object` + the dimension→field map, so ONE object
-  // schema fetch yields both: a {value|label → color} map for the first
-  // dimension's per-category colors, and a {value → label} map per dimension so
-  // the axis/series display labels even when the server returned raw values.
+  // Resolve the dimensions' select/lookup field options. The dataset query
+  // gives us the base `object` + the dimension→field map, so ONE object schema
+  // fetch yields both: a {value|label → color} map for the first dimension's
+  // per-category colors (charts only — a table renders no palette), and a
+  // {value → label} map per dimension so the axis/series/cells display labels
+  // even when the server returned raw values, and so the locale bundle has an
+  // option list to translate against (objectui#4030 / #4330).
   // Best-effort: any failure leaves both null (positional palette + raw values).
   //
   // The read rides the host's AUTHENTICATED fetch (objectui#4121) — the same
@@ -813,22 +814,42 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // metadata read nothing consumes (objectui#4263, pinned).
     if (isMetric || !object || dimensions.length === 0) { setOptionMeta(null); return; }
     const fieldOf = (dim: string) => (state.dimensionFields && state.dimensionFields[dim]) || dim;
-    // ── Which dimensions this widget type resolves (objectui#4263) ──────────
-    // On table/pivot the SERVER resolves a dimension's display label
-    // (ADR-0021) — that is exactly why objectui#4053's `table` widget rendered
-    // `Education` while its chart rendered `education`. So this client net
-    // stays OFF for LOCAL dimensions there: running it would be a SECOND
-    // resolution of a value the server already resolved. It opens only for
-    // DOTTED paths, the case the server is silent on too (#4053's premise),
-    // where this is the only resolution available and the table would
-    // otherwise show the raw stored enum.
+    // ── Which dimensions this widget type resolves (objectui#4263 → #4330) ──
+    // EVERY dimension, on every non-metric widget type — one rule, no
+    // per-widget-type dialect.
     //
-    // Charts keep resolving EVERY dimension: the server's silence for an
-    // AI-built select is the whole reason this net exists there.
-    const dottedOnly = isTable;
-    const resolveDims = dottedOnly ? dimensions.filter((d) => fieldOf(d).includes('.')) : dimensions;
-    // A table with no dotted dimension resolves nothing and — the part that
-    // makes "unchanged" literal — never issues the metadata read at all.
+    // #4263 ruled a narrower one: on table/pivot the SERVER resolves a LOCAL
+    // dimension's display label (ADR-0021), so this client net stayed off
+    // there and opened only for DOTTED paths, where the server is silent too.
+    // That boundary was ruled for LABEL RESOLUTION — "the label already
+    // exists, don't produce it twice" — and it held exactly as long as
+    // resolution was the only thing downstream of the read. objectui#4030 /
+    // PR #4324 put a second consumer there: the locale bundle
+    // (`localizeFieldOptions` / `buildDimensionLabelMap`'s translator), which
+    // needs the option LIST, not the label. So a local select on a table had
+    // its label resolved by the server, in English, with nothing on the client
+    // to translate it against — the cells read `Domestic` beside a related
+    // list reading 国内 (objectui#4330). The read is what closes that, and the
+    // PM amended the #4263 boundary deliberately for it.
+    //
+    // It is not a second resolution: `buildDimensionLabelMap` carries BOTH the
+    // stored value and the AUTHORED label as keys, and `relabelDimensions` is
+    // value-wise and idempotent — a server-resolved `Domestic` maps to 国内
+    // once, and under `en` (or with no bundle entry) the display equals the
+    // authored label, so no key is emitted and the rows pass through by
+    // identity.
+    //
+    // WHY THE READ IS NOT GATED ON "the dimension is a select" (measured, see
+    // the amended pins): select-ness is not observable before the read.
+    // `DatasetDimension.type` is `string|number|date|boolean|lookup` — the spec
+    // has no `select` member — and every select dimension in the live example
+    // apps declares `type: 'string'`; on the wire, `AnalyticsResult.fields[]`
+    // types a select column `'string'` too (the analytics cube registry's
+    // `fieldTypeToDimensionType` default). The select gate therefore lands on
+    // the read's OUTPUT, where it is exact: `resolveDimensionFieldMeta` yields
+    // an entry only for a terminal field that actually carries `options`, so a
+    // text / number / date / lookup dimension produces no map and no relabel.
+    const resolveDims = dimensions;
     if (resolveDims.length === 0) { setOptionMeta(null); return; }
     let cancelled = false;
     (async () => {
@@ -861,8 +882,10 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
             // Per-category COLOURS and the declared category ORDER are chart
             // wiring — they key the palette and the axis sequence, neither of
             // which a table or pivot renders. They stay null on that path
-            // exactly as they did when it returned early (objectui#4263).
-            firstDimPath: dottedOnly ? undefined : fieldOf(dimensions[0]),
+            // exactly as they did when it returned early (objectui#4263), and
+            // #4330 widened only WHICH DIMENSIONS get a label map, never what
+            // a table consumes.
+            firstDimPath: isTable ? undefined : fieldOf(dimensions[0]),
           });
         }
       } catch { if (!cancelled) setOptionMeta(null); }
@@ -1078,16 +1101,16 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // Table / pivot — a grouped table or, for a pivot with ≥2 dimensions, a true
   // cross-tab.
   if (isTable) {
-    // ── The dotted gap-fill's display rows (objectui#4263) ──────────────────
-    // The table/pivot branch renders `state.rows` as they arrived, which is
-    // correct for a LOCAL dimension (the server resolved its label) and leaves
-    // a DOTTED one showing the raw stored enum, since nothing resolved it.
-    // `dimensionLabels` is populated on this path for DOTTED dimensions ONLY
-    // (see the resolution effect), so for a table whose dimensions are all
-    // local it is null and `relabelDimensions` returns `state.rows` ITSELF —
-    // the same array identity, hence the same rendered bytes as before this
-    // change. It is value-keyed and idempotent besides, so a value the server
-    // already resolved has no entry and passes through untouched.
+    // ── The display rows (objectui#4263, widened by #4330) ──────────────────
+    // The table/pivot branch renders `state.rows` as they arrived unless a
+    // dimension resolved a label map. `dimensionLabels` covers EVERY dimension
+    // whose terminal field carries `options` — dotted (the server resolved
+    // nothing) and local (the server resolved the AUTHORED label, which under
+    // a non-default locale is the wrong one, objectui#4330). A dimension whose
+    // field carries no options gets no entry, so a text/number/date/lookup
+    // table still gets `state.rows` ITSELF back — same array identity, same
+    // rendered bytes. The map is value-AND-authored-label keyed and
+    // `relabelDimensions` is idempotent, so neither spelling double-resolves.
     //
     // Row ORDER and COUNT are preserved, which is what keeps `openDrill(i)`
     // and `pivot.cellIndex` aligned with the raw `drillRawRows` they index
@@ -1127,6 +1150,10 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       // The CSV follows the table's own cells (objectui#4263): a dotted
       // dimension exports the label the table now shows, and a local one is
       // unchanged for the same reason its cell is.
+      // …and #4330 widens that to a LOCAL select dimension for the same
+      // reason: the CSV is the table's data, so it exports the cell. Measures
+      // stay numeric (the raw values that must round-trip into a spreadsheet);
+      // the drill filter — the identity key — reads `drillRawRows`, untouched.
       ...displayRows.map((r) => exportColumns.map((c) => {
         const v = r[c];
         return v == null ? '' : (typeof v === 'number' ? v : String(v));

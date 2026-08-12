@@ -792,8 +792,8 @@ const zh = {
     readonlyTooltip: '系统视图 — 由代码定义，只读。',
   },
   designer: {
-    undo: 'Undo',
-    redo: 'Redo',
+    undo: '撤销',
+    redo: '重做',
   },
   detail: {
     back: '返回',

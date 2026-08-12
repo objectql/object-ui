@@ -201,7 +201,25 @@ function interpolate(template: string, vars?: Record<string, unknown>): string {
   if (!vars) return template;
   let out = template;
   for (const [k, v] of Object.entries(vars)) {
-    out = out.replace(new RegExp(`{{${k}}}`, 'g'), String(v));
+    // `split(needle).join(value)` — deliberately not `replace`, and not
+    // `replaceAll` either (objectui#4370, the hand-rolled copy of the shared
+    // helper's objectui#3418 fix). This path must agree with i18next, which
+    // serves the *provider* path; any divergence is a silent fork that only
+    // shows up on provider-less hosts, where we are least likely to see it.
+    //
+    // The `g`-flagged RegExp this replaced already covered repeated
+    // placeholders, but NOT the other half: `replace` and `replaceAll` both
+    // interpret `$&`, `` $` ``, `$'` and `$$` in the *replacement* string,
+    // and i18next does not. That harm lives in the replacement, not the
+    // needle, so the flag could never reach it — a field label `Total$&`
+    // rendered the `{{fields}}` placeholder back into the hint. Values here
+    // are authored metadata (field labels, type names), so it was reachable.
+    //
+    // Retiring the RegExp also retires an unescaped needle: the placeholder
+    // name went into a pattern uninterpolated, so a name carrying regex
+    // metacharacters would have matched more than itself. Inert while every
+    // name is a bare identifier, and now structurally impossible.
+    out = out.split(`{{${k}}}`).join(String(v));
   }
   return out;
 }
@@ -231,6 +249,7 @@ function useImportTranslation(): { t: (key: string, vars?: Record<string, unknow
 
 /** @internal — exported solely for unit tests. */
 export const __testables = {
+  get interpolate() { return interpolate; },
   get mappingToTemplatePayload() { return mappingToTemplatePayload; },
   get applyTemplate() { return applyTemplate; },
   get loadTemplates() { return loadTemplates; },
