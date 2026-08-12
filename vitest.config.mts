@@ -109,6 +109,13 @@ const heavyDomTests = [
   'packages/plugin-grid/src/__tests__/predicate-surface-parity.test.tsx',
   'packages/plugin-kanban/src/registration.test.tsx',
   'packages/plugin-kanban/src/KanbanRenderer.uncolumned.test.tsx',
+  // objectui#4464 — a ListView-hosted composition over the REAL object-grid.
+  // The defect only exists where ListView owns the fetch and the grid takes the
+  // inline-data path, so a stub grid (what every other plugin-list test
+  // registers) cannot see it; this file needs the setup's plugin-grid
+  // side-effect registration, and taking a plugin-list -> plugin-grid
+  // dependency to import it directly would be the heavier change.
+  'packages/plugin-list/src/__tests__/ListView.crossPageSelectAll.test.tsx',
 ];
 
 export default defineConfig({
