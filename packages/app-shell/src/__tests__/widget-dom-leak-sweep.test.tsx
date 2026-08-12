@@ -99,11 +99,13 @@
  *
  * 1. **A lazy boundary answers with a skeleton.** Every `plugin-charts` target
  *    renders through `React.lazy` inside `ChartRenderer`. The first measurement
- *    scanned `<div class="animate-pulse …">` — the Suspense fallback — and
- *    reported nine clean chart targets while the chart component had never
- *    mounted. The modules behind that boundary are therefore imported at MODULE
- *    SCOPE below (AGENTS.md 测试纪律), and every target must reach a readiness
- *    selector proving its real markup exists before it is scanned.
+ *    scanned the Suspense fallback (`class="animate-pulse …"`) and reported nine
+ *    clean chart targets while the chart component had never mounted. Every
+ *    target therefore has to reach a readiness selector proving its REAL markup
+ *    exists before anything is scanned — for the charts that is the
+ *    `[data-slot="chart"]` container the spread actually lands on. See the
+ *    import block below for why the modules behind that boundary cannot simply
+ *    be preloaded at module scope.
  * 2. **Portals are not in the render container.** `chatbot-floating` mounts
  *    through `ReactDOM.createPortal` into `#floating-chatbot-portal` on
  *    `document.body`, so an RTL `container`-scoped scan saw ZERO elements and
@@ -136,15 +138,17 @@ import { render, waitFor, cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ComponentRegistry } from '@object-ui/core';
 // Module scope: the component registrations these packages perform as a side
-// effect, plus the two modules behind `ChartRenderer`'s `React.lazy` boundary.
-// An unbounded module load inside a bounded `waitFor` is this repo's known flake
-// generator (AGENTS.md 测试纪律 / objectui#3010); paying it at import time costs
-// nothing against any test or hook timeout.
+// effect. The modules behind `ChartRenderer`'s `React.lazy` boundary CANNOT be
+// preloaded the same way — `@object-ui/plugin-charts` exports only `.`, so
+// `@object-ui/plugin-charts/ChartImpl` resolves for Vite's alias but not for
+// tsc (TS2882), and widening that package's `exports` would be a public-surface
+// change this measurement-only PR must not make. The readiness selector each
+// chart target carries is what covers it instead: the load happens inside a
+// deliberately generous 10s `waitFor` rather than outside it (AGENTS.md
+// 测试纪律 / objectui#3010).
 import '@object-ui/components';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 import '@object-ui/plugin-charts';
-import '@object-ui/plugin-charts/ChartImpl';
-import '@object-ui/plugin-charts/AdvancedChartImpl';
 import '@object-ui/plugin-calendar';
 import '@object-ui/plugin-chatbot';
 import '@object-ui/plugin-dashboard';
