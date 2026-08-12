@@ -1,5 +1,5 @@
 ---
-'@object-ui/data-objectstack': patch
+'@object-ui/data-objectstack': minor
 '@object-ui/plugin-list': patch
 '@object-ui/i18n': patch
 ---
@@ -15,13 +15,12 @@ whole life: a merely unpopulated page invites nobody to click through.
 
 The masking had two halves, in two packages, and neither package could see the other:
 
-- **`@object-ui/data-objectstack`** — `find()` degraded **every** 404 into
-  `{ data: [], total: 0 }` and memoised the resource, so the denial arrived at the surface as
-  a successful empty result, indistinguishable from a genuinely empty object. The two
-  `enable`-block denials are now let through instead: `OBJECT_API_DISABLED` (404) and
-  `OBJECT_API_METHOD_NOT_ALLOWED` (405). The memo skips them too — absorbing one would have
-  pinned the object to "empty" for the rest of the session. New exports:
-  `isApiAccessDeniedError(error)` and `API_ACCESS_DENIED_CODES`.
+- **`@object-ui/data-objectstack`** (minor — see the grading note below) — `find()` degraded
+  **every** 404 into `{ data: [], total: 0 }` and memoised the resource, so the denial arrived
+  at the surface as a successful empty result, indistinguishable from a genuinely empty
+  object. The two `enable`-block denials are now let through instead: `OBJECT_API_DISABLED`
+  (404) and `OBJECT_API_METHOD_NOT_ALLOWED` (405). The memo skips them too — absorbing one
+  would have pinned the object to "empty" for the rest of the session.
 - **`@object-ui/plugin-list`** — the load-error panel gained an `api-disabled` kind. The 405
   half was never swallowed, so it already reached this panel, but classified as `network`:
   *"check your connection and try again"* for a condition no retry can change. It now says
@@ -45,3 +44,26 @@ branch a list takes whenever it expands a lookup or runs a search is no longer a
 
 New strings: `list.loadErrorApiDisabledTitle` / `list.loadErrorApiDisabledMessage`, in the
 `en` pack and mirrored in the list defaults map.
+
+## Grading note — why `@object-ui/data-objectstack` is **minor** and not patch
+
+Two independent reasons, either of which is sufficient under this repo's precedent
+(objectui#4403 / #4177, and #4485's grading of `@object-ui/core`'s `toDomProps` lift):
+
+1. **The emitted `.d.ts` grows two NEW exports.** `isApiAccessDeniedError(error: unknown):
+   boolean` and `API_ACCESS_DENIED_CODES` (the readonly tuple
+   `['OBJECT_API_DISABLED', 'OBJECT_API_METHOD_NOT_ALLOWED']`) are added to the package's
+   public surface. Additive surface growth is minor.
+2. **Observable behaviour on a published API moves.** `ObjectStackDataSource.find()` now
+   **REJECTS** for the two `enable`-block denial codes where it previously **RESOLVED** with
+   `{ data: [], total: 0 }`. No signature changed and nothing was removed, but a caller that
+   relied on those two codes arriving as a successful empty result now receives a rejected
+   promise carrying `code` + `httpStatus`, and must handle it.
+
+Deliberately unchanged, and still resolving to an empty result exactly as before: a bare 404
+with no code, `OBJECT_NOT_FOUND` (still memoised) and `RECORD_NOT_FOUND`. The behaviour move
+is scoped to the two denial codes named above and to nothing else.
+
+Not major: this follows AGENTS.md's version-alignment rule — objectui's major tracks
+`@objectstack`'s, so this repo's own breaking semantics are declared as minor with the change
+described in the body, which is what this note is.
