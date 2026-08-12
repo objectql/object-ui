@@ -71,7 +71,6 @@ const es = {
     delete: "Eliminar",
     edit: "Editar",
     create: "Crear",
-    search: "Buscar",
     filter: "Filtrar",
     reset: "Restablecer",
     confirm: "Confirmar",

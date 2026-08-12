@@ -180,6 +180,23 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm install --frozen-lockfile
 
+      # A bare specifier RESOLVING from a package directory does not mean that
+      # package declares it: the workspace root's `devDependencies` sit on the
+      # upward resolution path from everywhere, and on no consumer's. So
+      # `require.resolve('react', { paths: ['packages/core/src'] })` succeeds
+      # although `@object-ui/core` declares react in no field at all
+      # (objectui#4394), and a react import added there would typecheck, build
+      # and pass every local suite before breaking the published package for the
+      # first consumer without React installed. This gate asks the question root
+      # hoisting cannot answer for anyone — is it DECLARED — and its first full
+      # run found a live instance: `@object-ui/plugin-detail` shipping a bare
+      # `react-router-dom` import its manifest never mentioned. Same placement
+      # rationale as the steps below: it parses the sources with `typescript` and
+      # reads every package.json, so it needs the install but nothing built.
+      - name: Verify every imported package is declared by the package that ships it
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:phantom-deps
+
       # A local type/const declared under a `@objectstack/spec` export's NAME reads
       # to the next agent as the spec's own definition — four such symbols had
       # already drifted from the spec they claimed to be (objectstack#4115). Needs

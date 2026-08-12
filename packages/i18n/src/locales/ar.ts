@@ -76,7 +76,6 @@ const ar = {
     delete: "حذف",
     edit: "تعديل",
     create: "إنشاء",
-    search: "بحث",
     filter: "تصفية",
     reset: "إعادة تعيين",
     confirm: "تأكيد",

@@ -71,7 +71,6 @@ const pt = {
     delete: "Excluir",
     edit: "Editar",
     create: "Criar",
-    search: "Pesquisar",
     filter: "Filtrar",
     reset: "Redefinir",
     confirm: "Confirmar",

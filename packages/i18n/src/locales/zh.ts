@@ -77,7 +77,6 @@ const zh = {
     delete: '删除',
     edit: '编辑',
     create: '新建',
-    search: '搜索',
     filter: '筛选',
     reset: '重置',
     confirm: '确认',
