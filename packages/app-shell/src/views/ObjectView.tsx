@@ -469,6 +469,59 @@ export function setDefaultViewPatches(
     return patches;
 }
 
+/**
+ * The `updateView` writes a drag-reorder must issue (objectui#4463) —
+ * `sortOrder` per saved view, in the new order.
+ *
+ * Metadata-only views are filtered out: they have no `sys_view` row to write,
+ * and their position is carried by the `viewOrder:<object>` localStorage key the
+ * handler writes first. `sortOrder` is the index **after** that filter, so the
+ * persisted sequence is dense over the saved views alone.
+ */
+export function reorderViewPatches(
+    savedViews: readonly any[],
+    orderedIds: readonly string[],
+): Array<{ viewId: string; patch: { sortOrder: number } }> {
+    const savedIdSet = new Set(savedViews.map((sv: any) => viewRowId(sv)));
+    return orderedIds
+        .filter(id => savedIdSet.has(id))
+        .map((id, idx) => ({ viewId: id, patch: { sortOrder: idx } }));
+}
+
+/**
+ * Issue one `updateView` per patch — **as a method call on the adapter**
+ * (objectui#4463).
+ *
+ * This exists to make one specific bug unwritable. `handleSetDefaultView` and
+ * `handleReorderViews` both used to detach the method before calling it:
+ *
+ * ```ts
+ * const updateView = (dataSource as any).updateView;   // detached
+ * …
+ * updateView(objectName, target, patch);               // `this` === undefined
+ * ```
+ *
+ * The adapter's `updateView` opens with `await this.connect()`, so every write
+ * in the list rejected with `TypeError: Cannot read properties of undefined
+ * (reading 'connect')` **before any request was issued** — the user got a toast
+ * and the server never heard about it. "Set as Default" was dead on every saved
+ * view for exactly this reason, while rename and pin worked from the same menu:
+ * `handlePinView` always called it as a method, which is the in-file convention
+ * this restores.
+ *
+ * Both call sites now route through here, so there is a single place in the file
+ * that calls `updateView` over a patch list — and it has no local to detach into.
+ */
+export function dispatchViewPatches(
+    dataSource: any,
+    objectName: string,
+    patches: ReadonlyArray<{ viewId: string; patch: Record<string, any> }>,
+): Array<Promise<unknown>> {
+    return patches.map(
+        ({ viewId, patch }) => dataSource.updateView(objectName, viewId, patch),
+    );
+}
+
 export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: any) {
     const { objectName } = useParams();
     const { t } = useObjectTranslation();
@@ -1135,7 +1188,11 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     }, [dataSource, objectName, isSavedView, t]);
 
     const handleSetDefaultView = useCallback(async (vid: string) => {
-        if (!dataSource) return;
+        // `objectName` is narrowed here for the same reason the override effect
+        // above narrows it: the adapter keys its cache invalidation on a real
+        // object name, so passing `undefined` through would write to the server
+        // and then fail to invalidate what it just changed.
+        if (!dataSource || !objectName) return;
         if (!isSavedView(vid)) {
             toast.error(t('console.objectView.cannotEditMetaView'));
             return;
@@ -1143,10 +1200,11 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         try {
             // Clear `isDefault` on all other saved views, then set this one.
             if (typeof (dataSource as any)?.updateView !== 'function') return;
-            const updateView = (dataSource as any).updateView;
             await Promise.all(
-                setDefaultViewPatches(savedViews, vid).map(
-                    ({ viewId: target, patch }) => updateView(objectName, target, patch),
+                dispatchViewPatches(
+                    dataSource,
+                    objectName,
+                    setDefaultViewPatches(savedViews, vid),
                 ),
             );
             setRefreshKey(k => k + 1);
@@ -1167,12 +1225,14 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         } catch { /* ignore */ }
         // Best-effort: also persist `sortOrder` on each saved view so other
         // sessions / users can pick up the order from the backend.
-        if (typeof (dataSource as any)?.updateView === 'function') {
-            const updateView = (dataSource as any).updateView;
-            const savedIdSet = new Set(savedViews.map((sv: any) => viewRowId(sv)));
-            const updates = orderedIds
-                .filter(id => savedIdSet.has(id))
-                .map((id, idx) => updateView(objectName, id, { sortOrder: idx }));
+        // The localStorage write above is deliberately outside this guard — the
+        // UI ordering must survive even when there is no adapter half to persist.
+        if (objectName && typeof (dataSource as any)?.updateView === 'function') {
+            const updates = dispatchViewPatches(
+                dataSource,
+                objectName,
+                reorderViewPatches(savedViews, orderedIds),
+            );
             try {
                 await Promise.all(updates);
             } catch (err) {
