@@ -451,7 +451,26 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'list.loadErrorRejectedTitle': 'This view’s query was rejected',
   'list.loadErrorRejectedMessage': 'The server could not process this view’s filter or query options. Clearing the filters usually fixes it; if the view is saved this way, an administrator needs to correct it.',
   'list.retry': 'Retry',
+  // The bare NOUN, for the search button's tooltip. It is deliberately NOT the
+  // input placeholder: that is `table.search` below (objectui#4375).
   'list.search': 'Search',
+  // Placeholder of the search popover's input. Borrowed from the `table.*`
+  // namespace rather than minted as `list.searchPlaceholder`, on the same
+  // reasoning as `detail.recordDetail` below: `table.search` is already THE
+  // search-input placeholder key in this repo — `data-table`, `RecordPickerDialog`
+  // and `PeoplePicker` all render it — and one control should not get two
+  // translations that can drift apart in a locale.
+  //
+  // Until objectui#4375 this read `t('list.search') + '...'`, so the ellipsis was
+  // a literal concatenated in code: it stayed ASCII in all ten locales (on a
+  // screen where objectui#3878 had converged everything else on U+2026), and no
+  // pack could opt out of it — sharpest in `ar`, which got a left-to-right run
+  // appended to right-to-left text. As a pack value the ellipsis is the ar
+  // pack's own (`بحث…`) and the bidi algorithm places it at the logical end.
+  //
+  // Byte-identical to `en`, like every entry here — a provider-less host renders
+  // THIS copy, so a divergence would make the two paths disagree on one control.
+  'table.search': 'Search…',
   'list.filter': 'Filter',
   'list.filterRecords': 'Filter Records',
   'list.sort': 'Sort',
@@ -2826,7 +2845,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <Input
-                    placeholder={t('list.search') + '...'}
+                    placeholder={t('table.search')}
                     value={searchTerm}
                     onChange={(e) => handleSearchChange(e.target.value)}
                     className="pl-7 h-8 text-xs"

@@ -191,13 +191,14 @@ describe('Complex & Relationship Widgets', () => {
                 expect(mockDataSource.find).toHaveBeenCalledTimes(1);
             });
 
-            // Type in search. ASCII "..." and NOT U+2026, deliberately:
-            // `LookupField.tsx:1085` builds this placeholder as
-            // `t('common.search') + '...'`, so the ellipsis is a literal
-            // concatenated in code and objectui#3878's pack convergence does not
-            // reach it. Filed as objectui#4375 — when that lands, this moves.
+            // Type in search. U+2026 now, and it comes from a PACK VALUE:
+            // objectui#4375 retired the `t('common.search') + '...'`
+            // concatenation this used to pin, so the placeholder is `table.search`
+            // — read through `useFieldTranslation`, whose no-provider defaults map
+            // serves the `en` byte `Search…` in this test. It therefore moves with
+            // the pack from here on, and is covered by objectui#3878's glyph pin.
             await act(async () => {
-                fireEvent.change(screen.getByPlaceholderText('Search...'), {
+                fireEvent.change(screen.getByPlaceholderText('Search…'), {
                     target: { value: 'acme' },
                 });
             });
@@ -466,7 +467,9 @@ describe('Complex & Relationship Widgets', () => {
                 expect(screen.getByText('Alpha')).toBeInTheDocument();
             });
 
-            const searchInput = screen.getByPlaceholderText('Search...');
+            // U+2026 from the `table.search` pack value — see the note on the
+            // `$search` test above (objectui#4375).
+            const searchInput = screen.getByPlaceholderText('Search…');
 
             // Arrow down twice: -1 → 0 (Alpha) → 1 (Beta)
             await act(async () => {
