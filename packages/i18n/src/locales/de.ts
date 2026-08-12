@@ -507,6 +507,8 @@ const de = {
     loadErrorUnauthorizedMessage: "Ihre Sitzung ist abgelaufen oder Sie sind abgemeldet. Melden Sie sich erneut an, um diese Datensätze anzuzeigen.",
     loadErrorRejectedTitle: "Die Abfrage dieser Ansicht wurde abgelehnt",
     loadErrorRejectedMessage: "Der Server konnte den Filter oder die Abfrageoptionen dieser Ansicht nicht verarbeiten. Das Zurücksetzen der Filter behebt das meist; ist die Ansicht so gespeichert, muss ein Administrator sie korrigieren.",
+    loadErrorApiDisabledTitle: "Dieses Objekt ist über die API nicht verfügbar",
+    loadErrorApiDisabledMessage: "Diese Seite kann ihre Datensätze nicht laden, weil das Objekt nicht über die API bereitgestellt wird. Das ist eine Einstellung am Objekt selbst und keine Berechtigung – ein Administrator muss den API-Zugriff dafür aktivieren, damit diese Seite funktioniert.",
     retry: "Erneut versuchen",
     managedBy: {
       system: {

@@ -506,6 +506,8 @@ const pt = {
     loadErrorUnauthorizedMessage: "Sua sessão expirou ou você saiu. Entre novamente para ver estes registros.",
     loadErrorRejectedTitle: "A consulta desta visualização foi rejeitada",
     loadErrorRejectedMessage: "O servidor não conseguiu processar o filtro ou as opções de consulta desta visualização. Limpar os filtros costuma resolver; se a visualização estiver salva assim, um administrador precisa corrigi-la.",
+    loadErrorApiDisabledTitle: "Este objeto não está disponível pela API",
+    loadErrorApiDisabledMessage: "Esta página não consegue carregar seus registros porque o objeto não está exposto pela API. Isso é uma configuração do próprio objeto, não uma permissão — um administrador precisa habilitar o acesso via API para que esta página funcione.",
     retry: "Tentar novamente",
     managedBy: {
       system: {

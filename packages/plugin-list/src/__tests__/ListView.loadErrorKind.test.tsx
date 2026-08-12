@@ -124,6 +124,99 @@ describe('ListView – load-error classification', () => {
     expect(panel.getAttribute('data-error-kind')).toBe('rejected');
   });
 
+  /**
+   * objectui#4408 — the `enable`-block denials. Both are pure functions of the
+   * object's metadata (`apiAccessDenialFromEnable`), so they are permanent,
+   * identical for every persona, and unaffected by any retry. Neither the
+   * network copy ("check your connection") nor the permission copy ("ask your
+   * administrator for access") is true of them, and the empty state — what the
+   * 404 half used to reach, because the adapter degraded it to zero rows — is
+   * the furthest from true of all.
+   */
+  describe('enable-block API denials (#4408)', () => {
+    it('renders the cannot-work panel for a 404 OBJECT_API_DISABLED', async () => {
+      const err = Object.assign(new Error('Object API is disabled'), {
+        httpStatus: 404,
+        code: 'OBJECT_API_DISABLED',
+      });
+      const { container } = renderFailing(err);
+      const panel = await errorState(container);
+      expect(panel.getAttribute('data-error-kind')).toBe('api-disabled');
+      // Says the object is not exposed through the API…
+      expect(panel.textContent).toMatch(/API/);
+      // …and tells neither of the lies this kind exists to stop: the network
+      // is fine, and the list is not merely unpopulated.
+      expect(panel.textContent).not.toMatch(/connection/i);
+      expect(panel.textContent).not.toMatch(/no records|nothing here|no items/i);
+      // It must not read as a permission the user could be granted either. The
+      // copy names that distinction explicitly rather than omitting the word,
+      // so this asserts the disclaimer, not the absence of the term — and it
+      // must not be the forbidden panel's copy.
+      expect(panel.textContent).toMatch(/not a permission/i);
+      expect(panel.textContent).not.toMatch(/don’t have permission|contact your administrator if you think/i);
+    });
+
+    it('renders the same panel for the 405 sibling OBJECT_API_METHOD_NOT_ALLOWED', async () => {
+      const err = Object.assign(new Error('Method not allowed'), {
+        httpStatus: 405,
+        code: 'OBJECT_API_METHOD_NOT_ALLOWED',
+      });
+      const { container } = renderFailing(err);
+      const panel = await errorState(container);
+      expect(panel.getAttribute('data-error-kind')).toBe('api-disabled');
+    });
+
+    it('classifies on the code alone, with no numeric status', async () => {
+      // The raw `$expand`/`$search` branch used to drop the code entirely; the
+      // status can never carry this verdict on its own, so the code is what is
+      // asserted here.
+      const err = Object.assign(new Error('denied'), { code: 'OBJECT_API_DISABLED' });
+      const { container } = renderFailing(err);
+      const panel = await errorState(container);
+      expect(panel.getAttribute('data-error-kind')).toBe('api-disabled');
+    });
+
+    it('offers no Retry — every retry re-fetches the identical refusal', async () => {
+      const err = Object.assign(new Error('Object API is disabled'), {
+        httpStatus: 404,
+        code: 'OBJECT_API_DISABLED',
+      });
+      const { container } = renderFailing(err);
+      const panel = await errorState(container);
+      expect(panel.querySelector('[data-testid="list-error-retry"]')).toBeNull();
+    });
+
+    it('CONTROL: a bare 404 with no code is NOT an enable-block denial', async () => {
+      // A missing record or a collection this backend doesn't have. Status
+      // alone must never reach the api-disabled copy, or every 404 in the
+      // product starts claiming the object was switched off.
+      const err = Object.assign(new Error('Not found'), { httpStatus: 404 });
+      const { container } = renderFailing(err);
+      const panel = await errorState(container);
+      expect(panel.getAttribute('data-error-kind')).not.toBe('api-disabled');
+      expect(panel.getAttribute('data-error-kind')).toBe('network');
+    });
+
+    it('CONTROL: RECORD_NOT_FOUND / OBJECT_NOT_FOUND are not enable-block denials', async () => {
+      for (const code of ['RECORD_NOT_FOUND', 'OBJECT_NOT_FOUND']) {
+        const err = Object.assign(new Error('missing'), { httpStatus: 404, code });
+        const { container } = renderFailing(err);
+        const panel = await errorState(container);
+        expect(panel.getAttribute('data-error-kind')).not.toBe('api-disabled');
+      }
+    });
+
+    it('CONTROL: a 403 still classifies as forbidden, not api-disabled', async () => {
+      const err = Object.assign(new Error('Forbidden'), {
+        httpStatus: 403,
+        code: 'PERMISSION_DENIED',
+      });
+      const { container } = renderFailing(err);
+      const panel = await errorState(container);
+      expect(panel.getAttribute('data-error-kind')).toBe('forbidden');
+    });
+  });
+
   it('still prefers 403/401 over the 400 branch', async () => {
     // Ordering guard: a permission denial must never read as a bad request.
     for (const [status, kind] of [[403, 'forbidden'], [401, 'unauthorized']] as const) {

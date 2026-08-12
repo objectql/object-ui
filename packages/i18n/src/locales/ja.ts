@@ -507,6 +507,8 @@ const ja = {
     loadErrorUnauthorizedMessage: "セッションの有効期限が切れたか、サインアウトしています。再度サインインしてください。",
     loadErrorRejectedTitle: "このビューのクエリは拒否されました",
     loadErrorRejectedMessage: "サーバーはこのビューのフィルターまたはクエリ設定を処理できませんでした。フィルターを解除すると解消することがほとんどです。ビューがこの状態で保存されている場合は、管理者による修正が必要です。",
+    loadErrorApiDisabledTitle: "このオブジェクトは API から利用できません",
+    loadErrorApiDisabledMessage: "このオブジェクトが API に公開されていないため、このページはレコードを読み込めません。これは権限ではなくオブジェクト自体の設定です。管理者が API アクセスを有効にするまで、このページは動作しません。",
     retry: "再試行",
     managedBy: {
       system: {

@@ -393,7 +393,9 @@ export function evaluateConditionalFormatting(
  * is indistinguishable from a real outage — users were told to debug their
  * network when the server had (correctly) denied them access.
  */
-function classifyLoadError(err: unknown): 'forbidden' | 'unauthorized' | 'rejected' | 'network' {
+function classifyLoadError(
+  err: unknown,
+): 'api-disabled' | 'forbidden' | 'unauthorized' | 'rejected' | 'network' {
   const e = err as any;
   // The ObjectStack client decorates errors with `httpStatus`; raw fetch
   // wrappers surface `status` / `statusCode`; some adapters only embed the
@@ -405,6 +407,14 @@ function classifyLoadError(err: unknown): 'forbidden' | 'unauthorized' | 'reject
     if (m) status = Number(m[1]);
   }
   const code = typeof e?.code === 'string' ? e.code.toUpperCase() : '';
+  // The object's `enable` block withholds this operation — checked FIRST, and
+  // on the CODE alone. Status cannot carry this verdict: the denial is a 404,
+  // the same status a missing collection and a missing record answer with, and
+  // its 405 sibling is the same status any other method rejection uses. Unlike
+  // every kind below it this one is not about the request, the session or the
+  // network — it is a permanent property of the object, identical for every
+  // persona and every retry (objectui#4408).
+  if (API_ACCESS_DENIED_CODES.has(code)) return 'api-disabled';
   if (status === 403 || code === 'PERMISSION_DENIED' || code === 'FORBIDDEN') return 'forbidden';
   if (status === 401 || code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED') return 'unauthorized';
   // The server understood the request and refused it as malformed. Retrying
@@ -421,6 +431,25 @@ const REJECTED_REQUEST_CODES = new Set([
   'INVALID_FILTER',
   'UNSUPPORTED_QUERY_PARAM',
   'INVALID_QUERY',
+]);
+
+/**
+ * The denials the server derives from the object's `enable` block —
+ * `apiAccessDenialFromEnable` in objectstack's REST server.
+ *
+ *   - `OBJECT_API_DISABLED` (404) — `enable.apiEnabled: false`; the object is
+ *     not exposed over the data API at all.
+ *   - `OBJECT_API_METHOD_NOT_ALLOWED` (405) — the operation is absent from the
+ *     `enable.apiMethods` whitelist.
+ *
+ * Both are pure functions of the object's metadata: no user, no permission, no
+ * request body. So the honest copy for them is neither "try again" (nothing
+ * will change) nor "ask your administrator for access" (this is not a
+ * permission grant — the object is not published to the API at all).
+ */
+const API_ACCESS_DENIED_CODES = new Set([
+  'OBJECT_API_DISABLED',
+  'OBJECT_API_METHOD_NOT_ALLOWED',
 ]);
 
 // Default English translations for fallback when I18nProvider is not available.
@@ -461,6 +490,13 @@ export const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // request, so the copy points at the filter instead of the network.
   'list.loadErrorRejectedTitle': 'This view’s query was rejected',
   'list.loadErrorRejectedMessage': 'The server could not process this view’s filter or query options. Clearing the filters usually fixes it; if the view is saved this way, an administrator needs to correct it.',
+  // Load DENIED BY THE OBJECT — the server answered 404 `OBJECT_API_DISABLED`
+  // or 405 `OBJECT_API_METHOD_NOT_ALLOWED`. This is not "no records", not a
+  // permission grant anyone can give, and not something a retry can change:
+  // the object's `enable` block withholds the API, for every user, permanently.
+  // Say that, because the alternative reads as an empty list (objectui#4408).
+  'list.loadErrorApiDisabledTitle': 'This object isn’t available through the API',
+  'list.loadErrorApiDisabledMessage': 'This page can’t load its records because the object is not exposed through the API. That is a setting on the object itself, not a permission — an administrator has to enable API access for it before this page can work.',
   'list.retry': 'Retry',
   // The bare NOUN, for the search button's tooltip. It is deliberately NOT the
   // input placeholder: that is `table.search` below (objectui#4375).
@@ -763,7 +799,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // failed. Captured here so the render can show a retryable error panel.
   const [loadError, setLoadError] = React.useState<string | null>(null);
   // What KIND of failure `loadError` is — drives which error panel copy shows.
-  const [loadErrorKind, setLoadErrorKind] = React.useState<'forbidden' | 'unauthorized' | 'rejected' | 'network'>('network');
+  const [loadErrorKind, setLoadErrorKind] = React.useState<'api-disabled' | 'forbidden' | 'unauthorized' | 'rejected' | 'network'>('network');
   // Start in loading state when we will fetch from a dataSource so the empty
   // state doesn't flash before the first effect runs. Inline data (schema.data
   // as an array or a `value` provider) starts as not-loading.
@@ -2966,18 +3002,24 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               : <ShieldAlert className="h-12 w-12 text-destructive/60" />}
             iconWrapperClassName="mb-3"
             title={t(
-              loadErrorKind === 'forbidden' ? 'list.loadErrorForbiddenTitle'
-                : loadErrorKind === 'unauthorized' ? 'list.loadErrorUnauthorizedTitle'
-                  : loadErrorKind === 'rejected' ? 'list.loadErrorRejectedTitle'
-                    : 'list.loadErrorTitle',
+              loadErrorKind === 'api-disabled' ? 'list.loadErrorApiDisabledTitle'
+                : loadErrorKind === 'forbidden' ? 'list.loadErrorForbiddenTitle'
+                  : loadErrorKind === 'unauthorized' ? 'list.loadErrorUnauthorizedTitle'
+                    : loadErrorKind === 'rejected' ? 'list.loadErrorRejectedTitle'
+                      : 'list.loadErrorTitle',
             )}
             description={t(
-              loadErrorKind === 'forbidden' ? 'list.loadErrorForbiddenMessage'
-                : loadErrorKind === 'unauthorized' ? 'list.loadErrorUnauthorizedMessage'
-                  : loadErrorKind === 'rejected' ? 'list.loadErrorRejectedMessage'
-                    : 'list.loadErrorMessage',
+              loadErrorKind === 'api-disabled' ? 'list.loadErrorApiDisabledMessage'
+                : loadErrorKind === 'forbidden' ? 'list.loadErrorForbiddenMessage'
+                  : loadErrorKind === 'unauthorized' ? 'list.loadErrorUnauthorizedMessage'
+                    : loadErrorKind === 'rejected' ? 'list.loadErrorRejectedMessage'
+                      : 'list.loadErrorMessage',
             )}
-            action={(
+            action={loadErrorKind === 'api-disabled' ? undefined : (
+              // No Retry for an `enable`-block denial. The verdict is a pure
+              // function of the object's metadata, so every retry re-fetches
+              // the identical refusal — offering the button is the same wrong
+              // advice as "check your connection", just spelled as a control.
               <Button
                 variant="outline"
                 size="sm"
