@@ -393,7 +393,7 @@ function ObjectSelectorWidget({
         disabled={readOnly || names.length === 0}
       >
         <SelectTrigger id={id}>
-          <SelectValue placeholder={multiple ? t('engine.form.addObjects', locale) : t('engine.form.selectObjectDots', locale)} />
+          <SelectValue placeholder={multiple ? t('engine.form.addObjects', locale) : t('engine.form.selectObject', locale)} />
         </SelectTrigger>
         <SelectContent>
           {names.map(name => (
@@ -524,7 +524,7 @@ function FieldSelectorWidget({
         disabled={readOnly || fields.length === 0}
       >
         <SelectTrigger id={id}>
-          <SelectValue placeholder={multiple ? t('engine.form.addFields', locale) : t('engine.form.selectFieldDots', locale)} />
+          <SelectValue placeholder={multiple ? t('engine.form.addFields', locale) : t('engine.form.selectField', locale)} />
         </SelectTrigger>
         <SelectContent>
           {fields.map(f => (

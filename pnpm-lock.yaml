@@ -1828,6 +1828,9 @@ importers:
       react-dom:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
+      react-router-dom:
+        specifier: ^6.0.0 || ^7.0.0
+        version: 7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
     devDependencies:
       '@object-ui/components':
         specifier: workspace:*
