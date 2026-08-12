@@ -6,6 +6,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import {
+  pickDomProps,
+  type SduiDomPassThroughKey,
+  type DomProps as CoreDomProps,
+} from '@object-ui/core';
 import type { FieldWidgetComponentProps, FieldWidgetDomProps } from './types';
 
 /**
@@ -62,6 +67,34 @@ import type { FieldWidgetComponentProps, FieldWidgetDomProps } from './types';
  * open spread. If a field node should be able to author one, DECLARE it on
  * `FieldWidgetComponentProps` first and add it here — do not reopen the spread
  * (AGENTS.md #0.1: fix the contract, never widen the consumer).
+ *
+ * ## Where the mechanism lives now, and why the key list stayed here
+ *
+ * objectui#4425 phase 2 promoted this whitelist to the SDUI widget contract
+ * generally, so the MECHANISM — filter by a declared key list plus the `aria-*`
+ * / `data-*` open families — moved to `@object-ui/core`
+ * (`utils/dom-props.ts`, `pickDomProps`), where every plugin package can reach
+ * it without depending on `@object-ui/fields` (the objectui#4409
+ * dependency-direction method: `plugin-chatbot` declares `@object-ui/core` and
+ * does not declare this package).
+ *
+ * The KEY LIST did not move, because it is not the same list. Measured on
+ * objectui#4431:
+ *
+ *  - `name` and `disabled` are here and NOT in the SDUI set: both are legal
+ *    only on form controls, which is what every widget in this package renders
+ *    and what `FieldWidgetComponentProps` declares. `name` on the `<div>` an
+ *    SDUI container widget renders is a leak — one of the 14 attributes #4431
+ *    closed — and two widgets here already hand-strip it when they spread onto
+ *    something that is not a control (`ObjectRefField`'s trigger,
+ *    `FileField`'s dropzone).
+ *  - `role` is in the SDUI set and NOT here: `SchemaRenderer` resolves it for
+ *    every node from `@objectstack/spec`'s `AriaPropsSchema`, while this
+ *    contract deliberately does not declare it (see "Deliberately NOT
+ *    forwarded" above).
+ *
+ * So: one mechanism, two declarations, each bound by the assertions below to
+ * the contract it executes. Not two judges.
  */
 const DOM_PASS_THROUGH_KEYS = [
   /* ── The contract's own "DOM pass-through" block, verbatim ─────────────── */
@@ -126,22 +159,24 @@ type EveryDeclaredDomKeyIsForwarded =
 const _everyDeclaredDomKeyIsForwarded: EveryDeclaredDomKeyIsForwarded = true;
 void _everyDeclaredDomKeyIsForwarded;
 
-const DOM_PASS_THROUGH: ReadonlySet<string> = new Set<string>(DOM_PASS_THROUGH_KEYS);
-
 /**
- * `aria-*` is declared on the contract as React's `AriaAttributes`; `data-*`
- * is declared as an open template-literal family (open in HTML too, and the
- * only open family the contract has). Both are matched by prefix so the helper
- * needs no per-attribute list.
+ * Direction 3, added with the core lift (objectui#4431): every key of the SDUI
+ * contract's own whitelist that this contract also declares must be forwarded
+ * here too, so the two lists cannot silently drift apart. `role` is the ONE
+ * measured exception — the SDUI contract declares it, this one does not — and
+ * naming it in the `Exclude` is what makes the divergence a deliberate,
+ * reviewable act rather than an omission.
+ *
+ * Catches: a key added to the shared SDUI set that field widgets quietly stop
+ * delivering.
  */
-function isOpenDomFamily(key: string): boolean {
-  return key.startsWith('data-') || key.startsWith('aria-');
-}
+type SharedSduiKey = Exclude<SduiDomPassThroughKey, 'role'>;
+type EverySharedSduiKeyIsForwarded = SharedSduiKey extends DomPassThroughKey ? true : never;
+const _everySharedSduiKeyIsForwarded: EverySharedSduiKeyIsForwarded = true;
+void _everySharedSduiKeyIsForwarded;
 
 /** The subset of `P` this helper forwards, with each key's declared type. */
-export type DomProps<P> = Pick<P, Extract<keyof P, DomPassThroughKey>> & {
-  [K in Extract<keyof P, `data-${string}` | `aria-${string}`>]: P[K];
-};
+export type DomProps<P> = CoreDomProps<P, DomPassThroughKey>;
 
 /**
  * Keep only what may legitimately become a DOM attribute, and drop everything
@@ -165,11 +200,5 @@ export type DomProps<P> = Pick<P, Extract<keyof P, DomPassThroughKey>> & {
  * governs what gets spread.
  */
 export function toDomProps<P extends object>(props: P): DomProps<P> {
-  const domProps: Record<string, unknown> = {};
-  for (const key of Object.keys(props)) {
-    if (DOM_PASS_THROUGH.has(key) || isOpenDomFamily(key)) {
-      domProps[key] = (props as Record<string, unknown>)[key];
-    }
-  }
-  return domProps as DomProps<P>;
+  return pickDomProps(props, DOM_PASS_THROUGH_KEYS);
 }

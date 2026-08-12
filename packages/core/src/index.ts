@@ -14,6 +14,12 @@ export * from './registry/PluginScopeImpl.js';
 export * from './registry/WidgetRegistry.js';
 export * from './validation/index.js';
 export * from './builder/schema-builder.js';
+// The DOM pass-through whitelist of the SDUI widget prop contract
+// (objectui#4425 phase 2): a registered widget's host element receives only
+// what `toDomProps` passes — everything else is consumed or dropped.
+// `@object-ui/fields` executes the SAME mechanism against its own declared key
+// list (`pickDomProps`), so there is one judge, not two.
+export * from './utils/dom-props.js';
 export * from './utils/filter-converter.js';
 export * from './utils/managedBy.js';
 export * from './utils/extract-records.js';

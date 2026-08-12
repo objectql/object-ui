@@ -7,7 +7,7 @@
  */
 
 import { useMemo } from 'react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, toDomProps } from '@object-ui/core';
 import type { ChatbotSchema } from '@object-ui/types';
 import { Chatbot } from './index';
 import { ChatbotEnhanced } from './ChatbotEnhanced';
@@ -37,9 +37,29 @@ import { toRuntimeMessages } from './chatMessageAdapter';
  *   — the hook's own message shape (objectui#4424). A host callback that
  *   declares `@object-ui/types`' `ChatMessage[]` still type-checks; naming
  *   `ObjectChatMessage` is what lets it read the render-only keys.
+ *
+ * ## What reaches the host element (objectui#4431)
+ *
+ * These registrations receive far more than they author: `SchemaRenderer` hands
+ * a registered component the node's own keys, the contents of its `props`
+ * container, the ARIA it resolved, the evaluated `disabled` verdict, and the
+ * host's trailing props — including the injected data-source ADAPTER. Both
+ * registrations below used to destructure `schema` and `className` and forward
+ * ALL of the rest into `<Chatbot>` / `<ChatbotEnhanced>`, whose props extend
+ * `HTMLAttributes<HTMLDivElement>` and spread the leftovers onto their root
+ * `<div>`. Measured: 14 non-DOM attributes each, `datasource="[object Object]"`
+ * and a meaningless camelCase `arialabel` among them.
+ *
+ * Per objectui#4425 phase 2, the fix is the whitelist, not another deny-list:
+ * everything is CONSUMED (read by name — the config off `schema`, the evaluated
+ * `disabled` off the injected props) or WHITELISTED (`toDomProps`, which keeps
+ * `id` / `className` / `role` / `tabIndex` / `aria-*` / `data-*` and drops the
+ * rest, including the adapter). `chatbot-floating` below is untouched: its
+ * content mounts through a portal and its root does not spread onto a host
+ * element, which the sweep gate measured as clean.
  */
-ComponentRegistry.register('chatbot', 
-  ({ schema, className, ...props }: { schema: ChatbotSchema & {
+ComponentRegistry.register('chatbot',
+  ({ schema, className, disabled: hostDisabled, ...props }: { schema: ChatbotSchema & {
     showTimestamp?: boolean;
     disabled?: boolean;
     userAvatarUrl?: string;
@@ -51,7 +71,7 @@ ComponentRegistry.register('chatbot',
     autoResponseText?: string;
     autoResponseDelay?: number;
     onSend?: (content: string, messages: ObjectChatMessage[]) => void;
-  }; className?: string; [key: string]: any }) => {
+  }; className?: string; disabled?: boolean; [key: string]: any }) => {
     const {
       messages,
       isLoading,
@@ -89,10 +109,17 @@ ComponentRegistry.register('chatbot',
 
     return (
       <Chatbot
+        {...toDomProps(props)}
         messages={runtimeMessages}
         placeholder={schema.placeholder}
         onSendMessage={handleSendMessage}
-        disabled={schema.disabled || isLoading}
+        // `hostDisabled` is `SchemaRenderer`'s EVALUATED verdict on the node's
+        // `disabled` / `disabledOn` (its `_disabled` flag, forwarded as a real
+        // `disabled` prop). Consuming it — rather than re-reading the raw
+        // `schema.disabled` beside it — keeps one carrier for one question
+        // (AGENTS.md #0.1): the raw value may be an expression STRING, which is
+        // truthy however it evaluates.
+        disabled={hostDisabled || isLoading}
         showTimestamp={schema.showTimestamp}
         userAvatarUrl={schema.userAvatarUrl}
         userAvatarFallback={schema.userAvatarFallback}
@@ -100,7 +127,6 @@ ComponentRegistry.register('chatbot',
         assistantAvatarFallback={schema.assistantAvatarFallback}
         maxHeight={schema.maxHeight}
         className={className}
-        {...props}
       />
     );
   },
@@ -242,8 +268,8 @@ ComponentRegistry.register('chatbot',
 );
 
 // Register Enhanced Chatbot
-ComponentRegistry.register('chatbot-enhanced', 
-  ({ schema, className, ...props }: { schema: ChatbotSchema & { 
+ComponentRegistry.register('chatbot-enhanced',
+  ({ schema, className, disabled: hostDisabled, ...props }: { schema: ChatbotSchema & {
     enableMarkdown?: boolean; 
     enableFileUpload?: boolean;
     showTimestamp?: boolean;
@@ -258,7 +284,7 @@ ComponentRegistry.register('chatbot-enhanced',
     autoResponseDelay?: number;
     onSend?: (content: string, messages: ObjectChatMessage[]) => void;
     onClear?: () => void;
-  }; className?: string; [key: string]: any }) => {
+  }; className?: string; disabled?: boolean; [key: string]: any }) => {
     const {
       messages,
       isLoading,
@@ -300,13 +326,16 @@ ComponentRegistry.register('chatbot-enhanced',
 
     return (
       <ChatbotEnhanced
+        {...toDomProps(props)}
         messages={runtimeMessages}
         placeholder={schema.placeholder}
         onSendMessage={handleSendMessage}
         onClear={handleClear}
         onStop={isApiMode && isLoading ? stop : undefined}
         onReload={isApiMode ? reload : undefined}
-        disabled={schema.disabled}
+        // The evaluated verdict, not the raw schema value — see the `chatbot`
+        // registration above. `isLoading` travels on its own prop here.
+        disabled={hostDisabled}
         isLoading={isLoading}
         error={error}
         showTimestamp={schema.showTimestamp}
@@ -319,7 +348,6 @@ ComponentRegistry.register('chatbot-enhanced',
         enableFileUpload={schema.enableFileUpload ?? false}
         processVisibility={schema.processVisibility}
         className={className}
-        {...props}
       />
     );
   },
