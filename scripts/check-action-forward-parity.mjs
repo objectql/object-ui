@@ -678,20 +678,22 @@ export function forwardedKeys(root, surface, opaqueSpreads = OPAQUE_SPREADS) {
 // judged by the same rule, because a spread source's keys are not checked
 // through the spread either (probe Q above: `const p = cond ? {actionParams} :
 // {zzBogus}` is absorbed whole; annotating `p` rejects it).
-export const UNCHECKED_FORWARDS = {
-  "element:button": {
-    reason:
-      "Its payload is cast `as any` (elements.tsx), so no excess-property check runs and none " +
-      "can be restored by hoisting alone. Unlike the four action renderers, this surface's " +
-      "`action` is a bare `Record<string, any>` prop rather than a typed action, so the cast is " +
-      "load-bearing for more than the forward literal. PRE-EXISTING and out of objectui#4281's " +
-      "scope (that card measured, and its ruling scoped, the two action renderers); filed " +
-      "separately so this gate stops the BLEEDING — a NEW unchecked forward literal is red — " +
-      "without retro-fixing a surface whose fix is a different change. Ratcheted below: drop " +
-      "the cast and this entry fails.",
-    issue: 4321,
-  },
-};
+// EMPTY, and that is the finished state: every surface in SURFACES writes its
+// forward payload into a literal the compiler excess-property checks.
+//
+// It held one entry, `element:button` — the last unchecked forward literal,
+// whose payload closed with `as any`. objectui#4321 measured what that entry
+// assumed could not be done: dropping the cast type-checks clean as-is, because
+// every key the literal writes is already declared on `ActionDef`. The entry's
+// stated reason ("the cast is load-bearing for more than the forward literal")
+// was therefore wrong on the point that mattered — the `Record<string, any>`
+// PROP type is a separate contract question, and the forward literal never
+// needed the cast to compile. Removed by the ratchet immediately below, exactly
+// as designed: the fix made the entry excuse nothing, and the entry failed.
+//
+// Adding one back is a real decision, not a formality — it re-opens a surface to
+// the objectstack#2169 shape. Prefer the one-line fix the rule above prescribes.
+export const UNCHECKED_FORWARDS = {};
 
 /** Is this type node a reference to `ActionDef`? */
 const isActionDefType = (typeNode) =>

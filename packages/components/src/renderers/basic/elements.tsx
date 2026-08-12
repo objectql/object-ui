@@ -26,6 +26,7 @@
 
 import * as React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
+import type { ActionDef } from '@object-ui/core';
 import { useAdapter, useAction } from '@object-ui/react';
 import {
   useObjectTranslation,
@@ -232,9 +233,32 @@ function ElementButtonRenderer({ schema }: { schema: any }) {
     try {
       // Mirror action:button's param routing: an array of {name,type,…} defs is
       // forwarded for in-dialog collection; a plain object is passed as values.
-      const paramsPayload = Array.isArray(action.params)
+      //
+      // Annotated `ActionDef`, not bare: a spread SOURCE's own keys are not
+      // excess-property checked THROUGH the spread (objectui#4281 probe Q —
+      // `const p = cond ? { actionParams } : { zzBogus }` is absorbed whole by
+      // the literal that spreads it). The payload below being checked therefore
+      // does not cover these two branches; this annotation is what does.
+      const paramsPayload: ActionDef = Array.isArray(action.params)
         ? { actionParams: action.params }
         : { params: action.params };
+      // ── Why there is no `as any` here (objectui#4321) ────────────────────
+      //
+      // This literal used to close with `as any`. An assertion asks only for
+      // comparability, so it switched the excess-property (freshness) check OFF
+      // for every key below — `ActionDef` being closed (objectui#4046) bought
+      // this surface nothing, and a typo added to this list would have compiled,
+      // published, and reached a runner that silently does nothing
+      // (objectstack#2169's shape). Measured on TypeScript 6.0.3: dropping the
+      // cast type-checks clean as-is — every key written here is declared on
+      // `ActionDef` — and an invented key is now a TS2353.
+      //
+      // The direct `execute(…)` argument is contextually typed by
+      // `execute(action: ActionDef)`, which is what runs the check; no hoist to
+      // a named binding is needed because this payload spreads nothing typed
+      // `any` (`...paramsPayload` resolves to object literals and keeps the
+      // check ON). Same shape as `action:group` / `action:menu`, the two
+      // surfaces objectui#4281 measured as already correct.
       await execute({
         type: action.actionType || action.type,
         name: action.name,
@@ -260,7 +284,7 @@ function ElementButtonRenderer({ schema }: { schema: any }) {
         errorMessage: action.errorMessage,
         refreshAfter: action.refreshAfter,
         ...paramsPayload,
-      } as any);
+      });
     } finally {
       setRunning(false);
     }

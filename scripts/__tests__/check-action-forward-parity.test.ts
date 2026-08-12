@@ -636,6 +636,34 @@ describe('the real repository', () => {
     }
   });
 
+  it('holds objectui#4321: element:button writes into a CHECKED literal, and nothing is exempt', () => {
+    // The last unchecked forward literal. Its payload closed with `as any`, so
+    // all ~16 explicit keys rode free — `ActionDef` being closed (objectui#4046)
+    // bought this surface nothing. #4321 measured that dropping the cast
+    // type-checks clean as-is (every key is declared on `ActionDef`), which is
+    // what made the exemption deletable rather than a contract change.
+    //
+    // Both halves are pinned because the surface has two literals, and the
+    // second is easy to miss: the `execute(…)` argument, and `paramsPayload`'s
+    // two branches, whose keys are NOT checked through the spread unless that
+    // binding is itself annotated (probe Q).
+    const surface = SURFACES.find((s) => s.id === 'element:button');
+    expect(surface, 'element:button is no longer a surface').toBeDefined();
+    expect(
+      uncheckedForwardLiterals(repoRoot, surface),
+      "element:button's forward literal is unchecked again — the `as any` is back, or a spread " +
+        'this gate cannot resolve was added to the payload',
+    ).toEqual([]);
+
+    // Empty is the finished state, not an accident: with element:button fixed,
+    // every surface in SURFACES is checked. A new entry here means a surface
+    // regressed or was added in the broken shape.
+    expect(
+      Object.keys(UNCHECKED_FORWARDS),
+      'a forward payload is exempt from the freshness rule again',
+    ).toEqual([]);
+  });
+
   it('every UNCHECKED_FORWARDS entry names a surface that really is unchecked', () => {
     // Same shrink-only governance as the tables above: the exemption cannot
     // outlive the shape it excuses. `analyze()` enforces this too; asserting it
