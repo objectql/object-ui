@@ -184,7 +184,11 @@ describe('objectui#3811 — console routes DefaultAcceptInvitationPage', () => {
       expect(screen.getAllByText(/Acme Corp/).length).toBeGreaterThanOrEqual(2);
       expect(screen.getByText('Organization')).toBeInTheDocument();
       expect(screen.getByText('Role')).toBeInTheDocument();
-      expect(screen.getByText('admin')).toBeInTheDocument();
+      // The DISPLAY name, not the raw `sys_member.role` identifier: since
+      // objectui#4474 the role row resolves through the shared role-label map,
+      // so `admin` renders as `Admin` here and as 管理员 in a zh session. The
+      // capability this case pins — "shows which role" — is unchanged.
+      expect(screen.getByText('Admin')).toBeInTheDocument();
       expect(screen.getByText('Expires')).toBeInTheDocument();
       expect(
         screen.getByText(new Date(INVITATION.expiresAt).toLocaleDateString()),
