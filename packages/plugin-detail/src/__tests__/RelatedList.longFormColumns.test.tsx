@@ -28,25 +28,61 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
-// The markdown cell renderer is behind `React.lazy`; import the chunk at module
-// scope so the factory resolves immediately and the assertions are not racing
-// the module loader (AGENTS.md §测试纪律). This matters most for the NEGATIVE
-// cases: they check `queryByText('Heading')` synchronously after awaiting only
-// the row, so without the pre-load a wrongly-derived richtext column would
-// still read as absent while its chunk was in flight — green for the wrong
-// reason. It resolves to the same module the `React.lazy` factory inside
-// `@object-ui/fields` loads relatively, so the factory finds it already cached.
-//
-// The specifier reaches `@object-ui/fields`' SOURCE through the repo vitest
-// alias; the package's `exports` map publishes only `.` and `./style.css`, so
-// nothing but that alias makes this path resolvable — which is why
-// `tsconfig.test.json` has to restate it as a `paths` entry (see there, and
-// #4325 for the packaging gap itself).
-import '@object-ui/fields/widgets/MarkdownContent';
 import { RelatedList } from '../RelatedList';
 
 /** Multi-block markdown — the shape whose formatted render is `<h1>` + `<ul>`. */
 const DOC = '# Heading\n\n**bold** and `code`\n\n- one\n- two';
+
+/**
+ * HOW EVERY CASE IN THIS FILE STAYS NON-VACUOUS (#4325).
+ *
+ * The markdown cell renderer sits behind `React.lazy` in `@object-ui/fields`,
+ * so a richtext column is on screen for a while before it renders anything a
+ * text query recognises. This file used to win that race by side-effect-
+ * importing the lazy chunk at module scope
+ * (`@object-ui/fields/widgets/MarkdownContent`) — a specifier the package's
+ * `exports` map does not publish and only the repo's vitest source alias
+ * resolved. #4325 ruled that subpath out: `@object-ui/fields`' surface is its
+ * index, and one test's preload does not justify minting permanent public API.
+ *
+ * Preloading through the SANCTIONED entry does not replace it — measured, not
+ * assumed. Importing `@object-ui/fields` at module scope leaves the chunk cold:
+ * the index only DECLARES `React.lazy(() => import('./widgets/MarkdownContent'))`
+ * (src/index.tsx), and evaluating the declaring module never runs the factory.
+ * A probe rendering `MarkdownCellRenderer` straight after that import saw the
+ * Suspense fallback synchronously (`h1` absent) and waited 321.8ms for the
+ * chunk on an IDLE container. AGENTS.md §测试纪律 records first-`import()`
+ * latencies up to 976ms under full parallel load against RTL's 1000ms default,
+ * so any `findBy`/`waitFor` on post-boundary content is a coin flip decided by
+ * machine load, not by the code under test.
+ *
+ * So the race is REMOVED rather than won: every case asserts on a witness that
+ * is present in EVERY state of the lazy boundary, via `documentCells()` —
+ *
+ *   - unresolved — `MarkdownCellRenderer`'s Suspense fallback renders the raw
+ *     value, `<span># Heading\n\n**bold** …</span>`;
+ *   - resolved — `<h1>Heading</h1>` + `<ul>`;
+ *   - either way — for a normal (non-`fitContent`) column the data-table cell
+ *     wrapper carries the raw value in `title=`
+ *     (`components/renderers/complex/data-table.tsx`), and that wrapper is
+ *     rendered OUTSIDE the Suspense boundary, so the witness survives even if
+ *     the fallback is ever changed to render nothing.
+ *
+ * The same predicate reports both directions, which is what makes the absence
+ * assertions provably non-vacuous: measured on this tree with the chunk cold, a
+ * richtext column that IS present reads as `queryByText('Heading') === null`
+ * and `querySelector('td h1') === null` — the assertions this file used to
+ * make, green for the wrong reason — while `documentCells()` already sees it.
+ */
+function documentCells(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll('td')).filter(
+    (td) =>
+      td.textContent?.includes('Heading') ||
+      Array.from(td.querySelectorAll('[title]')).some((el) =>
+        el.getAttribute('title')?.includes('Heading'),
+      ),
+  );
+}
 
 const fields = {
   subject: { type: 'text', label: 'Subject' },
@@ -93,20 +129,26 @@ function renderList(extra: Record<string, unknown> = {}) {
 describe('RelatedList — long-form types stay out of auto-derived columns (#4250)', () => {
   it('does not derive a column for a spec-spelled `richtext` field', async () => {
     const { container } = renderList();
+    // Readiness signal: the row's own `subject` cell. `text` has no lazy
+    // boundary, so this is bounded by the data fetch alone — and once it is on
+    // screen the table BODY is committed, which is what makes the absence
+    // assertions below meaningful (a derived column's cell would be in that
+    // same commit). Awaiting a header would not carry that guarantee.
+    await waitFor(() => expect(screen.getByText('Note one')).toBeTruthy());
     // Control: the walk ran and produced real columns.
-    await waitFor(() => expect(screen.getByText('Subject')).toBeTruthy());
+    expect(screen.getByText('Subject')).toBeTruthy();
     expect(screen.getByText('Amount')).toBeTruthy();
 
     expect(screen.queryByText('Body Rich')).toBeNull();
-    // …and nothing rendered the document into a cell.
-    expect(container.querySelector('td h1')).toBeNull();
-    expect(screen.queryByText('Heading')).toBeNull();
+    // …and nothing rendered the document into a cell, in any lazy state.
+    expect(documentCells(container)).toHaveLength(0);
   });
 
   it('does not derive a column for a `markdown` field either', async () => {
-    renderList();
-    await waitFor(() => expect(screen.getByText('Subject')).toBeTruthy());
+    const { container } = renderList();
+    await waitFor(() => expect(screen.getByText('Note one')).toBeTruthy());
     expect(screen.queryByText('Body Markdown')).toBeNull();
+    expect(documentCells(container)).toHaveLength(0);
   });
 
   it('keeps the pre-existing `html` / `json` exclusions', async () => {
@@ -128,8 +170,14 @@ describe('RelatedList — long-form types stay out of auto-derived columns (#425
     // The set filters the zero-config auto-derive walk only. An explicit column
     // is the author saying they want it — over-skipping that is the objectui#2360
     // harm, and this is the control that says the fix did not reintroduce it.
-    renderList({ columns: ['subject', 'body_rt'] });
+    const { container } = renderList({ columns: ['subject', 'body_rt'] });
     await waitFor(() => expect(screen.getByText('Body Rich')).toBeTruthy());
-    expect(await screen.findByText('Heading')).toBeTruthy();
+    // Same witness as the absence cases, read the other way. It used to be
+    // `findByText('Heading')`, which only ever passed because the deleted
+    // module-scope preload had already resolved the chunk; without that preload
+    // it would be a 1000ms budget racing a load measured at up to 976ms. The
+    // pair also closes the loop on the absence assertions above — one predicate
+    // that reports 1 here and 0 there cannot be silently vacuous in either.
+    expect(documentCells(container)).toHaveLength(1);
   });
 });

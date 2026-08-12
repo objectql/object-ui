@@ -31,23 +31,17 @@
     // `@objectstack/spec` resolve through the workspace dependency's built
     // `.d.ts` instead of pulling sibling sources in as program inputs (TS6059).
     //
-    // The one entry that survives is not a convenience: `@object-ui/fields`'
-    // `exports` map publishes only `.` and `./style.css`, so the deep specifier
-    // `RelatedList.longFormColumns.test.tsx` uses to pre-resolve the lazy
-    // markdown chunk resolves through the repo vitest alias and through nothing
-    // else. Restating that one alias here is what lets `tsc` read the same
-    // program vitest runs; without it the import is TS2882 and the file cannot
-    // be type-checked at all. Narrow on purpose — `widgets/*` only, so no other
-    // sibling source can leak in behind it. The packaging gap it works around
-    // is filed as #4325; when `fields` publishes the subpath this entry goes.
-    // `paths` resolves against `baseUrl`, and the inherited one points at the
-    // REPO ROOT (the root tsconfig declares `"baseUrl": "."` and `extends`
-    // keeps it relative to the config that declared it). Re-anchor it here so
-    // the entry below reads relative to this package, as it appears to.
-    "baseUrl": ".",
-    "paths": {
-      "@object-ui/fields/widgets/*": ["../fields/src/widgets/*"]
-    }
+    // This is now empty like every other wired-up package's. It briefly carried
+    // one entry — `@object-ui/fields/widgets/*` → `../fields/src/widgets/*` —
+    // restating the repo vitest alias so `tsc` could resolve the deep specifier
+    // `RelatedList.longFormColumns.test.tsx` used to pre-resolve the lazy
+    // markdown chunk (TS2882 without it). #4325 ruled that specifier out rather
+    // than publishing it: `@object-ui/fields`' surface is its index, so the
+    // subpath was never resolvable outside this repo's vitest config, and the
+    // test's anti-race guarantee was rebuilt on a witness that does not need it
+    // (see that file's header). With the import gone the entry has no subject,
+    // and no source-tree path survives here.
+    "paths": {}
   },
   "include": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }
