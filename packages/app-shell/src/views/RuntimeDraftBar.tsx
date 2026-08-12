@@ -31,6 +31,17 @@ export interface RuntimeDraftBarProps {
   /** Studio metadata client (flag-ON path). */
   metadataClient: any;
   /**
+   * The DataSource whose view caches this bar's Publish / Discard stales
+   * (objectui#4373). Publish is the write that matters: it promotes an
+   * invisible draft into a PUBLISHED row, which is the world
+   * `listViewOverrides` enumerates and caches for 5 minutes. Optional — a
+   * `report` / `page` bar needs nothing here, and the seam ignores it for
+   * non-`view` types.
+   */
+  dataSource?: any;
+  /** The object a `view` artifact belongs to — the object half of the keys. */
+  objectName?: string;
+  /**
    * Disable Publish while the panel has unsaved local edits, mirroring
    * studio's "save first, then publish" rule.
    */
@@ -56,6 +67,8 @@ export function RuntimeDraftBar({
   type,
   name,
   metadataClient,
+  dataSource,
+  objectName,
   dirty,
   onResume,
   onAfterChange,
@@ -115,7 +128,7 @@ export function RuntimeDraftBar({
     if (!name) return;
     setBusy(true);
     try {
-      await publishRuntimeMetadata(type, name, { metadataClient });
+      await publishRuntimeMetadata(type, name, { metadataClient, dataSource, objectName });
       setHasDraft(false);
       onAfterChange?.();
     } catch (err) {
@@ -123,7 +136,7 @@ export function RuntimeDraftBar({
     } finally {
       setBusy(false);
     }
-  }, [type, name, metadataClient, onAfterChange]);
+  }, [type, name, metadataClient, dataSource, objectName, onAfterChange]);
 
   const handleDiscard = useCallback(async () => {
     if (!name) return;
@@ -135,7 +148,7 @@ export function RuntimeDraftBar({
     }
     setBusy(true);
     try {
-      await discardRuntimeDraft(type, name, { metadataClient });
+      await discardRuntimeDraft(type, name, { metadataClient, dataSource, objectName });
       setHasDraft(false);
       onAfterChange?.();
     } catch (err) {
@@ -143,7 +156,7 @@ export function RuntimeDraftBar({
     } finally {
       setBusy(false);
     }
-  }, [type, name, metadataClient, onAfterChange, locale]);
+  }, [type, name, metadataClient, dataSource, objectName, onAfterChange, locale]);
 
   // flag OFF, or nothing pending → render nothing (zero DOM, zero layout shift).
   // Nothing pending → render nothing (no indicator, no buttons).

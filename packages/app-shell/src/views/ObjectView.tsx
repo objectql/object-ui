@@ -614,13 +614,19 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         // Publish (RuntimeDraftBar) promotes it + records a version.
         const vid = draft.id;
         if (metadataClient && vid) {
-            persistRuntimeMetadata('view', vid, draft, { metadataClient }).catch((err: any) => {
+            // `dataSource` + `objectName` let the seam drop this object's view
+            // cache keys (#4373) — the adapter owns which keys those are.
+            persistRuntimeMetadata('view', vid, draft, {
+                metadataClient,
+                dataSource,
+                objectName,
+            }).catch((err: any) => {
                 console.error('[ViewConfigPanel] Failed to persist view config:', err);
             });
         } else {
             console.warn('[ViewConfigPanel] Cannot persist view config: missing metadataClient or viewId.');
         }
-    }, [metadataClient]);
+    }, [metadataClient, dataSource, objectName]);
 
     /** Create a new view via the config panel */
     const handleViewCreate = useCallback(async (config: Record<string, any>) => {
@@ -671,6 +677,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 });
                 createdId = await createRuntimeMetadata('view', env.name, env, {
                     metadataClient,
+                    // #4373: this flow is the second door into the same rows the
+                    // adapter caches. Hand it the adapter (the `dataSource` prop
+                    // IS the `ObjectStackAdapter`, via `AppContent`'s
+                    // `useAdapter()`) so the seam can drop the object's view keys.
+                    dataSource,
+                    objectName,
                 });
             }
             setShowViewConfigPanel(false);
@@ -2232,6 +2244,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                         onViewUpdate={handleViewUpdate}
                         onCreate={handleViewCreate}
                         metadataClient={metadataClient}
+                        dataSource={dataSource}
                         onAfterChange={() => setRefreshKey(k => k + 1)}
                     />
                 </div>

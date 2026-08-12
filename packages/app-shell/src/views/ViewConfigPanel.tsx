@@ -76,6 +76,13 @@ export interface ViewConfigPanelProps {
      * chrome ({@link RuntimeDraftBar}).
      */
     metadataClient?: any;
+    /**
+     * The DataSource whose view caches a publish / discard from this panel
+     * stales (objectui#4373). Forwarded to {@link RuntimeDraftBar}; the object
+     * half of the cache keys comes from `objectDef.name`, so nothing here has
+     * to know what those keys are.
+     */
+    dataSource?: any;
     /** Called after a publish / discard so the host can refresh its read. */
     onAfterChange?: () => void;
 }
@@ -99,7 +106,7 @@ function mapObjectFields(objectDef: ViewConfigPanelProps['objectDef']): ObjectFi
     });
 }
 
-export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, objectDef, onViewUpdate, onSave, onCreate, metadataClient, onAfterChange }: ViewConfigPanelProps) {
+export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, objectDef, onViewUpdate, onSave, onCreate, metadataClient, dataSource, onAfterChange }: ViewConfigPanelProps) {
     const { t } = useObjectTranslation();
     const panelRef = useRef<HTMLDivElement>(null);
     const locale = useMetadataLocale();
@@ -270,6 +277,8 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                         type="view"
                         name={activeView.id}
                         metadataClient={metadataClient}
+                        dataSource={dataSource}
+                        objectName={objectDef.name}
                         dirty={isDirty}
                         onResume={handleResumeDraft}
                         savedSignal={savedSignal}

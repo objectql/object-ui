@@ -710,8 +710,24 @@ describe('the gate is wired to run', () => {
 
   it('is not hidden from the renderers by ci.yml path filters', () => {
     // ci.yml `paths-ignore`s markdown, content/, docs/, apps/site/ and
-    // .changeset/. None can match `packages/components/src/renderers/**`, so a PR
+    // .changeset/ on its `push` trigger — since objectui#3523 step 2 the only
+    // trigger that still carries the filter (ci.yml:6; lint.yml:32 is the twin),
+    // and the only thing the assertion below can see, since it slices the `on:`
+    // block. None can match `packages/components/src/renderers/**`, so a push
     // that edits a forward whitelist always starts this workflow.
+    //
+    // For a PULL REQUEST the conclusion holds for a second and stronger reason.
+    // This lead-in used to state it in a bare present tense that read as if the
+    // filter still applied there; objectui#4384 qualified it, together with its
+    // near-verbatim twin in `check-i18n-en-drift.test.ts`, closing the #3857 /
+    // #4369 / #4381 family (PRs #4371 / #4380 / #4382). No `paths-ignore`
+    // survives on `pull_request` at all, so such a PR starts this workflow a
+    // fortiori — measured there: PR #3856, one markdown file, 16 checks. What
+    // decides a pull request now is the in-job `Decide whether this change needs
+    // a full run` step, whose exclusion list is that `push` filter unchanged,
+    // held identical to it by `scripts/__tests__/merge-queue-reporting.test.ts`
+    // — so the patterns pinned below are also what keeps the expensive steps
+    // running on a renderer PR.
     const ignored = (ci.slice(0, ci.indexOf('jobs:')).match(/^\s+- '.*'$/gm) ?? []).map((line) =>
       line.trim().replace(/^- '/, '').replace(/'$/, ''),
     );
