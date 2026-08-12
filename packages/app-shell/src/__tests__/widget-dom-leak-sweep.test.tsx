@@ -14,30 +14,45 @@
  *
  * ## What this is, and what it deliberately is NOT
  *
- * This is phase 1 of objectui#4425: **measure before converging.** It renders
- * every target through the real SDUI path with planted canaries and checks every
- * attribute of every rendered element against what HTML actually defines. It
- * changes **no widget contract and no widget source** — leaks it finds are
- * RECORDED in {@link LEAK_LEDGER} with a reason and an owning issue, never
- * silently tolerated and never fixed here.
+ * This file landed as phase 1 of objectui#4425: **measure before converging.**
+ * It renders every target through the real SDUI path with planted canaries and
+ * checks every attribute of every rendered element against what HTML actually
+ * defines. It changes **no widget contract and no widget source** — leaks it
+ * finds are RECORDED in {@link LEAK_LEDGER} with a reason and an owning issue,
+ * never silently tolerated and never fixed here.
  *
- * Phase 2 — promoting `toDomProps`' whitelist to the SDUI widget contract, i.e.
- * option 1 on objectui#4425 — is the maintainer's decision and is explicitly out
- * of scope. It is now to be decided on THIS GATE'S READING rather than on an
- * assumption about how wide the leak is. The reading, measured here:
+ * Phase 2 is now RULED (objectui#4425, comment 5270759246): option 1 —
+ * `toDomProps`' whitelist is promoted to the SDUI widget contract, and the
+ * migration runs as per-package cards that each delete their own ledger rows.
+ * So this gate's job changed without its mechanism changing: it was the
+ * measurement the ruling was waiting for, and it is now the ratchet that
+ * migration is graded against. The reading, kept at current truth as each card
+ * lands:
  *
  *   | package          | targets | targets leaking | leaked attributes |
  *   |------------------|---------|-----------------|-------------------|
  *   | plugin-charts    |       9 |               0 |                 0 |
  *   | plugin-calendar  |       3 |               0 |                 0 |
- *   | plugin-chatbot   |       3 |               2 |          14 each  |
- *   | plugin-dashboard |       8 |               3 |        7 / 9 / 13 |
+ *   | plugin-chatbot   |       3 |               0 |                 0 |
+ *   | plugin-dashboard |       8 |               2 |             7 / 9 |
  *
- * 5 of 23 targets leak. The two clean packages are clean for opposite reasons
- * worth keeping straight: `plugin-charts` never spreads the node onto its
- * container at all, while `plugin-calendar`'s components take a declared prop
+ * **2 of 23 targets leak**, and both are in {@link LEAK_LEDGER} below:
+ * `plugin-dashboard:metric` and `plugin-dashboard:metric-card`, the open tail
+ * objectui#4425 owns directly. Two migration steps have closed their rows since
+ * the phase-1 measurement:
+ *
+ *   - `plugin-chatbot:chatbot` / `chatbot-enhanced` — 14 attributes each,
+ *     objectui#4431 / PR #4485, which also lifted `toDomProps` to
+ *     `@object-ui/core` so later cards consume one executor.
+ *   - `view:dashboard` — `DashboardRenderer`'s widget-grid container, 13
+ *     attributes, objectui#4432 / this file's most recent edit.
+ *
+ * The three packages now reading 0 are NOT clean for the same reason, and the
+ * difference is worth keeping straight: `plugin-charts` never spreads the node
+ * onto its container at all; `plugin-calendar`'s components take a declared prop
  * list and drop what they do not name, so the node's keys never reach an
- * element.
+ * element; `plugin-chatbot` and `DashboardRenderer`'s grid reach zero by
+ * FILTERING — they still spread, through `toDomProps`.
  *
  * `calendar-view` was originally swept with the `events` canary WITHHELD, because
  * authoring it crashed the component outright (objectui#4433) — a worse failure
@@ -45,19 +60,20 @@
  * clean pass. That is fixed, so the omission is gone and the target is swept
  * with the full canary set; section 5 below carries what is left of it.
  *
- * ## The divergence this repo is living with, recorded deliberately
+ * ## The divergence that decided phase 2, and what is left of it
  *
- * objectui#4425's option 3 was "record the divergence rather than converge", and
- * it happens here whichever way phase 2 goes, because both answers are live in
- * the tree at once and this gate observes both:
+ * objectui#4425's option 3 was "record the divergence rather than converge".
+ * Both answers were live in the tree at once and this gate observed both, which
+ * is how the ruling got its evidence:
  *
- *   - `packages/fields` uses a **whitelist** (`widgets/toDomProps.ts`, #3291):
- *     keep the declared DOM pass-through keys, drop everything else. Its own
- *     gate (`fields/src/__tests__/widget-dom-leak-e2e.test.tsx`) is untouched by
- *     this file and stays the reference implementation of the technique.
- *   - `packages/plugin-dashboard` uses a **deny-list** (`src/schemaHostProps.ts`,
- *     #4357/PR #4428): destructure seven measured non-DOM props out, spread the
- *     rest.
+ *   - a **whitelist** (`toDomProps`, #3291): keep the declared DOM pass-through
+ *     keys, drop everything else. Born in `packages/fields`, whose own gate
+ *     (`fields/src/__tests__/widget-dom-leak-e2e.test.tsx`) is untouched by this
+ *     file and stays the reference implementation of the technique; the
+ *     MECHANISM now lives in `@object-ui/core` (`utils/dom-props.ts`, #4431) so
+ *     every plugin package can reach it.
+ *   - a **deny-list** (`plugin-dashboard/src/schemaHostProps.ts`, #4357/PR
+ *     #4428): destructure seven measured non-DOM props out, spread the rest.
  *
  * The deny-list is correct for the seven props it enumerates — this sweep
  * confirms all seven are gone from `metric` and `metric-card`. What it cannot
@@ -67,8 +83,15 @@
  * `metric-card`, where `zzcanary` / `reference_to` / an authored
  * `props: { colorVariant }` all land as attributes while every one of the seven
  * named keys is correctly stripped. A deny-list bounded by enumeration cannot be
- * finished; a whitelist bounded by declaration can. That contrast is the
- * measurement phase 2 was waiting for.
+ * finished; a whitelist bounded by declaration can. That contrast IS the
+ * measurement phase 2 waited for, and the ruling went to the whitelist on it.
+ *
+ * So the divergence is no longer a standing state of the repo — it is a
+ * migration in progress, and the two rows still below are the last of it inside
+ * these four packages. `plugin-dashboard` is now MIXED by design: its
+ * `DashboardRenderer` grid container filters through `toDomProps` (#4432) while
+ * the two KPI components still run the deny-list, and the two surviving rows are
+ * precisely that difference, measured.
  *
  * ## Why this file lives in `packages/app-shell`
  *
@@ -541,23 +564,6 @@ const LEAK_LEDGER: Readonly<Record<string, LedgerEntry>> = {
       'authoring the key its sibling `MetricWidget` takes puts the heading on ' +
       'the DOM as an attribute instead of rendering it.',
     issue: 'objectui#4425',
-  },
-
-  /* ── plugin-dashboard: the container the KPI cards sit in ────────────────── */
-  //
-  // Same package as the two rows above, different element and NOT in #4357's
-  // scope: `DashboardRenderer`'s widget grid still spreads. `datasource` is
-  // absent here because this component consumes the adapter.
-  'view:dashboard': {
-    attributes: [
-      'ariadescribedby', 'arialabel', 'bind', 'colorvariant', 'events', 'name',
-      'props', 'reference_to', 'zzcanary', 'zzcanarycamel', 'zzcanarynum',
-      'zzcanaryobj', 'zzcanaryprop',
-    ],
-    reason:
-      "DashboardRenderer's widget-grid container ends in a bare `{...props}` " +
-      'spread, so the dashboard node\'s own keys land on it.',
-    issue: 'objectui#4432',
   },
 };
 

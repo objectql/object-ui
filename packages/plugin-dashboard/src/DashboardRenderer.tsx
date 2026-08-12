@@ -15,6 +15,7 @@ import {
   dashboardFilterVariableDefs,
   buildWidgetScopedFilter,
   mergeFilters,
+  toDomProps,
 } from '@object-ui/core';
 import { cn, Card, CardHeader, CardTitle, CardContent, Button, getLazyIcon } from '@object-ui/components';
 import { forwardRef, useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
@@ -400,6 +401,35 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
         onWidgetClick(null);
       }
     }, [designMode, onWidgetClick]);
+
+    /**
+     * The click channel of the host element, with ONE carrier (objectui#4432).
+     *
+     * `onClick` is a declared DOM pass-through key of the SDUI widget contract,
+     * and this container also computes its own background handler — so both
+     * have a legitimate claim on the same prop. The old trailing `{...props}`
+     * spread resolved that by letting the incoming handler REPLACE
+     * `handleBackgroundClick` outright, which silently switched design-mode
+     * background deselection off for any host that passed one. Dropping the
+     * incoming handler instead would be the mirror failure: a whitelisted key
+     * that type-checks, reads as supported, and never arrives.
+     *
+     * Both run, container affordance first. A non-function `onClick` (an
+     * authored JSON string — SDUI spells click behaviour `events: { onClick }`,
+     * which is DATA and is dropped by the whitelist) is ignored rather than
+     * handed to React, which would throw on it.
+     *
+     * Deliberately NOT wrapped in `useCallback`: it closes over `props.onClick`
+     * read out of the rest object, which the React Compiler cannot prove stable,
+     * so a manual memo here is one it reports as unpreservable
+     * (`Compilation Skipped: Existing memoization could not be preserved`) and
+     * then declines to optimize the component around. It lands on a plain
+     * element with no memoized child, so identity churn costs nothing.
+     */
+    const handleHostClick = (e: React.MouseEvent) => {
+      handleBackgroundClick(e);
+      if (typeof props.onClick === 'function') props.onClick(e);
+    };
 
     // --- Drag-and-drop reordering (design mode only) ---------------------
     // Powered by @dnd-kit. Because each widget renders with
@@ -865,6 +895,35 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
 
     const userActionsAttr = userActions ? JSON.stringify(userActions) : undefined;
 
+    /**
+     * What may legitimately become a DOM attribute on this container
+     * (objectui#4432, migration step 2 of objectui#4425 phase 2).
+     *
+     * `view:dashboard` resolves to this component, so `SchemaRenderer` hands it
+     * the dashboard node's OWN keys, the contents of the node's `props`
+     * container, the ARIA it resolved, its evaluated `disabled` verdict and the
+     * host's trailing props. Everything this component does not destructure
+     * used to be spread raw onto the grid `<div>` below, and React writes
+     * unknown lowercase attributes through in silence while stringifying object
+     * values. Measured through the real SDUI path: **13 non-DOM attributes**,
+     * including `events="[object Object]"`, `props="[object Object]"` and a
+     * camelCase `arialabel` sitting next to the resolved `aria-label` — the same
+     * value twice, one spelling of it meaningless to assistive technology.
+     *
+     * Per objectui#4425 phase 2 the answer is the whitelist, not another
+     * deny-list: `toDomProps` keeps `id` / `className` / `role` / `tabIndex` /
+     * `aria-*` / `data-*` and drops the rest. It is spread FIRST so this
+     * component's own computed attributes (`className`, `style`,
+     * `data-user-actions`, the click channel above) stay authoritative — the
+     * old trailing spread let an incoming key overwrite each of them.
+     *
+     * `datasource` is absent from the 13 because this component destructures
+     * the adapter and hands it to its own `SchemaRenderer` calls; that is the
+     * one key objectui#4428 shipped a pass without, and it never reached this
+     * spread.
+     */
+    const hostDomProps = toDomProps(props);
+
     const refreshButton = onRefresh && (
       <div className={cn("flex items-center justify-end gap-3 mb-2", !isMobile && "col-span-full")}>
         {recordCountBadge}
@@ -902,7 +961,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
       const otherWidgets = schema.widgets?.filter((w: DashboardWidgetSchema) => w.type !== 'metric') || [];
 
       const mobileBody = (
-        <div ref={ref} className={cn("flex flex-col gap-4 px-4", className)} data-user-actions={userActionsAttr} onClick={handleBackgroundClick} {...props}>
+        <div ref={ref} {...hostDomProps} className={cn("flex flex-col gap-4 px-4", className)} data-user-actions={userActionsAttr} onClick={handleHostClick}>
           {headerSection}
           {filterBar}
           {refreshButton}
@@ -937,6 +996,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
     const desktopBody = (
       <div
         ref={ref}
+        {...hostDomProps}
         className={cn(
           "grid",
           // Content-sized rows only for the responsive flow layout. The
@@ -958,8 +1018,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
             gap: `${gap * 0.25}rem`
         }}
         data-user-actions={userActionsAttr}
-        onClick={handleBackgroundClick}
-        {...props}
+        onClick={handleHostClick}
       >
         {headerSection}
         {filterBar}
