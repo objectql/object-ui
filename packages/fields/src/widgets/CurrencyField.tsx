@@ -3,12 +3,16 @@ import { Input, EmptyValue } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
 import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
-import { resolveFieldCurrency } from '../currency';
+import { resolveFieldCurrency, currencyFractionDigits } from '../currency';
 
 /**
  * Format currency value for display. When `currency` is undefined the value
  * is rendered as a plain number with thousands separators (no symbol),
  * because silently assuming USD is misleading for non-USD businesses.
+ *
+ * `precision` is a display width the caller resolved — either the field's
+ * authored `precision` or, when it declared none, the currency's own ISO 4217
+ * minor-unit count (see the derivation at the call site, objectui#4361).
  */
 function formatAmount(
   value: number,
@@ -52,7 +56,28 @@ export function CurrencyField({ value, onChange, field, readonly, error, classNa
   const { currency: tenantCurrency } = useLocalization();
   const locale = useDisplayLocale();
   const currency: string | undefined = resolveFieldCurrency(currencyField, tenantCurrency);
-  const precision = currencyField?.precision ?? 2;
+  // An AUTHORED `precision` wins: it is authored metadata, and this repo's
+  // convention is that authored metadata keeps priority. Whether a declared
+  // `precision` that contradicts the currency's ISO 4217 digits (say
+  // `precision: 2` on a JPY field) should be REJECTED at publish time is a
+  // contract question, so it is filed upstream in `@objectstack/spec` rather
+  // than answered here by overriding the author (objectui#4361).
+  //
+  // An ABSENT `precision` derives from the currency instead of defaulting to a
+  // literal 2, which rendered `¥1,234.50` for a currency with no minor unit.
+  // "Absent" is genuinely distinguishable from "authored 2" here — MEASURED,
+  // not assumed: `CurrencyFieldMetadata.precision` is optional in
+  // `@object-ui/types` and `z.ZodOptional<z.ZodNumber>` (no `.default()`) in
+  // `@objectstack/spec`, so a parsed field carries no materialized 2. The only
+  // `.default(2)` on the currency surface is `CurrencyConfigSchema.precision`,
+  // a different key on the `currencyConfig` block that this widget never reads.
+  //
+  // This is the widget's ONE precision, so the derivation also reaches the edit
+  // affordances below. Deliberate: leaving `step`/blur-rounding at 2 would give
+  // a JPY field that displays whole yen while offering a 0.01 spinner step and
+  // rounding typed input to 1234.56 yen.
+  const precision =
+    currencyField?.precision ?? (currency ? currencyFractionDigits(currency) : 2);
 
   if (readonly) {
     if (value == null) return <EmptyValue />;

@@ -357,13 +357,14 @@ export function coerceToSafeValue(value: unknown): string | number | boolean | n
  * USD for unconfigured currency fields was the #1 source of "why is my
  * RMB amount showing as dollars?" bug reports.
  *
- * Trailing `.00` is dropped when the value is a whole number — Salesforce
- * convention: `$1,234.50` keeps cents; `$1,234` does not. Wholeness picks ONE
- * fraction-digit width, never a range: a whole amount shows 0 digits, and a
- * fractional amount shows exactly 2 — so a real cents value of `.50` renders
- * `.50`, not `.5`.
+ * Trailing minor units are dropped when the value is a whole number —
+ * Salesforce convention: `$1,234.50` keeps cents; `$1,234` does not. Wholeness
+ * picks ONE fraction-digit width, never a range: a whole amount shows 0 digits,
+ * and a fractional amount shows the width the CURRENCY has — so a real cents
+ * value of `.50` renders `.50`, not `.5`, and a yen amount renders `¥1,235`
+ * rather than cents the yen does not have.
  */
-import { resolveFieldCurrency } from './currency';
+import { resolveFieldCurrency, currencyFractionDigits } from './currency';
 export { resolveFieldCurrency };
 
 export function formatCurrency(value: number, currency?: string, locale?: string): string {
@@ -377,7 +378,23 @@ export function formatCurrency(value: number, currency?: string, locale?: string
   // `formatNumber`, which sets both bounds to the width it is given, and the
   // bad-currency fallback below has always used `toFixed`. Both already
   // rendered `1,234.50` for the same amount.
-  const fracDigits = isWhole ? 0 : 2;
+  //
+  // The non-whole width is the CURRENCY's own ISO 4217 minor-unit count, not a
+  // literal 2 (objectui#4361). Passing 2 for every currency on earth OVERRODE
+  // what `Intl` already knows: JPY has no minor unit and KWD has three, so a
+  // yen amount was printed with cents it does not have (`¥1,234.50`) and a
+  // dinar amount one digit short (`KWD 1.50`).
+  //
+  // The wholeness switch itself is NOT retired — dropping both bounds and
+  // letting `Intl` decide would fix the digit count by turning `$1,234` back
+  // into `$1,234.00`, which is exactly the convention this function documents
+  // and objectui#4033 pinned. It is extended instead: whole amounts drop the
+  // fraction for EVERY currency (`KWD 1`, not `KWD 1.000`), fractional amounts
+  // take that currency's own count.
+  //
+  // With no currency in hand there is nothing to derive from, so that branch
+  // keeps the historical 2.
+  const fracDigits = isWhole ? 0 : currency ? currencyFractionDigits(currency) : 2;
   if (!currency) {
     return formatNumber(value, fracDigits, locale);
   }

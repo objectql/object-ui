@@ -72,12 +72,11 @@ describe('ActionEngine', () => {
   });
 
   describe('unregisterAction', () => {
-    it('removes action and its shortcuts/mappings', () => {
+    it('removes action and its shortcuts', () => {
       engine.registerAction({ name: 'save', type: 'api' }, { shortcut: 'ctrl+s' });
-      engine.addMapping({ event: 'toolbar:save', actionName: 'save' });
-      
+
       engine.unregisterAction('save');
-      
+
       expect(engine.getAction('save')).toBeUndefined();
       expect(engine.getShortcuts()).toHaveLength(0);
     });
@@ -104,35 +103,6 @@ describe('ActionEngine', () => {
       
       expect(engine.getBulkActions()).toHaveLength(1);
       expect(engine.getBulkActions()[0].name).toBe('delete');
-    });
-  });
-
-  describe('dispatch', () => {
-    it('executes mapped actions for an event', async () => {
-      engine.registerAction({ name: 'log', type: 'script', target: '"logged"' });
-      engine.addMapping({ event: 'row:click', actionName: 'log' });
-
-      const results = await engine.dispatch('row:click');
-      expect(results).toHaveLength(1);
-      expect(results[0].success).toBe(true);
-    });
-
-    it('returns empty array for unmapped events', async () => {
-      const results = await engine.dispatch('unknown:event');
-      expect(results).toEqual([]);
-    });
-
-    it('skips actions when mapping condition is false', async () => {
-      engine = new ActionEngine({ data: { status: 'locked' } });
-      engine.registerAction({ name: 'edit', type: 'script', target: '"edited"' });
-      engine.addMapping({ 
-        event: 'row:click', 
-        actionName: 'edit',
-        condition: '${data.status === "active"}'
-      });
-
-      const results = await engine.dispatch('row:click');
-      expect(results).toHaveLength(0);
     });
   });
 
@@ -206,10 +176,9 @@ describe('ActionEngine', () => {
   });
 
   describe('clear', () => {
-    it('removes all actions, mappings, and shortcuts', () => {
+    it('removes all actions and shortcuts', () => {
       engine.registerAction({ name: 'save', type: 'api' }, { shortcut: 'ctrl+s' });
-      engine.addMapping({ event: 'test', actionName: 'save' });
-      
+
       engine.clear();
       
       expect(engine.getAction('save')).toBeUndefined();

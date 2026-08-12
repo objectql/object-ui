@@ -32,7 +32,6 @@ export type {
   PermissionAction,
   PermissionEffect,
   RoleDefinition,
-  ObjectLevelPermission,
   FieldLevelPermission,
   RowLevelPermission,
   PermissionCondition,
