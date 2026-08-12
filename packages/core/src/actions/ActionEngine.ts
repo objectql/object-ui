@@ -9,9 +9,8 @@
 /**
  * @object-ui/core - Action Engine
  * 
- * Declarative action dispatch engine. Manages action registration,
- * event-to-action mapping, location-based filtering, keyboard shortcuts,
- * and bulk operation support.
+ * Declarative action engine. Manages action registration, location-based
+ * filtering, keyboard shortcuts, and bulk operation support.
  * 
  * Replaces callback-based patterns with a schema-driven pipeline:
  *   ActionSchema[] → ActionEngine → ActionRunner → ActionResult
@@ -42,16 +41,6 @@ export interface RegisteredAction {
   bulkEnabled?: boolean;
   /** Priority for ordering (lower = first) */
   priority?: number;
-}
-
-/** Event-to-action mapping */
-export interface ActionMapping {
-  /** Event name (e.g., 'row:click', 'toolbar:save', 'keyboard:ctrl+s') */
-  event: string;
-  /** Action name to execute */
-  actionName: string;
-  /** Optional condition expression */
-  condition?: string;
 }
 
 /** Keyboard shortcut handler */
@@ -91,9 +80,35 @@ function warnHiddenPredicate(name: unknown, raw: unknown, err: unknown): void {
   );
 }
 
+/**
+ * Registration + filtering + execution for declared actions.
+ *
+ * Entry points are by NAME (`executeAction`), by LOCATION
+ * (`getActionsForLocation`), by SHORTCUT (`handleShortcut`) and in BULK
+ * (`executeBulk`). There is deliberately no entry point by arbitrary EVENT
+ * name: this class used to carry a second, parallel one — `addMapping()`
+ * registered `{ event, actionName, condition }` triples into a private
+ * `mappings` array and `dispatch(event)` ran every triple matching an event
+ * string. It was retired under enforce-or-remove (objectui#3368) because it
+ * was a public export of `@object-ui/core` with zero production callers: in
+ * its whole lifetime nothing ever registered a mapping, so `dispatch()` had
+ * no reachable caller either, and its four call sites were all in this
+ * class's own test file.
+ *
+ * Its condition gate had drifted three ways from the `visible` contract
+ * `getActionsForLocation` below implements — it entered on a raw truthy check
+ * (so `condition: false` dispatched anyway), typed `condition` as `string`
+ * only (so a `{ dialect: 'cel', source }` envelope could not reach the
+ * canonical engine), and evaluated without `throwOnError` (so a throwing
+ * predicate failed OPEN, the opposite of `visible`'s fail-closed posture).
+ * All three were retired WITH the path rather than fixed on it: aligning the
+ * contract of an API nobody calls only widens behaviour nobody uses. If an
+ * event-keyed entry point is ever genuinely needed, it must be built on the
+ * shared predicate definitions (`hasDeclaredPredicate` + `toPredicateInput`)
+ * that the surviving gate below already uses, not on a fourth spelling.
+ */
 export class ActionEngine {
   private actions = new Map<string, RegisteredAction>();
-  private mappings: ActionMapping[] = [];
   private shortcuts: ShortcutBinding[] = [];
   private normalizedShortcutMap = new Map<string, string>();
   private runner: ActionRunner;
@@ -174,12 +189,6 @@ export class ActionEngine {
     }
     this.actions.delete(name);
     this.shortcuts = this.shortcuts.filter(s => s.actionName !== name);
-    this.mappings = this.mappings.filter(m => m.actionName !== name);
-  }
-
-  /** Add an event-to-action mapping */
-  addMapping(mapping: ActionMapping): void {
-    this.mappings.push(mapping);
   }
 
   /**
@@ -320,30 +329,6 @@ export class ActionEngine {
     return this.runner.execute(registered.action);
   }
 
-  /** Dispatch an event — finds mapped actions and executes them */
-  async dispatch(event: string, contextOverride?: Partial<ActionContext>): Promise<ActionResult[]> {
-    const matchingMappings = this.mappings.filter(m => m.event === event);
-    
-    if (matchingMappings.length === 0) {
-      return [];
-    }
-
-    const results: ActionResult[] = [];
-    for (const mapping of matchingMappings) {
-      // Check condition if present
-      if (mapping.condition) {
-        const evaluator = this.runner.getEvaluator();
-        const shouldRun = evaluator.evaluateCondition(mapping.condition);
-        if (!shouldRun) continue;
-      }
-
-      const result = await this.executeAction(mapping.actionName, contextOverride);
-      results.push(result);
-    }
-
-    return results;
-  }
-
   /** Handle a keyboard shortcut event — returns true if handled */
   async handleShortcut(keys: string, contextOverride?: Partial<ActionContext>): Promise<ActionResult | null> {
     const actionName = this.normalizedShortcutMap.get(normalizeShortcut(keys));
@@ -407,10 +392,9 @@ export class ActionEngine {
     this.runner.updateContext(context);
   }
 
-  /** Clear all registered actions and mappings */
+  /** Clear all registered actions and shortcuts */
   clear(): void {
     this.actions.clear();
-    this.mappings = [];
     this.shortcuts = [];
     this.normalizedShortcutMap.clear();
   }
