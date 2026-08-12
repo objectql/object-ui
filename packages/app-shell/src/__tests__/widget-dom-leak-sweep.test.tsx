@@ -508,34 +508,6 @@ interface LedgerEntry {
 }
 
 const LEAK_LEDGER: Readonly<Record<string, LedgerEntry>> = {
-  /* ── plugin-chatbot: the whole node, minus the two keys it destructures ──── */
-  //
-  // Both registrations are `({ schema, className, ...props }) => … {...props}`,
-  // so everything except those two becomes an attribute — including the injected
-  // `datasource` adapter, which only a host that really loads data supplies.
-  // `chatbot-floating` is NOT here: it is clean.
-  'plugin-chatbot:chatbot': {
-    attributes: [
-      'ariadescribedby', 'arialabel', 'bind', 'colorvariant', 'datasource',
-      'events', 'name', 'props', 'reference_to', 'zzcanary', 'zzcanarycamel',
-      'zzcanarynum', 'zzcanaryobj', 'zzcanaryprop',
-    ],
-    reason:
-      'renderer.tsx destructures only `schema` and `className` before spreading ' +
-      'the rest onto the chatbot root; every other injected and authored key ' +
-      'becomes a DOM attribute.',
-    issue: 'objectui#4431',
-  },
-  'plugin-chatbot:chatbot-enhanced': {
-    attributes: [
-      'ariadescribedby', 'arialabel', 'bind', 'colorvariant', 'datasource',
-      'events', 'name', 'props', 'reference_to', 'zzcanary', 'zzcanarycamel',
-      'zzcanarynum', 'zzcanaryobj', 'zzcanaryprop',
-    ],
-    reason: 'the same spread shape as `plugin-chatbot:chatbot`, same 14 attributes.',
-    issue: 'objectui#4431',
-  },
-
   /* ── plugin-dashboard: the OPEN TAIL a deny-list cannot close ───────────── */
   //
   // Read these two rows against what is NOT in them. Every one of the seven keys
