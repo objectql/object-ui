@@ -47,4 +47,5 @@ take another agent's entry: `git stash list`/`show`/`create`, and `git stash app
 *position* in a stack you don't own). Deliberate exception: `OS_ALLOW_STASH=1`. Changing
 the hook? Re-run `.claude/hooks/guard-shared-stash.selftest.sh`.
 
-See **AGENTS.md** for the full playbook.
+See **AGENTS.md** for the full playbook — both rules above are stated in full there, in
+§9 多 agent 协作纪律; this file carries them only as the excerpt.
