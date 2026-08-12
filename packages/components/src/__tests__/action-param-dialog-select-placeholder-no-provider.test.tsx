@@ -20,10 +20,26 @@
  * to `en`'s `common.select`. Without that entry this render would show the raw
  * key `common.select`, which is precisely the regression this file catches.
  *
- * Direction: this file is GREEN before the fix and GREEN after — it pins the
- * FALLBACK, not the fix. Before the fix the same bytes came from the hardcoded
- * literal (modulo its ASCII ellipsis, asserted below); after, from the defaults
- * map. The fix itself is asserted in
+ * ── Measured reverse-verification direction ──────────────────────────────
+ * This file is RED before the fix and GREEN after. That is worth writing down
+ * because the obvious expectation for a no-provider FALLBACK pin is the other
+ * one — green both sides, since the English bytes are supposed to be unchanged
+ * — and it was the expectation this file was drafted with. It is wrong here for
+ * a reason specific to #4386: the literal being replaced was `Select...`, so
+ * the English bytes did NOT survive the fix unchanged. The ellipsis moved from
+ * ASCII to U+2026, and `getByText('Select…')` is what goes red on the revert.
+ *
+ * So the two assertions below fail on genuinely different mutations, and only
+ * the first is exercised by reverting the fix:
+ *   - `getByText('Select…')` — red on the revert, on the GLYPH half.
+ *   - `queryByText('common.select')` — the defaults-map pin proper. Reverting
+ *     the fix does not move it (the pre-fix literal is not a raw key either);
+ *     it goes red only if the defaults entry is dropped or misspelled, which is
+ *     the regression this file exists to catch long after #4386. Measured by
+ *     emptying the defaults map: the placeholder then renders the literal text
+ *     `common.select` and this assertion fails.
+ *
+ * The translation half of the fix is asserted in
  * `action-param-dialog-select-placeholder-i18n.test.tsx`.
  *
  * ── Why this is its own FILE, not a describe block ────────────────────────
