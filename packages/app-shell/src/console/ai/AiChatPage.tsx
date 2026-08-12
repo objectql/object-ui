@@ -73,6 +73,10 @@ import {
   detectBuilderHandoff,
   detectProposedChanges,
   buildProgressFromDraftReview,
+  // The authoring/honest -> runtime message seam (objectui#4399 / PR #4416),
+  // consumed here one hop up from the plugin's own renderers (objectui#4437).
+  // See `runtimeMessages` below for why this host calls it exactly once.
+  toRuntimeMessages,
   type AgentDescriptor,
   type ChatbotEnhancedToolInvocation,
   // The ENHANCED message shape — the one `<ChatbotEnhanced>` renders and the
@@ -1585,12 +1589,52 @@ export function ChatPane({
     setMessagesRef.current = setMessages;
   }, [setMessages]);
 
+  // ── The one conversion: where the hook's values enter this page's
+  // runtime-typed world (objectui#4437) ──────────────────────────────────────
+  //
+  // `useObjectChat` returns `ObjectChatMessage[]` — the shape BOTH of its modes
+  // really produce (objectui#4424 / PR #4436): wide where local mode is wide,
+  // so it keeps the authored `'tool'` role and the legacy
+  // `'partial-call'`/`'call'`/`'result'` tool states. Everything below this
+  // line wants the RUNTIME shape instead, and used to say so with five
+  // `as ChatMessage[]` casts. A cast erases the whole difference rather than
+  // the intentional part of it: a new authored role, or a newly required
+  // runtime key, kept compiling at all five sites and surfaced as behaviour.
+  //
+  // `toRuntimeMessages` is the same seam the plugin's own three renderers use
+  // (`renderer.tsx`, objectui#4399), with each narrowing decision named and
+  // tested in `chatMessageAdapter.ts`: `'tool'` renders as an assistant bubble,
+  // legacy tool states map to their v6 equivalents, and every render-only key
+  // (`buildProgress`, `draftReview`, `pendingActionId`, …) is spread through.
+  // Memoized on `messages` exactly as those renderers do, so this array's
+  // identity is neither more nor less stable than the hook's own output.
+  //
+  // All four consumers below take the converted array. The one that is
+  // fold-SENSITIVE is the cache write, and it is sensitive in the direction it
+  // wants — see the comment on that effect.
+  const runtimeMessages = useMemo(() => toRuntimeMessages(messages), [messages]);
+
+  // The cache write is the one measured behaviour change of objectui#4437, and
+  // it is a fix: `sanitizeChatMessagesForCache` declares its parameter's role as
+  // `'user' | 'assistant' | 'system'` — it has always ASKED for folded roles,
+  // and the cast is what let an unfolded `'tool'` past that declaration. Two
+  // consequences, both measured on a message set carrying a `'tool'` role:
+  //   - the entry was cached as `role: 'tool'`, which `readMessageCache`'s own
+  //     validator then rejects, so the message vanished on a cache-fallback
+  //     reload. Folded, it restores as the assistant bubble it renders as.
+  //   - sanitize gates tool serialization on `role === 'assistant'`, so that
+  //     message's tool invocations — including the re-serialized draft envelope
+  //     behind "Review N changes / Publish" — were dropped from the cache
+  //     entirely. Folded, they survive the reload they exist to survive.
+  // Not reachable from this page's own paths today (hydration and `mapMessages`
+  // both produce runtime roles and v6 states already), so nothing on screen
+  // moves; this closes the hole ahead of a value that can reach it.
   useEffect(() => {
     writeConversationMessagesCache(
       conversationId,
-      sanitizeChatMessagesForCache(messages as ChatMessage[]),
+      sanitizeChatMessagesForCache(runtimeMessages),
     );
-  }, [conversationId, messages]);
+  }, [conversationId, runtimeMessages]);
 
   // #772 — the confirm-card SEND messages must match the CONVERSATION's
   // language, not the console UI locale: a Chinese thread under an English UI
@@ -1611,9 +1655,12 @@ export function ChatPane({
   // ungated `planAnswerMessage` sent the UI locale in both directions.
   // `outboundAgentText` resolves all four from the `zh`/`en` packs by
   // conversation language and never consults the UI pack.
+  // Fold-insensitive, measured: the probe reads `role === 'user'` and the text,
+  // and the fold only maps `'tool'` -> `'assistant'` — it can neither create nor
+  // destroy a user turn, and it leaves `content`/`parts` untouched.
   const convZh = useMemo(
-    () => isConversationZh(messages as ChatMessage[]) || isConversationZh(initialMessages),
-    [messages, initialMessages],
+    () => isConversationZh(runtimeMessages) || isConversationZh(initialMessages),
+    [runtimeMessages, initialMessages],
   );
   const outboundText = useCallback(
     (key: OutboundAgentTextKey, vars?: Readonly<Record<string, string>>) =>
@@ -1657,7 +1704,7 @@ export function ChatPane({
   }, [isLoading, canvasApp]);
 
   const hitl = useHitlInChat({
-    messages: messages as ChatMessage[],
+    messages: runtimeMessages,
     apiBase,
     continueConversation: (prompt) => {
       sendMessage(prompt);
@@ -1753,9 +1800,11 @@ export function ChatPane({
   // derivations below read fields without per-access casts.
   const metadataApps = apps as MetadataAppItem[] | undefined;
   const { appLabel } = useObjectLabel();
+  // Fold-insensitive, measured: this walks every message irrespective of role
+  // and reads `draftReview`/`builderHandoff`, which the adapter spreads through.
   const boundPackageId = useMemo(
-    () => deriveBoundPackageId(messages as unknown as readonly PackageBearingMessage[], editPackageId),
-    [messages, editPackageId],
+    () => deriveBoundPackageId(runtimeMessages, editPackageId),
+    [runtimeMessages, editPackageId],
   );
   const boundPackageLabel = useMemo(() => {
     if (!boundPackageId) return undefined;
@@ -2032,7 +2081,7 @@ export function ChatPane({
         surface="plain"
         maxHeight="100%"
         headerSlot={headerSlot}
-        messages={messages as ChatMessage[]}
+        messages={runtimeMessages}
         placeholder={
           activeAgent
             ? agentRouteName(activeAgent) === 'ask'

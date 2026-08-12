@@ -22,10 +22,6 @@ export default tseslint.config({
     // fumadocs-mdx codegen for apps/site (gitignored — see apps/site/.gitignore).
     // Linting generated output only reports on the generator's choices.
     '**/.source',
-    // Tailwind configs are authored in TypeScript despite the `.js` extension,
-    // and the TS parser below is scoped to `.ts`/`.tsx`, so the base JS parser
-    // would fail on `import type`. Build config, not app code.
-    '**/tailwind.config.js',
   ],
 }, {
   extends: [js.configs.recommended, ...tseslint.configs.recommended],
