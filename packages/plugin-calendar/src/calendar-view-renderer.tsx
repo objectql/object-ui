@@ -8,8 +8,152 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import type { CalendarViewSchema } from '@object-ui/types';
-import { CalendarView, type CalendarEvent } from './CalendarView';
+import { CalendarView, type CalendarEvent, type CalendarViewProps } from './CalendarView';
 import React from 'react';
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * The renderer boundary: consume or declare, never spread (objectui#4453)
+ *
+ * This renderer used to end in `<CalendarView … {...props} />`, where `props`
+ * was everything `SchemaRenderer` hands a registered widget: the node's own
+ * authored keys, the contents of its `props` container, the injected runtime
+ * props (`schema`, `bind`, `events`, `ariaLabel`/`ariaDescribedBy`/`role`,
+ * `data-obj-*`), and a host's trailing props — an UNBOUNDED set, spread onto a
+ * component whose props are a CLOSED list. Two of those collisions were
+ * user-reachable crashes on their own cards (objectui#4433 `events`,
+ * objectui#4452 `currentDate`), and this card is the third and worst: an
+ * authored `onEventClick: 'NOT-A-FUNCTION'` renders a perfectly normal calendar
+ * and then throws `onEventClick is not a function` on the first click — as an
+ * UNCAUGHT window error, because React does not route event-handler errors to
+ * `SchemaErrorBoundary`. The calendar keeps looking fine while its click
+ * handling is dead.
+ *
+ * The objectui#4425 phase-2 ruling (option 1, whitelist bounded by declaration)
+ * applied to this widget: **the forward set is exactly {@link CalendarViewProps},
+ * every key resolved to the type that prop declares; everything else is
+ * dropped.** No raw spread reaches `CalendarView`. `rest` below is READ for the
+ * declared keys and is never spread — that is the whole of this fix.
+ *
+ * A deny-list could not close this: the leak is the open tail of author-supplied
+ * keys, which no enumeration can finish. This list is finishable because
+ * `CalendarViewProps` declares it.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * The DECLARED host escape hatch: `CalendarView`'s callback surface, forwarded
+ * only when the value really is a function.
+ *
+ * One key, two very different producers, arriving through the SAME channel
+ * (objectui#4453):
+ *
+ *   1. an SDUI author writing JSON, whose value can never be a function — so it
+ *      is always the crash above; and
+ *   2. a React host rendering `<SchemaRenderer schema={…} onEventClick={fn} />`,
+ *      which the trailing-props spread makes work today and which this card
+ *      forbids breaking. It is the component's genuine escape hatch, the same
+ *      passthrough `MetricWidget` deliberately keeps.
+ *
+ * The key name cannot separate them; only the value's TYPE can. So the hatch is
+ * DECLARED here, with its declared type, and off-type input gets the one answer
+ * every other resolver in this file gives: dropped — the same answer as absent.
+ * That is the objectui#4435 declared-passthrough pattern, not a lenient
+ * consumer coercion (AGENTS.md #0.1): the discrimination lives in a declared
+ * contract at the renderer boundary, one key, one declared type, one answer.
+ *
+ * The whole family is listed rather than `onEventClick` alone because the defect
+ * is the family's, not the key's: an authored `onDateClick` / `onNavigate` /
+ * `onViewChange` / `onEventDrop` / `onTimeRangeSelect` / `onAddClick` string
+ * kills its own gesture in exactly the same way. Every one of them is a prop
+ * `CalendarView` declares, so nothing here widens the widget's surface — it
+ * narrows what may reach it — and `onEventClick` / `onDateClick` / `onViewChange`
+ * / `onNavigate` are additionally the four handlers this package's own docs
+ * publish as `calendar-view`'s API (`content/docs/plugins/plugin-calendar.mdx`,
+ * "CalendarView Schema API"). Dropping them would have removed a documented,
+ * working host path — which is exactly what objectui#4433's ruling refused to do
+ * silently.
+ */
+const HOST_CALLBACKS = [
+  'onEventClick',
+  'onDateClick',
+  'onViewChange',
+  'onNavigate',
+  'onAddClick',
+  'onEventDrop',
+  'onTimeRangeSelect',
+] as const;
+
+type HostCallbacks = Pick<CalendarViewProps, (typeof HOST_CALLBACKS)[number]>;
+
+/**
+ * Read the declared callbacks out of the incoming props, keeping only the values
+ * whose type the hatch declares. Never a spread of the raw props: an authored
+ * key that is not on {@link HOST_CALLBACKS} cannot appear in the result at all.
+ */
+function pickHostCallbacks(incoming: Record<string, unknown>): HostCallbacks {
+  const declared: Record<string, unknown> = {};
+  for (const key of HOST_CALLBACKS) {
+    const raw = incoming[key];
+    if (typeof raw === 'function') declared[key] = raw;
+  }
+  return declared as HostCallbacks;
+}
+
+/** The view modes the registry input declares, and the only ones `CalendarView` renders. */
+const CALENDAR_VIEW_MODES = ['month', 'week', 'day'] as const;
+
+/**
+ * Resolve the declared `view` input against its declared enum.
+ *
+ * `view` is a registry input (`type: 'enum', enum: ['month','week','day']`) and
+ * a `CalendarView` prop of the same union, so it is CONSUMED here rather than
+ * carried by a spread. Off-enum input gets the resolver's one answer — dropped,
+ * i.e. the component's own `month` default — instead of today's silent breakage:
+ * `CalendarView` renders its body under `selectedView === "month" | "week" |
+ * "day"`, so a value outside the union rendered the header and NO calendar at
+ * all.
+ */
+function resolveAuthoredView(raw: unknown): CalendarViewProps['view'] {
+  return (CALENDAR_VIEW_MODES as readonly unknown[]).includes(raw)
+    ? (raw as CalendarViewProps['view'])
+    : undefined;
+}
+
+/**
+ * Resolve the `locale` hatch: a string, and one `Intl` will actually accept.
+ *
+ * Not a registry input — this is a host-only passthrough (`CalendarView` falls
+ * back to the ambient i18n language) — but it is a declared `CalendarViewProps`
+ * key, so it is forwarded, typed, rather than dropped. The type check is not
+ * `typeof raw === 'string'`: MEASURED on this tree, a structurally invalid tag
+ * throws out of the render, which is a second crash channel on the same widget —
+ * `new Date().toLocaleDateString('en_US')` (the underscore spelling a producer
+ * writes by accident) throws `RangeError: Incorrect locale information
+ * provided`, and so do `''`, `'123'` and `'a'`. `Intl.getCanonicalLocales`
+ * asks the one question that matters — will `Intl` take this tag — instead of a
+ * hand-rolled BCP-47 dialect. A well-formed tag nobody has data for (`zz-ZZ`)
+ * is NOT rejected here: `Intl` resolves it to its own default, which is the
+ * component's business, not this boundary's.
+ */
+function resolveAuthoredLocale(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  try {
+    Intl.getCanonicalLocales(raw);
+  } catch {
+    return undefined;
+  }
+  return raw;
+}
+
+/**
+ * Resolve the `slotMinutes` hatch: the week/day grid's snap granularity, the
+ * knob the drag callbacks above are useless without (README, "Drag-and-Drop").
+ * A declared `CalendarViewProps` key, host-only like `locale`, forwarded only as
+ * the positive finite number the component divides an hour by — `0`, `NaN`,
+ * `-5` and `'30'` all get the absent-key answer, i.e. the component's default.
+ */
+function resolveAuthoredSlotMinutes(raw: unknown): number | undefined {
+  return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? raw : undefined;
+}
 
 /**
  * Resolve the authored `currentDate` into the type `CalendarView` declares.
@@ -52,35 +196,44 @@ ComponentRegistry.register('calendar-view',
     schema,
     className,
     onAction,
-    // The authored SDUI `events` key, destructured out so the `{...props}`
-    // spread below cannot overwrite the `CalendarEvent[]` computed from
-    // `schema.data` (objectui#4433; the deny-list precedent is objectui#4357 /
-    // PR #4428, where `SchemaRenderer`'s injected schema-shaped props are
-    // stripped at the component's own signature).
-    //
-    // `events` is the ordinary action metadata of AGENTS.md section 4, legal on
-    // ANY node, and `SchemaRenderer` forwards it as a plain prop — it is not on
-    // that renderer's strip list. Both channels land here: the node's own
-    // `events` key and a `props: { events }` container, since the renderer
-    // spreads the container's contents too.
+    // The authored SDUI `events` key: DROPPED (objectui#4433). It is named here
+    // rather than merely left out of the forward set below, because it is the
+    // one key whose drop removes something an author could legitimately have
+    // written: `events` is the ordinary action metadata of AGENTS.md section 4,
+    // legal on ANY node, and `SchemaRenderer` forwards it as a plain prop — it
+    // is not on that renderer's strip list. Both channels land here, the node's
+    // own `events` key and a `props: { events }` container.
     //
     // Nothing is disabled by dropping it. No code in the renderer layer reads a
     // node's `events` key — `SchemaRenderer` forwards it and nothing consumes
     // it; this repo's action path is `properties.action` through `ActionRunner`.
     // On this node type the key has never done anything but overwrite the
-    // calendar: an OBJECT threw `events is not iterable` (the reported crash),
-    // and an ARRAY silently replaced the computed calendar with itself. This
-    // component's real action channel is `onAction` below, which is untouched.
+    // computed calendar: an OBJECT threw `events is not iterable` (the reported
+    // crash), and an ARRAY silently replaced the calendar with itself. This
+    // component's real action channel is `onAction` below.
     events: _authoredEvents,
-    // The declared `currentDate` input, destructured out for the same reason
-    // and by the same pattern: a CONSUMED key must not also ride the spread.
-    // Unlike `events` this one is not dropped — it is converted below and
-    // passed on as the `Date` the component's prop type declares
-    // (objectui#4452). Both authoring channels land here, the node's own
-    // `currentDate` key and a `props: { currentDate }` container.
+    // The declared `currentDate` input: CONSUMED and converted below into the
+    // `Date` the component's prop type declares (objectui#4452). Both authoring
+    // channels land here, the node's own `currentDate` key and a
+    // `props: { currentDate }` container.
     currentDate: authoredCurrentDate,
-    ...props
-  }: { schema: CalendarViewSchema; className?: string; onAction?: (action: any) => void; [key: string]: any }) => {
+    // The declared `view` input: CONSUMED and narrowed to its declared enum
+    // below (objectui#4453).
+    view: authoredView,
+    // Everything else. READ for declared keys, NEVER spread: this is the raw
+    // channel the old `{...props}` handed straight to `CalendarView`, and the
+    // reason an authored string could land on a function-typed prop.
+    ...rest
+  }: {
+    schema: CalendarViewSchema;
+    className?: string;
+    // Deliberately `unknown`, not `(action) => void`: this prop arrives on the
+    // same channel as everything else on this boundary, so the old signature
+    // was a type ASSERTION about authored JSON, not a fact. It is narrowed
+    // below.
+    onAction?: unknown;
+    [key: string]: unknown;
+  }) => {
     // Transform schema data to CalendarEvent format
     const events = React.useMemo(() => {
       if (!schema.data || !Array.isArray(schema.data)) return [];
@@ -120,34 +273,67 @@ ComponentRegistry.register('calendar-view',
       [authoredCurrentDate],
     );
 
+    // The declared `view` input, narrowed to the enum it declares.
+    const view = resolveAuthoredView(authoredView);
+
+    // The declared host hatches, each kept only at its declared type. Read out
+    // of `rest`; `rest` itself never reaches `CalendarView`.
+    const hostCallbacks = pickHostCallbacks(rest);
+    const locale = resolveAuthoredLocale(rest.locale);
+    const slotMinutes = resolveAuthoredSlotMinutes(rest.slotMinutes);
+
+    // The action channel, under the same declared-type rule as the callbacks:
+    // `onAction` reaches this renderer through the very same props channel, so
+    // an authored `onAction: 'NOT-A-FUNCTION'` killed the very same click with
+    // the very same uncaught `onAction is not a function` (objectui#4453). A
+    // non-function is dropped — the same answer as absent, which is a calendar
+    // whose clicks simply dispatch nowhere.
+    const dispatchAction =
+      typeof onAction === 'function'
+        ? (onAction as (action: { type: string; payload: unknown }) => void)
+        : undefined;
+
     const handleEventClick = (event: CalendarEvent) => {
-      onAction?.({ 
+      dispatchAction?.({
         type: 'event-click',
-        payload: event 
+        payload: event
       });
     };
-    
+
     const handleAddClick = () => {
        // Standard "Create" action trigger
-       onAction?.({
+       dispatchAction?.({
          type: 'create',
          payload: {}
        });
     };
 
+    // The forward set is exactly `CalendarViewProps` — nothing else can reach
+    // the component, because nothing is spread from `rest` (objectui#4453).
     return (
       <CalendarView
         className={className}
-        // Always the computed array: the authored `events` key is destructured
-        // out above, so this spread can no longer reach it (objectui#4433).
+        // Always the computed array: the authored `events` key never reaches
+        // this prop (objectui#4433).
         events={events}
         // The parsed authored date (objectui#4452). `undefined` for an absent
         // or off-spec value, which is what lets `CalendarView`'s own default
         // parameter apply — the key having never been authored at all.
         currentDate={currentDate}
-        onEventClick={handleEventClick}
-        // Pass validation or other props
-        {...props}
+        view={view}
+        locale={locale}
+        slotMinutes={slotMinutes}
+        // The declared host hatches. Not a raw spread: `hostCallbacks` holds
+        // only keys from `HOST_CALLBACKS`, and only where the value is a
+        // function.
+        {...hostCallbacks}
+        // Precedence, exactly as the trailing-props spread produced it before
+        // this change: a host's own handler REPLACES the `onAction` dispatch
+        // rather than running alongside it. Restating it here (instead of
+        // letting a spread order decide) is the point — the same authored
+        // string that used to land on this prop now lands nowhere, so the
+        // fallback stands.
+        onEventClick={hostCallbacks.onEventClick ?? handleEventClick}
       />
     );
   }
