@@ -12,6 +12,7 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { generateUniqueId } from './utils';
 import { uiMessagesToChatMessages } from './mapMessages';
+import { toRuntimeTimestamp } from './chatMessageAdapter';
 
 /**
  * Window event the AI usage indicator (ADR-0057 #8) listens for to refetch its
@@ -257,15 +258,24 @@ export interface UseObjectChatReturn {
 
 /**
  * Normalize an OUI ChatMessage[] from schema into internal format.
+ *
+ * The `Date` -> ISO absorption is NOT restated here: it is the authoring ->
+ * runtime seam's decision and lives in `toRuntimeTimestamp`
+ * (`chatMessageAdapter.ts`, objectui#4399), which this function consumes. It
+ * still applies at this point because the hook's own `messages` output — and
+ * the `onSend(content, messages)` callback fed from it — has always handed
+ * hosts an ISO string rather than a `Date`; one expression, two consumers.
+ *
+ * Roles are deliberately NOT narrowed here: an authored `'tool'` message keeps
+ * its authored role for the whole of the hook's (authoring-typed) surface and
+ * is folded to `'assistant'` only at the render seam.
  */
 function normalizeMessages(msgs?: OuiChatMessage[]): OuiChatMessage[] {
   return (msgs ?? []).map((msg, idx) => ({
     id: msg.id || `msg-${idx}`,
     role: msg.role || 'user',
     content: msg.content || '',
-    timestamp: typeof msg.timestamp === 'string'
-      ? msg.timestamp
-      : (msg.timestamp instanceof Date ? msg.timestamp.toISOString() : undefined),
+    timestamp: toRuntimeTimestamp(msg.timestamp),
     metadata: msg.metadata,
     streaming: msg.streaming,
     toolInvocations: msg.toolInvocations,

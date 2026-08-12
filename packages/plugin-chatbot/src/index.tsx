@@ -355,6 +355,22 @@ export {
 } from './mapMessages';
 export type { DraftReview, ProposedPlan, BuilderHandoff, ProposedChanges } from './mapMessages';
 
+// `@object-ui/types` ChatMessage (the JSON/SDUI AUTHORING contract) → the
+// runtime `ChatMessage` above. Exported for the same reason as the mappers on
+// the line before: a host that holds authored messages and renders these
+// components hits the drift (`role: 'tool'`, `timestamp: Date`, legacy tool
+// states) and would otherwise reach for `as any` — which is exactly the defect
+// objectui#4399 removed from this package's own three renderers. Every
+// narrowing decision it makes is documented in `chatMessageAdapter.ts`.
+export {
+  authoredToRuntimeMessage,
+  toRuntimeMessages,
+  toRuntimeRole,
+  toRuntimeTimestamp,
+  toRuntimeToolInvocation,
+  toRuntimeToolState,
+} from './chatMessageAdapter';
+
 // Display helpers used internally by ChatbotEnhanced. Exported so app
 // authors composing their own chat surface get the same pretty tool-call
 // rendering and friendly error summaries for free.

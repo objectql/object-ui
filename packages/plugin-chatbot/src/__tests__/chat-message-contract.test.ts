@@ -40,6 +40,9 @@ import { fileURLToPath } from 'node:url';
 import type { ChatMessage as BarrelChatMessage, ChatbotEnhancedMessage } from '../index';
 /** The shape `<ChatbotEnhanced>` renders and the mappers produce. */
 import type { ChatMessage as EnhancedChatMessage } from '../ChatbotEnhanced';
+/** The OTHER side of the seam: the JSON/SDUI authoring contract. */
+import type { ChatMessage as AuthoredChatMessage } from '@object-ui/types';
+import type { authoredToRuntimeMessage, toRuntimeMessages } from '../chatMessageAdapter';
 
 type Assert<T extends true> = T;
 type IsAny<T> = 0 extends 1 & T ? true : false;
@@ -128,6 +131,132 @@ describe("the barrel's ChatMessage IS the enhanced shape", () => {
     >;
 
     expect(true).toBe(true);
+  });
+});
+
+describe('the authoring ↔ runtime seam is an adapter, not a cast', () => {
+  it('is pinned at compile time', () => {
+    // objectui#4399. `renderer.tsx` used to hand `@object-ui/types` messages to
+    // components typed with the shape above via three `messages as any`. These
+    // pins are what makes the replacement load-bearing: without the first one
+    // the adapter could quietly start returning something else, and without the
+    // second the adapter could become dead code without anyone noticing.
+
+    // Probe hygiene first — same reason as the block above.
+    type _AuthoredNotAny = Assert<Equal<IsAny<AuthoredChatMessage>, false>>;
+    type _AuthoredNotUnknown = Assert<Equal<IsUnknown<AuthoredChatMessage>, false>>;
+
+    // 1. The adapter's output IS the runtime contract — not a lookalike, not a
+    //    widened cousin. A narrowing anywhere in `chatMessageAdapter.ts` (say a
+    //    return type of `Omit<ChatMessage, 'charts'>`) turns this line red.
+    type _OutputIsRuntime = Assert<
+      Equal<ReturnType<typeof authoredToRuntimeMessage>, EnhancedChatMessage>
+    >;
+    type _ArrayOutputIsRuntime = Assert<
+      Equal<ReturnType<typeof toRuntimeMessages>, EnhancedChatMessage[]>
+    >;
+
+    // 2. …and the conversion is NECESSARY: the authoring shape is not directly
+    //    assignable to the runtime one. If this ever flips to `true` the two
+    //    contracts have converged and the adapter is ceremony — which is a
+    //    review conversation, not something to discover by deleting it.
+    type _DriftIsReal = Assert<
+      Equal<AuthoredChatMessage extends EnhancedChatMessage ? true : false, false>
+    >;
+
+    // 3. The specific drifts, named individually, so a future vocabulary move
+    //    says WHICH one moved instead of "types differ". Each of these is a
+    //    decision recorded in `chatMessageAdapter.ts`.
+    type _AuthoringHasToolRole = Assert<
+      Equal<AuthoredChatMessage['role'], 'user' | 'assistant' | 'system' | 'tool'>
+    >;
+    type _RuntimeHasNoToolRole = Assert<
+      Equal<Extract<EnhancedChatMessage['role'], 'tool'>, never>
+    >;
+    type _AuthoringTimestampAcceptsDate = Assert<
+      Equal<AuthoredChatMessage['timestamp'], string | Date | undefined>
+    >;
+    type _RuntimeTimestampIsString = Assert<
+      Equal<EnhancedChatMessage['timestamp'], string | undefined>
+    >;
+    // The fourth drift, which the issue's table did not list: the authoring
+    // tool-state vocabulary carries three legacy spellings the runtime dropped.
+    type _LegacyToolStatesAreAuthorable = Assert<
+      Equal<
+        Extract<
+          NonNullable<NonNullable<AuthoredChatMessage['toolInvocations']>[number]['state']>,
+          'partial-call' | 'call' | 'result'
+        >,
+        'partial-call' | 'call' | 'result'
+      >
+    >;
+    type _RuntimeHasNoLegacyToolStates = Assert<
+      Equal<
+        Extract<
+          NonNullable<NonNullable<EnhancedChatMessage['toolInvocations']>[number]['state']>,
+          'partial-call' | 'call' | 'result'
+        >,
+        never
+      >
+    >;
+
+    expect(true).toBe(true);
+  });
+});
+
+describe('the three renderer call sites go through the adapter', () => {
+  // The runtime net over the block above, for the `pnpm test` lane that erases
+  // type assertions. The failure it catches is a cast coming BACK: `as any` on
+  // this prop compiles forever and silently re-erases every drift the pins
+  // above name (objectui#4399).
+  const RENDERER = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'renderer.tsx');
+  const source = readFileSync(RENDERER, 'utf8');
+
+  it('finds the renderer it is guarding', () => {
+    expect(source).toContain("ComponentRegistry.register('chatbot'");
+  });
+
+  it('passes no cast to a `messages` prop', () => {
+    const casts = source.match(/messages=\{[^}]*\bas\s+(any|unknown)\b/g) ?? [];
+    expect(
+      casts,
+      'packages/plugin-chatbot/src/renderer.tsx casts a `messages` prop again. The ' +
+        '@object-ui/types ↔ plugin ChatMessage seam is `toRuntimeMessages` in ' +
+        'chatMessageAdapter.ts — a cast there erases every narrowing decision it ' +
+        'records (objectui#4399).',
+    ).toEqual([]);
+  });
+
+  it('feeds all three registered chat components from the adapter', () => {
+    expect(source).toMatch(/import \{ toRuntimeMessages \} from '\.\/chatMessageAdapter';/);
+    // `chatbot`, `chatbot-enhanced`, `chatbot-floating` — one seam each.
+    expect(source.match(/toRuntimeMessages\(messages\)/g) ?? []).toHaveLength(3);
+    expect(source.match(/messages=\{runtimeMessages\}/g) ?? []).toHaveLength(3);
+  });
+});
+
+describe('the Date → ISO absorption is expressed once', () => {
+  // The placement half of the ruling: the adapter must not become a THIRD
+  // dialect. `normalizeMessages` owned this coercion inline; it now consumes
+  // the adapter's `toRuntimeTimestamp`. Two copies of the ternary is the state
+  // this guards against — they drift, and the one a message went through is
+  // then a function of which mode the chat is in.
+  const HOOK = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'useObjectChat.ts');
+  const source = readFileSync(HOOK, 'utf8');
+
+  it('finds the hook it is guarding', () => {
+    expect(source).toContain('function normalizeMessages');
+  });
+
+  it('routes the hook through the adapter instead of restating the coercion', () => {
+    expect(source).toMatch(/import \{ toRuntimeTimestamp \} from '\.\/chatMessageAdapter';/);
+    expect(source).toContain('timestamp: toRuntimeTimestamp(msg.timestamp)');
+    expect(
+      source.includes('toISOString()'),
+      'useObjectChat.ts converts a timestamp itself again. That conversion is the ' +
+        'seam\'s decision and lives in `toRuntimeTimestamp` (objectui#4399); a second ' +
+        'copy here is the third dialect the card exists to prevent.',
+    ).toBe(false);
   });
 });
 

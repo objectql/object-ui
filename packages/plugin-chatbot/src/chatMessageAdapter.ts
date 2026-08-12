@@ -1,0 +1,201 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * The `@object-ui/types` <-> `@object-ui/plugin-chatbot` chat-message seam
+ * (objectui#4399).
+ *
+ * Two `ChatMessage` types meet in `renderer.tsx`, both on purpose:
+ *
+ *   - `@object-ui/types`' `ChatMessage` is the **authoring** contract — the
+ *     JSON an SDUI schema declares (`ChatMessageSchema` in
+ *     `packages/types/src/zod/complex.zod.ts`), so it is deliberately wider:
+ *     a `'tool'` role and a `Date` timestamp are authorable.
+ *   - `./ChatbotEnhanced`'s `ChatMessage` is the **runtime** contract — what
+ *     the React components actually render, so it is deliberately narrower
+ *     (three roles, string timestamps) and carries render-only keys the
+ *     authoring surface has no business declaring (`buildProgress`, `charts`).
+ *
+ * Until this module they met as three `messages as any` casts, which erased
+ * ALL of the drift rather than the parts that are intentional: a new authored
+ * role or a newly required runtime key would have kept compiling and surfaced
+ * as rendering behaviour instead of a type error. This module is that seam,
+ * written down — one conversion, each narrowing decision named and tested.
+ *
+ * ## Narrowing decisions
+ *
+ * | key                    | authoring                                | runtime                     | decision |
+ * |------------------------|------------------------------------------|-----------------------------|----------|
+ * | `role`                 | `'user'\|'assistant'\|'system'\|'tool'`  | `'user'\|'assistant'\|'system'` | `'tool'` renders as an **assistant** bubble — see {@link toRuntimeRole} |
+ * | `timestamp`            | `string \| Date`                         | `string`                    | `Date` -> ISO 8601 — see {@link toRuntimeTimestamp} |
+ * | `toolInvocations[].state` | v6 states **+ legacy** `'partial-call'\|'call'\|'result'` | v6 states only | legacy -> v6, per the authoring type's own doc comment — see {@link toRuntimeToolState} |
+ * | `metadata`             | `any`                                    | *not declared*              | passed through untouched (see "Pass-through" below) |
+ * | everything else        | same shape on both sides                 | —                           | passed through untouched |
+ *
+ * ## Pass-through — why this is a conversion and not a reconstruction
+ *
+ * The adapter narrows the drifting fields **by name** and spreads the rest. It
+ * deliberately does NOT rebuild the message field-by-field from the authoring
+ * type, because in API mode the values arriving here are already RUNTIME
+ * messages wearing the authoring type: `useObjectChat` builds them with
+ * `uiMessagesToChatMessages(...) as OuiChatMessage[]` (see
+ * `useObjectChat.ts`), so at runtime they carry `buildProgress`,
+ * `blueprintProgress`, `charts` and tool invocations bearing the HITL /
+ * draft-review extensions — every one of which the authoring type erases. A
+ * field-by-field rebuild would silently drop the approval cards, the "Review N
+ * changes" affordance and the build panel. The cast used to preserve them by
+ * accident; the spread preserves them on purpose.
+ *
+ * The compile-time value of the seam is unaffected by that: a new authored
+ * `role` makes {@link toRuntimeRole} unassignable, and a newly REQUIRED runtime
+ * key makes {@link authoredToRuntimeMessage}'s return type red. Both are the
+ * type error the cast used to swallow.
+ */
+
+import type {
+  ChatMessage as AuthoredChatMessage,
+  ChatToolInvocation as AuthoredToolInvocation,
+} from '@object-ui/types';
+import type {
+  ChatMessage as RuntimeChatMessage,
+  ChatToolInvocation as RuntimeToolInvocation,
+} from './ChatbotEnhanced';
+
+/**
+ * `timestamp: string | Date` -> `string | undefined`.
+ *
+ * The authoring schema declares `z.union([z.string(), z.date()])`, and the
+ * runtime renders `{message.timestamp}` straight into a React child — a `Date`
+ * there is the classic "Objects are not valid as a React child" throw.
+ *
+ * This is the SINGLE expression of that absorption in the package: it was
+ * inlined in `useObjectChat`'s `normalizeMessages`, which now calls this
+ * function instead (objectui#4399). `normalizeMessages` keeps applying it
+ * because the hook's own `messages` output — and the `onSend(content,
+ * messages)` callback it feeds — has always handed hosts an ISO string, not a
+ * `Date`; the absorption is expressed once here and consumed at both points.
+ *
+ * The `instanceof` check (rather than an unconditional `.toISOString()`) is
+ * deliberate: authored JSON is not type-checked at runtime, so a value that is
+ * neither `string` nor `Date` must be dropped rather than thrown on. That is
+ * the behaviour the inlined version had.
+ */
+export function toRuntimeTimestamp(
+  timestamp: AuthoredChatMessage['timestamp'],
+): string | undefined {
+  if (typeof timestamp === 'string') return timestamp;
+  return timestamp instanceof Date ? timestamp.toISOString() : undefined;
+}
+
+/**
+ * `role: 'user' | 'assistant' | 'system' | 'tool'` -> the runtime's three roles.
+ *
+ * **The named decision (objectui#4399): an authored `'tool'` message renders as
+ * an assistant bubble, with its content shown.** That was already the outcome
+ * before this module existed — the cast let `'tool'` reach `<ChatbotEnhanced>`,
+ * whose `formatMessageProps` maps everything that is not `'user'` to the
+ * assistant bubble — but it was an implicit fallthrough that nothing recorded
+ * and nothing tested. It is now a decision this seam makes, by name.
+ *
+ * Note this is NOT the same decision as `formatMessageProps`: that one maps a
+ * runtime role to one of the vendored `<Message>` element's two BUBBLE styles
+ * (and folds `'system'` in as well). This one answers a different question —
+ * which runtime role an authored `'tool'` message IS. `'system'` keeps its own
+ * runtime role here and still renders as the centred system pill in
+ * `<Chatbot>`.
+ *
+ * Changing the rendering of tool messages (a transcript-style tool block, say)
+ * is a UX card, not this one; it would start here.
+ */
+export function toRuntimeRole(
+  role: AuthoredChatMessage['role'],
+): RuntimeChatMessage['role'] {
+  return role === 'tool' ? 'assistant' : role;
+}
+
+/**
+ * Tool-invocation `state` -> the runtime's AI SDK v6 lifecycle states.
+ *
+ * The authoring type accepts three extra legacy values and its own doc comment
+ * already declares the mapping: "the legacy `partial-call`/`call`/`result`
+ * values are kept for back-compat; the AI SDK v6 lifecycle states map cleanly
+ * to `input-streaming`/`input-available`/`output-available`". This implements
+ * exactly that sentence — the fourth drift the `as any` was hiding, which the
+ * issue's table did not list.
+ *
+ * Rendered-output note: an authored legacy state used to reach `getToolState`
+ * unrecognised, which fell through to `'running'` and rendered a status badge
+ * with no label. Only schema-authored `toolInvocations` can carry the legacy
+ * spelling (API-mode messages come from `mapMessages`, which emits v6 states
+ * already), so this is the one place where the seam's honesty changes a
+ * rendered result — from a blank badge to the state the author declared.
+ */
+export function toRuntimeToolState(
+  state: AuthoredToolInvocation['state'],
+): RuntimeToolInvocation['state'] {
+  switch (state) {
+    case 'partial-call':
+      return 'input-streaming';
+    case 'call':
+      return 'input-available';
+    case 'result':
+      return 'output-available';
+    default:
+      // Every remaining member of the authoring union IS a runtime state, so
+      // the compiler proves the narrowing here rather than a cast asserting it.
+      return state;
+  }
+}
+
+/**
+ * One authored tool invocation -> one runtime tool invocation.
+ *
+ * Only `state` drifts; everything else is spread through, which is what keeps
+ * the runtime-only extensions (`pendingActionId`, `draftReview`,
+ * `proposedPlan`, `proposedChanges`, `builderHandoff`) alive on the API-mode
+ * path — see the module doc.
+ */
+export function toRuntimeToolInvocation(
+  tool: AuthoredToolInvocation,
+): RuntimeToolInvocation {
+  const { state, ...passthrough } = tool;
+  return { ...passthrough, state: toRuntimeToolState(state) };
+}
+
+/**
+ * One authored chat message -> the message shape the chat components render.
+ *
+ * This is the seam. The three `messages as any` casts in `renderer.tsx` are
+ * this function now.
+ */
+export function authoredToRuntimeMessage(
+  message: AuthoredChatMessage,
+): RuntimeChatMessage {
+  const { role, timestamp, toolInvocations, ...passthrough } = message;
+  return {
+    ...passthrough,
+    role: toRuntimeRole(role),
+    timestamp: toRuntimeTimestamp(timestamp),
+    toolInvocations: toolInvocations?.map(toRuntimeToolInvocation),
+  };
+}
+
+/**
+ * Array form of {@link authoredToRuntimeMessage} — what the three registered
+ * renderers call.
+ *
+ * Call sites memoize on the input array (`useMemo(..., [messages])`) so the
+ * runtime array's identity stays exactly as stable as the hook's own output:
+ * local mode holds its messages in state, and the chat components key effects
+ * and memos off the `messages` prop.
+ */
+export function toRuntimeMessages(
+  messages: readonly AuthoredChatMessage[] | undefined,
+): RuntimeChatMessage[] {
+  return (messages ?? []).map(authoredToRuntimeMessage);
+}

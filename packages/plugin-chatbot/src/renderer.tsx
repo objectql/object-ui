@@ -6,12 +6,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { useMemo } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { ChatbotSchema, ChatMessage } from '@object-ui/types';
 import { Chatbot } from './index';
 import { ChatbotEnhanced } from './ChatbotEnhanced';
 import { FloatingChatbot } from './FloatingChatbot';
 import { useObjectChat } from './useObjectChat';
+import { toRuntimeMessages } from './chatMessageAdapter';
 
 /**
  * Chatbot component for Object UI
@@ -72,9 +74,18 @@ ComponentRegistry.register('chatbot',
       sendMessage(content);
     };
 
+    // The authoring -> runtime message seam (objectui#4399). `useObjectChat`
+    // speaks the `@object-ui/types` (authoring) contract; `<Chatbot>` renders
+    // the plugin's own. `toRuntimeMessages` names every narrowing decision
+    // between them — see `chatMessageAdapter.ts`. This used to be `as any`,
+    // which erased the intentional drift and the accidental drift alike.
+    // Memoized so the runtime array's identity is exactly as stable as the
+    // hook's own output (local mode holds `messages` in state).
+    const runtimeMessages = useMemo(() => toRuntimeMessages(messages), [messages]);
+
     return (
-      <Chatbot 
-        messages={messages as any}
+      <Chatbot
+        messages={runtimeMessages}
         placeholder={schema.placeholder}
         onSendMessage={handleSendMessage}
         disabled={schema.disabled || isLoading}
@@ -280,9 +291,12 @@ ComponentRegistry.register('chatbot-enhanced',
       schema.onClear?.();
     };
 
+    // See the `chatbot` renderer above — one seam, one adapter (objectui#4399).
+    const runtimeMessages = useMemo(() => toRuntimeMessages(messages), [messages]);
+
     return (
       <ChatbotEnhanced
-        messages={messages as any}
+        messages={runtimeMessages}
         placeholder={schema.placeholder}
         onSendMessage={handleSendMessage}
         onClear={handleClear}
@@ -408,10 +422,13 @@ ComponentRegistry.register('chatbot-floating',
       schema.onClear?.();
     };
 
+    // See the `chatbot` renderer above — one seam, one adapter (objectui#4399).
+    const runtimeMessages = useMemo(() => toRuntimeMessages(messages), [messages]);
+
     return (
       <FloatingChatbot
         floatingConfig={schema.floatingConfig}
-        messages={messages as any}
+        messages={runtimeMessages}
         placeholder={schema.placeholder}
         onSendMessage={handleSendMessage}
         onClear={handleClear}

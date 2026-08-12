@@ -282,6 +282,36 @@ Note that `@object-ui/types` also exports a `ChatMessage`. That one is the
 runtime one. Import the schema type from `@object-ui/types` and the runtime
 type from this package.
 
+### Authoring → runtime: `toRuntimeMessages`
+
+The two contracts are both deliberate, so they drift — and the conversion
+between them is a real decision, not a formality. If you hold **authored**
+messages (`@object-ui/types`) and want to render them with the components in
+this package, convert them; do not cast:
+
+```tsx
+import type { ChatMessage as AuthoredChatMessage } from '@object-ui/types';
+import { ChatbotEnhanced, toRuntimeMessages } from '@object-ui/plugin-chatbot';
+
+function MyAuthoredChat({ messages }: { messages: AuthoredChatMessage[] }) {
+  return <ChatbotEnhanced messages={toRuntimeMessages(messages)} />;
+}
+```
+
+| key | authoring (`@object-ui/types`) | runtime (this package) | what the adapter decides |
+|---|---|---|---|
+| `role` | `'user' \| 'assistant' \| 'system' \| 'tool'` | `'user' \| 'assistant' \| 'system'` | a `'tool'` message **is an assistant message**: it renders as an assistant bubble with its content shown. `'system'` keeps its own role (`<Chatbot>` renders it as a centred pill). |
+| `timestamp` | `string \| Date` | `string` | a `Date` becomes its ISO 8601 string. The runtime renders the timestamp straight into a React child, where an object throws. |
+| `toolInvocations[].state` | AI SDK v6 states **+ legacy** `'partial-call' \| 'call' \| 'result'` | v6 states only | the legacy spellings map to `'input-streaming'` / `'input-available'` / `'output-available'` — the mapping the authoring type's own docs declare. |
+| everything else | — | — | passed through untouched, including keys the runtime contract does not declare. |
+
+The three registered SDUI renderers (`chatbot`, `chatbot-enhanced`,
+`chatbot-floating`) use this adapter; they used to use `messages as any`, which
+compiled away the intentional drift and any accidental drift with it
+(objectui#4399). `authoredToRuntimeMessage` is the single-message variant, and
+`toRuntimeRole` / `toRuntimeTimestamp` / `toRuntimeToolState` are the individual
+decisions if you need one on its own.
+
 ### Message mapping helpers
 
 If you wire `@ai-sdk/react`'s `useChat()` directly and want to render its
