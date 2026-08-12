@@ -508,7 +508,7 @@ export function DataModelDesigner({
 
           {/* Undo/Redo */}
           <div className="flex items-center gap-1 ml-2 border-l pl-2">
-            <button
+            <button type="button"
               onClick={() => undoRedo.undo()}
               disabled={!undoRedo.canUndo}
               aria-label="Undo"
@@ -517,7 +517,7 @@ export function DataModelDesigner({
             >
               <Undo2 className="h-3.5 w-3.5" />
             </button>
-            <button
+            <button type="button"
               onClick={() => undoRedo.redo()}
               disabled={!undoRedo.canRedo}
               aria-label="Redo"
@@ -530,7 +530,7 @@ export function DataModelDesigner({
 
           {/* Zoom controls */}
           <div className="flex items-center gap-1 border-l pl-2">
-            <button
+            <button type="button"
               onClick={panZoom.zoomOut}
               aria-label="Zoom Out"
               title="Zoom Out"
@@ -539,7 +539,7 @@ export function DataModelDesigner({
               <ZoomOut className="h-3.5 w-3.5" />
             </button>
             <span className="text-xs tabular-nums w-10 text-center">{Math.round(panZoom.zoom * 100)}%</span>
-            <button
+            <button type="button"
               onClick={panZoom.zoomIn}
               aria-label="Zoom In"
               title="Zoom In"
@@ -547,7 +547,7 @@ export function DataModelDesigner({
             >
               <ZoomIn className="h-3.5 w-3.5" />
             </button>
-            <button
+            <button type="button"
               onClick={panZoom.resetZoom}
               aria-label="Reset Zoom"
               title="Reset Zoom"
@@ -560,7 +560,7 @@ export function DataModelDesigner({
           {/* Copy/Paste */}
           {!readOnly && (
             <div className="flex items-center gap-1 border-l pl-2">
-              <button
+              <button type="button"
                 onClick={handleCopy}
                 disabled={multiSelect.count === 0}
                 aria-label="Copy"
@@ -569,7 +569,7 @@ export function DataModelDesigner({
               >
                 <Copy className="h-3.5 w-3.5" />
               </button>
-              <button
+              <button type="button"
                 onClick={handlePaste}
                 disabled={!clipboard.hasContent}
                 aria-label="Paste"
@@ -583,7 +583,7 @@ export function DataModelDesigner({
 
           {/* Auto-layout */}
           {!readOnly && (
-            <button
+            <button type="button"
               onClick={handleAutoLayout}
               aria-label="Auto Layout"
               title="Auto Layout"
@@ -611,14 +611,14 @@ export function DataModelDesigner({
           {/* Add entity / relationship buttons */}
           {!readOnly && (
             <>
-              <button
+              <button type="button"
                 onClick={handleAddEntity}
                 aria-label="Add Entity"
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <Plus className="h-3 w-3" /> Add Entity
               </button>
-              <button
+              <button type="button"
                 aria-label="Add Relationship"
                 title="Add Relationship (coming soon)"
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-secondary text-secondary-foreground hover:bg-secondary/80"
@@ -748,7 +748,7 @@ export function DataModelDesigner({
                     </span>
                   )}
                   {!readOnly && (
-                    <button
+                    <button type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         void handleDeleteEntity(entity.id);
@@ -826,7 +826,7 @@ export function DataModelDesigner({
                 {/* Add field button */}
                 {!readOnly && (
                   <div className="px-3 py-1 border-t">
-                    <button
+                    <button type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleAddField(entity.id);
@@ -859,7 +859,7 @@ export function DataModelDesigner({
       <div className="w-64 border-l flex flex-col bg-background shrink-0">
         {/* Properties panel */}
         <div className="flex flex-col flex-1 min-h-0">
-          <button
+          <button type="button"
             onClick={() => setShowProperties((v) => !v)}
             className="flex items-center gap-1 px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-accent/50 border-b"
             aria-expanded={showProperties}
@@ -881,7 +881,7 @@ export function DataModelDesigner({
 
         {/* Minimap toggle */}
         <div className="border-t">
-          <button
+          <button type="button"
             onClick={() => setShowMinimap((v) => !v)}
             className="flex items-center gap-1 px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-accent/50 w-full"
             aria-expanded={showMinimap}

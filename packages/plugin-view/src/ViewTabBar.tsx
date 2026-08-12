@@ -799,7 +799,7 @@ export const ViewTabBar: React.FC<ViewTabBarProps> = ({
         {overflowViews.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button
+              <button type="button"
                 data-testid="view-tab-overflow"
                 className="inline-flex items-center gap-1 px-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
@@ -848,7 +848,7 @@ export const ViewTabBar: React.FC<ViewTabBarProps> = ({
         {showAddButton && onAddView && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
+              <button type="button"
                 data-testid="view-tab-add"
                 onClick={onAddView}
                 className="inline-flex items-center px-2 py-2 text-muted-foreground hover:text-foreground transition-colors"

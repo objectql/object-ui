@@ -106,7 +106,7 @@ export const NLQueryInput: React.FC<NLQueryInputProps> = ({ schema, onSubmit: on
           {suggestions.length > 0 && !result && (
             <div className="mt-3 flex flex-wrap gap-2">
               {suggestions.map((suggestion: string, idx: number) => (
-                <button
+                <button type="button"
                   key={idx}
                   onClick={() => handleSuggestionClick(suggestion)}
                   className="text-xs px-2.5 py-1 rounded-full border bg-muted/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
@@ -190,7 +190,7 @@ export const NLQueryInput: React.FC<NLQueryInputProps> = ({ schema, onSubmit: on
           </CardHeader>
           <CardContent className="space-y-1">
             {history.slice(0, 5).map((item: { query: string; timestamp: string }, idx: number) => (
-              <button
+              <button type="button"
                 key={idx}
                 onClick={() => handleSuggestionClick(item.query)}
                 className="w-full flex items-center gap-2 p-2 rounded-md text-sm text-left hover:bg-muted/50 transition-colors"

@@ -89,7 +89,7 @@ export function MetadataPanel({ sections, open }: Omit<MetadataInspectorProps, '
           return (
             <div key={index} className="border-b last:border-b-0">
               <div className="flex items-center justify-between px-4 py-3 hover:bg-muted/5 transition-colors">
-                <button
+                <button type="button"
                   onClick={() => toggleSection(sectionId)}
                   className="flex-1 flex items-center justify-between text-left"
                 >
@@ -102,7 +102,7 @@ export function MetadataPanel({ sections, open }: Omit<MetadataInspectorProps, '
                     <ChevronRight className="h-3 w-3 text-muted-foreground ml-2" />
                   )}
                 </button>
-                <button
+                <button type="button"
                   onClick={() => handleCopy(section.data, index)}
                   className="p-1 hover:bg-muted rounded transition-colors ml-2"
                   title={t('layout.metadata.copyJson')}

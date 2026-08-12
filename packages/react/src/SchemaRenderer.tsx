@@ -177,7 +177,7 @@ export class SchemaErrorBoundary extends Component<
               ) : null}
             </p>
           )}
-          <button
+          <button type="button"
             onClick={this.handleRetry}
             className="mt-2 text-sm underline hover:no-underline"
           >

@@ -45,7 +45,7 @@ const TreeNodeComponent = ({
         onClick={handleClick}
       >
         {hasChildren ? (
-          <button
+          <button type="button"
             onClick={handleToggle}
             className="mr-2 p-0.5 h-5 w-5 flex items-center justify-center rounded-sm hover:bg-muted text-muted-foreground transition-colors"
           >

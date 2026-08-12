@@ -411,7 +411,7 @@ export function PageDesigner({
                       {category.label}
                     </div>
                     {category.items.map((item: DesignerPaletteItem) => (
-                      <button
+                      <button type="button"
                         key={item.type}
                         onClick={() => handleAddComponent(item.type, item.label)}
                         className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent text-left"
@@ -438,7 +438,7 @@ export function PageDesigner({
         >
           {/* Left panel toggle */}
           {!readOnly && (
-            <button
+            <button type="button"
               className="p-1.5 rounded hover:bg-accent"
               title={leftPanelOpen ? 'Collapse palette' : 'Expand palette'}
               aria-label={leftPanelOpen ? 'Collapse palette' : 'Expand palette'}
@@ -452,7 +452,7 @@ export function PageDesigner({
           {undoRedoEnabled && !readOnly && (
             <>
               <div className="w-px h-5 bg-border mx-1" />
-              <button
+              <button type="button"
                 className={cn('p-1.5 rounded hover:bg-accent', !history.canUndo && 'opacity-40 pointer-events-none')}
                 title="Undo (Ctrl+Z)"
                 aria-label="Undo"
@@ -461,7 +461,7 @@ export function PageDesigner({
               >
                 <Undo2 className="h-4 w-4" />
               </button>
-              <button
+              <button type="button"
                 className={cn('p-1.5 rounded hover:bg-accent', !history.canRedo && 'opacity-40 pointer-events-none')}
                 title="Redo (Ctrl+Shift+Z)"
                 aria-label="Redo"
@@ -477,7 +477,7 @@ export function PageDesigner({
           {/* Copy / Paste */}
           {!readOnly && (
             <>
-              <button
+              <button type="button"
                 className={cn('p-1.5 rounded hover:bg-accent', multiSelect.count === 0 && 'opacity-40 pointer-events-none')}
                 title="Copy (Ctrl+C)"
                 aria-label="Copy"
@@ -486,7 +486,7 @@ export function PageDesigner({
               >
                 <Copy className="h-4 w-4" />
               </button>
-              <button
+              <button type="button"
                 className={cn('p-1.5 rounded hover:bg-accent', !clipboard.hasContent && 'opacity-40 pointer-events-none')}
                 title="Paste (Ctrl+V)"
                 aria-label="Paste"
@@ -501,7 +501,7 @@ export function PageDesigner({
 
           {/* Delete selected */}
           {!readOnly && (
-            <button
+            <button type="button"
               className={cn('p-1.5 rounded hover:bg-accent', multiSelect.count === 0 && 'opacity-40 pointer-events-none')}
               title="Delete selected"
               aria-label="Delete selected"
@@ -512,12 +512,12 @@ export function PageDesigner({
             </button>
           )}
 
-          <button className="p-1.5 rounded hover:bg-accent" title="Preview" aria-label="Preview">
+          <button type="button" className="p-1.5 rounded hover:bg-accent" title="Preview" aria-label="Preview">
             <Eye className="h-4 w-4" />
           </button>
 
           {/* Minimap toggle */}
-          <button
+          <button type="button"
             className={cn('p-1.5 rounded hover:bg-accent', minimapVisible && 'bg-accent')}
             title="Toggle minimap"
             aria-label="Toggle minimap"
@@ -530,7 +530,7 @@ export function PageDesigner({
 
           {/* Zoom controls */}
           <div className="flex items-center gap-1">
-            <button
+            <button type="button"
               className="p-1 rounded hover:bg-accent text-xs"
               aria-label="Zoom out"
               onClick={panZoom.zoomOut}
@@ -540,14 +540,14 @@ export function PageDesigner({
             <span className="text-xs text-muted-foreground w-10 text-center">
               {Math.round(zoom * 100)}%
             </span>
-            <button
+            <button type="button"
               className="p-1 rounded hover:bg-accent text-xs"
               aria-label="Zoom in"
               onClick={panZoom.zoomIn}
             >
               <Plus className="h-3 w-3" />
             </button>
-            <button
+            <button type="button"
               className="p-1 rounded hover:bg-accent text-xs"
               aria-label="Reset zoom"
               onClick={panZoom.resetZoom}
@@ -558,7 +558,7 @@ export function PageDesigner({
 
           {/* Right panel toggle */}
           {showComponentTree && (
-            <button
+            <button type="button"
               className="p-1.5 rounded hover:bg-accent"
               title={rightPanelOpen ? 'Collapse panel' : 'Expand panel'}
               aria-label={rightPanelOpen ? 'Collapse panel' : 'Expand panel'}
@@ -625,7 +625,7 @@ export function PageDesigner({
                     <GripVertical className="h-3 w-3 text-muted-foreground" />
                     <span className="truncate">{comp.label ?? comp.type}</span>
                     {!readOnly && (
-                      <button
+                      <button type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteComponent(comp.id);
@@ -678,7 +678,7 @@ export function PageDesigner({
                   </div>
                 ) : (
                   components.map((comp) => (
-                    <button
+                    <button type="button"
                       key={comp.id}
                       onClick={(e) => multiSelect.toggle(comp.id, e.shiftKey)}
                       className={cn(

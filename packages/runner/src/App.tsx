@@ -190,7 +190,7 @@ export default function RunnerApp() {
       <div className="flex flex-col items-center justify-center h-full p-12 text-red-600">
         <h1 className="text-2xl font-bold">404</h1>
         <p className="mt-2 text-slate-600">{error || 'Page not found'}</p>
-        <button onClick={() => handleNavigate('/')} className="mt-4 text-blue-600 hover:underline">
+        <button type="button" onClick={() => handleNavigate('/')} className="mt-4 text-blue-600 hover:underline">
           Go Home
         </button>
       </div>

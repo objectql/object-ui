@@ -129,7 +129,7 @@ export function PerformanceDashboard() {
   // Floating toggle button when closed
   if (!open) {
     return (
-      <button
+      <button type="button"
         onClick={() => setOpen(true)}
         className="fixed bottom-4 right-4 z-50 flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background shadow-lg hover:bg-muted transition-colors"
         title="Performance Dashboard (Ctrl+Shift+P)"
@@ -163,14 +163,14 @@ export function PerformanceDashboard() {
           )}
         </div>
         <div className="flex items-center gap-1">
-          <button
+          <button type="button"
             onClick={() => setCollapsed(prev => !prev)}
             className="rounded p-1 hover:bg-muted transition-colors"
             title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
-          <button
+          <button type="button"
             onClick={() => setOpen(false)}
             className="rounded p-1 hover:bg-muted transition-colors"
             title="Close (Ctrl+Shift+P)"

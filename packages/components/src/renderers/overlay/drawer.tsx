@@ -35,7 +35,7 @@ ComponentRegistry.register('drawer',
         {schema.footer && (
           <DrawerFooter>
              {renderChildren(schema.footer)}
-             {schema.showClose && <DrawerClose asChild><button>Close</button></DrawerClose>} 
+             {schema.showClose && <DrawerClose asChild><button type="button">Close</button></DrawerClose>} 
           </DrawerFooter>
         )}
       </DrawerContent>

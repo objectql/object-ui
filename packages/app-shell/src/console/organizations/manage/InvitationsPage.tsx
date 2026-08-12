@@ -149,7 +149,7 @@ export function InvitationsPage() {
       {/* Filter tabs */}
       <div className="flex gap-1 border-b">
         {tabs.map((tab) => (
-          <button
+          <button type="button"
             key={tab}
             onClick={() => setFilter(tab)}
             className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors capitalize ${

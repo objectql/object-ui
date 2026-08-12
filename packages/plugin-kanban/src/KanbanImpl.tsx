@@ -696,7 +696,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
             return (
               <div key={lane} className="border rounded-lg bg-muted/10">
                 {/* Lane header */}
-                <button
+                <button type="button"
                   className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/30 transition-colors"
                   onClick={() => toggleLane(lane)}
                   aria-expanded={!isCollapsed}

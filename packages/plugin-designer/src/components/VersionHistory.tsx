@@ -91,7 +91,7 @@ export function VersionHistory({
                     <span>{new Date(entry.timestamp).toLocaleString()}</span>
                   </div>
                   {!entry.isCurrent && onRestore && (
-                    <button
+                    <button type="button"
                       onClick={() => onRestore(entry.version)}
                       className="mt-1 text-[0.65rem] text-primary hover:underline"
                     >

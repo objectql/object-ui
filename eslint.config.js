@@ -98,6 +98,29 @@ export default tseslint.config({
     'object-ui/no-dynamic-import-in-test-hook': 'error',
   },
 }, {
+  // objectui#4045 ratchet — a `<button>` with no `type` is `type="submit"` per
+  // HTML, so it submits any <form> it is composed into instead of running its
+  // own handler. In an SDUI renderer that composition is a JSON metadata
+  // decision made far from the button's own file, so "not in a form today" is
+  // the dormancy, not a defence. Three per-instance rounds (objectui#3344,
+  // objectstack#5236, objectstack#6952) each fixed the sites in view and left
+  // the rest; nothing rejected the next one at write time, because `type` is
+  // optional in React's ButtonHTMLAttributes. Error so the next one fails CI;
+  // the whole population was converted first, so this lints clean today.
+  //
+  // Ignores mirror the population's counting rules exactly (objectui#4045):
+  //  - `src/ui/**` is the upstream Shadcn zone, overwritten by the sync script
+  //    and never hand-edited (AGENTS.md #7) — enforcing there would demand an
+  //    edit the repo forbids.
+  //  - test files render buttons into a test DOM, never into a product form,
+  //    and their fixtures are deliberately minimal.
+  files: ['**/*.tsx'],
+  ignores: ['**/src/ui/**', '**/*.test.tsx', '**/__tests__/**'],
+  plugins: { 'object-ui': objectUi },
+  rules: {
+    'object-ui/button-has-type': 'error',
+  },
+}, {
   // Type-discipline ratchet, scoped to the canonical view-schema file: a
   // spec-backed view-config field must reference its @objectstack/spec type,
   // never redefine it inline (a hand mirror silently drifts from the spec →

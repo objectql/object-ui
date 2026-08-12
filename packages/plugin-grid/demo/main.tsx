@@ -101,7 +101,7 @@ function Demo() {
         }}
       >{SAMPLE_TSV}</pre>
 
-      <button
+      <button type="button"
         onClick={() => { setResult(null); setOpen(true); }}
         style={{
           background: 'hsl(var(--primary))',

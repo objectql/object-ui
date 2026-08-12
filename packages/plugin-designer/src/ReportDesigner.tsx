@@ -527,7 +527,7 @@ export function ReportDesigner({
             {!readOnly && (
               <>
                 <div className="w-px h-5 bg-border mx-1" />
-                <button
+                <button type="button"
                   className={cn('p-1.5 rounded hover:bg-accent', !history.canUndo && 'opacity-40 pointer-events-none')}
                   title={LABELS.undoShortcut}
                   aria-label={LABELS.undo}
@@ -536,7 +536,7 @@ export function ReportDesigner({
                 >
                   <Undo2 className="h-4 w-4" />
                 </button>
-                <button
+                <button type="button"
                   className={cn('p-1.5 rounded hover:bg-accent', !history.canRedo && 'opacity-40 pointer-events-none')}
                   title={LABELS.redoShortcut}
                   aria-label={LABELS.redo}
@@ -552,7 +552,7 @@ export function ReportDesigner({
             {/* Copy / Paste */}
             {!readOnly && (
               <>
-                <button
+                <button type="button"
                   className={cn('p-1.5 rounded hover:bg-accent', multiSelect.count === 0 && 'opacity-40 pointer-events-none')}
                   title={LABELS.copyShortcut}
                   aria-label={LABELS.copy}
@@ -561,7 +561,7 @@ export function ReportDesigner({
                 >
                   <Copy className="h-4 w-4" />
                 </button>
-                <button
+                <button type="button"
                   className={cn('p-1.5 rounded hover:bg-accent', !clipboard.hasContent && 'opacity-40 pointer-events-none')}
                   title={LABELS.pasteShortcut}
                   aria-label={LABELS.paste}
@@ -576,7 +576,7 @@ export function ReportDesigner({
 
             {/* Delete selected */}
             {!readOnly && (
-              <button
+              <button type="button"
                 className={cn('p-1.5 rounded hover:bg-accent', multiSelect.count === 0 && 'opacity-40 pointer-events-none')}
                 title={LABELS.deleteSelected}
                 aria-label={LABELS.deleteSelected}
@@ -604,7 +604,7 @@ export function ReportDesigner({
 
             {/* Property panel toggle */}
             {showPropertyPanel && (
-              <button
+              <button type="button"
                 className="p-1.5 rounded hover:bg-accent"
                 title={propertyPanelOpen ? LABELS.collapsePanel : LABELS.expandPanel}
                 aria-label={propertyPanelOpen ? LABELS.collapsePanel : LABELS.expandPanel}
@@ -642,7 +642,7 @@ export function ReportDesigner({
                 {/* Add element buttons */}
                 {!readOnly && (
                   <div className="absolute right-1 top-0 flex items-center gap-0.5">
-                    <button
+                    <button type="button"
                       onClick={() => handleAddElement(sectionIndex, 'text')}
                       className="p-0.5 rounded hover:bg-accent"
                       title={LABELS.addText}
@@ -650,7 +650,7 @@ export function ReportDesigner({
                     >
                       <Type className="h-3 w-3" />
                     </button>
-                    <button
+                    <button type="button"
                       onClick={() => handleAddElement(sectionIndex, 'field')}
                       className="p-0.5 rounded hover:bg-accent"
                       title={LABELS.addField}
@@ -658,7 +658,7 @@ export function ReportDesigner({
                     >
                       <Plus className="h-3 w-3" />
                     </button>
-                    <button
+                    <button type="button"
                       onClick={() => handleAddElement(sectionIndex, 'image')}
                       className="p-0.5 rounded hover:bg-accent"
                       title={LABELS.addImage}
@@ -666,7 +666,7 @@ export function ReportDesigner({
                     >
                       <ImageIcon className="h-3 w-3" />
                     </button>
-                    <button
+                    <button type="button"
                       onClick={() => handleAddElement(sectionIndex, 'chart')}
                       className="p-0.5 rounded hover:bg-accent"
                       title={LABELS.addChart}
@@ -674,7 +674,7 @@ export function ReportDesigner({
                     >
                       <BarChart3 className="h-3 w-3" />
                     </button>
-                    <button
+                    <button type="button"
                       onClick={() => handleAddElement(sectionIndex, 'table')}
                       className="p-0.5 rounded hover:bg-accent"
                       title={LABELS.addTable}
@@ -721,7 +721,7 @@ export function ReportDesigner({
                           {element.type === 'table' && LABELS.elementTable}
                         </span>
                         {!readOnly && isSelected && (
-                          <button
+                          <button type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDeleteElement(element.id);
