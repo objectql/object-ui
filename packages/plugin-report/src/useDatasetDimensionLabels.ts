@@ -27,7 +27,7 @@
  * flight (objectui#4040 tranche 5) and this card's surface is the two plugin
  * packages. The DUPLICATION is the fetch-and-memo wiring only — roughly the
  * shape `DatasetWidget`'s effect has — and never the resolution rules. Lifting
- * it into core once tranche 5 lands is filed as a follow-up.
+ * it into core once tranche 5 lands is filed as objectui#4389.
  *
  * ## Why the read is issued at all (the #4263 boundary, amended by #4330)
  *
