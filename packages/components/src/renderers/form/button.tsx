@@ -26,8 +26,11 @@ const iconNameMap: Record<string, string> = {
   'Home': 'House',
 };
 
-const ButtonRenderer = forwardRef<HTMLButtonElement, { schema: ButtonSchema; [key: string]: any }>(
-  ({ schema, ...props }, ref) => {
+// Index signature on the parameter annotation, not on the `forwardRef` type
+// argument — mechanism note on `action:bar` (objectui#4422), pinned by
+// `__tests__/forwardref-props-annotation.guard.test.ts`.
+const ButtonRenderer = forwardRef<HTMLButtonElement, { schema: ButtonSchema }>(
+  ({ schema, ...props }: { schema: ButtonSchema; [key: string]: any }, ref) => {
     // Extract designer-related props
     const { 
         'data-obj-id': dataObjId, 

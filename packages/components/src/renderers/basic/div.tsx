@@ -38,8 +38,11 @@ function warnDeprecatedOnce(type: string, message: string): void {
   console.warn(message);
 }
 
-const DivRenderer = forwardRef<HTMLDivElement, { schema: DivSchema; className?: string; [key: string]: any }>(
-  ({ schema, className, ...props }, ref) => {
+// Index signature on the parameter annotation, not on the `forwardRef` type
+// argument — mechanism note on `action:bar` (objectui#4422), pinned by
+// `__tests__/forwardref-props-annotation.guard.test.ts`.
+const DivRenderer = forwardRef<HTMLDivElement, { schema: DivSchema; className?: string }>(
+  ({ schema, className, ...props }: { schema: DivSchema; className?: string; [key: string]: any }, ref) => {
     // Deprecation warning (once per module load — see warnDeprecatedOnce)
     warnDeprecatedOnce(
       'div',

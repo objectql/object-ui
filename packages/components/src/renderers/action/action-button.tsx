@@ -7,7 +7,7 @@
  */
 
 /**
- * action:button — Smart action button driven by ActionSchema.
+ * action:button — Smart action button driven by UIActionSchema.
  *
  * Renders a Shadcn Button wired to the ActionRunner. Supports:
  * - All 5 spec action types (script, url, modal, flow, api)
@@ -20,7 +20,7 @@
 import React, { forwardRef, useCallback, useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { ActionDef } from '@object-ui/core';
-import type { ActionSchema } from '@object-ui/types';
+import type { UIActionSchema } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
 import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
 import { Button } from '../../ui';
@@ -30,16 +30,39 @@ import { resolveIcon } from './resolve-icon';
 import { hasDeclaredVisibilityGate } from './visibility-gate';
 import { hasAutoTrigger, useAutoTriggerOnce } from './auto-trigger';
 
+/**
+ * The declared props. `schema` is `UIActionSchema` (objectui#4418): every key
+ * this renderer forwards below — `target`, `endpoint`, `bodyExtra`,
+ * `bodyShape`, `locations`, `enabled`, `size` — is declared by the modern type
+ * and by no other, and the legacy `crud.ts` `ActionSchema` it used to name is
+ * `@deprecated` and requires `type: 'action'` (this renderer serves
+ * `'script' | 'url' | 'modal' | 'flow' | 'api'`). `actionType` stays on the
+ * intersection: it is the legacy-shaped override this renderer reads FIRST
+ * (`schema.actionType || schema.type`), and it is not a `UIActionSchema` key.
+ */
 export interface ActionButtonProps {
-  schema: ActionSchema & { type: string; className?: string; actionType?: string };
+  schema: UIActionSchema & { type: string; className?: string; actionType?: string };
   className?: string;
   /** Override context for this specific action */
   context?: Record<string, any>;
   [key: string]: any;
 }
 
-const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
-  ({ schema, className, context: localContext, ...props }, ref) => {
+// `PropsWithoutRef` would collapse `ActionButtonProps` to its bare index
+// signature, so the type argument carries the declared props WITHOUT it (each
+// derived off `ActionButtonProps`, so the two cannot drift) and the index
+// signature stays on the parameter annotation — mechanism note on `action:bar`
+// (objectui#4422), pinned by
+// `__tests__/forwardref-props-annotation.guard.test.ts`.
+const ActionButtonRenderer = forwardRef<
+  HTMLButtonElement,
+  {
+    schema: ActionButtonProps['schema'];
+    className?: ActionButtonProps['className'];
+    context?: ActionButtonProps['context'];
+  }
+>(
+  ({ schema, className, context: localContext, ...props }: ActionButtonProps, ref) => {
     const {
       'data-obj-id': dataObjId,
       'data-obj-type': dataObjType,

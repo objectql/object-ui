@@ -9,12 +9,12 @@
 /**
  * action:bar — Location-aware action toolbar.
  *
- * Renders a set of ActionSchema items filtered by a given location.
+ * Renders a set of UIActionSchema items filtered by a given location.
  * Each action is rendered using its `component` type (action:button, action:icon,
  * action:menu, action:group) via the ComponentRegistry. Actions beyond the
  * `maxVisible` threshold are grouped into an overflow "More" dropdown.
  *
- * This is the "bridge" component that connects ActionSchema metadata to the UI,
+ * This is the "bridge" component that connects UIActionSchema metadata to the UI,
  * enabling server-driven action rendering at every location the spec declares:
  * list_toolbar, list_item, record_header, record_more, record_related and
  * record_section. (`global_nav` used to close that list; it was retired from
@@ -38,7 +38,7 @@
 
 import React, { forwardRef, useMemo } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
-import type { ActionSchema, UIActionSchema, ActionLocation, ActionComponent } from '@object-ui/types';
+import type { UIActionSchema, ActionLocation, ActionComponent } from '@object-ui/types';
 import { ACTION_LOCATIONS, actionRendersAt } from '@object-ui/types';
 import { useCondition, toPredicateInput, useCapabilityGate } from '@object-ui/react';
 import { useObjectTranslation } from '@object-ui/i18n';
@@ -57,7 +57,7 @@ function useActionsLabel(): string {
 export interface ActionBarSchema {
   type: 'action:bar';
   /** Business actions to render — subject to inline/overflow split via {@link maxVisible} */
-  actions?: ActionSchema[];
+  actions?: UIActionSchema[];
   /**
    * System/chrome actions (Duplicate, Export, View History, Delete, etc.) that
    * are *always* placed in the overflow menu — never inline — regardless of
@@ -68,7 +68,7 @@ export interface ActionBarSchema {
    * The first system action is automatically separated from business-overflow
    * entries by a menu separator.
    */
-  systemActions?: ActionSchema[];
+  systemActions?: UIActionSchema[];
   /** Filter actions by this location */
   location?: ActionLocation;
   /** Maximum visible inline actions before overflow into "More" menu (default: 3) */
@@ -90,8 +90,29 @@ export interface ActionBarSchema {
   [key: string]: any;
 }
 
-const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; [key: string]: any }>(
-  ({ schema, className, ...props }, ref) => {
+// The index signature lives on the PARAMETER annotation and NOT on the
+// `forwardRef` type argument. That asymmetry is load-bearing (objectui#4422) —
+// see `__tests__/forwardref-props-annotation.guard.test.ts`, which pins it:
+//
+//   * `forwardRef` routes its type argument through `PropsWithoutRef`, which is
+//     `'ref' extends keyof P ? Omit<P, 'ref'> : P`. A string index signature
+//     puts `string` into `keyof P`, so the `Omit` branch ALWAYS runs, and
+//     `Omit` over an index-signature type keeps only the index signature —
+//     every declared property is erased. With the signature on the type
+//     argument, `schema` arrived as `any`.
+//   * Keeping it on the parameter annotation preserves the pass-through spread
+//     (`...props` still collects arbitrary keys for the DOM/Shadcn hand-off),
+//     so this is NOT the "drop the index signature" direction — no component's
+//     real prop surface had to be enumerated.
+//
+// The annotation cannot simply repeat the type argument: once `Omit` has erased
+// `schema`, a required `schema` in the annotation is a TS2345 on the render
+// function itself. Removing the signature from the type argument is what makes
+// the direct annotation legal, and it is consumer-neutral — this const is not
+// exported and never appears in JSX, and `Registry.register` takes
+// `ComponentRenderer<T = any> = T`.
+const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; className?: string }>(
+  ({ schema, className, ...props }: { schema: ActionBarSchema; className?: string; [key: string]: any }, ref) => {
     const actionsAriaLabel = useActionsLabel();
     const {
       'data-obj-id': dataObjId,
@@ -129,26 +150,13 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
 
     // Filter business actions by location and deduplicate by name
     const filteredActions = useMemo(() => {
-      // Annotated, not inferred, and `UIActionSchema` rather than the legacy
-      // `ActionSchema` this file imports for its declarations. Two facts, both
-      // measured in objectui#4353:
-      //
-      //  1. The declaration does not survive into `schema`. `forwardRef` routes
-      //     props through `PropsWithoutRef`, whose `Omit` collapses a props type
-      //     carrying `[key: string]: any` down to the bare index signature — so
-      //     `schema` arrives as `any` and every callback below it inferred
-      //     `any` too. One annotation at the point the list ENTERS types the
-      //     whole `filter`/`some`/`map` chain by inference.
-      //  2. `UIActionSchema` is what actually flows in. The legacy
-      //     `ActionSchema` (`crud.ts`, `@deprecated`) has no `locations`, so the
-      //     shared `actionRendersAt` predicate rejects it outright, and its
-      //     `variant` union has no `'primary'` — the value the objectui#2339
-      //     tie-break below compares against. This file's own doc example is a
-      //     `UIActionSchema` (`type: 'script'`; legacy requires `type: 'action'`).
-      //
-      // The exported `ActionBarSchema.actions` key still DECLARES the legacy
-      // type — that mismatch predates this change, is filed separately, and is
-      // deliberately not migrated here (it reaches ~46 sites across 12 files).
+      // `UIActionSchema` all the way through, declaration included
+      // (objectui#4418). It used to be only the local: the exported
+      // `ActionBarSchema.actions` key declared the legacy `ActionSchema` while
+      // this implementation was written against the modern one, and #4353's
+      // annotation named that contradiction here rather than resolving it.
+      // The declaration has now moved, so the local is a plain restatement of
+      // `schema.actions`' own type and the chain below still infers from it.
       const actions: UIActionSchema[] = schema.actions || [];
       // [ADR-0066 D4 / framework#3923] Capability gate — this bar filters its
       // own set instead of going through `ActionEngine.getActionsForLocation`,
@@ -203,7 +211,8 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
     // System actions: always go into the overflow menu, deduped by name,
     // never filtered by location (they're chrome, not business logic).
     const systemActions = useMemo(() => {
-      // Same annotation, same two reasons as `filteredActions` above.
+      // Same type as `filteredActions` above, and now for the same plain
+      // reason — `systemActions` declares it too.
       const actions: UIActionSchema[] = schema.systemActions || [];
       const seen = new Set<string>();
       // Chrome or not, a declared capability gates it (ADR-0066 D4) — a host

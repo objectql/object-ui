@@ -11,8 +11,11 @@ import type { TextSpanSchema } from '@object-ui/types';
 import { renderChildren } from '../../lib/utils';
 import { forwardRef } from 'react';
 
-const SpanRenderer = forwardRef<HTMLSpanElement, { schema: TextSpanSchema; className?: string; [key: string]: any }>(
-  ({ schema, className, ...props }, ref) => {
+// Index signature on the parameter annotation, not on the `forwardRef` type
+// argument — mechanism note on `action:bar` (objectui#4422), pinned by
+// `__tests__/forwardref-props-annotation.guard.test.ts`.
+const SpanRenderer = forwardRef<HTMLSpanElement, { schema: TextSpanSchema; className?: string }>(
+  ({ schema, className, ...props }: { schema: TextSpanSchema; className?: string; [key: string]: any }, ref) => {
     // Deprecation warning
     if (process.env.NODE_ENV !== 'production') {
       console.warn(
