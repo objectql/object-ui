@@ -161,6 +161,78 @@ function DateRangeFilter({ def, value, onChange }: { def: DashboardFilterDef; va
   );
 }
 
+/**
+ * Pair an option-source response into `{ value, label }` options — the
+ * COMMITTED value from the server's raw grouped values, the visible text from
+ * the displayed row (objectui#4465).
+ *
+ * The dataset option source is a GROUP BY whose response carries the same two
+ * forms every dataset answer does: `rows` holds the SERVER-RESOLVED DISPLAY
+ * LABELS (`{status: 'In Review'}`) and the index-aligned `drillRawRows` holds
+ * the RAW stored values (`{status: 'in_review'}`). Reading the value off `rows`
+ * committed `status = 'In Review'` into every bound widget's `runtimeFilter`,
+ * and no stored record carries that string — the widgets re-queried and
+ * repainted to "No rows". Only the label was ever meant to come from `rows`.
+ *
+ * The reading discipline is MIRRORED from the drill path, which consumes this
+ * exact response correctly and always has: `DatasetWidget`'s `openDrill` reads
+ * `drillRawRows?.[index]` at the SAME INDEX the display row was resolved at,
+ * and `buildDatasetDrillFilter` documents why ("the dimension's RAW grouped
+ * value … NOT the visible row which carries the display LABEL — a
+ * select/lookup label would mis-filter"). One response, one reading. No helper
+ * is shared with it: that one builds an ObjectQL filter keyed by object FIELD
+ * (ANDing `runtimeFilter` and date ranges), which has no overlap with pairing
+ * an option list, and reshaping it to fit would refactor the drill path to
+ * serve this call site.
+ *
+ * Two deliberate abstentions, both landing on today's read (labels as values)
+ * rather than on a guess:
+ *
+ *  - **Length disagreement.** Index pairing is only meaningful while the two
+ *    arrays are index-aligned, and a length mismatch is the one signal that
+ *    they are not. Pairing anyway would commit ANOTHER row's raw value —
+ *    silently wrong in a NEW way, and indistinguishable from a correct filter
+ *    that legitimately matched nothing. Labels-as-values is at least visibly
+ *    wrong, and it is what this call site did before.
+ *  - **The raw rows do not speak this field at all.** A `dateGranularity`
+ *    dimension is excluded from `drillRawRows` by the server (it sends
+ *    `drillRanges` instead), so raw rows carrying none of `valueField` are the
+ *    server saying "there is no raw form of this dimension", not a defect.
+ *
+ * Within a trusted pairing an INDIVIDUAL row whose raw value is absent/empty is
+ * skipped, exactly as an absent/empty displayed value was skipped before —
+ * falling back to that row's label there would re-commit a label as a value for
+ * that one option, which is the defect, one row at a time. `rawRows` absent
+ * entirely (the client-side `find` path, or a server that sends no drill
+ * metadata) is the same abstention: value and label both come from the row, as
+ * before.
+ */
+function pairOptionRows(
+  rows: any[],
+  rawRows: any[] | undefined,
+  from: { valueField: string; labelField?: string },
+): Array<{ value: string; label: string }> {
+  const aligned =
+    Array.isArray(rawRows) &&
+    rawRows.length === rows.length &&
+    rawRows.some((rr) => rr?.[from.valueField] !== undefined)
+      ? rawRows
+      : undefined;
+  const seen = new Map<string, string>();
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const v = aligned ? aligned[i]?.[from.valueField] : r?.[from.valueField];
+    if (v === undefined || v === null || v === '') continue;
+    const key = String(v);
+    if (seen.has(key)) continue;
+    // The label always comes from the DISPLAYED row — `labelField` when the
+    // author named one, else the same dimension's resolved display text.
+    const shown = from.labelField ? r?.[from.labelField] : r?.[from.valueField];
+    seen.set(key, String(shown ?? key));
+  }
+  return Array.from(seen, ([v, l]) => ({ value: v, label: l }));
+}
+
 function SelectFilter({ def, value, onChange, dataSource }: { def: DashboardFilterDef; value: string | undefined; onChange: (v: string | undefined) => void; dataSource?: any }) {
   const tt = useSafeTranslate();
   const { language } = useObjectTranslation();
@@ -194,14 +266,9 @@ function SelectFilter({ def, value, onChange, dataSource }: { def: DashboardFilt
         .then((records: any) => {
           if (cancelled) return;
           const rows: any[] = Array.isArray(records) ? records : records?.items ?? [];
-          const seen = new Map<string, string>();
-          for (const r of rows) {
-            const v = r?.[from.valueField];
-            if (v === undefined || v === null || v === '') continue;
-            const key = String(v);
-            if (!seen.has(key)) seen.set(key, String(from.labelField ? r?.[from.labelField] ?? key : key));
-          }
-          setDynamicOptions(Array.from(seen, ([v, l]) => ({ value: v, label: l })));
+          // Real records, not an aggregate answer: `r[valueField]` IS the
+          // stored value here, so there is no raw sidecar to pair with.
+          setDynamicOptions(pairOptionRows(rows, undefined, from));
         })
         .catch(() => { if (!cancelled) setDynamicOptions([]); });
     };
@@ -231,14 +298,10 @@ function SelectFilter({ def, value, onChange, dataSource }: { def: DashboardFilt
         .then((res: any) => {
           if (cancelled) return;
           const rows: any[] = Array.isArray(res?.rows) ? res.rows : [];
-          const seen = new Map<string, string>();
-          for (const r of rows) {
-            const v = r?.[from.valueField];
-            if (v === undefined || v === null || v === '') continue;
-            const key = String(v);
-            if (!seen.has(key)) seen.set(key, String(from.labelField ? r?.[from.labelField] ?? key : key));
-          }
-          setDynamicOptions(Array.from(seen, ([v, l]) => ({ value: v, label: l })));
+          // `rows` carries the display labels; the committed value comes from
+          // the index-aligned `drillRawRows` — see `pairOptionRows`.
+          const rawRows: any[] | undefined = Array.isArray(res?.drillRawRows) ? res.drillRawRows : undefined;
+          setDynamicOptions(pairOptionRows(rows, rawRows, from));
         })
         .catch(() => { if (!cancelled) clientSideFallback(); });
     } else {

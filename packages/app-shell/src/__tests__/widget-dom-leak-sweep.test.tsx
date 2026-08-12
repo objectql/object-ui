@@ -148,16 +148,22 @@
  *    required" placeholder instead of the calendar. Renders go through the
  *    provider, and each target carries the minimum schema its real markup needs.
  *
- * ## The judge is duplicated, deliberately and temporarily
+ * ## The judge is shared — it is no longer this file's to keep
  *
- * `isKnownAttribute` / `findLeaks` below are a copy of the judge in
- * `packages/fields/src/__tests__/widget-dom-leak-e2e.test.tsx`. That judge lives
- * INSIDE a test file and is not exported, so reusing it would mean editing
- * `packages/fields` — out of scope for a measurement-only PR, and its gate is
- * the reference the card points at. Two copies of one judge is how one judge
- * becomes two disagreeing judges, so the copy is recorded as a finding rather
- * than left to be discovered: extracting it to a shared home is phase-2 work.
- * The calibration fixtures below are what keep this copy honest in the meantime.
+ * `isKnownAttribute` / `findLeaks` / `leakReport` used to be defined below, as
+ * a copy of the judge in `packages/fields/src/__tests__/widget-dom-leak-e2e.test.tsx`.
+ * That copy is gone: objectui#4434 extracted one judge into
+ * `@object-ui/test-support` (private, never published — see its README for why
+ * that home and not a subpath export), carrying the UNION of what the two
+ * copies knew. The sweep-only half of that union is the ten recharts
+ * marker/gradient/pattern attributes this file's SVG list had grown and the
+ * fields copy never had; the calibration fixtures moved with the judge and now
+ * exercise them.
+ *
+ * What did NOT move is everything below: the canary sets, the target
+ * enumeration, the readiness selectors, {@link LEAK_LEDGER} and every
+ * assertion. Only the judge unifies — a judge that starts carrying one gate's
+ * policy is back to being two judges wearing one name.
  */
 
 import type { ComponentType } from 'react';
@@ -180,154 +186,10 @@ import '@object-ui/plugin-charts';
 import '@object-ui/plugin-calendar';
 import '@object-ui/plugin-chatbot';
 import '@object-ui/plugin-dashboard';
-
-/* ════════════════════════════════════════════════════════════════════════════
- * The judge: is this attribute one HTML actually defines?
- * (copy of the #3291 judge — see "The judge is duplicated" above)
- * ══════════════════════════════════════════════════════════════════════════ */
-
-/** Open families. `data-*` is the one open family the widget contract declares. */
-const OPEN_PREFIXES = [
-  'data-',
-  'aria-',
-  // `cmdk-root` / `cmdk-input` / … are marks the cmdk library puts on ITS OWN
-  // DOM. Not prop pass-through.
-  'cmdk-',
-];
-
-/** Global HTML attributes, legitimate on any element. */
-const GLOBAL_HTML_ATTRIBUTES = new Set([
-  'id', 'class', 'style', 'title', 'lang', 'dir', 'hidden', 'tabindex', 'role',
-  'slot', 'part', 'exportparts', 'itemid', 'itemprop', 'itemref', 'itemscope',
-  'itemtype', 'translate', 'draggable', 'spellcheck', 'autocapitalize',
-  'autocorrect', 'contenteditable', 'enterkeyhint', 'inputmode', 'accesskey',
-  'nonce', 'is', 'popover', 'inert', 'autofocus',
-]);
-
-/** Attributes whose IDL property is spelled too differently to match by case. */
-const ATTRIBUTE_TO_IDL_ALIAS: Record<string, string> = {
-  'class': 'className',
-  'for': 'htmlFor',
-  'accept-charset': 'acceptCharset',
-  'http-equiv': 'httpEquiv',
-};
-
-/** MEASURED gaps in happy-dom's IDL — standard attributes it does not reflect. */
-const HAPPY_DOM_IDL_GAPS: Record<string, Set<string>> = {
-  select: new Set(['size']),
-  option: new Set(['label']),
-  textarea: new Set(['wrap']),
-  col: new Set(['span']),
-  colgroup: new Set(['span']),
-};
-
-/**
- * SVG needs its own list: the reflection trick does not hold for SVG under
- * happy-dom, and lucide icons put a fixed set of presentation attributes on
- * every icon. Recharts adds a few more of its own.
- */
-const SVG_ATTRIBUTES = new Set([
-  'xmlns', 'xmlns:xlink', 'version', 'viewbox', 'preserveaspectratio',
-  'width', 'height', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx',
-  'ry', 'd', 'points', 'transform', 'fill', 'fill-rule', 'fill-opacity',
-  'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin',
-  'stroke-dasharray', 'stroke-dashoffset', 'stroke-opacity', 'opacity',
-  'clip-path', 'clip-rule', 'mask', 'offset', 'stop-color', 'stop-opacity',
-  'gradientunits', 'gradienttransform', 'patternunits', 'text-anchor',
-  'dominant-baseline', 'font-size', 'font-family', 'font-weight',
-  'vector-effect', 'shape-rendering', 'focusable', 'overflow', 'color',
-  'orient', 'refx', 'refy', 'markerwidth', 'markerheight', 'markerunits',
-  'patterncontentunits', 'spreadmethod', 'gradientscale', 'pathlength',
-]);
-
-/** Lowercased IDL property names on a tag's prototype chain, cached per tag. */
-const idlCache = new Map<string, Set<string>>();
-
-function idlPropertiesFor(tagName: string): Set<string> {
-  const tag = tagName.toLowerCase();
-  const cached = idlCache.get(tag);
-  if (cached) return cached;
-
-  const names = new Set<string>();
-  const element = document.createElement(tag);
-  for (const own of Object.getOwnPropertyNames(element)) names.add(own.toLowerCase());
-  for (
-    let proto = Object.getPrototypeOf(element);
-    proto && proto !== Object.prototype;
-    proto = Object.getPrototypeOf(proto)
-  ) {
-    for (const name of Object.getOwnPropertyNames(proto)) names.add(name.toLowerCase());
-  }
-  idlCache.set(tag, names);
-  return names;
-}
-
-/**
- * The rule: an attribute is legitimate when HTML/SVG defines it for that
- * element, or when it belongs to an open family. The reflection check covers
- * `readonly`/`maxlength`/`colspan` and every other per-tag attribute
- * automatically instead of a hand-kept table that would rot.
- */
-function isKnownAttribute(element: Element, attribute: string): boolean {
-  const name = attribute.toLowerCase();
-
-  if (OPEN_PREFIXES.some((prefix) => name.startsWith(prefix))) return true;
-
-  // Inline event handlers reflect as IDL properties on every element; React
-  // never emits them as attributes, so one reaching the DOM means a
-  // handler-shaped prop was stringified onto it. Treat as a leak.
-  if (name.startsWith('on')) return false;
-
-  const tag = element.tagName.toLowerCase();
-
-  if (element.namespaceURI === 'http://www.w3.org/2000/svg') {
-    return SVG_ATTRIBUTES.has(name) || GLOBAL_HTML_ATTRIBUTES.has(name);
-  }
-
-  if (GLOBAL_HTML_ATTRIBUTES.has(name)) return true;
-  if (HAPPY_DOM_IDL_GAPS[tag]?.has(name)) return true;
-
-  const idl = idlPropertiesFor(tag);
-  const alias = ATTRIBUTE_TO_IDL_ALIAS[name];
-  if (alias && idl.has(alias.toLowerCase())) return true;
-  return idl.has(name);
-}
-
-interface Leak {
-  tag: string;
-  attribute: string;
-  value: string;
-  outerHTML: string;
-}
-
-/** Every unexplained attribute on `root` and its descendants. */
-function findLeaks(root: Element): Leak[] {
-  const leaks: Leak[] = [];
-  const elements: Element[] = [root, ...Array.from(root.querySelectorAll('*'))];
-  for (const element of elements) {
-    for (const attribute of Array.from(element.attributes)) {
-      if (isKnownAttribute(element, attribute.name)) continue;
-      leaks.push({
-        tag: element.tagName.toLowerCase(),
-        attribute: attribute.name,
-        value: attribute.value.slice(0, 80),
-        outerHTML: element.outerHTML.slice(0, 300),
-      });
-    }
-  }
-  return leaks;
-}
-
-/** Renders findings as the assertion's "actual", so a failure names everything. */
-function leakReport(target: string, leaks: Leak[]): string {
-  if (leaks.length === 0) return '';
-  const lines = leaks.map(
-    (leak) =>
-      `  <${leak.tag}> leaked ${leak.attribute}="${leak.value}"\n` +
-      `      in: ${leak.outerHTML}`,
-  );
-  return `${target} leaked ${leaks.length} non-DOM attribute(s):\n${lines.join('\n')}`;
-}
+// The attribute judge, shared with `packages/fields`' gate (objectui#4434).
+// Its calibration fixtures live next to it and prove it for both gates.
+import { findLeaks, leakReport } from '@object-ui/test-support';
+import type { Leak } from '@object-ui/test-support';
 
 /* ════════════════════════════════════════════════════════════════════════════
  * The canaries
@@ -660,70 +522,24 @@ afterEach(() => {
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
- * 1. The judge proves itself, BEFORE it is trusted on the sweep
+ * 1. The judge proves itself — in `@object-ui/test-support`, not here
  * ══════════════════════════════════════════════════════════════════════════ */
 
-/** Ordinary, correct markup — several attributes whose IDL name differs. */
-const CLEAN_FIXTURE = `
-  <div id="root" class="a b" title="t" role="group" tabindex="0" hidden
-       data-testid="x" aria-label="l" data-state="open">
-    <input type="text" name="n" value="v" placeholder="p" readonly maxlength="5" />
-    <textarea rows="3" cols="4" wrap="soft" readonly></textarea>
-    <select size="2" multiple><option label="L" value="v" selected></option></select>
-    <button type="button" disabled formnovalidate value="on">b</button>
-    <label for="root">l</label>
-    <table><colgroup><col span="2" /></colgroup><tbody><tr>
-      <td colspan="2" rowspan="1" headers="h"></td></tr></tbody></table>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"
-         fill="none" stroke="currentColor" stroke-width="2" class="icon">
-      <path d="M0 0h24v24H0z" /></svg>
-  </div>
-`;
-
-/** Every planted attribute here MUST be reported. */
-const PLANTED_LEAKS: ReadonlyArray<readonly [string, string]> = [
-  ['schema', '[object Object]'],
-  ['events', '[object Object]'],
-  ['bind', 'data.revenue'],
-  ['props', '[object Object]'],
-  ['arialabel', 'Canary label'],
-  ['ariadescribedby', 'canary-desc'],
-  ['datasource', '[object Object]'],
-  ['colorvariant', 'success'],
-  ['zzcanary', 'CANARY-STR'],
-  ['zzcanaryobj', '[object Object]'],
-  ['zzcanarynum', '42'],
-  ['zzcanarycamel', 'CANARY-CAMEL'],
-  ['reference_to', 'contacts'],
-];
-
-describe('the leak judge is calibrated (objectui#3291 / #4425)', () => {
-  it('reports NOTHING on standard markup — no false positives', () => {
-    const host = document.createElement('div');
-    host.innerHTML = CLEAN_FIXTURE;
-    document.body.appendChild(host);
-    try {
-      const leaks = findLeaks(host);
-      expect(leaks.map((l) => `<${l.tag}> ${l.attribute}="${l.value}"`).join('\n')).toBe('');
-    } finally {
-      host.remove();
-    }
-  });
-
-  it('reports EVERY planted fake attribute — no false negatives', () => {
-    const host = document.createElement('div');
-    const planted = PLANTED_LEAKS.map(([name, value]) => `${name}="${value}"`).join(' ');
-    host.innerHTML = `<input type="text" name="n" ${planted} />`;
-    document.body.appendChild(host);
-    try {
-      const found = new Set(findLeaks(host).map((leak) => leak.attribute));
-      const missed = PLANTED_LEAKS.map(([name]) => name).filter((name) => !found.has(name));
-      expect(missed).toEqual([]);
-    } finally {
-      host.remove();
-    }
-  });
-});
+/**
+ * This section used to hold a calibration pair: standard markup that must
+ * yield zero findings, and planted fake attributes that must all be reported.
+ * Both moved to `packages/test-support/src/__tests__/dom-leak-judge.test.tsx`
+ * with the judge (objectui#4434), unioned with the `packages/fields` gate's
+ * pair — which is how the ten recharts SVG attributes THIS file contributed to
+ * the shared list finally got a clean-markup fixture behind them. The judge is
+ * still proven before it is trusted on the sweep; it is proven once, for both
+ * gates, instead of once per copy.
+ *
+ * What stays here is the calibration this gate alone can do: section 2 below,
+ * which proves the CANARIES reach a widget through the real `SchemaRenderer`
+ * path. That is a property of the harness, not of the judge, and no shared
+ * module can assert it.
+ */
 
 /* ════════════════════════════════════════════════════════════════════════════
  * 2. The canary MECHANISM proves itself, end to end through the real path

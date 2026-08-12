@@ -276,6 +276,11 @@ export default defineConfig({
       '@object-ui/permissions': path.resolve(__dirname, './packages/permissions/src'),
       '@object-ui/collaboration': path.resolve(__dirname, './packages/collaboration/src'),
       '@object-ui/app-shell': path.resolve(__dirname, './packages/app-shell/src'),
+      // Private, never-published test-support package (objectui#4434). Aliased
+      // like every other workspace package so a test's import resolves to the
+      // same source file `tsc` reads through the package's `exports` map,
+      // rather than depending on how Vite treats a symlinked dependency.
+      '@object-ui/test-support': path.resolve(__dirname, './packages/test-support/src'),
       '@': path.resolve(__dirname, './packages/components/src'),
       '@object-ui/ui': path.resolve(__dirname, './packages/ui/src'),
     },
