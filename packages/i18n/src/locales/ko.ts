@@ -531,7 +531,7 @@ const ko = {
       },
     },
     refresh: "새로고침",
-    loading: 'Loading records…',
+    loading: "레코드 로딩 중…",
     recordCount: "{{count}}개 레코드",
     recordCountOne: "{{count}}개 레코드",
     addRecord: "레코드 추가",
@@ -771,8 +771,8 @@ const ko = {
     readonlyTooltip: "시스템 보기 — 코드에 정의되어 있으며 읽기 전용입니다.",
   },
   designer: {
-    undo: 'Undo',
-    redo: 'Redo',
+    undo: "실행 취소",
+    redo: "다시 실행",
   },
   detail: {
     editInlineHint: "더블클릭하여 편집",
@@ -1126,7 +1126,7 @@ const ko = {
     faviconUrl: "Favicon URL",
     preview: "미리보기",
     complete: "완료",
-    snakeCaseHint: "Must be snake_case (e.g. my_app)",
+    snakeCaseHint: "snake_case 형식이어야 합니다 (예: my_app)",
     modeEdit: "편집",
     modePreview: "미리보기",
     modeCode: "코드",

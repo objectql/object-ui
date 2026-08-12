@@ -537,7 +537,7 @@ const ru = {
       },
     },
     refresh: "Обновить",
-    loading: 'Loading records…',
+    loading: "Загрузка записей…",
     recordCount: "{{count}} записей",
     recordCountOne: "{{count}} запись",
     addRecord: "Добавить запись",
@@ -777,8 +777,8 @@ const ru = {
     readonlyTooltip: "Системное представление — определено в коде, только для чтения.",
   },
   designer: {
-    undo: 'Undo',
-    redo: 'Redo',
+    undo: "Отменить",
+    redo: "Повторить",
   },
   detail: {
     editInlineHint: "Дважды щёлкните для редактирования",
@@ -1136,7 +1136,7 @@ const ru = {
     faviconUrl: "Favicon URL",
     preview: "Предпросмотр",
     complete: "Завершить",
-    snakeCaseHint: "Must be snake_case (e.g. my_app)",
+    snakeCaseHint: "Должно быть в формате snake_case (например, my_app)",
     modeEdit: "Редактировать",
     modePreview: "Предпросмотр",
     modeCode: "Код",

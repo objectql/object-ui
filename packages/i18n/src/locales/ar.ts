@@ -535,7 +535,7 @@ const ar = {
       },
     },
     refresh: "تحديث",
-    loading: 'Loading records…',
+    loading: "جارٍ تحميل السجلات…",
     recordCount: "{{count}} سجلات",
     recordCountOne: "{{count}} سجل",
     addRecord: "إضافة سجل",
@@ -775,8 +775,8 @@ const ar = {
     readonlyTooltip: "عرض النظام — معرَّف في الكود، للقراءة فقط.",
   },
   designer: {
-    undo: 'Undo',
-    redo: 'Redo',
+    undo: "تراجع",
+    redo: "إعادة",
   },
   detail: {
     editInlineHint: "انقر نقرًا مزدوجًا للتحرير",
@@ -1133,7 +1133,7 @@ const ar = {
     faviconUrl: "Favicon URL",
     preview: "معاينة",
     complete: "إكمال",
-    snakeCaseHint: "Must be snake_case (e.g. my_app)",
+    snakeCaseHint: "يجب أن يكون بصيغة snake_case (مثل my_app)",
     modeEdit: "تعديل",
     modePreview: "معاينة",
     modeCode: "كود",

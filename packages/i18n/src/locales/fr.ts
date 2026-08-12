@@ -531,7 +531,7 @@ const fr = {
       },
     },
     refresh: "Actualiser",
-    loading: 'Loading records…',
+    loading: "Chargement des enregistrements…",
     recordCount: "{{count}} enregistrements",
     recordCountOne: "{{count}} enregistrement",
     addRecord: "Ajouter un enregistrement",
@@ -771,8 +771,8 @@ const fr = {
     readonlyTooltip: "Vue système — définie dans le code, en lecture seule.",
   },
   designer: {
-    undo: 'Undo',
-    redo: 'Redo',
+    undo: "Annuler",
+    redo: "Rétablir",
   },
   detail: {
     editInlineHint: "Double-cliquez pour modifier",
