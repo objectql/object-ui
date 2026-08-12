@@ -328,13 +328,22 @@ describe('object-calendar: an authored handler key can no longer crash a gesture
   it('drops an authored `onEventClick` string when navigation is NOT an overlay — the reachability the filing left open', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      // The filing established the exposure in the code path but not its
-      // reachability. `navigation: { mode: 'none' }` is the smallest
-      // non-overlay configuration — `navIsOverlay` is false, and
+      // PROVENANCE, part 2 — this card's own new measurement, NOT the filing's.
+      // The filing established the exposure in the code path but explicitly
+      // could not establish its reachability, so it claimed no crash. This case
+      // supplies the missing condition: `navigation: { mode: 'none' }` is the
+      // smallest non-overlay configuration — `navIsOverlay` is false, and
       // `useNavigationOverlay`'s own `handleClick` returns early for `none`, so
       // no router is involved — which makes `onEventClick?.(event.data)` run.
-      // MEASURED here rather than asserted: see this file's PR body for which
-      // way this case moved pre-fix.
+      //
+      // MEASURED on the pre-fix renderer, verbatim:
+      //   window.error:  onEventClick is not a function
+      //   console.error: onEventClick is not a function
+      //
+      // So the exposure is real and reachable, and the answer to the filing's
+      // open question is: it depends on the navigation mode, exactly as the
+      // filing suspected. The DEFAULT (drawer) config above stays a
+      // contract-only pin, green on both sides.
       renderCalendar(calendarNode('plugin-calendar:object-calendar', {
         navigation: { mode: 'none' },
         onEventClick: NOT_A_FUNCTION,
