@@ -10,16 +10,11 @@ import * as React from "react"
 import { cn } from "@object-ui/components"
 import { Button, Input, ScrollArea, Avatar, AvatarFallback, AvatarImage } from "@object-ui/components"
 import { Send } from "lucide-react"
-
-// Message type definition
-export interface ChatMessage {
-  id: string
-  role: "user" | "assistant" | "system"
-  content: string
-  timestamp?: string
-  avatar?: string
-  avatarFallback?: string
-}
+// The package's single chat message contract. A SECOND, minimal `ChatMessage`
+// used to be declared right here and exported from this barrel under the
+// natural name; it is retired — see the documented re-export at the bottom of
+// this file (objectui#4383).
+import type { ChatMessage } from "./ChatbotEnhanced"
 
 // Chatbot container props
 export interface ChatbotProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -298,7 +293,6 @@ export * from './renderer';
 export { ChatbotEnhanced, publishHealthFromResponse } from './ChatbotEnhanced';
 export type {
   ChatbotEnhancedProps,
-  ChatMessage as ChatbotEnhancedMessage,
   ChatToolInvocation as ChatbotEnhancedToolInvocation,
   ChatSource as ChatbotEnhancedSource,
   ChatbotLabels,
@@ -306,6 +300,41 @@ export type {
   PublishHealth,
   PublishOutcome,
 } from './ChatbotEnhanced';
+
+/**
+ * The chat message contract of `@object-ui/plugin-chatbot` — the shape
+ * `<ChatbotEnhanced>` renders and `uiMessagesToChatMessages()` produces.
+ *
+ * This barrel used to DECLARE a second, minimal `ChatMessage` of its own
+ * (`id`/`role`/`content`/`timestamp`/`avatar`/`avatarFallback` only) while the
+ * enhanced shape was re-exported from the same module under the alias
+ * `ChatbotEnhancedMessage`. One natural name, two contracts: an importer who
+ * reached for `ChatMessage` silently got the narrow one, and the mismatch
+ * compiled because every construction site spreads the extra keys
+ * conditionally (`...(x ? { toolInvocations } : {})`), which defeats
+ * excess-property checking — so the declared type was narrower than every
+ * value flowing through it (objectui#4040; corrected for app-shell's
+ * `AiChatPage` in PR #4379, but the barrel itself was left as-is).
+ *
+ * The minimal declaration is retired rather than renamed: nothing produced it,
+ * no importer asked for it, and every field it had is present with the same
+ * type on the enhanced shape, which adds only OPTIONAL keys on top. So
+ * `ChatMessage` now denotes one contract everywhere in this package
+ * (objectui#4383). Pinned at compile time in
+ * `__tests__/chat-message-contract.test.ts`.
+ *
+ * `<Chatbot>` renders only the core fields; the enhanced surface (tool calls,
+ * reasoning, sources, build progress, charts) is `<ChatbotEnhanced>`.
+ */
+export type { ChatMessage } from './ChatbotEnhanced';
+
+/**
+ * @deprecated Use `ChatMessage`. This alias now denotes the SAME type — it is
+ * kept only so importers that spelled the disambiguating name while the barrel
+ * still carried two shapes (e.g. app-shell's `AiChatPage`, PR #4379) keep
+ * compiling. New code should import `ChatMessage` (objectui#4383).
+ */
+export type { ChatMessage as ChatbotEnhancedMessage } from './ChatbotEnhanced';
 
 // Re-export the vendored Vercel AI Elements (MIT, src/elements/) so app
 // authors who want to compose their own chat surface don't have to reach
