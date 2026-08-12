@@ -30,6 +30,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "lint": "turbo run lint",
+    "lint:root": "eslint . --ignore-pattern 'packages/*/**' --ignore-pattern 'examples/*/**' --ignore-pattern 'apps/*/**' --ignore-pattern 'docs/**'",
     "lint:coverage": "node scripts/check-lint-coverage.mjs",
     "type-check": "turbo run type-check",
     "type-check:coverage": "node scripts/check-type-check-coverage.mjs",

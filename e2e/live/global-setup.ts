@@ -25,6 +25,7 @@ export default async function globalSetup() {
   } catch (e: any) {
     throw new Error(
       `Live backend unreachable at ${API} (${e?.message}). Start it (e.g. \`objectstack serve --dev\` in examples/app-showcase) before running live e2e.`,
+      { cause: e },
     );
   }
   if (!res.ok()) {

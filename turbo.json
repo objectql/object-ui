@@ -49,11 +49,16 @@
     "lint": {
       "outputs": [],
       "cache": true,
+      "dependsOn": ["//#lint:root"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/eslint.config.js",
         "$TURBO_ROOT$/eslint-rules/*.js"
       ]
+    },
+    "//#lint:root": {
+      "outputs": [],
+      "cache": false
     },
     "type-check": {
       "dependsOn": ["^build"],

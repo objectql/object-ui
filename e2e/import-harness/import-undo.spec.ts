@@ -26,7 +26,9 @@ test.describe('Import Wizard — background import + undo (live UI + backend)', 
       const res = await page.request.get(`${baseURL}${HARNESS_PATH}`);
       reachable = res.ok();
     } catch {
-      reachable = false;
+      // A throw reads the same as "not reachable" here, which is the initialiser
+      // above — reassigning it is what `no-useless-assignment` reports, because
+      // nothing can observe the difference.
     }
     test.skip(!reachable, `import harness not reachable at ${baseURL}${HARNESS_PATH}`);
 

@@ -36,7 +36,9 @@ test.describe('Import Wizard — real console: background import + undo', () => 
       const r = await page.request.get(`${API}/api/v1/data/import/jobs`);
       jobsSupported = r.status() !== 404;
     } catch {
-      jobsSupported = false;
+      // Unreachable backend reads the same as "no import-job route" here, which
+      // is the initialiser above — reassigning it is what `no-useless-assignment`
+      // reports, because nothing can observe the difference.
     }
     test.skip(!jobsSupported, `backend at ${API} has no import-job route (/api/v1/data/import/jobs)`);
 

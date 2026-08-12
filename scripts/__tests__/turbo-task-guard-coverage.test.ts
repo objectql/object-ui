@@ -32,6 +32,16 @@ import { repoRoot } from './helpers/turbo-inputs';
  *     test:watch  cache: false, persistent   nothing to replay
  *     clean       cache: false               nothing to replay
  *     dev         cache: false, persistent   nothing to replay
+ *     //#lint:root  cache: false             nothing to replay
+ *
+ * `//#lint:root` (objectui#4456) is the root task that lints everything OUTSIDE
+ * the workspace packages — `e2e/`, `scripts/`, `eslint-rules/`, the root config
+ * files — which no package's `lint` script reaches. It is deliberately on the
+ * uncached side of this partition rather than guarded: the files it reads are
+ * "the repo minus the workspaces", so any inputs list enumerating them would go
+ * stale the moment a new root-level directory is added, and a stale inputs list
+ * on a CACHED task replays a green verdict over a directory nothing linted —
+ * which is objectui#4456 itself, one level up. It runs in about four seconds.
  */
 
 interface TurboTask {
