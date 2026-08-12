@@ -525,6 +525,13 @@ export const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'list.allRecords': 'All Records',
   'list.share': 'Share',
   'list.print': 'Print',
+  // objectui#4462 — the Print button's tooltip/aria sentence. Borrowed from
+  // `common.*` (like the `table.*`/`grid.*`/`detail.*` rows here) because the
+  // identical sentence labels the report viewer's Print button and the
+  // dashboard's print action: one control semantic, one translation. Byte-
+  // identical to `en.common.printDialogHint` — enforced by
+  // `app-shell/src/__tests__/defaults-maps-mirror-en-pack.test.tsx`.
+  'common.printDialogHint': 'Opens your browser’s print dialog (not a PDF export)',
   'list.hideFieldsTitle': 'Hide Fields',
   'table.rowsPerPage': 'Rows per page',
   'grid.toolbar.densityMode': 'Density',
@@ -2327,7 +2334,16 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           )}
         </div>
 
-        <div className="flex items-center gap-0 shrink-0 rounded-lg border border-border bg-muted/40 p-0.5 shadow-sm">
+        {/* `data-print-hide`: the tool cluster is pure interaction (print,
+            share, export, filter, sort, density, search) and reads as clutter
+            on paper. The RULE lives in the shared print sheet
+            (`@object-ui/app-shell/styles.css`, objectui#4462) — this is only
+            the marker it needs, because the cluster carries no stable
+            selector of its own and its Tailwind class string is not
+            distinguishable from a content div's. The left half of the toolbar
+            (view tabs + active filter chips) deliberately still prints: it
+            says WHICH slice of the data is on the page. */}
+        <div className="flex items-center gap-0 shrink-0 rounded-lg border border-border bg-muted/40 p-0.5 shadow-sm" data-print-hide>
           {/* Visualization switcher — compact dropdown (Airtable-style
               "List ▾"), first slot of the right tool cluster so the whole
               toolbar stays a single row. */}
@@ -2817,19 +2833,30 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             </Button>
           )}
 
-          {/* Print */}
-          {schema.allowPrinting && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150"
-              onClick={() => window.print()}
-              data-testid="print-button"
-            >
-              <Printer className="h-3.5 w-3.5 mr-1.5" />
-              <span className="hidden sm:inline">{t('list.print')}</span>
-            </Button>
-          )}
+          {/* Print — hands off to the browser's own print dialog against the
+              shared `@media print` sheet in `@object-ui/app-shell/styles.css`.
+              It is NOT a PDF export (that primitive is objectstack#1301,
+              closed NOT_PLANNED), and it was being accepted against "export
+              PDF" requirements precisely because nothing said so
+              (objectui#4462). `aria-label` + `title` carry that sentence —
+              same two-attribute shape as the density button below. */}
+          {schema.allowPrinting && (() => {
+            const printHint = t('common.printDialogHint');
+            return (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150"
+                onClick={() => window.print()}
+                aria-label={`${t('list.print')}: ${printHint}`}
+                title={printHint}
+                data-testid="print-button"
+              >
+                <Printer className="h-3.5 w-3.5 mr-1.5" />
+                <span className="hidden sm:inline">{t('list.print')}</span>
+              </Button>
+            );
+          })()}
 
           {/* --- Separator: Print/Share/Export | Search --- */}
           {(() => {

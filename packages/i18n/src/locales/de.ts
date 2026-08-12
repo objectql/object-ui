@@ -108,6 +108,7 @@ const de = {
     editInStudio: "Im Studio bearbeiten",
     record: "Datensatz",
     retry: "Erneut versuchen",
+    printDialogHint: "Öffnet den Druckdialog Ihres Browsers (kein PDF-Export)",
   },
   actions: {
     decisionOutput: {
@@ -2461,7 +2462,7 @@ const de = {
     deleteFailed: "Ansicht konnte nicht gelöscht werden",
   },
   dashboardActions: {
-    pdfPreparing: "PDF-Export wird vorbereitet…",
+    printDialogOpening: "Druckdialog Ihres Browsers wird geöffnet (kein PDF-Export)",
     exportFailed: "Export fehlgeschlagen: {{message}}",
     forecastSoon: "Prognoseansicht kommt bald",
   },

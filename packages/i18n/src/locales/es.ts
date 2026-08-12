@@ -107,6 +107,7 @@ const es = {
     editInStudio: "Editar en Studio",
     record: "Registro",
     retry: "Reintentar",
+    printDialogHint: "Abre el cuadro de diálogo de impresión de tu navegador (no es una exportación a PDF)",
   },
   actions: {
     decisionOutput: {
@@ -2465,7 +2466,7 @@ const es = {
     deleteFailed: "No se pudo eliminar la vista",
   },
   dashboardActions: {
-    pdfPreparing: "Preparando exportación PDF…",
+    printDialogOpening: "Abriendo el cuadro de diálogo de impresión de tu navegador (no es una exportación a PDF)",
     exportFailed: "Error al exportar: {{message}}",
     forecastSoon: "La vista de pronóstico llegará pronto",
   },

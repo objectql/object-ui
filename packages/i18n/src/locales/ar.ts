@@ -112,6 +112,7 @@ const ar = {
     editInStudio: "التعديل في Studio",
     record: "سجل",
     retry: "إعادة المحاولة",
+    printDialogHint: "يفتح مربع حوار الطباعة في المتصفح (ليس تصديرًا إلى PDF)",
   },
   actions: {
     decisionOutput: {
@@ -2468,7 +2469,7 @@ const ar = {
     deleteFailed: "تعذر حذف العرض",
   },
   dashboardActions: {
-    pdfPreparing: "جارٍ تحضير تصدير PDF…",
+    printDialogOpening: "جارٍ فتح مربع حوار الطباعة في المتصفح (ليس تصديرًا إلى PDF)",
     exportFailed: "فشل التصدير: {{message}}",
     forecastSoon: "عرض التوقعات قادم قريباً",
   },

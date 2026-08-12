@@ -14,6 +14,7 @@ import { Download, Printer, RefreshCw } from 'lucide-react';
 import { exportReport } from './ReportExportEngine';
 import { formatValue } from './formatValue';
 import { getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
+import { useSafeTranslate } from '@object-ui/i18n';
 
 // ---------------------------------------------------------------------------
 // Client-side grouping utility
@@ -98,8 +99,10 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
     showToolbar = true, 
     allowExport = true, 
     allowPrint = true, 
-    loading = false 
+    loading = false
   } = schema;
+
+  const tt = useSafeTranslate();
 
   const handleExport = (format: string) => {
     if (!report) {
@@ -110,6 +113,16 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
       report.exportConfigs?.[format as ReportExportFormat]
     );
   };
+
+  // objectui#4462 — hands off to the browser's own print dialog against the
+  // shared `@media print` sheet in `@object-ui/app-shell/styles.css`. It is
+  // NOT a PDF export (objectstack#1301, closed NOT_PLANNED); the neighbouring
+  // "PDF" button IS one, which is exactly why this button has to say what it
+  // does. `useSafeTranslate` is this package's existing i18n channel (see
+  // `DatasetReportRenderer.tsx`) — a per-call hook that needs no defaults
+  // map, so the English fallback lives at the call site and must stay
+  // byte-identical to `en.common.printDialogHint`.
+  const printHint = tt('common.printDialogHint', 'Opens your browser’s print dialog (not a PDF export)');
 
   const handlePrint = () => {
     window.print();
@@ -209,7 +222,11 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
               <p className="text-sm text-muted-foreground">{report.description}</p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          {/* `data-print-hide` marks the button cluster only — the title and
+              description block beside it must stay on the printed page. The
+              rule itself lives in the shared print sheet
+              (`@object-ui/app-shell/styles.css`, objectui#4462). */}
+          <div className="flex items-center gap-2" data-print-hide>
             {report.refreshInterval && (
               <Button variant="outline" size="sm" onClick={handleRefresh}>
                 <RefreshCw className="h-4 w-4 mr-2" />
@@ -217,7 +234,13 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
               </Button>
             )}
             {allowPrint && (
-              <Button variant="outline" size="sm" onClick={handlePrint}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrint}
+                aria-label={`Print: ${printHint}`}
+                title={printHint}
+              >
                 <Printer className="h-4 w-4 mr-2" />
                 Print
               </Button>

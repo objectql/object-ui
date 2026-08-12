@@ -114,6 +114,7 @@ const ru = {
     editInStudio: "Редактировать в Studio",
     record: "Запись",
     retry: "Повторить",
+    printDialogHint: "Открывает диалог печати браузера (это не экспорт в PDF)",
   },
   actions: {
     decisionOutput: {
@@ -2472,7 +2473,7 @@ const ru = {
     deleteFailed: "Не удалось удалить представление",
   },
   dashboardActions: {
-    pdfPreparing: "Подготовка экспорта PDF…",
+    printDialogOpening: "Открывается диалог печати браузера (это не экспорт в PDF)",
     exportFailed: "Ошибка экспорта: {{message}}",
     forecastSoon: "Прогнозное представление скоро будет",
   },

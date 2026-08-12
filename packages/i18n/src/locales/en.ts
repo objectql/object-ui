@@ -124,6 +124,7 @@ const en = {
     editInStudio: 'Edit in studio',
     record: 'Record',
     retry: 'Retry',
+    printDialogHint: 'Opens your browser’s print dialog (not a PDF export)',
   },
   actions: {
     decisionOutput: {
@@ -2715,7 +2716,7 @@ const en = {
     deleteFailed: 'Failed to delete view',
   },
   dashboardActions: {
-    pdfPreparing: 'Preparing PDF export…',
+    printDialogOpening: 'Opening your browser’s print dialog (not a PDF export)',
     exportFailed: 'Export failed: {{message}}',
     forecastSoon: 'Forecast view coming soon',
   },

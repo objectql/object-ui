@@ -108,6 +108,7 @@ const ko = {
     editInStudio: "Studio에서 편집",
     record: "레코드",
     retry: "다시 시도",
+    printDialogHint: "브라우저의 인쇄 대화 상자를 엽니다（PDF 내보내기가 아닙니다）",
   },
   actions: {
     decisionOutput: {
@@ -2460,7 +2461,7 @@ const ko = {
     deleteFailed: "보기 삭제 실패",
   },
   dashboardActions: {
-    pdfPreparing: "PDF 내보내기 준비 중…",
+    printDialogOpening: "브라우저의 인쇄 대화 상자를 여는 중입니다（PDF 내보내기가 아닙니다）",
     exportFailed: "내보내기 실패: {{message}}",
     forecastSoon: "예측 보기가 곧 출시됩니다",
   },

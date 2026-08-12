@@ -108,6 +108,7 @@ const ja = {
     editInStudio: "Studio で編集",
     record: "レコード",
     retry: "再試行",
+    printDialogHint: "ブラウザーの印刷ダイアログを開きます（PDF エクスポートではありません）",
   },
   actions: {
     decisionOutput: {
@@ -2461,7 +2462,7 @@ const ja = {
     deleteFailed: "ビューの削除に失敗しました",
   },
   dashboardActions: {
-    pdfPreparing: "PDFエクスポートを準備中…",
+    printDialogOpening: "ブラウザーの印刷ダイアログを開いています（PDF エクスポートではありません）",
     exportFailed: "エクスポートに失敗しました：{{message}}",
     forecastSoon: "予測ビューは近日公開予定",
   },

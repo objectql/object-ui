@@ -115,6 +115,7 @@ const zh = {
     editInStudio: '在 Studio 中编辑',
     record: '记录',
     retry: '重试',
+    printDialogHint: '打开浏览器打印对话框（不是导出 PDF）',
   },
   actions: {
     decisionOutput: {
@@ -2604,7 +2605,7 @@ const zh = {
     deleteFailed: '删除视图失败',
   },
   dashboardActions: {
-    pdfPreparing: '正在准备 PDF 导出…',
+    printDialogOpening: '正在打开浏览器打印对话框（不是导出 PDF）',
     exportFailed: '导出失败：{{message}}',
     forecastSoon: '预测视图即将上线',
   },

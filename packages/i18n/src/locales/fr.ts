@@ -108,6 +108,7 @@ const fr = {
     editInStudio: "Modifier dans Studio",
     record: "Enregistrement",
     retry: "Réessayer",
+    printDialogHint: "Ouvre la boîte de dialogue d'impression de votre navigateur (ce n'est pas un export PDF)",
   },
   actions: {
     decisionOutput: {
@@ -2463,7 +2464,7 @@ const fr = {
     deleteFailed: "Impossible de supprimer la vue",
   },
   dashboardActions: {
-    pdfPreparing: "Préparation de l'export PDF…",
+    printDialogOpening: "Ouverture de la boîte de dialogue d'impression de votre navigateur (ce n'est pas un export PDF)",
     exportFailed: "Échec de l'export : {{message}}",
     forecastSoon: "La vue de prévision arrive bientôt",
   },
