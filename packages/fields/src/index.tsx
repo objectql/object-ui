@@ -14,6 +14,7 @@ import { Badge, Avatar, AvatarImage, AvatarFallback, Button, Checkbox, EmptyValu
 import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import { SchemaRendererContext as _SchemaRendererContext } from '@object-ui/react';
+import { useRelatedRecordActions } from '@object-ui/react';
 import { withFieldCarrier } from './withFieldCarrier';
 // Pure formatting rule shared with `AddressField`'s readonly branch — no React,
 // so this does not pull the widget out of its lazy chunk (objectui#4037).
@@ -1424,6 +1425,89 @@ export function ImageCellRenderer({ value }: CellRendererProps): React.ReactElem
 }
 
 /**
+ * The referenced record's id inside one lookup value — an `$expand`-ed record
+ * object (`{ id, name, … }`) or the raw foreign key itself. `undefined` when
+ * the value carries no id we could address (e.g. an unresolved external-id
+ * reference), which the link below reads as "not navigable".
+ */
+function referencedRecordId(item: unknown): string | number | undefined {
+  if (item == null || item === '') return undefined;
+  if (typeof item === 'object') {
+    const id = (item as Record<string, unknown>).id ?? (item as Record<string, unknown>)._id;
+    if (typeof id === 'number') return id;
+    return typeof id === 'string' && id !== '' ? id : undefined;
+  }
+  if (typeof item === 'string' || typeof item === 'number') return item;
+  return undefined;
+}
+
+/**
+ * Wrap a lookup's display value in a link to the record it references
+ * (objectui#4336).
+ *
+ * On the record detail page a valued lookup used to render as plain text plus
+ * a copy button — the referenced document's name was right there and there was
+ * no way to reach it, so users copied the number and searched for it from the
+ * list. Related-list cells pointing at a third object were dead in the same
+ * way. Both surfaces resolve through `LookupCellRenderer`, so the affordance
+ * belongs here, once.
+ *
+ * **The URL is not built here.** This package has no router and no business
+ * knowing what a record route looks like; the host publishes its own builder
+ * through `RelatedRecordActionsContext` (`recordHref` / `openRecord`) — the
+ * same one the related list's row navigation uses. No host, or a host that
+ * cannot route to that object, renders the value EXACTLY as before: no anchor,
+ * no styling change, nothing to un-learn (Studio designer, embedded renderers,
+ * standalone grids).
+ *
+ * A real `href` rather than a click handler, so middle-click / ⌘-click / "copy
+ * link address" behave the way a link is supposed to; a plain left click is
+ * handed to the host so navigation stays in-app.
+ */
+function ReferencedRecordLink({
+  objectName,
+  recordId,
+  className,
+  children,
+}: {
+  objectName?: string;
+  recordId?: string | number;
+  className?: string;
+  children: React.ReactNode;
+}): React.ReactElement {
+  const host = useRelatedRecordActions();
+  const navigable = !!objectName && recordId != null && recordId !== '';
+  const href =
+    navigable && host?.recordHref
+      ? host.recordHref(objectName as string, recordId as string | number)
+      : null;
+
+  if (!href) return <>{children}</>;
+
+  return (
+    <a
+      href={href}
+      className={cn('text-primary underline-offset-4 hover:underline', className)}
+      onClick={(e) => {
+        // The rows this cell sits in carry their own click handlers — the
+        // detail row copies the field value, a related-list row opens ITS own
+        // record. Following the reference must not also fire those.
+        e.stopPropagation();
+        // Modifier and non-primary clicks belong to the browser (new tab, new
+        // window) — that is the point of rendering a real href.
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        // No SPA handler: let the anchor navigate on its own.
+        if (!host?.openRecord) return;
+        e.preventDefault();
+        host.openRecord(objectName as string, recordId as string | number);
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
+/**
  * Lookup/Master-Detail field cell renderer.
  *
  * Display order:
@@ -1495,15 +1579,24 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
       // Compute inside try, render outside — constructing JSX in a try/catch
       // doesn't catch its render errors anyway (react-hooks/error-boundaries).
       let parsedDisplay = '';
+      let parsedId: string | number | undefined;
       try {
         const parsed = JSON.parse(s) as Record<string, unknown>;
         if (parsed && typeof parsed === 'object') {
           parsedDisplay =
             resolveLookupRecordName(parsed, refSchema, displayField) ||
             String(parsed.externalId ?? parsed.id ?? parsed._id ?? '');
+          // An external-id reference has no record id yet — stays unlinked.
+          parsedId = referencedRecordId(parsed);
         }
       } catch { /* not JSON — fall through to normal resolution */ }
-      if (parsedDisplay) return <TruncatedText text={parsedDisplay} />;
+      if (parsedDisplay) {
+        return (
+          <ReferencedRecordLink objectName={referenceTo} recordId={parsedId}>
+            <TruncatedText text={parsedDisplay} />
+          </ReferencedRecordLink>
+        );
+      }
     }
   }
 
@@ -1514,7 +1607,11 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
     const display =
       resolveLookupRecordName(obj, refSchema, displayField) || String(obj.id || obj._id || '');
     if (display) {
-      return <TruncatedText text={display} />;
+      return (
+        <ReferencedRecordLink objectName={referenceTo} recordId={referencedRecordId(obj)}>
+          <TruncatedText text={display} />
+        </ReferencedRecordLink>
+      );
     }
   }
 
@@ -1552,18 +1649,26 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
             label = r.text;
             muted = r.muted;
           }
+          // Each chip is one referenced record, so each links on its own —
+          // there is no single destination a multi-value cell could point at.
           return (
-            <span
+            <ReferencedRecordLink
               key={idx}
-              className={cn(
-                'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
-                muted
-                  ? 'bg-muted/40 text-muted-foreground'
-                  : 'bg-gray-50 text-gray-700 dark:bg-gray-800/50 dark:text-gray-200',
-              )}
+              objectName={referenceTo}
+              recordId={referencedRecordId(item)}
+              className="text-inherit"
             >
-              {label}
-            </span>
+              <span
+                className={cn(
+                  'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
+                  muted
+                    ? 'bg-muted/40 text-muted-foreground'
+                    : 'bg-gray-50 text-gray-700 dark:bg-gray-800/50 dark:text-gray-200',
+                )}
+              >
+                {label}
+              </span>
+            </ReferencedRecordLink>
           );
         })}
       </div>
@@ -1574,12 +1679,23 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
     const label =
       resolveLookupRecordName(value as Record<string, unknown>, refSchema, displayField) ||
       String((value as any).id || (value as any)._id || '[Object]');
-    return <TruncatedText text={label} />;
+    return (
+      <ReferencedRecordLink objectName={referenceTo} recordId={referencedRecordId(value)}>
+        <TruncatedText text={label} />
+      </ReferencedRecordLink>
+    );
   }
 
   // Primitive value (e.g. raw ID): try options → resolver → opaque-ID placeholder → raw
+  // The value IS the foreign key, so it addresses the record even when the
+  // display name could not be resolved (the muted placeholder) — a reference
+  // that is present but unnamed is still worth being able to open.
   const { text, muted } = resolveLabel(value);
-  return <TruncatedText text={text} className={muted ? 'text-muted-foreground' : undefined} />;
+  return (
+    <ReferencedRecordLink objectName={referenceTo} recordId={referencedRecordId(value)}>
+      <TruncatedText text={text} className={muted ? 'text-muted-foreground' : undefined} />
+    </ReferencedRecordLink>
+  );
 }
 
 /**

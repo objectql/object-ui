@@ -25,6 +25,12 @@
  * affordance. When no provider is present at all (e.g. the Studio designer, or
  * a standalone embedded renderer) the related list stays read-only, which is
  * the correct graceful fallback.
+ *
+ * Since objectui#4336 the same host also publishes its record-URL builder
+ * ({@link RelatedRecordActionsValue.recordHref} / `openRecord`) for any object
+ * it can route to, so the low-level renderers on a record page can turn a
+ * lookup VALUE into a link to the referenced record without assembling a URL
+ * of their own. Same provider, same builder, one route shape.
  */
 
 import React, { createContext, useContext } from 'react';
@@ -98,6 +104,29 @@ export interface RelatedRecordActionsValue {
    * identity.
    */
   resolve: (input: ResolveRelatedRecordActionsInput) => RelatedRecordHandlers;
+  /**
+   * The host's record-detail URL for ANY object it can route to — the SAME
+   * builder {@link RelatedRecordHandlers.onView} navigates with, published as
+   * an href so a renderer can present the destination as a real anchor
+   * (middle-click, "open in new tab", "copy link address") instead of a
+   * click-only affordance.
+   *
+   * Added for objectui#4336: a lookup value is a reference to a record of a
+   * DIFFERENT object, and the renderer that displays it (`LookupCellRenderer`,
+   * shared by the detail body and the related list's cells) has no router and
+   * no knowledge of the console's route shape. Route building stays here, in
+   * the one place that already owns it — never re-derived renderer-side.
+   *
+   * Returns `null` when the host cannot route to that object (unknown object,
+   * no app context), which consumers must render as the plain value.
+   */
+  recordHref?: (objectName: string, recordId: string | number) => string | null;
+  /**
+   * SPA-navigate to the destination {@link recordHref} addresses. Consumers
+   * call this from a plain left click on the anchor so navigation stays
+   * in-app; a modifier click is left to the browser and the href.
+   */
+  openRecord?: (objectName: string, recordId: string | number) => void;
 }
 
 const RelatedRecordActionsContext = createContext<RelatedRecordActionsValue | null>(null);

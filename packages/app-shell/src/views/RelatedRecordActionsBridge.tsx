@@ -129,6 +129,58 @@ export function RelatedRecordActionsBridge({
   const localizeActionTexts = useActionTextLocalizer();
   const base = appName ? `/apps/${appName}` : '';
 
+  /** Objects this host can route to — the record route exists per object def. */
+  const routableObjects = useMemo(
+    () => new Set((objects ?? []).map((o: any) => o?.name).filter(Boolean)),
+    [objects],
+  );
+
+  /**
+   * THE record-detail URL builder for this page — one route shape, one place.
+   *
+   * Serves both the related list's row navigation (`onView`, below) and, since
+   * objectui#4336, the lookup values rendered anywhere under this bridge: a
+   * lookup points at a record of another object, and `LookupCellRenderer` has
+   * no router, so it asks for the href instead of re-deriving `/apps/:app/
+   * :object/record/:id` a second time (the #4472 lesson — one resolver).
+   *
+   * `null` when the host cannot route there (no app segment, or an object that
+   * is not in this console's metadata), which renders as the plain value.
+   */
+  const recordHref = useCallback(
+    (objectName: string, recordId: string | number): string | null => {
+      if (!base || !objectName || !routableObjects.has(objectName)) return null;
+      const url = `${base}/${objectName}/record/${encodeURIComponent(String(recordId))}`;
+      // Carry the parent record into the target's `?from=` trail so the
+      // breadcrumb (and the record body's back link) can path back up.
+      // Read the current trail off the live URL — this bridge outlives a
+      // single search-params snapshot, so a fresh read avoids a stale
+      // closure and keeps nested drill-ins accumulating correctly.
+      if (parentObjectName && parentRecordId) {
+        const rawFrom = new URLSearchParams(window.location.search).get(RECORD_TRAIL_PARAM);
+        const trail = appendRecordTrail(rawFrom, {
+          o: parentObjectName,
+          i: parentRecordId,
+          ...(parentTitle ? { t: parentTitle } : {}),
+        });
+        const sp = new URLSearchParams();
+        sp.set(RECORD_TRAIL_PARAM, trail);
+        return `${url}?${sp.toString()}`;
+      }
+      return url;
+    },
+    [base, routableObjects, parentObjectName, parentRecordId, parentTitle],
+  );
+
+  /** SPA-navigate to the destination {@link recordHref} addresses. */
+  const openRecord = useCallback(
+    (objectName: string, recordId: string | number) => {
+      const href = recordHref(objectName, recordId);
+      if (href) navigate(href);
+    },
+    [recordHref, navigate],
+  );
+
   // #2604 D3 — open a child create/edit task as the console's global record
   // form overlay, by URL params. Pushes ONE history entry (Back = close, the
   // parent detail stays mounted underneath). The read side lives in
@@ -202,30 +254,10 @@ export function RelatedRecordActionsBridge({
           edit: rawAff.edit && can(objectName, 'update'),
           delete: rawAff.delete && can(objectName, 'delete'),
         };
-        const detailUrl = (id: string | number) => {
-          const url = `${base}/${objectName}/record/${encodeURIComponent(String(id))}`;
-          // Carry the parent record into the child's `?from=` trail so the
-          // breadcrumb (and the record body's back link) can path back up.
-          // Read the current trail off the live URL — this bridge outlives a
-          // single search-params snapshot, so a fresh read avoids a stale
-          // closure and keeps nested drill-ins accumulating correctly.
-          if (parentObjectName && parentRecordId) {
-            const rawFrom = new URLSearchParams(window.location.search).get(RECORD_TRAIL_PARAM);
-            const trail = appendRecordTrail(rawFrom, {
-              o: parentObjectName,
-              i: parentRecordId,
-              ...(parentTitle ? { t: parentTitle } : {}),
-            });
-            const sp = new URLSearchParams();
-            sp.set(RECORD_TRAIL_PARAM, trail);
-            return `${url}?${sp.toString()}`;
-          }
-          return url;
-        };
-
         const handlers: RelatedRecordHandlers = {
           // Viewing a child record is always allowed when the list is visible.
-          onView: (id) => navigate(detailUrl(id)),
+          // Same builder the lookup links use — `recordHref` above.
+          onView: (id) => openRecord(objectName, id),
         };
 
         if (aff.create) {
@@ -270,8 +302,10 @@ export function RelatedRecordActionsBridge({
 
         return handlers;
       },
+      recordHref,
+      openRecord,
     }),
-    [objects, base, navigate, dataSource, localizeActionTexts, runRowAction, openChildForm, parentObjectName, parentRecordId, parentTitle, getObjectApiOperations, can],
+    [objects, base, dataSource, localizeActionTexts, runRowAction, openChildForm, recordHref, openRecord, getObjectApiOperations, can],
   );
 
   return (
