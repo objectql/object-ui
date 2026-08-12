@@ -51,6 +51,9 @@ export { useConfirmDialog } from './hooks/useConfirmDialog';
 export { useClipboard } from './hooks/useClipboard';
 export { useMultiSelect } from './hooks/useMultiSelect';
 export { useCanvasPanZoom } from './hooks/useCanvasPanZoom';
+// The provider-less fallback table, exported so objectui#4401's mirror gate can
+// compare it against the `en` pack from a package that depends on both.
+export { DESIGNER_DEFAULT_TRANSLATIONS } from './hooks/useDesignerTranslation';
 
 // Shared components
 export { ConfirmDialog } from './components/ConfirmDialog';

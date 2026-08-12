@@ -13,7 +13,21 @@
 
 import { createSafeTranslation } from '@object-ui/i18n';
 
-const DESIGNER_DEFAULT_TRANSLATIONS: Record<string, string> = {
+/**
+ * Default English translations for fallback when no I18nProvider is mounted.
+ *
+ * Every row whose key the `en` pack also defines must stay byte-identical to it,
+ * or the same control is labelled one way here and another in the console.
+ * Enforced since objectui#4401 by
+ * `app-shell/src/__tests__/defaults-maps-mirror-en-pack.test.tsx`.
+ *
+ * Exported for that gate — the same reason
+ * `DETAIL_DEFAULT_TRANSLATIONS` and `COLLAB_DEFAULT_TRANSLATIONS` are exported
+ * from their packages. The gate cannot live in `@object-ui/i18n` (that would
+ * invert the dependency, see `gantt-count-interpolation-4157.test.ts`), so it
+ * reads this map from downstream instead of parsing this file's text.
+ */
+export const DESIGNER_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // Step labels & descriptions
   'appDesigner.basicInfo': 'Basic Info',
   'appDesigner.objects': 'Objects',
