@@ -45,6 +45,18 @@
  * against throwaway package trees, including the exact #3968 shape, so the
  * blind spots cannot be reintroduced by a simplification.
  *
+ * Both halves ask two independent questions about a chained project — does the
+ * file exist, and does `type-check` run it — and until objectui#4347 one of the
+ * four combinations was never examined: CHAINED BUT MISSING. Section 5½ opened
+ * with `if (!pkg.hasTypeTestsConfig) continue;` and section 5 with a test-file
+ * guard, so a `type-check` reading `tsc -p tsconfig.typetests.json` with no such
+ * file on disk passed at exit 0 (observed on `packages/auth` during #4291: the
+ * script was restored while the retired project stayed deleted). That state is
+ * LOUD — the chained `tsc` exits TS5058 on the very next run, so nothing ships —
+ * but this gate is the one check whose whole subject is the declared-vs-actually
+ * -runs mismatch, so its green line must not read past it. Both project kinds
+ * are now reported before their respective early `continue`.
+ *
  * Run:  node scripts/check-type-check-coverage.mjs
  * Exit: 0 = OK, 1 = coverage regressed or the lists are stale
  */
@@ -422,6 +434,20 @@ export function collect(repoRoot = root) {
 export const testsCovered = (pkg) =>
   !pkg.buildSkipsTests || (pkg.hasTestConfig && pkg.chainsTestConfig && pkg.testConfigSkips.length === 0);
 
+/**
+ * The "chained but missing" error, one spelling for both project kinds
+ * (objectui#4347).
+ *
+ * Written once on purpose: the two kinds are the same defect seen twice, and two
+ * hand-maintained copies of a message are how one of them quietly stops matching
+ * the other.
+ */
+const chainedButMissing = (pkg, config) =>
+  `${pkg.name} (${pkg.dir}): "type-check" chains ${config}, which does not exist.\n` +
+  `      Delete the chain entry, or restore the project. The chained \`tsc -p\` fails with TS5058\n` +
+  `      on the very next run, so nothing can ship in this state — but a coverage gate that reads\n` +
+  `      green here is claiming more than it checked, and this is the mismatch it exists to report.`;
+
 /** Up to `limit` of `paths`, rendered for an error message. */
 const listSome = (paths, limit = 3) =>
   paths.slice(0, limit).join(", ") + (paths.length > limit ? `, +${paths.length - limit} more` : "");
@@ -524,7 +550,21 @@ export function auditPackages(packages, tables = {}) {
 
   // ── 5. Tests are code too ──────────────────────────────────────────────────
   for (const pkg of packages) {
-    if (!pkg.hasScript || pkg.testFiles === 0) continue;
+    if (!pkg.hasScript) continue;
+
+    // 5·—. Chained but missing (objectui#4347). Asked BEFORE the test-file guard
+    //      below, because a dangling chain entry is broken whether or not the
+    //      package still has test files — deleting the tests and their project
+    //      while leaving the chain entry behind is one of the two ways to reach
+    //      this state, and the test-file guard is exactly what hid it. Reported
+    //      instead of the 5c "no `tsc` invocation reads them" message, not
+    //      alongside it: there is one defect here, and this names it.
+    if (pkg.chainsTestConfig && !pkg.hasTestConfig) {
+      errors.push(chainedButMissing(pkg, "tsconfig.test.json"));
+      continue;
+    }
+
+    if (pkg.testFiles === 0) continue;
 
     // 5·0. A config this gate cannot parse: every verdict below would be a guess,
     //      and a tsconfig that fails to parse falls back to including the whole
@@ -606,6 +646,16 @@ export function auditPackages(packages, tables = {}) {
   // `type-check` and one more config to keep in step. objectui#4291 retired the
   // six that had graduated; this ratchet is what stops the seventh appearing.
   for (const pkg of packages) {
+    // Chained but missing (objectui#4347) — the combination this section could
+    // not see, because it opened by skipping every package with no narrow
+    // project on disk. That is the state #4291's own repro landed in: the
+    // package's `type-check` was restored while the retired project stayed
+    // deleted, and the two green lines below printed anyway.
+    if (pkg.chainsTypeTestsConfig && !pkg.hasTypeTestsConfig) {
+      errors.push(chainedButMissing(pkg, "tsconfig.typetests.json"));
+      continue;
+    }
+
     if (!pkg.hasTypeTestsConfig) continue;
 
     // Redundant, not merely unnecessary: `testsCovered` is true only when every
