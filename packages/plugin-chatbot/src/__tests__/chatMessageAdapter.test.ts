@@ -26,6 +26,7 @@ import {
   toRuntimeTimestamp,
   toRuntimeToolInvocation,
   toRuntimeToolState,
+  type SeamChatMessage,
 } from '../chatMessageAdapter';
 
 const base: AuthoredChatMessage = { id: 'm1', role: 'user', content: 'hi' };
@@ -106,13 +107,21 @@ describe('toolInvocations: the legacy state vocabulary (the fourth drift)', () =
 });
 
 describe('pass-through: the API-mode payload survives the seam', () => {
-  // In API mode `useObjectChat` hands the renderer RUNTIME messages wearing the
-  // authoring type (`uiMessagesToChatMessages(...) as OuiChatMessage[]`), so the
-  // values arriving here carry keys the authoring contract does not declare.
-  // The `as any` casts preserved them by accident; the adapter must preserve
-  // them on purpose, or the HITL approval card, the "Review N changes"
-  // affordance and the build panel all vanish from the SDUI renderers.
-  const apiModeMessage = {
+  // In API mode `useObjectChat` hands the renderer messages carrying keys the
+  // authoring contract does not declare. The `as any` casts preserved them by
+  // accident; the adapter must preserve them on purpose, or the HITL approval
+  // card, the "Review N changes" affordance and the build panel all vanish from
+  // the SDUI renderers.
+  //
+  // objectui#4424 — read the ANNOTATION, it is half the test. This fixture used
+  // to need `as unknown as AuthoredChatMessage`: the authoring type declares
+  // none of these keys, so the only way to hand them to the adapter was to
+  // assert past the compiler, which is the same blindness the hook's own
+  // `as OuiChatMessage[]` had. `SeamChatMessage` names them, so the fixture is
+  // now type-checked: misspell `buildProgress`, or give `draftReview` the wrong
+  // shape, and this file goes red at compile time instead of quietly testing a
+  // payload the seam was never going to see.
+  const apiModeMessage: SeamChatMessage = {
     id: 'm2',
     role: 'assistant',
     content: 'built it',
@@ -128,7 +137,7 @@ describe('pass-through: the API-mode payload survives the seam', () => {
         draftReview: { items: [{ type: 'object', name: 'Loan' }] },
       },
     ],
-  } as unknown as AuthoredChatMessage;
+  };
 
   it('keeps the runtime-only message keys', () => {
     const runtime = authoredToRuntimeMessage(apiModeMessage);

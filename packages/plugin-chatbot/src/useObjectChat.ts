@@ -13,6 +13,49 @@ import { DefaultChatTransport } from 'ai';
 import { generateUniqueId } from './utils';
 import { uiMessagesToChatMessages } from './mapMessages';
 import { toRuntimeTimestamp } from './chatMessageAdapter';
+import type { SeamChatMessage } from './chatMessageAdapter';
+
+/**
+ * What `useObjectChat` actually emits — from `messages` and from the
+ * `onSend(content, messages)` callback fed from it (objectui#4424).
+ *
+ * The hook used to declare both as the `@object-ui/types` AUTHORING contract.
+ * In local mode that was true; in API mode it was a cast over values produced
+ * by the RUNTIME mapper, so the declared type was narrower than the values in
+ * exactly the direction that hides capability: anyone rebuilding a message
+ * field-by-field from its declared type deleted the HITL approval card, the
+ * "Review N changes" affordance, the proposed-plan card, the build panel and
+ * the inline charts, with the compiler agreeing.
+ *
+ * This type is what the survey found to be true of BOTH modes — neither the
+ * authoring type nor the runtime type, but the shape that admits both:
+ *
+ *   - **wide where local mode is wide.** An authored `'tool'` role and the
+ *     legacy `'partial-call'`/`'call'`/`'result'` tool states reach this
+ *     surface unchanged and are folded only at the render seam, which is the
+ *     decision `chatMessageAdapter.ts` records. So the runtime type would have
+ *     been a lie about local mode.
+ *   - **narrow where BOTH modes are narrow.** `timestamp` is `string`, never
+ *     `Date`: API mode never produces one and local mode absorbs it in
+ *     `normalizeMessages` before it is ever handed out. Declaring `Date` here
+ *     asks every consumer to handle a value that cannot arrive.
+ *   - **plus the render-only keys API mode really carries** —
+ *     `buildProgress`, `blueprintProgress`, `charts`, and the HITL /
+ *     draft-review / proposed-plan / builder-handoff extensions on each tool
+ *     invocation.
+ *
+ * It is a SUBTYPE of `@object-ui/types`' `ChatMessage`, which is what makes the
+ * change invisible to correct consumers: anything that accepted the authoring
+ * type still accepts these values, including a host `onSend` callback that
+ * declares its parameter as `ChatMessage[]`.
+ */
+export type ObjectChatMessage = Omit<SeamChatMessage, 'timestamp'> & {
+  /**
+   * Always a string here (or absent). Both modes absorb an authored `Date`
+   * via `toRuntimeTimestamp` before emitting — see `chatMessageAdapter.ts`.
+   */
+  timestamp?: string;
+};
 
 /**
  * Window event the AI usage indicator (ADR-0057 #8) listens for to refetch its
@@ -222,16 +265,25 @@ export interface UseObjectChatOptions {
   autoResponseDelay?: number;
   /**
    * External send callback (fires for both modes).
+   *
+   * `messages` is the thread as it will be after this send, in the same shape
+   * the hook's own `messages` uses — see {@link ObjectChatMessage}. A callback
+   * that declares the parameter as `@object-ui/types`' `ChatMessage[]` still
+   * type-checks (the emitted shape is a subtype); declaring it as
+   * `ObjectChatMessage[]` is what lets you READ the render-only keys.
    */
-  onSend?: (content: string, messages: OuiChatMessage[]) => void;
+  onSend?: (content: string, messages: ObjectChatMessage[]) => void;
 }
 
 /**
  * Return type of useObjectChat.
  */
 export interface UseObjectChatReturn {
-  /** Current chat messages */
-  messages: OuiChatMessage[];
+  /**
+   * Current chat messages — see {@link ObjectChatMessage} for why this is
+   * neither the authoring nor the runtime `ChatMessage` (objectui#4424).
+   */
+  messages: ObjectChatMessage[];
   /** Whether the assistant is currently generating a response */
   isLoading: boolean;
   /** Current error, if any */
@@ -265,12 +317,15 @@ export interface UseObjectChatReturn {
  * still applies at this point because the hook's own `messages` output — and
  * the `onSend(content, messages)` callback fed from it — has always handed
  * hosts an ISO string rather than a `Date`; one expression, two consumers.
+ * Since objectui#4424 the return type SAYS so, which is the half of the
+ * statement that used to be missing.
  *
  * Roles are deliberately NOT narrowed here: an authored `'tool'` message keeps
- * its authored role for the whole of the hook's (authoring-typed) surface and
- * is folded to `'assistant'` only at the render seam.
+ * its authored role for the whole of the hook's surface and is folded to
+ * `'assistant'` only at the render seam. That is precisely why the honest
+ * output type is not the runtime one — see {@link ObjectChatMessage}.
  */
-function normalizeMessages(msgs?: OuiChatMessage[]): OuiChatMessage[] {
+function normalizeMessages(msgs?: OuiChatMessage[]): ObjectChatMessage[] {
   return (msgs ?? []).map((msg, idx) => ({
     id: msg.id || `msg-${idx}`,
     role: msg.role || 'user',
@@ -477,7 +532,7 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
   }, [chatStatus]);
 
   // --- Local/legacy mode state ---
-  const [localMessages, setLocalMessages] = useState<OuiChatMessage[]>(
+  const [localMessages, setLocalMessages] = useState<ObjectChatMessage[]>(
     () => normalizeMessages(initialMessages)
   );
   const [localIsLoading, setLocalIsLoading] = useState(false);
@@ -514,22 +569,31 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
 
   const isLoading = status === 'submitted' || status === 'streaming';
 
-  // Vercel AI SDK v6 UIMessage → OUI ChatMessage. The shared mapper handles
-  // parts (text, reasoning, tool-*, source-*), streaming-cursor flagging,
-  // and legacy `msg.toolInvocations` fallback. We splice `metadata` back in
-  // because `ChatbotEnhanced.ChatMessage` doesn't carry it but OUI's does.
-  const apiMessages: OuiChatMessage[] = uiMessagesToChatMessages(aiMessages, {
+  // Vercel AI SDK v6 UIMessage → the runtime ChatMessage. The shared mapper
+  // handles parts (text, reasoning, tool-*, source-*), streaming-cursor
+  // flagging, and legacy `msg.toolInvocations` fallback. We splice `metadata`
+  // back in because `ChatbotEnhanced.ChatMessage` doesn't carry it but the
+  // authoring contract does.
+  //
+  // objectui#4424: this used to end in `as OuiChatMessage[]`, and that cast was
+  // the card. It erased `buildProgress`, `blueprintProgress`, `charts` and
+  // every HITL / draft-review extension on the tool invocations, because the
+  // authoring type declares none of them — the values survived only because
+  // nothing downstream rebuilt a message. There is no assertion here now: the
+  // mapper's output IS an `ObjectChatMessage`, so the compiler checks the
+  // assignment instead of being told to stop looking.
+  const apiMessages: ObjectChatMessage[] = uiMessagesToChatMessages(aiMessages, {
     isStreaming: isLoading,
   }).map((m, idx) => ({
     ...m,
     metadata: (aiMessages[idx] as any)?.metadata,
-  })) as OuiChatMessage[];
+  }));
 
   const sendMessage = useCallback(
     (content: string) => {
       const trimmed = content.trim();
       if (!trimmed) return;
-      const nextMessages: OuiChatMessage[] = [
+      const nextMessages: ObjectChatMessage[] = [
         ...apiMessages,
         { id: generateUniqueId('msg'), role: 'user', content: trimmed },
       ];
@@ -563,7 +627,7 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
   const localSendMessage = useCallback((content: string) => {
     if (!content.trim()) return;
 
-    const userMessage: OuiChatMessage = {
+    const userMessage: ObjectChatMessage = {
       id: generateUniqueId('msg'),
       role: 'user',
       content: content.trim(),
@@ -581,7 +645,7 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
     if (autoResponse) {
       setLocalIsLoading(true);
       autoResponseTimerRef.current = setTimeout(() => {
-        const assistantMessage: OuiChatMessage = {
+        const assistantMessage: ObjectChatMessage = {
           id: generateUniqueId('msg'),
           role: 'assistant',
           content: autoResponseText || 'Thank you for your message!',

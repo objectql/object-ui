@@ -110,6 +110,30 @@ function MyChat() {
 }
 ```
 
+#### What `messages` actually contains
+
+`messages` — and the `onSend(content, messages)` callback fed from it — is
+typed `ObjectChatMessage[]`, exported from this package. It is deliberately
+neither of the two `ChatMessage` types nearby, because neither is true of both
+modes (objectui#4424):
+
+- **Not `@object-ui/types`' authoring `ChatMessage`.** In API mode the values
+  come from the runtime mapper and carry `buildProgress`, `blueprintProgress`,
+  `charts`, and `pendingActionId` / `draftReview` / `proposedPlan` /
+  `proposedChanges` / `builderHandoff` on each tool invocation — the approval
+  card, the "Review N changes" affordance, the plan card, the build panel and
+  the inline charts. The authoring contract declares none of them, so rebuilding
+  a message field-by-field from it deletes all of them, and the compiler agrees.
+- **Not this package's runtime `ChatMessage` either.** In local mode an authored
+  `'tool'` role and the legacy `'partial-call'` / `'call'` / `'result'` tool
+  states pass through untouched; they are folded only at the render seam
+  (`toRuntimeMessages`, `chatMessageAdapter.ts`).
+
+`ObjectChatMessage` is a subtype of the authoring `ChatMessage`, so anything
+already typed against that keeps compiling — naming `ObjectChatMessage` is what
+lets you *read* the keys above. `timestamp` is always a `string` here: both
+modes absorb an authored `Date` before emitting.
+
 ## Schema-Driven Usage
 
 ### Discovering Backend Agents

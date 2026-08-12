@@ -98,7 +98,7 @@ const schema = {
   autoResponse?: boolean,
   autoResponseText?: string,
   autoResponseDelay?: number,
-  onSend?: (content: string, messages: ChatMessage[]) => void,
+  onSend?: (content: string, messages: ObjectChatMessage[]) => void,
   className?: string,
   // AI / service-ai integration fields
   api?: string,
@@ -493,6 +493,29 @@ const aiSchema: ChatbotSchema = {
   conversationId: 'conv-123',
 }
 ```
+
+### What comes back out: `ObjectChatMessage`
+
+You AUTHOR with `@object-ui/types`' `ChatMessage`. What `useObjectChat` HANDS
+BACK — from `messages` and from `onSend(content, messages)` — is
+`ObjectChatMessage`, exported from `@object-ui/plugin-chatbot`:
+
+```plaintext
+import type { ObjectChatMessage } from '@object-ui/plugin-chatbot'
+```
+
+It is the authoring shape plus the render-only keys API mode really carries
+(`buildProgress`, `blueprintProgress`, `charts`, and `pendingActionId` /
+`draftReview` / `proposedPlan` / `proposedChanges` / `builderHandoff` on each
+tool invocation — the approval card, the "Review N changes" affordance, the plan
+card, the build panel, the inline charts), with `timestamp` narrowed to `string`
+because both modes absorb an authored `Date` before emitting.
+
+It is a subtype of the authoring `ChatMessage`, so an `onSend` callback that
+already declares `ChatMessage[]` keeps type-checking; naming `ObjectChatMessage`
+is what lets it read those keys. Rebuilding a message field-by-field from the
+authoring type drops every one of them — silently, and with the compiler's
+agreement (objectui#4424).
 
 ## Related Documentation
 

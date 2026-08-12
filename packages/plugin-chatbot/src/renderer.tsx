@@ -8,11 +8,12 @@
 
 import { useMemo } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
-import type { ChatbotSchema, ChatMessage } from '@object-ui/types';
+import type { ChatbotSchema } from '@object-ui/types';
 import { Chatbot } from './index';
 import { ChatbotEnhanced } from './ChatbotEnhanced';
 import { FloatingChatbot } from './FloatingChatbot';
 import { useObjectChat } from './useObjectChat';
+import type { ObjectChatMessage } from './useObjectChat';
 import { toRuntimeMessages } from './chatMessageAdapter';
 
 /**
@@ -32,7 +33,10 @@ import { toRuntimeMessages } from './chatMessageAdapter';
  * - Schema fields: autoResponse, autoResponseText, autoResponseDelay
  * 
  * Both modes support the `onSend` callback:
- * - Signature: `onSend(content: string, messages: ChatMessage[]): void`
+ * - Signature: `onSend(content: string, messages: ObjectChatMessage[]): void`
+ *   — the hook's own message shape (objectui#4424). A host callback that
+ *   declares `@object-ui/types`' `ChatMessage[]` still type-checks; naming
+ *   `ObjectChatMessage` is what lets it read the render-only keys.
  */
 ComponentRegistry.register('chatbot', 
   ({ schema, className, ...props }: { schema: ChatbotSchema & {
@@ -46,7 +50,7 @@ ComponentRegistry.register('chatbot',
     autoResponse?: boolean;
     autoResponseText?: string;
     autoResponseDelay?: number;
-    onSend?: (content: string, messages: ChatMessage[]) => void;
+    onSend?: (content: string, messages: ObjectChatMessage[]) => void;
   }; className?: string; [key: string]: any }) => {
     const {
       messages,
@@ -252,7 +256,7 @@ ComponentRegistry.register('chatbot-enhanced',
     autoResponse?: boolean;
     autoResponseText?: string;
     autoResponseDelay?: number;
-    onSend?: (content: string, messages: ChatMessage[]) => void;
+    onSend?: (content: string, messages: ObjectChatMessage[]) => void;
     onClear?: () => void;
   }; className?: string; [key: string]: any }) => {
     const {
@@ -383,7 +387,7 @@ ComponentRegistry.register('chatbot-floating',
     autoResponse?: boolean;
     autoResponseText?: string;
     autoResponseDelay?: number;
-    onSend?: (content: string, messages: ChatMessage[]) => void;
+    onSend?: (content: string, messages: ObjectChatMessage[]) => void;
     onClear?: () => void;
   }; className?: string; [key: string]: any }) => {
     const {

@@ -31,11 +31,12 @@
  * `rowActions` that carry no predicate.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { PredicateScopeProvider, ActionProvider, SchemaRendererProvider } from '@object-ui/react';
 import { registerAllFields } from '@object-ui/fields';
+import type { CrudAffordances } from '@object-ui/core';
 import { RowActionMenu, planRowActionMenu } from '../RowActionMenu';
 import { ObjectGrid } from '../../ObjectGrid';
 
@@ -43,6 +44,8 @@ registerAllFields();
 
 /** The real `userActions.edit.visibleWhen` shape (objectui#2614). */
 const NOT_FROZEN = 'record.frozen != true';
+/** Its `disabledWhen` counterpart — HOLDS for the frozen row, so it greys out. */
+const IS_FROZEN = 'record.frozen == true';
 /** The reporter's shape: an action gated for a role the viewer is not in. */
 const IS_APPROVER = 'record.approver == "u-me"';
 
@@ -135,6 +138,44 @@ describe('RowActionMenu — the "⋮" counts renderable items, not handlers (#35
     // cannot be suppressed and the menu is never empty.
     renderMenu({ rowActions: ['send_email'], onAction: () => {} });
     expect(trigger()).toBeInTheDocument();
+  });
+
+  /**
+   * The other side of #3562's rule, observed where a user meets it: a row whose
+   * only item is greyed out is NOT an empty menu. `disabledWhen` is a rendering
+   * verdict, not a visibility one, so the item counts, the trigger survives, and
+   * what it opens is that item — present and `aria-disabled` (objectui#4429).
+   *
+   * End-to-end on purpose: the two halves live apart — the count in
+   * `planRowActionMenu`, the greying in `BuiltinRowActionItem` — and each half's
+   * own test stays green while the other regresses. Neither could observe this
+   * pairing before: the planner's cases read its return value (and the planner
+   * never reads `disabledWhen` at all — see the renamed case below), while the
+   * item's own cases (`RowActionMenu.test.tsx`) render `BuiltinRowActionItem`
+   * directly inside an already-open dropdown, never through the component that
+   * decides whether a trigger exists at all.
+   *
+   * This is the level where the two halves actually meet: `RowActionMenu` is
+   * both the caller of the planner and the renderer of the item. The
+   * `ObjectGrid` describe further down is a level ABOVE it (column alignment
+   * plus the async `userActions` plumbing) and its cases read `visibleWhen`
+   * only, so it did not pin this either.
+   */
+  it('keeps the trigger for a row whose only item renders merely DISABLED', async () => {
+    renderMenu({
+      canEdit: true,
+      onEdit: () => {},
+      editPredicates: { disabledWhen: IS_FROZEN },
+    });
+
+    // Counted: a greyed-out item is still an item, so the row keeps its "⋮".
+    expect(trigger()).toBeInTheDocument();
+
+    // Radix opens on `pointerdown` (a plain click does nothing) and portals its
+    // content on the next tick, hence the async find.
+    fireEvent.pointerDown(trigger()!, { button: 0, ctrlKey: false, pointerType: 'mouse' });
+    const item = await screen.findByTestId('row-action-builtin-edit');
+    expect(item).toHaveAttribute('aria-disabled', 'true');
   });
 });
 
@@ -446,13 +487,33 @@ describe('planRowActionMenu', () => {
       .toMatchObject({ legacy: ['send_email'], menuCount: 1 });
   });
 
-  it('still counts an item that renders merely DISABLED', () => {
+  // Renamed from "still counts an item that renders merely DISABLED"
+  // (objectui#4429). The planner never reads `disabledWhen`, so this fixture
+  // behaves identically to `{}` and could not pin the disabled-counting claim
+  // its old name made — that claim now lives where it can actually be observed,
+  // in "keeps the trigger for a row whose only item renders merely DISABLED"
+  // above. What survives here is the verdict this case really does decide, and
+  // it is worth deciding: a predicate object is not itself a gate.
+  it('an object with no `visibleWhen` does not hide the item', () => {
+    // Typed as what the production caller actually hands the planner —
+    // `resolveRowCrudAffordances`' `editPredicates`, whose spec-owned shape
+    // (`RowCrudPredicates`, ADR-0103) carries `disabledWhen` alongside
+    // `visibleWhen`. The planner's own parameter is now `Pick`ed from that same
+    // key rather than hand-restated (objectui#4429), so it stays the deliberate
+    // `visibleWhen`-only subset: a bare object literal trips excess-property
+    // checking, while the identical value reaches it unremarked in production.
+    // Annotating from the authoring type keeps the fixture honest about which
+    // key is being ignored, rather than deleting the key and quietly renaming
+    // the case.
+    const editPredicates: CrudAffordances['editPredicates'] = {
+      disabledWhen: IS_FROZEN,
+    };
     expect(planRowActionMenu({
       ...base,
       row: FROZEN,
       canEdit: true,
       onEdit: noop,
-      editPredicates: { disabledWhen: 'record.frozen == true' },
+      editPredicates,
     })).toMatchObject({ edit: true, menuCount: 1 });
   });
 
