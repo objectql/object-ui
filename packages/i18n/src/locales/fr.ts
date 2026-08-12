@@ -964,6 +964,7 @@ const fr = {
   chart: {
     noData: "Aucune donnée de graphique disponible",
     loading: "Chargement du graphique…",
+    nullCategory: "(Non défini)",
   },
   map: {
     searchLocations: "Rechercher des lieux…",

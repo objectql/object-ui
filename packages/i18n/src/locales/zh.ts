@@ -998,6 +998,7 @@ const zh = {
   chart: {
     noData: '暂无图表数据',
     loading: '图表加载中…',
+    nullCategory: '(未指定)',
   },
   report: {
     total: '总计',

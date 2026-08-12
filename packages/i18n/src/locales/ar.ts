@@ -969,6 +969,7 @@ const ar = {
   chart: {
     noData: "لا تتوفر بيانات للرسم البياني",
     loading: "جاري تحميل الرسم البياني…",
+    nullCategory: "(غير محدد)",
   },
   map: {
     searchLocations: "البحث عن المواقع…",

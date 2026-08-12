@@ -962,6 +962,7 @@ const ja = {
   chart: {
     noData: "チャートデータがありません",
     loading: "チャート読み込み中…",
+    nullCategory: "（未設定）",
   },
   map: {
     searchLocations: "場所を検索…",

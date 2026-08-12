@@ -961,6 +961,7 @@ const pt = {
   chart: {
     noData: "Nenhum dado de gráfico disponível",
     loading: "Carregando gráfico…",
+    nullCategory: "(Não especificado)",
   },
   map: {
     searchLocations: "Pesquisar locais…",

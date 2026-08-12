@@ -962,6 +962,7 @@ const ko = {
   chart: {
     noData: "차트 데이터가 없습니다",
     loading: "차트 로딩 중…",
+    nullCategory: "(미지정)",
   },
   map: {
     searchLocations: "위치 검색…",
