@@ -16,7 +16,7 @@
  * @module services/MetadataService
  */
 
-import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import { viewItemObjectName, type ObjectStackAdapter } from '@object-ui/data-objectstack';
 import type { ObjectDefinition, DesignerFieldDefinition } from '@object-ui/types';
 
 // ---------------------------------------------------------------------------
@@ -133,16 +133,49 @@ export class MetadataService {
 
   /**
    * Persist a metadata item (upsert) for any category.
+   *
+   * `${category}:${name}` is the key the adapter's generic metadata read
+   * caches under, and it is right for every category but one. A `view` row is
+   * also read back under two OBJECT-scoped keys (`view:{object}:{name}` and
+   * `view-overrides:{object}`), which `view:{name}` names neither of — so a
+   * caller passing `'view'` here would leave the object page's override map
+   * stale for the cache's 5-minute TTL, which is objectui#4373's defect on a
+   * third writer. That is why this routes through the adapter's one seam
+   * instead of restating the pair (the third restatement would have been the
+   * third time this repo paid for one; see `invalidateViewKeys`).
+   *
+   * No in-repo caller passes `'view'` today — but this class is public API
+   * (`useMetadataService`, exported from app-shell's barrel), so "unreachable"
+   * would have been an unmeasured claim about consumers we do not own.
+   *
+   * The object binding comes from the body being written, via the same
+   * accessor `listViewOverrides` narrows those rows by — not from a fourth
+   * private copy of "which object is this?".
    */
   async saveMetadataItem(category: string, name: string, data: Record<string, unknown>): Promise<void> {
     const client = this.adapter.getClient();
     await client.meta.saveItem(category, name, data);
     this.adapter.invalidateCache(`${category}:${name}`);
+    if (category === 'view') {
+      const objectName = viewItemObjectName(data);
+      if (objectName) this.adapter.invalidateViewKeys(objectName, name);
+    }
   }
 
   /**
    * Soft-delete a metadata item by persisting it with `enabled: false` and
    * `_deleted: true`. Works for any metadata category.
+   *
+   * **Not wired to the view seam, and the reason is structural** (objectui#4373):
+   * both view cache keys are OBJECT-scoped, this signature has no object
+   * parameter, and the tombstone body it writes (`{ name, enabled, _deleted }`)
+   * carries no object binding either — so unlike {@link saveMetadataItem} there
+   * is nothing here to derive one from. Splitting `name` on `.` would be a
+   * second, silently-wrong identity rule (a source-declared view's name is not
+   * qualified), and inventing an object argument for a method with no callers
+   * is a surface we would be guessing at. If a `'view'` caller ever appears,
+   * the fix is to give it the object it already knows and call
+   * `adapter.invalidateViewKeys(objectName, name)` here.
    */
   async deleteMetadataItem(category: string, name: string): Promise<void> {
     const client = this.adapter.getClient();
