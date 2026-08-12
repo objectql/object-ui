@@ -38,7 +38,7 @@
 
 import React, { forwardRef, useMemo } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
-import type { ActionSchema, ActionLocation, ActionComponent } from '@object-ui/types';
+import type { ActionSchema, UIActionSchema, ActionLocation, ActionComponent } from '@object-ui/types';
 import { ACTION_LOCATIONS, actionRendersAt } from '@object-ui/types';
 import { useCondition, toPredicateInput, useCapabilityGate } from '@object-ui/react';
 import { useObjectTranslation } from '@object-ui/i18n';
@@ -129,7 +129,27 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
 
     // Filter business actions by location and deduplicate by name
     const filteredActions = useMemo(() => {
-      const actions = schema.actions || [];
+      // Annotated, not inferred, and `UIActionSchema` rather than the legacy
+      // `ActionSchema` this file imports for its declarations. Two facts, both
+      // measured in objectui#4353:
+      //
+      //  1. The declaration does not survive into `schema`. `forwardRef` routes
+      //     props through `PropsWithoutRef`, whose `Omit` collapses a props type
+      //     carrying `[key: string]: any` down to the bare index signature — so
+      //     `schema` arrives as `any` and every callback below it inferred
+      //     `any` too. One annotation at the point the list ENTERS types the
+      //     whole `filter`/`some`/`map` chain by inference.
+      //  2. `UIActionSchema` is what actually flows in. The legacy
+      //     `ActionSchema` (`crud.ts`, `@deprecated`) has no `locations`, so the
+      //     shared `actionRendersAt` predicate rejects it outright, and its
+      //     `variant` union has no `'primary'` — the value the objectui#2339
+      //     tie-break below compares against. This file's own doc example is a
+      //     `UIActionSchema` (`type: 'script'`; legacy requires `type: 'action'`).
+      //
+      // The exported `ActionBarSchema.actions` key still DECLARES the legacy
+      // type — that mismatch predates this change, is filed separately, and is
+      // deliberately not migrated here (it reaches ~46 sites across 12 files).
+      const actions: UIActionSchema[] = schema.actions || [];
       // [ADR-0066 D4 / framework#3923] Capability gate — this bar filters its
       // own set instead of going through `ActionEngine.getActionsForLocation`,
       // so without this a `list_toolbar` action declaring a capability nobody
@@ -183,7 +203,8 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
     // System actions: always go into the overflow menu, deduped by name,
     // never filtered by location (they're chrome, not business logic).
     const systemActions = useMemo(() => {
-      const actions = schema.systemActions || [];
+      // Same annotation, same two reasons as `filteredActions` above.
+      const actions: UIActionSchema[] = schema.systemActions || [];
       const seen = new Set<string>();
       // Chrome or not, a declared capability gates it (ADR-0066 D4) — a host
       // that puts a gated action in this slot means the same thing by it.
@@ -203,7 +224,7 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
       : (schema.maxVisible ?? 3);
     const { inlineActions, overflowActions } = useMemo(() => {
       if (filteredActions.length <= maxVisible) {
-        return { inlineActions: filteredActions, overflowActions: [] as ActionSchema[] };
+        return { inlineActions: filteredActions, overflowActions: [] as UIActionSchema[] };
       }
       return {
         inlineActions: filteredActions.slice(0, maxVisible),
@@ -214,11 +235,11 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
     // Merge business overflow with system actions into a single overflow list.
     // Insert a visual separator before the first system action when both
     // groups coexist, so users can distinguish domain vs. chrome actions.
-    const combinedOverflow = useMemo<ActionSchema[]>(() => {
+    const combinedOverflow = useMemo<UIActionSchema[]>(() => {
       if (systemActions.length === 0) return overflowActions;
       if (overflowActions.length === 0) return systemActions;
       const [firstSys, ...restSys] = systemActions;
-      const firstWithSeparator: ActionSchema = {
+      const firstWithSeparator: UIActionSchema = {
         ...firstSys,
         tags: [...(firstSys.tags || []), 'separator-before'],
       };

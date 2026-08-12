@@ -15,7 +15,7 @@
 
 import React, { forwardRef, useCallback, useMemo, useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
-import type { ActionSchema } from '@object-ui/types';
+import type { ActionSchema, UIActionSchema } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
 import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
 import { useObjectTranslation } from '@object-ui/i18n';
@@ -67,8 +67,8 @@ export interface ActionMenuSchema {
  * `action-group.tsx`, whose gate is the same one.
  */
 export const ActionMenuItem: React.FC<{
-  action: ActionSchema;
-  onExecute: (action: ActionSchema) => Promise<void>;
+  action: UIActionSchema;
+  onExecute: (action: UIActionSchema) => Promise<void>;
   /**
    * The row this menu is mounted over, forwarded by the host. Optional: an
    * object-level menu genuinely has no row, and a predicate over an empty
@@ -162,8 +162,8 @@ ActionMenuItem.displayName = 'ActionMenuItem';
  * and fire it twice, where `action:button`'s long-lived ref fires once.
  */
 const ActionAutoTrigger: React.FC<{
-  action: ActionSchema;
-  onExecute: (action: ActionSchema) => Promise<void>;
+  action: UIActionSchema;
+  onExecute: (action: UIActionSchema) => Promise<void>;
 }> = ({ action, onExecute }) => {
   const run = useCallback(() => onExecute(action), [action, onExecute]);
   useAutoTriggerOnce(hasAutoTrigger(action), run);
@@ -205,7 +205,7 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
     const size = schema.size || 'icon';
 
     const handleExecute = useCallback(
-      async (action: ActionSchema) => {
+      async (action: UIActionSchema) => {
         setLoading(true);
         try {
           // UI-local escape hatch: direct callback, bypass ActionEngine
@@ -255,7 +255,14 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
 
     if (schema.visible && !isVisible) return null;
 
-    const actions = schema.actions || [];
+    // Annotated, not inferred, and `UIActionSchema` rather than the legacy
+    // `ActionSchema` — see the long derivation on `action:bar`'s equivalent
+    // line (objectui#4353). `forwardRef` routes props through
+    // `PropsWithoutRef`, whose `Omit` collapses a props type carrying
+    // `[key: string]: any` to the bare index signature, so `schema` arrives as
+    // `any`. One annotation where the list enters types both `.map()`
+    // callbacks below by inference.
+    const actions: UIActionSchema[] = schema.actions || [];
     if (actions.length === 0) return null;
 
     return (

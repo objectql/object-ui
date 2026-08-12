@@ -244,8 +244,11 @@ describe('page:header — legacy dialect still falls back (#3521)', () => {
     return () => warn.mockRestore();
   });
 
+  // `ReturnType<typeof vi.spyOn>` erases the spied signature, so `mock.calls`
+  // arrives as `any` and this parameter had no type to infer. A console.warn
+  // call is a list of arguments, of which only the first is read (objectui#4353).
   const legacyWarnings = () =>
-    warn.mock.calls.filter(c => String(c[0]).includes('legacy expression dialect'));
+    warn.mock.calls.filter((c: unknown[]) => String(c[0]).includes('legacy expression dialect'));
 
   it('evaluates a `${…}` template predicate on the legacy engine', () => {
     renderHeader({ name: 'zoo_legacy_template', visible: '${record.f_status === "open"}' });

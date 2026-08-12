@@ -7,7 +7,13 @@
  */
 
 import { ComponentRegistry } from '@object-ui/core';
-import type { SidebarSchema } from '@object-ui/types';
+// `SidebarSchema` types the one entry point the registry actually maps to a
+// schema (`'sidebar'` — see `@object-ui/types`' registry map). The other ten
+// entry points below are sidebar PARTS, which have no schema type of their own;
+// they take `BaseSchema`, the type every registered node satisfies. Using
+// `SidebarSchema` for them would assert `type: 'sidebar'` on a node whose type
+// is `'sidebar-header'` (objectui#4353).
+import type { SidebarSchema, BaseSchema } from '@object-ui/types';
 import { renderChildren } from '../../lib/utils';
 import {
   SidebarProvider,
@@ -25,8 +31,8 @@ import {
   SidebarInset
 } from '../../ui';
 
-ComponentRegistry.register('sidebar-provider', 
-  ({ schema, ...props }) => (
+ComponentRegistry.register('sidebar-provider',
+  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => (
     <SidebarProvider {...props}>{renderChildren(schema.body)}</SidebarProvider>
   ),
   {
@@ -70,8 +76,8 @@ ComponentRegistry.register('sidebar',
   }
 );
 
-ComponentRegistry.register('sidebar-header', 
-  ({ schema, ...props }) => (
+ComponentRegistry.register('sidebar-header',
+  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => (
     <SidebarHeader {...props}>{renderChildren(schema.body)}</SidebarHeader>
   ),
   { 
@@ -83,8 +89,8 @@ ComponentRegistry.register('sidebar-header',
   }
 );
 
-ComponentRegistry.register('sidebar-content', 
-  ({ schema, ...props }) => (
+ComponentRegistry.register('sidebar-content',
+  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => (
     <SidebarContent {...props}>{renderChildren(schema.body)}</SidebarContent>
   ),
   { 
@@ -96,8 +102,8 @@ ComponentRegistry.register('sidebar-content',
   }
 );
 
-ComponentRegistry.register('sidebar-group', 
-  ({ schema, ...props }) => (
+ComponentRegistry.register('sidebar-group',
+  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => (
     <SidebarGroup {...props}>
       {schema.label && <SidebarGroupLabel>{schema.label}</SidebarGroupLabel>}
       <SidebarGroupContent>
@@ -120,8 +126,8 @@ ComponentRegistry.register('sidebar-group',
   }
 );
 
-ComponentRegistry.register('sidebar-menu', 
-  ({ schema, ...props }) => (
+ComponentRegistry.register('sidebar-menu',
+  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => (
     <SidebarMenu {...props}>{renderChildren(schema.body)}</SidebarMenu>
   ),
   { 
@@ -134,8 +140,8 @@ ComponentRegistry.register('sidebar-menu',
   }
 );
 
-ComponentRegistry.register('sidebar-menu-item', 
-  ({ schema, ...props }) => (
+ComponentRegistry.register('sidebar-menu-item',
+  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => (
     <SidebarMenuItem {...props}>{renderChildren(schema.body)}</SidebarMenuItem>
   ),
   { 
@@ -147,8 +153,8 @@ ComponentRegistry.register('sidebar-menu-item',
   }
 );
 
-ComponentRegistry.register('sidebar-menu-button', 
-  ({ schema, ...props }) => (
+ComponentRegistry.register('sidebar-menu-button',
+  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => (
     <SidebarMenuButton isActive={schema.active} {...props}>
       {renderChildren(schema.body)}
     </SidebarMenuButton>
@@ -170,8 +176,8 @@ ComponentRegistry.register('sidebar-menu-button',
   }
 );
 
-ComponentRegistry.register('sidebar-footer', 
-  ({ schema, ...props }) => (
+ComponentRegistry.register('sidebar-footer',
+  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => (
     <SidebarFooter {...props}>{renderChildren(schema.body)}</SidebarFooter>
   ),
   { 
@@ -183,8 +189,8 @@ ComponentRegistry.register('sidebar-footer',
   }
 );
 
-ComponentRegistry.register('sidebar-inset', 
-  ({ schema, ...props }) => (
+ComponentRegistry.register('sidebar-inset',
+  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => (
     <SidebarInset {...props}>{renderChildren(schema.body)}</SidebarInset>
   ),
   { 
@@ -196,8 +202,8 @@ ComponentRegistry.register('sidebar-inset',
   }
 );
 
-ComponentRegistry.register('sidebar-trigger', 
-  ({ className, ...props }) => (
+ComponentRegistry.register('sidebar-trigger',
+  ({ className, ...props }: { className?: string; [key: string]: any }) => (
     <SidebarTrigger className={className} {...props} />
   ),
   {

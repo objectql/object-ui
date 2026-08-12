@@ -34,16 +34,18 @@
     // Naming `types` at all switches off automatic `@types/*` inclusion;
     // `@testing-library/jest-dom` is listed for the matchers the DOM suites use.
     "types": ["node", "@testing-library/jest-dom"],
-    // MIRRORS `tsconfig.json`, and only this one flag. A test file imports the
-    // package's own sources, so those sources are program inputs here too — and
-    // this package's BUILD config has `noImplicitAny: false`. Re-enabling it in
-    // this project would report 26 errors in `src/renderers/**` (sidebar,
-    // action-bar, action-menu, action-group, tree-view), i.e. it would make the
-    // TEST project the compiler of record for a SOURCE strictness decision that
-    // `tsconfig.json` owns. Those 26 are filed rather than silently adopted;
-    // tightening the package is a separate change to the build config, where the
-    // published output would actually move.
-    "noImplicitAny": false,
+    // `noImplicitAny` is NOT mirrored here any more, and the absence is the
+    // point. This project used to carry `"noImplicitAny": false` copied from
+    // `tsconfig.json`, because a test file imports the package's own sources —
+    // so those sources are program inputs here too, and re-enabling the flag in
+    // THIS project would have made the TEST project the compiler of record for a
+    // SOURCE strictness decision that `tsconfig.json` owns. The 26 renderer
+    // sites that mirror was protecting were filed as objectui#4353 rather than
+    // silently adopted, and #4353 typed them and turned the flag on in
+    // `tsconfig.json`. With the build config no longer relaxing it, a mirror
+    // here would invert the same hazard — this project would be relaxing what
+    // the source config tightened. Both projects now simply inherit
+    // `strict: true` from the root config.
     // Drop the root tsconfig's source-tree `paths` so `@object-ui/*` and
     // `@objectstack/spec` resolve through the workspace dependency's built
     // `.d.ts` instead of pulling sibling sources in as program inputs (TS6059).

@@ -18,7 +18,7 @@
 
 import React, { forwardRef, useCallback, useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
-import type { ActionSchema, ActionGroup, ActionLocation } from '@object-ui/types';
+import type { ActionSchema, UIActionSchema, ActionGroup, ActionLocation } from '@object-ui/types';
 import { actionRendersAt } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
 import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
@@ -64,10 +64,10 @@ export interface ActionGroupSchema {
  * Inline action button within a group.
  */
 const InlineActionButton: React.FC<{
-  action: ActionSchema;
+  action: UIActionSchema;
   variant?: string;
   size?: string;
-  onExecute: (action: ActionSchema) => Promise<void>;
+  onExecute: (action: UIActionSchema) => Promise<void>;
   /** The row the group is mounted over — see `DropdownActionItem` (objectui#4075). */
   record?: unknown;
 }> = ({ action, variant, size, onExecute, record }) => {
@@ -147,9 +147,9 @@ InlineActionButton.displayName = 'InlineActionButton';
  * showed even when its predicate was false.
  */
 export const DropdownActionItem: React.FC<{
-  action: ActionSchema;
+  action: UIActionSchema;
   index: number;
-  onSelect: (action: ActionSchema) => void | Promise<void>;
+  onSelect: (action: UIActionSchema) => void | Promise<void>;
   /**
    * The row this group is mounted over, forwarded by the host. Optional: an
    * object-level group genuinely has no row, and a predicate over an empty
@@ -232,10 +232,19 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
     // Placement is `actionRendersAt`'s call (objectui#3142) — this used to
     // show an action with `locations: undefined` while hiding one with
     // `locations: []`, a third reading of the same key.
-    const actions = (schema.actions || []).filter(a => actionRendersAt(a, schema.location));
+    // Annotated, not inferred, and `UIActionSchema` rather than the legacy
+    // `ActionSchema` — see the long derivation on `action:bar`'s equivalent
+    // line (objectui#4353). In short: `forwardRef` routes props through
+    // `PropsWithoutRef`, whose `Omit` collapses a props type carrying
+    // `[key: string]: any` to the bare index signature, so `schema` arrives as
+    // `any`; and the legacy type has no `locations`, which `actionRendersAt`
+    // on the very next line requires. One annotation where the list enters
+    // types both display modes' `.map()` callbacks below by inference.
+    const declaredActions: UIActionSchema[] = schema.actions || [];
+    const actions = declaredActions.filter(a => actionRendersAt(a, schema.location));
 
     const handleExecute = useCallback(
-      async (action: ActionSchema) => {
+      async (action: UIActionSchema) => {
         await execute({
           type: action.type,
           name: action.name,
@@ -272,7 +281,7 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
     // Dropdown items share the trigger's loading spinner, so wrap execution to
     // toggle `dropdownLoading` (inline items manage their own local loading).
     const handleDropdownSelect = useCallback(
-      async (action: ActionSchema) => {
+      async (action: UIActionSchema) => {
         setDropdownLoading(true);
         try {
           await handleExecute(action);

@@ -43,7 +43,10 @@ function renderDiv(schema: Record<string, unknown>) {
 }
 
 function deprecationCalls(spy: ReturnType<typeof vi.spyOn>): unknown[][] {
-  return spy.mock.calls.filter((args) => DEPRECATION_RE.test(String(args[0])));
+  // `ReturnType<typeof vi.spyOn>` erases the spied signature, so `mock.calls`
+  // arrives as `any` and this parameter had no type to infer. `unknown[]` is
+  // the row type this function already DECLARES it returns (objectui#4353).
+  return spy.mock.calls.filter((args: unknown[]) => DEPRECATION_RE.test(String(args[0])));
 }
 
 describe('div deprecation notice — once per module load (#3965)', () => {
