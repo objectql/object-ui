@@ -1,0 +1,56 @@
+{
+  // Compiles the test files whose value is partly COMPILE-TIME assertions, so
+  // that those assertions are actually checked by CI (objectui#3181).
+  //
+  // Why this exists as a THIRD project rather than as `tsconfig.test.json`:
+  //
+  //  - `tsconfig.json` is the package BUILD (vite -> dist, "declaration",
+  //    "composite"). It excludes `**/*.test.tsx` correctly — test files would
+  //    otherwise emit into the published dist.
+  //  - `tsconfig.test.json` is this repo's name for "this package compiles ALL
+  //    of its tests" (see packages/types). `@object-ui/plugin-dashboard` cannot
+  //    claim that yet: its test tree is the sole remaining TEST_DEBT entry in
+  //    scripts/check-type-check-coverage.mjs (6 errors, objectui#4118). Naming
+  //    this file `tsconfig.test.json` would tell that guard the debt is paid and
+  //    make it demand the entry be deleted — trading one false "checked" claim
+  //    for another.
+  //
+  // So: a narrow, explicitly-listed project compiling only files that are
+  // already clean and whose assertions are load-bearing. It is chained from the
+  // package's `type-check` script, which is what the CI Type Check job runs
+  // (`pnpm type-check` -> `turbo run type-check`), and that chaining is enforced
+  // by scripts/check-type-check-coverage.mjs — a config nothing runs is the very
+  // objectui#3009 / objectui#3181 failure this file exists to avoid.
+  //
+  // This is a RESCUE HATCH scoped to the TEST_DEBT emergency: when objectui#4118
+  // lands and the whole test tree compiles, that same guard turns red and tells
+  // whoever closed it to delete this project and its `type-check` chain entry
+  // (objectui#4291 retired six that had graduated). Do not switch it to a glob —
+  // a glob sweeps in the backlog, and the first agent to hit that would "fix" it
+  // by deleting the whole project.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // A checking project, never an emitting one, and explicitly outside the
+    // build graph so it cannot leak test output into dist.
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    // Same reason as tsconfig.json: drop the root tsconfig's source-tree `paths`
+    // so `@objectstack/spec` and the `@object-ui/*` workspace deps resolve
+    // through the real dependency graph rather than through sibling `src/`.
+    "paths": {}
+  },
+  // Explicit list, not a glob.
+  //
+  // `MetricWidget.domPassthrough.types.test.tsx` earns its place through
+  // objectui#4426: `MetricWidgetProps` / `MetricCardProps` now DECLARE the DOM
+  // pass-through their spread has always accepted, and the defect being closed
+  // was type-only — `id` / `role` / `aria-label` reached the card at runtime the
+  // whole time, so no test vitest runs could ever observe the bug or its fix.
+  // Its negative half is compile-time by construction too: `@ts-expect-error`
+  // directives asserting that an undeclared prop is still rejected are erased
+  // before vitest sees them, and would go on "passing" if the widening were
+  // later loosened into `[key: string]: any`.
+  "include": ["src/__tests__/MetricWidget.domPassthrough.types.test.tsx"]
+}
