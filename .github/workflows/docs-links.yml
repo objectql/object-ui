@@ -2,14 +2,33 @@ name: Docs Links
 
 # Why this is its own workflow instead of a step in `ci.yml`'s `docs` job, which
 # is where this check lived when it first reached CI (#3213 / #3292, PR #3450):
-# `ci.yml` lists `'**/*.md'`, `content/**`, `docs/**` and `apps/site/**` under
-# `paths-ignore`, and GitHub has no per-job path filter. The published site is
-# built from `content/docs/**`, so a docs-ONLY pull request matched every ignore
-# pattern, started no workflow at all, and was never link-checked — while a
-# docs-only PR is the likeliest way an internal link breaks in the first place.
-# The step therefore only ever saw PRs that touched docs *alongside code*, plus
-# pushes to `main`; a broken link could land through a pure-docs PR and only turn
-# `main` red later, under an unrelated author (#3448).
+# `ci.yml` THEN listed `'**/*.md'`, `content/**`, `docs/**` and `apps/site/**`
+# under the `paths-ignore` of both its triggers, and GitHub has no per-job path
+# filter. The published site is built from `content/docs/**`, so a docs-ONLY
+# pull request matched every ignore pattern, started no workflow at all, and was
+# never link-checked — while a docs-only PR is the likeliest way an internal link
+# breaks in the first place. The step therefore only ever saw PRs that touched
+# docs *alongside code*, plus pushes to `main`; a broken link could land through
+# a pure-docs PR and only turn `main` red later, under an unrelated author
+# (#3448).
+#
+# Read that paragraph as history, and do not act on its present tense — the
+# lead-in used to be written as one, which is what objectui#4381 corrected.
+# objectui#3523 step 2 deleted `paths-ignore` from `ci.yml`'s `pull_request`
+# trigger; it survives ONLY on `push`. A docs-only PR therefore DOES start
+# `ci.yml` today and DOES produce its contexts — measured: PR #3856 (one markdown
+# file) 16 checks, PR #4339 (one line added to AGENTS.md) 17. objectui#3857
+# pinned that correction after an author acted on the old sentence and got the
+# opposite result. Nor would the in-job switch keep a link check out the way it
+# keeps the changeset gates out: `ci.yml`'s `docs` job gates its steps on
+# `apps/site/` or `content/` having CHANGED, which a docs-only PR satisfies.
+#
+# Two reasons outlived that premise, and they are why nothing moves back.
+# `ci.yml` still filters its `push` lane, so a docs-only push to `main` starts it
+# not at all and this workflow is the only thing that link-checks that merge. And
+# #3448 settled one gate, one home: this workflow's trigger set is a strict
+# superset of that job's, so a copy there could only add a second red check for
+# one broken link, and a second place to forget.
 #
 # `control-bytes.yml` hit the same wall and its header names the consequence: a
 # gate that cannot see a markdown-only PR "rebuilds the hole it exists to close".

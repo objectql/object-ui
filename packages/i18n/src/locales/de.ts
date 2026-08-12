@@ -531,7 +531,7 @@ const de = {
       },
     },
     refresh: "Aktualisieren",
-    loading: 'Loading records…',
+    loading: "Datensätze werden geladen…",
     recordCount: "{{count}} Datensätze",
     recordCountOne: "{{count}} Datensatz",
     addRecord: "Datensatz hinzufügen",
@@ -771,8 +771,8 @@ const de = {
     readonlyTooltip: "Systemansicht — im Code definiert, schreibgeschützt.",
   },
   designer: {
-    undo: 'Undo',
-    redo: 'Redo',
+    undo: "Rückgängig",
+    redo: "Wiederholen",
   },
   detail: {
     editInlineHint: "Zum Bearbeiten doppelklicken",

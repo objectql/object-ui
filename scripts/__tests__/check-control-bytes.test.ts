@@ -363,11 +363,22 @@ describe('wiring — the gate is actually reachable and actually runs', () => {
 
   it('does NOT filter that workflow by path', () => {
     // This is the whole reason it is its own workflow rather than a step in
-    // ci.yml or lint.yml: both of those `paths-ignore` markdown, `content/**`,
-    // `docs/**` and `.changeset/**`. Markdown is precisely the carrier
-    // objectstack#4890 was found in, so a path filter here would rebuild the
-    // hole this guard exists to close. `changeset-guard.yml` is in the repo for
-    // the same reason and says so in its own header.
+    // ci.yml or lint.yml: on a markdown-only change both of those skip every
+    // expensive step, so a gate inside either would never see it. Markdown is
+    // precisely the carrier objectstack#4890 was found in, so a path filter here
+    // would rebuild the hole this guard exists to close. `changeset-guard.yml`
+    // is in the repo for the same reason and says so in its own header.
+    //
+    // Not the reason this comment used to give — "both of those `paths-ignore`
+    // markdown, `content/**`, `docs/**` and `.changeset/**`" — which
+    // objectui#4381 corrected here and in the workflow's own header. Since
+    // objectui#3523 step 2 that filter is gone from their `pull_request` trigger
+    // and survives only on `push`, so a markdown-only PR does start both and
+    // does produce their contexts (measured — PR #3856, one markdown file, 16
+    // checks). What still skips is the work inside them: the `Decide whether
+    // this change needs a full run` step excludes markdown and skips every step
+    // below itself, and the `push` lane is filtered at the trigger as before.
+    // The conclusion outlived its premise; objectui#3857 pinned the correction.
     const workflow = fs.readFileSync(workflowPath, 'utf8');
     expect(workflow).not.toMatch(/paths-ignore:/);
     expect(workflow).not.toMatch(/^\s+paths:/m);

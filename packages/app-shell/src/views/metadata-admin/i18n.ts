@@ -20,6 +20,23 @@
  *
  * The DirectoryPage / PageShell call these to localise headings when
  * the consumer hasn't wired the global i18n provider.
+ *
+ * ## Typographic convention: the ellipsis is U+2026 `…`, never `...`
+ *
+ * Values here end (or interrupt) with the typographic ellipsis `…`, not three
+ * ASCII full stops — per the maintainer-authorized consistency pass registered
+ * on objectstack#6015 (2026-08-09), which objectui#3878 applied to the ten
+ * locale packs in `packages/i18n/src/locales/`.
+ *
+ * This table is NOT one of those packs: the designer carries its own flat
+ * `Record` of dotted keys with `en` and `zh` in one file, so
+ * `packages/i18n/src/__tests__/ellipsis-glyph-3878.test.ts` — which scans the
+ * ten packs and says so in its own header — deliberately does not reach it.
+ * The convention is therefore held by this note rather than by a gate
+ * (objectui#4377: generalising that pin to a second table shape was costed as
+ * more machinery than the defect is worth). Follow it when adding a value; the
+ * designer renders inside the console shell, so a `...` here lands on the same
+ * screen as a `…` from the packs.
  */
 
 import { useObjectTranslation } from '@object-ui/i18n';
@@ -891,7 +908,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.edit.forceSave': 'Force save',
   'engine.cancel': 'Cancel',
   'engine.close': 'Close',
-  'engine.form.select': 'Select...',
+  'engine.form.select': 'Select…',
   'engine.form.selectEllipsis': 'Select…',
   'engine.form.add': 'Add',
   'engine.form.addItem': 'Add item',
@@ -905,13 +922,13 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.form.selectObject': 'Select object…',
   'engine.form.selectComponent': 'Select component…',
   'engine.form.noComponents': 'component_id (no components on this page yet)',
-  'engine.form.selectObjectDots': 'Select object...',
-  'engine.form.addObjects': 'Add objects...',
+  'engine.form.selectObjectDots': 'Select object…',
+  'engine.form.addObjects': 'Add objects…',
   'engine.form.loadingFields': 'Loading fields…',
   'engine.form.selectObjectFirst': '(Select an object first)',
   'engine.form.selectField': 'Select field…',
-  'engine.form.selectFieldDots': 'Select field...',
-  'engine.form.addFields': 'Add fields...',
+  'engine.form.selectFieldDots': 'Select field…',
+  'engine.form.addFields': 'Add fields…',
   'engine.form.noObjectBound': 'No object bound',
   'engine.form.none': '— None —',
   'engine.form.notInObject': '(not in object)',
@@ -2665,7 +2682,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.edit.forceSave': '强制保存',
   'engine.cancel': '取消',
   'engine.close': '关闭',
-  'engine.form.select': '请选择...',
+  'engine.form.select': '请选择…',
   'engine.form.selectEllipsis': '请选择…',
   'engine.form.add': '添加',
   'engine.form.addItem': '添加项',
@@ -2679,13 +2696,13 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.form.selectObject': '选择对象…',
   'engine.form.selectComponent': '选择组件…',
   'engine.form.noComponents': 'component_id（此页面暂无组件）',
-  'engine.form.selectObjectDots': '选择对象...',
-  'engine.form.addObjects': '添加对象...',
+  'engine.form.selectObjectDots': '选择对象…',
+  'engine.form.addObjects': '添加对象…',
   'engine.form.loadingFields': '正在加载字段…',
   'engine.form.selectObjectFirst': '（请先选择对象）',
   'engine.form.selectField': '选择字段…',
-  'engine.form.selectFieldDots': '选择字段...',
-  'engine.form.addFields': '添加字段...',
+  'engine.form.selectFieldDots': '选择字段…',
+  'engine.form.addFields': '添加字段…',
   'engine.form.noObjectBound': '未绑定对象',
   'engine.form.none': '— 无 —',
   'engine.form.notInObject': '（不在对象中）',

@@ -113,7 +113,23 @@ function fallback(key: string, options?: Record<string, unknown>): string {
   let v = GANTT_DEFAULT_TRANSLATIONS[key] || key;
   if (options) {
     for (const [k, val] of Object.entries(options)) {
-      v = v.replace(`{{${k}}}`, String(val));
+      // `split(needle).join(value)` — deliberately not `replace`, and not
+      // `replaceAll` either (objectui#4370, the hand-rolled copy of the shared
+      // helper's objectui#3418 fix). This path must agree with i18next, which
+      // serves the *provider* path; any divergence is a silent fork that only
+      // shows up on provider-less hosts, where we are least likely to see it:
+      //   1. `replace` with a string needle substitutes only the FIRST
+      //      occurrence. i18next substitutes every one, so a sentence that
+      //      repeats a placeholder leaked literal braces to users.
+      //   2. `replace` AND `replaceAll` both interpret `$&`, `` $` ``, `$'`
+      //      and `$$` in the *replacement* string. i18next does not. Values
+      //      here are runtime data — `gantt.delete.body` is interpolated with
+      //      the record's own title — so this one was reachable: a task titled
+      //      `A$&B` rendered `"A{{title}}B" will be permanently removed.`,
+      //      printing the placeholder back at the user inside their own data.
+      // split/join is literal on both sides, which is exactly i18next's
+      // behaviour, and needs no regex escaping of the placeholder name.
+      v = v.split(`{{${k}}}`).join(String(val));
     }
   }
   return v;

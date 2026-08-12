@@ -212,11 +212,28 @@ describe('changeset-presence.yml — the gate can start on the PR that needs it'
   });
 
   it('leaves changeset-guard.yml alone — the two gates face opposite directions', () => {
-    // `changeset-guard.yml`'s `paths: ['.changeset/**']` is deliberate: a PR
-    // adding ONLY a changeset starts no other workflow, and that guard exists to
-    // see it. A PR that FORGOT its changeset does not touch `.changeset/**`, so
-    // widening those paths would have broken the case it was built for while
-    // still not catching this one. Two workflows, one direction each.
+    // `changeset-guard.yml`'s `paths: ['.changeset/**']` is deliberate: on a PR
+    // that adds ONLY a changeset, every gate inside `ci.yml` and `lint.yml`
+    // skips, so nothing in either of them ever reads the changeset — and that
+    // guard exists to see exactly that PR. A PR that FORGOT its changeset does
+    // not touch `.changeset/**`, so widening those paths would have broken the
+    // case it was built for while still not catching this one. Two workflows,
+    // one direction each.
+    //
+    // Not the reason this comment used to give — "a PR adding ONLY a changeset
+    // starts no other workflow". That is the sentence PR #4371 rewrote in the
+    // docblock of `check-changeset-presence.mjs`, the script this file
+    // accompanies, and the pair disagreed across the two until objectui#4381.
+    // objectui#3523 step 2 deleted `paths-ignore` from `ci.yml`'s and
+    // `lint.yml`'s `pull_request` trigger; it survives only on `push`. Such a PR
+    // therefore DOES start both and DOES produce their contexts — measured: PR
+    // #3856 (one markdown file) 16 checks, PR #4339 (one line added to
+    // AGENTS.md) 17. What still skips is the expensive work: the `Decide whether
+    // this change needs a full run` step excludes markdown and `.changeset/**`
+    // and skips every step below itself, and its exclusion list is that `push`
+    // filter unchanged, held identical to it by
+    // `scripts/__tests__/merge-queue-reporting.test.ts`. The conclusion outlived
+    // its premise; objectui#3857 pinned the correction.
     const guard = withoutComments(fs.readFileSync(path.join(workflowDir, 'changeset-guard.yml'), 'utf8'));
     expect(guard).toMatch(/^\s+paths:/m);
     expect(guard).toMatch(/\.changeset\//);

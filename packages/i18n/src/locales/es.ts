@@ -535,7 +535,7 @@ const es = {
       },
     },
     refresh: "Actualizar",
-    loading: 'Loading records…',
+    loading: "Cargando registros…",
     recordCount: "{{count}} registros",
     recordCountOne: "{{count}} registro",
     addRecord: "Agregar registro",
@@ -775,8 +775,8 @@ const es = {
     readonlyTooltip: "Vista del sistema — definida en el código, solo lectura.",
   },
   designer: {
-    undo: 'Undo',
-    redo: 'Redo',
+    undo: "Deshacer",
+    redo: "Rehacer",
   },
   detail: {
     editInlineHint: "Haga doble clic para editar",

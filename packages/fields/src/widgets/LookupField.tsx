@@ -1082,7 +1082,7 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <Input
-                placeholder={t('common.search') + '...'}
+                placeholder={t('table.search')}
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onKeyDown={handleSearchKeyDown}

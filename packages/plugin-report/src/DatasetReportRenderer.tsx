@@ -64,6 +64,7 @@ import {
   formatDimensionValue,
   buildDatasetFieldHelpers,
   buildDatasetDrillFilter,
+  relabelDimensions,
   pivotBucketId,
   pivotDimensionValue,
   pivotCellKey,
@@ -72,6 +73,7 @@ import {
 } from '@object-ui/core';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
 import { mergeFilters } from './mergeFilters';
+import { useDatasetDimensionLabels } from './useDatasetDimensionLabels';
 
 type Row = Record<string, unknown>;
 
@@ -409,6 +411,10 @@ function DatasetReportTable({
   );
   const { fieldLabel } = useSafeFieldLabel();
   const tt = useSafeTranslate();
+  // objectui#4330 — the option list this report's select dimensions are
+  // localized against. Null (and free) for a report whose dimensions own no
+  // options, or before the read lands.
+  const dimensionLabels = useDatasetDimensionLabels(state.object, state.dimensionFields, rows);
 
   if (values.length === 0) return <EmptyMeasures dataset={dataset} />;
   if (state.status === 'loading' || state.status === 'idle') return <FetchStates status={state.status} />;
@@ -440,6 +446,11 @@ function DatasetReportTable({
 
   const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
   const columns = [...rows, ...values];
+  // The rows as DISPLAYED (objectui#4330). Order and count are preserved, so
+  // `state.rows[i]` / `drillRawRows[i]` stay index-aligned — which is what
+  // keeps the drill payload below on the untranslated values. With no label
+  // map this is `state.rows` ITSELF, the same array identity as before.
+  const displayRows = relabelDimensions(state.rows, dimensionLabels);
   // Server-supplied grand total (`dimensions: []`); absent → no totals row.
   const grandTotal = withTotals
     ? state.totals?.find((t) => Array.isArray(t.dimensions) && t.dimensions.length === 0)?.rows?.[0]
@@ -458,12 +469,17 @@ function DatasetReportTable({
           </tr>
         </thead>
         <tbody>
-          {state.rows.map((row, i) => (
+          {displayRows.map((row, i) => (
             <tr
               key={i}
               className={`border-t${canDrill ? ` ${DRILL_CLASS}` : ''}`}
               data-testid={canDrill ? 'dataset-drill-row' : undefined}
-              onClick={canDrill ? () => drill(row, i) : undefined}
+              // The drill payload is built from the row AS THE SERVER SENT IT
+              // (`state.rows[i]`), never from the displayed one: `groupKey` and
+              // `objectFilter` are identity keys the host filters records with,
+              // and translating those would address nothing (objectui#4263 /
+              // #4273's convention, restated for #4330).
+              onClick={canDrill ? () => drill(state.rows[i], i) : undefined}
             >
               {columns.map((c) => (
                 <td key={c} className="px-2 py-1 tabular-nums whitespace-nowrap">
@@ -668,6 +684,16 @@ function DatasetReportChart({
   );
   const ChartComponent = useRegistryComponent('chart');
   const { fieldLabel } = useSafeFieldLabel();
+  // objectui#4330 — the embedded chart plots the SAME dimension the table
+  // beneath it groups by, so it takes the same label map. Leaving it out would
+  // put the two spellings of one value on one screen, which is the defect this
+  // family exists to close.
+  const chartDimensions = React.useMemo(() => (xAxis ? [xAxis] : []), [xAxis]);
+  const dimensionLabels = useDatasetDimensionLabels(
+    state.object,
+    state.dimensionFields,
+    chartDimensions,
+  );
 
   const title = typeof chart.title === 'string' ? chart.title : undefined;
 
@@ -727,7 +753,7 @@ function DatasetReportChart({
       <ChartComponent
         schema={{
           chartType: plan.chartType,
-          data: state.rows,
+          data: relabelDimensions(state.rows, dimensionLabels),
           xAxisKey: xAxis,
           series: [{ dataKey: yAxis }],
           height: typeof chart.height === 'number' ? chart.height : 280,
@@ -812,37 +838,56 @@ function DatasetMatrixTable({
   );
   const tt = useSafeTranslate();
   const { fieldLabel } = useSafeFieldLabel();
+  // objectui#4330 — both axes' dimensions, one read (see the flat table above).
+  const dimensionLabels = useDatasetDimensionLabels(state.object, state.dimensionFields, [
+    ...rows,
+    ...columnsAcross,
+  ]);
 
   const pivot = React.useMemo(() => {
     if (state.status !== 'ok') return null;
-    const rowHeaders: Array<{ id: string; label: string; key: Row }> = [];
-    const colHeaders: Array<{ id: string; label: string; key: Row }> = [];
+    // `key` is the RAW bucket (drill identity); `display` is the same bucket as
+    // it reads on screen, per dimension — the two are deliberately separate
+    // (objectui#4330).
+    const rowHeaders: Array<{ id: string; label: string; key: Row; display: Row }> = [];
+    const colHeaders: Array<{ id: string; label: string; key: Row; display: Row }> = [];
     const seenRow = new Set<string>();
     const seenCol = new Set<string>();
     const cells = new Map<string, { row: Row; index: number }>();
-    state.rows.forEach((r, index) => {
+    // Bucket ids and header labels come from the DISPLAY rows so both axes read
+    // the localized label; the `key` a drill click carries comes from the RAW
+    // row beside it, because that one addresses records (objectui#4263/#4273).
+    // Index alignment across the two arrays is guaranteed by
+    // `relabelDimensions`, which preserves order and count.
+    const displayRows = relabelDimensions(state.rows, dimensionLabels);
+    displayRows.forEach((r, index) => {
+      const raw = state.rows[index];
       const rid = bucketId(rows, r);
       const cid = bucketId(columnsAcross, r);
       if (!seenRow.has(rid)) {
         seenRow.add(rid);
         const key: Row = {};
-        for (const d of rows) key[d] = r[d];
-        rowHeaders.push({ id: rid, label: bucketLabel(rows, r), key });
+        const display: Row = {};
+        for (const d of rows) { key[d] = raw[d]; display[d] = r[d]; }
+        rowHeaders.push({ id: rid, label: bucketLabel(rows, r), key, display });
       }
       if (!seenCol.has(cid)) {
         seenCol.add(cid);
         const key: Row = {};
-        for (const d of columnsAcross) key[d] = r[d];
-        colHeaders.push({ id: cid, label: bucketLabel(columnsAcross, r), key });
+        const display: Row = {};
+        for (const d of columnsAcross) { key[d] = raw[d]; display[d] = r[d]; }
+        colHeaders.push({ id: cid, label: bucketLabel(columnsAcross, r), key, display });
       }
       // Keyed by pivotCellKey, not `${rid} ${cid}`: a plain space is a boundary
       // only while no dimension value contains one, and they do constantly
       // ("New York", "In Progress"). `index` is also what drill-through reads
       // `drillRawRows` by, so a merged key drilled to the wrong records too.
-      cells.set(pivotCellKey(rid, cid), { row: r, index });
+      // The cell holds MEASURES, which no relabel touches — so it keeps the
+      // server's own row.
+      cells.set(pivotCellKey(rid, cid), { row: raw, index });
     });
     return { rowHeaders, colHeaders, cells };
-  }, [state, rows, columnsAcross]);
+  }, [state, rows, columnsAcross, dimensionLabels]);
 
   if (values.length === 0) return <EmptyMeasures dataset={dataset} />;
   if (state.status === 'loading' || state.status === 'idle') return <FetchStates status={state.status} />;
@@ -880,8 +925,18 @@ function DatasetMatrixTable({
   // Server-supplied totals: match each grouping by its `dimensions` array,
   // then match its rows to the pivot headers via the same bucketId. Absent
   // (older server) → every map stays empty and no totals UI renders.
-  const findTotals = (dims: string[]) =>
-    state.totals?.find((t) => Array.isArray(t.dimensions) && t.dimensions.join(',') === dims.join(','))?.rows;
+  //
+  // The totals carry dimension values too, so they take the SAME relabel the
+  // display rows took (objectui#4330 — the dashboard pivot does this for the
+  // same reason, #4263): both sides of the lookup must speak one vocabulary,
+  // or a zh-CN matrix would read 国内 down the side while the row-total lookup
+  // still asked for `Domestic` and every total cell fell back to blank.
+  const findTotals = (dims: string[]) => {
+    const totalRows = state.totals?.find(
+      (t) => Array.isArray(t.dimensions) && t.dimensions.join(',') === dims.join(','),
+    )?.rows;
+    return totalRows ? relabelDimensions(totalRows, dimensionLabels) : totalRows;
+  };
   const rowTotalById = new Map<string, Row>();
   for (const r of findTotals(rows) ?? []) rowTotalById.set(bucketId(rows, r), r);
   const colTotalById = new Map<string, Row>();
@@ -922,7 +977,7 @@ function DatasetMatrixTable({
             <tr key={rh.id} className="border-t">
               {rows.map((d) => (
                 <td key={d} className="px-2 py-1 whitespace-nowrap font-medium">
-                  {formatDimensionValue(rh.key[d])}
+                  {formatDimensionValue(rh.display[d])}
                 </td>
               ))}
               {cellCols.map((cc) => {

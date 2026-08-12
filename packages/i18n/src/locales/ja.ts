@@ -531,7 +531,7 @@ const ja = {
       },
     },
     refresh: "更新",
-    loading: 'Loading records…',
+    loading: "レコードを読み込み中…",
     recordCount: "{{count}} 件のレコード",
     recordCountOne: "{{count}} 件のレコード",
     addRecord: "レコードを追加",
@@ -771,8 +771,8 @@ const ja = {
     readonlyTooltip: "システムビュー — コードで定義され、読み取り専用です。",
   },
   designer: {
-    undo: 'Undo',
-    redo: 'Redo',
+    undo: "元に戻す",
+    redo: "やり直す",
   },
   detail: {
     editInlineHint: "ダブルクリックで編集",
