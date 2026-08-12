@@ -484,6 +484,10 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // `t(key, { defaultValue })` options, never a `createSafeTranslation` table.
   'list.sortRelationalHint':
     'Columns that link to another record are not listed: they can only be sorted by the stored ID, not by the name shown in the cell. To sort by that name, denormalize it onto this object as a stored field, written when the source changes, and sort by that. Not a formula field: it is virtual, so no column is stored for it and the server refuses to sort by one.',
+  // objectui#4396 — the sort popover's reset action. Read bare
+  // (`t('list.resetSortToDefault')`, no inline `defaultValue`), so before this
+  // row a provider-less host rendered the raw key as the menu item's label.
+  'list.resetSortToDefault': 'Reset to view default',
   'list.group': 'Group',
   'list.groupBy': 'Group By',
   'list.export': 'Export',

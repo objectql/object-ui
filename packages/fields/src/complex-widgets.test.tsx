@@ -192,11 +192,15 @@ describe('Complex & Relationship Widgets', () => {
             });
 
             // Type in search. U+2026 now, and it comes from a PACK VALUE:
-            // objectui#4375 retired the `t('common.search') + '...'`
-            // concatenation this used to pin, so the placeholder is `table.search`
+            // objectui#4375 retired the `common.search` + '...' concatenation
+            // this used to pin, so the placeholder is `table.search`
             // — read through `useFieldTranslation`, whose no-provider defaults map
             // serves the `en` byte `Search…` in this test. It therefore moves with
             // the pack from here on, and is covered by objectui#3878's glyph pin.
+            // `common.search` itself is retired from the ten packs and from this
+            // package's defaults map (objectui#4392); naming it bare rather than
+            // spelling a t() call around it is what keeps that retirement's
+            // revival pin readable — see common-search-retired-4392.test.ts.
             await act(async () => {
                 fireEvent.change(screen.getByPlaceholderText('Search…'), {
                     target: { value: 'acme' },

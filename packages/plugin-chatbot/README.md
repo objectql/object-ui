@@ -256,6 +256,32 @@ import { AIElements } from '@object-ui/plugin-chatbot';
 </AIElements.Conversation>;
 ```
 
+### The `ChatMessage` type
+
+`ChatMessage` is this package's one message contract — the shape
+`<ChatbotEnhanced>` renders and the mappers below produce. On top of the core
+`id` / `role` / `content` / `timestamp` / `avatar` / `avatarFallback` fields it
+carries the streaming and agent-process keys (`streaming`, `toolInvocations`,
+`reasoning`, `sources`, `traceId`, `buildProgress`, `blueprintProgress`,
+`charts`), all optional.
+
+```tsx
+import type { ChatMessage } from '@object-ui/plugin-chatbot';
+```
+
+> This barrel used to export **two** different `ChatMessage` types: a minimal
+> one declared here, plus the enhanced shape aliased as
+> `ChatbotEnhancedMessage`. Reaching for the natural name got you the narrow
+> contract with no compiler complaint (objectui#4383). The minimal shape is
+> retired; `ChatbotEnhancedMessage` is now a **deprecated alias of the same
+> type**, kept only so existing importers keep compiling.
+
+Note that `@object-ui/types` also exports a `ChatMessage`. That one is the
+**JSON/SDUI schema** type (`ChatbotSchema['messages']`, `role` includes
+`'tool'`, `timestamp` may be a `Date`) — the authoring contract, not the React
+runtime one. Import the schema type from `@object-ui/types` and the runtime
+type from this package.
+
 ### Message mapping helpers
 
 If you wire `@ai-sdk/react`'s `useChat()` directly and want to render its
