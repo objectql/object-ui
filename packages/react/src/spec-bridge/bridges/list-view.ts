@@ -8,7 +8,7 @@
 
 import type { SchemaNode } from '@object-ui/core';
 import type { BridgeContext, BridgeFn } from '../types';
-import type { ListView, ListColumn } from '@objectstack/spec/ui';
+import type { ListView, ListColumn, RowHeight } from '@objectstack/spec/ui';
 
 /**
  * Bridge input: the spec-canonical ListView (#2231 — the former hand-written
@@ -45,22 +45,36 @@ function mapColumn(col: ListColumn | string): Record<string, any> {
   return mapped;
 }
 
+/**
+ * The spec's five row heights collapsed onto the renderer's three densities.
+ *
+ * `Record<RowHeight, …>` on purpose (objectui#4352): the key set is the spec's,
+ * so a row height added upstream fails the build here instead of silently
+ * arriving with no density. The table used to carry four more keys —
+ * `comfortable`, `spacious`, `small`, `large` — which `RowHeightSchema` does
+ * not admit, so no spec-valid list view could ever reach them; they only
+ * survived because the parameter was widened back to `string` and the fixture
+ * asserting three of them compiled against nothing. Deleting them is AGENTS.md
+ * #0.1: a renderer-side dialect for off-spec metadata is a second de-facto
+ * contract, and one strict contract beats N. An off-spec `rowHeight` now falls
+ * through to `undefined` — the producer is where it gets fixed.
+ */
+const ROW_HEIGHT_TO_DENSITY: Record<
+  RowHeight,
+  'compact' | 'comfortable' | 'spacious'
+> = {
+  compact: 'compact',
+  short: 'compact',
+  medium: 'comfortable',
+  tall: 'spacious',
+  extra_tall: 'spacious',
+};
+
 function mapDensity(
-  rowHeight?: string,
+  rowHeight?: RowHeight,
 ): 'compact' | 'comfortable' | 'spacious' | undefined {
   if (!rowHeight) return undefined;
-  const map: Record<string, 'compact' | 'comfortable' | 'spacious'> = {
-    compact: 'compact',
-    short: 'compact',
-    comfortable: 'comfortable',
-    spacious: 'spacious',
-    small: 'compact',
-    medium: 'comfortable',
-    large: 'spacious',
-    tall: 'spacious',
-    extra_tall: 'spacious',
-  };
-  return map[rowHeight];
+  return ROW_HEIGHT_TO_DENSITY[rowHeight];
 }
 
 /** Transforms a ListView spec into a DataTable SchemaNode */

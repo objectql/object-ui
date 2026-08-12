@@ -59,22 +59,29 @@ import { rel, repoRoot, type WorkspacePackage } from './turbo-inputs';
  *    NAMES, not which files the task hashes.
  *  - POSTCSS CONFIG DISCOVERY IS NOT MODELLED, and this one is a KNOWN BLIND
  *    SPOT rather than a safe narrowing, so it is written down here and filed
- *    rather than left for the next reader to rediscover. Vite hands CSS to
- *    `postcss-load-config`, which searches UPWARD from the Vite root — so a
- *    package that processes CSS through Vite and has no `postcss.config.*` of
- *    its own would read the repo-root `postcss.config.mjs`, outside its
- *    directory and unhashed. Measured: no package does BOTH today. Every
- *    vite-build package that processes CSS (`apps/console`, `packages/components`,
- *    `packages/runner`, the two console examples) carries its own postcss
- *    config, which stops the upward walk; `packages/fields` is the only one
- *    without a config, and its single `src/index.css` never enters the Vite
- *    graph — nothing imports it, because `scripts/build-css.mjs` compiles it
- *    separately with an explicit plugin list. So the root config is genuinely
- *    outside every build program right now, which is why no input entry is
- *    owed for it. But that is a COINCIDENCE of two facts, not a structural
- *    guarantee: adding one `import './index.css'` to `packages/fields/src`
- *    would pull the root postcss config into the build program, turbo would not
- *    hash it, and this guard would not notice.
+ *    (objectui#4198) rather than left for the next reader to rediscover. Vite
+ *    hands CSS to `postcss-load-config`, which searches UPWARD from the Vite
+ *    root — so a package that processes CSS through Vite and has no
+ *    `postcss.config.*` of its own would read the nearest one ABOVE its
+ *    directory, which this derivation neither walks nor hashes.
+ *    NO SUCH FILE EXISTS TODAY: every tracked `postcss.config.*` sits inside
+ *    the package that uses it, and the repo-root `postcss.config.mjs` that
+ *    used to sit above them all was deleted by objectui#4065 (PR #4349), so
+ *    the upward walk currently arrives at nothing. That retires the INSTANCE,
+ *    not the gap — nothing in this derivation would notice the next config to
+ *    appear at the root, or in any directory above a CSS-building package.
+ *    Two further facts, both measured and both COINCIDENCES rather than
+ *    structural guarantees, keep the walk short even if one did appear. Every
+ *    vite-build package that processes CSS (`apps/console`,
+ *    `packages/components`, `packages/runner`, the two console examples)
+ *    carries its own postcss config, which stops the upward walk in its own
+ *    directory; `packages/fields` is the only one without a config, and its
+ *    single `src/index.css` never enters the Vite graph — nothing imports it,
+ *    because `scripts/build-css.mjs` compiles it separately with an explicit
+ *    plugin list. Both would have to hold for a re-introduced config to stay
+ *    harmless: an `import './index.css'` added to `packages/fields/src`, plus
+ *    any `postcss.config.*` above that package, would pull it into the build
+ *    program, turbo would not hash it, and this guard would not notice.
  *  - NO FILE-VALUED OPTIONS. Unlike a Vitest config, nothing in this repo's
  *    build configs names a program file through a string literal: entries are
  *    spelled `resolve(__dirname, 'src/index.tsx')`, which is an expression, and
