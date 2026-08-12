@@ -7,7 +7,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { DataSource, ActionResult, ActionSchema } from '@object-ui/types';
+// `UIActionSchema` — NOT the legacy `ActionSchema` from `crud.ts`, which is
+// deprecated, requires `type: 'action'`, and inherits an OPTIONAL `name` from
+// `BaseSchema`. `TransactionManager.executeTransaction` takes a
+// `(action: UIActionSchema) => …` executor, so the fixtures below have to be
+// authored in that vocabulary or they are asserting against a type the
+// implementation never sees.
+import type { DataSource, ActionResult, UIActionSchema } from '@object-ui/types';
 import {
   TransactionManager,
   type TransactionProgressEvent,
@@ -28,11 +34,11 @@ function createMockDataSource(): DataSource {
   };
 }
 
-function makeAction(name: string): ActionSchema {
+function makeAction(name: string): UIActionSchema {
   return { name, label: name, type: 'script' };
 }
 
-function makeExecutor(results: Record<string, ActionResult>): (action: ActionSchema) => Promise<ActionResult> {
+function makeExecutor(results: Record<string, ActionResult>): (action: UIActionSchema) => Promise<ActionResult> {
   return async (action) => results[action.name] || { success: true };
 }
 
@@ -351,7 +357,9 @@ describe('TransactionManager', () => {
   describe('Rollback Operations', () => {
     it('should rollback created records on transaction failure', async () => {
       let step = 0;
-      const executor = async (action: ActionSchema) => {
+      // Underscore-prefixed: this executor sequences on the call counter rather
+      // than on which action it was handed, and `noUnusedParameters` is on.
+      const executor = async (_action: UIActionSchema) => {
         step++;
         if (step === 1) {
           // First action succeeds and records an operation

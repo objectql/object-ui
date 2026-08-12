@@ -645,15 +645,21 @@ jobs:
       # The docs *link* check is deliberately NOT here any more — do not add it
       # back. `node scripts/check-doc-links.mjs` ran in this job from #3213 /
       # #3292 (PR #3450) until #3448 promoted it to its own workflow,
-      # `docs-links.yml`, with no path filters. The reason is this workflow's own
-      # `paths-ignore`: it lists `content/**` and `'**/*.md'`, and GitHub has no
-      # per-job path filter, so a docs-ONLY pull request never started `ci.yml`
-      # at all and the link check never saw the class of PR most likely to break
-      # a link. It is removed rather than kept in both places: the standalone
-      # workflow's trigger set is a strict superset of this job's, so a copy here
-      # could only ever add a second red check for the same broken link, and a
-      # second place to forget. `scripts/__tests__/docs-links-workflow.test.ts`
-      # pins the gate to exactly one home.
+      # `docs-links.yml`, with no path filters. The reason THEN was this
+      # workflow's own `paths-ignore`, which at the time listed `content/**` and
+      # `'**/*.md'` on both triggers: GitHub has no per-job path filter, so a
+      # docs-ONLY pull request never started `ci.yml` at all and the link check
+      # never saw the class of PR most likely to break a link. Since
+      # objectui#3523 step 2 that filter is gone from `pull_request` and survives
+      # only on `push` (objectui#3857), so the pull-request half of that
+      # blindness is gone — the push half is not, and this job still does not run
+      # on a docs-only push to `main`. objectui#4381 corrected the present tense
+      # this note used to carry. It stays removed rather than kept in both places
+      # either way: the standalone workflow's trigger set is a strict superset of
+      # this job's, so a copy here could only ever add a second red check for the
+      # same broken link, and a second place to forget.
+      # `scripts/__tests__/docs-links-workflow.test.ts` pins the gate to exactly
+      # one home.
 
       - name: Turbo Cache
         if: steps.docs-changes.outputs.should_run == 'true'

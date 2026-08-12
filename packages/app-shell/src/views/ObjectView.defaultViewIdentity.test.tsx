@@ -111,11 +111,13 @@ const ZH_PAYLOAD_RETIRED_KEY = {
 };
 
 const wrapper = ({ children }: { children: React.ReactNode }) =>
-  React.createElement(
-    I18nProvider,
-    { config: { defaultLanguage: 'zh', detectBrowserLanguage: false } },
+  // `children` in the PROPS object, not the third argument: `I18nProviderProps`
+  // declares it required, and the third-argument form does not satisfy that
+  // overload (objectui#4040, same fix as packages/react's tranche).
+  React.createElement(I18nProvider, {
+    config: { defaultLanguage: 'zh', detectBrowserLanguage: false },
     children,
-  );
+  });
 
 /** Mount the real resolver over a server payload, exactly as the console does. */
 function withServerBundle(payload: Record<string, unknown>) {

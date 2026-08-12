@@ -109,19 +109,12 @@ export const CHECKED_BY_OWN_BUILD = {
 //     type, the dialect problem. Declare the dialect next to the vocabulary it
 //     extends (see scripts/check-spec-symbol-derivation.mjs), don't widen the
 //     type to silence it.
+// Counts are REMEASURED, never inherited: the #2911-era sweep that seeded this
+// table was unreliable in BOTH directions (i18n declared 13 and measured 103;
+// react declared 27 and measured 43), so remeasure before planning against any
+// number here. The tranche-4 remeasurement of `core` (56) and `app-shell` (62)
+// held exactly at tranche 5, which is what a measured number is supposed to do.
 export const TEST_DEBT = {
-  // `@object-ui/core` and `@object-ui/app-shell` are partially covered already:
-  // a `tsconfig.typetests.json` compiles the test files whose whole value is
-  // compile-time type assertions (objectui#3181), listed one by one so the rest
-  // of the debt tree stays out. Both entries stay because that REST is still
-  // unchecked — each number below is that remainder, not the whole package.
-  // Counts REMEASURED at objectui#4040 tranche 4 against the template config
-  // these packages will graduate with (config-tier errors excluded). The old
-  // numbers were the #2911-era sweep and were unreliable in both directions —
-  // i18n declared 13 and measured 103, react declared 27 and measured 43 — so
-  // remeasure before planning against any number here.
-  "@object-ui/core": { errors: 56, issue: 4118, note: "TS2322x17, TS7006x10 — mostly the input-vs-output fixture confusion (was declared 72)" },
-  "@object-ui/app-shell": { errors: 62, issue: 4118, note: "TS2339x8, TS2698x8, TS2739x7 — implementation wider than the type; needs lib ES2022 (was declared 53)" },
   "@object-ui/plugin-dashboard": { errors: 6, issue: 4118 },
 };
 

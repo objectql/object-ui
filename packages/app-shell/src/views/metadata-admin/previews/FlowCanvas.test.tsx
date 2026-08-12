@@ -1,6 +1,7 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import * as React from 'react';
+import { describe, it, expect, afterEach, vi, type Mock } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { FlowCanvas } from './FlowCanvas';
 import { extractRegions, NODE_H } from './flow-canvas-layout';
@@ -386,8 +387,11 @@ describe('FlowCanvas — geometry writes are spec-canonical `position` (#3172)',
     fireEvent.pointerUp(card, { clientX: dx, clientY: dy });
   };
 
+  // `Mock<…>` with the prop's own signature, not `ReturnType<typeof vi.fn>` —
+  // the latter is the un-instantiated `Mock<Procedure | Constructable>`, which
+  // `onPatch` does not accept (objectui#4040).
   const renderCanvas = (
-    onPatch: ReturnType<typeof vi.fn>,
+    onPatch: Mock<NonNullable<React.ComponentProps<typeof FlowCanvas>['onPatch']>>,
     { nodes = LEGACY_NODES, selectedId = null }: { nodes?: typeof LEGACY_NODES; selectedId?: string | null } = {},
   ) =>
     render(

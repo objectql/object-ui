@@ -93,7 +93,12 @@ function makeWiredAdapter(body: unknown) {
   return { adapter, sink, events };
 }
 
-const ACCOUNT: ObjectDefinition = { name: 'account', label: 'Account', fields: [] } as ObjectDefinition;
+// `id` is required by `ObjectDefinition` and the fixture never carried it, while
+// `fields` is not a key of `ObjectDefinition` at all (`saveObject` takes the
+// field list as its SECOND parameter). The `as ObjectDefinition` asserted past
+// both, and once compiled the assertion itself is rejected as a non-overlap
+// (objectui#4040). Declared properly instead of widening the cast.
+const ACCOUNT: ObjectDefinition = { id: 'account', name: 'account', label: 'Account' };
 
 describe('MetadataService saves reach the shell advisory surface (#4237)', () => {
   it('renders the gate findings for a save that succeeded', async () => {

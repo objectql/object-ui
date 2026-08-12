@@ -500,17 +500,26 @@ describe('every surviving narrow project is a package still in debt, in this rep
   const packages = collect(repoRoot);
   const withNarrow = packages.filter((p) => p.hasTypeTestsConfig);
 
-  it('is a set this gate can see at all', () => {
-    // Deliberately not a count — objectui#4291 retired six and the rest follow as
-    // #4040 burns down. What matters is that some remain to be judged.
-    expect(withNarrow.length).toBeGreaterThan(0);
+  it('is empty — the rescue hatch has no users left', () => {
+    // This case used to read `expect(withNarrow.length).toBeGreaterThan(0)`,
+    // with a comment saying survivors were guaranteed while #4040 burned down.
+    // That premise EXPIRED at tranche 5: retiring `core`'s and `app-shell`'s
+    // narrow projects took the last two, so the old assertion is now false by
+    // construction and the honest statement is the terminal one.
+    //
+    // It is not vacuous in the direction that matters. A `tsconfig.typetests.json`
+    // reappearing ANYWHERE turns this red — which is objectui#4291's ratchet
+    // stated as a test rather than only as a gate rule. The next case then
+    // holds vacuously, correctly: there is nothing left for it to judge, and it
+    // is what re-arms the moment this list is non-empty again.
+    expect(withNarrow.map((p) => p.name)).toEqual([]);
   });
 
   it('holds each survivor to being genuinely unrescued elsewhere', () => {
     // The invariant objectui#4291 established: a narrow project is worth keeping
     // only where the full test project does not already compile the same file.
     // Graduate a package without deleting its narrow project and this goes red,
-    // as does the gate itself.
+    // as does the gate itself. Vacuous today by design — see the case above.
     for (const pkg of withNarrow) {
       expect(testsCovered(pkg), `${pkg.name} type-checks its tests now — its narrow project is redundant`).toBe(
         false,
@@ -536,6 +545,10 @@ describe('every surviving narrow project is a package still in debt, in this rep
       // package, which is what #4291's ratchet now requires.
       '@object-ui/components',
       '@object-ui/react',
+      // objectui#4040 tranche 5 (final) — the last two, and the reason the
+      // first case in this block now asserts the set is EMPTY.
+      '@object-ui/app-shell',
+      '@object-ui/core',
     ];
     for (const name of retired) {
       const pkg = packages.find((p) => p.name === name);

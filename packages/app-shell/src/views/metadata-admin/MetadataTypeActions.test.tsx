@@ -4,8 +4,12 @@ import * as React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
-// Capture the authenticated fetch so we can assert request bodies.
-const mockFetch = vi.fn(async () => ({
+// Capture the authenticated fetch so we can assert request bodies. The
+// implementation spells out the `(url, init)` parameters it never reads: a
+// zero-arity `vi.fn` infers `Mock<() => …>`, whose `mock.calls` is the EMPTY
+// tuple — so the `mock.calls[0]` destructurings below were reading elements of
+// an empty tuple as far as the compiler was concerned (objectui#4040).
+const mockFetch = vi.fn(async (_url: string, _init?: RequestInit) => ({
   ok: true,
   status: 200,
   statusText: 'OK',
@@ -108,8 +112,8 @@ describe('MetadataTypeActions', () => {
     expect(mockFetch).not.toHaveBeenCalled();
     fireEvent.click(submit);
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
-    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(String(init.body))).toEqual({ reason: 'because' });
+    const [, init] = mockFetch.mock.calls[0];
+    expect(JSON.parse(String(init?.body))).toEqual({ reason: 'because' });
   });
 
   it('shows the result dialog when the action declares resultDialog', async () => {

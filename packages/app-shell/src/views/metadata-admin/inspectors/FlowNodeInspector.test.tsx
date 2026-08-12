@@ -69,6 +69,8 @@ function makeDraft() {
   };
 }
 
+// `locale` below is `SupportedLocale` (`'en-US' | 'zh-CN'`); this file spelled it
+// `"en"`, which was never one of them — it just went unchecked (objectui#4040).
 function renderInspector(selection: MetadataSelection, draft: Record<string, unknown> = makeDraft()) {
   const onPatch = vi.fn();
   const onClearSelection = vi.fn();
@@ -81,7 +83,7 @@ function renderInspector(selection: MetadataSelection, draft: Record<string, unk
       onPatch={onPatch}
       onClearSelection={onClearSelection}
       readOnly={false}
-      locale="en"
+      locale="en-US"
     />,
   );
   return { onPatch, onClearSelection, ...utils };

@@ -101,6 +101,11 @@ describe('isStaticPageOption — page picker excludes record-detail pages (#2333
   });
   it('keeps rows missing both discriminators (only confirmed record pages excluded)', () => {
     expect(isStaticPageOption({})).toBe(true);
-    expect(isStaticPageOption({ name: 'x' })).toBe(true);
+    // A real metadata row carries `name` / `label` too. The predicate declares
+    // only the two discriminators it reads, so a FRESH literal with `name` trips
+    // excess-property checking; deriving the parameter type and intersecting the
+    // extra key states the case without casting it away (objectui#4040).
+    const namedRow: Parameters<typeof isStaticPageOption>[0] & { name: string } = { name: 'x' };
+    expect(isStaticPageOption(namedRow)).toBe(true);
   });
 });

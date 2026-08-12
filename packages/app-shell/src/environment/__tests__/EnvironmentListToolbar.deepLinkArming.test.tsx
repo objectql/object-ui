@@ -36,6 +36,7 @@ import { ActionProvider } from '@object-ui/react';
 import { I18nProvider } from '@object-ui/i18n';
 import { EnvironmentListToolbar } from '../EnvironmentListToolbar';
 import type { EnvironmentEntitlementsState } from '../entitlements';
+import type { ActionContext, ActionDef } from '@object-ui/core';
 
 const CREATE = {
   name: 'create_environment',
@@ -96,7 +97,12 @@ function mountStack(opts: {
   held?: string[];
   onUpgrade?: (spec: any) => void;
 }) {
-  const execute = vi.fn(async () => {
+  // The implementation spells out the `(action, ctx)` parameters `handlers`
+  // entries are called with, even though it reads neither: a zero-arity
+  // `vi.fn` infers `Mock<() => …>`, whose `mock.calls` is the EMPTY tuple — so
+  // the `execute.mock.calls[0][0]` assertions below were reading element 0 of
+  // an empty tuple as far as the compiler was concerned (objectui#4040).
+  const execute = vi.fn(async (_action: ActionDef, _ctx?: ActionContext) => {
     events.push('runner:execute');
     return { success: true };
   });

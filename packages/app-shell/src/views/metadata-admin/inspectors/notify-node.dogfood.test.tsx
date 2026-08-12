@@ -74,7 +74,7 @@ describe('notify node — inspector renders its config fields', () => {
         onPatch={vi.fn()}
         onClearSelection={vi.fn()}
         readOnly={false}
-        locale="en"
+        locale="en-US"
       />,
     );
 
@@ -97,7 +97,7 @@ describe('notify node — inspector renders its config fields', () => {
         onPatch={onPatch}
         onClearSelection={vi.fn()}
         readOnly={false}
-        locale="en"
+        locale="en-US"
       />,
     );
 

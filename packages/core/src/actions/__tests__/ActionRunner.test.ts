@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import {
   ActionRunner,
   executeAction,
@@ -264,12 +264,21 @@ describe('ActionRunner', () => {
       // `execute` was removed in @objectstack/spec 17 (#3855) — the parser now
       // rejects it outright, so no parsed action can carry it and the runner has
       // exactly one handler slot (#3856). Pinned as a test because the failure
-      // mode of re-adding `target || execute` is invisible: it type-checks (
-      // ActionDef is open-ended) and it runs, it just resurrects the two-slot
-      // ambiguity that had one action running different scripts on each side of
-      // the wire (#3713).
+      // mode of re-adding `target || execute` used to be invisible: it ran, and
+      // it type-checked while `ActionDef` was open-ended, so it could quietly
+      // resurrect the two-slot ambiguity that had one action running different
+      // scripts on each side of the wire (#3713).
+      //
+      // `ActionDef` has since been CLOSED (objectstack#4075 step 3, pinned next
+      // door in `actionDef-closed-surface.test.ts`), so authoring `execute` is
+      // now a compile error as well — a fact this file could not state until it
+      // was type-checked (objectui#4040). `@ts-expect-error` rather than a cast:
+      // it pins the refusal in BOTH directions, since re-opening the surface
+      // would make the unused suppression itself an error, while the runtime
+      // assertions below keep pinning the runner's own refusal message.
       const result = await runner.execute({
         type: 'script',
+        // @ts-expect-error -- `execute` is not a key of the closed `ActionDef`
         execute: 'record.id + 100',
       });
       expect(result.success).toBe(false);
@@ -746,7 +755,10 @@ describe('ActionRunner', () => {
     // which is exactly why these two branches had no coverage. Stub the minimum
     // the navigator touches and put it back afterwards.
     type MaybeWindow = { window?: unknown };
-    let href: ReturnType<typeof vi.fn>;
+    // Typed with the setter's own signature: `ReturnType<typeof vi.fn>` is the
+    // un-instantiated `Mock<Procedure | Constructable>`, which `tsc` reports as
+    // not callable at the `href(v)` call site below (objectui#4040).
+    let href: Mock<(url: string) => void>;
     let hadWindow: boolean;
     let previousWindow: unknown;
 

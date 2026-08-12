@@ -1,5 +1,20 @@
 import { describe, it, expect } from 'vitest';
+import type { CRUDOperation, CRUDSchema } from '@object-ui/types';
 import { form, crud, button, input, card, grid, flex } from '../../builder/schema-builder';
+
+/**
+ * `CRUDSchema.operations.<key>` is `boolean | CRUDOperation | undefined`, so an
+ * `.enabled` read off it does not compile. The `enable*()` builders always write
+ * the OBJECT form; this narrows to it and fails loudly if that ever stops being
+ * true, instead of casting the distinction away.
+ */
+function operationOf(schema: CRUDSchema, key: 'create' | 'update' | 'delete'): CRUDOperation {
+  const operation = schema.operations?.[key];
+  if (typeof operation !== 'object' || operation === null) {
+    throw new Error(`operations.${key} is not the object form: ${String(operation)}`);
+  }
+  return operation;
+}
 
 describe('SchemaBuilder', () => {
   describe('form()', () => {
@@ -87,19 +102,25 @@ describe('SchemaBuilder', () => {
       expect(schema.resource).toBe('users');
     });
 
+    // The fixtures below used to be authored as `{ name, label }` — a dialect
+    // `TableColumn` does not have (its keys are `accessorKey` / `header`). The
+    // builder stores whatever it is handed, so `columns![0].name` was asserting
+    // that the builder returns its own input, on a shape no CRUD renderer reads
+    // (objectui#4040).
     it('supports column definitions', () => {
       const schema = crud()
-        .column({ name: 'name', label: 'Name' })
+        .column({ accessorKey: 'name', header: 'Name' })
         .build();
       expect(schema.columns).toHaveLength(1);
-      expect(schema.columns![0].name).toBe('name');
+      expect(schema.columns![0].accessorKey).toBe('name');
+      expect(schema.columns![0].header).toBe('Name');
     });
 
     it('supports bulk columns', () => {
       const schema = crud()
         .columns([
-          { name: 'id', label: 'ID' },
-          { name: 'name', label: 'Name' },
+          { accessorKey: 'id', header: 'ID' },
+          { accessorKey: 'name', header: 'Name' },
         ])
         .build();
       expect(schema.columns).toHaveLength(2);
@@ -113,9 +134,9 @@ describe('SchemaBuilder', () => {
         .enableDelete()
         .build();
       expect(schema.operations).toBeDefined();
-      expect(schema.operations!.create.enabled).toBe(true);
-      expect(schema.operations!.update.enabled).toBe(true);
-      expect(schema.operations!.delete.enabled).toBe(true);
+      expect(operationOf(schema, 'create').enabled).toBe(true);
+      expect(operationOf(schema, 'update').enabled).toBe(true);
+      expect(operationOf(schema, 'delete').enabled).toBe(true);
     });
 
     it('supports pagination', () => {

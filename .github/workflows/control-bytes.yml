@@ -1,13 +1,32 @@
 name: Control Bytes
 
-# Why this is its own workflow instead of a job in `ci.yml` or `lint.yml`: both
-# of those list `'**/*.md'`, `content/**`, `docs/**` and `.changeset/**` under
-# `paths-ignore`, and GitHub has no per-job path filter. A raw control byte lands
-# in markdown exactly as easily as in TypeScript — objectstack#4890 was a NUL in
-# a `.claude/` skill file, emitted by the very PR that was writing the rule
-# against it — so a gate that cannot see a markdown-only PR rebuilds the hole it
-# exists to close. `changeset-guard.yml` sits in this repo for the same reason
-# and says so in its own header.
+# Why this is its own workflow instead of a job in `ci.yml` or `lint.yml`: on a
+# markdown-only change neither of those runs anything expensive, so a gate living
+# inside one of them would never see it. A raw control byte lands in markdown
+# exactly as easily as in TypeScript — objectstack#4890 was a NUL in a `.claude/`
+# skill file, emitted by the very PR that was writing the rule against it — so a
+# gate that cannot see a markdown-only PR rebuilds the hole it exists to close.
+# `changeset-guard.yml` sits in this repo for the same reason and says so in its
+# own header.
+#
+# That is no longer the reason this header used to give, and objectui#4381
+# corrected it. It said both of those workflows list `'**/*.md'`, `content/**`,
+# `docs/**` and `.changeset/**` under `paths-ignore`, with no per-job path filter
+# available in GitHub Actions, so a markdown-only PR started neither.
+# objectui#3523 step 2 deleted `paths-ignore` from their `pull_request` trigger;
+# it remains ONLY on `push`. Such a PR does start both workflows and does produce
+# their contexts — measured: PR #3856 (one markdown file) 16 checks, PR #4339
+# (one line added to AGENTS.md) 17. The correction is objectui#3857; an author
+# had already acted on the old sentence and got the opposite result.
+#
+# What #3523 moved rather than deleted is the path DECISION: it is now the
+# `Decide whether this change needs a full run` step in `ci.yml`, with a twin in
+# `lint.yml`, and its exclusion list is that `push` filter unchanged — markdown
+# among it, held identical to it by
+# `scripts/__tests__/merge-queue-reporting.test.ts`. Both workflows therefore
+# start, report, and skip every expensive step on a markdown-only PR, and both
+# still skip the run outright on a markdown-only push to `main`. The conclusion
+# outlived its premise: this gate has to run outside that in-job switch.
 #
 # Hence: no `paths` and no `paths-ignore` here, deliberately.
 # `scripts/__tests__/check-control-bytes.test.ts` fails if either is ever added.

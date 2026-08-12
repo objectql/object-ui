@@ -122,11 +122,14 @@ describe('decisionOutputParams — declaration → param', () => {
 });
 
 describe('decisionOutputParams — the params survive resolution (objectui#2955)', () => {
+  // `as const` keeps the first column at its literal type: `decisionOutputParams`
+  // takes the closed `'text' | 'position' | 'user' | 'department' | 'team'`
+  // union, and a bare table widens it to `string` (objectui#4040).
   it.each([
     ['department', 'sys_business_unit'],
     ['position', 'sys_position'],
     ['team', 'sys_team'],
-  ])('a %s output reaches the widget as a %s picker', (type, referenceTo) => {
+  ] as const)('a %s output reaches the widget as a %s picker', (type, referenceTo) => {
     const [param] = decisionOutputParams([{ key: 'k', type, multiple: true }], t);
     // The spec spelling — `referenceTo` is dropped by the resolver.
     expect(param).toMatchObject({ type: 'lookup', reference: referenceTo });
@@ -161,7 +164,7 @@ describe('decisionOutputParams — the params survive resolution (objectui#2955)
   it('never degrades a typed picker to a record-id text box', () => {
     // The #2955 symptom, stated as the invariant: no declared record kind may
     // arrive at the widget as `text` (that is the "paste a UUID" fallback).
-    for (const type of ['user', 'department', 'position', 'team']) {
+    for (const type of ['user', 'department', 'position', 'team'] as const) {
       const [param] = decisionOutputParams([{ key: 'k', type }], t);
       expect(widgetFor(param).type).not.toBe('text');
     }

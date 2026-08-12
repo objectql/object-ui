@@ -46,6 +46,7 @@ import { ActionProvider } from '@object-ui/react';
 import { I18nProvider } from '@object-ui/i18n';
 import { EnvironmentListToolbar } from '../EnvironmentListToolbar';
 import type { EnvironmentEntitlementsState } from '../entitlements';
+import type { ActionContext, ActionDef } from '@object-ui/core';
 
 /**
  * The card's shape: a create action that declares neither `order` nor
@@ -99,7 +100,11 @@ afterEach(() => {
 });
 
 function mountStack(actions: any[]) {
-  const execute = vi.fn(async () => ({ success: true }));
+  // Parameters spelled out even though the body reads neither: a zero-arity
+  // `vi.fn` infers `Mock<() => …>`, whose `mock.calls` is the EMPTY tuple, so
+  // the `execute.mock.calls[0][0]` assertions below were reading element 0 of
+  // an empty tuple as far as the compiler was concerned (objectui#4040).
+  const execute = vi.fn(async (_action: ActionDef, _ctx?: ActionContext) => ({ success: true }));
   const view = render(
     <I18nProvider config={{ defaultLanguage: 'en', detectBrowserLanguage: false }}>
       <ActionProvider context={{ user: { id: 'u1' } } as any} handlers={{ api: execute as any }}>

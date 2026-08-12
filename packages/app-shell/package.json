@@ -27,8 +27,7 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "type-check": "tsc --noEmit && tsc -p tsconfig.typetests.json",
-    "type-check:typetests": "tsc -p tsconfig.typetests.json",
+    "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."
   },
   "dependencies": {

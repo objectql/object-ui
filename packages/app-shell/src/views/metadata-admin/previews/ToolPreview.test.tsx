@@ -50,7 +50,7 @@ const STALE_DRAFT = {
 
 function renderPreview(draft: Record<string, unknown>) {
   return render(
-    <ToolPreview {...({ type: 'tool', name: 'delete_all_orders' } as never)} draft={draft} />,
+    <ToolPreview type="tool" name="delete_all_orders" draft={draft} />,
   );
 }
 

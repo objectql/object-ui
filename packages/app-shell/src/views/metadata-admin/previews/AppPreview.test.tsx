@@ -75,7 +75,7 @@ const STALE_DRAFT = {
 
 /** Read-only preview mode: no `onSelectionChange` ⇒ the NavRow list, not the canvas. */
 function renderPreview(draft: Record<string, unknown>) {
-  return render(<AppPreview {...({ type: 'app', name: 'crm' } as never)} draft={draft} />);
+  return render(<AppPreview type="app" name="crm" draft={draft} />);
 }
 
 describe('AppPreview reads the navigation discriminated union', () => {
@@ -186,7 +186,7 @@ describe('AppNavCanvas (design mode) reads the same union', () => {
   function renderCanvas(draft: Record<string, unknown>) {
     return render(
       <AppPreview
-        {...({ type: 'app', name: 'crm' } as never)}
+        type="app" name="crm"
         draft={draft}
         editing
         selection={null}

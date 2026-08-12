@@ -59,7 +59,12 @@ vi.mock('@object-ui/components', async () => {
   };
 });
 
-import { resolveHref } from '@object-ui/layout/NavigationRenderer';
+// The package root, not the deep `@object-ui/layout/NavigationRenderer` path:
+// `@object-ui/layout` declares a single `.` export, so that subpath resolves
+// through no `exports` entry and had no types at all (TS2307). `resolveHref` is
+// re-exported from the barrel (`export * from './NavigationRenderer'`), so this
+// is the same symbol by its public name (objectui#4040).
+import { resolveHref } from '@object-ui/layout';
 import {
   useAppContextSelectors,
   contextSelectorQueryKey,

@@ -56,7 +56,15 @@ function setup(state: ScreenFlowState, authFetch: (url: string, init?: RequestIn
   return { onClose, onComplete };
 }
 
-const okResume = () => vi.fn(async () => jsonResponse({ success: true, data: { success: true } }));
+// The implementation spells out `FlowRunner`'s `authFetch` parameters even
+// though it reads neither: a zero-arity `vi.fn` infers `Mock<() => …>`, whose
+// `mock.calls` is the EMPTY tuple — so the `calls[0][0]` / `calls[0][1]`
+// assertions below were reading elements of an empty tuple as far as the
+// compiler was concerned (objectui#4040).
+const okResume = () =>
+  vi.fn(async (_url: string, _init?: RequestInit) =>
+    jsonResponse({ success: true, data: { success: true } }),
+  );
 
 beforeEach(() => vi.restoreAllMocks());
 

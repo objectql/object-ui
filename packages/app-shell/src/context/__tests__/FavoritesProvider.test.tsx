@@ -164,7 +164,11 @@ describe('FavoritesProvider', () => {
       { id: 'ok', label: 'OK', href: '/ok', type: 'object', favoritedAt: 't' },
       // @ts-expect-error testing runtime sanitization
       { label: 'no-id' },
-      null as any,
+      // `as unknown as FavoriteItem`, not `as any`: an `any` element collapses
+      // the whole array literal's element type to `any`, which made the
+      // `@ts-expect-error` above suppress nothing (TS2578) — the malformed item
+      // it is documenting was no longer a type error at all (objectui#4040).
+      null as unknown as FavoriteItem,
     ]);
 
     const { result } = renderHook(() => useTestHarness(), { wrapper });

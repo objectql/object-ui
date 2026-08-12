@@ -456,10 +456,10 @@ all, and `main` sat with a broken link it would have caught (objectui#3213, obje
 
 **Why it is a separate workflow.** This is the second instance of the lesson `control-bytes.yml`
 records, and it was found by the PR that first put this check into CI. That PR added it as a step
-in `ci.yml`'s `docs` job — where it could never see the PRs that matter. `ci.yml` lists
-`'**/*.md'`, `content/**`, `docs/**` and `apps/site/**` under `paths-ignore`, GitHub's
-`paths-ignore` skips the *whole workflow* when every changed file matches, and GitHub has no
-per-job path filter. So a **docs-only** PR — the likeliest way an internal link breaks — started no
+in `ci.yml`'s `docs` job — where it could never see the PRs that matter. `ci.yml` *then* listed
+`'**/*.md'`, `content/**`, `docs/**` and `apps/site/**` under the `paths-ignore` of **both** its
+triggers, GitHub's `paths-ignore` skips the *whole workflow* when every changed file matches, and
+GitHub has no per-job path filter. So a **docs-only** PR — the likeliest way an internal link breaks — started no
 workflow at all, and the check only ever ran on PRs that touched docs alongside code, plus pushes
 to `main`. A bad link could merge through a pure-docs PR and turn `main` red later under an
 unrelated author (objectui#3448).
@@ -674,8 +674,13 @@ covers change, and if so, does this change **add** a `.changeset/*.md`?
   of the guarded surface, free to drift from the config the script reads.
 
 **Why this is separate from `changeset-guard.yml`, which also polices changesets:** that workflow's
-trigger is `paths: ['.changeset/**']`, and the inversion is deliberate — a PR adding *only* a
-changeset starts no other workflow, and that guard exists to see it. A PR that **forgot** its
+trigger is `paths: ['.changeset/**']`, and the inversion is deliberate — on a PR that adds *only* a
+changeset, every gate inside `ci.yml` and `lint.yml` short-circuits, so nothing in either of them
+ever reads the changeset, and that guard exists to see exactly that PR. (It is *not*, as this
+paragraph said until [#4381](https://github.com/objectstack-ai/objectui/issues/4381), that such a PR
+"starts no other workflow": since [#3523](https://github.com/objectstack-ai/objectui/issues/3523)
+both workflows start and report on it — see **Changeset Guard** above, and the path-filter bullets
+at the top of this page.) A PR that **forgot** its
 changeset does not touch `.changeset/**` at all, so the one check able to notice was the one check
 guaranteed not to run. Widening those paths would have broken the case that guard was built for.
 Two workflows, opposite directions: one polices the *level* of a declaration that exists, the other

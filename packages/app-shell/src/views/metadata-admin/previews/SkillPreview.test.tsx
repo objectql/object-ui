@@ -49,7 +49,7 @@ const STALE_DRAFT = {
 
 function renderPreview(draft: Record<string, unknown>) {
   return render(
-    <SkillPreview {...({ type: 'skill', name: 'draft_email' } as never)} draft={draft} />,
+    <SkillPreview type="skill" name="draft_email" draft={draft} />,
   );
 }
 

@@ -26,12 +26,14 @@
  * which normalizes a bare string into `{ dialect: 'cel', source }`.
  */
 
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { PageSchema } from '@objectstack/spec/ui';
 import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer, PredicateScopeProvider } from '@object-ui/react';
 import { PageBlockInspector } from './PageBlockInspector';
+import type { MetadataInspectorProps } from '../inspector-registry';
+import type { SupportedLocale } from '../i18n';
 
 afterEach(cleanup);
 
@@ -54,7 +56,17 @@ function pageDraft(block: Record<string, unknown>): Record<string, unknown> {
 
 function renderInspector(
   draft: Record<string, unknown>,
-  { locale = 'en-US', onPatch = vi.fn() }: { locale?: string; onPatch?: ReturnType<typeof vi.fn> } = {},
+  // `onPatch` carries the inspector prop's own signature: `ReturnType<typeof
+  // vi.fn>` is the un-instantiated `Mock<Procedure | Constructable>`, which the
+  // prop does not accept (objectui#4040). `locale` likewise takes the closed
+  // union instead of `string`, which is what forced the `as never` below.
+  {
+    locale = 'en-US',
+    onPatch = vi.fn(),
+  }: {
+    locale?: SupportedLocale;
+    onPatch?: Mock<MetadataInspectorProps['onPatch']>;
+  } = {},
 ) {
   render(
     <PageBlockInspector
@@ -65,7 +77,7 @@ function renderInspector(
       onPatch={onPatch}
       onClearSelection={() => {}}
       readOnly={false}
-      locale={locale as never}
+      locale={locale}
     />,
   );
   return onPatch;

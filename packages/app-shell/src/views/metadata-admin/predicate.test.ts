@@ -21,7 +21,7 @@
  * restores the silent-hide bug. Both directions are asserted here.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import { objectForm } from '@objectstack/spec/data';
 import { evaluatePredicate, resetPredicateWarnings } from './predicate';
 
@@ -30,7 +30,11 @@ import { evaluatePredicate, resetPredicateWarnings } from './predicate';
  * warn-once memo outlives a single test file. Reset before every test or the
  * second assertion on a given (path, predicate) pair sees no warning.
  */
-let warn: ReturnType<typeof vi.spyOn>;
+// `MockInstance<typeof console.warn>`, not `ReturnType<typeof vi.spyOn>`: the
+// latter is the un-instantiated `MockInstance<Procedure | Constructable>`, whose
+// `mock.calls` carries no argument types, so `warnings()` below took an implicit
+// `any` (objectui#4040).
+let warn: MockInstance<typeof console.warn>;
 
 beforeEach(() => {
   resetPredicateWarnings();
