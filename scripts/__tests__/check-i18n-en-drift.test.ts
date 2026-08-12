@@ -745,11 +745,28 @@ describe('the gate is wired to run', () => {
 
   it('is not hidden from the locale packs by ci.yml path filters', () => {
     // ci.yml `paths-ignore`s markdown, content/, docs/, apps/site/ and
-    // .changeset/. None of them can match `packages/i18n/src/locales/*.ts` or the
-    // ledger, so a PR that edits an en string always starts this workflow. A new
-    // entry that DID cover them would make the gate unreachable for exactly the
-    // PRs it judges — the objectui#3547 / control-bytes.yml lesson, one workflow
-    // over.
+    // .changeset/ on its `push` trigger — since objectui#3523 step 2 the only
+    // trigger that still carries the filter (ci.yml:6; lint.yml:32 is the twin),
+    // and the only thing the assertion below can see, since it slices the `on:`
+    // block. None of them can match `packages/i18n/src/locales/*.ts` or the
+    // ledger, so a push that edits an en string always starts this workflow.
+    //
+    // For a PULL REQUEST the conclusion holds for a second and stronger reason.
+    // This lead-in used to state it in a bare present tense that read as if the
+    // filter still applied there; objectui#4384 qualified it, together with its
+    // near-verbatim twin in `check-action-forward-parity.test.ts`, closing the
+    // #3857 / #4369 / #4381 family (PRs #4371 / #4380 / #4382). No
+    // `paths-ignore` survives on `pull_request` at all, so such a PR starts this
+    // workflow a fortiori — measured there: PR #3856, one markdown file, 16
+    // checks. What decides a pull request now is the in-job `Decide whether this
+    // change needs a full run` step, whose exclusion list is that `push` filter
+    // unchanged, held identical to it by
+    // `scripts/__tests__/merge-queue-reporting.test.ts` — so the patterns pinned
+    // below are also what keeps the expensive steps running on a locale-pack PR.
+    //
+    // A new entry that DID cover them would make the gate unreachable for
+    // exactly the PRs it judges, on both lanes at once — the objectui#3547 /
+    // control-bytes.yml lesson, one workflow over.
     const ignored = ci.slice(0, ci.indexOf('jobs:')).match(/^\s+- '.*'$/gm) ?? [];
     for (const pattern of ignored) {
       expect(pattern).not.toMatch(/packages|scripts|locales/);

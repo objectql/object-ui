@@ -164,7 +164,7 @@ The `@object-ui/types` package exports multiple entry points (`base`, `layout`, 
 
 **Symptom:** Page flashes white before switching to dark mode on initial load.
 
-**Cause:** The `ThemeProvider` (`packages/react/src/context/ThemeContext`) is mounted too late, or the theme preference is read asynchronously after first paint.
+**Cause:** The `ThemeProvider` (`packages/react/src/context/ThemeContext.tsx`) is mounted too late, or the theme preference is read asynchronously after first paint.
 
 **Fix:**
 

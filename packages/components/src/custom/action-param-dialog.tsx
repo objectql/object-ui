@@ -11,6 +11,7 @@
 
 import React, { useState, useCallback } from 'react';
 import type { ActionParamDef } from '@object-ui/core';
+import { createSafeTranslation } from '@object-ui/i18n';
 import {
   Dialog,
   DialogContent,
@@ -31,6 +32,59 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
+
+/**
+ * The `select` branch's placeholder — objectui#4386.
+ *
+ * ## Why a pack key, not a two-character glyph edit
+ *
+ * The branch used to render `param.placeholder || 'Select...'`, and that one
+ * literal carried two defects at once: it is hardcoded English (this file
+ * imported no translation hook at all, so a zh-CN user read `Select...` in an
+ * otherwise Chinese dialog — the #4024 family), and its ellipsis is ASCII,
+ * which #3878 converged the ten packs away from. Routing the fallback through
+ * a pack key fixes BOTH, because each locale's value carries whatever glyph
+ * that locale wants; re-spelling `...` to `…` in place would have fixed only
+ * the smaller half and left the English frozen in.
+ *
+ * ## Why `common.select`, and why no pack file changed
+ *
+ * REUSED, not added. `common.select` already ships in all ten packs
+ * (`Select…` / `选择…` / `Auswählen…` / …) and `packages/fields`'
+ * `LookupField` already consumes it for the structurally identical job — the
+ * placeholder of a Radix select trigger, behind the same authored-metadata-wins
+ * `authored?.placeholder || t(...)` shape this branch uses. One key, one
+ * wording, on both select-trigger paths.
+ *
+ * The near-miss candidate is `common.selectOption` (`Select an option` /
+ * `请选择`), which the FORM renderer's built-in select uses. It was rejected on
+ * two counts: it is a different sentence, so adopting it would silently rewrite
+ * this dialog's visible copy, and neither its `en` nor its `zh` value ends in an
+ * ellipsis — it would have dropped the very glyph half of the defect. A NEW key
+ * was not needed and would have collided with the #4375/#4376 pair in flight
+ * across the packs.
+ *
+ * Because `common.select` is already in `ellipsis-glyph-3878.test.ts`'s
+ * `CONVERGED_KEYS`, the U+2026 this site now renders is pinned by that gate for
+ * free, in every locale.
+ *
+ * ## Why the SAFE hook
+ *
+ * `createSafeTranslation`, not a bare `useObjectTranslation`: this dialog is
+ * rendered with no `I18nProvider` by embedded hosts and by this package's own
+ * bare-render tests (`action-param-dialog-aria-required`,
+ * `action-param-dialog-label-association` both mount it provider-less). With no
+ * provider the bare hook returns the raw KEY, so the placeholder would read
+ * `common.select`. The default below is the pack's stand-in on that path and is
+ * byte-identical to the `en` value, so a provider-less host renders `Select…` —
+ * the literal this replaced, modulo the glyph the card asked for.
+ */
+const useSafeParamTranslation = createSafeTranslation(
+  { 'common.select': 'Select…' },
+  // Probe key: one this component itself consumes, so it cannot rot into
+  // pointing at a key no caller reads.
+  'common.select',
+);
 
 export interface ActionParamDialogProps {
   /** The param definitions to render */
@@ -59,6 +113,8 @@ export const ActionParamDialog: React.FC<ActionParamDialogProps> = ({
   title = 'Action Parameters',
   description = 'Please provide the required parameters.',
 }) => {
+  const { t } = useSafeParamTranslation();
+
   // Initialize values from defaultValues
   const [values, setValues] = useState<Record<string, any>>(() => {
     const initial: Record<string, any> = {};
@@ -195,7 +251,7 @@ export const ActionParamDialog: React.FC<ActionParamDialogProps> = ({
                   `button` is a labelable element, so the plain `htmlFor`
                   association is enough here; no `aria-labelledby` needed. */}
               <SelectTrigger id={param.name} aria-required={ariaRequired}>
-                <SelectValue placeholder={param.placeholder || 'Select...'} />
+                <SelectValue placeholder={param.placeholder || t('common.select')} />
               </SelectTrigger>
               <SelectContent>
                 {param.options?.map((opt) => (
