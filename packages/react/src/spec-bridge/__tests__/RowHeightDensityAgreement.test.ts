@@ -42,6 +42,47 @@ function bridgeDensityFor(rowHeight: unknown): DensityMode | undefined {
   return 'density' in node ? (node.density as DensityMode | undefined) : undefined;
 }
 
+/**
+ * The third off-spec family (#4459) — values that are not strings at all.
+ *
+ * The first two families are both strings, so for a while the invariant this
+ * file's title claims ("core and the spec bridge give one answer") was strictly
+ * broader than the invariant it pinned. A JSON-authored view can hold an array
+ * or an object at `rowHeight` just as easily as a bad string, and until #4459
+ * the two surfaces disagreed on exactly that: core opens with a TYPE guard
+ * (`typeof rowHeight !== 'string'`), the bridge opened with a TRUTHINESS guard,
+ * so every truthy non-string walked past it and was then coerced to a key —
+ * `hasOwnProperty.call` and the index both run `String(...)`.
+ *
+ * Split into two groups on purpose, because they fail differently:
+ *
+ * - **coercing** — their string form IS one of the five spec keys, so the
+ *   bridge answered `'compact'`: a density fabricated from an array. This is
+ *   the quieter half of #4442's defect. A leaked function is visibly wrong to
+ *   everything downstream; a fabricated `'compact'` is a perfectly legitimate
+ *   value that nothing can tell apart from an authored one.
+ * - **non-coercing** — truthy non-strings whose string form is not a key
+ *   (`'42'`, `'true'`), plus the falsy values the truthiness guard used to be
+ *   there for. These already abstained. They are pinned anyway because #4459
+ *   REPLACES that guard rather than adding to it: the type guard has to keep
+ *   catching everything the truthiness guard caught, and this is the row that
+ *   says so.
+ */
+const NON_STRING_ROW_HEIGHTS: ReadonlyArray<readonly [string, unknown]> = [
+  // Coercing: String(…) lands on a real spec key.
+  ["the array ['compact']", ['compact']],
+  ['the boxed String(compact)', new String('compact')],
+  ['an object whose toString() returns compact', { toString: () => 'compact' }],
+  // Non-coercing truthy non-strings.
+  ['the number 42', 42],
+  ['the boolean true', true],
+  // Falsy — what the retired truthiness guard existed to catch.
+  ['the number 0', 0],
+  ['the boolean false', false],
+  ['null', null],
+  ['undefined', undefined],
+];
+
 describe('rowHeight → density: core and the spec bridge give one answer (#4440)', () => {
   describe('the five spec row heights — controls, green on both sides', () => {
     it.each([
@@ -105,7 +146,7 @@ describe('rowHeight → density: core and the spec bridge give one answer (#4440
       // Same assertion phrased as the invariant itself: whatever the answer is,
       // it is ONE answer. A future edit that re-adds a fallback to either
       // surface breaks this even if it re-adds it to both differently.
-      for (const rowHeight of [
+      const offSpec: unknown[] = [
         'comfortable',
         'spacious',
         'small',
@@ -119,9 +160,50 @@ describe('rowHeight → density: core and the spec bridge give one answer (#4440
         'isPrototypeOf',
         'propertyIsEnumerable',
         'toLocaleString',
-      ]) {
+        // #4459 — the non-string family, run through the same invariant. This
+        // is the assertion the truthiness guard actually broke.
+        ...NON_STRING_ROW_HEIGHTS.map(([, value]) => value),
+      ];
+      for (const rowHeight of offSpec) {
         expect(rowHeightToDensityMode(rowHeight)).toBe(bridgeDensityFor(rowHeight));
       }
+    });
+  });
+
+  describe('non-string row heights — both abstain (#4459)', () => {
+    it.each(NON_STRING_ROW_HEIGHTS)(
+      'neither surface invents a density for %s',
+      (_label, rowHeight) => {
+        expect(rowHeightToDensityMode(rowHeight)).toBeUndefined();
+        expect(bridgeDensityFor(rowHeight)).toBeUndefined();
+      },
+    );
+
+    it.each(NON_STRING_ROW_HEIGHTS)(
+      'never writes a density fabricated from %s onto the SchemaNode',
+      (_label, rowHeight) => {
+        // The boundary expression #4459 measured, read straight off the node
+        // rather than through the helper — the same reason #4442 states one
+        // separately. `bridgeListView` writes the key under `if (density)`, so
+        // a fabricated `'compact'` is not merely returned, it is STORED, and
+        // downstream it is indistinguishable from an authored density.
+        const node = new SpecBridge().transformListView({ name: 'x', rowHeight });
+        expect(node.density).toBeUndefined();
+      },
+    );
+
+    it('abstains on the empty string by a different route, same answer', () => {
+      // `''` is the one input whose HANDLING changes without its ANSWER
+      // changing, so it is worth stating on its own. Before #4459 it was caught
+      // by the truthiness guard (`''` is falsy) and never reached the table;
+      // after, it is a string, so it passes the type guard and is refused one
+      // line later by `hasOwnProperty` — `''` is not one of the five keys.
+      // Both routes end in `undefined`, and core has always agreed.
+      expect(bridgeDensityFor('')).toBeUndefined();
+      expect(rowHeightToDensityMode('')).toBeUndefined();
+      expect(
+        new SpecBridge().transformListView({ name: 'x', rowHeight: '' }).density,
+      ).toBeUndefined();
     });
   });
 });

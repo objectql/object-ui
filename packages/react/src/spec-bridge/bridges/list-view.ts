@@ -88,11 +88,24 @@ const ROW_HEIGHT_TO_DENSITY: Record<
  * `metadata-admin/predicate.ts:305`, six more). Both rowHeight surfaces now
  * abstain identically on every off-spec spelling; the agreement is pinned by
  * `__tests__/RowHeightDensityAgreement.test.ts`.
+ *
+ * `typeof rowHeight !== 'string'`, not `!rowHeight` (objectui#4459): the
+ * truthiness guard this replaces rejected only FALSY values, so every truthy
+ * non-string walked past it into a lookup that coerces its key — both
+ * `hasOwnProperty.call` and the index run `String(...)`. `['compact']`, a boxed
+ * `String('compact')` and `{ toString: () => 'compact' }` therefore each
+ * selected a real density, where core's twin (same file, opening with the type
+ * guard) abstained. Note the direction against #4442: that leak produced a
+ * FUNCTION, visibly wrong to everything downstream; this one produced a
+ * legitimate-looking `'compact'` that nothing can tell apart from an authored
+ * value. The type guard subsumes the old one — `undefined`, `null`, `0` and
+ * `false` are all non-strings — and `''` keeps its answer while changing route:
+ * a string, so it passes here and is refused by `hasOwnProperty` one line down.
  */
 function mapDensity(
   rowHeight?: RowHeight,
 ): 'compact' | 'comfortable' | 'spacious' | undefined {
-  if (!rowHeight) return undefined;
+  if (typeof rowHeight !== 'string') return undefined;
   if (!Object.prototype.hasOwnProperty.call(ROW_HEIGHT_TO_DENSITY, rowHeight)) {
     return undefined;
   }
