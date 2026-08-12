@@ -525,7 +525,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
           <div className="h-full overflow-y-auto p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">{resolvedTitle}</h3>
-              <button
+              <button type="button"
                 onClick={close}
                 className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 aria-label={t('common.closePanel')}

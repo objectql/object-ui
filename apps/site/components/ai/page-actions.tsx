@@ -40,7 +40,7 @@ export function LLMCopyButton({
   });
 
   return (
-    <button
+    <button type="button"
       disabled={isLoading}
       className={cn(
         buttonVariants({

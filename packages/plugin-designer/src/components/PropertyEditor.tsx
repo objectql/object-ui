@@ -83,7 +83,7 @@ export function PropertyEditor({
       <div className="flex-1 overflow-y-auto">
         {Object.entries(grouped).map(([group, groupFields]) => (
           <div key={group} className="border-b last:border-b-0">
-            <button
+            <button type="button"
               onClick={() => toggleGroup(group)}
               className="w-full flex items-center gap-1 px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-accent/50"
             >

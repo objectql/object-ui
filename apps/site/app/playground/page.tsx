@@ -1285,7 +1285,7 @@ export default function PlaygroundPage() {
                       ecommerce: 'E-commerce'
                     };
                     return (
-                      <button
+                      <button type="button"
                         key={key}
                         onClick={() => loadExample(key)}
                         className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
@@ -1346,7 +1346,7 @@ export default function PlaygroundPage() {
           </div>
 
           {/* Collapse/Expand Button */}
-          <button
+          <button type="button"
             onClick={() => setIsEditorCollapsed(!isEditorCollapsed)}
             className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-r-lg p-2 shadow-lg hover:shadow-xl hover:bg-slate-50 dark:hover:bg-slate-700 group transition-all duration-300"
             style={{ 
@@ -1371,7 +1371,7 @@ export default function PlaygroundPage() {
                 {(Object.keys(VIEW_MODES) as ViewMode[]).map((mode) => {
                   const ModeIcon = VIEW_MODES[mode].icon;
                   return (
-                    <button
+                    <button type="button"
                       key={mode}
                       onClick={() => setViewMode(mode)}
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${

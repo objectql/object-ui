@@ -272,7 +272,7 @@ export function DebugPanel({
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           🛠 Debug Panel
         </span>
-        <button
+        <button type="button"
           onClick={onClose}
           className="text-muted-foreground hover:text-foreground text-sm leading-none px-1"
           aria-label="Close debug panel"
@@ -285,7 +285,7 @@ export function DebugPanel({
       {/* Tabs */}
       <div className="flex border-b overflow-x-auto" role="tablist">
         {allTabs.map((tab) => (
-          <button
+          <button type="button"
             key={tab.id}
             role="tab"
             aria-selected={tab.id === activeTab?.id}

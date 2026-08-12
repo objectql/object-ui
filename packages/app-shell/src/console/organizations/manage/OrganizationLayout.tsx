@@ -91,7 +91,7 @@ export function OrganizationLayout() {
               would just dump them on home. Hide it for them; they leave via the
               global header (logo / app switcher). */}
           {(organizations ?? []).length > 1 && (
-            <button
+            <button type="button"
               onClick={() => navigate('/organizations')}
               className="mb-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
             >

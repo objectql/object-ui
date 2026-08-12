@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   normalizeListViewSchema,
+  rowHeightToDensityMode,
   DENSITY_MODE_TO_ROW_HEIGHT,
   ROW_HEIGHT_TO_DENSITY_MODE,
 } from '../normalize-list-view.js';
@@ -287,6 +288,51 @@ describe('normalizeListViewSchema (#2890)', () => {
       expect(normalizeListViewSchema(null)).toBeNull();
       expect(normalizeListViewSchema(undefined)).toBeUndefined();
       expect(normalizeListViewSchema('list-view')).toBe('list-view');
+    });
+  });
+});
+
+describe('rowHeightToDensityMode (#4440)', () => {
+  describe('the five spec row heights — the mapping itself, unchanged', () => {
+    it.each([
+      ['compact', 'compact'],
+      ['short', 'compact'],
+      ['medium', 'comfortable'],
+      ['tall', 'spacious'],
+      ['extra_tall', 'spacious'],
+    ] as const)('maps the spec row height %s to %s', (rowHeight, density) => {
+      expect(rowHeightToDensityMode(rowHeight)).toBe(density);
+    });
+  });
+
+  describe('off-spec input — abstain, do not rehabilitate', () => {
+    // The retired branch answered `'comfortable'` here, while
+    // `@object-ui/react`'s spec bridge answered "no density at all" for the
+    // same string after #4352 (PR #4439). One metadata-driven system, two
+    // answers for one input, was #4440; this is the surviving answer.
+    it.each([
+      'comfortable', // the OUTPUT vocabulary, never a spec row height
+      'spacious',
+      'small',
+      'large',
+      'gargantuan', // a string in neither vocabulary
+      '',
+    ])('gives no density for the off-spec rowHeight %j', (rowHeight) => {
+      expect(rowHeightToDensityMode(rowHeight)).toBeUndefined();
+    });
+
+    it('gives no density for non-string metadata', () => {
+      // Stored view definitions reach this function from a database that
+      // TypeScript never saw, so the runtime guard is load-bearing, not
+      // decoration: `ListViewSchema.rowHeight` is statically `RowHeight`.
+      for (const value of [undefined, null, 42, true, {}, ['medium']]) {
+        expect(rowHeightToDensityMode(value)).toBeUndefined();
+      }
+    });
+
+    it('does not answer for an inherited Object.prototype key', () => {
+      expect(rowHeightToDensityMode('toString')).toBeUndefined();
+      expect(rowHeightToDensityMode('constructor')).toBeUndefined();
     });
   });
 });

@@ -1034,10 +1034,18 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // legacy `densityMode` is folded into it by `normalizeListViewSchema` above —
   // it used to be read FIRST here, so a view carrying both rendered the legacy
   // value, backwards from every other pair's canonical-wins precedence.
-  const resolvedDensity = React.useMemo(() => {
-    if (schema.rowHeight) return rowHeightToDensityMode(schema.rowHeight);
-    return 'compact';
-  }, [schema.rowHeight]);
+  //
+  // `rowHeightToDensityMode` answers only for the five spec row heights and
+  // abstains for anything else (#4440), so an off-spec value lands on the same
+  // `'compact'` an ABSENT `rowHeight` has always landed on — which is also
+  // `ObjectGrid`'s own default (`schema.rowHeight ?? 'compact'`). Do NOT drop
+  // the `??` and let `undefined` reach `useDensityMode`: its parameter default
+  // is `'comfortable'`, so the coercion #4440 retired would simply reappear one
+  // frame lower, and the two surfaces would disagree again.
+  const resolvedDensity = React.useMemo(
+    () => rowHeightToDensityMode(schema.rowHeight) ?? 'compact',
+    [schema.rowHeight],
+  );
   const density = useDensityMode(resolvedDensity, {
     onChange: schema.onDensityChange,
   });

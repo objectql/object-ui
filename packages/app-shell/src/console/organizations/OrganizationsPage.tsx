@@ -234,7 +234,7 @@ export function OrganizationsPage() {
             const isActive = org.id === activeOrganization?.id;
             const isSwitching = switchingId === org.id;
             return (
-              <button
+              <button type="button"
                 key={org.id}
                 onClick={() => handleSelect(org)}
                 disabled={isSwitching}

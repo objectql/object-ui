@@ -210,7 +210,7 @@ export const LayoutRenderer = ({ app, children, currentPath, onNavigate }: Layou
         <header className="h-14 flex items-center justify-between px-4 md:px-6 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b z-20 sticky top-0">
            <div className="flex items-center gap-4">
              {/* Toggle Sidebar Button */}
-             <button 
+             <button type="button" 
                 onClick={() => setSidebarOpen(!isSidbarOpen)}
                 className="p-2 -ml-2 text-muted-foreground hover:bg-muted hover:text-foreground rounded-md transition-colors"
              >
@@ -229,7 +229,7 @@ export const LayoutRenderer = ({ app, children, currentPath, onNavigate }: Layou
            </div>
            <div className="flex items-center gap-2">
              {/* Theme Toggle */}
-             <button 
+             <button type="button" 
                onClick={toggleTheme}
                className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
@@ -241,7 +241,7 @@ export const LayoutRenderer = ({ app, children, currentPath, onNavigate }: Layou
              {app.actions?.filter(a => a.type === 'button').map((action, i) => {
                  const Icon = action.icon ? getIcon(action.icon) : null;
                  return (
-                    <button 
+                    <button type="button" 
                         key={i}
                         className={action.variant === 'ghost' ? "relative p-2 text-muted-foreground hover:text-foreground transition-colors hover:bg-muted rounded-md" : "p-2"}
                         title={action.label}
@@ -266,7 +266,7 @@ export const LayoutRenderer = ({ app, children, currentPath, onNavigate }: Layou
              */}
 
              {(!app.actions || !app.actions.some(a => a.type === 'button')) && (
-                 <button className="relative p-2 text-muted-foreground hover:text-foreground transition-colors">
+                 <button type="button" className="relative p-2 text-muted-foreground hover:text-foreground transition-colors">
                     <Bell className="h-5 w-5" />
                     <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-red-600 rounded-full border-2 border-background"></span>
                  </button>
@@ -275,7 +275,7 @@ export const LayoutRenderer = ({ app, children, currentPath, onNavigate }: Layou
              {app.actions?.filter(a => a.type === 'user').map((userAction, i) => (
                  <DropdownMenu key={i}>
                     <DropdownMenuTrigger asChild>
-                        <button className="relative h-8 w-8 rounded-full border bg-muted overflow-hidden focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:opacity-90 transition-opacity">
+                        <button type="button" className="relative h-8 w-8 rounded-full border bg-muted overflow-hidden focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:opacity-90 transition-opacity">
                             <Avatar className="h-full w-full">
                                 <AvatarImage 
                                     src={userAction.avatar} 

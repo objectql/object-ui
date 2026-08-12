@@ -890,7 +890,7 @@ function NavTree({
         const Icon: React.ElementType = node.icon ? getIcon(node.icon) : objIcon ? getIcon(objIcon) : navIcon(node.type);
         const isActive = !!surface && active?.type === surface.type && active?.name === surface.name;
         return (
-          <button
+          <button type="button"
             key={node.id ?? i}
             onClick={() => surface && onPick(surface)}
             disabled={!surface}
@@ -1636,7 +1636,7 @@ function InterfacesPillar({
             {t('engine.studio.unpublishedDraft', locale)}
           </span>
         )}
-        <button
+        <button type="button"
           onClick={doSave}
           disabled={!current || !isEditable || !!saving || readOnly}
           title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : undefined}
@@ -1698,7 +1698,7 @@ function InterfacesPillar({
                     {t('engine.studio.unpublished', locale)}
                   </span>
                 )}
-                <button
+                <button type="button"
                   onClick={doNavSave}
                   disabled={!navDirty || !!navSaving}
                   className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-50"
@@ -2257,7 +2257,7 @@ export function DataPillar({
             })}
           </span>
         )}
-        <button
+        <button type="button"
           onClick={doSave}
           disabled={!current || !dirty || !!saving || readOnly}
           title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : undefined}
@@ -2311,7 +2311,7 @@ export function DataPillar({
               .map((o) => {
                 const Icon = getIcon(o.icon);
                 return (
-                  <button
+                  <button type="button"
                     key={o.name}
                     onClick={() => {
                       setCurrent(o);
@@ -2995,7 +2995,7 @@ function AutomationsPillar({
             {flowEnabled ? t('engine.studio.auto.enabled', locale) : t('engine.studio.auto.disabled', locale)}
           </button>
         )}
-        <button
+        <button type="button"
           onClick={doSave}
           disabled={!current || !isEditable || !!saving || readOnly}
           title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : undefined}
@@ -3039,7 +3039,7 @@ function AutomationsPillar({
           </div>
           {flows.length > 0 &&
             flows.map((f) => (
-              <button
+              <button type="button"
                 key={f.name}
                 onClick={() => {
                   setCurrent(f);
@@ -3481,7 +3481,7 @@ export function AccessPillar({
               </p>
             )}
             {filtered.map((p) => (
-              <button
+              <button type="button"
                 key={p.name}
                 onClick={() => {
                   // Re-clicking the already-open set is a no-op — nothing

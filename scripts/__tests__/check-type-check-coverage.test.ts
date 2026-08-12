@@ -496,6 +496,174 @@ describe('the narrow type-assertion project is scoped to packages still in debt'
   });
 });
 
+/**
+ * objectui#4347 — chained but missing.
+ *
+ * The gate asks two independent questions about each chained project: does the
+ * file exist (`has*Config`, a `readFileSync` in `collect()`), and does
+ * `type-check` run it (`chains*Config`, a regex over the script string). Three of
+ * the four combinations were reported; the fourth — chained, not on disk — was
+ * skipped by the entry guard of each section, so a `type-check` that fails
+ * immediately with TS5058 passed this gate at exit 0.
+ *
+ * Observed for real during #4291: `git checkout -- packages/auth/package.json`
+ * restored the script while the retired narrow project stayed deleted, and both
+ * green lines printed, `4 with a narrow type-assertion project` included.
+ */
+describe('a "type-check" chain entry pointing at a project that is not there (objectui#4347)', () => {
+  const buildConfig = JSON.stringify({ include: ['src/**/*'], exclude: ['node_modules', 'dist', 'test'] }, null, 2);
+  const fullTestConfig = JSON.stringify(
+    { compilerOptions: { noEmit: true }, include: ['test/**/*.test.ts', 'test/**/*.test.tsx'], exclude: [] },
+    null,
+    2,
+  );
+
+  /**
+   * The two entry guards the gate USED to open with, reproduced verbatim — the
+   * same executable-blind-spot convention the #3968 predicates above follow.
+   * Each fixture below is asserted to have been invisible to the one that hid it.
+   */
+  const legacySection5HalfEntry = (pkg: { hasTypeTestsConfig: boolean }): boolean => pkg.hasTypeTestsConfig;
+  const legacySection5Entry = (pkg: { hasScript: boolean; testFiles: number }): boolean =>
+    pkg.hasScript && pkg.testFiles !== 0;
+
+  it('reports a chained tsconfig.typetests.json that is not on disk — the #4291 shape', () => {
+    withWorkspace(
+      (write) => {
+        // Everything else about this package is correct: its full test project
+        // exists, is chained, and reads every test file the build skips. The
+        // ONLY defect is the narrow project named by a chain entry and absent
+        // from disk, so a second error here would mean the fixture is impure.
+        write(
+          'packages/auth/package.json',
+          manifest('@fixture/auth', 'tsc --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.typetests.json'),
+        );
+        write('packages/auth/tsconfig.json', buildConfig);
+        write('packages/auth/tsconfig.test.json', fullTestConfig);
+        write('packages/auth/src/index.ts', 'export const auth = 1;\n');
+        write('packages/auth/test/pins.test.ts', A_TEST);
+      },
+      ({ errors, packages }) => {
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toContain('@fixture/auth (packages/auth): "type-check" chains tsconfig.typetests.json,');
+        expect(errors[0]).toContain('which does not exist.');
+        expect(errors[0]).toContain('Delete the chain entry, or restore the project.');
+
+        // The two facts stay separate in `collect()`, which is what makes the
+        // combination expressible at all.
+        expect(packages[0].chainsTypeTestsConfig).toBe(true);
+        expect(packages[0].hasTypeTestsConfig).toBe(false);
+        // And this is what section 5½ used to ask first: nothing, about this
+        // package. The blind spot, executable.
+        expect(legacySection5HalfEntry(packages[0])).toBe(false);
+      },
+    );
+  });
+
+  it('reports a chained tsconfig.test.json that is not on disk, naming it rather than the tests', () => {
+    // Pre-fix this tree was red for the WRONG reason — section 5c's "no `tsc`
+    // invocation reads them", which sends the reader to write a test project
+    // that is already declared. A package carrying a TEST_DEBT entry (as the
+    // #4291 repro's package did) got no message at all.
+    withWorkspace(
+      (write) => {
+        write('packages/demo/package.json', manifest('@fixture/demo', 'tsc --noEmit && tsc -p tsconfig.test.json'));
+        write('packages/demo/tsconfig.json', buildConfig);
+        write('packages/demo/src/index.ts', 'export const demo = 1;\n');
+        write('packages/demo/test/a.test.ts', A_TEST);
+      },
+      ({ errors, packages }) => {
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toContain('@fixture/demo (packages/demo): "type-check" chains tsconfig.test.json,');
+        expect(errors[0]).toContain('Delete the chain entry, or restore the project.');
+        // Precision, not addition: the vaguer 5c message must not also fire.
+        expect(errors[0]).not.toContain('that no `tsc`');
+        expect(packages[0].chainsTestConfig).toBe(true);
+        expect(packages[0].hasTestConfig).toBe(false);
+      },
+    );
+  });
+
+  it('reports it even when the package has no test files left at all', () => {
+    // Deleting a package's tests and its test project while leaving the chain
+    // entry behind is the other way into this state — and the way section 5's
+    // `testFiles === 0` guard hid completely, in any table configuration.
+    withWorkspace(
+      (write) => {
+        write('packages/demo/package.json', manifest('@fixture/demo', 'tsc --noEmit && tsc -p tsconfig.test.json'));
+        write('packages/demo/tsconfig.json', buildConfig);
+        write('packages/demo/src/index.ts', 'export const demo = 1;\n');
+      },
+      ({ errors, packages }) => {
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toContain('"type-check" chains tsconfig.test.json, which does not exist.');
+        expect(packages[0].testFiles).toBe(0);
+        expect(legacySection5Entry(packages[0])).toBe(false);
+      },
+    );
+  });
+
+  it('reports both kinds separately when a script chains two projects that are both gone', () => {
+    withWorkspace(
+      (write) => {
+        write(
+          'packages/demo/package.json',
+          manifest('@fixture/demo', 'tsc --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.typetests.json'),
+        );
+        write('packages/demo/tsconfig.json', buildConfig);
+        write('packages/demo/src/index.ts', 'export const demo = 1;\n');
+        write('packages/demo/test/a.test.ts', A_TEST);
+      },
+      ({ errors }) => {
+        expect(errors).toHaveLength(2);
+        expect(errors.some((e) => e.includes('chains tsconfig.test.json, which does not exist.'))).toBe(true);
+        expect(errors.some((e) => e.includes('chains tsconfig.typetests.json, which does not exist.'))).toBe(true);
+      },
+    );
+  });
+
+  it('says nothing when every chained project is really there', () => {
+    // The direction that must stay quiet: chained AND present is the wired-up
+    // state, and the narrow project is legitimate here because the package is
+    // still in debt (no tsconfig.test.json), so section 5½'s redundancy rule
+    // does not apply either. The only error is the undeclared test gap, which
+    // this fixture has because it runs with an empty TEST_DEBT table.
+    withWorkspace(
+      (write) => {
+        write(
+          'packages/demo/package.json',
+          manifest('@fixture/demo', 'tsc --noEmit && tsc -p tsconfig.typetests.json'),
+        );
+        write('packages/demo/tsconfig.json', buildConfig);
+        write(
+          'packages/demo/tsconfig.typetests.json',
+          JSON.stringify({ compilerOptions: { noEmit: true }, include: ['test/pins.test.ts'] }, null, 2),
+        );
+        write('packages/demo/test/pins.test.ts', A_TEST);
+      },
+      ({ errors }) => {
+        expect(errors.some((e) => e.includes('does not exist.'))).toBe(false);
+        expect(errors.some((e) => e.includes('that no `tsc`'))).toBe(true);
+      },
+    );
+  });
+});
+
+describe('no chain entry in this repository points at a project that is not there', () => {
+  const packages = collect(repoRoot);
+
+  it('every chained tsconfig.test.json / tsconfig.typetests.json exists on disk', () => {
+    // The repo-state half of objectui#4347, stated as a test rather than only as
+    // a gate rule. Named, not counted: a failure here has to say which package
+    // and which project, because that is the whole content of the finding.
+    const dangling = packages
+      .filter((p) => (p.chainsTestConfig && !p.hasTestConfig) || (p.chainsTypeTestsConfig && !p.hasTypeTestsConfig))
+      .map((p) => `${p.name}: ${p.typeCheck}`)
+      .sort();
+    expect(dangling).toEqual([]);
+  });
+});
+
 describe('every surviving narrow project is a package still in debt, in this repository', () => {
   const packages = collect(repoRoot);
   const withNarrow = packages.filter((p) => p.hasTypeTestsConfig);

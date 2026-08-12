@@ -763,10 +763,10 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
                         )}
                         <div className="mt-2 text-xs flex gap-2">
                              {onEdit && (
-                                <button className="text-blue-500 hover:underline" onClick={() => onEdit(selectedMarker.data)}>Edit</button>
+                                <button type="button" className="text-blue-500 hover:underline" onClick={() => onEdit(selectedMarker.data)}>Edit</button>
                              )}
                              {onDelete && (
-                                <button className="text-red-500 hover:underline" onClick={() => onDelete(selectedMarker.data)}>Delete</button>
+                                <button type="button" className="text-red-500 hover:underline" onClick={() => onDelete(selectedMarker.data)}>Delete</button>
                              )}
                         </div>
                     </div>
@@ -802,13 +802,13 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
              </div>
              <div className="mt-3 flex flex-wrap gap-2 text-xs">
                {onEdit && (
-                 <button
+                 <button type="button"
                    className="px-3 py-1.5 rounded-md border bg-card hover:bg-accent"
                    onClick={() => onEdit(selectedMarker.data)}
                  >Edit</button>
                )}
                {onDelete && (
-                 <button
+                 <button type="button"
                    className="px-3 py-1.5 rounded-md border border-destructive/30 text-destructive hover:bg-destructive/10"
                    onClick={() => onDelete(selectedMarker.data)}
                  >Delete</button>

@@ -556,7 +556,7 @@ export function ProcessDesigner({
           {!readOnly && (
             <div className="flex items-center gap-1">
               {/* Undo / Redo */}
-              <button
+              <button type="button"
                 onClick={() => undoRedo.undo()}
                 disabled={!undoRedo.canUndo}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent disabled:opacity-40"
@@ -565,7 +565,7 @@ export function ProcessDesigner({
               >
                 <Undo2 className="h-3 w-3" />
               </button>
-              <button
+              <button type="button"
                 onClick={() => undoRedo.redo()}
                 disabled={!undoRedo.canRedo}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent disabled:opacity-40"
@@ -578,7 +578,7 @@ export function ProcessDesigner({
               <div className="w-px h-4 bg-border mx-1" />
 
               {/* Copy / Paste */}
-              <button
+              <button type="button"
                 onClick={handleCopy}
                 disabled={multiSelect.count === 0 && !selectedNodeId}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent disabled:opacity-40"
@@ -587,7 +587,7 @@ export function ProcessDesigner({
               >
                 <Copy className="h-3 w-3" />
               </button>
-              <button
+              <button type="button"
                 onClick={handlePaste}
                 disabled={!clipboard.hasContent}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent disabled:opacity-40"
@@ -600,7 +600,7 @@ export function ProcessDesigner({
               <div className="w-px h-4 bg-border mx-1" />
 
               {/* Connect mode */}
-              <button
+              <button type="button"
                 onClick={handleToggleConnectMode}
                 className={cn(
                   'flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent',
@@ -614,7 +614,7 @@ export function ProcessDesigner({
               </button>
 
               {/* Auto-layout */}
-              <button
+              <button type="button"
                 onClick={handleAutoLayout}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
                 title="Auto layout"
@@ -626,7 +626,7 @@ export function ProcessDesigner({
               <div className="w-px h-4 bg-border mx-1" />
 
               {/* Zoom controls */}
-              <button
+              <button type="button"
                 onClick={panZoom.zoomIn}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
                 title="Zoom in"
@@ -637,7 +637,7 @@ export function ProcessDesigner({
               <span className="text-xs tabular-nums min-w-[3ch] text-center" aria-label="Zoom level">
                 {Math.round(panZoom.zoom * 100)}%
               </span>
-              <button
+              <button type="button"
                 onClick={panZoom.zoomOut}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
                 title="Zoom out"
@@ -645,7 +645,7 @@ export function ProcessDesigner({
               >
                 <ZoomOut className="h-3 w-3" />
               </button>
-              <button
+              <button type="button"
                 onClick={panZoom.resetZoom}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
                 title="Reset zoom"
@@ -657,7 +657,7 @@ export function ProcessDesigner({
               <div className="w-px h-4 bg-border mx-1" />
 
               {/* Add node buttons */}
-              <button
+              <button type="button"
                 onClick={() => handleAddNode('start-event', 'Start')}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
                 title="Add Start Event"
@@ -665,7 +665,7 @@ export function ProcessDesigner({
               >
                 <Play className="h-3 w-3 text-green-600" /> Start
               </button>
-              <button
+              <button type="button"
                 onClick={() => handleAddNode('user-task', 'User Task')}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
                 title="Add User Task"
@@ -673,7 +673,7 @@ export function ProcessDesigner({
               >
                 <Square className="h-3 w-3 text-blue-600" /> Task
               </button>
-              <button
+              <button type="button"
                 onClick={() => handleAddNode('exclusive-gateway', 'Decision')}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
                 title="Add Gateway"
@@ -681,7 +681,7 @@ export function ProcessDesigner({
               >
                 <Diamond className="h-3 w-3 text-yellow-600" /> Gateway
               </button>
-              <button
+              <button type="button"
                 onClick={() => handleAddNode('end-event', 'End')}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
                 title="Add End Event"
@@ -693,7 +693,7 @@ export function ProcessDesigner({
               <div className="w-px h-4 bg-border mx-1" />
 
               {/* Toggle property panel */}
-              <button
+              <button type="button"
                 onClick={() => setShowPropertyPanel((p) => !p)}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
                 title={showPropertyPanel ? 'Hide properties' : 'Show properties'}
@@ -905,7 +905,7 @@ export function ProcessDesigner({
 
                   {/* Delete button */}
                   {!readOnly && isSelected && !connectMode && (
-                    <button
+                    <button type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeleteNode(node.id);

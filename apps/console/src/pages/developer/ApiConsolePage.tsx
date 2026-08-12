@@ -233,7 +233,7 @@ export function ApiConsolePage() {
         <div className="p-3 border-b space-y-2">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-foreground flex-1">API Endpoints</h3>
-            <button
+            <button type="button"
               onClick={refresh}
               disabled={discovering}
               className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
@@ -271,7 +271,7 @@ export function ApiConsolePage() {
               return (
                 <Collapsible key={group.key} open={isExpanded} onOpenChange={() => toggleGroup(group.key)}>
                   <CollapsibleTrigger asChild>
-                    <button className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors">
+                    <button type="button" className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors">
                       <ChevronRight className={`h-3 w-3 shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
                       <span className="flex-1 text-left truncate">{group.label}</span>
                       <span className="shrink-0 text-[10px] tabular-nums opacity-60">{group.endpoints.length}</span>
@@ -282,7 +282,7 @@ export function ApiConsolePage() {
                       {group.endpoints.map((ep, i) => {
                         const isActive = selectedEndpoint === ep;
                         return (
-                          <button
+                          <button type="button"
                             key={`${ep.method}-${ep.path}-${i}`}
                             onClick={() => selectEndpoint(ep)}
                             className={`w-full text-left flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
@@ -309,7 +309,7 @@ export function ApiConsolePage() {
         <div className="p-3 border-t space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Query Parameters</h4>
-            <button
+            <button type="button"
               onClick={() => addQueryParam()}
               className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -320,7 +320,7 @@ export function ApiConsolePage() {
 
           <div className="flex flex-wrap gap-1">
             {QUERY_PARAM_PRESETS.map(preset => (
-              <button
+              <button type="button"
                 key={preset.key}
                 onClick={() => addQueryParam(preset.key, '')}
                 className="text-[10px] px-1.5 py-0.5 rounded border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors font-mono"
@@ -355,7 +355,7 @@ export function ApiConsolePage() {
                     placeholder="value"
                     className="flex-1 min-w-0 rounded border bg-background px-1.5 py-0.5 text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-ring"
                   />
-                  <button
+                  <button type="button"
                     onClick={() => removeQueryParam(param.id)}
                     className="shrink-0 p-0.5 rounded text-muted-foreground hover:text-destructive transition-colors"
                   >
@@ -388,7 +388,7 @@ export function ApiConsolePage() {
               placeholder="/api/v1/..."
               onKeyDown={e => { if (e.key === 'Enter') sendRequest(); }}
             />
-            <button
+            <button type="button"
               onClick={sendRequest}
               disabled={loading || !effectiveUrl}
               className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
@@ -437,7 +437,7 @@ export function ApiConsolePage() {
                     {response.duration}ms
                   </span>
                 </div>
-                <button
+                <button type="button"
                   onClick={copyResponse}
                   className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
@@ -467,7 +467,7 @@ export function ApiConsolePage() {
                 <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   History ({history.length})
                 </h4>
-                <button
+                <button type="button"
                   onClick={() => setHistory([])}
                   className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
                 >
@@ -478,7 +478,7 @@ export function ApiConsolePage() {
               <div className="space-y-0.5 px-2 pb-2 max-h-60 overflow-auto">
                 {history.map(entry => (
                   <div key={entry.id} className="rounded border">
-                    <button
+                    <button type="button"
                       onClick={() => setExpandedHistory(expandedHistory === entry.id ? null : entry.id)}
                       className="w-full flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-muted/30 transition-colors"
                     >
@@ -494,7 +494,7 @@ export function ApiConsolePage() {
                         {entry.status}
                       </span>
                       <span className="shrink-0 text-muted-foreground">{entry.duration}ms</span>
-                      <button
+                      <button type="button"
                         onClick={e => { e.stopPropagation(); replayHistoryEntry(entry); }}
                         className="shrink-0 p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                         title="Replay request"
