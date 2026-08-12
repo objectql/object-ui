@@ -94,8 +94,9 @@ const ROW_HEIGHT_TO_DENSITY: Record<
  * non-string walked past it into a lookup that coerces its key — both
  * `hasOwnProperty.call` and the index run `String(...)`. `['compact']`, a boxed
  * `String('compact')` and `{ toString: () => 'compact' }` therefore each
- * selected a real density, where core's twin (same file, opening with the type
- * guard) abstained. Note the direction against #4442: that leak produced a
+ * selected a real density, where core's twin abstained
+ * (`packages/core/src/utils/normalize-list-view.ts:83`, which has opened with
+ * the type guard since #4440). Note the direction against #4442: that leak produced a
  * FUNCTION, visibly wrong to everything downstream; this one produced a
  * legitimate-looking `'compact'` that nothing can tell apart from an authored
  * value. The type guard subsumes the old one — `undefined`, `null`, `0` and
