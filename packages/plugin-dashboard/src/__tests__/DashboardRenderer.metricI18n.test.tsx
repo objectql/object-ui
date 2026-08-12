@@ -86,13 +86,6 @@ function dashboard(widget: Record<string, unknown>): DashboardComponentSchema {
   } as unknown as DashboardComponentSchema;
 }
 
-/** The KPI card's heading row — the slot every assertion below is about. */
-function cardHeading(): HTMLElement {
-  const el = document.querySelector('.tracking-tight.text-sm.font-medium');
-  if (!el) throw new Error('metric card heading not rendered');
-  return el as HTMLElement;
-}
-
 function renderIn(language: string, schema: DashboardComponentSchema) {
   return render(
     <I18nProvider config={{ defaultLanguage: language, detectBrowserLanguage: false, resources: ZH_BUNDLE }}>
@@ -116,7 +109,7 @@ describe('DashboardRenderer — KPI cards translate from the widget convention k
   });
 
   it('(b) resolves an inline per-locale title map, and never leaks the widget type', () => {
-    renderIn('zh', dashboard({
+    const { container } = renderIn('zh', dashboard({
       id: 'unkeyed',
       type: 'metric',
       title: { en: 'Total Revenue', 'zh-CN': '总收入' },
@@ -128,17 +121,19 @@ describe('DashboardRenderer — KPI cards translate from the widget convention k
     // so `|| widgetType` rendered the literal string "metric".
     expect(screen.queryByText('metric')).toBeNull();
     // And the sibling surface's failure mode, which this path never had.
-    // Asserted on the HEADING, not on `container.innerHTML`: the card also
-    // carries an unrelated `schema="[object Object]"` DOM attribute, present on
-    // this path before and after this change and on plain-string titles too —
-    // `SchemaRenderer` hands the widget schema down and `MetricWidget` spreads
-    // `...props` onto the `Card`. Filed separately rather than widened into
-    // this pin, which would have made the assertion pass for the wrong reason.
-    expect(cardHeading().innerHTML).not.toContain('[object Object]');
+    // Asserted on the CONTAINER, which is where this pin belongs and where
+    // #4163 puts the sibling one. It used to be scoped to the card heading:
+    // the card carried an unrelated `schema="[object Object]"` attribute on
+    // every render — `SchemaRenderer` hands the widget schema down and
+    // `MetricWidget` spread `...props` onto the `Card` — so the container
+    // assertion was red for a reason that had nothing to do with labels, and
+    // the tempting repair was to delete it. objectui#4357 removed the leak at
+    // its source (`src/schemaHostProps.ts`), so the assertion is writable now.
+    expect(container.innerHTML).not.toContain('[object Object]');
   });
 
   it('(b2) resolves the inline map for `en` too — the authored en text, not the raw map', () => {
-    renderIn('en', dashboard({
+    const { container } = renderIn('en', dashboard({
       id: 'unkeyed',
       type: 'metric',
       title: { en: 'Total Revenue', 'zh-CN': '总收入' },
@@ -146,7 +141,7 @@ describe('DashboardRenderer — KPI cards translate from the widget convention k
     }));
 
     expect(screen.getByText('Total Revenue')).toBeTruthy();
-    expect(cardHeading().innerHTML).not.toContain('[object Object]');
+    expect(container.innerHTML).not.toContain('[object Object]');
   });
 
   it('(b3) prefers the bundle over the inline map when both exist', () => {

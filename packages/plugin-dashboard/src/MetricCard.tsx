@@ -12,6 +12,7 @@ import { cn } from '@object-ui/components';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { I18nLabel } from '@object-ui/types';
 import { ArrowDownIcon, ArrowUpIcon, MinusIcon, AlertCircle, Loader2 } from 'lucide-react';
+import type { SchemaHostProps } from './schemaHostProps';
 
 export interface MetricCardProps {
   /**
@@ -36,7 +37,7 @@ export interface MetricCardProps {
  * MetricCard - Standalone metric card component for dashboard KPIs
  * Displays a metric value with optional icon, trend indicator, and description
  */
-export const MetricCard: React.FC<MetricCardProps> = ({
+export const MetricCard: React.FC<MetricCardProps & SchemaHostProps> = ({
   title,
   value,
   icon,
@@ -46,7 +47,18 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   className,
   loading,
   error,
-  ...props
+  // Schema-shaped props `SchemaRenderer` injects, destructured out so the
+  // spread below cannot write them to the DOM (objectui#4357). Named and
+  // measured in `./schemaHostProps`; `schema` alone put a
+  // `schema="[object Object]"` attribute on every card. The rest spread
+  // survives — it is the component's genuine DOM/aria passthrough.
+  schema: _schema,
+  bind: _bind,
+  events: _events,
+  props: _propsBag,
+  ariaLabel: _ariaLabel,
+  ariaDescribedBy: _ariaDescribedBy,
+  ...domProps
 }) => {
   // Resolve icon via lazy resolver — each icon ships as its own micro-chunk
   const IconComponent = icon ? getLazyIcon(icon) : null;
@@ -54,7 +66,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   const { language } = useObjectTranslation();
 
   return (
-    <Card className={cn("h-full", className)} {...props}>
+    <Card className={cn("h-full", className)} {...domProps}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">
           {pickLocalized(title, language)}
