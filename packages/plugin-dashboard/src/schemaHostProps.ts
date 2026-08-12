@@ -30,17 +30,29 @@
  *   | `bind`            | `bind="data.revenue"`        | SDUI data-binding path                |
  *   | `ariaLabel`       | `arialabel="…"`              | camelCase authored form; the renderer already emits the resolved `aria-label` |
  *   | `ariaDescribedBy` | `ariadescribedby="…"`        | ditto for `aria-describedby`          |
+ *   | `dataSource`      | `datasource="[object Object]"` | the injected data-source ADAPTER    |
+ *
+ * `dataSource` is the one a schema-only measurement misses, and the only one
+ * that leaks on a *production* dashboard rather than an authored edge case.
+ * It does not come from the node: `SchemaRenderer` strips the schema's own
+ * `dataSource` BINDING by name (objectstack#5576) — this is the adapter object
+ * `DashboardRenderer` hands its `SchemaRenderer` call, which arrives through the
+ * renderer's trailing `...props` and lands on whatever the widget spreads onto.
+ * A dashboard rendered without a data source (every test fixture) leaves it
+ * `undefined` and nothing shows; a dashboard rendered with one — every live
+ * deployment — put `datasource="[object Object]"` on the card.
  *
  * The line this type draws is **"is the key an HTML attribute name"**. None of
- * the six is (the two dashed `aria-*` forms the renderer emits itself are, and
+ * the seven is (the two dashed `aria-*` forms the renderer emits itself are, and
  * they keep flowing). Everything that IS one stays in the spread and reaches the
  * DOM exactly as before: `id`, `name`, `role`, `disabled`, `aria-*`, `data-*`,
  * `className`. Removing the spread instead would have been the wrong fix — it is
  * the component's only accessibility passthrough.
  *
  * The renderer strips its own schema metadata (`type` / `children` / `visible` /
- * `dataSource` / …) before spreading, so those never arrive; this type covers
- * only what survives that strip. Declared here rather than in each component
+ * the schema's `dataSource` binding / …) before spreading, so those never
+ * arrive; this type covers only what survives that strip — including the
+ * adapter, which arrives by a different door. Declared here rather than in each component
  * because two copies of one key list is how a list becomes two disagreeing
  * lists — the same reason `colorVariants` was extracted. The pin that keeps the
  * declaration honest for BOTH components is
@@ -59,4 +71,10 @@ export interface SchemaHostProps {
   ariaLabel?: unknown;
   /** Authored camelCase ARIA; the renderer emits `aria-describedby`. */
   ariaDescribedBy?: unknown;
+  /**
+   * The injected data-source adapter, forwarded by `DashboardRenderer` through
+   * `SchemaRenderer`'s trailing props. Neither metric component reads it — the
+   * async, object-aware KPI is `ObjectMetricWidget`.
+   */
+  dataSource?: unknown;
 }

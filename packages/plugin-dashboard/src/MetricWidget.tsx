@@ -222,6 +222,7 @@ export const MetricWidget = ({
   props: _propsBag,
   ariaLabel: _ariaLabel,
   ariaDescribedBy: _ariaDescribedBy,
+  dataSource: _dataSource,
   ...domProps
 }: MetricWidgetProps & SchemaHostProps) => {
   const iconClasses = VARIANT_ICON_CLASSES[colorVariant] || VARIANT_ICON_CLASSES.default;

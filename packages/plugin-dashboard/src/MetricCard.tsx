@@ -58,6 +58,7 @@ export const MetricCard: React.FC<MetricCardProps & SchemaHostProps> = ({
   props: _propsBag,
   ariaLabel: _ariaLabel,
   ariaDescribedBy: _ariaDescribedBy,
+  dataSource: _dataSource,
   ...domProps
 }) => {
   // Resolve icon via lazy resolver — each icon ships as its own micro-chunk

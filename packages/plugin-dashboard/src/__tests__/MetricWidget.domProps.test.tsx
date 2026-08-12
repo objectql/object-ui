@@ -26,12 +26,23 @@
  *   | `bind`           | `bind="data.revenue"`         | SDUI data-binding path              |
  *   | `ariaLabel`      | `arialabel="…"`               | camelCase twin of `aria-label`      |
  *   | `ariaDescribedBy`| `ariadescribedby="…"`         | camelCase twin of `aria-describedby`|
+ *   | `dataSource`     | `datasource="[object Object]"`| the injected data-source ADAPTER    |
  *
- * The line the fix draws is "is this an HTML attribute name": the six above are
+ * The line the fix draws is "is this an HTML attribute name": the seven above are
  * not (the renderer already emits the two dashed `aria-*` forms itself), so they
  * are destructured out. Everything that IS one keeps flowing through the spread —
  * `id`, `name`, `role`, `disabled`, `aria-*`, `data-*`, `className` — because the
  * spread is genuine DOM/aria passthrough and stays.
+ *
+ * `dataSource` is why case (g) exists and why it renders the dashboard WITH an
+ * adapter. It is the only one of the seven that never appears in a schema —
+ * `SchemaRenderer` strips the schema's own `dataSource` binding by name
+ * (objectstack#5576) and this is the ADAPTER `DashboardRenderer` hands its
+ * `SchemaRenderer` call, arriving through the renderer's trailing props. Every
+ * fixture in this package renders without one, so it reads `undefined` and
+ * writes nothing; every live dashboard has one, so the attribute was there in
+ * production and in no test. A pin that only ever renders dataless dashboards
+ * cannot see it.
  *
  * WHY THE ASSERTION IS `container.innerHTML` AND NOT THE HEADING. This defect's
  * cost was never a visible one; it was that it POISONED the assertion this area
@@ -45,9 +56,10 @@
  * not be written, and `DashboardRenderer.metricI18n.test.tsx` asserts on the
  * container again.
  *
- * DIRECTIONS, written before the run: (a)–(d) RED before the fix — (a)/(c)/(d)
- * by `MetricWidget`, (b) by `MetricCard`; (e)/(f) GREEN on both sides, they are
- * the acceptance boundary (nothing else about the render may move).
+ * DIRECTIONS, written before the run: (a)–(d) and (g) RED before the fix —
+ * (a)/(c)/(d)/(g) by `MetricWidget`, (b) by `MetricCard`; (e)/(f) GREEN on both
+ * sides, they are the acceptance boundary (nothing else about the render may
+ * move).
  */
 
 import * as React from 'react';
@@ -75,7 +87,13 @@ const SCHEMA_METADATA = {
 } as const;
 
 /** Attribute names that must never appear — none of them is an HTML attribute. */
-const LEAKED_ATTRIBUTES = ['schema', 'events', 'props', 'bind', 'arialabel', 'ariadescribedby'];
+const LEAKED_ATTRIBUTES = ['schema', 'events', 'props', 'bind', 'arialabel', 'ariadescribedby', 'datasource'];
+
+/**
+ * A data-source adapter, shaped like the one a live dashboard injects. Only its
+ * identity matters here: it must reach the widget and not the DOM.
+ */
+const ADAPTER = { name: 'fake', find: async () => ({ items: [] }), findOne: async () => null };
 
 function renderSchema(schema: Record<string, unknown>) {
   return render(
@@ -122,7 +140,7 @@ describe('MetricWidget / MetricCard — schema-shaped props stay off the DOM (#4
     expect(attributeNames(card(container))).not.toContain('schema');
   });
 
-  it('(c) neither component emits any of the six measured non-DOM props', () => {
+  it('(c) neither component emits any of the seven measured non-DOM props', () => {
     for (const schema of [
       { type: 'metric', label: 'Total Revenue', value: 1930000, ...SCHEMA_METADATA, props: { colorVariant: 'success' } },
       { type: 'metric-card', title: 'Total Revenue', value: 1930000, ...SCHEMA_METADATA, props: {} },
@@ -150,6 +168,30 @@ describe('MetricWidget / MetricCard — schema-shaped props stay off the DOM (#4
     );
 
     expect(container.innerHTML).not.toContain('[object Object]');
+  });
+
+  it('(g) the dashboard KPI path WITH a data source — the production shape', () => {
+    const schema = {
+      type: 'dashboard',
+      name: 'sales',
+      widgets: [{ id: 'revenue', type: 'metric', title: 'Total Revenue', options: { value: 1930000 } }],
+    } as unknown as DashboardComponentSchema;
+
+    const { container } = render(
+      <I18nProvider config={{ defaultLanguage: 'en', detectBrowserLanguage: false, resources: {} }}>
+        <DashboardRenderer schema={schema} dataSource={ADAPTER as never} />
+      </I18nProvider>,
+    );
+
+    const tile = container.querySelector('[data-obj-type="metric"]');
+    if (!tile) throw new Error('metric tile not rendered');
+
+    // Case (d) renders the same dashboard with no adapter and cannot see this:
+    // `dataSource` is `undefined` there, so React writes nothing.
+    expect(container.innerHTML).not.toContain('[object Object]');
+    expect(attributeNames(tile as HTMLElement)).not.toContain('datasource');
+    // The KPI still renders its number — the adapter is dropped, not the widget.
+    expect(container.textContent).toContain('1,930,000');
   });
 
   it('(e) genuine DOM / aria passthrough survives — the spread is not removed', () => {

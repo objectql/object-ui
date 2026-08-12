@@ -16,13 +16,22 @@ stringifying object values. Every KPI card therefore carried
 props container carried `events="[object Object]"`, `bind="data.revenue"` and
 `props="[object Object]"` beside it.
 
-Six props were measured arriving at the call site that are not HTML attribute
+Seven props were measured arriving at the call site that are not HTML attribute
 names — `schema`, `events`, `props`, `bind`, `ariaLabel`, `ariaDescribedBy` (the
 last two are the camelCase authored forms of ARIA the renderer already emits in
-their dashed spelling). They are destructured out; the spread survives untouched
-for everything that IS a DOM attribute: `id`, `name`, `role`, `disabled`,
-`aria-*`, `data-*`, `className`. Nothing else about the render moves — no text,
-no class, no element.
+their dashed spelling) and `dataSource`. They are destructured out; the spread
+survives untouched for everything that IS a DOM attribute: `id`, `name`, `role`,
+`disabled`, `aria-*`, `data-*`, `className`. Nothing else about the render moves
+— no text, no class, no element.
+
+`dataSource` is the one that only a live dashboard shows. It is not a schema key
+(the renderer strips the schema's own `dataSource` binding by name); it is the
+injected adapter `DashboardRenderer` hands its `SchemaRenderer` call, which
+arrives through the renderer's trailing props. Every fixture in this package
+renders without an adapter, so it read `undefined` and wrote nothing — while
+every deployment that actually loads data put `datasource="[object Object]"` on
+the card. The pin renders a dashboard with an adapter so the case that only
+production had is now a test.
 
 The cost of this was never visible; it was that the defect poisoned the
 assertion this area attracts. objectui#4163 pins
