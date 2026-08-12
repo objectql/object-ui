@@ -423,8 +423,19 @@ const REJECTED_REQUEST_CODES = new Set([
   'INVALID_QUERY',
 ]);
 
-// Default English translations for fallback when I18nProvider is not available
-const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
+// Default English translations for fallback when I18nProvider is not available.
+//
+// Every row whose key the `en` pack also defines must stay byte-identical to it,
+// or the same control is labelled one way here and another in the console.
+// Enforced since objectui#4401 by
+// `app-shell/src/__tests__/defaults-maps-mirror-en-pack.test.tsx`.
+//
+// Exported for that gate — the same reason
+// `DETAIL_DEFAULT_TRANSLATIONS` and `COLLAB_DEFAULT_TRANSLATIONS` are exported
+// from their packages. The gate cannot live in `@object-ui/i18n` (that would
+// invert the dependency, see `gantt-count-interpolation-4157.test.ts`), so it
+// reads this map from downstream instead of parsing this file's text.
+export const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'list.recordCount': '{{count}} records',
   'list.recordCountOne': '{{count}} record',
   'list.noItems': 'No items found',
@@ -479,9 +490,15 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // objectui#4294 — the remedy sentence must match `en`'s byte for byte. It is
   // this copy, not the pack, that renders on a provider-less host (and in this
   // package's own tests), so a pack-only reword would leave the old advice —
-  // "add a formula field" — on the exact surface the card is about. No gate
-  // compares this table to `en`: `check:i18n-keys` judges inline
-  // `t(key, { defaultValue })` options, never a `createSafeTranslation` table.
+  // "add a formula field" — on the exact surface the card is about.
+  //
+  // That byte-identity is no longer hand-held: objectui#4401 generalized
+  // #3440's collaboration gate to this table, so a pack-only reword now fails
+  // in `app-shell/src/__tests__/defaults-maps-mirror-en-pack.test.tsx`. (What
+  // #4294 recorded here — that `check:i18n-keys` judges inline
+  // `t(key, { defaultValue })` options and never a `createSafeTranslation`
+  // table — is still true of that script; it is simply no longer the only
+  // thing looking.)
   'list.sortRelationalHint':
     'Columns that link to another record are not listed: they can only be sorted by the stored ID, not by the name shown in the cell. To sort by that name, denormalize it onto this object as a stored field, written when the source changes, and sort by that. Not a formula field: it is virtual, so no column is stored for it and the server refuses to sort by one.',
   // objectui#4396 — the sort popover's reset action. Read bare

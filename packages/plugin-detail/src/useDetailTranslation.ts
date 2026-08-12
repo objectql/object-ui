@@ -25,6 +25,13 @@ export const createSafeTranslationHook = createSafeTranslation;
 /**
  * Default English translations for detail view components.
  * Used as fallback when no I18nProvider is available.
+ *
+ * Every row whose key the `en` pack also defines must stay byte-identical to it
+ * — otherwise this control is labelled one way on a provider-less host and
+ * another in the console. Enforced since objectui#4401 by
+ * `app-shell/src/__tests__/defaults-maps-mirror-en-pack.test.tsx`, which
+ * compares this map, `LIST_DEFAULT_TRANSLATIONS` and
+ * `DESIGNER_DEFAULT_TRANSLATIONS` key by key against the pack.
  */
 export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // objectstack#5733 — RecordDetailDrawer's drag-resize handle. The only
@@ -43,7 +50,12 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // (`t('detail.saving')`, no inline `defaultValue`), so before this row a
   // provider-less host rendered the raw key `detail.saving` into the button.
   'detail.saving': 'Saving…',
-  'detail.editFieldsInline': 'Edit fields inline',
+  // objectui#4401 — was 'Edit fields inline' here while the packs all say
+  // "Edit fields", so InlineEditSaveBar's toggle announced two different names
+  // depending on whether an I18nProvider was mounted. The pack won: it is what
+  // the console (essentially all traffic) renders, nine other packs already
+  // translated its copy, and this map's contract is to mirror the pack.
+  'detail.editFieldsInline': 'Edit fields',
   'detail.editInlineHint': 'Double-click to edit',
   'detail.cancel': 'Cancel',
   'detail.cancelEdit': 'Discard changes',

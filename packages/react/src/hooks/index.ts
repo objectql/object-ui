@@ -41,6 +41,11 @@ export * from './useActionEngine';
 // authored strings an action carries (label / confirmText / successMessage).
 export * from './useActionTextLocalizer';
 export * from './useCapabilityGate';
+// The analytics label net's React glue, consumed by BOTH plugin-dashboard's
+// `DatasetWidget` and plugin-report's dataset block (objectui#4389). It lives
+// here rather than in `@object-ui/core` because it reads `SchemaRendererContext`
+// — see the file header for the measured dependency direction.
+export * from './useDatasetDimensionLabels';
 export * from './useDataRefresh';
 export * from './usePageAssignment';
 export * from './useRecordSearch';
