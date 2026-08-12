@@ -962,6 +962,38 @@ describe('ListView', () => {
       expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument();
     });
 
+    it('takes the search placeholder from a pack value, not a code concatenation', () => {
+      // objectui#4375. This used to be `t('list.search') + '...'` — the ellipsis
+      // was a literal appended in code, so it stayed ASCII in all ten locales
+      // (while objectui#3878 had converged every other placeholder on U+2026)
+      // and no pack could opt out of it. The regex the sibling tests above use
+      // (`/search/i`) matches BOTH spellings, so nothing here could see the
+      // difference; this is the byte-exact pin that can.
+      //
+      // There is no LocalizationProvider in these tests, so the string below is
+      // served by `LIST_DEFAULT_TRANSLATIONS`, whose contract is to stay
+      // byte-identical to the `en` pack — which makes this an assertion about
+      // that contract as much as about the call site.
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      fireEvent.click(screen.getByTestId('search-icon-button'));
+
+      // U+2026, and it comes from `table.search`.
+      expect(screen.getByPlaceholderText('Search…')).toBeInTheDocument();
+      expect(screen.queryByPlaceholderText('Search...')).not.toBeInTheDocument();
+
+      // …while the trigger's tooltip keeps the bare NOUN `list.search`. The two
+      // are deliberately different keys: giving `list.search` the ellipsis would
+      // have put one on this tooltip too.
+      expect(screen.getByTestId('search-icon-button')).toHaveAttribute('title', 'Search');
+    });
+
     it('should highlight search icon when search term is active', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
