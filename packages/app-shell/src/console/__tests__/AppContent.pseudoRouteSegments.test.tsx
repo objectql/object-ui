@@ -192,6 +192,12 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
   }),
 }));
 
+// A workspace admin: the zero-app cases below land on the "no apps configured"
+// empty state, which since objectui#4473 renders for admins only — a viewer who
+// cannot act on its CTAs is bounced to `/home` with the shell chrome instead of
+// being stranded there (`AppContent.inaccessibleAppStrand.test.tsx`). Which
+// BRANCH a segment reaches — the question this file measures — does not depend
+// on the viewer.
 vi.mock('@object-ui/auth', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({
@@ -199,7 +205,7 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
     getAuthConfig: async () => ({ features: {} }),
     activeOrganization: null,
   }),
-  useIsWorkspaceAdmin: () => false,
+  useIsWorkspaceAdmin: () => true,
 }));
 
 const dataSourceStub = {

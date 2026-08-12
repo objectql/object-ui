@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { useActionRunner, useGlobalUndo, useMutationInvalidationBridge, notifyDataChanged, FilterScopeProvider } from '@object-ui/react';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { ConnectionState } from '@object-ui/data-objectstack';
-import { useAuth } from '@object-ui/auth';
+import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useMetadata } from '../providers/MetadataProvider';
 import { useAdapter } from '../providers/AdapterProvider';
 import { usePreviewDrafts } from '../preview/PreviewModeContext';
@@ -115,6 +115,9 @@ function DraftReviewNavigator({ appName }: { appName: string | undefined }) {
 export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = {}) {
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const { user, getAuthConfig, activeOrganization } = useAuth();
+  // objectui#4473 — read at the top (hooks are unconditional); consumed by the
+  // no-app guard far below, where the comment explains what it decides.
+  const isWorkspaceAdmin = useIsWorkspaceAdmin();
   const dataSource = useAdapter();
 
   // Deployment-level feature flags from `/api/v1/auth/config`. Used by
@@ -580,6 +583,45 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
         </Empty>
       </div>
     );
+  }
+
+  // objectui#4473 — a viewer with NO app to enter here must not be left on a
+  // chrome-less screen. `GET /meta/apps` is filtered PER SESSION server-side
+  // (`filterAppForUser`), so an empty list on a `member` means "nothing here is
+  // yours to open", not "this workspace has no apps" — and switching
+  // organization lands exactly there: `WorkspaceSwitcher` reloads onto the
+  // console root, `RootLandingRedirect` resolves the landing from the app
+  // metadata `MetadataProvider` seeded out of sessionStorage (the PREVIOUS
+  // org's, keyed by type only), and the resulting `/apps/setup` settles with an
+  // empty list. Every no-app surface in this file returns ABOVE the single
+  // `ConsoleLayout` mount, so what renders has no header, no navigation and no
+  // workspace switcher: no way back except editing the URL by hand.
+  //
+  // The bounce is role-aware because that is what the empty state below already
+  // presupposes, not as a stand-in for per-app access: its copy asserts a
+  // WORKSPACE-level fact ("no apps are registered") that a per-user-filtered
+  // list cannot establish, and offers two actions — create an app, open system
+  // settings — that a non-admin cannot perform. For a workspace admin it stays
+  // the deliberate first-run surface (#3573 / #3590). For everyone else `/home`
+  // is the honest destination: it renders inside the shell (top bar + workspace
+  // switcher) and already carries the role-aware copy for this state ("No
+  // applications yet — your workspace is being set up…", `home/HomePage.tsx`).
+  // `replace`, so the strand is not left in history behind them.
+  //
+  // Router-relative on purpose: `<Navigate>` resolves through the host's
+  // `basename`, so the console's `/_console` mount is preserved without
+  // building a URL by hand (`resolveConsoleUrl` is for full-page navigations
+  // that leave the router — see `organizations/resolveHomeUrl.ts`). `/home` is
+  // part of the outer skeleton every host that mounts this component provides
+  // (see this file's header), and `RequireAiSurface` in `ConsoleShell.tsx`
+  // already bounces the same way for a surface this runtime cannot serve.
+  //
+  // Telling "you may not enter THIS app" apart from "this app is not published"
+  // is the other half of #4473 and stays gated on the backend permission-denied
+  // envelope (objectstack#8013 → objectui#4252). Nothing here waits on it: the
+  // guard reads only the per-user-filtered list that ships today.
+  if (!activeApp && !isCreateAppRoute && !isSystemRoute && !isMetadataRoute && !isWorkspaceAdmin) {
+    return <Navigate to="/home" replace />;
   }
 
   if (!activeApp && !isCreateAppRoute && !isSystemRoute && !isMetadataRoute) return (

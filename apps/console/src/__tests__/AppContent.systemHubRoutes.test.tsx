@@ -150,6 +150,12 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
   }),
 }));
 
+// A workspace admin: the zero-app branch below is measured through the "no apps
+// configured" empty state, which since objectui#4473 renders for admins only —
+// any other viewer is bounced to `/home` with the shell chrome rather than left
+// on that chrome-less screen (pinned in
+// `packages/app-shell/src/console/__tests__/AppContent.inaccessibleAppStrand.test.tsx`).
+// The legacy `/system/*` redirect targets this file measures are unchanged.
 vi.mock('@object-ui/auth', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({
@@ -157,7 +163,7 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
     getAuthConfig: async () => ({ features: {} }),
     activeOrganization: null,
   }),
-  useIsWorkspaceAdmin: () => false,
+  useIsWorkspaceAdmin: () => true,
 }));
 
 const dataSourceStub = {

@@ -143,6 +143,11 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
   }),
 }));
 
+// A workspace admin: since objectui#4473 the zero-app empty state this file
+// uses as its "not a component route" marker renders for admins only — every
+// other viewer is bounced to `/home` (its CTAs are admin-only actions, and the
+// screen carries no shell chrome). The component/metadata routing this file
+// measures is viewer-independent.
 vi.mock('@object-ui/auth', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({
@@ -150,7 +155,7 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
     getAuthConfig: async () => ({ features: {} }),
     activeOrganization: null,
   }),
-  useIsWorkspaceAdmin: () => false,
+  useIsWorkspaceAdmin: () => true,
 }));
 
 const dataSourceStub = {

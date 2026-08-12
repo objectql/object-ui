@@ -92,6 +92,12 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
   }),
 }));
 
+// The viewer is a workspace admin because since objectui#4473 that is who this
+// empty state is FOR: its CTAs (create an app, open system settings) are
+// admin-only actions, and a viewer without them is bounced to `/home` with the
+// shell chrome instead of being stranded on this chrome-less screen (pinned in
+// `AppContent.inaccessibleAppStrand.test.tsx`). The routing question this file
+// measures — which URL each CTA resolves to — is unchanged.
 vi.mock('@object-ui/auth', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({
@@ -99,7 +105,7 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
     getAuthConfig: async () => ({ features: {} }),
     activeOrganization: null,
   }),
-  useIsWorkspaceAdmin: () => false,
+  useIsWorkspaceAdmin: () => true,
 }));
 
 const dataSourceStub = {
