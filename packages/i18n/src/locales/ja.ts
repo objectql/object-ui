@@ -2162,6 +2162,7 @@ const ja = {
     members: "メンバー",
     settings: "ワークスペース設定",
     multiOrgDisabled: "このインスタンスでは新しい組織の作成が無効です。",
+    createFailed: 'ワークスペースの作成に失敗しました',
   },
   help: {
     onThisPage: "このページの内容",
@@ -2523,6 +2524,23 @@ const ja = {
     noMatches: "検索条件に一致する組織がありません。",
   },
   organization: {
+    roles: {
+      owner: 'オーナー',
+      admin: '管理者',
+      delegatedAdmin: '委任管理者',
+      member: 'メンバー',
+    },
+    errors: {
+      notAllowedToInvite: 'この組織にユーザーを招待する権限がありません。',
+      notAllowedToInviteWithRole: 'このロールでユーザーを招待する権限がありません。',
+      alreadyInvited: 'このユーザーはすでにこの組織に招待されています。',
+      organizationExists: 'その組織はすでに存在します。',
+      slugTaken: 'そのスラッグはすでに使用されています。',
+      notAllowedToCreate: '新しい組織を作成する権限がありません。',
+      notTheRecipient: 'この招待の宛先はあなたではありません。',
+      invitationNotFound: 'この招待は存在しないか、有効期限が切れています。',
+      unknown: '問題が発生しました。もう一度お試しください。',
+    },
     backToList: "組織一覧に戻る",
     notFound: "組織が見つかりません",
     notFoundDescription: "この組織は存在しないか、アクセス権がありません。",
@@ -2542,6 +2560,8 @@ const ja = {
       removeFailed: "メンバーの削除に失敗しました",
       roleUpdated: "ロールを更新しました",
       roleUpdateFailed: "ロールの更新に失敗しました",
+      memberActions: 'メンバーの操作',
+      loadFailed: 'メンバーの読み込みに失敗しました',
     },
     invitations: {
       title: "招待",
@@ -2568,6 +2588,9 @@ const ja = {
       sentDescription: "以下のリンクを招待相手に共有してください。承諾にはサインインが必要です。",
       linkLabel: "承諾リンク",
       invitedAs: "{{email}} を {{role}} として招待しました",
+      copyLinkLabel: '招待リンクをコピー',
+      loadFailed: '招待の読み込みに失敗しました',
+      inviteFailed: 'メンバーの招待に失敗しました',
       status: {
         all: "すべて",
         pending: "待機中",

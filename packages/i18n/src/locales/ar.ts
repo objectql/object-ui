@@ -2169,6 +2169,7 @@ const ar = {
     members: "الأعضاء",
     settings: "إعدادات مساحة العمل",
     multiOrgDisabled: "إنشاء مؤسسات جديدة معطّل في هذا النشر.",
+    createFailed: 'تعذّر إنشاء مساحة العمل',
   },
   help: {
     onThisPage: "في هذه الصفحة",
@@ -2530,6 +2531,23 @@ const ar = {
     noMatches: "لا توجد مؤسسات تطابق بحثك.",
   },
   organization: {
+    roles: {
+      owner: 'المالك',
+      admin: 'المسؤول',
+      delegatedAdmin: 'مسؤول مفوَّض',
+      member: 'عضو',
+    },
+    errors: {
+      notAllowedToInvite: 'لا يُسمح لك بدعوة مستخدمين إلى هذه المؤسسة.',
+      notAllowedToInviteWithRole: 'لا يُسمح لك بدعوة مستخدم بهذا الدور.',
+      alreadyInvited: 'تمت دعوة هذا المستخدم إلى هذه المؤسسة بالفعل.',
+      organizationExists: 'هذه المؤسسة موجودة بالفعل.',
+      slugTaken: 'هذا المُعرِّف مستخدَم بالفعل.',
+      notAllowedToCreate: 'لا يُسمح لك بإنشاء مؤسسة جديدة.',
+      notTheRecipient: 'لست المستلم المقصود بهذه الدعوة.',
+      invitationNotFound: 'لم تعد هذه الدعوة موجودة أو أنها منتهية الصلاحية.',
+      unknown: 'حدث خطأ ما. يرجى المحاولة مرة أخرى.',
+    },
     backToList: "العودة إلى المؤسسات",
     notFound: "المؤسسة غير موجودة",
     notFoundDescription: "هذه المؤسسة غير موجودة أو ليس لديك صلاحية الوصول إليها.",
@@ -2549,6 +2567,8 @@ const ar = {
       removeFailed: "فشل إزالة العضو",
       roleUpdated: "تم تحديث الدور",
       roleUpdateFailed: "فشل تحديث الدور",
+      memberActions: 'إجراءات العضو',
+      loadFailed: 'تعذّر تحميل الأعضاء',
     },
     invitations: {
       title: "الدعوات",
@@ -2575,6 +2595,9 @@ const ar = {
       sentDescription: "شارك الرابط أدناه مع المدعوّ. سيحتاج إلى تسجيل الدخول للقبول.",
       linkLabel: "رابط القبول",
       invitedAs: "تمت دعوة {{email}} بصفة {{role}}",
+      copyLinkLabel: 'نسخ رابط الدعوة',
+      loadFailed: 'تعذّر تحميل الدعوات',
+      inviteFailed: 'تعذّرت دعوة العضو',
       status: {
         all: "الكل",
         pending: "قيد الانتظار",

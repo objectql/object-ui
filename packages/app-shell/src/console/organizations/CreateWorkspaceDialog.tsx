@@ -24,6 +24,7 @@ import type { AuthOrganization } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2 } from 'lucide-react';
 import { provisionProductionEnvironment } from './provisionEnvironment';
+import { resolveOrgErrorMessage } from './orgErrorMessage';
 
 /**
  * Convert a display name to a URL-friendly slug.
@@ -156,7 +157,14 @@ export function CreateWorkspaceDialog({
         }
         onCreated?.(org);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to create workspace');
+        // objectui#4474 — the card's site 4: a taken slug surfaced better-auth's
+        // `Organization already exists` verbatim in a zh session. Mapped by code.
+        setError(
+          resolveOrgErrorMessage(err, t, {
+            key: 'workspace.createFailed',
+            defaultValue: 'Failed to create workspace',
+          }),
+        );
       } finally {
         setIsSubmitting(false);
       }

@@ -2162,6 +2162,7 @@ const ko = {
     members: "구성원",
     settings: "워크스페이스 설정",
     multiOrgDisabled: "이 인스턴스에서는 새 조직을 만들 수 없습니다.",
+    createFailed: '워크스페이스를 만들지 못했습니다',
   },
   help: {
     onThisPage: "이 페이지에서",
@@ -2522,6 +2523,23 @@ const ko = {
     noMatches: "검색과 일치하는 조직이 없습니다.",
   },
   organization: {
+    roles: {
+      owner: '소유자',
+      admin: '관리자',
+      delegatedAdmin: '위임 관리자',
+      member: '멤버',
+    },
+    errors: {
+      notAllowedToInvite: '이 조직에 사용자를 초대할 권한이 없습니다.',
+      notAllowedToInviteWithRole: '이 역할로 사용자를 초대할 권한이 없습니다.',
+      alreadyInvited: '이 사용자는 이미 이 조직에 초대되었습니다.',
+      organizationExists: '해당 조직이 이미 존재합니다.',
+      slugTaken: '해당 슬러그는 이미 사용 중입니다.',
+      notAllowedToCreate: '새 조직을 만들 권한이 없습니다.',
+      notTheRecipient: '이 초대의 수신자가 아닙니다.',
+      invitationNotFound: '이 초대는 더 이상 존재하지 않거나 만료되었습니다.',
+      unknown: '문제가 발생했습니다. 다시 시도해 주세요.',
+    },
     backToList: "조직 목록으로 돌아가기",
     notFound: "조직을 찾을 수 없음",
     notFoundDescription: "이 조직이 존재하지 않거나 접근 권한이 없습니다.",
@@ -2541,6 +2559,8 @@ const ko = {
       removeFailed: "구성원 제거 실패",
       roleUpdated: "역할이 업데이트됨",
       roleUpdateFailed: "역할 업데이트 실패",
+      memberActions: '멤버 작업',
+      loadFailed: '멤버를 불러오지 못했습니다',
     },
     invitations: {
       title: "초대",
@@ -2567,6 +2587,9 @@ const ko = {
       sentDescription: "아래 링크를 초대 대상자와 공유하세요. 수락하려면 로그인해야 합니다.",
       linkLabel: "수락 링크",
       invitedAs: "{{email}}을(를) {{role}}(으)로 초대함",
+      copyLinkLabel: '초대 링크 복사',
+      loadFailed: '초대를 불러오지 못했습니다',
+      inviteFailed: '멤버를 초대하지 못했습니다',
       status: {
         all: "전체",
         pending: "대기 중",

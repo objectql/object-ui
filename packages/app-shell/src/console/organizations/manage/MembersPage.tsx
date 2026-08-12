@@ -32,6 +32,8 @@ import { Loader2, MoreHorizontal, UserMinus, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOrgContext } from './orgContext';
 import { InviteMemberDialog } from './InviteMemberDialog';
+import { resolveOrgRoleLabel } from '../orgRoleLabel';
+import { resolveOrgErrorMessage } from '../orgErrorMessage';
 
 function getMemberInitials(name?: string): string {
   if (!name) return '?';
@@ -63,11 +65,16 @@ export function MembersPage() {
       const data = await getMembers(org.id);
       setMembers(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load members');
+      setError(
+        resolveOrgErrorMessage(err, t, {
+          key: 'organization.members.loadFailed',
+          defaultValue: 'Failed to load members',
+        }),
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [org.id, getMembers]);
+  }, [org.id, getMembers, t]);
 
   useEffect(() => {
     fetchMembers();
@@ -80,9 +87,10 @@ export function MembersPage() {
       fetchMembers();
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : t('organization.members.roleUpdateFailed', { defaultValue: 'Failed to update role' }),
+        resolveOrgErrorMessage(err, t, {
+          key: 'organization.members.roleUpdateFailed',
+          defaultValue: 'Failed to update role',
+        }),
       );
     }
   };
@@ -96,9 +104,10 @@ export function MembersPage() {
       fetchMembers();
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : t('organization.members.removeFailed', { defaultValue: 'Failed to remove member' }),
+        resolveOrgErrorMessage(err, t, {
+          key: 'organization.members.removeFailed',
+          defaultValue: 'Failed to remove member',
+        }),
       );
     }
   };
@@ -156,8 +165,19 @@ export function MembersPage() {
               <div className="truncate text-xs text-muted-foreground">{member.user?.email ?? '—'}</div>
             </div>
 
-            <Badge variant="outline" className="shrink-0 capitalize">
-              {member.role}
+            {/* objectui#4474 — the role badge used to render the raw server
+                identifier under CSS `capitalize`, which made `owner` look like
+                a label in English and left it untranslated everywhere else. It
+                now reads the same shared map the role dropdown and the
+                role-change menu below already read, so one role has one name
+                across the whole feature. `capitalize` goes with it: the map's
+                values are already cased. */}
+            <Badge
+              variant="outline"
+              className="shrink-0"
+              data-testid={`member-role-badge-${member.id}`}
+            >
+              {resolveOrgRoleLabel(member.role, t)}
             </Badge>
 
             {member.createdAt && (
@@ -168,7 +188,16 @@ export function MembersPage() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Member actions">
+                {/* Icon-only: this aria-label is the ONLY name a screen reader
+                    gets for the row's action menu (objectui#4474). */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  aria-label={t('organization.members.memberActions', {
+                    defaultValue: 'Member actions',
+                  })}
+                >
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

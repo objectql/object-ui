@@ -2162,6 +2162,7 @@ const de = {
     members: "Mitglieder",
     settings: "Arbeitsbereichseinstellungen",
     multiOrgDisabled: "Das Erstellen neuer Organisationen ist auf dieser Instanz deaktiviert.",
+    createFailed: 'Arbeitsbereich konnte nicht erstellt werden',
   },
   help: {
     onThisPage: "Auf dieser Seite",
@@ -2523,6 +2524,23 @@ const de = {
     noMatches: "Keine Organisationen entsprechen Ihrer Suche.",
   },
   organization: {
+    roles: {
+      owner: 'Eigentümer',
+      admin: 'Administrator',
+      delegatedAdmin: 'Delegierter Administrator',
+      member: 'Mitglied',
+    },
+    errors: {
+      notAllowedToInvite: 'Sie dürfen keine Benutzer in diese Organisation einladen.',
+      notAllowedToInviteWithRole: 'Sie dürfen keine Benutzer mit dieser Rolle einladen.',
+      alreadyInvited: 'Dieser Benutzer wurde bereits in diese Organisation eingeladen.',
+      organizationExists: 'Diese Organisation existiert bereits.',
+      slugTaken: 'Dieser URL-Slug ist bereits vergeben.',
+      notAllowedToCreate: 'Sie dürfen keine neue Organisation erstellen.',
+      notTheRecipient: 'Sie sind nicht der Empfänger dieser Einladung.',
+      invitationNotFound: 'Diese Einladung existiert nicht mehr oder ist abgelaufen.',
+      unknown: 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.',
+    },
     backToList: "Zurück zu den Organisationen",
     notFound: "Organisation nicht gefunden",
     notFoundDescription: "Diese Organisation existiert nicht oder Sie haben keinen Zugriff darauf.",
@@ -2542,6 +2560,8 @@ const de = {
       removeFailed: "Mitglied konnte nicht entfernt werden",
       roleUpdated: "Rolle aktualisiert",
       roleUpdateFailed: "Rolle konnte nicht aktualisiert werden",
+      memberActions: 'Mitgliedsaktionen',
+      loadFailed: 'Mitglieder konnten nicht geladen werden',
     },
     invitations: {
       title: "Einladungen",
@@ -2568,6 +2588,9 @@ const de = {
       sentDescription: "Teilen Sie den folgenden Link mit der eingeladenen Person. Sie muss sich anmelden, um anzunehmen.",
       linkLabel: "Annahme-Link",
       invitedAs: "{{email}} als {{role}} eingeladen",
+      copyLinkLabel: 'Einladungslink kopieren',
+      loadFailed: 'Einladungen konnten nicht geladen werden',
+      inviteFailed: 'Mitglied konnte nicht eingeladen werden',
       status: {
         all: "Alle",
         pending: "Ausstehend",

@@ -2236,6 +2236,7 @@ const zh = {
     members: '成员',
     settings: '工作区设置',
     multiOrgDisabled: '此实例已禁用创建新组织。',
+    createFailed: '创建工作区失败',
   },
   help: {
     keyboardShortcuts: '键盘快捷键',
@@ -2640,6 +2641,23 @@ const zh = {
     noMatches: '没有匹配的工作区。',
   },
   organization: {
+    roles: {
+      owner: '所有者',
+      admin: '管理员',
+      delegatedAdmin: '受托管理员',
+      member: '成员',
+    },
+    errors: {
+      notAllowedToInvite: '您无权邀请用户加入该组织。',
+      notAllowedToInviteWithRole: '您无权以该角色邀请用户。',
+      alreadyInvited: '该用户已被邀请加入本组织。',
+      organizationExists: '该组织已存在。',
+      slugTaken: '该标识已被占用。',
+      notAllowedToCreate: '您无权创建新组织。',
+      notTheRecipient: '您不是该邀请的收件人。',
+      invitationNotFound: '该邀请已失效或已过期。',
+      unknown: '出了点问题，请重试。',
+    },
     backToList: '返回组织列表',
     notFound: '未找到组织',
     notFoundDescription: '该组织不存在，或您没有访问权限。',
@@ -2659,6 +2677,8 @@ const zh = {
       removeFailed: '移除成员失败',
       roleUpdated: '角色已更新',
       roleUpdateFailed: '更新角色失败',
+      memberActions: '成员操作',
+      loadFailed: '加载成员失败',
     },
     invitations: {
       title: '邀请',
@@ -2685,6 +2705,9 @@ const zh = {
       sentDescription: '请将下方链接发送给受邀人。对方需要登录后才能接受。',
       linkLabel: '接受链接',
       invitedAs: '{{email}} 已以 {{role}} 身份受邀',
+      copyLinkLabel: '复制邀请链接',
+      loadFailed: '加载邀请失败',
+      inviteFailed: '邀请成员失败',
       status: {
         all: '全部',
         pending: '等待中',

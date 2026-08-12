@@ -2336,6 +2336,7 @@ const en = {
     members: 'Members',
     settings: 'Workspace settings',
     multiOrgDisabled: 'Creating new organizations is disabled on this instance.',
+    createFailed: 'Failed to create workspace',
   },
   help: {
     onThisPage: 'On this page',
@@ -2755,6 +2756,23 @@ const en = {
   // is the org PICKER — same domain, different surface, and the singular /
   // plural spelling is the only thing telling them apart at a call site.
   organization: {
+    roles: {
+      owner: 'Owner',
+      admin: 'Admin',
+      delegatedAdmin: 'Delegated Admin',
+      member: 'Member',
+    },
+    errors: {
+      notAllowedToInvite: 'You are not allowed to invite users to this organization',
+      notAllowedToInviteWithRole: 'You are not allowed to invite a user with this role',
+      alreadyInvited: 'This user has already been invited to this organization',
+      organizationExists: 'Organization already exists',
+      slugTaken: 'That URL slug is already taken',
+      notAllowedToCreate: 'You are not allowed to create a new organization',
+      notTheRecipient: 'You are not the recipient of the invitation',
+      invitationNotFound: 'This invitation no longer exists or has expired',
+      unknown: 'Something went wrong. Please try again.',
+    },
     backToList: 'Back to organizations',
     notFound: 'Organization not found',
     notFoundDescription: 'This organization does not exist or you do not have access.',
@@ -2774,6 +2792,8 @@ const en = {
       removeFailed: 'Failed to remove member',
       roleUpdated: 'Role updated',
       roleUpdateFailed: 'Failed to update role',
+      memberActions: 'Member actions',
+      loadFailed: 'Failed to load members',
     },
     invitations: {
       title: 'Invitations',
@@ -2803,6 +2823,9 @@ const en = {
       sentDescription: 'Share the link below with the invitee. They will need to sign in to accept.',
       linkLabel: 'Accept link',
       invitedAs: '{{email}} invited as {{role}}',
+      copyLinkLabel: 'Copy invitation link',
+      loadFailed: 'Failed to load invitations',
+      inviteFailed: 'Failed to invite member',
       status: {
         all: 'All',
         pending: 'Pending',

@@ -27,6 +27,8 @@ import { Loader2, Copy, Check, X, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOrgContext } from './orgContext';
 import { resolveConsoleUrl } from '../resolveHomeUrl';
+import { resolveOrgRoleLabel } from '../orgRoleLabel';
+import { resolveOrgErrorMessage } from '../orgErrorMessage';
 
 type StatusFilter = 'all' | 'pending' | 'accepted' | 'rejected' | 'canceled';
 
@@ -63,11 +65,16 @@ export function InvitationsPage() {
       const data = await listInvitations(org.id);
       setInvitations(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load invitations');
+      setError(
+        resolveOrgErrorMessage(err, t, {
+          key: 'organization.invitations.loadFailed',
+          defaultValue: 'Failed to load invitations',
+        }),
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [org.id, listInvitations]);
+  }, [org.id, listInvitations, t]);
 
   useEffect(() => {
     fetchInvitations();
@@ -98,9 +105,10 @@ export function InvitationsPage() {
       fetchInvitations();
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : t('organization.invitations.cancelFailed', { defaultValue: 'Failed to cancel invitation' }),
+        resolveOrgErrorMessage(err, t, {
+          key: 'organization.invitations.cancelFailed',
+          defaultValue: 'Failed to cancel invitation',
+        }),
       );
     }
   };
@@ -197,8 +205,15 @@ export function InvitationsPage() {
                 )}
               </div>
 
-              <Badge variant="outline" className="shrink-0 capitalize">
-                {inv.role}
+              {/* Same shared role map as the members badge and the invite
+                  dropdown (objectui#4474) — this one was a sibling holdout the
+                  card's table did not reach. */}
+              <Badge
+                variant="outline"
+                className="shrink-0"
+                data-testid={`invitation-role-badge-${inv.id}`}
+              >
+                {resolveOrgRoleLabel(inv.role, t)}
               </Badge>
 
               <Badge variant={statusBadgeVariant(inv.status)} className="shrink-0 capitalize">
@@ -212,7 +227,9 @@ export function InvitationsPage() {
                     size="icon"
                     className="h-8 w-8"
                     onClick={() => handleCopyLink(inv)}
-                    aria-label="Copy invitation link"
+                    aria-label={t('organization.invitations.copyLinkLabel', {
+                      defaultValue: 'Copy invitation link',
+                    })}
                   >
                     {copiedId === inv.id ? (
                       <Check className="h-4 w-4 text-green-600" />
@@ -225,7 +242,9 @@ export function InvitationsPage() {
                     size="icon"
                     className="h-8 w-8 text-destructive hover:text-destructive"
                     onClick={() => setCancelingInvitation(inv)}
-                    aria-label="Cancel invitation"
+                    aria-label={t('organization.invitations.cancelAction', {
+                      defaultValue: 'Cancel invitation',
+                    })}
                   >
                     <X className="h-4 w-4" />
                   </Button>

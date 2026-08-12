@@ -2161,6 +2161,7 @@ const pt = {
     members: "Membros",
     settings: "Configurações do espaço de trabalho",
     multiOrgDisabled: "A criação de novas organizações está desativada nesta instância.",
+    createFailed: 'Falha ao criar o espaço de trabalho',
   },
   help: {
     onThisPage: "Nesta página",
@@ -2522,6 +2523,23 @@ const pt = {
     noMatches: "Nenhuma organização corresponde à sua pesquisa.",
   },
   organization: {
+    roles: {
+      owner: 'Proprietário',
+      admin: 'Administrador',
+      delegatedAdmin: 'Administrador delegado',
+      member: 'Membro',
+    },
+    errors: {
+      notAllowedToInvite: 'Você não tem permissão para convidar usuários para esta organização.',
+      notAllowedToInviteWithRole: 'Você não tem permissão para convidar um usuário com esta função.',
+      alreadyInvited: 'Este usuário já foi convidado para esta organização.',
+      organizationExists: 'Essa organização já existe.',
+      slugTaken: 'Esse slug já está em uso.',
+      notAllowedToCreate: 'Você não tem permissão para criar uma nova organização.',
+      notTheRecipient: 'Você não é o destinatário deste convite.',
+      invitationNotFound: 'Este convite não existe mais ou expirou.',
+      unknown: 'Algo deu errado. Tente novamente.',
+    },
     backToList: "Voltar para as organizações",
     notFound: "Organização não encontrada",
     notFoundDescription: "Esta organização não existe ou você não tem acesso.",
@@ -2541,6 +2559,8 @@ const pt = {
       removeFailed: "Falha ao remover o membro",
       roleUpdated: "Função atualizada",
       roleUpdateFailed: "Falha ao atualizar a função",
+      memberActions: 'Ações do membro',
+      loadFailed: 'Falha ao carregar os membros',
     },
     invitations: {
       title: "Convites",
@@ -2567,6 +2587,9 @@ const pt = {
       sentDescription: "Compartilhe o link abaixo com a pessoa convidada. Ela precisará entrar para aceitar.",
       linkLabel: "Link de aceitação",
       invitedAs: "{{email}} convidado como {{role}}",
+      copyLinkLabel: 'Copiar link do convite',
+      loadFailed: 'Falha ao carregar os convites',
+      inviteFailed: 'Falha ao convidar o membro',
       status: {
         all: "Todos",
         pending: "Pendente",

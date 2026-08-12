@@ -2164,6 +2164,7 @@ const fr = {
     members: "Membres",
     settings: "Paramètres de l'espace de travail",
     multiOrgDisabled: "La création de nouvelles organisations est désactivée sur cette instance.",
+    createFailed: "Échec de la création de l'espace de travail",
   },
   help: {
     onThisPage: "Sur cette page",
@@ -2525,6 +2526,23 @@ const fr = {
     noMatches: "Aucune organisation ne correspond à votre recherche.",
   },
   organization: {
+    roles: {
+      owner: 'Propriétaire',
+      admin: 'Administrateur',
+      delegatedAdmin: 'Administrateur délégué',
+      member: 'Membre',
+    },
+    errors: {
+      notAllowedToInvite: "Vous n'êtes pas autorisé à inviter des utilisateurs dans cette organisation.",
+      notAllowedToInviteWithRole: "Vous n'êtes pas autorisé à inviter un utilisateur avec ce rôle.",
+      alreadyInvited: 'Cet utilisateur a déjà été invité dans cette organisation.',
+      organizationExists: 'Cette organisation existe déjà.',
+      slugTaken: 'Ce slug est déjà utilisé.',
+      notAllowedToCreate: "Vous n'êtes pas autorisé à créer une nouvelle organisation.",
+      notTheRecipient: "Vous n'êtes pas le destinataire de cette invitation.",
+      invitationNotFound: "Cette invitation n'existe plus ou a expiré.",
+      unknown: 'Une erreur est survenue. Veuillez réessayer.',
+    },
     backToList: "Retour aux organisations",
     notFound: "Organisation introuvable",
     notFoundDescription: "Cette organisation n'existe pas ou vous n'y avez pas accès.",
@@ -2544,6 +2562,8 @@ const fr = {
       removeFailed: "Impossible de retirer le membre",
       roleUpdated: "Rôle mis à jour",
       roleUpdateFailed: "Impossible de mettre à jour le rôle",
+      memberActions: 'Actions du membre',
+      loadFailed: 'Échec du chargement des membres',
     },
     invitations: {
       title: "Invitations",
@@ -2570,6 +2590,9 @@ const fr = {
       sentDescription: "Partagez le lien ci-dessous avec la personne invitée. Elle devra se connecter pour accepter.",
       linkLabel: "Lien d'acceptation",
       invitedAs: "{{email}} invité en tant que {{role}}",
+      copyLinkLabel: "Copier le lien d'invitation",
+      loadFailed: 'Échec du chargement des invitations',
+      inviteFailed: "Échec de l'invitation du membre",
       status: {
         all: "Toutes",
         pending: "En attente",

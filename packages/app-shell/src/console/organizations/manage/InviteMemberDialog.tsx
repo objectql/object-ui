@@ -23,12 +23,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@object-ui/components';
-import { useAuth, invitableOrgRoles, ORG_ROLE_LABELS, ORG_ROLE_MEMBER } from '@object-ui/auth';
+import { useAuth, invitableOrgRoles, ORG_ROLE_MEMBER } from '@object-ui/auth';
 import type { AuthInvitation, DelegableScope, OrgRole } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { resolveConsoleUrl } from '../resolveHomeUrl';
+import { resolveOrgRoleLabel } from '../orgRoleLabel';
+import { resolveOrgErrorMessage } from '../orgErrorMessage';
 
 interface InviteMemberDialogProps {
   organizationId: string;
@@ -125,12 +127,19 @@ export function InviteMemberDialog({
         setCreatedInvitation(inv);
         onInvited?.(inv);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to invite member');
+        // objectui#4474 — better-auth's refusal carries a machine `code` beside
+        // its English sentence; map the code, never the text.
+        setError(
+          resolveOrgErrorMessage(err, t, {
+            key: 'organization.invitations.inviteFailed',
+            defaultValue: 'Failed to invite member',
+          }),
+        );
       } finally {
         setIsSubmitting(false);
       }
     },
-    [email, role, organizationId, inviteMember, onInvited, canPlace, businessUnitId, positions],
+    [email, role, organizationId, inviteMember, onInvited, canPlace, businessUnitId, positions, t],
   );
 
   // The invitee opens this link outside React Router, so it must carry the
@@ -178,7 +187,19 @@ export function InviteMemberDialog({
                   className="font-mono text-xs"
                   onFocus={(e) => e.currentTarget.select()}
                 />
-                <Button type="button" variant="outline" size="icon" onClick={handleCopy} aria-label="Copy">
+                {/* Icon-only, and it was labelled with a bare English "Copy"
+                    (objectui#4474) — a seventh site of the same class as the
+                    card's three. Shares the invitations row's key: same action,
+                    same words. */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={handleCopy}
+                  aria-label={t('organization.invitations.copyLinkLabel', {
+                    defaultValue: 'Copy invitation link',
+                  })}
+                >
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
@@ -186,7 +207,7 @@ export function InviteMemberDialog({
                 {t('organization.invitations.invitedAs', {
                   defaultValue: '{{email}} invited as {{role}}',
                   email: createdInvitation.email,
-                  role: createdInvitation.role,
+                  role: resolveOrgRoleLabel(createdInvitation.role, t),
                 })}
               </p>
             </div>
@@ -235,7 +256,7 @@ export function InviteMemberDialog({
                   <SelectContent>
                     {roleOptions.map((r) => (
                       <SelectItem key={r} value={r} data-testid={`invite-role-${r}`}>
-                        {t(ORG_ROLE_LABELS[r].key, { defaultValue: ORG_ROLE_LABELS[r].defaultValue })}
+                        {resolveOrgRoleLabel(r, t)}
                       </SelectItem>
                     ))}
                   </SelectContent>

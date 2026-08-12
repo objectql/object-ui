@@ -2166,6 +2166,7 @@ const es = {
     members: "Miembros",
     settings: "Configuración del espacio de trabajo",
     multiOrgDisabled: "La creación de nuevas organizaciones está deshabilitada en esta instancia.",
+    createFailed: 'No se pudo crear el espacio de trabajo',
   },
   help: {
     onThisPage: "En esta página",
@@ -2527,6 +2528,23 @@ const es = {
     noMatches: "Ninguna organización coincide con tu búsqueda.",
   },
   organization: {
+    roles: {
+      owner: 'Propietario',
+      admin: 'Administrador',
+      delegatedAdmin: 'Administrador delegado',
+      member: 'Miembro',
+    },
+    errors: {
+      notAllowedToInvite: 'No tiene permiso para invitar usuarios a esta organización.',
+      notAllowedToInviteWithRole: 'No tiene permiso para invitar a un usuario con este rol.',
+      alreadyInvited: 'Este usuario ya ha sido invitado a esta organización.',
+      organizationExists: 'Esa organización ya existe.',
+      slugTaken: 'Ese slug ya está en uso.',
+      notAllowedToCreate: 'No tiene permiso para crear una organización nueva.',
+      notTheRecipient: 'No es el destinatario de esta invitación.',
+      invitationNotFound: 'Esta invitación ya no existe o ha caducado.',
+      unknown: 'Algo salió mal. Inténtelo de nuevo.',
+    },
     backToList: "Volver a las organizaciones",
     notFound: "Organización no encontrada",
     notFoundDescription: "Esta organización no existe o no tienes acceso.",
@@ -2546,6 +2564,8 @@ const es = {
       removeFailed: "No se pudo eliminar al miembro",
       roleUpdated: "Rol actualizado",
       roleUpdateFailed: "No se pudo actualizar el rol",
+      memberActions: 'Acciones del miembro',
+      loadFailed: 'No se pudieron cargar los miembros',
     },
     invitations: {
       title: "Invitaciones",
@@ -2572,6 +2592,9 @@ const es = {
       sentDescription: "Comparte el enlace de abajo con la persona invitada. Tendrá que iniciar sesión para aceptarla.",
       linkLabel: "Enlace de aceptación",
       invitedAs: "{{email}} invitado como {{role}}",
+      copyLinkLabel: 'Copiar enlace de invitación',
+      loadFailed: 'No se pudieron cargar las invitaciones',
+      inviteFailed: 'No se pudo invitar al miembro',
       status: {
         all: "Todas",
         pending: "Pendiente",
