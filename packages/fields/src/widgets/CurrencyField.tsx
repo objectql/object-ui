@@ -3,7 +3,7 @@ import { Input, EmptyValue } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
 import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
-import { resolveFieldCurrency, currencyFractionDigits } from '../currency';
+import { resolveFieldCurrency, currencyFractionDigits, currencySymbol } from '../currency';
 
 /**
  * Format currency value for display. When `currency` is undefined the value
@@ -45,10 +45,6 @@ function formatAmount(
     return value.toFixed(precision);
   }
 }
-
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  USD: '$',
-};
 
 export function CurrencyField({ value, onChange, field, readonly, error, className, ...props }: FieldWidgetComponentProps<number>) {
   const currencyField = field as any;
@@ -96,7 +92,16 @@ export function CurrencyField({ value, onChange, field, readonly, error, classNa
     }
   };
 
-  const symbol = currency ? (currency === 'USD' ? '$' : currency) : '';
+  // ONE channel for the symbol (objectui#4414). This used to be a hand-written
+  // `currency === 'USD' ? '$' : currency` ternary, with a dead one-entry
+  // `CURRENCY_SYMBOLS` map sitting two lines above it restating the same fact —
+  // a table that looked like the place to add a currency but that nothing read.
+  // Both were hand copies of knowledge `Intl` already carries, and both are
+  // gone: `currencySymbol` reads the `currency` part of the SAME format the
+  // readonly branch above renders amounts with, so the two modes of this widget
+  // can no longer disagree (they did: `JPY` in the adornment, `¥1,235` in the
+  // readonly span). USD at the display-locale default is `$` either way.
+  const symbol = currency ? currencySymbol(currency, locale) : '';
 
   return (
     <div className="relative">
