@@ -24,7 +24,7 @@
  * header no matter which rows kept a trigger.
  */
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
@@ -45,6 +45,8 @@ const MIXED_ROWS = [
 
 /** The real `userActions.edit.visibleWhen` shape (objectui#2614). */
 const NOT_FROZEN = 'record.frozen != true';
+/** Its `disabledWhen` counterpart — HOLDS for the frozen rows, so they grey out. */
+const IS_FROZEN = 'record.frozen == true';
 
 const BASE_SCHEMA = {
   type: 'data-table',
@@ -152,6 +154,37 @@ describe('data-table row overflow menu — the trigger counts renderable items (
     });
     expect(triggers()).toHaveLength(0);
   });
+
+  /**
+   * The other side of #3562's rule, observed where a user meets it: a row whose
+   * only item is greyed out is NOT an empty menu. `disabledWhen` is a rendering
+   * verdict, not a visibility one, so the item counts, the trigger survives, and
+   * what it opens is that item — present and `aria-disabled` (objectui#4354).
+   *
+   * End-to-end on purpose: the two halves live apart — the count in
+   * `planDataTableRowMenu`, the greying in `DataTableBuiltinRowActionItem` — and
+   * each half's own test stays green while the other regresses. Neither could
+   * observe this pairing before: the planner's cases read its return value, and
+   * the item's own cases (`data-table-builtin-row-action-predicates.test.tsx`)
+   * render the item directly inside an already-open menu, never through the
+   * table that decides whether a trigger exists at all.
+   */
+  it('keeps the trigger for a row whose only item renders merely DISABLED', async () => {
+    renderTable({
+      data: FROZEN_ROWS,
+      onRowEdit: () => {},
+      rowEditPredicates: { disabledWhen: IS_FROZEN },
+    });
+
+    // Counted: a greyed-out item is still an item, so every row keeps its "⋮".
+    expect(triggers()).toHaveLength(FROZEN_ROWS.length);
+
+    // Radix opens on `pointerdown` (a plain click does nothing) and portals its
+    // content on the next tick, hence the async find.
+    fireEvent.pointerDown(triggers()[0], { button: 0, ctrlKey: false, pointerType: 'mouse' });
+    const item = await screen.findByTestId('row-action-builtin-edit');
+    expect(item).toHaveAttribute('aria-disabled', 'true');
+  });
 });
 
 /**
@@ -222,18 +255,24 @@ describe('planDataTableRowMenu', () => {
     expect(plan.count).toBe(2);
   });
 
-  it('still counts an item that renders merely DISABLED', () => {
+  // Renamed from "still counts an item that renders merely DISABLED"
+  // (objectui#4354). The planner never reads `disabledWhen`, so this fixture
+  // behaves identically to `{}` and could not pin the disabled-counting claim
+  // its old name made — that claim now lives where it can actually be observed,
+  // in "keeps the trigger for a row whose only item renders merely DISABLED"
+  // above. What survives here is the verdict this case really does decide, and
+  // it is worth deciding: a predicate object is not itself a gate.
+  it('an object with no `visibleWhen` does not hide the item', () => {
     // Typed as what the production caller actually hands the planner —
     // `schema.rowEditPredicates`, whose declared shape carries `disabledWhen`
     // alongside `visibleWhen` (`@object-ui/types`, objectui#2614). The planner's
-    // own parameter names only `visibleWhen`, because visibility is all it
-    // decides; a bare object literal therefore tripped excess-property checking
-    // once this package started type-checking its tests, while the identical
-    // value reaches it unremarked in production (objectui#4040). Deriving the
-    // annotation keeps the fixture honest about which key is being ignored,
-    // rather than deleting the key and quietly renaming the case.
+    // own parameter is now `Pick`ed from that same key rather than hand-restated
+    // (#4354), so it stays the deliberate `visibleWhen`-only subset: a bare
+    // object literal still trips excess-property checking, while the identical
+    // value reaches it unremarked in production (objectui#4040). Annotating from
+    // the authoring type keeps the fixture honest about which key is ignored.
     const editPredicates: DataTableSchema['rowEditPredicates'] = {
-      disabledWhen: 'record.frozen == true',
+      disabledWhen: IS_FROZEN,
     };
     const plan = planDataTableRowMenu({
       onRowEdit: noop,

@@ -189,6 +189,23 @@ function extractSaveErrorMessage(error: unknown): string {
 type RowActionDef = NonNullable<DataTableSchema['rowActionDefs']>[number];
 
 /**
+ * The authoring shape of the built-in row Edit/Delete predicates — derived from
+ * `DataTableSchema`, never restated by hand (objectui#4354). Everything below
+ * reads what the production caller hands it (`schema.rowEditPredicates` /
+ * `rowDeletePredicates`), so a hand-written `{ visibleWhen?: unknown; … }` here
+ * would be a second definition of one authoring shape, free to drift from the
+ * type it is supposed to mirror without a single test going red.
+ *
+ * The union of the two twins is deliberate: every consumer below serves BOTH
+ * built-ins (`name: 'edit' | 'delete'`), so it may only read keys that BOTH
+ * schema keys declare — if either twin dropped one, the read stops compiling
+ * instead of silently reading `undefined`.
+ */
+type BuiltinRowPredicates = NonNullable<
+  DataTableSchema['rowEditPredicates'] | DataTableSchema['rowDeletePredicates']
+>;
+
+/**
  * Evaluate a row-action visibility predicate the way the row menu's items do —
  * on the canonical CEL engine, failing CLOSED with a diagnosable warning — but
  * WITHOUT a hook.
@@ -234,9 +251,14 @@ function evalRowActionVisibility(
  *
  * `visibleWhen` counts as a declared gate by `!= null`, not by truthiness —
  * `visibleWhen: false` hides the item rather than reading as "ungated".
+ *
+ * The parameter is consumption-shaped — visibility is all this decides, so
+ * `disabledWhen` is deliberately absent — but `Pick`ed from the authoring type
+ * rather than hand-written, so it is a SUBSET of that type by construction
+ * (objectui#4354).
  */
 export function isBuiltinRowActionVisible(
-  predicates: { visibleWhen?: unknown } | undefined,
+  predicates: Pick<BuiltinRowPredicates, 'visibleWhen'> | undefined,
   name: 'edit' | 'delete',
   row: any,
   scope: Record<string, unknown>,
@@ -296,13 +318,23 @@ export interface DataTableRowMenuPlan {
  * trigger decision lives here and is recomputed for every row.
  *
  * Only visibility is decided here — a `disabled` item still renders (greyed
- * out) and still counts, exactly as before.
+ * out) and still counts, exactly as before. That counting is pinned where it
+ * can be OBSERVED, on the rendered menu, by
+ * `data-table-row-menu-empty-guard.test.tsx`'s "keeps the trigger for a row
+ * whose only item renders merely DISABLED".
+ *
+ * The predicate parameters are consumption-shaped — this function reads
+ * `visibleWhen` and nothing else, and the signature keeps saying so — but each
+ * is `Pick`ed from the authoring key its production caller passes, rather than
+ * hand-restated (objectui#4354). Same subset, minus the drift: a rename in
+ * `@object-ui/types` fails here at compile time instead of leaving a stale
+ * hand-copy that still type-checks against nothing.
  */
 export function planDataTableRowMenu(input: {
   onRowEdit?: unknown;
   onRowDelete?: unknown;
-  editPredicates?: { visibleWhen?: unknown };
-  deletePredicates?: { visibleWhen?: unknown };
+  editPredicates?: Pick<NonNullable<DataTableSchema['rowEditPredicates']>, 'visibleWhen'>;
+  deletePredicates?: Pick<NonNullable<DataTableSchema['rowDeletePredicates']>, 'visibleWhen'>;
   customActions: readonly RowActionDef[];
   row: any;
   scope: Record<string, unknown>;
@@ -392,7 +424,11 @@ export const DataTableRowActionItem: React.FC<{
  */
 export const DataTableBuiltinRowActionItem: React.FC<{
   name: 'edit' | 'delete';
-  predicates?: { visibleWhen?: unknown; disabledWhen?: unknown };
+  /**
+   * The whole authoring pair, because this component reads both keys — derived
+   * from `DataTableSchema` rather than hand-copied (objectui#4354).
+   */
+  predicates?: BuiltinRowPredicates;
   row: any;
   icon: React.ReactNode;
   label: string;
