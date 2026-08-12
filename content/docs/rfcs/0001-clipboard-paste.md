@@ -472,6 +472,15 @@ RFC is marked Accepted.
 
 Per Rule #2 (Documentation Driven Development):
 
+> **Status: planned, none of this has landed.** This RFC is still `Draft` (see
+> the front matter) and the capability it proposes was never implemented — there
+> is no `clipboard` submodule in `@object-ui/core`, and no `usePasteToGrid`,
+> `PastePreviewDialog` or `features.clipboardPaste` anywhere in the workspace.
+> The user guide named in item 2 below is therefore a **planned page that does
+> not exist**; the only clipboard code shipping today is `useCellClipboard` and
+> the `ImportWizard` parsers in `@object-ui/plugin-grid`. Read the paths in this
+> section as the plan, not as pages you can open.
+
 1. **This RFC** (`content/docs/rfcs/0001-clipboard-paste.md`) — frozen on
    acceptance.
 2. **User guide** (`content/docs/guide/clipboard-paste.md`) — written

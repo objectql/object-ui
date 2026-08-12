@@ -50,7 +50,7 @@ pnpm create @object-ui/plugin board
 npm create @object-ui/plugin board
 ```
 
-This produces a ready-to-build plugin under `packages/plugin-board/` with the correct `package.json`, Vite config, test file, and registry call already in place.
+This produces a ready-to-build plugin under `packages/plugin-board/` with the correct `package.json`, Vite config, test file, and registry call already in place. That directory — and the anatomy shown above — is what the generator writes into **your** workspace (`<cwd>/packages/plugin-<name>`, see `packages/create-plugin/src/index.ts`); it is not a package that ships in this repository, so do not expect to find it in a fresh ObjectUI checkout.
 
 After scaffolding, install dependencies:
 
