@@ -12,8 +12,33 @@ import { CalendarView, type CalendarEvent } from './CalendarView';
 import React from 'react';
 
 // Calendar View Renderer - Airtable-style calendar for displaying records as events
-ComponentRegistry.register('calendar-view', 
-  ({ schema, className, onAction, ...props }: { schema: CalendarViewSchema; className?: string; onAction?: (action: any) => void; [key: string]: any }) => {
+ComponentRegistry.register('calendar-view',
+  ({
+    schema,
+    className,
+    onAction,
+    // The authored SDUI `events` key, destructured out so the `{...props}`
+    // spread below cannot overwrite the `CalendarEvent[]` computed from
+    // `schema.data` (objectui#4433; the deny-list precedent is objectui#4357 /
+    // PR #4428, where `SchemaRenderer`'s injected schema-shaped props are
+    // stripped at the component's own signature).
+    //
+    // `events` is the ordinary action metadata of AGENTS.md section 4, legal on
+    // ANY node, and `SchemaRenderer` forwards it as a plain prop — it is not on
+    // that renderer's strip list. Both channels land here: the node's own
+    // `events` key and a `props: { events }` container, since the renderer
+    // spreads the container's contents too.
+    //
+    // Nothing is disabled by dropping it. No code in the renderer layer reads a
+    // node's `events` key — `SchemaRenderer` forwards it and nothing consumes
+    // it; this repo's action path is `properties.action` through `ActionRunner`.
+    // On this node type the key has never done anything but overwrite the
+    // calendar: an OBJECT threw `events is not iterable` (the reported crash),
+    // and an ARRAY silently replaced the computed calendar with itself. This
+    // component's real action channel is `onAction` below, which is untouched.
+    events: _authoredEvents,
+    ...props
+  }: { schema: CalendarViewSchema; className?: string; onAction?: (action: any) => void; [key: string]: any }) => {
     // Transform schema data to CalendarEvent format
     const events = React.useMemo(() => {
       if (!schema.data || !Array.isArray(schema.data)) return [];
@@ -58,8 +83,10 @@ ComponentRegistry.register('calendar-view',
     };
 
     return (
-      <CalendarView 
+      <CalendarView
         className={className}
+        // Always the computed array: the authored `events` key is destructured
+        // out above, so this spread can no longer reach it (objectui#4433).
         events={events}
         onEventClick={handleEventClick}
         // Pass validation or other props

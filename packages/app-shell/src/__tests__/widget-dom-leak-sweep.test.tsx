@@ -35,10 +35,15 @@
  *
  * 5 of 23 targets leak. The two clean packages are clean for opposite reasons
  * worth keeping straight: `plugin-charts` never spreads the node onto its
- * container at all, while `plugin-calendar` is clean only because its one
- * spreading target is swept with a canary WITHHELD — authoring `events` crashes
- * it outright (objectui#4433), which is a worse failure than the leak this gate
- * was looking for, and is pinned by its own case below.
+ * container at all, while `plugin-calendar`'s components take a declared prop
+ * list and drop what they do not name, so the node's keys never reach an
+ * element.
+ *
+ * `calendar-view` was originally swept with the `events` canary WITHHELD, because
+ * authoring it crashed the component outright (objectui#4433) — a worse failure
+ * than the leak this gate was looking for, and one that would have read as a
+ * clean pass. That is fixed, so the omission is gone and the target is swept
+ * with the full canary set; section 5 below carries what is left of it.
  *
  * ## The divergence this repo is living with, recorded deliberately
  *
@@ -396,23 +401,6 @@ const CALENDAR_OBJECT_EXTRAS = {
   titleField: 'name',
 };
 
-/**
- * `plugin-calendar:calendar-view` is rendered WITHOUT the `events` canary.
- *
- * Not a convenience: authoring `events` — the ordinary SDUI action metadata of
- * AGENTS.md section 4, legal on any node — CRASHES this component outright. Its
- * renderer computes a `CalendarEvent[]` from `schema.data`, passes it as
- * `events={…}`, and then spreads `{...props}` AFTER it, so the SDUI `events`
- * object overwrites the array and `CalendarView` throws `events is not
- * iterable`. `SchemaErrorBoundary` then renders its own tidy alert, which has no
- * leaked attributes — so including the canary here would replace a leak
- * measurement with a crash measurement AND read as clean (trap 3).
- *
- * The crash is pinned instead by its own case below, so it cannot regress
- * unnoticed while the fix is pending.
- */
-const CALENDAR_VIEW_OMITS = ['events'] as const;
-
 const TARGETS: Readonly<Record<string, readonly Target[]>> = {
   'plugin-charts': [
     { type: 'plugin-charts:bar-chart', schemaExtras: { data: CHART_DATA }, ready: '.recharts-responsive-container' },
@@ -426,7 +414,7 @@ const TARGETS: Readonly<Record<string, readonly Target[]>> = {
     { type: 'view:chart', schemaExtras: OBJECT_CHART_EXTRAS, ready: '[data-slot="chart"]' },
   ],
   'plugin-calendar': [
-    { type: 'plugin-calendar:calendar-view', ready: '[role="region"][aria-label="Calendar"]', omitCanaries: CALENDAR_VIEW_OMITS },
+    { type: 'plugin-calendar:calendar-view', ready: '[role="region"][aria-label="Calendar"]' },
     { type: 'plugin-calendar:object-calendar', schemaExtras: CALENDAR_OBJECT_EXTRAS, ready: '[role="region"][aria-label="Calendar"]' },
     { type: 'view:calendar', schemaExtras: CALENDAR_OBJECT_EXTRAS, ready: '[role="region"][aria-label="Calendar"]' },
   ],
@@ -936,21 +924,37 @@ describe.each(Object.keys(TARGETS))(
 );
 
 /* ════════════════════════════════════════════════════════════════════════════
- * 5. The withheld canary is a recorded defect, not an exemption
+ * 5. The canary that was withheld, and is not any more
  * ══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * `plugin-calendar:calendar-view` is swept without the `events` canary
- * ({@link CALENDAR_VIEW_OMITS}). This case is the price of that omission: it
- * pins the crash that forced it, so the defect cannot regress unnoticed and the
- * omission cannot quietly outlive it.
+ * `plugin-calendar:calendar-view` used to be swept WITHOUT the `events` canary,
+ * because authoring `events` — the ordinary SDUI action metadata of AGENTS.md
+ * section 4, legal on any node — crashed the component outright: its renderer
+ * computed a `CalendarEvent[]`, passed it as `events={…}`, then spread
+ * `{...props}` AFTER it, so the authored object overwrote the array and
+ * `CalendarView` threw `events is not iterable`. A crashing render produces
+ * tidy, attribute-clean error-boundary DOM, so the canary had to be withheld or
+ * the target would have read as a clean pass (trap 3).
  *
- * When the crash is fixed, this case goes red and BOTH halves are removed in the
- * same change — the `omitCanaries` entry and this pin — putting `events` back
- * into the sweep for that target.
+ * objectui#4433 fixed that — the renderer destructures the authored key out
+ * before the spread — so BOTH halves came out in the same change: the
+ * `omitCanaries` entry is gone (this target is swept with the full canary set
+ * above, `events` included) and this case flipped from pinning the crash to
+ * pinning the render.
+ *
+ * It is kept rather than deleted because it is the DIAGNOSIS the sweep case
+ * cannot be: the sweep plants the whole canary set at once, so a regression
+ * there says only "calendar-view broke". This one plants `events` alone, and
+ * names the key.
+ *
+ * The `omitCanaries` facility itself stays. Nothing withholds a canary today,
+ * but it carries the discipline — a withheld canary is a recorded defect with
+ * its own pin, never a quiet exemption — that objectui#4425 phase 2 will need
+ * the next time a target cannot take the full set.
  */
-describe('the canary withheld from calendar-view records a real crash (objectui#4425)', () => {
-  it('authoring `events` on a calendar-view node throws instead of rendering', async () => {
+describe('the canary once withheld from calendar-view is swept again (objectui#4433)', () => {
+  it('authoring `events` on a calendar-view node renders the calendar', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
       render(
@@ -966,13 +970,18 @@ describe('the canary withheld from calendar-view records a real crash (objectui#
           />
         </SchemaRendererProvider>,
       );
+      // The real component, not the error boundary `SchemaErrorBoundary`
+      // rendered here before the fix.
       await waitFor(() => {
-        expect(document.body.textContent ?? '').toContain(ERROR_BOUNDARY_MARKER);
+        expect(
+          document.body.querySelector('[role="region"][aria-label="Calendar"]'),
+        ).not.toBeNull();
       });
-      // The mechanism, not just the symptom: the SDUI `events` OBJECT lands on
-      // `CalendarView`'s `events` ARRAY prop because the renderer's `{...props}`
-      // is spread after it.
-      expect(document.body.textContent ?? '').toContain('events is not iterable');
+      expect(document.body.textContent ?? '').not.toContain(ERROR_BOUNDARY_MARKER);
+      // The mechanism, not just the symptom: the authored `events` OBJECT no
+      // longer reaches `CalendarView`'s `events` ARRAY prop, so nothing tries to
+      // iterate it.
+      expect(document.body.textContent ?? '').not.toContain('events is not iterable');
     } finally {
       errors.mockRestore();
     }
