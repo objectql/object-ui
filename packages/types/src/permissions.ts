@@ -42,7 +42,9 @@ export type PermissionEffect = 'allow' | 'deny';
  * used to declare a second one (`permissions: ObjectLevelPermission[]`,
  * required) that no consumer ever read — the evaluator family walks `inherits`
  * and matches on `name` — so it was retired rather than left as an authoring
- * surface whose values are silently ignored (objectui#4288).
+ * surface whose values are silently ignored (objectui#4288). The element type
+ * of that retired field, `ObjectLevelPermission`, lost its last structural
+ * referent with it and has now been retired too (objectui#4364).
  */
 export interface RoleDefinition {
   /** Unique role identifier */
@@ -55,18 +57,6 @@ export interface RoleDefinition {
   inherits?: string[];
   /** Whether this is a system role */
   system?: boolean;
-}
-
-/** Object-level permission assignment */
-export interface ObjectLevelPermission {
-  /** Target object name */
-  object: string;
-  /** Allowed actions */
-  actions: PermissionAction[];
-  /** Permission effect */
-  effect?: PermissionEffect;
-  /** Conditions for conditional permissions */
-  conditions?: PermissionCondition[];
 }
 
 /** Field-level permission */
@@ -93,7 +83,17 @@ export interface RowLevelPermission {
   description?: string;
 }
 
-/** Permission condition for conditional access */
+/**
+ * Permission condition for conditional access.
+ *
+ * Retained by measurement, not by default. objectui#4364 proposed retiring this
+ * type alongside `ObjectLevelPermission`, on the premise that its only referent
+ * was that type's `conditions` field. The premise did not hold: `evaluateCondition`
+ * in `@object-ui/permissions` takes this shape as its parameter type and
+ * implements all eleven operators declared below, under a 26-case suite that
+ * covers each operator and the prototype-pollution guard. So this still types a
+ * real reader and is not dead surface — only `ObjectLevelPermission` was.
+ */
 export interface PermissionCondition {
   /** Field to evaluate */
   field: string;
@@ -103,7 +103,19 @@ export interface PermissionCondition {
   value: unknown;
 }
 
-/** Complete permission configuration for an object */
+/**
+ * Complete permission configuration for an object — the single wired home for
+ * object-scoped grants, and the shape the evaluator actually reads.
+ *
+ * `roles` declares its inner grant shape inline. A second, parallel declaration
+ * of the same idea (`ObjectLevelPermission`, an `{ object, actions, effect?,
+ * conditions? }` record) was exported from this module until objectui#4364.
+ * Once `RoleDefinition.permissions` was retired (objectui#4288) nothing
+ * constructed, accepted or read one, so it was removed rather than left named
+ * in the public surface — where a type the runtime does not honour reads as an
+ * alternative way to express grants. If role-direct grants gain a business
+ * need, they come back together with their reader.
+ */
 export interface ObjectPermissionConfig {
   /** Object name */
   object: string;
