@@ -39,6 +39,10 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.editInline': 'Edit',
   'detail.save': 'Save',
   'detail.saveChanges': 'Save changes',
+  // objectui#4396 — InlineEditSaveBar's in-flight label. Read bare
+  // (`t('detail.saving')`, no inline `defaultValue`), so before this row a
+  // provider-less host rendered the raw key `detail.saving` into the button.
+  'detail.saving': 'Saving…',
   'detail.editFieldsInline': 'Edit fields inline',
   'detail.editInlineHint': 'Double-click to edit',
   'detail.cancel': 'Cancel',

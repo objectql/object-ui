@@ -78,7 +78,6 @@ const ru = {
     delete: "Удалить",
     edit: "Редактировать",
     create: "Создать",
-    search: "Поиск",
     filter: "Фильтр",
     reset: "Сбросить",
     confirm: "Подтвердить",

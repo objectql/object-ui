@@ -107,6 +107,13 @@ const DESIGNER_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'appDesigner.widgetHeight': 'Height',
   'appDesigner.dashboardPreview': 'Dashboard Preview',
   'appDesigner.noWidgetsPreview': 'No widgets to preview',
+  // objectui#4396 — DashboardEditor's inspector heading, its add-widget picker
+  // label, and the edit half of its preview/edit toggle. All three are read
+  // bare (no inline `defaultValue`), so before these rows a provider-less host
+  // rendered the raw keys into a heading, a label and an `aria-label`.
+  'appDesigner.widgetProperties': 'Widget Properties',
+  'appDesigner.addWidget': 'Add Widget',
+  'appDesigner.modeEdit': 'Edit',
   // Page Canvas Editor
   'appDesigner.pageCanvasEditor': 'Page Canvas Editor',
   'appDesigner.emptyPage': 'Empty page. Click a button above to add a component.',
@@ -192,6 +199,12 @@ const DESIGNER_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'appDesigner.fieldDesigner.typeCategory.advanced': 'Advanced',
   // Common
   'common.edit': 'Edit',
+  // objectui#4396 — the confirm label on FieldDesigner's and ObjectManager's
+  // delete dialogs (`confirmLabel={t('common.delete')}`, read bare). The census
+  // in PR #4372 recorded this key as "outside table, no default" without naming
+  // its consumer; both call sites resolve through THIS hook, so the row belongs
+  // here beside the other borrowed `common.*` entries — not in `packages/components`.
+  'common.delete': 'Delete',
 };
 
 /**

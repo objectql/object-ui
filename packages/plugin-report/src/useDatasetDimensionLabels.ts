@@ -2,7 +2,7 @@
 
 /**
  * useDatasetDimensionLabels — the analytics label net for dataset-bound
- * REPORTS (objectui#4330).
+ * REPORTS (objectui#4330), now a RE-EXPORT of the shared hook (objectui#4389).
  *
  * ## What this is
  *
@@ -20,14 +20,25 @@
  * form surfaces already translate select options through. Nothing here decides
  * what a label IS; it only carries the object metadata to the helpers that do.
  *
- * ## Why a report-local hook rather than a shared one
+ * ## Why this file is now three lines (objectui#4389)
  *
- * The natural home for this glue is `@object-ui/core`, beside the helpers it
- * calls. It is here instead because `packages/core` is held by another task in
- * flight (objectui#4040 tranche 5) and this card's surface is the two plugin
- * packages. The DUPLICATION is the fetch-and-memo wiring only — roughly the
- * shape `DatasetWidget`'s effect has — and never the resolution rules. Lifting
- * it into core once tranche 5 lands is filed as objectui#4389.
+ * It used to hold a report-local COPY of the React glue — the context read, the
+ * locale-free state, the effect, the memo — because `packages/core` was held by
+ * objectui#4040 tranche 5 while #4330 was in flight and that card's surface was
+ * the two plugin packages. `DatasetWidget` carried the same shape. The
+ * duplication was filed as objectui#4389 and is retired here.
+ *
+ * The glue did NOT land in `@object-ui/core` as the card originally proposed:
+ * that home was disproven by measurement and retired in the card's PM RULING #2
+ * — `SchemaRendererContext` is defined in `@object-ui/react`, which depends on
+ * core, so core importing it back is a cycle, and core is React-free by
+ * declaration, by content, and by AGENTS.md §3. What could legally move into
+ * core did (`loadDimensionFieldMeta`, `deriveDimensionLabelMaps`,
+ * `dimensionOptionTranslator` — all pure); the React wiring lives once in
+ * `@object-ui/react`, which both plugins already depend on.
+ *
+ * This file stays as the import path so `DatasetReportRenderer`'s three call
+ * sites are untouched, and so this rationale keeps a home next to its consumer.
  *
  * ## Why the read is issued at all (the #4263 boundary, amended by #4330)
  *
@@ -46,114 +57,18 @@
  * only for a terminal field that actually carries `options`, so a
  * text/number/date/lookup dimension yields no map and `relabelDimensions`
  * returns the caller's rows by identity.
- */
-
-import * as React from 'react';
-import {
-  buildDimensionLabelMap,
-  resolveDimensionFieldMeta,
-  type DimensionFieldMeta,
-  type OptionLabelTranslator,
-} from '@object-ui/core';
-import { SchemaRendererContext } from '@object-ui/react';
-import { useSafeFieldLabel } from '@object-ui/i18n';
-
-/** `{ dimension → { rowValue → displayLabel } }`, or null when nothing resolved. */
-export type DimensionLabelMaps = Record<string, Record<string, string>> | null;
-
-/**
- * Resolve the label maps for one dataset query's dimensions.
  *
- * @param object the dataset's base object, as the query result reported it
- * @param dimensionFields the result's `dimension → field path` map (a dotted
- *   path resolves against the relationship TARGET, ADR-0071 multi-hop included)
- * @param dimensions the dimension names this surface renders
+ * ## The two properties this surface INHERITS rather than restates
+ *
+ * Both are bug fixes, and both used to be written out here as well as in the
+ * dashboard — which is the drift objectui#4389 closed:
+ *
+ * - the read rides the host's AUTHENTICATED `apiFetch` (objectui#4121);
+ * - the fetched metadata stays LOCALE-FREE in state (objectui#4030 / PR #4324),
+ *   so a language switch re-labels in place instead of re-fetching.
+ *
+ * They are pinned once, at the shared hook, in
+ * `packages/react/src/hooks/__tests__/useDatasetDimensionLabels.test.tsx`.
  */
-export function useDatasetDimensionLabels(
-  object: string | undefined,
-  dimensionFields: Record<string, string> | undefined,
-  dimensions: string[],
-): DimensionLabelMaps {
-  const { fieldOptionLabel } = useSafeFieldLabel();
-  // The host's AUTHENTICATED fetch (objectui#4121) — the same channel the
-  // dashboard widget's identical read rides, falling back to the global one
-  // when no host supplies it. Read directly off the context rather than through
-  // a `useSchemaContext()` that throws, so a report rendered outside a host
-  // (every existing suite in this package) keeps degrading instead of crashing.
-  const apiFetch = React.useContext(SchemaRendererContext)?.apiFetch;
 
-  // Kept LOCALE-FREE in state, exactly as `DatasetWidget` keeps it (#4030):
-  // the bundle is applied in the memo below, so switching language re-labels in
-  // place instead of re-fetching the schema.
-  const [optionMeta, setOptionMeta] = React.useState<{
-    metaByPath: Record<string, DimensionFieldMeta>;
-    relabel: Array<{ dim: string; path: string }>;
-  } | null>(null);
-
-  // A string signature, for the same reason `useDatasetRows` uses one: `rows` /
-  // `columns` reach this renderer as arrays rebuilt on every render, so keying
-  // the effect on their identity would refetch forever.
-  const dims = dimensions.filter(Boolean);
-  const signature = `${object ?? ''}|${dims.join(',')}|${JSON.stringify(dimensionFields ?? null)}`;
-
-  React.useEffect(() => {
-    if (!object || dims.length === 0) {
-      setOptionMeta(null);
-      return;
-    }
-    const fieldOf = (dim: string) => (dimensionFields && dimensionFields[dim]) || dim;
-    let cancelled = false;
-    (async () => {
-      try {
-        const doFetch = apiFetch ?? fetch;
-        const loadObjectSchema = async (name: string) => {
-          const r = await doFetch(`/api/v1/meta/object/${encodeURIComponent(name)}`, {
-            headers: { accept: 'application/json' },
-            credentials: 'include',
-          });
-          const doc = await r.json().catch(() => null);
-          return doc?.item ?? doc?.data ?? doc;
-        };
-        const objSchema = await loadObjectSchema(object);
-        // ONE walk for every dimension, memoized per call — sibling dimensions
-        // sharing a relationship prefix fetch that object once.
-        const metaByPath = await resolveDimensionFieldMeta(
-          objSchema,
-          dims.map(fieldOf),
-          loadObjectSchema,
-        );
-        if (!cancelled) {
-          setOptionMeta({ metaByPath, relabel: dims.map((dim) => ({ dim, path: fieldOf(dim) })) });
-        }
-      } catch {
-        // Best-effort by construction: a failed read leaves the rows exactly as
-        // the server sent them, which is what this surface rendered before.
-        if (!cancelled) setOptionMeta(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature, apiFetch]);
-
-  return React.useMemo(() => {
-    if (!optionMeta) return null;
-    const { metaByPath, relabel } = optionMeta;
-    // One translator per resolved path, bound to the object that OWNS the
-    // terminal field — the relationship TARGET for a dotted path, not the
-    // dataset's base object, because that is the object the bundle key names.
-    const translatorFor = (path: string): OptionLabelTranslator | undefined => {
-      const meta = metaByPath[path];
-      const owner = meta?.object;
-      if (!owner) return undefined;
-      return (value, authored) => fieldOptionLabel(owner, meta.field, value, authored);
-    };
-    const labels: Record<string, Record<string, string>> = {};
-    for (const { dim, path } of relabel) {
-      const m = buildDimensionLabelMap(metaByPath[path]?.options, translatorFor(path));
-      if (m) labels[dim] = m;
-    }
-    return Object.keys(labels).length > 0 ? labels : null;
-  }, [optionMeta, fieldOptionLabel]);
-}
+export { useDatasetDimensionLabels, type DimensionLabelMaps } from '@object-ui/react';

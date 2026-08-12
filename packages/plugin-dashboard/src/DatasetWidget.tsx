@@ -26,16 +26,22 @@
  * objectui bumps its `@objectstack/spec` dependency (cross-repo spec skew).
  */
 
-import { useContext, useEffect, useMemo, useState } from 'react';
-import { SchemaRenderer, SchemaRendererContext } from '@object-ui/react';
+import { useEffect, useMemo, useState } from 'react';
+// `useDatasetDimensionMeta` is the analytics label net's SHARED React glue
+// (objectui#4389): the locale-free metadata read this widget and the dataset
+// report block both take, lifted out of the two longhand copies PR #4388 left
+// behind. It lives in `@object-ui/react` because it reads the host context —
+// see its file header for the measured dependency direction. This widget
+// layers its CHART-ONLY colour/order derivation on top, below.
+import { SchemaRenderer, useDatasetDimensionMeta } from '@object-ui/react';
 import {
   buildChartSeries,
   buildOptionColorMap,
-  buildDimensionLabelMap,
   buildCategoryOrder,
   relabelDimensions,
   localizeFieldOptions,
-  resolveDimensionFieldMeta,
+  deriveDimensionLabelMaps,
+  dimensionOptionTranslator,
   findChartSeriesRow,
   formatMeasure,
   formatDimensionValue,
@@ -53,8 +59,6 @@ import {
   pivotCellKey,
   compareToTrendLabelKey,
   type ChartSeriesBinding,
-  type DimensionFieldMeta,
-  type OptionLabelTranslator,
   type CompareToConfig,
   type DatasetResultField,
   type DatasetDrillRange,
@@ -706,15 +710,12 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // a user-scoped widget sent `{current_user_id}` to SQL as a literal, matched
   // no row, and rendered 0 with no error anywhere (framework #3574).
   const filterScope = useFilterScope();
-  // Host-authenticated fetch for the object-schema probe further down
-  // (objectui#4121). This widget takes its `dataSource` as a PROP and reads no
-  // other context, so the channel has to be read here — the same context the
-  // rest of the family reads (`ObjectChart`, `ObjectGantt`, `useViewData`,
-  // `useRecordEditable`), consulted DIRECTLY rather than via
-  // `useSchemaContext()`, which throws when no provider is mounted: a widget
-  // rendered outside a host (every existing suite in this package) must keep
-  // degrading to the global fetch instead of crashing the render.
-  const apiFetch = useContext(SchemaRendererContext)?.apiFetch;
+  // The object-schema probe's host-authenticated fetch (objectui#4121) is no
+  // longer read here: it moved INTO `useDatasetDimensionMeta` along with the
+  // rest of the read, so the property is stated once for both surfaces instead
+  // of once per surface (objectui#4389). The hook consults the context the same
+  // way this widget did — directly, not via a throwing `useSchemaContext()` —
+  // so a widget rendered outside a host still degrades to the global fetch.
   const rawFilter = widget?.filter;
   const runtimeFilter = useMemo(
     () => (rawFilter && typeof rawFilter === 'object' && Object.keys(rawFilter).length > 0
@@ -741,24 +742,6 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   const [state, setState] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; fields?: DatasetResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Array<Record<string, unknown>>; drillRanges?: Array<Record<string, DatasetDrillRange>>; totals?: DatasetTotals[]; error?: string }>({ status: 'idle', rows: [] });
   // Drill-through (ADR-0021 D2): the clicked bucket's record-list filter + title.
   const [drill, setDrill] = useState<{ filter: Record<string, unknown>; title: string } | null>(null);
-  // ── The analytics label net's INPUT: resolved field metadata, locale-free ──
-  // What the object-schema probe below found for this widget's dimensions —
-  // the raw `{ object, field, options }` per dimension field path, exactly as
-  // the metadata doc carries it. Everything the surface actually displays
-  // (per-category colours, {value → label} maps, the declared category order)
-  // is DERIVED from it during render, one memo down, because that derivation
-  // is where the locale bundle applies (objectui#4030): keeping the fetched
-  // metadata locale-free means switching language re-renders the labels
-  // instead of re-fetching the schema, and the i18n application sits at the
-  // net's output rather than inside its fetch.
-  const [optionMeta, setOptionMeta] = useState<{
-    metaByPath: Record<string, DimensionFieldMeta>;
-    /** The dimensions this widget relabels, paired with their field paths. */
-    relabel: Array<{ dim: string; path: string }>;
-    /** First dimension's path — chart wiring only; undefined on table/pivot. */
-    firstDimPath?: string;
-  } | null>(null);
-
   // Signature uses the RAW filter (stable) — the resolved one carries a
   // render-time `now` and would otherwise force a refetch loop. The
   // query-affecting options join it so editing a widget's granularity/sort in
@@ -790,116 +773,65 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature]);
 
-  // Resolve the dimensions' select/lookup field options. The dataset query
-  // gives us the base `object` + the dimension→field map, so ONE object schema
-  // fetch yields both: a {value|label → color} map for the first dimension's
-  // per-category colors (charts only — a table renders no palette), and a
-  // {value → label} map per dimension so the axis/series/cells display labels
-  // even when the server returned raw values, and so the locale bundle has an
-  // option list to translate against (objectui#4030 / #4330).
-  // Best-effort: any failure leaves both null (positional palette + raw values).
+  // ── The analytics label net's INPUT: resolved field metadata, locale-free ──
+  // ONE object-schema read per dataset query, yielding `{ object, field,
+  // options }` per dimension field path. Everything this widget DISPLAYS
+  // (per-category colours, {value → label} maps, the declared category order)
+  // is derived from it during render, one memo down, because that derivation is
+  // where the locale bundle applies (objectui#4030): keeping the fetched
+  // metadata locale-free means switching language re-renders the labels instead
+  // of re-fetching the schema.
   //
-  // The read rides the host's AUTHENTICATED fetch (objectui#4121) — the same
-  // channel `provider: 'api'` view sources use — falling back to the global one
-  // only when no host supplies it. A bearer-token session carries its credential
-  // in the `Authorization` header, not a cookie, so `credentials: 'include'`
-  // alone left this read unauthenticated in a hosted console; combined with the
-  // best-effort shape above the symptom was not an error but semantic option
-  // colors and dimension labels silently never applying.
-  useEffect(() => {
-    const object = state.object;
-    // The METRIC branch renders ONE measure value plus that measure's header
-    // label — a dimension's value never reaches its output in any spelling — so
-    // there is nothing on that path to relabel and resolving would be a
-    // metadata read nothing consumes (objectui#4263, pinned).
-    if (isMetric || !object || dimensions.length === 0) { setOptionMeta(null); return; }
-    const fieldOf = (dim: string) => (state.dimensionFields && state.dimensionFields[dim]) || dim;
-    // ── Which dimensions this widget type resolves (objectui#4263 → #4330) ──
-    // EVERY dimension, on every non-metric widget type — one rule, no
-    // per-widget-type dialect.
-    //
-    // #4263 ruled a narrower one: on table/pivot the SERVER resolves a LOCAL
-    // dimension's display label (ADR-0021), so this client net stayed off
-    // there and opened only for DOTTED paths, where the server is silent too.
-    // That boundary was ruled for LABEL RESOLUTION — "the label already
-    // exists, don't produce it twice" — and it held exactly as long as
-    // resolution was the only thing downstream of the read. objectui#4030 /
-    // PR #4324 put a second consumer there: the locale bundle
-    // (`localizeFieldOptions` / `buildDimensionLabelMap`'s translator), which
-    // needs the option LIST, not the label. So a local select on a table had
-    // its label resolved by the server, in English, with nothing on the client
-    // to translate it against — the cells read `Domestic` beside a related
-    // list reading 国内 (objectui#4330). The read is what closes that, and the
-    // PM amended the #4263 boundary deliberately for it.
-    //
-    // It is not a second resolution: `buildDimensionLabelMap` carries BOTH the
-    // stored value and the AUTHORED label as keys, and `relabelDimensions` is
-    // value-wise and idempotent — a server-resolved `Domestic` maps to 国内
-    // once, and under `en` (or with no bundle entry) the display equals the
-    // authored label, so no key is emitted and the rows pass through by
-    // identity.
-    //
-    // WHY THE READ IS NOT GATED ON "the dimension is a select" (measured, see
-    // the amended pins): select-ness is not observable before the read.
-    // `DatasetDimension.type` is `string|number|date|boolean|lookup` — the spec
-    // has no `select` member — and every select dimension in the live example
-    // apps declares `type: 'string'`; on the wire, `AnalyticsResult.fields[]`
-    // types a select column `'string'` too (the analytics cube registry's
-    // `fieldTypeToDimensionType` default). The select gate therefore lands on
-    // the read's OUTPUT, where it is exact: `resolveDimensionFieldMeta` yields
-    // an entry only for a terminal field that actually carries `options`, so a
-    // text / number / date / lookup dimension produces no map and no relabel.
-    const resolveDims = dimensions;
-    if (resolveDims.length === 0) { setOptionMeta(null); return; }
-    let cancelled = false;
-    (async () => {
-      try {
-        const doFetch = apiFetch ?? fetch;
-        const loadObjectSchema = async (name: string) => {
-          const r = await doFetch(`/api/v1/meta/object/${encodeURIComponent(name)}`, { headers: { accept: 'application/json' }, credentials: 'include' });
-          const doc = await r.json().catch(() => null);
-          return doc?.item ?? doc?.data ?? doc;
-        };
-        const objSchema = await loadObjectSchema(object);
-        // A dimension's field may be a DOTTED relationship path
-        // (`crm_account.industry`) whose options live on the RELATED object, not
-        // on the dataset's base object — objectui#4053. `resolveDimensionFieldMeta`
-        // is the object-resolution step of this same lookup: a local field name
-        // still resolves straight off `objSchema`, a dotted one walks each hop
-        // through the SAME channel `objSchema` came from. Unresolvable paths
-        // yield no entry, so the raw value survives exactly as before. It keeps
-        // the OWNING object and terminal field name beside the options, which
-        // is the key the locale bundle is written under (objectui#4030).
-        const metaByPath = await resolveDimensionFieldMeta(
-          objSchema,
-          resolveDims.map(fieldOf),
-          loadObjectSchema,
-        );
-        if (!cancelled) {
-          setOptionMeta({
-            metaByPath,
-            relabel: resolveDims.map((dim) => ({ dim, path: fieldOf(dim) })),
-            // Per-category COLOURS and the declared category ORDER are chart
-            // wiring — they key the palette and the axis sequence, neither of
-            // which a table or pivot renders. They stay null on that path
-            // exactly as they did when it returned early (objectui#4263), and
-            // #4330 widened only WHICH DIMENSIONS get a label map, never what
-            // a table consumes.
-            firstDimPath: isTable ? undefined : fieldOf(dimensions[0]),
-          });
-        }
-      } catch { if (!cancelled) setOptionMeta(null); }
-    })();
-    return () => { cancelled = true; };
-    // `apiFetch` joins the deps (objectui#4121) exactly as it does in
-    // `useRecordEditable`'s. It does not re-open this file's documented refetch
-    // concern — that one is on the query effect above and is about a
-    // render-time `now` inside the RESOLVED filter, i.e. a value this component
-    // recomputes every render. `apiFetch` is not: it comes from the provider's
-    // memoized context value, and this widget's own `setState` cannot re-render
-    // the provider, so the identity is stable across the effect's own updates.
-    // The in-repo host holds it at module scope (`ConsoleShell.tsx:187` → `:245`).
-  }, [state.object, state.dimensionFields, dimensions, isMetric, isTable, apiFetch]);
+  // The read itself — the host-authenticated `apiFetch` channel (objectui#4121),
+  // the locale-free state, the effect deps, the best-effort failure shape — now
+  // lives ONCE in `@object-ui/react`'s `useDatasetDimensionMeta`, shared with
+  // the dataset report block (objectui#4389). It was written out here and again
+  // in plugin-report by PR #4388; both copies stated the same two bug fixes, and
+  // that is precisely the drift #4389 was filed to close. What stays local is
+  // the part that is genuinely this widget's: WHICH dimensions to resolve, and
+  // the chart-only colour/order derivation in the memo below.
+  //
+  // The METRIC branch renders ONE measure value plus that measure's header
+  // label — a dimension's value never reaches its output in any spelling — so
+  // there is nothing on that path to relabel and resolving would be a metadata
+  // read nothing consumes (objectui#4263, pinned via `enabled`).
+  //
+  // Which dimensions resolve (objectui#4263 → #4330): EVERY dimension, on every
+  // non-metric widget type — one rule, no per-widget-type dialect. #4263 ruled a
+  // narrower one: on table/pivot the SERVER resolves a LOCAL dimension's display
+  // label (ADR-0021), so this client net stayed off there and opened only for
+  // DOTTED paths, where the server is silent too. That boundary was ruled for
+  // LABEL RESOLUTION — "the label already exists, don't produce it twice" — and
+  // it held exactly as long as resolution was the only thing downstream of the
+  // read. objectui#4030 / PR #4324 put a second consumer there: the locale
+  // bundle, which needs the option LIST, not the label. So a local select on a
+  // table had its label resolved by the server, in English, with nothing on the
+  // client to translate it against — the cells read `Domestic` beside a related
+  // list reading 国内 (objectui#4330). The read is what closes that, and the PM
+  // amended the #4263 boundary deliberately for it.
+  //
+  // It is not a second resolution: `buildDimensionLabelMap` carries BOTH the
+  // stored value and the AUTHORED label as keys, and `relabelDimensions` is
+  // value-wise and idempotent — a server-resolved `Domestic` maps to 国内 once,
+  // and under `en` (or with no bundle entry) the display equals the authored
+  // label, so no key is emitted and the rows pass through by identity.
+  //
+  // WHY THE READ IS NOT GATED ON "the dimension is a select" (measured, see the
+  // amended pins): select-ness is not observable before the read.
+  // `DatasetDimension.type` is `string|number|date|boolean|lookup` — the spec
+  // has no `select` member — and every select dimension in the live example apps
+  // declares `type: 'string'`; on the wire, `AnalyticsResult.fields[]` types a
+  // select column `'string'` too (the analytics cube registry's
+  // `fieldTypeToDimensionType` default). The select gate therefore lands on the
+  // read's OUTPUT, where it is exact: `resolveDimensionFieldMeta` yields an entry
+  // only for a terminal field that actually carries `options`, so a text /
+  // number / date / lookup dimension produces no map and no relabel.
+  const dimensionMeta = useDatasetDimensionMeta(
+    state.object,
+    state.dimensionFields,
+    dimensions,
+    { enabled: !isMetric },
+  );
 
   // ── The analytics label net's OUTPUT, with the locale bundle applied ──────
   // objectui#4030 (source thread objectstack#5076): the net above RESOLVES a
@@ -912,37 +844,35 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // use (`fieldOptions.<object>.<field>.<value>`), reached through the
   // provider-safe wrapper so a widget rendered without an I18nProvider keeps
   // its authored labels instead of crashing.
+  //
+  // `deriveDimensionLabelMaps` is core's — the same derivation the dataset
+  // report block runs, stated once (objectui#4389). Per-category COLOURS and
+  // the declared category ORDER are NOT: they key the palette and the axis
+  // sequence, neither of which a table or pivot renders, so they stay null on
+  // that path exactly as they did when it returned early (objectui#4263).
+  // #4330 widened only WHICH DIMENSIONS get a label map, never what a table
+  // consumes — hence the `isTable` gate on `firstDimPath` and nothing else.
   const { categoryColors, dimensionLabels, categoryOrder } = useMemo(() => {
-    if (!optionMeta) return { categoryColors: null, dimensionLabels: null, categoryOrder: null };
-    const { metaByPath, relabel, firstDimPath } = optionMeta;
-    // One translator per resolved path, bound to the object that OWNS the
-    // terminal field — `crm_account` for `crm_account.industry`, not the
-    // dataset's base object. A path whose owner could not be resolved gets no
-    // translator and keeps its authored labels.
-    const translatorFor = (path: string | undefined): OptionLabelTranslator | undefined => {
-      const meta = path ? metaByPath[path] : undefined;
-      const owner = meta?.object;
-      if (!owner) return undefined;
-      return (value, authored) => fieldOptionLabel(owner, meta.field, value, authored);
-    };
+    if (!dimensionMeta) return { categoryColors: null, dimensionLabels: null, categoryOrder: null };
+    const { metaByPath, relabel } = dimensionMeta;
     // Colours and declared order read `option.label`, so they are fed the
     // LOCALIZED options — the same "translate the options, then render them"
     // shape the list side uses (`translateOptions` → `SelectCellRenderer`).
     // That keeps them keyed by the string the relabeled rows actually carry.
+    // `relabel[0]` is the first dimension: `relabel` is built from the same
+    // already-`Boolean`-filtered `dimensions` array this widget passes in, in
+    // order, so `relabel[0].path` is `fieldOf(dimensions[0])`.
+    const firstDimPath = isTable ? undefined : relabel[0]?.path;
+    const firstDimMeta = firstDimPath ? metaByPath[firstDimPath] : undefined;
     const firstDimOptions = firstDimPath
-      ? localizeFieldOptions(metaByPath[firstDimPath]?.options, translatorFor(firstDimPath))
+      ? localizeFieldOptions(firstDimMeta?.options, dimensionOptionTranslator(firstDimMeta, fieldOptionLabel))
       : undefined;
-    const labels: Record<string, Record<string, string>> = {};
-    for (const { dim, path } of relabel) {
-      const m = buildDimensionLabelMap(metaByPath[path]?.options, translatorFor(path));
-      if (m) labels[dim] = m;
-    }
     return {
       categoryColors: buildOptionColorMap(firstDimOptions),
-      dimensionLabels: Object.keys(labels).length > 0 ? labels : null,
+      dimensionLabels: deriveDimensionLabelMaps(metaByPath, relabel, fieldOptionLabel),
       categoryOrder: buildCategoryOrder(firstDimOptions),
     };
-  }, [optionMeta, fieldOptionLabel]);
+  }, [dimensionMeta, fieldOptionLabel, isTable]);
 
   if (values.length === 0) {
     return <div className="flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground">{tt('dashboard.pickMeasures', 'Pick measures (values) for this dataset widget.')}</div>;
