@@ -36,7 +36,7 @@ import {
   RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, listViewPredicates, isProjectableField, isExpandableFieldType, toFilterNode } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, listViewPredicates, isProjectableField, isExpandableFieldType, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
@@ -325,6 +325,43 @@ function normalizeColumns(
   return columns as string[];
 }
 
+/** The row heights this grid styles — the five `RowHeight` values the spec admits. */
+type RowHeightMode = 'compact' | 'short' | 'medium' | 'tall' | 'extra_tall';
+
+/**
+ * The ONE answer this component gives for a `rowHeight` it does not recognize
+ * (objectui#4443).
+ *
+ * The seed used to be `schema.rowHeight ?? 'compact'`, which made the component
+ * answer the same question two ways: an ABSENT `rowHeight` landed on `compact`,
+ * an OFF-SPEC one fell through the density ternaries below to their terminal
+ * `else` — the `medium` styling. That is the absent-vs-off-spec split #4440
+ * removed from `ListView`, and a third answer to a question `@object-ui/core`
+ * (`rowHeightToDensityMode`, which abstains) and the `@object-ui/react` spec
+ * bridge (#4352, which abstains) had already settled. One metadata-driven
+ * system, one answer: off-spec renders exactly like absent.
+ *
+ * The ternary chains are deliberately NOT touched — `medium` is a real value
+ * with its own arm, and a leaf renderer's terminal `else` is legitimate styling.
+ * Narrowing happens here, at the boundary, so nothing off-spec ever reaches it.
+ *
+ * Membership is tested against `ROW_HEIGHT_TO_DENSITY_MODE` rather than a local
+ * list so the admitted values have one definition in the repo; that table is
+ * typed `Record<RowHeight, DensityMode>`, so the build fails if the spec grows a
+ * sixth row height and this resolver is not taught about it.
+ *
+ * `hasOwnProperty`, not `in`: `in` walks the prototype chain, so `'toString'`
+ * would come back admitted. That is not hypothetical here — the toolbar's icon
+ * map is looked up by the same key, and a prototype member reached
+ * `Object.prototype.toString` and rendered it as a React component, while a
+ * plain off-spec value produced `undefined` and threw outright.
+ */
+function resolveRowHeightMode(rowHeight: unknown): RowHeightMode {
+  if (typeof rowHeight !== 'string') return 'compact';
+  if (!Object.prototype.hasOwnProperty.call(ROW_HEIGHT_TO_DENSITY_MODE, rowHeight)) return 'compact';
+  return rowHeight as RowHeightMode;
+}
+
 export const ObjectGrid: React.FC<ObjectGridProps> = ({
   schema,
   dataSource,
@@ -368,7 +405,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [showExport, setShowExport] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-  const [rowHeightMode, setRowHeightMode] = useState<'compact' | 'short' | 'medium' | 'tall' | 'extra_tall'>(schema.rowHeight ?? 'compact');
+  const [rowHeightMode, setRowHeightMode] = useState<RowHeightMode>(resolveRowHeightMode(schema.rowHeight));
   const [selectedRows, setSelectedRows] = useState<any[]>([]);
   const [selectAllMatching, setSelectAllMatching] = useState(false);
   // Bumped to tell the underlying table to drop its internal checkbox selection.
@@ -389,10 +426,15 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     (schema.pagination as any)?.pageSize ?? schema.pageSize ?? 10,
   );
 
-  // Sync internal rowHeightMode when schema.rowHeight prop changes (e.g., parent ListView density toggle)
+  // Sync internal rowHeightMode when schema.rowHeight prop changes (e.g., parent ListView density toggle).
+  // Routed through the same resolver as the seed above: this is the component's
+  // second entry point for an author-supplied `rowHeight`, and one resolver at
+  // every entry is what keeps the answer single (objectui#4443).
   React.useEffect(() => {
-    if (schema.rowHeight && schema.rowHeight !== rowHeightMode) {
-      setRowHeightMode(schema.rowHeight);
+    if (!schema.rowHeight) return;
+    const next = resolveRowHeightMode(schema.rowHeight);
+    if (next !== rowHeightMode) {
+      setRowHeightMode(next);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema.rowHeight]);
