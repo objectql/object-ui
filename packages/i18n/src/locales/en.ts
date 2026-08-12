@@ -2788,6 +2788,7 @@ const en = {
     members: {
       title: 'Members',
       inviteMember: 'Invite member',
+      inviteRestrictedNote: 'Only organization admins can invite members.',
       removeMember: 'Remove member',
       removeConfirmTitle: 'Remove member?',
       removeConfirmDescription: 'This will remove {{name}} from the organization. They will lose access immediately.',

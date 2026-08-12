@@ -2556,6 +2556,7 @@ const de = {
     members: {
       title: "Mitglieder",
       inviteMember: "Mitglied einladen",
+      inviteRestrictedNote: "Nur Organisationsadministratoren können Mitglieder einladen.",
       removeMember: "Mitglied entfernen",
       removeConfirmTitle: "Mitglied entfernen?",
       removeConfirmDescription: "{{name}} wird aus der Organisation entfernt und verliert sofort den Zugriff.",

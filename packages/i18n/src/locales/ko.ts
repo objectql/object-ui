@@ -2555,6 +2555,7 @@ const ko = {
     members: {
       title: "구성원",
       inviteMember: "구성원 초대",
+      inviteRestrictedNote: "조직 관리자만 구성원을 초대할 수 있습니다.",
       removeMember: "구성원 제거",
       removeConfirmTitle: "구성원을 제거할까요?",
       removeConfirmDescription: "{{name}}을(를) 조직에서 제거합니다. 접근 권한이 즉시 사라집니다.",

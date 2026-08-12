@@ -2673,6 +2673,7 @@ const zh = {
     members: {
       title: '成员',
       inviteMember: '邀请成员',
+      inviteRestrictedNote: '只有组织管理员可以邀请成员。',
       removeMember: '移除成员',
       removeConfirmTitle: '移除成员？',
       removeConfirmDescription: '将把 {{name}} 从该组织中移除，其访问权限会立即失效。',

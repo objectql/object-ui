@@ -2555,6 +2555,7 @@ const pt = {
     members: {
       title: "Membros",
       inviteMember: "Convidar membro",
+      inviteRestrictedNote: "Apenas administradores da organização podem convidar membros.",
       removeMember: "Remover membro",
       removeConfirmTitle: "Remover membro?",
       removeConfirmDescription: "Isso removerá {{name}} da organização. O acesso será perdido imediatamente.",

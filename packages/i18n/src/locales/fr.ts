@@ -2558,6 +2558,7 @@ const fr = {
     members: {
       title: "Membres",
       inviteMember: "Inviter un membre",
+      inviteRestrictedNote: "Seuls les administrateurs de l'organisation peuvent inviter des membres.",
       removeMember: "Retirer le membre",
       removeConfirmTitle: "Retirer ce membre ?",
       removeConfirmDescription: "{{name}} sera retiré de l'organisation et perdra immédiatement son accès.",

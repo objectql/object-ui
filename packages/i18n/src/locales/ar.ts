@@ -2563,6 +2563,7 @@ const ar = {
     members: {
       title: "الأعضاء",
       inviteMember: "دعوة عضو",
+      inviteRestrictedNote: "لا يمكن دعوة الأعضاء إلا لمسؤولي المؤسسة.",
       removeMember: "إزالة العضو",
       removeConfirmTitle: "إزالة العضو؟",
       removeConfirmDescription: "سيؤدي ذلك إلى إزالة {{name}} من المؤسسة، وسيفقد صلاحية الوصول فورًا.",

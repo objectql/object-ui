@@ -2560,6 +2560,7 @@ const es = {
     members: {
       title: "Miembros",
       inviteMember: "Invitar miembro",
+      inviteRestrictedNote: "Solo los administradores de la organización pueden invitar a miembros.",
       removeMember: "Eliminar miembro",
       removeConfirmTitle: "¿Eliminar miembro?",
       removeConfirmDescription: "Se eliminará a {{name}} de la organización y perderá el acceso de inmediato.",

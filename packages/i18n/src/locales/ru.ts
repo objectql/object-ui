@@ -2567,6 +2567,7 @@ const ru = {
     members: {
       title: "Участники",
       inviteMember: "Пригласить участника",
+      inviteRestrictedNote: "Только администраторы организации могут приглашать участников.",
       removeMember: "Удалить участника",
       removeConfirmTitle: "Удалить участника?",
       removeConfirmDescription: "{{name}} будет удалён из организации и сразу потеряет доступ.",

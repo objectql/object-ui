@@ -2556,6 +2556,7 @@ const ja = {
     members: {
       title: "メンバー",
       inviteMember: "メンバーを招待",
+      inviteRestrictedNote: "組織の管理者のみがメンバーを招待できます。",
       removeMember: "メンバーを削除",
       removeConfirmTitle: "メンバーを削除しますか？",
       removeConfirmDescription: "{{name}} を組織から削除します。アクセス権は直ちに失われます。",
