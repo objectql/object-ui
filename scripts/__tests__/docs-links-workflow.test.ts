@@ -10,12 +10,23 @@ import { fileURLToPath } from 'node:url';
  * `.github/` called it, so it had never run in CI at all and `main` carried a
  * broken link it would have caught (#3213, #3292). PR #3450 fixed that by adding
  * it as a step in `ci.yml`'s `docs` job — and rebuilt half the hole in the
- * process: `ci.yml` lists every markdown path, plus `content/**`, `docs/**` and
- * `apps/site/**`, under `paths-ignore`; `paths-ignore` skips the *entire*
- * workflow when every changed file matches it, and GitHub has no per-job path
- * filter. A docs-only PR therefore started no workflow, so the one class of
- * change most likely to break an internal link was the one class the link check
- * could never see.
+ * process: `ci.yml` THEN listed every markdown path, plus `content/**`,
+ * `docs/**` and `apps/site/**`, under the `paths-ignore` of both its triggers;
+ * `paths-ignore` skips the *entire* workflow when every changed file matches it,
+ * and GitHub has no per-job path filter. A docs-only PR therefore started no
+ * workflow, so the one class of change most likely to break an internal link was
+ * the one class the link check could never see.
+ *
+ * That paragraph is history — its lead-in used to be written in the present
+ * tense, which objectui#4381 corrected here and in the workflow's own header.
+ * objectui#3523 step 2 deleted `paths-ignore` from `ci.yml`'s `pull_request`
+ * trigger; it survives only on `push`, so a docs-only PR does start `ci.yml` now
+ * (measured: PR #3856, one markdown file, 16 checks) and objectui#3857 pinned
+ * the correction. The in-job switch would not keep a link check out either — the
+ * `docs` job runs its steps precisely when `content/` or `apps/site/` changed.
+ * What outlived the premise is what the assertions below pin: `ci.yml` keeps the
+ * filter on its `push` lane, so a docs-only push to `main` starts it not at all,
+ * and #3448 settled one gate, one home.
  *
  * `control-bytes.yml` hit this exact wall first and its header states the
  * consequence: a gate that cannot see a markdown-only PR "rebuilds the hole it
