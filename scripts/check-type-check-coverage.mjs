@@ -53,9 +53,9 @@
  * file on disk passed at exit 0 (observed on `packages/auth` during #4291: the
  * script was restored while the retired project stayed deleted). That state is
  * LOUD — the chained `tsc` exits TS5058 on the very next run, so nothing ships —
- * but this gate is the one check whose whole subject is the declared-vs-actually
- * -runs mismatch, so its green line must not read past it. Both project kinds
- * are now reported before their respective early `continue`.
+ * but this gate is the one check whose whole subject is the mismatch between
+ * what is declared and what CI actually runs, so its green line must not read
+ * past it. Both project kinds are now reported before their early `continue`.
  *
  * Run:  node scripts/check-type-check-coverage.mjs
  * Exit: 0 = OK, 1 = coverage regressed or the lists are stale
