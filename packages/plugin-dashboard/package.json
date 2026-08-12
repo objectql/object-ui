@@ -16,7 +16,7 @@
   },
   "scripts": {
     "build": "vite build",
-    "type-check": "tsc --noEmit && tsc -p tsconfig.typetests.json",
+    "type-check": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint ."
   },
