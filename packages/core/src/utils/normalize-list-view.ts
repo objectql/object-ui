@@ -53,17 +53,38 @@ export const ROW_HEIGHT_TO_DENSITY_MODE: Record<RowHeight, DensityMode> = {
 };
 
 /**
- * Tolerant reader for {@link ROW_HEIGHT_TO_DENSITY_MODE}. View metadata is
- * user-authored, so `rowHeight` is not guaranteed to be one of the five spec
- * values — an unknown one lands on `comfortable` rather than rendering an
- * undefined density. Keeping the fallback here means every surface collapses
- * the same way.
+ * Runtime reader for {@link ROW_HEIGHT_TO_DENSITY_MODE}: the spec's five row
+ * heights narrowed onto the renderer's three densities, and **nothing else**.
+ *
+ * The parameter stays `unknown` because this is the boundary user-authored view
+ * metadata actually crosses — `ListViewSchema.rowHeight` is statically a
+ * `RowHeight`, but the value arrives from stored view definitions TypeScript
+ * never saw (`ObjectView`: `viewDef.rowHeight ?? listSchema.rowHeight`). The
+ * type-level half of the guarantee is the `Record<RowHeight, …>` on the table
+ * above, which fails the build when the spec grows a row height.
+ *
+ * An off-spec value gets NO density (objectui#4440). It used to be coerced to
+ * `comfortable`, which is the opposite of what `@object-ui/react`'s spec bridge
+ * answers for the same string after objectui#4352 — one metadata-driven system
+ * holding two answers for one input. AGENTS.md #0.1 decides which one survives:
+ * a renderer-side rehabilitation of off-spec metadata is a second de-facto
+ * contract, and one strict contract beats N. The producer is where a bad
+ * `rowHeight` gets fixed.
+ *
+ * Callers apply their own "nothing was said" default to `undefined`, so an
+ * off-spec row height now renders exactly like an absent one — `'compact'` in
+ * both `ListView` and `ObjectGrid`.
+ *
+ * `hasOwnProperty`, not `in`: `in` walks the prototype chain, so `'toString'`
+ * used to come back as `Object.prototype.toString` — a FUNCTION returned from
+ * something typed `DensityMode`.
  */
-export function rowHeightToDensityMode(rowHeight: unknown): DensityMode {
-  if (typeof rowHeight === 'string' && rowHeight in ROW_HEIGHT_TO_DENSITY_MODE) {
-    return ROW_HEIGHT_TO_DENSITY_MODE[rowHeight as RowHeight];
+export function rowHeightToDensityMode(rowHeight: unknown): DensityMode | undefined {
+  if (typeof rowHeight !== 'string') return undefined;
+  if (!Object.prototype.hasOwnProperty.call(ROW_HEIGHT_TO_DENSITY_MODE, rowHeight)) {
+    return undefined;
   }
-  return 'comfortable';
+  return ROW_HEIGHT_TO_DENSITY_MODE[rowHeight as RowHeight];
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
