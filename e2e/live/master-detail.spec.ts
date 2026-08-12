@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { selectOption, fillLookup, addLineItem } from './helpers';
+import { selectOption, fillLookup } from './helpers';
 
 /**
  * Live e2e for the master-detail entry form (showcase "New Project + Tasks").
@@ -42,7 +42,18 @@ test('Create submits the populated parent in one atomic batch', async ({ page })
   await expect(page.getByText('Northwind', { exact: false })).toBeVisible();
 
   await Promise.all([
-    page.waitForRequest((r) => r.url().includes('/api/v1/batch') && r.request?.().method?.() !== 'GET', { timeout: 15_000 }).catch(() => null),
+    // This predicate used to end `&& r.request?.().method?.() !== 'GET'`, which
+    // objectui#4471's first-ever compile of this file reported as TS2339:
+    // `Request` has no `request` member (that is `Response.request()`). Because
+    // the whole chain is optional, it evaluated to `undefined !== 'GET'` — always
+    // true — so the non-GET filter has never been in effect for a single run.
+    // Deleted rather than repaired: removing a provably-always-true conjunct
+    // cannot change what this wait resolves on, whereas restoring the intent as
+    // `r.method() !== 'GET'` WOULD, and that needs the live stack to validate.
+    // Nothing this test asserts depends on it either way — the `batches` array
+    // below does its own `r.method() === 'POST'` filtering, and this wait's
+    // result is discarded (`.catch(() => null)`); it only races the click.
+    page.waitForRequest((r) => r.url().includes('/api/v1/batch'), { timeout: 15_000 }).catch(() => null),
     page.getByTestId('md-form-submit').click(),
   ]);
   await page.waitForTimeout(500);

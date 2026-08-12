@@ -34,6 +34,7 @@
     "lint:coverage": "node scripts/check-lint-coverage.mjs",
     "type-check": "turbo run type-check",
     "type-check:coverage": "node scripts/check-type-check-coverage.mjs",
+    "type-check:e2e": "tsc -p tsconfig.e2e.json",
     "type-check:scripts": "tsc -p tsconfig.scripts.json",
     "type-check:vitest-setup": "tsc -p tsconfig.vitest-setup.json",
     "check:spec-symbols": "node scripts/check-spec-symbol-derivation.mjs",

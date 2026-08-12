@@ -32,7 +32,8 @@ import { repoRoot } from './helpers/turbo-inputs';
  *     test:watch  cache: false, persistent   nothing to replay
  *     clean       cache: false               nothing to replay
  *     dev         cache: false, persistent   nothing to replay
- *     //#lint:root  cache: false             nothing to replay
+ *     //#lint:root        cache: false       nothing to replay
+ *     //#type-check:e2e   cache: false       nothing to replay
  *
  * `//#lint:root` (objectui#4456) is the root task that lints everything OUTSIDE
  * the workspace packages — `e2e/`, `scripts/`, `eslint-rules/`, the root config
@@ -42,6 +43,24 @@ import { repoRoot } from './helpers/turbo-inputs';
  * stale the moment a new root-level directory is added, and a stale inputs list
  * on a CACHED task replays a green verdict over a directory nothing linted —
  * which is objectui#4456 itself, one level up. It runs in about four seconds.
+ *
+ * `//#type-check:e2e` (objectui#4471) is the same move for the TYPE gate: `e2e/`
+ * is not a workspace package, so `turbo run type-check` could not reach it and
+ * the 30 Playwright specs were compiled by nothing. It runs
+ * `tsc -p tsconfig.e2e.json`, and `type-check` `dependsOn` it, so `pnpm
+ * type-check` now covers `e2e/`. Uncached for two reasons, one structural and
+ * one substantive. Structural: `guardFor` below derives a guard NAME from the
+ * task name, and `turbo-//#type-check:e2e-inputs.test.ts` is not a legal path —
+ * a cacheable root task cannot be expressed in this family at all. Substantive:
+ * a tsc program's real read set is its IMPORT CLOSURE (`@playwright/test`'s
+ * declarations, `@types/node`), while the four derived guards deliberately
+ * narrow to config root files — a narrowing that is sound for a composite
+ * package project, which must list its own files, and unsound here. A cached
+ * verdict over a set nobody derives is objectui#3514 with a type gate attached.
+ * Measured cost of not caching it: 2.3s (three consecutive cold runs, 2.29 /
+ * 2.41 / 2.37). `scripts/__tests__/e2e-type-check.test.ts`
+ * restates the `cache: false` half from the other side, so removing it goes red
+ * in two places rather than quietly demanding a guard that cannot be written.
  */
 
 interface TurboTask {
