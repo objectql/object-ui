@@ -12,6 +12,7 @@ import {
 import type { I18nLabel } from '@object-ui/types';
 import { ArrowDownIcon, ArrowUpIcon, MinusIcon, AlertCircle, Loader2 } from 'lucide-react';
 import { VARIANT_ICON_CLASSES, VARIANT_TEXT_CLASSES, type MetricColorVariant } from './colorVariants';
+import type { SchemaHostProps } from './schemaHostProps';
 
 const TREND_LABEL_DEFAULTS: Record<string, string> = {
   'dashboard.trend.vsLastQuarter': 'vs last quarter',
@@ -210,8 +211,20 @@ export const MetricWidget = ({
   suffix,
   onClick,
   variant = 'card',
-  ...props
-}: MetricWidgetProps) => {
+  // Schema-shaped props `SchemaRenderer` injects, destructured out so the
+  // spread below cannot write them to the DOM (objectui#4357). Named and
+  // measured in `./schemaHostProps`; `schema` alone put a
+  // `schema="[object Object]"` attribute on every KPI card. The rest spread
+  // survives — it is the component's genuine DOM/aria passthrough.
+  schema: _schema,
+  bind: _bind,
+  events: _events,
+  props: _propsBag,
+  ariaLabel: _ariaLabel,
+  ariaDescribedBy: _ariaDescribedBy,
+  dataSource: _dataSource,
+  ...domProps
+}: MetricWidgetProps & SchemaHostProps) => {
   const iconClasses = VARIANT_ICON_CLASSES[colorVariant] || VARIANT_ICON_CLASSES.default;
   const { t: tTrend } = useTrendT();
   // Two locale channels, deliberately distinct. `useDisplayLocale` is the
@@ -298,7 +311,7 @@ export const MetricWidget = ({
           onClick();
         }
       } : undefined}
-      {...props}
+      {...domProps}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium truncate">

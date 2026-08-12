@@ -61,7 +61,14 @@ describe('Standard Field Widgets', () => {
           field={{ ...fieldMock, currency: 'EUR' } as any}
         />
       );
-      expect(screen.getByText('EUR')).toBeInTheDocument();
+      // Was `EUR`, the bare code: the adornment came from a hand-written
+      // `currency === 'USD' ? '$' : currency` ternary, so every currency but one
+      // fell through to its code. objectui#4414 converged the symbol on the
+      // single `Intl` channel the readonly branch of this same widget already
+      // formatted through, which answers `€` here — a DOCUMENTED change, pinned
+      // in full (with the locale-dependence it brings) in
+      // `__tests__/CurrencyField.symbol.test.tsx`.
+      expect(screen.getByText('€')).toBeInTheDocument();
     });
   });
 
