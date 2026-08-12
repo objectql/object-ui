@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation, useFilterScope, ElementDataSourceGate, type ElementDataSourceMapping } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, buildDimensionLabelMap, relabelDimensions, localizeFieldOptions, resolveDimensionFieldMeta, type DimensionFieldMeta, type OptionLabelTranslator, type CompareToConfig, type DrillEvent, type ChartResultField } from '@object-ui/core';
+import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -377,7 +377,6 @@ export const ObjectChart = (props: any) => {
           const doc = await r.json().catch(() => null);
           return doc?.item ?? doc?.data ?? doc;
         };
-        const objSchema = await loadObjectSchema(objectName);
         // Each dimension's underlying field, which for a dataset dimension may be
         // a DOTTED relationship path (`crm_account.industry`) — objectui#4053.
         const fieldByDim: Record<string, string> = {};
@@ -387,15 +386,20 @@ export const ObjectChart = (props: any) => {
             fieldByDim[dimName] = dimDef?.field ?? dimName;
           }
         }
-        // One resolution for every path: a local field name reads straight off
-        // `objSchema` as before, a dotted one walks to the object that owns the
-        // terminal field. Unresolvable paths yield no entry → raw value survives.
-        // `…Meta` keeps the OWNING object + terminal field beside the options —
-        // the key the locale bundle is written under (objectui#4030).
-        const metaByPath = await resolveDimensionFieldMeta(
-          objSchema,
-          [fieldName, ...Object.values(fieldByDim)],
+        // Read the base object's schema, then resolve every path against it.
+        // Core's `loadDimensionFieldMeta` (objectui#4389 / PR #4404) IS that
+        // two-step composition, written once: a local field name reads straight
+        // off the base schema as before, a dotted one walks to the object that
+        // owns the terminal field. Unresolvable paths yield no entry → raw
+        // value survives. `…Meta` keeps the OWNING object + terminal field
+        // beside the options — the key the locale bundle is written under
+        // (objectui#4030). The resolution is memoized per call and seeded with
+        // the base schema, so the base object is read ONCE however many dotted
+        // dimensions walk back through it — the read count the pins assert.
+        const metaByPath = await loadDimensionFieldMeta(
           loadObjectSchema,
+          objectName,
+          [fieldName, ...Object.values(fieldByDim)],
         );
         if (!cancelled) {
           setOptionMeta({
@@ -422,28 +426,29 @@ export const ObjectChart = (props: any) => {
   const { fieldOptionColors, dimensionLabels } = useMemo(() => {
     if (!optionMeta) return { fieldOptionColors: null, dimensionLabels: null };
     const { metaByPath, colorPath, fieldByDim } = optionMeta;
-    // Bound to the object that OWNS the terminal field — `crm_account` for
-    // `crm_account.industry`, not the dataset's base object.
-    const translatorFor = (path: string | undefined): OptionLabelTranslator | undefined => {
-      const meta = path ? metaByPath[path] : undefined;
-      const owner = meta?.object;
-      if (!owner) return undefined;
-      return (value, authored) => fieldOptionLabel(owner, meta.field, value, authored);
-    };
     // Colours read `option.label`, so they are fed the LOCALIZED options and
     // stay keyed by the string the rendered category actually carries — on the
     // aggregate path `resolveGroupByLabels` already translates it, so an
     // untranslated colour map missed every category in a localized app.
-    const colorOptions = localizeFieldOptions(metaByPath[colorPath]?.options, translatorFor(colorPath));
-    let labels: Record<string, Record<string, string>> | null = null;
-    if (fieldByDim) {
-      const acc: Record<string, Record<string, string>> = {};
-      for (const [dimName, path] of Object.entries(fieldByDim)) {
-        const m = buildDimensionLabelMap(metaByPath[path]?.options, translatorFor(path));
-        if (m) acc[dimName] = m;
-      }
-      if (Object.keys(acc).length > 0) labels = acc;
-    }
+    //
+    // `dimensionOptionTranslator` is core's binding of the resolver to ONE
+    // resolved dimension field (objectui#4389 / PR #4404). It states the part
+    // that is easy to get wrong: the translator is bound to the object that
+    // OWNS the terminal field — `crm_account` for `crm_account.industry`, not
+    // the dataset's base object — because that owner is the key the locale
+    // bundle is written under.
+    const colorOptions = localizeFieldOptions(
+      metaByPath[colorPath]?.options,
+      dimensionOptionTranslator(metaByPath[colorPath], fieldOptionLabel),
+    );
+    // Dataset path only: the same derivation the dashboard and report surfaces
+    // take, written once in core. A null `fieldByDim` (the aggregate path)
+    // yields null labels, exactly as the longhand loop did.
+    const labels = deriveDimensionLabelMaps(
+      metaByPath,
+      fieldByDim ? Object.entries(fieldByDim).map(([dim, path]) => ({ dim, path })) : null,
+      fieldOptionLabel,
+    );
     return { fieldOptionColors: buildOptionColorMap(colorOptions), dimensionLabels: labels };
   }, [optionMeta, fieldOptionLabel]);
 
