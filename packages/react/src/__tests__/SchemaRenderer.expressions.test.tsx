@@ -11,11 +11,15 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer } from '../SchemaRenderer';
-// `@object-ui/types` declares `BaseSchema.visible` / `.disabled` as `boolean`,
-// but BOTH accept a predicate STRING here — that is the capability these cases
-// exercise, and the renderer evaluates it (`evaluateCondition`). The declaration
-// is the narrow one; until it is widened these fixtures state their real shape
-// through `BaseSchema`'s index signature (objectui#4548 measured the gap).
+// `BaseSchema.visible` now declares `boolean | string` (objectui#4581), so the
+// two visibility cases below state their predicate strings directly — no cast.
+//
+// `.disabled` is the SAME gap and is NOT yet widened: the renderer evaluates it
+// through the same `evaluateCondition` (`SchemaRenderer.tsx:466`) and the
+// `disabledOn?: string` sibling exists for the same reason, but #4581 named only
+// `visible` and `ariaLabel`, so widening `disabled` was left to its own card
+// rather than taken unruled. The two `disabled` casts below are what remains of
+// the gap — drop them when that lands.
 import type { BaseSchema } from '@object-ui/types';
 import { SchemaRendererContext } from '../context/SchemaRendererContext';
 
@@ -49,7 +53,7 @@ describe('SchemaRenderer Expression Integration', () => {
     it('evaluates visible expression string', () => {
       render(
         <SchemaRendererContext.Provider value={{ dataSource: { role: 'admin' } }}>
-          <SchemaRenderer schema={{ type: 'test-component', visible: '${data.role === "admin"}' } as unknown as BaseSchema} />
+          <SchemaRenderer schema={{ type: 'test-component', visible: '${data.role === "admin"}' }} />
         </SchemaRendererContext.Provider>
       );
       expect(screen.getByTestId('test-component')).toBeInTheDocument();
@@ -58,7 +62,7 @@ describe('SchemaRenderer Expression Integration', () => {
     it('hides when visible expression evaluates to false', () => {
       const { container } = render(
         <SchemaRendererContext.Provider value={{ dataSource: { role: 'viewer' } }}>
-          <SchemaRenderer schema={{ type: 'test-component', visible: '${data.role === "admin"}' } as unknown as BaseSchema} />
+          <SchemaRenderer schema={{ type: 'test-component', visible: '${data.role === "admin"}' }} />
         </SchemaRendererContext.Provider>
       );
       expect(container.innerHTML).toBe('');

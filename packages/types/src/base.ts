@@ -102,9 +102,21 @@ export interface BaseSchema {
   /**
    * Controls whether the component is visible.
    * When false, component is not rendered (display: none).
+   *
+   * Accepts a PREDICATE STRING as well as a boolean (objectui#4581): the
+   * renderer does not read this key as a boolean, it evaluates it —
+   * `SchemaRenderer.tsx:382` calls `evaluator.evaluateCondition(schema.visible)`,
+   * and `evaluateCondition` is declared
+   * `(condition: string | boolean | undefined, context?) => boolean`. The
+   * sibling keys `visibleWhen` and the deprecated `visibleOn` are `string` for
+   * the same reason; this one simply under-reported the capability, and
+   * fixtures exercising it had to cast past the declaration.
+   *
    * @default true
+   * @example true
+   * @example "${data.role === 'admin'}"
    */
-  visible?: boolean;
+  visible?: boolean | string;
 
   /**
    * Canonical conditional-visibility predicate (ADR-0089) — the element is shown
