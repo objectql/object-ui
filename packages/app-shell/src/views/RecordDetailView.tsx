@@ -14,8 +14,8 @@ import { RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFi
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
-import { ActionProvider, useObjectTranslation, useObjectLabel, useActionTextLocalizer, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, InlineEditProvider, useGlobalUndo, useDataInvalidation, notifyDataChanged } from '@object-ui/react';
-import { buildExpandFields } from '@object-ui/core';
+import { ActionProvider, useObjectTranslation, useObjectLabel, useActionTextLocalizer, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, InlineEditProvider, useGlobalUndo, useDataInvalidation, notifyDataChanged, useRowPredicate } from '@object-ui/react';
+import { buildExpandFields, userActionPredicates } from '@object-ui/core';
 import { toast } from 'sonner';
 import { useRecordPresence, PresenceAvatars } from '@object-ui/collaboration';
 import { Database, ChevronLeft } from 'lucide-react';
@@ -991,6 +991,101 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     !!objectDef?.name && !!pureRecordId,
   );
 
+  // ── Per-record `userActions` predicates — the header's FOURTH gate ────────
+  //
+  // objectui#4213. `userActions.edit` / `.delete` reached this header in their
+  // BOOLEAN form and only in that form: the switch flows through
+  // `resolveRecordHeaderActionGates` → `resolveEffectiveCrudAffordances`, so
+  // `userActions: { delete: false }` hid Delete on the list row AND here. The
+  // per-record OBJECT form — `{ visibleWhen: … }`, objectui#2614 — was
+  // consumed by the list row alone (`plugin-grid`'s
+  // `isBuiltinRowActionVisible`), because the conjunction below is the
+  // affordance/permission channel and nothing on this path ever parsed a
+  // predicate. An author narrowing "who may edit this object" to "which
+  // records may be edited" therefore lost the record page while keeping the
+  // list — a key whose scope SHRANK when a predicate was added to it.
+  //
+  // This is the console end of the same convergence PR #4515 (objectui#4419)
+  // made for `plugin-detail`'s `DetailView` header. Three surfaces, one
+  // evaluator, one answer: row kebab, `DetailView` header, console record page.
+  //
+  // These are HOOKS, so they live here — beside the record-level verdicts they
+  // join — and not inside `synthSystemActions` below, which is a plain IIFE
+  // sitting AFTER the `isLoading` / `!objectDef` / `missing` early returns.
+  // Their results are threaded into that IIFE as ordinary values, the same
+  // shape PR #4515 used.
+  //
+  // `userActionPredicates` from `@object-ui/core` is THE parser for this form,
+  // shared with the row surfaces. A bare boolean yields NO predicates, which is
+  // what keeps the boolean form the affordance resolver's channel alone rather
+  // than growing a second definition of it here.
+  const editPredicates = useMemo(
+    () => userActionPredicates(objectDef?.userActions?.edit),
+    [objectDef],
+  );
+  const deletePredicates = useMemo(
+    () => userActionPredicates(objectDef?.userActions?.delete),
+    [objectDef],
+  );
+  /**
+   * The object's field definitions, handed to every predicate on this record
+   * for the same reason the row kebab passes them: a relation field must bind
+   * as the stored FOREIGN KEY rather than whatever `$expand` substituted for it
+   * on this surface (the detail fetch expands every relation it can), or
+   * `record.owner == os.user.id` answers a different question here than it does
+   * on the list.
+   */
+  const predicateFields = objectDef?.fields;
+  /**
+   * `visibleWhen` — fails CLOSED, and counts as DECLARED by `!= null` rather
+   * than by truthiness, so `visibleWhen: false` hides the affordance instead of
+   * reading as "ungated" (the objectui#3492 invariant that
+   * `isBuiltinRowActionVisible` restates for the row surfaces). `?? true`
+   * expresses the ungated default as a boolean, which `useRowPredicate`
+   * short-circuits without touching the engine — so an object with no
+   * `userActions` takes no evaluation at all and this gate is a literal `true`.
+   *
+   * `useRowPredicate` IS the row surfaces' evaluator: `plugin-grid`'s
+   * `evalRowActionVisibility` documents itself as mirroring
+   * `useRowPredicate(pred, row, { fallback: false, warnOnError: true, label,
+   * fields })` exactly, boolean short-circuit included, and is hook-free only
+   * because a row loop evaluates a variable number of actions inside one
+   * `useMemo`. This header evaluates a fixed arity of one record, so the hook
+   * form is that same evaluator without the constraint that shaped the wrapper.
+   */
+  const editVisible = useRowPredicate(editPredicates?.visibleWhen ?? true, pageRecord, {
+    fallback: false,
+    warnOnError: true,
+    label: 'builtin:edit:visibleWhen',
+    fields: predicateFields,
+  });
+  const deleteVisible = useRowPredicate(deletePredicates?.visibleWhen ?? true, pageRecord, {
+    fallback: false,
+    warnOnError: true,
+    label: 'builtin:delete:visibleWhen',
+    fields: predicateFields,
+  });
+  /**
+   * `disabledWhen` — fails SOFT (an unevaluable predicate must not grey a
+   * button forever), and the `!= null` gate lives OUTSIDE the evaluation, so
+   * `disabledWhen: ''` reads as "no condition" rather than as "disable".
+   * Verbatim the posture of `DataTableBuiltinRowActionItem` and of PR #4515.
+   */
+  const editDisabledPred = useRowPredicate(editPredicates?.disabledWhen, pageRecord, {
+    fallback: false,
+    warnOnError: true,
+    label: 'builtin:edit:disabledWhen',
+    fields: predicateFields,
+  });
+  const deleteDisabledPred = useRowPredicate(deletePredicates?.disabledWhen, pageRecord, {
+    fallback: false,
+    warnOnError: true,
+    label: 'builtin:delete:disabledWhen',
+    fields: predicateFields,
+  });
+  const editDisabledByPredicate = editPredicates?.disabledWhen != null && editDisabledPred;
+  const deleteDisabledByPredicate = deletePredicates?.disabledWhen != null && deleteDisabledPred;
+
   // ── Audit history fetch ────────────────────────────────────────────
   // Loads recent sys_audit_log entries for this record so the record page can
   // render a read-only "History" tab (`record:history`). Gated on three preconditions to keep
@@ -1910,10 +2005,17 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // just because an object has few actions.
   const synthSystemActions: ActionDef[] = (() => {
     const objectAffordances = resolveRecordHeaderActionGates(objectDef, effectiveApiOperations);
-    // Object-level gate AND the record-level verdict (objectstack#3821).
+    // Object-level gate AND the record-level verdict (objectstack#3821) AND the
+    // object's per-record `userActions` predicate (objectui#4213 — see the
+    // evaluation block beside `recordDeleteAllowed` above).
+    //
+    // The predicate is a FOURTH conjunct: the affordance and permission gates
+    // above are untouched, so a predicate that holds can never resurrect a
+    // button the bucket closed or the user may not press. It only ever
+    // subtracts.
     const affordances = {
-      edit: objectAffordances.edit && recordWriteAllowed,
-      delete: objectAffordances.delete && recordDeleteAllowed,
+      edit: objectAffordances.edit && recordWriteAllowed && editVisible,
+      delete: objectAffordances.delete && recordDeleteAllowed && deleteVisible,
     };
     const items: ActionDef[] = [];
     if (affordances.edit) {
@@ -1941,7 +2043,15 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         // off, with the lock band next to it saying why. Note this is the
         // LOCK, not the mere presence of an approval — a `lockRecord: false`
         // node keeps Edit live, which is the point of that setting.
-        disabled: approvalLocked,
+        //
+        // objectui#4213 — `edit.disabledWhen` composes onto this SAME key
+        // rather than opening a second one: `visibleWhen` decides existence,
+        // `disabledWhen` decides pressability, and either reason for "off" is
+        // the same off. OR, not AND: an approval lock and a declared predicate
+        // are independent reasons, and neither may cancel the other. With no
+        // predicate declared `editDisabledByPredicate` is `false`, so this is
+        // byte-identical to the pre-#4213 `disabled: approvalLocked`.
+        disabled: approvalLocked || editDisabledByPredicate,
         onClick: () => onEdit({ id: pureRecordId }),
       } as any);
     }
@@ -1989,6 +2099,13 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         variant: 'destructive',
         order: 120,
         component: 'action:menu',
+        // objectui#4213 — `delete.disabledWhen` greys the overflow entry, the
+        // kebab's rule for the same key. Spread only when it HOLDS: this action
+        // declared no `disabled` key before, and `page:header` reads a declared
+        // `disabled` by `!= null`, so emitting a bare `false` would say
+        // something the object never declared. With no predicate the emitted
+        // ActionDef is byte-identical to the pre-#4213 one.
+        ...(deleteDisabledByPredicate ? { disabled: true } : null),
         onClick: async () => {
           const msg = t('detail.deleteConfirmation', {
             defaultValue: 'Are you sure you want to delete this record?',
@@ -2077,9 +2194,26 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             materialize an `approval_status` field (objectui#2618).
             `approvalPending` rides alongside it so a node that declares
             `lockRecord: false` still shows its band and recall button while
-            leaving the record editable (objectui#2902). */}
+            leaving the record editable (objectui#2902).
+
+            objectui#4213 — the object's per-record `userActions.edit` predicate
+            joins the SAME conjunction, and joins it exactly where
+            `approvalLocked` already sits. This expression mirrors the header's
+            `sys_edit` gate on purpose (the header CTA and the body pencils are
+            one edit affordance in two places), so folding the predicate into
+            only one of them would re-create, inside a single file, precisely
+            the header-vs-row asymmetry #4213 is about: Edit gone from the
+            header while double-click still opened a draft the object says this
+            record may not have. `disabledWhen` suppresses the pencils for the
+            same reason `approvalLocked` does — a draft Save would reject. */}
         <InlineEditProvider
-          canEdit={resolveRecordHeaderActionGates(objectDef, effectiveApiOperations).edit && recordWriteAllowed && !approvalLocked}
+          canEdit={
+            resolveRecordHeaderActionGates(objectDef, effectiveApiOperations).edit
+            && recordWriteAllowed
+            && !approvalLocked
+            && editVisible
+            && !editDisabledByPredicate
+          }
           locked={approvalLocked}
           approvalPending={approvalPending}
           approvalProgress={approvalProgress}
