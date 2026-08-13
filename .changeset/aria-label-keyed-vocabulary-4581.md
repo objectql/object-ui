@@ -3,6 +3,7 @@
 '@object-ui/react': patch
 '@object-ui/layout': patch
 '@object-ui/app-shell': patch
+'@object-ui/components': patch
 ---
 
 `BaseSchema.ariaLabel` declares the keyed i18n vocabulary the renderer actually
@@ -46,6 +47,14 @@ coped with `any` through `BaseSchema`'s index signature. Three test fixtures tha
 had been casting past these declarations with `as unknown as BaseSchema` state
 their values directly now, and the declared unions are pinned invariantly so
 neither a missing widening nor an overshoot to `any` can pass unnoticed.
+
+Declaring the vocabulary honestly also surfaced a real one: the `toggle`
+renderer writes `aria-label` itself instead of going through SchemaRenderer's
+resolver, and it forwarded the raw value. Invoked directly it emitted
+`aria-label="[object Object]"` for a keyed label — announced verbatim by a
+screen reader. It resolves now. Through `SchemaRenderer` the bug was invisible,
+because SchemaRenderer injects its own resolved `aria-label` afterwards; a
+downstream type-check sweep found it, not a test.
 
 `BaseSchema.label` and `.description` are deliberately unchanged and pinned that
 way. They receive the spec's inline `I18nLabel` from the view bridges, which is a

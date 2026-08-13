@@ -7,17 +7,24 @@
  */
 
 import { ComponentRegistry } from '@object-ui/core';
+import { resolveKeyedI18nLabel } from '@object-ui/react';
 import type { ToggleSchema } from '@object-ui/types';
 import { Toggle } from '../../ui';
 import { renderChildren } from '../../lib/utils';
 
-ComponentRegistry.register('toggle', 
+ComponentRegistry.register('toggle',
   ({ schema, ...props }: { schema: ToggleSchema; [key: string]: any }) => (
-    <Toggle 
-      variant={schema.variant} 
-      size={schema.size} 
+    <Toggle
+      variant={schema.variant}
+      size={schema.size}
       pressed={schema.pressed}
-      aria-label={schema.ariaLabel}
+      // `ariaLabel` is `string | KeyedI18nLabel` (objectui#4581) — the keyed
+      // form has to be RESOLVED before it reaches the DOM, exactly as
+      // `SchemaRenderer.tsx:111` does for every other component. Forwarding it
+      // raw put an object into an `aria-label`, which renders the literal text
+      // "[object Object]" to a screen reader. This renderer bypasses
+      // SchemaRenderer's `resolveAriaProps`, so it has to do it itself.
+      aria-label={resolveKeyedI18nLabel(schema.ariaLabel)}
       {...props}
     >
       {schema.label || renderChildren(schema.children)}
