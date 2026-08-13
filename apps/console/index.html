@@ -46,6 +46,23 @@
     <script>
       window.process = window.process || { env: { NODE_ENV: 'development' }, version: '', platform: 'browser' };
     </script>
+    <!--
+      crypto.randomUUID fallback for INSECURE ORIGINS (objectui#4563).
+
+      `crypto.randomUUID` is secure-context-only, so on `http://LAN-IP` (the
+      ordinary way a second device reaches a dev box) the browser omits it and
+      every unguarded caller throws "crypto.randomUUID is not a function" —
+      taking the list views into the ErrorBoundary. The module below restores
+      the method from `crypto.getRandomValues`, guarded on ABSENCE so a native
+      implementation is never replaced.
+
+      ORDER IS LOAD-BEARING: this tag MUST stay ahead of the /src/main.tsx entry
+      below. Both are `type="module"`, hence deferred and executed in DOCUMENT
+      ORDER, which is what makes the shim precede every consumer in the app's
+      module graph. `src/__tests__/insecure-origin-crypto.placement.test.ts`
+      fails if the tag is moved, renamed or removed.
+    -->
+    <script type="module" src="/src/insecure-origin-crypto.ts"></script>
   </head>
   <body>
     <div id="root"></div>
