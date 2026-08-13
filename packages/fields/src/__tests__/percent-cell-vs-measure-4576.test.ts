@@ -16,9 +16,16 @@
  * cannot import `formatPercent` — so the agreement is pinned here, the one
  * place both are in scope.
  *
- * This file adds no implementation. `formatPercent` is untouched by #4576; it
- * has rendered through `Intl` since #4553 / PR #4565 and is the SIDE the measure
+ * This file adds no implementation. `formatPercent` was untouched by #4576; it
+ * has rendered through `Intl` since #4553 / PR #4565 and was the SIDE the measure
  * formatter moved onto.
+ *
+ * ── objectui#4590 ──
+ * The last case in this file was a NOT-a-defect pin recording that the two
+ * surfaces still disagreed at rounding TIES. #4590 closed that at the
+ * `formatPercent` end (it now renders percentage points directly, through the
+ * same `style: 'percentPoints'` the measure uses), so that pin is now an
+ * AGREEMENT pin. It is declared in place, at the case itself.
  *
  * ── PREDICTIONS, written before the run ──
  * RED before the fix: every locale whose percent convention has a space or a
@@ -79,23 +86,30 @@ describe('a percent renders under ONE convention in a cell and in a measure (#45
     expect(formatMeasure(1234.5, '0.0%', undefined, 'whole', 'en-US')).toBe('1,234.5%');
   });
 
-  it('NOT a defect pin — the two still round ties differently, and that is #4565 not #4576', () => {
-    // Honest label rather than a quiet omission, and it records a real
-    // remaining gap.
-    // `formatPercent` divides by 100 so `Intl`'s `style: 'percent'` can multiply
-    // back, and that round trip is lossy at rounding ties; `formatMeasure` now
-    // formats the percentage points directly and keeps the authored decimal.
-    // Measured, 2,999 display magnitudes at or above 1 differ this way on a
-    // 0.005-step grid to 200 (and 27,581 of 1,200,013 forms overall).
+  it('AGREEMENT pin — the two now round ties the same way (was NOT-a-defect, closed by #4590)', () => {
+    // ── PIN MOVED (objectui#4590) ──
+    // This case was a NOT-a-defect pin: it asserted the two surfaces DISAGREED
+    // at rounding ties, recorded honestly rather than omitted, and said the gap
+    // was #4565's residue rather than #4576's business. #4590 closed it at the
+    // `formatPercent` end, so the pin flips from recording a divergence to
+    // asserting the agreement.
     //
-    // 1.005 percentage points to 2 decimals is half-up `1.01`, so the MEASURE is
-    // the faithful one here and the CELL is the artefact — the opposite of what
-    // "the cell is the reference" would suggest. It is a NARROWER divergence
-    // than the convention split this card closed, it predates this card at the
-    // `formatPercent` end, and closing it means changing `formatPercent`, which
-    // is outside #4576's surface. Filed separately; pinned here so the next
-    // reader finds it recorded rather than rediscovers it.
-    expect(formatPercent(1.005, 2, 'en-US')).toBe('1.00%');
+    // Before:  formatPercent(1.005, 2, 'en-US')  ->  '1.00%'   (the artefact)
+    //          formatMeasure(1.005, …)           ->  '1.01%'   (the faithful one)
+    // After:   both -> '1.01%'.
+    //
+    // The cause was `formatPercent` dividing by 100 so `Intl`'s
+    // `style: 'percent'` could multiply back — lossy at ties, because the
+    // quotient's shortest decimal representation is not the authored one.
+    // `formatMeasure` had already moved onto `style: 'percentPoints'` in #4576;
+    // the cell now renders through the same option, so there is one route and
+    // no second rounding behaviour to keep in step.
+    expect(formatPercent(1.005, 2, 'en-US')).toBe('1.01%');
     expect(formatMeasure(1.005, '0.00%', undefined, 'whole', 'en-US')).toBe('1.01%');
+    // …and asserted as an AGREEMENT rather than two coincidences, so a future
+    // divergence at either end fails here whatever the two happen to render.
+    expect(formatPercent(1.005, 2, 'en-US')).toBe(
+      formatMeasure(1.005, '0.00%', undefined, 'whole', 'en-US'),
+    );
   });
 });

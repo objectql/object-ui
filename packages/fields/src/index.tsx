@@ -478,15 +478,37 @@ export function formatNumber(value: number, decimals: number = 2, locale?: strin
  */
 function formatPercentBody(displayValue: number, precision: number, locale?: string): string {
   try {
-    // `style: 'percent'` multiplies by 100, so the display magnitude is divided
-    // back out. Going through `Intl` rather than appending a literal '%' is what
-    // buys the locale's percent CONVENTION and not merely its separators:
-    // German writes `1.235 %` with a no-break space before the sign, English
-    // `1,235%` with none. Both bounds are set to `precision` so the width is
-    // exactly the one the caller asked for — the same contract `toFixed` gave.
-    return formatDisplayNumber(displayValue / 100, {
+    // `style: 'percentPoints'` renders a value that is ALREADY in percentage
+    // points, so there is no `/ 100` here. Going through `Intl` rather than
+    // appending a literal '%' is what buys the locale's percent CONVENTION and
+    // not merely its separators: German writes `1.235 %` with a no-break space
+    // before the sign, English `1,235%` with none, Turkish puts the sign in
+    // FRONT. Both bounds are set to `precision` so the width is exactly the one
+    // the caller asked for — the same contract `toFixed` gave.
+    //
+    // ⚠️ NOT `style: 'percent'` (objectui#4590). That style wants a FRACTION, so
+    // this used to divide by 100 for `Intl` to multiply straight back — and the
+    // round trip is not value-preserving. `Intl` formats from the SHORTEST
+    // decimal representation of the double it is handed, and the quotient's is
+    // not the authored one: `1.005` is `1.005`, but `1.005 / 100` is
+    // `0.010049999999999999`, which percent-scales to `1.0049999999999999` and
+    // rounds DOWN — so a stored 1.005 rendered `1.00%` where half-up is `1.01%`.
+    // The DIVISION lost the digit, not the rounding, which is why it reproduced
+    // in every locale and why 27,577 of 1,200,003 ordinary en-US forms moved
+    // (0.005-step grid to 2,000, precisions 0/1/2), every one a last-digit
+    // off-by-one. The same artefact reached the top of the double range:
+    // `MAX_SAFE_INTEGER` points rendered `…740,990%` for `…740,991%`.
+    //
+    // The affix is unchanged by the switch: `'percentPoints'` is `Intl`'s
+    // `style: 'unit'` / `unit: 'percent'` / `unitDisplay: 'narrow'`, measured
+    // byte-identical to `style: 'percent'` across all 171 locale tags in #4576
+    // and re-measured on THIS call shape in #4590 — 720 combinations (10 locales
+    // x 18 values x 4 precisions), 0 convention diffs, 130 numeral diffs.
+    // `formatMeasure` renders through the same option, so a percentage point
+    // reads identically in a list cell and in a dashboard measure.
+    return formatDisplayNumber(displayValue, {
       locale,
-      style: 'percent',
+      style: 'percentPoints',
       minimumFractionDigits: precision,
       maximumFractionDigits: precision,
     });
