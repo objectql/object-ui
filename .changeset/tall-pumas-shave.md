@@ -1,5 +1,5 @@
 ---
-'@object-ui/plugin-timeline': patch
+'@object-ui/plugin-timeline': minor
 ---
 
 fix(plugin-timeline): dates follow the active locale instead of a hardcoded en-US
