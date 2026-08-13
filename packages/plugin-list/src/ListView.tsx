@@ -15,6 +15,7 @@ import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
 import { ViewSettingsPopover } from './components/ViewSettingsPopover';
 import { UserFilters } from './UserFilters';
 import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
+import type { NavigationConfig } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
@@ -23,9 +24,46 @@ import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, r
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
+/**
+ * The list view's props.
+ *
+ * ## Why there is no `[key: string]: any` here (objectui#4528)
+ *
+ * There used to be one, and it erased this entire interface. A string index
+ * signature puts `string` into `keyof Props`, so `'ref' extends keyof Props` is
+ * always true and React's `PropsWithoutRef` takes its `Omit` branch — and
+ * `Omit` over a type carrying a string index signature keeps ONLY the index
+ * signature. Every declared property below was dropped from the resolved type.
+ * Measured on the pre-fix source:
+ * `keyof React.ComponentProps< typeof ListView >` was `string | number`, and
+ * `React.ComponentProps< typeof ListView >['onRowClick']` was `any`, while this
+ * interface went on declaring `(record: Record< string, unknown >) => void`.
+ *
+ * The same trap, in `packages/components`, is objectui#4422 / PR #4438; this is
+ * the sweep of the two packages that issue left unswept.
+ *
+ * ## The props that were only ever reachable through it
+ *
+ * `ListView` reads several props it never declared, because the index signature
+ * was answering for them — `dataSource`, `onAddRecord`, `onBulkAction`,
+ * `onPageSizeChange` are read directly, and `onEdit` / `onDelete` /
+ * `onBulkDelete` ride the `{...props}` forward into the active view component
+ * (`ObjectGrid` declares all three). They are declared by name below, at the
+ * type each one actually lands on, rather than left to an index signature that
+ * types them `any` and erases everything around them.
+ */
 export interface ListViewProps {
   schema: ListViewSchema;
   className?: string;
+  /**
+   * Data-source adapter. Read directly (`dataSource.find`,
+   * `dataSource.getObjectSchema`, `dataSource.onMutation`) and forwarded to the
+   * active view component. Typed `any` deliberately: that is what it resolved
+   * to before objectui#4528, so declaring it changes what is DECLARED without
+   * changing what any call site is held to. Narrowing it to a real adapter type
+   * is a separate change with its own consumer sweep.
+   */
+  dataSource?: any;
   onViewChange?: (view: ViewType) => void;
   onFilterChange?: (filters: any) => void;
   onSortChange?: (sort: any) => void;
@@ -53,7 +91,21 @@ export interface ListViewProps {
   initialFilters?: FilterGroup;
   /** Initial search term to restore at mount (same one-shot semantics as `initialFilters`). */
   initialSearchTerm?: string;
-  [key: string]: any;
+  /** Called when the user asks for a new record (toolbar "+ New" and the empty-state CTA). */
+  onAddRecord?: () => void;
+  /** Called with a non-delete bulk action key and the currently selected rows. */
+  onBulkAction?: (action: string, records: any[]) => void;
+  /** Called when the user picks a different page size in the pager. */
+  onPageSizeChange?: (pageSize: number) => void;
+  /**
+   * Row-level affordances forwarded to the active view component. `ObjectGrid`
+   * declares all three with exactly these signatures; they are named here so the
+   * hosts that pass them (`ObjectView`, `StudioDesignSurface`) are held to a
+   * contract instead of to an index signature.
+   */
+  onEdit?: (record: any) => void;
+  onDelete?: (record: any) => void;
+  onBulkDelete?: (records: any[]) => void;
 }
 
 // Helper to convert FilterBuilder group to ObjectStack AST.
@@ -648,7 +700,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   initialFilters,
   initialSearchTerm,
   ...props
-}, ref) => {
+}: ListViewProps & { [key: string]: any }, ref) => {
   // The switcher can be enabled either by the host component (prop) or by
   // the schema itself (ADR-0047 — ObjectView/InterfaceListPage stamp it on
   // the schema when appearance.allowedVisualizations whitelists >1 type).
@@ -1065,7 +1117,12 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // nowhere (declined platform-side — objectstack#1301). Declared-but-dead
   // formats used to render as menu items whose click did nothing; now they're
   // dropped from the menu (with a one-time warning for the app author).
-  const exportableFormats = React.useMemo(() => {
+  // Annotated `string[]` rather than inferred: `resolvedExportOptions.formats`
+  // is the spec's literal union, so the inferred element type made the
+  // `exportableFormats.includes(f)` below (whose `f` is a plain `string`) a
+  // TS2345. Only visible since objectui#4528 gave this render function a real
+  // `schema` type — the index signature used to resolve it to `any`.
+  const exportableFormats = React.useMemo<string[]>(() => {
     const declared = resolvedExportOptions?.formats || ['csv', 'json'];
     const serverAvailable = typeof dataSource?.exportDownload === 'function'
       && !!schema.objectName
@@ -1670,8 +1727,15 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   }, [onSearchChange]);
 
   // --- NavigationConfig support ---
+  // The assertion bridges two spellings of ONE spec object and changes no
+  // value: `@object-ui/react`'s `NavigationConfig` alias re-declares `mode` as
+  // NON-optional, while the spec-derived `ListViewSchema['navigation']` leaves
+  // it optional. The hook's own body defaults it (`navigation?.mode ?? 'page'`),
+  // so a spec-shaped value is valid input and only the alias is tighter than
+  // its implementation. Surfaced by objectui#4528: this call used to type-check
+  // for the wrong reason, because the erased props type made `schema` `any`.
   const navigation = useNavigationOverlay({
-    navigation: schema.navigation,
+    navigation: schema.navigation as NavigationConfig | undefined,
     objectName: schema.objectName,
     onNavigate: schema.onNavigate,
     onRowClick,

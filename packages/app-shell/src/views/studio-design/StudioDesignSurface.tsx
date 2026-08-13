@@ -1885,10 +1885,24 @@ function renderStudioGridList(props: {
   dataSource: unknown;
   onEdit?: (record: Record<string, unknown>) => void;
   className?: string;
+  /**
+   * Supplied by the plugin ObjectView's `renderListView` slot, and deliberately
+   * NOT read here. It used to be forwarded as `refreshKey={refreshKey}` to
+   * `ListView`, which reaches nothing: neither `ListView` nor any view
+   * component it renders declares or reads a `refreshKey` prop, so it rode the
+   * `{...props}` forward and was dropped. That was invisible until
+   * objectui#4528 stopped `ListViewProps` erasing itself.
+   *
+   * Removing the dead prop is behaviour-preserving; WIRING it is not, so it is
+   * deliberately left for triage rather than fixed under a type-only card. The
+   * working precedent is `app-shell/src/views/ObjectView.tsx`, which folds the
+   * slot's `refreshKey` into React's `key` to force a remount. Filed as a
+   * separate finding.
+   */
   refreshKey?: number;
   onAddRecord?: () => void;
 }): React.ReactElement {
-  const { schema: listSchema, dataSource: ds, onEdit, className, refreshKey, onAddRecord } = props;
+  const { schema: listSchema, dataSource: ds, onEdit, className, onAddRecord } = props;
   return (
     <ListView
       schema={
@@ -1913,7 +1927,6 @@ function renderStudioGridList(props: {
       onEdit={onEdit}
       onAddRecord={onAddRecord}
       className={className}
-      refreshKey={refreshKey}
     />
   );
 }

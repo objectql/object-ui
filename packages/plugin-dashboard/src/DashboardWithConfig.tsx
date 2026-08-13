@@ -123,8 +123,17 @@ export function DashboardWithConfig({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedWidgetId, configVersion]);
 
+  // `string | null`, not `string`: `DashboardRenderer` calls `onWidgetClick(null)`
+  // to DESELECT when a design-mode click lands on the dashboard background, and
+  // this handler has always received that `null` at runtime — `selectedWidgetId`
+  // is a `useState< string | null >` precisely so it can hold it. The narrower
+  // `(widgetId: string)` type-checked only because a `[key: string]: any` on
+  // `DashboardRendererProps` erased every declared prop from the resolved type,
+  // so this call site was never held to the declared
+  // `(widgetId: string | null) => void` (objectui#4528). Widening the annotation
+  // is what the contract always said; nothing about the behaviour changes.
   const handleWidgetSelect = useCallback(
-    (widgetId: string) => {
+    (widgetId: string | null) => {
       setSelectedWidgetId(widgetId);
       setConfigOpen(true);
     },

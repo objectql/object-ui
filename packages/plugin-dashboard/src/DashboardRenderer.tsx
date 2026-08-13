@@ -9,7 +9,7 @@
 import type { DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
 import { SchemaRenderer, useActionEngine, useObjectLabel, PageVariablesProvider, usePageVariables } from '@object-ui/react';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
-import type { ActionDef, ActionResult, ActionContext, ModalHandler } from '@object-ui/core';
+import type { ActionDef, ActionResult, ActionContext, ModalHandler, SduiDomPassThroughKey } from '@object-ui/core';
 import {
   resolveDashboardFilterDefs,
   dashboardFilterVariableDefs,
@@ -19,6 +19,7 @@ import {
 } from '@object-ui/core';
 import { cn, Card, CardHeader, CardTitle, CardContent, Button, getLazyIcon } from '@object-ui/components';
 import { forwardRef, useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
+import type { HTMLAttributes } from 'react';
 import { RefreshCw } from 'lucide-react';
 import {
   DndContext,
@@ -153,9 +154,52 @@ const LEGACY_RETIRED_WIDGET_SCHEMA = {
   className: 'flex h-full w-full items-center justify-center rounded border border-dashed border-destructive/40 bg-destructive/5 p-4 text-center text-destructive',
 } as const;
 
-export interface DashboardRendererProps {
+/**
+ * The dashboard renderer's props.
+ *
+ * ## Why there is no `[key: string]: any` here (objectui#4528)
+ *
+ * There used to be one, and it erased this entire interface. A string index
+ * signature puts `string` into `keyof Props`, so `'ref' extends keyof Props` is
+ * always true and React's `PropsWithoutRef` takes its `Omit` branch —  and
+ * `Omit` over a type carrying a string index signature keeps ONLY the index
+ * signature. Every declared property above was dropped from the resolved type:
+ * `keyof React.ComponentProps< typeof DashboardRenderer >` measured as
+ * `string | number`, and `onWidgetClick` measured as `any` at every JSX call
+ * site, while this interface went on declaring
+ * `(widgetId: string | null) => void`. The declaration was right and no
+ * consumer was held to it — a prop typo or a wrong-arity handler type-checked.
+ *
+ * The same trap, in `packages/components`, is objectui#4422 / PR #4438; this is
+ * the sweep of the two packages that issue left unswept.
+ *
+ * ## How the DOM pass-through survives without it
+ *
+ * `SchemaRenderer` hands this component the authored node's own keys, so the
+ * render function still collects an open rest object — but what may reach the
+ * element is decided by `toDomProps`' WHITELIST (objectui#4432), not by this
+ * type. The keys that whitelist forwards are therefore declared here BY NAME,
+ * derived from the whitelist constant itself so the two cannot drift, which is
+ * exactly what `@object-ui/core`'s `dom-props` doctrine asks for: "Deliberate
+ * DOM pass-through beyond this set stays available the objectui#4435 way —
+ * DECLARE it and forward it by name. Do not reopen the spread."
+ */
+export interface DashboardRendererProps
+  extends Pick<HTMLAttributes<HTMLDivElement>, SduiDomPassThroughKey> {
   schema: DashboardComponentSchema;
   className?: string;
+  /**
+   * Data-source adapter for the widgets this dashboard renders.
+   *
+   * Destructured by the render function and handed to `DatasetWidget` /
+   * `SchemaRenderer`, and passed by both in-repo hosts (`DashboardView`,
+   * `DashboardPreview`) — but never declared until objectui#4528, because the
+   * index signature above was answering for it. Typed `any` deliberately: that
+   * is precisely what it resolved to before, so declaring it changes what is
+   * DECLARED without changing what any call site is held to. Narrowing it to a
+   * real adapter type is a separate change with its own consumer sweep.
+   */
+  dataSource?: any;
   /** Callback invoked when dashboard refresh is triggered (manual or auto) */
   onRefresh?: () => void;
   /** Total record count to display */
@@ -186,11 +230,10 @@ export interface DashboardRendererProps {
    * title/subtitle so we don't display them twice.
    */
   hideHeaderText?: boolean;
-  [key: string]: any;
 }
 
 const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps>(
-  ({ schema, className, dataSource, onRefresh, recordCount, userActions, designMode, selectedWidgetId, onWidgetClick, onWidgetsReorder, modalHandler, scriptHandlers, hideHeaderText, ...props }, ref) => {
+  ({ schema, className, dataSource, onRefresh, recordCount, userActions, designMode, selectedWidgetId, onWidgetClick, onWidgetsReorder, modalHandler, scriptHandlers, hideHeaderText, ...props }: DashboardRendererProps & { [key: string]: any }, ref) => {
     // Auto-infer the grid column count when the dashboard schema doesn't
     // specify one. Spec convention is a 12-column grid (widgets use w: 3 for
     // quarter-row KPIs, w: 6 for half-row charts, etc.). If we always default
@@ -426,7 +469,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
      * then declines to optimize the component around. It lands on a plain
      * element with no memoized child, so identity churn costs nothing.
      */
-    const handleHostClick = (e: React.MouseEvent) => {
+    const handleHostClick = (e: React.MouseEvent<HTMLDivElement>) => {
       handleBackgroundClick(e);
       if (typeof props.onClick === 'function') props.onClick(e);
     };

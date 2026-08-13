@@ -237,14 +237,22 @@ describe("the grid's click channel has one carrier (objectui#4432)", () => {
       <DashboardRenderer
         schema={DASHBOARD}
         designMode
-        // `id` is annotated rather than inferred, and that is not a style
-        // choice: `DashboardRendererProps` carries `[key: string]: any`, which
-        // makes `'ref' extends keyof Props` true, so React's `PropsWithoutRef`
-        // resolves to `Pick<Props, string | number>` and every NAMED prop —
-        // `onWidgetClick` included — collapses to the index signature at the
-        // JSX call site. The annotation restates the type the interface itself
-        // still declares, `(widgetId: string | null) => void`, so this callback
-        // is checked even though the element around it is not (objectui#4040).
+        // `id` is annotated rather than inferred. This used to be load-bearing:
+        // `DashboardRendererProps` carried a `[key: string]: any`, which made
+        // `'ref' extends keyof Props` true, so React's `PropsWithoutRef`
+        // resolved to `Pick<Props, string | number>` and every NAMED prop —
+        // `onWidgetClick` included — collapsed to the index signature at the
+        // JSX call site. The annotation restated the type the interface itself
+        // still declared, so this callback was checked even though the element
+        // around it was not (objectui#4040).
+        //
+        // objectui#4528 removed that index signature, so the annotation is now
+        // REDUNDANT rather than load-bearing — `onWidgetClick` resolves to the
+        // declared `(widgetId: string | null) => void` on its own, and
+        // `DashboardRenderer.propsResolution.test.ts` pins exactly that. It is
+        // kept because restating a declared type costs nothing and this call
+        // site reads more clearly with the contract spelled out; deleting it
+        // would also be correct.
         onWidgetClick={(id: string | null) => selections.push(id)}
         onClick={() => hostClicks.push('host')}
       />,

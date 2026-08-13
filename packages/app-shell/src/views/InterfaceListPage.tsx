@@ -23,6 +23,7 @@ import { Empty, EmptyTitle, EmptyDescription, NavigationOverlay } from '@object-
 import { Database } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { isSystemManagedField } from '@object-ui/types';
+import type { ListViewSchema } from '@object-ui/types';
 import { useMetadata } from '../providers/MetadataProvider';
 import { useTenancyPosture } from '../hooks/useTenancyPosture';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
@@ -372,7 +373,13 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
     return {
       type: 'list-view' as const,
       objectName: objectDef.name,
-      viewType: (allowed[0] ?? view.type ?? 'grid'),
+      // Narrowed to the schema's declared union rather than left as `string`:
+      // `allowedVisualizations` arrives as `string[]`, so this expression is a
+      // bare `string` and only type-checked against `ListViewSchema` from
+      // objectui#4528 onwards — before that, `ListViewProps` carried a
+      // `[key: string]: any` that erased `schema` to `any` at this call site.
+      // The assertion changes no value; the runtime string is what it was.
+      viewType: (allowed[0] ?? view.type ?? 'grid') as ListViewSchema['viewType'],
       columns,
       ...(filters.length ? { filter: filters } : {}),
       ...(sort?.length ? { sort } : {}),
