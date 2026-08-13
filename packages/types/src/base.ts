@@ -16,6 +16,8 @@
  * @packageDocumentation
  */
 
+import type { I18nLabel } from '@objectstack/spec/ui';
+
 /**
  * A KEYED i18n label — a reference INTO a translation bundle (objectui#4581).
  *
@@ -86,14 +88,73 @@ export interface BaseSchema {
   /**
    * Display label for the component.
    * Often used in forms, cards, and other UI elements.
+   *
+   * Accepts the spec's INLINE LOCALE MAP as well as a plain string
+   * (objectui#4580, revised Q1 ruling — option A), because that is what a spec
+   * producer already writes into this slot: `bridgeListView` assigns
+   * `node.label = spec.label` at
+   * `packages/react/src/spec-bridge/bridges/list-view.ts:180`, and `ListView`'s
+   * own `label` is the spec's `I18nLabel`. Under the old `string` declaration
+   * that assignment was a type error the moment `SchemaNode` stopped being
+   * core's index-signature interface — the defect this widening resolves, not a
+   * capability being invented here.
+   *
+   * ## Which vocabulary this is, and who resolves it
+   *
+   * This slot — and {@link BaseSchema.description} two lines down — carries the
+   * spec's INLINE form: `I18nLabel` = `string | Record<string, string>`, a
+   * locale MAP like `{ en: 'Owner', 'zh-CN': '负责人' }`, resolved against a
+   * BCP-47 locale by the spec's own `resolveI18nLabel(label, locale)` from
+   * `@objectstack/spec/ui`. Its documented fallback order is exact match →
+   * base/region (`zh-CN` ↔ `zh`) → last resort (any remaining entry), and it
+   * returns `undefined` when nothing matched, so read sites pair it with
+   * `?? someDefault`.
+   *
+   * ⚠️ {@link BaseSchema.ariaLabel}, two properties below, carries the OTHER
+   * vocabulary — the KEYED form {@link KeyedI18nLabel} (`{ key, defaultValue?,
+   * params? }`), a reference INTO a translation bundle, resolved by
+   * `resolveKeyedI18nLabel`. One interface now carries both, two properties
+   * apart, and they are structurally confusable: a keyed ref typed into this
+   * slot is accepted only *vacuously*, as a locale map whose "locales" are
+   * named `key` and `defaultValue`. That is objectui#4167's hazard, inherent to
+   * the spec's `I18nLabel` design and present on every spec surface using it;
+   * naming both shapes with cross-referenced docs is the accepted mitigation
+   * (#4580's revised Q1 ruling states this cost and accepts it).
+   *
+   * ## Resolution happens at READ time, not at the bridge
+   *
+   * The renderer resolves this against the display locale — `useDisplayLocale()`
+   * where the read site is in an i18n-reachable package, a locale threaded
+   * through props/context where it is not (`packages/layout` carries no i18n
+   * dependency). Resolving at the spec bridge was ruled out and measured
+   * unimplementable in PR #4603: the bridge is a plain class method that cannot
+   * call a hook, `BridgeContext` declares no locale, and `updateContext()` has
+   * zero callers — so a bridge-resolved label would freeze one audience's
+   * language into the node tree with no re-translation channel, the defect the
+   * spec's own resolver doc records as #6761.
+   *
+   * @example "Submit"
+   * @example { en: 'Submit', 'zh-CN': '提交' }
    */
-  label?: string;
+  label?: string | I18nLabel;
 
   /**
    * Descriptive text providing additional context.
    * Typically rendered as help text below the component.
+   *
+   * Accepts the spec's INLINE LOCALE MAP as well as a plain string on exactly
+   * the {@link BaseSchema.label} evidence one slot over (objectui#4580, revised
+   * Q1 ruling): `bridgeListView` assigns `node.description = spec.description`
+   * at `packages/react/src/spec-bridge/bridges/list-view.ts:224`, where the
+   * spec's `ListView.description` is an `I18nLabel`. Same vocabulary, same
+   * resolver (`resolveI18nLabel` against the display locale), same
+   * confusability warning against {@link BaseSchema.ariaLabel}'s keyed form —
+   * see {@link BaseSchema.label} for the full statement.
+   *
+   * @example "Shown below the field"
+   * @example { en: 'Shown below the field', 'zh-CN': '显示在字段下方' }
    */
-  description?: string;
+  description?: string | I18nLabel;
 
   /**
    * Placeholder text for input components.
@@ -234,6 +295,16 @@ export interface BaseSchema {
    * genuine `{ en: 'Owner' }` type-checked while `resolveKeyedI18nLabel`
    * returns `undefined` for it, rendering an EMPTY aria-label. The two
    * vocabularies are structurally confusable — objectui#4167's exact hazard.
+   *
+   * ⚠️ That hazard is now LIVE ON THIS INTERFACE, not just adjacent to it:
+   * since #4580's revised Q1 ruling, {@link BaseSchema.label} and
+   * {@link BaseSchema.description} declare the spec's INLINE map (`I18nLabel`,
+   * resolved by `resolveI18nLabel(label, locale)`), while this slot declares
+   * the KEYED ref (resolved by `resolveKeyedI18nLabel`). Two properties apart,
+   * both spelled `string | {object}`, and each accepts the other's shape
+   * vacuously. Check which resolver owns a slot before writing an object into
+   * it; the ruling accepted this cost with exactly this naming + cross-
+   * referencing as the mitigation.
    *
    * @example "Close dialog"
    * @example { key: 'dialog.close', defaultValue: 'Close dialog' }

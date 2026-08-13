@@ -52,14 +52,33 @@
  * `disabledOn?: string` sibling exists for the same reason. The asymmetry with
  * `visible` was accidental, not deliberate.
  *
- * ## `label` / `description` STAY `string` (ruling Q1-B) — must-not-change
+ * ## `label` / `description` — PIN MOVED (objectui#4580 revised Q1)
  *
- * The two spec bridges hand these slots the spec's INLINE `I18nLabel`, which is
- * a real defect (#4593's canary: TS2322 at `list-view.ts:180` and `:224`). The
- * ruling resolves it at the BRIDGE, not by widening these declarations. The two
- * assertions below are therefore the ruling written down: they are the only
- * pins in this file expected GREEN pre-fix, and a future card that "fixes" the
- * bridge defect by widening `BaseSchema.label` turns them red on purpose.
+ * ⚠️ **This section records a ruling that has since been REVISED, and the two
+ * pins below moved with it. The history is kept rather than rewritten, because
+ * the pins did exactly what they were built to do.**
+ *
+ * As written for #4581, these two slots STAYED `string` under ruling Q1-B: the
+ * two spec bridges hand them the spec's INLINE `I18nLabel` (#4593's canary:
+ * TS2322 at `list-view.ts:180` and `:224`), and Q1-B resolved that at the
+ * BRIDGE rather than by widening the declarations. The note below read: *"a
+ * future card that 'fixes' the bridge defect by widening `BaseSchema.label`
+ * turns them red on purpose."*
+ *
+ * That is what happened, on the very next card. PR #4603's seat measured
+ * Q1-B's premise FALSE on every leg — the bridge is a plain class method that
+ * cannot call `useDisplayLocale()`, `BridgeContext` declares no locale,
+ * `updateContext()` has zero callers, and `SpecBridge` has zero in-repo
+ * production consumers — so resolving there would freeze one audience's
+ * language into the node tree. The PM revised the ruling to **option A**
+ * (comment 5284973826): `label`/`description` widen to `string | I18nLabel`
+ * and resolution happens at READ time against the display locale.
+ *
+ * So these two pins turned red **on purpose, as designed**, and they are moved
+ * here to pin the widened unions. Their value as a pin is unchanged: they are
+ * still the ruling written down, just a different ruling — and the confusability
+ * they now guard is larger, because `label`/`description` (INLINE map) and
+ * `ariaLabel` (KEYED ref) now sit two properties apart on one interface.
  *
  * ## Predictions, written before the first run (red-first)
  *
@@ -84,7 +103,8 @@
  *      not independent evidence. They are listed for completeness, and the
  *      load-bearing pre-fix reds are 1-4.
  *   6. `assertionLabel` / `assertionDescription` — NO error, pre-fix and
- *      post-fix. See must-not-change above.
+ *      post-fix. See the `label`/`description` section above.
+ *      ⚠️ SUPERSEDED by #4580's revised Q1 — see the PIN MOVED record below.
  *
  * MEASURED (`52d878a3b`, before the fix) — 1, 2, 3, 4 and 6 held exactly:
  *
@@ -119,6 +139,9 @@
 
 import { describe, it, expect } from 'vitest';
 import type { BaseSchema, KeyedI18nLabel } from '../base';
+// The INLINE vocabulary, bound from the spec by reference (never re-declared
+// locally) — the same binding `packages/types/src/index.ts` re-exports.
+import type { I18nLabel } from '@objectstack/spec/ui';
 
 /* ── Type-level helpers ──────────────────────────────────────────────────── */
 
@@ -148,10 +171,62 @@ export type assertionDisabled = Expect<
   Equal< BaseSchema['disabled'], boolean | string | undefined >
 >;
 
-/* ── must-not-change: the Q1-B ruling, written as a pin ──────────────────── */
+/* ── PIN MOVED (objectui#4580 revised Q1) ────────────────────────────────── */
 
-export type assertionLabel = Expect< Equal< BaseSchema['label'], string | undefined > >;
-export type assertionDescription = Expect< Equal< BaseSchema['description'], string | undefined > >;
+/**
+ * **PIN MOVED (objectui#4580 revised Q1).** These two pinned
+ * `BaseSchema['label' | 'description'] === string | undefined` under ruling
+ * Q1-B, and turned red exactly as this file predicted when the revised ruling
+ * (comment 5284973826) widened them instead. Measured red before the move,
+ * verbatim:
+ *
+ * ```
+ * base-schema-label-vocabulary.test.ts(153,38): error TS2344: Type 'false' does not satisfy the constraint 'true'.
+ * base-schema-label-vocabulary.test.ts(154,44): error TS2344: Type 'false' does not satisfy the constraint 'true'.
+ * ```
+ *
+ * They now pin the widened unions. `I18nLabel` is the spec's INLINE locale map
+ * (`string | Record<string, string>` in `@objectstack/spec` 17.0.0-rc.6),
+ * resolved at READ time by `resolveI18nLabel(label, locale)` — NOT
+ * `ariaLabel`'s keyed `resolveKeyedI18nLabel`, two properties away on this same
+ * interface.
+ *
+ * `Equal` is INVARIANT here for the reason PR #4593 spelled out and this file
+ * inherits: a one-way `extends` is vacuous for a widening in BOTH directions —
+ * the narrow `string` is assignable to the wide `string | I18nLabel`, so a
+ * widening that never happened AND one that overshot to `any` would both stay
+ * green. `BaseSchema`'s `[key: string]: any` makes the overshoot live.
+ */
+export type assertionLabel = Expect<
+  Equal< BaseSchema['label'], string | I18nLabel | undefined >
+>;
+export type assertionDescription = Expect<
+  Equal< BaseSchema['description'], string | I18nLabel | undefined >
+>;
+
+/**
+ * The two vocabularies do NOT collapse into each other. Without this, a future
+ * edit that "simplified" `label` to `ariaLabel`'s union — or vice versa — would
+ * leave both `Equal` pins above green while silently swapping which resolver
+ * owns the slot. This is objectui#4167's confusability hazard, pinned.
+ */
+export type assertionVocabulariesAreDistinct = Expect<
+  Equal< Equal< BaseSchema['label'], BaseSchema['ariaLabel'] >, false >
+>;
+
+/** The inline map an author writes into `label` — the spec producer's shape. */
+export const inlineLocaleMapLabelIsAuthorable: BaseSchema = {
+  type: 'test-widget',
+  label: { en: 'Owner', 'zh-CN': '负责人' },
+  description: { en: 'Record owner', 'zh-CN': '记录所有者' },
+};
+
+/** A plain string stays authorable in both slots — the widening ADDS, never replaces. */
+export const plainStringLabelIsStillAuthorable: BaseSchema = {
+  type: 'test-widget',
+  label: 'Owner',
+  description: 'Record owner',
+};
 
 /* ── Authorable fixtures ─────────────────────────────────────────────────── */
 

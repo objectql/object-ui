@@ -14,6 +14,12 @@ import { ComponentRegistry } from '@object-ui/core';
 // `SidebarSchema` for them would assert `type: 'sidebar'` on a node whose type
 // is `'sidebar-header'` (objectui#4353).
 import type { SidebarSchema, BaseSchema } from '@object-ui/types';
+import { useDisplayLocale } from '@object-ui/i18n';
+// Aliased on import, following PR #4169's convention: this repo has its OWN
+// `resolveKeyedI18nLabel` over a DIFFERENT vocabulary, and neither resolver
+// accepts the other's shape. `schema.label` is the spec's INLINE locale map —
+// see `BaseSchema.label` (objectui#4580).
+import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { renderChildren } from '../../lib/utils';
 import {
   SidebarProvider,
@@ -103,14 +109,25 @@ ComponentRegistry.register('sidebar-content',
 );
 
 ComponentRegistry.register('sidebar-group',
-  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => (
-    <SidebarGroup {...props}>
-      {schema.label && <SidebarGroupLabel>{schema.label}</SidebarGroupLabel>}
-      <SidebarGroupContent>
-        {renderChildren(schema.body)}
-      </SidebarGroupContent>
-    </SidebarGroup>
-  ),
+  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => {
+    // Read-time resolution against the display locale (objectui#4580 revised
+    // Q1-A). `BaseSchema.label` accepts `string | I18nLabel`; rendering the map
+    // straight into a text node THREW "Objects are not valid as a React child".
+    // The body became a block only to host this hook — the registry renders its
+    // entries with `React.createElement` (`SchemaRenderer.tsx:621`), so hooks
+    // are legal here, as `elements.tsx`'s own `useDisplayLocale()` already relies on.
+    const locale = useDisplayLocale();
+    return (
+      <SidebarGroup {...props}>
+        {schema.label && (
+          <SidebarGroupLabel>{resolveInlineI18nLabel(schema.label, locale)}</SidebarGroupLabel>
+        )}
+        <SidebarGroupContent>
+          {renderChildren(schema.body)}
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  },
   {
     namespace: 'ui',
     label: 'Sidebar Group',

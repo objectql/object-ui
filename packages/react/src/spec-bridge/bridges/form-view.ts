@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { SchemaNode } from '@object-ui/core';
+import type { BaseSchema } from '@object-ui/types';
 import type { BridgeContext, BridgeFn } from '../types';
 
 interface FormField {
@@ -161,7 +161,7 @@ const PASSTHROUGH_KEYS = [
 export const bridgeFormView: BridgeFn<FormViewSpec> = (
   spec: FormViewSpec,
   _context: BridgeContext,
-): SchemaNode => {
+): BaseSchema => {
   // Spec defines `groups` as a legacy alias of `sections`; normalize here so
   // downstream renderers only ever see `sections` (ObjectForm never reads a
   // `groups` key — before this normalization a groups-only spec silently
@@ -169,7 +169,7 @@ export const bridgeFormView: BridgeFn<FormViewSpec> = (
   const sections = (spec.sections ?? spec.groups ?? []).map(mapSection);
   const formType = mapFormType(spec.type);
 
-  const node: SchemaNode = {
+  const node: BaseSchema = {
     type: 'object-form',
     id: `form-${spec.type ?? 'default'}`,
     sections,

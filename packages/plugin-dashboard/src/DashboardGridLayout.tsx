@@ -325,7 +325,23 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
     <div ref={containerRef} className={cn("w-full", className)} data-testid="grid-layout">
       {hasDndProvider && <DndEditModeBridge editMode={editMode} />}
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-2xl font-bold">{schema.title || schema.label || 'Dashboard'}</h2>
+        {/*
+          `schema.label` accepts the spec's INLINE locale map since objectui#4580's
+          revised Q1-A ruling, and rendering the map straight into this text node
+          THREW "Objects are not valid as a React child (found: object with keys
+          {en, zh-CN})". Resolved with `pickLocalized` against the ACTIVE UI
+          LANGUAGE, matching the widget-title resolution ~70 lines below rather
+          than introducing a second resolver and a second locale channel into one
+          component: `pickLocalized` is objectui's limb-for-limb twin of the spec's
+          `resolveI18nLabel` (objectstack#6765), differing only in how it spells a
+          miss (`''` vs `undefined`) — pinned in
+          `plugin-list/src/__tests__/i18nLabel-resolver-parity.test.ts`. The `||`
+          chain is preserved exactly: a miss yields `''`, which is falsy, so
+          `'Dashboard'` still backstops it.
+        */}
+        <h2 className="text-2xl font-bold">
+          {schema.title || pickLocalized(schema.label, language) || 'Dashboard'}
+        </h2>
         <div className="flex gap-2">
           {editMode ? (
             <>

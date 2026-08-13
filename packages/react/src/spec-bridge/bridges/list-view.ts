@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { SchemaNode } from '@object-ui/core';
+import type { BaseSchema } from '@object-ui/types';
 import type { ListViewExportFormat, ListViewExportOptions } from '@object-ui/types';
 import type { BridgeContext, BridgeFn } from '../types';
 import type { ListView, ListColumn, RowHeight } from '@objectstack/spec/ui';
@@ -166,11 +166,11 @@ function liftExportOptions(
 export const bridgeListView: BridgeFn<ListViewSpec> = (
   spec: ListViewSpec,
   _context: BridgeContext,
-): SchemaNode => {
+): BaseSchema => {
   const columns = (spec.columns ?? []).map(mapColumn);
   const density = mapDensity(spec.rowHeight);
 
-  const node: SchemaNode = {
+  const node: BaseSchema = {
     type: 'object-grid',
     id: spec.name,
     columns,
