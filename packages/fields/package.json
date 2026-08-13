@@ -26,7 +26,7 @@
   "scripts": {
     "build": "tsc && vite build && node scripts/build-css.mjs",
     "clean": "rm -rf dist",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "test": "vitest run",
     "lint": "eslint ."
   },

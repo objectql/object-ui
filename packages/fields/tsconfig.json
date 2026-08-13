@@ -2,8 +2,24 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "dist",
+    // `..` (i.e. `packages/`), NOT `src` — load-bearing, measured in
+    // objectui#4006. This config inherits the root tsconfig's `paths`, which map
+    // `@object-ui/core` / `@object-ui/types` to their sibling `packages/*/src`
+    // trees, so those sources are real program inputs. Narrowing `rootDir` to
+    // `src` (or dropping it, which defaults it to the common source directory)
+    // turns all 122 of them into TS6059 "not under rootDir" — and it does so
+    // even under `--noEmit`, because TS6059 is a program-level verdict. It does
+    // not affect what is emitted: this config inherits the root's
+    // `noEmit: true`, so `tsc` here only CHECKS; `dist` is written by
+    // vite-plugin-dts, which overrides `rootDir` to `src` and clears `paths`.
     "rootDir": "..",
     "jsx": "react-jsx"
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Tests are excluded from the BUILD program so they stop being emitted into
+  // the published `dist` (objectui#4006 — 85 `*.test.d.ts` shipped from here).
+  // Their type coverage did not go away with them: it moved to the
+  // `tsconfig.test.json` chained off this package's `type-check` script, which
+  // is what scripts/check-type-check-coverage.mjs verifies.
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
 }

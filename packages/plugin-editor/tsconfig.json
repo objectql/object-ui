@@ -13,5 +13,14 @@
     "composite": true,
     "skipLibCheck": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Tests are excluded from the BUILD program so they stop being emitted into
+  // the published `dist` (objectui#4006 — `dist/index.test.d.ts` shipped from
+  // here). The emitter is vite-plugin-dts, whose own `include: ['src']` in
+  // `vite.config.ts` does NOT displace this `exclude`: measured, the exclude
+  // alone removes `dist/index.test.d.ts`, so no dts-plugin `exclude` is needed.
+  // Their type coverage did not go away with them: it moved to the
+  // `tsconfig.test.json` chained off this package's `type-check` script, which
+  // is what scripts/check-type-check-coverage.mjs verifies.
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
 }
