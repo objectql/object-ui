@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Loader2, ArrowLeft, RotateCcw } from 'lucide-react';
+import { Loader2, ArrowLeft, RotateCcw, ShieldAlert } from 'lucide-react';
 import { Button, Card, CardContent, Skeleton, Badge } from '@object-ui/components';
 import { extractFieldErrors } from '@object-ui/react';
 import { getIcon } from '../../utils/getIcon';
@@ -49,6 +49,55 @@ function omitKey<T>(map: Record<string, T>, key: string): Record<string, T> {
   return rest;
 }
 
+/**
+ * A `SETTINGS_CRYPTO_UNAVAILABLE` refusal, as this view renders it
+ * (objectstack#8273, PR objectstack#8396).
+ *
+ * The deployment has nothing able to encrypt a key the manifest declares
+ * encrypted, so the write was REFUSED rather than quietly stored in the clear.
+ * That is a property of the deployment, not of the value — which is why the
+ * envelope locates the refusal (`details: { namespace, key }`) and never
+ * carries the value itself.
+ */
+interface CryptoRefusal {
+  /** `namespace.key` — the refused key, as located by `error.details`. */
+  subject?: string;
+  /**
+   * The server's own sentence, carrying the operator prescription (wire
+   * `SettingsServicePluginOptions.cryptoProvider`, or configure a real crypto
+   * adapter). Rendered verbatim and never restated here: the server owns this
+   * copy, and a second wording is how the two drift into disagreeing about how
+   * to fix the deployment. Absent when the body carried no message — the
+   * console renders nothing rather than inventing a prescription.
+   */
+  prescription?: string;
+}
+
+/**
+ * Read the refusal out of the declared `error.details` slot.
+ *
+ * Deliberately inline rather than beside `lockedKeyOf` in `api.ts`: that helper
+ * lives there because it is a dual-position COMPAT SHIM, reading the declared
+ * `details.key` *and* the pre-objectstack#4224 `error.key` sibling. This code is
+ * new in #8396 and has exactly one declared position, so there is no second
+ * shape to reconcile and nothing for the wire-shape module to own.
+ */
+function cryptoRefusalOf(apiError: unknown): CryptoRefusal {
+  const e = (apiError ?? {}) as {
+    message?: unknown;
+    details?: { namespace?: unknown; key?: unknown } | null;
+  };
+  const nonEmpty = (v: unknown): string | undefined =>
+    typeof v === 'string' && v.length > 0 ? v : undefined;
+  const details = e.details && typeof e.details === 'object' ? e.details : undefined;
+  const namespace = nonEmpty(details?.namespace);
+  const key = nonEmpty(details?.key);
+  return {
+    subject: key ? (namespace ? `${namespace}.${key}` : key) : undefined,
+    prescription: nonEmpty(e.message),
+  };
+}
+
 export function SettingsView() {
   const params = useParams<{ namespace?: string }>();
   const navigate = useNavigate();
@@ -70,6 +119,16 @@ export function SettingsView() {
    * declared `FieldError[]` under `error.details.fields`.
    */
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  /**
+   * The last save's fail-closed crypto refusal, or null (objectui#4570).
+   *
+   * Unlike `fieldErrors` this deliberately does NOT clear when the key is
+   * edited. A field error describes the VALUE the server saw, so typing
+   * contradicts it; this describes the DEPLOYMENT's inability to encrypt, which
+   * typing does not change. It clears when that claim can actually have become
+   * false: a new save attempt, a save that succeeds, a discard, or a reload.
+   */
+  const [cryptoRefusal, setCryptoRefusal] = useState<CryptoRefusal | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,6 +138,7 @@ export function SettingsView() {
       setPayload(p);
       setDraft({});
       setFieldErrors({});
+      setCryptoRefusal(null);
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load settings');
     } finally {
@@ -141,6 +201,9 @@ export function SettingsView() {
   const onSave = async () => {
     if (dirtyKeys.length === 0) return;
     setSaving(true);
+    // Each attempt re-derives the refusal from scratch, so the panel always
+    // reflects THIS save's verdict rather than a stale one from a previous try.
+    setCryptoRefusal(null);
     try {
       const res = await saveSettingsNamespace(namespace, draft);
       setPayload({ ...payload, values: { ...values, ...res.values } });
@@ -153,6 +216,23 @@ export function SettingsView() {
         // `lockedKeyOf` reads both wire positions — see its note (objectstack#4224).
         const key = lockedKeyOf(apiError);
         toast.error(key ? `Locked by environment: ${key}` : 'Locked by environment');
+      } else if (apiError?.code === 'SETTINGS_CRYPTO_UNAVAILABLE') {
+        // The deployment cannot encrypt a declared-secret key, so the write was
+        // refused (objectstack#8396). This is neither a per-field rejection nor
+        // a transient failure the user can retry their way out of — it stays on
+        // screen as its own state, carrying the server's prescription, until
+        // the deployment is reconfigured.
+        //
+        // The toast mirrors SETTINGS_LOCKED above: a code-specific sentence
+        // naming the subject, not the generic `err.message`. It fires for the
+        // same reason the validation branch's does — the panel can be scrolled
+        // out of view, and a save that silently does nothing is the worse
+        // failure.
+        const refusal = cryptoRefusalOf(apiError);
+        setCryptoRefusal(refusal);
+        toast.error(
+          refusal.subject ? `Cannot encrypt secrets: ${refusal.subject}` : 'Cannot encrypt secrets',
+        );
       } else {
         // Per-field rejections render against the inputs that caused them
         // (objectstack#4224). `extractFieldErrors` reads `details.fields`, so it
@@ -213,6 +293,36 @@ export function SettingsView() {
         <p className="text-sm text-muted-foreground mt-4 whitespace-pre-wrap">{manifest.helpText}</p>
       ) : null}
 
+      {cryptoRefusal ? (
+        <Card className="mt-4 border-destructive/50 bg-destructive/5">
+          <CardContent className="py-4">
+            <div role="alert" className="flex items-start gap-3">
+              <ShieldAlert className="h-5 w-5 mt-0.5 shrink-0 text-destructive" />
+              <div className="flex-1 text-sm">
+                <p className="font-medium text-destructive">
+                  This deployment cannot encrypt secrets
+                </p>
+                <p className="mt-1">
+                  {cryptoRefusal.subject ? (
+                    <>
+                      <code className="font-mono text-xs">{cryptoRefusal.subject}</code> is
+                      declared encrypted, so nothing was written.
+                    </>
+                  ) : (
+                    'The declared-encrypted value was refused, so nothing was written.'
+                  )}
+                </p>
+                {cryptoRefusal.prescription ? (
+                  <p className="mt-2 text-muted-foreground whitespace-pre-wrap">
+                    {cryptoRefusal.prescription}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="mt-6 divide-y">
         {manifest.specifiers
           .filter((spec) => evalVisibility(spec.visible, liveValues))
@@ -260,6 +370,7 @@ export function SettingsView() {
                   // Discarding reverts to the stored values, so rejections of
                   // the edits being thrown away go with them.
                   setFieldErrors({});
+                  setCryptoRefusal(null);
                 }}
                 disabled={saving}
               >
