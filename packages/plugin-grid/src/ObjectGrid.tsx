@@ -226,6 +226,36 @@ export interface ObjectGridExternalPaginationProps
    * callback would misstate both the payload and when it fires.
    */
   onColumnStateChange?: (state: ObjectGridColumnState) => void;
+
+  /**
+   * Grid-only: `DataTableSchema` has no counterpart to derive from — a table is
+   * handed rows, it never issues a query.
+   *
+   * The params the host passed to `dataSource.find()` for the window it is
+   * handing down in `data` — the SAME shape this grid's own loader stores in
+   * `lastFindParamsRef` (`$filter` / `$orderby` / `$select` / `$search` /
+   * `$searchFields` / `$expand` / `$top` / `$skip`), so both paths feed one
+   * reader. `$top`/`$skip` may be present and are ignored: the fan-out windows
+   * the replay itself.
+   *
+   * Why a prop rather than a fallback inside the grid (objectui#4501): the
+   * cross-page "select all N matching" escalation re-issues the view's query to
+   * collect the whole match set, and the query has to come from whichever side
+   * owns the fetch. Under external pagination that is the host, and the grid's
+   * own ref is either empty or stale — replaying it asked the server for the
+   * WHOLE OBJECT (no `$filter`) and handed up to 5000 unmatched records to a
+   * destructive executor. A grid-side `?? {}` default is what produced that,
+   * which is why the missing case is not defaulted but REFUSED: with no params
+   * for the current data path the escalation is not offered at all (see
+   * `bulkFanoutParams` in the component body).
+   *
+   * A changed value is also the host's query-change signal: it resets the
+   * escalation, mirroring the `setSelectAllMatching(false)` the internal loader
+   * runs next to its own `lastFindParamsRef` write. Compared by CONTENT, so a
+   * host re-render that rebuilds an equal object does not drop the user's
+   * escalation.
+   */
+  findParams?: Record<string, unknown> | null;
 }
 
 export interface ObjectGridProps extends ObjectGridExternalPaginationProps {
@@ -296,6 +326,23 @@ const RELATIONAL_META_KEYS = [
   'display_field', 'id_field', 'description_field',
   'lookup_filters', 'lookupFilters', 'titleFormat',
 ] as const;
+
+/**
+ * Content signature of a host's find-params, used as the query-change signal for
+ * the cross-page escalation (objectui#4501 clause 2).
+ *
+ * CONTENT and not identity: a host re-render that rebuilds an equal params
+ * object must not drop an escalation the user just made, and identity is the
+ * one thing a host cannot be relied on to keep stable. Top-level keys are
+ * sorted so key ORDER — which differs between the host's literal and this
+ * grid's own loader — never reads as a query change.
+ */
+function findParamsSignature(params: Record<string, unknown> | null | undefined): string | null {
+  if (!params) return null;
+  return JSON.stringify(
+    Object.keys(params).sort().map((k) => [k, params[k] ?? null]),
+  );
+}
 
 function applyRelationalMeta(
   fieldMeta: Record<string, any>,
@@ -390,6 +437,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   onSortChange: hostOnSortChange,
   search: hostSearch,
   onSearchChange: hostOnSearchChange,
+  findParams: hostFindParams,
   onColumnStateChange,
 }) => {
   const [data, setData] = useState<any[]>([]);
@@ -855,6 +903,25 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       cancelled = true;
     };
   }, [objectName, schemaFields, schemaColumns, schemaFilter, schemaSort, headerSort, searchTerm, schemaPagination, schemaPageSize, serverPage, serverPageSize, dataSource, hasInlineData, dataConfig, refreshKey]);
+
+  // The same reset, for the path the loader above never runs on (objectui#4501
+  // clause 2). "All N matching are selected" is a claim about ONE query, so it
+  // must not survive that query changing — the loader drops it in place (three
+  // lines up, next to its `lastFindParamsRef` write), and under a host-driven
+  // fetch the host's params changing is the identical signal. Without this a
+  // user could escalate, change the filter in the host's toolbar, and keep an
+  // escalation that now reads against a match set they never saw.
+  //
+  // Keyed on the CONTENT signature, not the prop's identity: a host re-render
+  // that rebuilds an equal object is not a query change, and dropping the
+  // escalation on one would make the affordance unusable.
+  const hostFindParamsKey = React.useMemo(
+    () => findParamsSignature(hostFindParams),
+    [hostFindParams],
+  );
+  React.useEffect(() => {
+    setSelectAllMatching(false);
+  }, [hostFindParamsKey]);
 
   // Reset to page 1 whenever the query itself changes (object / filter / sort /
   // search), so we never request a page index that no longer exists for the new
@@ -2029,6 +2096,33 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // matching" escalation must never be offered.
   const singleSelection = selectionMode === 'single';
 
+  // The query the cross-page fan-out would replay — from whichever side owns the
+  // fetch (objectui#4501). ONE value, read by the fan-out AND by the affordance
+  // gate below, so the offer and the thing it promises can never disagree.
+  //
+  // `hasInlineData` is exactly the data loader's own guard (`if (hasInlineData)
+  // return`), which makes it the precise test for "this grid did not issue the
+  // query behind the rows on screen". In that case `lastFindParamsRef` is not
+  // merely empty, it is WRONG — either never written, or left over from an
+  // earlier own-fetch — so the host's `findParams` is the only admissible
+  // source, and there is deliberately no fallback to the ref and no `?? {}`
+  // default: replaying `{}` is what asked the server for the whole object and
+  // fed up to 5000 unmatched records to bulk delete.
+  const bulkFanoutParams: Record<string, unknown> | null = hasInlineData
+    ? (hostFindParams ?? null)
+    : (lastFindParamsRef.current ?? null);
+
+  // The floor. With no query to replay there is no honest "all N matching", so
+  // the escalation is not offered — the same answer as a match set that does not
+  // exist. This is what makes an unfiltered fan-out structurally unreachable
+  // rather than merely currently-wired-right: a host that forgets `findParams`
+  // loses the affordance, it does not silently get the whole object.
+  //
+  // ONE condition, consumed by both `BulkActionBar` sites below. Do NOT re-spell
+  // it at a consumption site — a second copy is how one of them gets missed
+  // (objectui#4138, #4464).
+  const canOfferSelectAllMatching = !singleSelection && bulkFanoutParams !== null;
+
   // Resolve the rows the bulk action should actually operate on. When
   // "select all N matching" is active, fan out a paged find against the
   // current query so we can hand a complete record list to the executor.
@@ -2039,7 +2133,12 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     if (!selectAllMatching) return rowsHint;
     const objectName = schema.objectName;
     if (!dataSource || !objectName) return rowsHint;
-    const base = { ...(lastFindParamsRef.current ?? {}) } as Record<string, unknown>;
+    // The floor again, at the point of consumption: the affordance gate above
+    // means an escalation cannot be reached without params, and this means it
+    // cannot be ACTED on without them either. Same single source, so the two
+    // cannot drift.
+    if (!bulkFanoutParams) return rowsHint;
+    const base = { ...bulkFanoutParams } as Record<string, unknown>;
     delete (base as any).$top;
     delete (base as any).$skip;
     const HARD_CAP = 5000;
@@ -3088,9 +3187,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 onActionDef={dispatchBulkActionDef}
                 onClearSelection={resetSelection}
                 pageSize={data.length}
-                totalMatching={singleSelection ? undefined : totalMatching}
+                totalMatching={canOfferSelectAllMatching ? totalMatching : undefined}
                 allMatchingSelected={selectAllMatching}
-                onSelectAllMatching={singleSelection ? undefined : () => setSelectAllMatching(true)}
+                onSelectAllMatching={canOfferSelectAllMatching ? () => setSelectAllMatching(true) : undefined}
               />
             </div>
           }
@@ -3126,9 +3225,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         onActionDef={dispatchBulkActionDef}
         onClearSelection={resetSelection}
         pageSize={data.length}
-        totalMatching={singleSelection ? undefined : totalMatching}
+        totalMatching={canOfferSelectAllMatching ? totalMatching : undefined}
         allMatchingSelected={selectAllMatching}
-        onSelectAllMatching={singleSelection ? undefined : () => setSelectAllMatching(true)}
+        onSelectAllMatching={canOfferSelectAllMatching ? () => setSelectAllMatching(true) : undefined}
       />
       {navigation.isOverlay && (
         <NavigationOverlay
