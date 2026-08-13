@@ -154,6 +154,9 @@ const fr = {
     submitFailed: "Échec de l'enregistrement. Veuillez réessayer.",
     discardTitle: "Abandonner les modifications ?",
     discardMessage: "Vous avez des modifications non enregistrées. Si vous fermez ce formulaire maintenant, vos modifications seront perdues.",
+    // objectui#4024 — the create/edit dialog's `sr-only` accessible
+    // description, used when the form declares no `description` of its own.
+    dialogDescriptionFallback: "Remplissez les champs du formulaire, puis envoyez ou annulez.",
     keepEditing: "Continuer l'édition",
     discard: "Abandonner",
     conflictTitle: "Conflit d'enregistrement",
@@ -343,6 +346,22 @@ const fr = {
     yes: "Oui",
     no: "Non",
     systemFields: "Système",
+    // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
+    // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
+    // pack controls its own separator and word order.
+    summary: {
+      pattern: "{{label}} : {{value}}",
+      count: "Nombre",
+      countEmpty: "Vides",
+      countFilled: "Remplis",
+      countUnique: "Uniques",
+      percentEmpty: "Vides",
+      percentFilled: "Remplis",
+      sum: "Somme",
+      avg: "Moyenne",
+      min: "Min",
+      max: "Max",
+    },
     toolbar: {
       densityMode: "Densité",
       densityCompact: "Compact",
@@ -1568,6 +1587,31 @@ const fr = {
       pages: "Pages",
       reports: "Rapports",
       system: "Système",
+    },
+    // objectui#4024 — the single-namespace settings screen. Its sibling
+    // `settingsHub` above already resolved through this pack; the view was the
+    // one file still carrying English literals.
+    settingsView: {
+      backToHub: "Tous les paramètres",
+      back: "Retour",
+      noNamespace: "Aucun espace de noms sélectionné.",
+      loadError: "Échec du chargement des paramètres",
+      saved: "Paramètres enregistrés",
+      saveFailed: "Échec de l'enregistrement",
+      lockedByEnv: "Verrouillé par l'environnement : {{key}}",
+      lockedByEnvNoKey: "Verrouillé par l'environnement",
+      actionSucceeded: "Action réussie",
+      actionFailed: "Échec de l'action",
+      discard: "Abandonner",
+      saveChanges: "Enregistrer les modifications",
+      unsavedCount: "{{count}} modifications non enregistrées",
+      unsavedCount_one: "{{count}} modification non enregistrée",
+      unsavedCount_other: "{{count}} modifications non enregistrées",
+      cryptoRefusalTitle: "Ce déploiement ne peut pas chiffrer les secrets",
+      cryptoRefusalSubjectSuffix: "est déclaré chiffré, aucune écriture n'a donc eu lieu.",
+      cryptoRefusalNoSubject: "La valeur déclarée chiffrée a été refusée, aucune écriture n'a donc eu lieu.",
+      cryptoRefusalToast: "Impossible de chiffrer les secrets : {{subject}}",
+      cryptoRefusalToastNoSubject: "Impossible de chiffrer les secrets",
     },
     loadingSteps: {
       connecting: "Connexion à la source de données",

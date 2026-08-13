@@ -168,6 +168,9 @@ const zh = {
     unsavedChanges: '您有未保存的更改，确定要离开吗？',
     discardTitle: '放弃更改？',
     discardMessage: '您有未保存的更改。如果现在关闭此表单，您的编辑将会丢失。',
+    // objectui#4024 — the create/edit dialog's `sr-only` accessible
+    // description, used when the form declares no `description` of its own.
+    dialogDescriptionFallback: '填写表单字段,然后提交或取消。',
     keepEditing: '继续编辑',
     discard: '放弃',
     conflictTitle: '保存冲突',
@@ -325,6 +328,22 @@ const zh = {
     yes: '是',
     no: '否',
     systemFields: '系统字段',
+    // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
+    // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
+    // pack controls its own separator and word order.
+    summary: {
+      pattern: '{{label}}:{{value}}',
+      count: '计数',
+      countEmpty: '空值',
+      countFilled: '非空',
+      countUnique: '去重',
+      percentEmpty: '空值',
+      percentFilled: '非空',
+      sum: '合计',
+      avg: '平均值',
+      min: '最小值',
+      max: '最大值',
+    },
     toolbar: {
       densityMode: '密度',
       densityCompact: '紧凑',
@@ -1410,6 +1429,31 @@ const zh = {
         Beta: 'Beta',
         Other: '其他',
       },
+    },
+    // objectui#4024 — the single-namespace settings screen. Its sibling
+    // `settingsHub` above already resolved through this pack; the view was the
+    // one file still carrying English literals.
+    settingsView: {
+      backToHub: '全部设置',
+      back: '返回',
+      noNamespace: '未选择命名空间。',
+      loadError: '加载设置失败',
+      saved: '设置已保存',
+      saveFailed: '保存失败',
+      lockedByEnv: '已被环境变量锁定:{{key}}',
+      lockedByEnvNoKey: '已被环境变量锁定',
+      actionSucceeded: '操作成功',
+      actionFailed: '操作失败',
+      discard: '放弃',
+      saveChanges: '保存更改',
+      unsavedCount: '{{count}} 项未保存的更改',
+      unsavedCount_one: '{{count}} 项未保存的更改',
+      unsavedCount_other: '{{count}} 项未保存的更改',
+      cryptoRefusalTitle: '此部署无法加密机密信息',
+      cryptoRefusalSubjectSuffix: '被声明为加密字段,因此未写入任何内容。',
+      cryptoRefusalNoSubject: '声明为加密的值被拒绝,因此未写入任何内容。',
+      cryptoRefusalToast: '无法加密机密信息:{{subject}}',
+      cryptoRefusalToastNoSubject: '无法加密机密信息',
     },
     loadingSteps: {
       connecting: '正在连接数据源',

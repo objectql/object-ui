@@ -154,6 +154,9 @@ const ko = {
     submitFailed: "저장하지 못했습니다. 다시 시도해 주세요.",
     discardTitle: "변경 내용을 버릴까요?",
     discardMessage: "저장하지 않은 변경 내용이 있습니다. 지금 이 양식을 닫으면 편집 내용이 사라집니다.",
+    // objectui#4024 — the create/edit dialog's `sr-only` accessible
+    // description, used when the form declares no `description` of its own.
+    dialogDescriptionFallback: "양식 필드를 작성한 다음 제출하거나 취소하세요.",
     keepEditing: "계속 편집",
     discard: "버리기",
     conflictTitle: "저장 충돌",
@@ -343,6 +346,22 @@ const ko = {
     yes: "예",
     no: "아니요",
     systemFields: "시스템",
+    // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
+    // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
+    // pack controls its own separator and word order.
+    summary: {
+      pattern: "{{label}}: {{value}}",
+      count: "개수",
+      countEmpty: "빈 값",
+      countFilled: "채워짐",
+      countUnique: "고유",
+      percentEmpty: "빈 값",
+      percentFilled: "채워짐",
+      sum: "합계",
+      avg: "평균",
+      min: "최소",
+      max: "최대",
+    },
     toolbar: {
       densityMode: "밀도",
       densityCompact: "컴팩트",
@@ -1566,6 +1585,31 @@ const ko = {
       pages: "페이지",
       reports: "보고서",
       system: "시스템",
+    },
+    // objectui#4024 — the single-namespace settings screen. Its sibling
+    // `settingsHub` above already resolved through this pack; the view was the
+    // one file still carrying English literals.
+    settingsView: {
+      backToHub: "전체 설정",
+      back: "뒤로",
+      noNamespace: "선택된 네임스페이스가 없습니다.",
+      loadError: "설정을 불러오지 못했습니다",
+      saved: "설정이 저장되었습니다",
+      saveFailed: "저장에 실패했습니다",
+      lockedByEnv: "환경에 의해 잠김: {{key}}",
+      lockedByEnvNoKey: "환경에 의해 잠김",
+      actionSucceeded: "작업 성공",
+      actionFailed: "작업 실패",
+      discard: "버리기",
+      saveChanges: "변경사항 저장",
+      unsavedCount: "저장되지 않은 변경 {{count}}개",
+      unsavedCount_one: "저장되지 않은 변경 {{count}}개",
+      unsavedCount_other: "저장되지 않은 변경 {{count}}개",
+      cryptoRefusalTitle: "이 배포는 시크릿을 암호화할 수 없습니다",
+      cryptoRefusalSubjectSuffix: "은(는) 암호화 대상으로 선언되어 아무것도 기록되지 않았습니다.",
+      cryptoRefusalNoSubject: "암호화 대상으로 선언된 값이 거부되어 아무것도 기록되지 않았습니다.",
+      cryptoRefusalToast: "시크릿을 암호화할 수 없습니다: {{subject}}",
+      cryptoRefusalToastNoSubject: "시크릿을 암호화할 수 없습니다",
     },
     loadingSteps: {
       connecting: "데이터 소스에 연결 중",

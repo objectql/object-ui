@@ -21,6 +21,7 @@ import * as React from 'react';
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { CloseSrLabel } from '../lib/close-label';
 import { DialogOverlay, DialogPortal } from '../ui/dialog';
 
 /**
@@ -144,7 +145,15 @@ export const MobileDialogContent = React.forwardRef<
         )}
       >
         <X className="h-5 w-5 sm:h-4 sm:w-4" />
-        <span className="sr-only">Close</span>
+        {/* objectui#4024 — the remainder objectstack#5505 could not reach.
+            That change routed the close label through `CloseSrLabel` for the
+            two SHADCN-SYNCED primitives under `src/ui/**`, via the declared
+            patch in `scripts/shadcn-local-patches.mjs`. This file is a
+            hand-written `custom/` wrapper with its own close button, outside
+            that regeneration zone, so it kept the English literal — and it is
+            what `plugin-form`'s `ModalForm` renders, i.e. exactly the
+            create/edit dialog the card measured. */}
+        <CloseSrLabel />
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </DialogPortal>

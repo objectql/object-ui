@@ -95,6 +95,12 @@ const LEGITIMATE_IDENTITIES: Record<string, string> = {
   'marketplace.pricing.freemium': 'Freemium — the pricing-tier term of art; ru keeps the loanword.',
   'console.settingsHub.beta': 'Beta — the release-stage badge, kept Latin in zh.',
   'console.settingsHub.categories.Beta': 'Beta — the same badge, reached by category name.',
+  // Pure format string: two holes and a separator, no prose to translate
+  // (objectui#4024). It exists as a key precisely SO a pack can change the
+  // separator, and the packs that need to have — zh sets a fullwidth colon,
+  // fr the French space-before-colon. ja/ko/ru/ar keep `: ` because that IS
+  // their punctuation here, which is a translation decision, not an omission.
+  'grid.summary.pattern': 'Aggregate label/value join — a separator and two holes, no prose.',
 
   // Loanwords these packs have adopted as their OWN vocabulary (checked against
   // their neighbours: zh writes `Logo 链接` / `Logo 已上传…`, ru writes `Email подтверждён`).

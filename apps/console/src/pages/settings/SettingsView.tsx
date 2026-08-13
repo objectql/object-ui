@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { Loader2, ArrowLeft, RotateCcw, ShieldAlert } from 'lucide-react';
 import { Button, Card, CardContent, Skeleton, Badge } from '@object-ui/components';
 import { extractFieldErrors } from '@object-ui/react';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { getIcon } from '../../utils/getIcon';
 import { SettingsField } from './SettingsField';
 import {
@@ -101,6 +102,12 @@ function cryptoRefusalOf(apiError: unknown): CryptoRefusal {
 export function SettingsView() {
   const params = useParams<{ namespace?: string }>();
   const navigate = useNavigate();
+  // objectui#4024 — the same convention the sibling `SettingsHub.tsx` already
+  // uses (`useObjectTranslation` + `console.settings*`), rather than
+  // `createSafeTranslation`: this is an app screen, not a published primitive
+  // with provider-less consumers to keep green, and its own suites mount a
+  // provider or pin the key-literal behaviour explicitly.
+  const { t } = useObjectTranslation();
   const namespace = params.namespace ?? '';
 
   const [payload, setPayload] = useState<SettingsNamespacePayload | null>(null);
@@ -140,11 +147,11 @@ export function SettingsView() {
       setFieldErrors({});
       setCryptoRefusal(null);
     } catch (err: any) {
-      setError(err?.message ?? 'Failed to load settings');
+      setError(err?.message ?? t('console.settingsView.loadError'));
     } finally {
       setLoading(false);
     }
-  }, [namespace]);
+  }, [namespace, t]);
 
   useEffect(() => {
     if (namespace) void load();
@@ -164,7 +171,9 @@ export function SettingsView() {
   const labels = useSettingsLabel(namespace);
 
   if (!namespace) {
-    return <div className="p-6 text-muted-foreground">No namespace selected.</div>;
+    return (
+      <div className="p-6 text-muted-foreground">{t('console.settingsView.noNamespace')}</div>
+    );
   }
 
   if (loading) {
@@ -182,7 +191,7 @@ export function SettingsView() {
     return (
       <div className="p-6 max-w-3xl">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Back
+          <ArrowLeft className="h-4 w-4 mr-1" /> {t('console.settingsView.back')}
         </Button>
         <Card className="mt-3">
           <CardContent className="py-8 text-center text-sm text-destructive">{error}</CardContent>
@@ -209,13 +218,19 @@ export function SettingsView() {
       setPayload({ ...payload, values: { ...values, ...res.values } });
       setDraft({});
       setFieldErrors({});
-      toast.success('Settings saved');
+      toast.success(t('console.settingsView.saved'));
     } catch (err: any) {
       const apiError = err?.payload?.error;
       if (apiError?.code === 'SETTINGS_LOCKED') {
         // `lockedKeyOf` reads both wire positions — see its note (objectstack#4224).
         const key = lockedKeyOf(apiError);
-        toast.error(key ? `Locked by environment: ${key}` : 'Locked by environment');
+        // Parameterized, not concatenated: the key is spliced INTO the
+        // sentence, so a pack can place it where its own grammar wants.
+        toast.error(
+          key
+            ? t('console.settingsView.lockedByEnv', { key })
+            : t('console.settingsView.lockedByEnvNoKey'),
+        );
       } else if (apiError?.code === 'SETTINGS_CRYPTO_UNAVAILABLE') {
         // The deployment cannot encrypt a declared-secret key, so the write was
         // refused (objectstack#8396). This is neither a per-field rejection nor
@@ -231,7 +246,9 @@ export function SettingsView() {
         const refusal = cryptoRefusalOf(apiError);
         setCryptoRefusal(refusal);
         toast.error(
-          refusal.subject ? `Cannot encrypt secrets: ${refusal.subject}` : 'Cannot encrypt secrets',
+          refusal.subject
+            ? t('console.settingsView.cryptoRefusalToast', { subject: refusal.subject })
+            : t('console.settingsView.cryptoRefusalToastNoSubject'),
         );
       } else {
         // Per-field rejections render against the inputs that caused them
@@ -247,7 +264,7 @@ export function SettingsView() {
         if (perField?.length) {
           setFieldErrors(Object.fromEntries(perField.map((f) => [f.field, f.message])));
         }
-        toast.error(err?.message ?? 'Save failed');
+        toast.error(err?.message ?? t('console.settingsView.saveFailed'));
       }
     } finally {
       setSaving(false);
@@ -258,10 +275,10 @@ export function SettingsView() {
     setSaving(true);
     try {
       const result = await runSettingsAction(namespace, actionId, draft);
-      if (result.ok) toast.success(result.message ?? 'Action succeeded');
-      else toast.error(result.message ?? 'Action failed');
+      if (result.ok) toast.success(result.message ?? t('console.settingsView.actionSucceeded'));
+      else toast.error(result.message ?? t('console.settingsView.actionFailed'));
     } catch (err: any) {
-      toast.error(err?.message ?? 'Action failed');
+      toast.error(err?.message ?? t('console.settingsView.actionFailed'));
     } finally {
       setSaving(false);
     }
@@ -270,7 +287,7 @@ export function SettingsView() {
   return (
     <div className="p-6 max-w-3xl mx-auto pb-32">
       <Button variant="ghost" size="sm" onClick={() => navigate('/system/settings')}>
-        <ArrowLeft className="h-4 w-4 mr-1" /> All settings
+        <ArrowLeft className="h-4 w-4 mr-1" /> {t('console.settingsView.backToHub')}
       </Button>
 
       <div className="mt-3 flex items-start gap-3">
@@ -281,7 +298,13 @@ export function SettingsView() {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-            {manifest.beta ? <Badge variant="secondary">Beta</Badge> : null}
+            {manifest.beta ? (
+              // `settingsHub.beta`, not a settingsView twin: it is the same
+              // release-stage badge on the same feature, and zh deliberately
+              // keeps it Latin (allowlisted in untranslated-identity-4376).
+              // A second key would be one more thing to keep in step.
+              <Badge variant="secondary">{t('console.settingsHub.beta')}</Badge>
+            ) : null}
           </div>
           {description ? (
             <p className="text-sm text-muted-foreground mt-1">{description}</p>
@@ -300,16 +323,16 @@ export function SettingsView() {
               <ShieldAlert className="h-5 w-5 mt-0.5 shrink-0 text-destructive" />
               <div className="flex-1 text-sm">
                 <p className="font-medium text-destructive">
-                  This deployment cannot encrypt secrets
+                  {t('console.settingsView.cryptoRefusalTitle')}
                 </p>
                 <p className="mt-1">
                   {cryptoRefusal.subject ? (
                     <>
-                      <code className="font-mono text-xs">{cryptoRefusal.subject}</code> is
-                      declared encrypted, so nothing was written.
+                      <code className="font-mono text-xs">{cryptoRefusal.subject}</code>{' '}
+                      {t('console.settingsView.cryptoRefusalSubjectSuffix')}
                     </>
                   ) : (
-                    'The declared-encrypted value was refused, so nothing was written.'
+                    t('console.settingsView.cryptoRefusalNoSubject')
                   )}
                 </p>
                 {cryptoRefusal.prescription ? (
@@ -358,8 +381,12 @@ export function SettingsView() {
       {dirtyKeys.length > 0 ? (
         <div className="fixed bottom-0 inset-x-0 bg-background/95 backdrop-blur border-t shadow-lg z-40">
           <div className="max-w-3xl mx-auto px-6 py-3 flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
-              {dirtyKeys.length} unsaved change{dirtyKeys.length > 1 ? 's' : ''}
+            {/* i18next's plural mechanism, NOT an English `change(s)`: the
+                count picks the pack's own plural slot, and the base key serves
+                every CLDR category a pack does not enumerate (objectui#3863) —
+                which is what keeps `ru` Russian at 2 and 5. */}
+            <div className="text-sm text-muted-foreground" data-testid="settings-unsaved-count">
+              {t('console.settingsView.unsavedCount', { count: dirtyKeys.length })}
             </div>
             <div className="flex gap-2">
               <Button
@@ -374,11 +401,11 @@ export function SettingsView() {
                 }}
                 disabled={saving}
               >
-                <RotateCcw className="h-4 w-4 mr-1" /> Discard
+                <RotateCcw className="h-4 w-4 mr-1" /> {t('console.settingsView.discard')}
               </Button>
               <Button onClick={onSave} disabled={saving}>
                 {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-                Save changes
+                {t('console.settingsView.saveChanges')}
               </Button>
             </div>
           </div>

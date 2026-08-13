@@ -8,6 +8,7 @@
 
 import * as React from 'react';
 import { cn, Popover, PopoverContent, PopoverTrigger } from '@object-ui/components';
+import { createSafeTranslation } from '@object-ui/i18n';
 import {
   Grid,
   LayoutGrid,
@@ -54,17 +55,78 @@ const VIEW_ICONS: Record<ViewType, React.ReactNode> = {
   tree: <ListTree className="h-4 w-4" />,
 };
 
-const VIEW_LABELS: Record<ViewType, string> = {
-  grid: 'Grid',
-  kanban: 'Kanban',
-  gallery: 'Gallery',
-  calendar: 'Calendar',
-  timeline: 'Timeline',
-  gantt: 'Gantt',
-  map: 'Map',
-  chart: 'Chart',
-  tree: 'Tree',
+/**
+ * Bundle key per visualization — objectui#4024.
+ *
+ * These are NOT new keys. `console.objectView.viewType*` already exists in all
+ * ten packs and already carries exactly these words: the create-view picker
+ * (`packages/app-shell/src/views/CreateViewDialog.tsx:88-96`) has resolved them
+ * through the bundle for months. This switcher naming the same nine
+ * visualizations with a private English copy was the drift, and reusing the
+ * pack's key is what keeps the picker's 「画廊」 and the switcher's 「画廊」 the
+ * same word in nine languages instead of two tables free to diverge.
+ *
+ * A plugin package reading a `console.*` key has precedent in this repo, in
+ * this very namespace: `packages/plugin-view/src/ObjectView.tsx:83` resolves
+ * `console.objectView.new`.
+ */
+const VIEW_LABEL_KEYS: Record<ViewType, string> = {
+  grid: 'console.objectView.viewTypeGrid',
+  kanban: 'console.objectView.viewTypeKanban',
+  gallery: 'console.objectView.viewTypeGallery',
+  calendar: 'console.objectView.viewTypeCalendar',
+  timeline: 'console.objectView.viewTypeTimeline',
+  gantt: 'console.objectView.viewTypeGantt',
+  map: 'console.objectView.viewTypeMap',
+  chart: 'console.objectView.viewTypeChart',
+  tree: 'console.objectView.viewTypeTree',
 };
+
+/**
+ * English fallbacks, used when no `I18nProvider` is mounted.
+ *
+ * `createSafeTranslation` rather than a bare `useObjectTranslation`: a large
+ * amount of existing coverage addresses these controls by their English name
+ * with no provider (`__tests__/ListView.test.tsx` among them), and a raw
+ * `console.objectView.viewTypeGrid` there would break all of it. This is the
+ * #4514 provider-less trap, and the table below is the pack value's stand-in on
+ * that path — the same shape `ObjectGrid` and `ListView` already use.
+ */
+const VIEW_LABEL_DEFAULTS: Record<string, string> = {
+  'console.objectView.viewTypeGrid': 'Grid',
+  'console.objectView.viewTypeKanban': 'Kanban',
+  'console.objectView.viewTypeGallery': 'Gallery',
+  'console.objectView.viewTypeCalendar': 'Calendar',
+  'console.objectView.viewTypeTimeline': 'Timeline',
+  'console.objectView.viewTypeGantt': 'Gantt',
+  'console.objectView.viewTypeMap': 'Map',
+  'console.objectView.viewTypeChart': 'Chart',
+  'console.objectView.viewTypeTree': 'Tree',
+};
+
+const useViewSwitcherTranslation = createSafeTranslation(
+  VIEW_LABEL_DEFAULTS,
+  'console.objectView.viewTypeGrid',
+);
+
+/**
+ * Resolve every visualization's label once per render.
+ *
+ * Returns a total `Record<ViewType, string>` so the three call sites per button
+ * (visible span, `aria-label`, `title`) stay a plain map lookup and cannot
+ * drift apart — and so a `ViewType` added to the union is a compile error
+ * naming the missing key rather than a button labelled `undefined`.
+ */
+function useViewLabels(): Record<ViewType, string> {
+  const { t } = useViewSwitcherTranslation();
+  return React.useMemo(() => {
+    const out = {} as Record<ViewType, string>;
+    for (const [view, key] of Object.entries(VIEW_LABEL_KEYS) as [ViewType, string][]) {
+      out[view] = t(key);
+    }
+    return out;
+  }, [t]);
+}
 
 /**
  * Compact dropdown form of the visualization switcher (Airtable-style):
@@ -80,6 +142,7 @@ export const ViewSwitcherDropdown: React.FC<ViewSwitcherProps> = ({
   animated = true,
 }) => {
   const [open, setOpen] = React.useState(false);
+  const VIEW_LABELS = useViewLabels();
 
   const handleViewChange = React.useCallback(
     (view: ViewType) => {
@@ -186,6 +249,8 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
   className,
   animated = true,
 }) => {
+  const VIEW_LABELS = useViewLabels();
+
   const handleViewChange = React.useCallback(
     (view: ViewType) => {
       if (!animated || view === currentView) {

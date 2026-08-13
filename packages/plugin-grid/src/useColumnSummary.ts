@@ -9,7 +9,7 @@
 import { useMemo } from 'react';
 import type { ListColumn } from '@object-ui/types';
 import type { ColumnSummary } from '@objectstack/spec/ui';
-import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
+import { useLocalization, resolveFieldCurrency, createSafeTranslation } from '@object-ui/i18n';
 
 /**
  * Aggregation functions for the column footer — the spec's `ColumnSummary`
@@ -18,10 +18,10 @@ import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
  *
  * The eleven members used to be spelled out here under a comment promising they
  * were "kept in lockstep with the spec enum" — a promise nothing enforced. They
- * are the enum now, which turns `TYPE_LABELS` below into the thing that reports
- * a divergence: it is a total `Record<ColumnSummaryType, string>`, so a member
- * the spec adds is a compile error naming the missing label instead of a footer
- * cell that renders blank.
+ * are the enum now, which turns `TYPE_LABEL_KEYS` below into the thing that
+ * reports a divergence: it is a total `Record<ColumnSummaryType, string>`, so a
+ * member the spec adds is a compile error naming the missing label key instead
+ * of a footer cell that renders blank.
  */
 export type ColumnSummaryType = ColumnSummary;
 
@@ -67,31 +67,81 @@ const NON_NUMERIC_TYPES = new Set<string>([
 /** Aggregations whose result is a percentage (0-100), not a value in the column's unit. */
 const PERCENT_TYPES = new Set<string>(['percent_empty', 'percent_filled']);
 
-const TYPE_LABELS: Record<ColumnSummaryType, string> = {
+/**
+ * Bundle key per aggregation — objectui#4024.
+ *
+ * The footer's NUMBER was already locale-formatted while the PREFIX in front of
+ * it was a hardcoded English literal, so a zh-CN console read `Avg: 39%` with a
+ * correctly formatted `39%`. The aggregate kind is known here, so the prefix was
+ * one bundle lookup away.
+ *
+ * Still a total `Record<ColumnSummaryType, string>`, which is the property the
+ * header above describes: a member the spec adds is a compile error naming the
+ * missing key, rather than a footer cell that renders blank.
+ *
+ * `none` maps to the empty string, not to a key — it is the spec's explicit
+ * opt-out and never reaches a label (`useColumnSummary` skips it), so giving it
+ * a key would put an unreachable entry in ten packs.
+ */
+const TYPE_LABEL_KEYS: Record<ColumnSummaryType, string> = {
   none: '',
-  count: 'Count',
-  count_empty: 'Empty',
-  count_filled: 'Filled',
-  count_unique: 'Unique',
-  // The trailing `%` is what distinguishes these from the count-family pair.
-  percent_empty: 'Empty',
-  percent_filled: 'Filled',
-  sum: 'Sum',
-  avg: 'Avg',
-  min: 'Min',
-  max: 'Max',
+  count: 'grid.summary.count',
+  count_empty: 'grid.summary.countEmpty',
+  count_filled: 'grid.summary.countFilled',
+  count_unique: 'grid.summary.countUnique',
+  // The trailing `%` is what distinguishes these from the count-family pair —
+  // which is why the two families deliberately share a word in every pack.
+  percent_empty: 'grid.summary.percentEmpty',
+  percent_filled: 'grid.summary.percentFilled',
+  sum: 'grid.summary.sum',
+  avg: 'grid.summary.avg',
+  min: 'grid.summary.min',
+  max: 'grid.summary.max',
 };
 
 /**
+ * English fallbacks for the provider-less path (the objectui#4514 trap).
+ *
+ * `useColumnSummary` is a PUBLIC export of this package and its own sibling
+ * suite (`useColumnSummary.test.tsx`) asserts `/Sum: /` with only a
+ * `LocalizationProvider` mounted. `createSafeTranslation` is what keeps that —
+ * and every downstream consumer's provider-less test — rendering English
+ * instead of `grid.summary.sum`.
+ */
+const SUMMARY_DEFAULT_TRANSLATIONS: Record<string, string> = {
+  'grid.summary.pattern': '{{label}}: {{value}}',
+  'grid.summary.count': 'Count',
+  'grid.summary.countEmpty': 'Empty',
+  'grid.summary.countFilled': 'Filled',
+  'grid.summary.countUnique': 'Unique',
+  'grid.summary.percentEmpty': 'Empty',
+  'grid.summary.percentFilled': 'Filled',
+  'grid.summary.sum': 'Sum',
+  'grid.summary.avg': 'Avg',
+  'grid.summary.min': 'Min',
+  'grid.summary.max': 'Max',
+};
+
+const useSummaryTranslation = createSafeTranslation(
+  SUMMARY_DEFAULT_TRANSLATIONS,
+  'grid.summary.sum',
+);
+
+/** The translator shape `formatSummaryLabel` needs — i18next's `t`, narrowed. */
+type SummaryTranslate = (key: string, options?: Record<string, unknown>) => string;
+
+/**
  * Every aggregation name the renderer computes. A Set rather than an `in` check
- * against TYPE_LABELS, because `in` also matches inherited keys — a column
+ * against TYPE_LABEL_KEYS, because `in` also matches inherited keys — a column
  * configured with `summary: 'toString'` would otherwise read as supported.
  *
  * Exported so a test can assert it covers the spec's `ColumnSummarySchema`
  * exactly: a name the schema accepts but this set omits validates at authoring
  * time and then renders a blank footer cell.
  */
-export const SUPPORTED_SUMMARY_TYPES: ReadonlySet<string> = new Set<string>(Object.keys(TYPE_LABELS));
+export const SUPPORTED_SUMMARY_TYPES: ReadonlySet<string> = new Set<string>(
+  Object.keys(TYPE_LABEL_KEYS),
+);
 
 /**
  * Emptiness test for the count/percent aggregations. Matches the convention
@@ -217,21 +267,41 @@ function computeAggregation(type: string, rows: SummaryRow[], field: string): nu
  * aggregations are plain cardinalities and percent aggregations carry their own
  * unit, so neither may inherit the column's currency or percent formatting —
  * `count_unique` on a currency column reads "3", not "$3.00".
+ *
+ * ## The label/value JOIN is a bundle key too (objectui#4024)
+ *
+ * The three arms below used to build `` `${label}: ${formatted}` ``, which hands
+ * the locale the WORD and keeps the PUNCTUATION in English. ja/zh set a
+ * fullwidth colon and ar runs right-to-left, so the separator is translatable
+ * content: `grid.summary.pattern` owns the whole shape and a pack is free to
+ * spell it 「合计:119,200」. Same reasoning as `collaboration.resolvedSuffix`
+ * in the packs — "separator included, so a translator owns the whole phrase
+ * rather than inheriting an English-shaped glue".
+ *
+ * The NUMBER is untouched: every `toLocaleString` / `Intl.NumberFormat` call
+ * below is exactly as it was, and stays #4589's surface rather than this
+ * card's.
  */
 function formatSummaryLabel(
   type: string,
   value: number | null,
+  t: SummaryTranslate,
   column?: { type?: string; currency?: string; defaultCurrency?: string; currencyConfig?: { defaultCurrency?: string }; precision?: number | null; scale?: number | null },
   tenantDefault?: string,
 ): string {
   if (value === null) return '';
-  const label = TYPE_LABELS[type as ColumnSummaryType] || type;
+  const labelKey = TYPE_LABEL_KEYS[type as ColumnSummaryType];
+  // `|| type` is the backstop for an aggregation with no key — it echoes the
+  // raw kind, as before, never a half-resolved `grid.summary.<junk>`.
+  const label = labelKey ? t(labelKey) : type;
+  const join = (formatted: string): string =>
+    t('grid.summary.pattern', { label, value: formatted });
 
   if (PERCENT_TYPES.has(type)) {
-    return `${label}: ${value.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
+    return join(`${value.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`);
   }
   if (NON_NUMERIC_TYPES.has(type)) {
-    return `${label}: ${value.toLocaleString()}`;
+    return join(value.toLocaleString());
   }
 
   const colType = column?.type;
@@ -266,7 +336,7 @@ function formatSummaryLabel(
   } else {
     formatted = value.toLocaleString();
   }
-  return `${label}: ${formatted}`;
+  return join(formatted);
 }
 
 /**
@@ -287,6 +357,9 @@ export function useColumnSummary(
   // Tenant default currency (ADR-0053) backstops a currency column that
   // declares no explicit code, so the footer agrees with the cells above it.
   const { currency: tenantCurrency } = useLocalization();
+  // Aggregate-prefix bundle lookups (objectui#4024). Provider-safe: with no
+  // I18nProvider this resolves the English defaults table, never a raw key.
+  const { t } = useSummaryTranslation();
   return useMemo(() => {
     const summaries = new Map<string, ColumnSummaryResult>();
 
@@ -323,10 +396,10 @@ export function useColumnSummary(
       summaries.set(col.field, {
         field: col.field,
         value: result,
-        label: formatSummaryLabel(config.type, result, columnHints, tenantCurrency),
+        label: formatSummaryLabel(config.type, result, t, columnHints, tenantCurrency),
       });
     }
 
     return { summaries, hasSummary: summaries.size > 0 };
-  }, [columns, data, fieldMetadata, tenantCurrency]);
+  }, [columns, data, fieldMetadata, tenantCurrency, t]);
 }

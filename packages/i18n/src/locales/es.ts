@@ -158,6 +158,9 @@ const es = {
     submitFailed: "No se pudo guardar. Inténtalo de nuevo.",
     discardTitle: "¿Descartar los cambios?",
     discardMessage: "Tiene cambios sin guardar. Si cierra este formulario ahora, sus ediciones se perderán.",
+    // objectui#4024 — the create/edit dialog's `sr-only` accessible
+    // description, used when the form declares no `description` of its own.
+    dialogDescriptionFallback: "Complete los campos del formulario y luego envíe o cancele.",
     keepEditing: "Seguir editando",
     discard: "Descartar",
     conflictTitle: "Conflicto al guardar",
@@ -347,6 +350,22 @@ const es = {
     yes: "Sí",
     no: "No",
     systemFields: "Sistema",
+    // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
+    // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
+    // pack controls its own separator and word order.
+    summary: {
+      pattern: "{{label}}: {{value}}",
+      count: "Recuento",
+      countEmpty: "Vacíos",
+      countFilled: "Rellenos",
+      countUnique: "Únicos",
+      percentEmpty: "Vacíos",
+      percentFilled: "Rellenos",
+      sum: "Suma",
+      avg: "Promedio",
+      min: "Mín.",
+      max: "Máx.",
+    },
     toolbar: {
       densityMode: "Densidad",
       densityCompact: "Compacto",
@@ -1570,6 +1589,31 @@ const es = {
       pages: "Páginas",
       reports: "Informes",
       system: "Sistema",
+    },
+    // objectui#4024 — the single-namespace settings screen. Its sibling
+    // `settingsHub` above already resolved through this pack; the view was the
+    // one file still carrying English literals.
+    settingsView: {
+      backToHub: "Toda la configuración",
+      back: "Atrás",
+      noNamespace: "No hay ningún espacio de nombres seleccionado.",
+      loadError: "No se pudo cargar la configuración",
+      saved: "Configuración guardada",
+      saveFailed: "Error al guardar",
+      lockedByEnv: "Bloqueado por el entorno: {{key}}",
+      lockedByEnvNoKey: "Bloqueado por el entorno",
+      actionSucceeded: "La acción se completó correctamente",
+      actionFailed: "La acción falló",
+      discard: "Descartar",
+      saveChanges: "Guardar cambios",
+      unsavedCount: "{{count}} cambios sin guardar",
+      unsavedCount_one: "{{count}} cambio sin guardar",
+      unsavedCount_other: "{{count}} cambios sin guardar",
+      cryptoRefusalTitle: "Esta instalación no puede cifrar secretos",
+      cryptoRefusalSubjectSuffix: "está declarado como cifrado, por lo que no se escribió nada.",
+      cryptoRefusalNoSubject: "El valor declarado como cifrado fue rechazado, por lo que no se escribió nada.",
+      cryptoRefusalToast: "No se pueden cifrar los secretos: {{subject}}",
+      cryptoRefusalToastNoSubject: "No se pueden cifrar los secretos",
     },
     loadingSteps: {
       connecting: "Conectando a la fuente de datos",

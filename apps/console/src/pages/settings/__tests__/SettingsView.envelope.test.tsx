@@ -20,6 +20,18 @@
  *     registered any settings while the server was answering 11 manifests.
  *
  * Mocking `./api` would assert nothing about either: the bug WAS `./api`.
+ *
+ * ## Deliberately still provider-less after objectui#4024
+ *
+ * #4024 routed `SettingsView`'s framing copy through the bundle, and the
+ * sibling `SettingsView.crypto-unavailable.test.tsx` had to gain an
+ * `I18nProvider` because its assertions are English sentences. This file did
+ * not, and that is a decision rather than an oversight: everything it asserts
+ * on screen is either manifest-authored CONTENT (`Timezone`, `Branding` — which
+ * comes off the payload, not the pack) or the hub's key literal
+ * `console.settingsHub.empty`, which it pins precisely BECAUSE `t()` with no
+ * provider returns the key. Adding a provider here would delete that pin, which
+ * is the one assertion in the file that is about i18n at all.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

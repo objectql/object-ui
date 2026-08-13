@@ -160,6 +160,9 @@ const ru = {
     submitFailed: "Не удалось сохранить. Попробуйте ещё раз.",
     discardTitle: "Отменить изменения?",
     discardMessage: "Есть несохранённые изменения. Если закрыть форму сейчас, правки будут потеряны.",
+    // objectui#4024 — the create/edit dialog's `sr-only` accessible
+    // description, used when the form declares no `description` of its own.
+    dialogDescriptionFallback: "Заполните поля формы, затем отправьте или отмените.",
     keepEditing: "Продолжить редактирование",
     discard: "Отменить",
     conflictTitle: "Конфликт сохранения",
@@ -349,6 +352,22 @@ const ru = {
     yes: "Да",
     no: "Нет",
     systemFields: "Система",
+    // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
+    // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
+    // pack controls its own separator and word order.
+    summary: {
+      pattern: "{{label}}: {{value}}",
+      count: "Количество",
+      countEmpty: "Пустые",
+      countFilled: "Заполненные",
+      countUnique: "Уникальные",
+      percentEmpty: "Пустые",
+      percentFilled: "Заполненные",
+      sum: "Сумма",
+      avg: "Среднее",
+      min: "Мин.",
+      max: "Макс.",
+    },
     toolbar: {
       densityMode: "Плотность",
       densityCompact: "Компактный",
@@ -1576,6 +1595,31 @@ const ru = {
       pages: "Страницы",
       reports: "Отчёты",
       system: "Система",
+    },
+    // objectui#4024 — the single-namespace settings screen. Its sibling
+    // `settingsHub` above already resolved through this pack; the view was the
+    // one file still carrying English literals.
+    settingsView: {
+      backToHub: "Все настройки",
+      back: "Назад",
+      noNamespace: "Пространство имён не выбрано.",
+      loadError: "Не удалось загрузить настройки",
+      saved: "Настройки сохранены",
+      saveFailed: "Ошибка сохранения",
+      lockedByEnv: "Заблокировано окружением: {{key}}",
+      lockedByEnvNoKey: "Заблокировано окружением",
+      actionSucceeded: "Действие выполнено",
+      actionFailed: "Действие не выполнено",
+      discard: "Отменить",
+      saveChanges: "Сохранить изменения",
+      unsavedCount: "Несохранённых изменений: {{count}}",
+      unsavedCount_one: "{{count}} несохранённое изменение",
+      unsavedCount_other: "{{count}} несохранённых изменений",
+      cryptoRefusalTitle: "Эта установка не может шифровать секреты",
+      cryptoRefusalSubjectSuffix: "объявлен зашифрованным, поэтому ничего не было записано.",
+      cryptoRefusalNoSubject: "Значение, объявленное зашифрованным, было отклонено, поэтому ничего не было записано.",
+      cryptoRefusalToast: "Не удалось зашифровать секреты: {{subject}}",
+      cryptoRefusalToastNoSubject: "Не удалось зашифровать секреты",
     },
     loadingSteps: {
       connecting: "Подключение к источнику данных",

@@ -154,6 +154,9 @@ const de = {
     submitFailed: "Speichern fehlgeschlagen. Bitte versuchen Sie es erneut.",
     discardTitle: "Änderungen verwerfen?",
     discardMessage: "Sie haben ungespeicherte Änderungen. Wenn Sie dieses Formular jetzt schließen, gehen Ihre Bearbeitungen verloren.",
+    // objectui#4024 — the create/edit dialog's `sr-only` accessible
+    // description, used when the form declares no `description` of its own.
+    dialogDescriptionFallback: "Füllen Sie die Formularfelder aus und senden Sie ab oder brechen Sie ab.",
     keepEditing: "Weiter bearbeiten",
     discard: "Verwerfen",
     conflictTitle: "Speicherkonflikt",
@@ -343,6 +346,22 @@ const de = {
     yes: "Ja",
     no: "Nein",
     systemFields: "System",
+    // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
+    // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
+    // pack controls its own separator and word order.
+    summary: {
+      pattern: "{{label}}: {{value}}",
+      count: "Anzahl",
+      countEmpty: "Leer",
+      countFilled: "Ausgefüllt",
+      countUnique: "Eindeutig",
+      percentEmpty: "Leer",
+      percentFilled: "Ausgefüllt",
+      sum: "Summe",
+      avg: "Mittelwert",
+      min: "Min.",
+      max: "Max.",
+    },
     toolbar: {
       densityMode: "Dichte",
       densityCompact: "Kompakt",
@@ -1566,6 +1585,31 @@ const de = {
       pages: "Seiten",
       reports: "Berichte",
       system: "System",
+    },
+    // objectui#4024 — the single-namespace settings screen. Its sibling
+    // `settingsHub` above already resolved through this pack; the view was the
+    // one file still carrying English literals.
+    settingsView: {
+      backToHub: "Alle Einstellungen",
+      back: "Zurück",
+      noNamespace: "Kein Namensraum ausgewählt.",
+      loadError: "Einstellungen konnten nicht geladen werden",
+      saved: "Einstellungen gespeichert",
+      saveFailed: "Speichern fehlgeschlagen",
+      lockedByEnv: "Durch Umgebung gesperrt: {{key}}",
+      lockedByEnvNoKey: "Durch Umgebung gesperrt",
+      actionSucceeded: "Aktion erfolgreich",
+      actionFailed: "Aktion fehlgeschlagen",
+      discard: "Verwerfen",
+      saveChanges: "Änderungen speichern",
+      unsavedCount: "{{count}} nicht gespeicherte Änderungen",
+      unsavedCount_one: "{{count}} nicht gespeicherte Änderung",
+      unsavedCount_other: "{{count}} nicht gespeicherte Änderungen",
+      cryptoRefusalTitle: "Diese Installation kann keine Geheimnisse verschlüsseln",
+      cryptoRefusalSubjectSuffix: "ist als verschlüsselt deklariert, daher wurde nichts geschrieben.",
+      cryptoRefusalNoSubject: "Der als verschlüsselt deklarierte Wert wurde abgelehnt, daher wurde nichts geschrieben.",
+      cryptoRefusalToast: "Geheimnisse können nicht verschlüsselt werden: {{subject}}",
+      cryptoRefusalToastNoSubject: "Geheimnisse können nicht verschlüsselt werden",
     },
     loadingSteps: {
       connecting: "Verbindung zur Datenquelle herstellen",

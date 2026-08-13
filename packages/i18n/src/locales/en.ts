@@ -182,6 +182,12 @@ const en = {
     unsavedChanges: 'You have unsaved changes. Are you sure you want to leave?',
     discardTitle: 'Discard changes?',
     discardMessage: 'You have unsaved changes. If you close this form now, your edits will be lost.',
+    // The create/edit dialog's `sr-only` accessible description, used when the
+    // form declares no `description` of its own (objectui#4024). Not visible
+    // copy: it is what assistive tech announces for the dialog. An app could
+    // only displace it by authoring a `description`, which makes a VISIBLE
+    // subtitle appear on every form — so the fallback has to come from here.
+    dialogDescriptionFallback: 'Complete the form fields, then submit or cancel.',
     keepEditing: 'Keep editing',
     discard: 'Discard',
     conflictTitle: 'Save conflict',
@@ -362,6 +368,32 @@ const en = {
     yes: 'Yes',
     no: 'No',
     systemFields: 'System',
+    // Column-footer aggregate prefixes, keyed by the spec's `ColumnSummary`
+    // vocabulary (objectui#4024). The footer already formatted its NUMBER
+    // through the locale-aware formatter and then put a hardcoded English
+    // `Avg: ` / `Sum: ` in front of it.
+    //
+    // `pattern` is a key rather than a `': '` baked into the renderer: the
+    // separator is translatable content — ja/zh set a fullwidth colon, ar runs
+    // right-to-left — so a pack owns the whole shape. Same reasoning as
+    // `collaboration.resolvedSuffix` below.
+    //
+    // `countEmpty`/`percentEmpty` (and the filled pair) deliberately share a
+    // word: the trailing `%` is what tells the two families apart on screen,
+    // exactly as the renderer's own comment says.
+    summary: {
+      pattern: '{{label}}: {{value}}',
+      count: 'Count',
+      countEmpty: 'Empty',
+      countFilled: 'Filled',
+      countUnique: 'Unique',
+      percentEmpty: 'Empty',
+      percentFilled: 'Filled',
+      sum: 'Sum',
+      avg: 'Avg',
+      min: 'Min',
+      max: 'Max',
+    },
     toolbar: {
       densityMode: 'Density',
       densityCompact: 'Compact',
@@ -1476,6 +1508,58 @@ const en = {
         Beta: 'Beta',
         Other: 'Other',
       },
+    },
+    // The single-namespace settings screen (objectui#4024). Placed beside
+    // `settingsHub` deliberately: `SettingsView.tsx` and `SettingsHub.tsx` are
+    // the same feature in the same directory, and the view was the one file
+    // written against a different convention — every string below was a
+    // hardcoded English literal while its sibling resolved through the bundle.
+    //
+    // `useSettingsLabel` already translates the manifest-authored CONTENT
+    // (title, description, field labels), so a plugin author could translate
+    // what is INSIDE a settings namespace but had no key reaching the chrome
+    // around it — a zh-CN admin read translated field labels inside an English
+    // save bar.
+    settingsView: {
+      backToHub: 'All settings',
+      back: 'Back',
+      noNamespace: 'No namespace selected.',
+      loadError: 'Failed to load settings',
+      saved: 'Settings saved',
+      saveFailed: 'Save failed',
+      // Parameterized, never concatenated: `{{key}}` is spliced into the
+      // sentence so a pack can put the key where its own grammar wants it.
+      lockedByEnv: 'Locked by environment: {{key}}',
+      // The server named no key — the same refusal without a subject.
+      lockedByEnvNoKey: 'Locked by environment',
+      actionSucceeded: 'Action succeeded',
+      actionFailed: 'Action failed',
+      discard: 'Discard',
+      saveChanges: 'Save changes',
+      // Save-bar counter. A REAL i18next plural family, not an English-only
+      // `change(s)` and not the two-sibling-key `xxxCountOne` shape used
+      // elsewhere in this file.
+      //
+      // The BASE key is load-bearing (objectui#3863): i18next asks
+      // `Intl.PluralRules` for the one suffix a language needs and, finding no
+      // such slot, walks `fallbackLng` to `en`. `ru` has four categories and
+      // `ar` six; no pack here enumerates `_few`/`_many`/`_two`/`_zero`, so
+      // without this base key `ru` would render ENGLISH at counts 2-20.
+      // `all-locales-key-parity.test.ts` owns that rule.
+      unsavedCount: '{{count}} unsaved changes',
+      unsavedCount_one: '{{count}} unsaved change',
+      unsavedCount_other: '{{count}} unsaved changes',
+      // The fail-closed crypto refusal (objectstack#8396). objectui#4579 added
+      // these as English literals on purpose — routing one string through i18n
+      // would have left a single translated string among a dozen hardcoded
+      // ones — and deferred them to this card, which converts the screen whole.
+      cryptoRefusalTitle: 'This deployment cannot encrypt secrets',
+      // `{{subject}}` is rendered as a `< code >` element by the view, so the
+      // sentence is split around it rather than interpolated.
+      cryptoRefusalSubjectSuffix: 'is declared encrypted, so nothing was written.',
+      cryptoRefusalNoSubject: 'The declared-encrypted value was refused, so nothing was written.',
+      cryptoRefusalToast: 'Cannot encrypt secrets: {{subject}}',
+      cryptoRefusalToastNoSubject: 'Cannot encrypt secrets',
     },
     loadingSteps: {
       connecting: 'Connecting to data source',

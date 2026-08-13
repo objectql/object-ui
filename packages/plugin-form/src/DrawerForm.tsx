@@ -67,6 +67,12 @@ const useDiscardTranslation = createSafeTranslation(
   {
     'form.discardTitle': 'Discard changes?',
     'form.discardMessage': 'You have unsaved changes. If you close this form now, your edits will be lost.',
+    // The dialog's `sr-only` accessible description, used when the form
+    // declares no `description` (objectui#4024). It rides this table rather
+    // than a bare `useObjectTranslation` so a provider-less host announces the
+    // English sentence instead of a raw key — the #4514 trap, and the reason
+    // this factory exists.
+    'form.dialogDescriptionFallback': 'Complete the form fields, then submit or cancel.',
     'form.keepEditing': 'Keep editing',
     'form.discard': 'Discard',
   },
@@ -639,7 +645,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
               <SheetDescription>{schema.description}</SheetDescription>
             ) : (
               <SheetDescription className="sr-only">
-                Complete the form fields, then submit or cancel.
+                {t('form.dialogDescriptionFallback')}
               </SheetDescription>
             )}
           </SheetHeader>

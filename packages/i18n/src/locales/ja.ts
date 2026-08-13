@@ -154,6 +154,9 @@ const ja = {
     submitFailed: "保存できませんでした。もう一度お試しください。",
     discardTitle: "変更を破棄しますか？",
     discardMessage: "保存されていない変更があります。このままフォームを閉じると編集内容は失われます。",
+    // objectui#4024 — the create/edit dialog's `sr-only` accessible
+    // description, used when the form declares no `description` of its own.
+    dialogDescriptionFallback: "フォームの項目を入力してから、送信またはキャンセルしてください。",
     keepEditing: "編集を続ける",
     discard: "破棄",
     conflictTitle: "保存の競合",
@@ -343,6 +346,22 @@ const ja = {
     yes: "はい",
     no: "いいえ",
     systemFields: "システム",
+    // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
+    // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
+    // pack controls its own separator and word order.
+    summary: {
+      pattern: "{{label}}: {{value}}",
+      count: "件数",
+      countEmpty: "空欄",
+      countFilled: "入力済み",
+      countUnique: "一意",
+      percentEmpty: "空欄",
+      percentFilled: "入力済み",
+      sum: "合計",
+      avg: "平均",
+      min: "最小",
+      max: "最大",
+    },
     toolbar: {
       densityMode: "密度",
       densityCompact: "コンパクト",
@@ -1566,6 +1585,31 @@ const ja = {
       pages: "ページ",
       reports: "レポート",
       system: "システム",
+    },
+    // objectui#4024 — the single-namespace settings screen. Its sibling
+    // `settingsHub` above already resolved through this pack; the view was the
+    // one file still carrying English literals.
+    settingsView: {
+      backToHub: "すべての設定",
+      back: "戻る",
+      noNamespace: "名前空間が選択されていません。",
+      loadError: "設定の読み込みに失敗しました",
+      saved: "設定を保存しました",
+      saveFailed: "保存に失敗しました",
+      lockedByEnv: "環境によりロックされています: {{key}}",
+      lockedByEnvNoKey: "環境によりロックされています",
+      actionSucceeded: "操作に成功しました",
+      actionFailed: "操作に失敗しました",
+      discard: "破棄",
+      saveChanges: "変更を保存",
+      unsavedCount: "未保存の変更 {{count}} 件",
+      unsavedCount_one: "未保存の変更 {{count}} 件",
+      unsavedCount_other: "未保存の変更 {{count}} 件",
+      cryptoRefusalTitle: "このデプロイメントはシークレットを暗号化できません",
+      cryptoRefusalSubjectSuffix: "は暗号化対象として宣言されているため、何も書き込まれませんでした。",
+      cryptoRefusalNoSubject: "暗号化対象として宣言された値は拒否され、何も書き込まれませんでした。",
+      cryptoRefusalToast: "シークレットを暗号化できません: {{subject}}",
+      cryptoRefusalToastNoSubject: "シークレットを暗号化できません",
     },
     loadingSteps: {
       connecting: "データソースに接続中",

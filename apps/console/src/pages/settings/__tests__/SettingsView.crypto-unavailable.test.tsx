@@ -49,6 +49,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { I18nProvider } from '@object-ui/i18n';
 
 const getSettingsNamespace = vi.fn();
 const saveSettingsNamespace = vi.fn();
@@ -170,13 +171,35 @@ function validationRejection() {
   return err;
 }
 
+/**
+ * Mounts an EXPLICIT `en` I18nProvider — objectui#4024.
+ *
+ * This file used to mount none, which was fine while `SettingsView` carried its
+ * copy as English literals. It no longer does: the screen resolves
+ * `console.settingsView.*` through the bundle, and `t()` outside a provider
+ * returns the KEY, so every English assertion below would read
+ * `console.settingsView.cryptoRefusalTitle`.
+ *
+ * A provider, rather than re-pointing the assertions at key literals, because
+ * the two most valuable assertions here are about INTERPOLATION — that the
+ * refused key reaches `Cannot encrypt secrets: ai.api_key`, and that
+ * `SETTINGS_LOCKED` still names its own key. With no provider the key comes
+ * back bare and the `{{subject}}` / `{{key}}` holes are never filled, so a
+ * key-literal assertion could not tell a working interpolation from a broken
+ * one — it would keep the file green while deleting the thing it tests.
+ *
+ * The sibling `SettingsView.envelope.test.tsx` is deliberately handled the
+ * OTHER way; see its own note.
+ */
 function renderView() {
   return render(
-    <MemoryRouter initialEntries={['/settings/ai']}>
-      <Routes>
-        <Route path="/settings/:namespace" element={<SettingsView />} />
-      </Routes>
-    </MemoryRouter>,
+    <I18nProvider config={{ defaultLanguage: 'en', detectBrowserLanguage: false }}>
+      <MemoryRouter initialEntries={['/settings/ai']}>
+        <Routes>
+          <Route path="/settings/:namespace" element={<SettingsView />} />
+        </Routes>
+      </MemoryRouter>
+    </I18nProvider>,
   );
 }
 

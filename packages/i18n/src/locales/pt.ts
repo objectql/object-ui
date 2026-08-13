@@ -153,6 +153,9 @@ const pt = {
     submitFailed: "Não foi possível salvar. Tente novamente.",
     discardTitle: "Descartar as alterações?",
     discardMessage: "Você tem alterações não salvas. Se fechar este formulário agora, suas edições serão perdidas.",
+    // objectui#4024 — the create/edit dialog's `sr-only` accessible
+    // description, used when the form declares no `description` of its own.
+    dialogDescriptionFallback: "Preencha os campos do formulário e depois envie ou cancele.",
     keepEditing: "Continuar editando",
     discard: "Descartar",
     conflictTitle: "Conflito ao salvar",
@@ -342,6 +345,22 @@ const pt = {
     yes: "Sim",
     no: "Não",
     systemFields: "Sistema",
+    // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
+    // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
+    // pack controls its own separator and word order.
+    summary: {
+      pattern: "{{label}}: {{value}}",
+      count: "Contagem",
+      countEmpty: "Vazios",
+      countFilled: "Preenchidos",
+      countUnique: "Únicos",
+      percentEmpty: "Vazios",
+      percentFilled: "Preenchidos",
+      sum: "Soma",
+      avg: "Média",
+      min: "Mín.",
+      max: "Máx.",
+    },
     toolbar: {
       densityMode: "Densidade",
       densityCompact: "Compacto",
@@ -1565,6 +1584,31 @@ const pt = {
       pages: "Páginas",
       reports: "Relatórios",
       system: "Sistema",
+    },
+    // objectui#4024 — the single-namespace settings screen. Its sibling
+    // `settingsHub` above already resolved through this pack; the view was the
+    // one file still carrying English literals.
+    settingsView: {
+      backToHub: "Todas as configurações",
+      back: "Voltar",
+      noNamespace: "Nenhum namespace selecionado.",
+      loadError: "Falha ao carregar as configurações",
+      saved: "Configurações salvas",
+      saveFailed: "Falha ao salvar",
+      lockedByEnv: "Bloqueado pelo ambiente: {{key}}",
+      lockedByEnvNoKey: "Bloqueado pelo ambiente",
+      actionSucceeded: "A ação foi concluída",
+      actionFailed: "A ação falhou",
+      discard: "Descartar",
+      saveChanges: "Salvar alterações",
+      unsavedCount: "{{count}} alterações não salvas",
+      unsavedCount_one: "{{count}} alteração não salva",
+      unsavedCount_other: "{{count}} alterações não salvas",
+      cryptoRefusalTitle: "Esta implantação não consegue criptografar segredos",
+      cryptoRefusalSubjectSuffix: "está declarado como criptografado, portanto nada foi gravado.",
+      cryptoRefusalNoSubject: "O valor declarado como criptografado foi recusado, portanto nada foi gravado.",
+      cryptoRefusalToast: "Não é possível criptografar segredos: {{subject}}",
+      cryptoRefusalToastNoSubject: "Não é possível criptografar segredos",
     },
     loadingSteps: {
       connecting: "Conectando à fonte de dados",

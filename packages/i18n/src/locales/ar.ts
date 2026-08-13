@@ -158,6 +158,9 @@ const ar = {
     submitFailed: "تعذّر الحفظ. يرجى المحاولة مرة أخرى.",
     discardTitle: "تجاهل التغييرات؟",
     discardMessage: "لديك تغييرات غير محفوظة. إذا أغلقت هذا النموذج الآن، ستفقد تعديلاتك.",
+    // objectui#4024 — the create/edit dialog's `sr-only` accessible
+    // description, used when the form declares no `description` of its own.
+    dialogDescriptionFallback: "املأ حقول النموذج ثم أرسل أو ألغِ.",
     keepEditing: "متابعة التحرير",
     discard: "تجاهل",
     conflictTitle: "تعارض في الحفظ",
@@ -347,6 +350,22 @@ const ar = {
     yes: "نعم",
     no: "لا",
     systemFields: "النظام",
+    // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
+    // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
+    // pack controls its own separator and word order.
+    summary: {
+      pattern: "{{label}}: {{value}}",
+      count: "العدد",
+      countEmpty: "فارغة",
+      countFilled: "ممتلئة",
+      countUnique: "فريدة",
+      percentEmpty: "فارغة",
+      percentFilled: "ممتلئة",
+      sum: "المجموع",
+      avg: "المتوسط",
+      min: "الأدنى",
+      max: "الأعلى",
+    },
     toolbar: {
       densityMode: "الكثافة",
       densityCompact: "مضغوط",
@@ -1573,6 +1592,31 @@ const ar = {
       pages: "الصفحات",
       reports: "التقارير",
       system: "النظام",
+    },
+    // objectui#4024 — the single-namespace settings screen. Its sibling
+    // `settingsHub` above already resolved through this pack; the view was the
+    // one file still carrying English literals.
+    settingsView: {
+      backToHub: "جميع الإعدادات",
+      back: "رجوع",
+      noNamespace: "لم يتم تحديد أي مساحة اسم.",
+      loadError: "تعذّر تحميل الإعدادات",
+      saved: "تم حفظ الإعدادات",
+      saveFailed: "فشل في الحفظ",
+      lockedByEnv: "مقفل بواسطة البيئة: {{key}}",
+      lockedByEnvNoKey: "مقفل بواسطة البيئة",
+      actionSucceeded: "نجح الإجراء",
+      actionFailed: "فشل الإجراء",
+      discard: "تجاهل",
+      saveChanges: "حفظ التغييرات",
+      unsavedCount: "{{count}} تغيير(تغييرات) غير محفوظ",
+      unsavedCount_one: "{{count}} تغيير غير محفوظ",
+      unsavedCount_other: "{{count}} تغييرات غير محفوظة",
+      cryptoRefusalTitle: "لا يمكن لهذا النشر تشفير الأسرار",
+      cryptoRefusalSubjectSuffix: "معلن كمشفَّر، لذلك لم تتم كتابة أي شيء.",
+      cryptoRefusalNoSubject: "تم رفض القيمة المعلنة كمشفَّرة، لذلك لم تتم كتابة أي شيء.",
+      cryptoRefusalToast: "تعذّر تشفير الأسرار: {{subject}}",
+      cryptoRefusalToastNoSubject: "تعذّر تشفير الأسرار",
     },
     loadingSteps: {
       connecting: "جاري الاتصال بمصدر البيانات",
