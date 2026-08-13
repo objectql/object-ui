@@ -28,6 +28,7 @@ import * as React from 'react';
 import { Button, Input, cn } from '@object-ui/components';
 import { Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { CelPredicateField } from './CelPredicateField';
+import type { CelLintIssue } from './celAuthoring';
 
 /**
  * Scope roots bound at RUNTIME for a row predicate, advertised to autocomplete.
@@ -132,6 +133,17 @@ export interface ConditionalFormattingEditorProps {
   disabled?: boolean;
   /** i18n resolver (`(key) => string`). */
   t: (key: string) => string;
+  /**
+   * Report how many BLOCKING author-time issues this editor is showing — rule
+   * conditions that do not parse (objectui#4527). The inspector above
+   * aggregates and hands the total to the host through
+   * `MetadataInspectorProps.onBlockingIssuesChange`, because the Save button
+   * belongs to the host, not here.
+   *
+   * Optional: mount sites with no Save to gate simply omit it. Fires whenever
+   * the aggregate changes, `0` when every rule is clean.
+   */
+  onBlockingIssuesChange?: (count: number) => void;
 }
 
 /** A native color swatch + free-text value (hex / CSS / Tailwind), like the
@@ -178,12 +190,50 @@ export function ConditionalFormattingEditor({
   fieldNames,
   disabled,
   t,
+  onBlockingIssuesChange,
 }: ConditionalFormattingEditorProps) {
   // Normalize the persisted rules to the authoring shape once per input change.
   const drafts = React.useMemo<ConditionalFormattingRuleDraft[]>(
     () => (Array.isArray(rules) ? rules.map(normalizeRule) : []),
     [rules],
   );
+
+  /* ─── Blocking CEL verdicts → the inspector's aggregate (objectui#4527) ───
+   *
+   * Errors are counted PER RULE rather than into one running total: each rule
+   * mounts its own `CelPredicateField`, and they lint independently and
+   * asynchronously, so a shared counter would let whichever reported last
+   * overwrite the others — fixing one of two broken rules would hand back a
+   * writable Save while the other was still malformed.
+   *
+   * The total is DERIVED against the rule list rather than repaired by a reset
+   * effect: a deleted rule's editor is gone and can never report `0` for
+   * itself, so counting a verdict it left behind would wedge Save shut with no
+   * editor on screen to fix it. Indices at or past the current length are
+   * therefore simply not counted. */
+  const [celErrors, setCelErrors] = React.useState<Record<number, number>>({});
+  const reportCel = React.useCallback((index: number, issues: CelLintIssue[]) => {
+    // Only `error` blocks Save; `warning` is advisory, matching #4306.
+    const errs = issues.filter((i) => i.severity === 'error').length;
+    setCelErrors((prev) => (prev[index] === errs ? prev : { ...prev, [index]: errs }));
+  }, []);
+  const ruleCount = drafts.length;
+  const blockingIssues = React.useMemo(() => {
+    let total = 0;
+    for (const [index, count] of Object.entries(celErrors)) {
+      if (Number(index) >= ruleCount) continue; // pruned: the rule is gone
+      total += count;
+    }
+    return total;
+  }, [celErrors, ruleCount]);
+  // Held in a ref so an unmemoized parent callback cannot re-fire the effect.
+  const onBlockingIssuesChangeRef = React.useRef(onBlockingIssuesChange);
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current = onBlockingIssuesChange;
+  });
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current?.(blockingIssues);
+  }, [blockingIssues]);
 
   const commit = (next: ConditionalFormattingRuleDraft[]) => onChange(next);
 
@@ -283,6 +333,7 @@ export function ConditionalFormattingEditor({
             scope="flattened"
             roots={ROW_PREDICATE_ROOTS}
             onChange={(v) => setRule(i, { condition: v })}
+            onLintChange={(issues) => reportCel(i, issues)}
             t={t}
             id={`cf-condition-${i}`}
           />

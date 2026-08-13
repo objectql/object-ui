@@ -1,0 +1,13 @@
+---
+'@object-ui/app-shell': patch
+---
+
+All CEL-hosting inspectors block Save on parse faults — a page block or formatting rule whose condition does not parse no longer saves
+
+`CelPredicateField` has always reported its lint verdict upward through `onLintChange`, but only the RLS policy editor listened. #4306 fixed the field inspector and shipped the channel the rest of the console needed — `MetadataInspectorProps.onBlockingIssuesChange`, named for blocking issues rather than for CEL precisely so the remaining sites could be wired against it. This wires the two shared editors that discarded the verdict: `ConditionBuilder` (the no-code predicate builder's raw-expression mode) and `ConditionalFormattingEditor` (one condition per formatting rule). Each gains an optional callback surfacing its blocking-error count, and the inspectors above them aggregate and report through the contract, so the host that owns Save refuses to write.
+
+Both counts are DERIVED from what they describe rather than repaired by reset effects, because the editors can vanish while their last verdict was "1 error" and nothing would ever retract it. `ConditionBuilder`'s CEL editor exists only in raw mode — an externally-changed value that round-trips as a simple predicate flips the builder back to rows in the same commit, unmounting the editor and cancelling its pending lint — so the count is read as 0 whenever the raw editor is not mounted. `ConditionalFormattingEditor` keys a per-rule map and counts only rules that still exist: a shared counter would let whichever rule linted last overwrite the others, so fixing one of two broken rules would hand back a writable Save while the other was still malformed, and a deleted rule's remembered error would wedge Save shut with no editor on screen to fix it. Only `severity: 'error'` counts; advisory warnings never block.
+
+Wired this way, `PageBlockInspector` gates the metadata editor's Save on a page block's `visibleWhen`, and `ViewVariantInspector` gates it on a view's `conditionalFormatting` rules (forwarded through `ViewInspector`, the scoped router — without that hop the channel stops one component short of the editor and the wiring is inert).
+
+Three of the sites named in the original report are NOT wired here, because the channel does not reach them: `HookDefaultInspector`, `ActionDefaultInspector` and the view's home panel are `MetadataDefaultInspectorProps` components, whose contract has no blocking-issues member, and `widgets.tsx`'s condition widget is a `SchemaForm` widget rather than an inspector at all. Wiring those needs a second contract decision and edits to the hosts, so they are left for a follow-up rather than guessed at.

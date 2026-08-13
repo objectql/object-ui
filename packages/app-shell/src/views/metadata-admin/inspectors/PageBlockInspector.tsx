@@ -306,7 +306,7 @@ export function writeSiblings(root: Record<string, unknown>, hops: Hop[], nextSi
   return { [topKey]: next[topKey] };
 }
 
-export function PageBlockInspector({ selection, draft, onPatch, onClearSelection, onSelectionChange, locale, readOnly }: MetadataInspectorProps) {
+export function PageBlockInspector({ selection, draft, onPatch, onClearSelection, onSelectionChange, onBlockingIssuesChange, locale, readOnly }: MetadataInspectorProps) {
   // Slotted record page: selection ids are `slot:<name>:<index>` and address
   // `draft.slots.<name>` (a single component is normalised to a 1-element array).
   // `slot:<name>:<idx>` optionally followed by a nested sub-path within the
@@ -348,6 +348,44 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
     : hops
       ? readSiblings(draft, hops)
       : null;
+
+  /* ─── Blocking CEL verdicts → the host's Save gate (objectui#4527) ─────
+   *
+   * The visibility builder below authors `visibleWhen` through a
+   * `CelPredicateField`; a predicate that does not parse must not be
+   * saveable, let alone publishable as the live page definition (#4306's
+   * defect, one inspector over).
+   *
+   * The count is STAMPED with the block it describes and the mismatch is
+   * read as 0 at aggregation time, so a verdict that lands after the
+   * selection moved cannot gate the block now on screen. Declared above the
+   * `!block` early return — these are hooks, and their order must not depend
+   * on the selection resolving to a live block. */
+  const [celErrors, setCelErrors] = React.useState<{ block: string; count: number }>({
+    block: selection.id,
+    count: 0,
+  });
+  const reportCel = React.useCallback(
+    (count: number) => {
+      setCelErrors((prev) => {
+        // A verdict that arrives after the selection moved describes the block
+        // now on screen, not the one it was queued for.
+        if (prev.block !== selection.id) return { block: selection.id, count };
+        if (prev.count === count) return prev;
+        return { block: selection.id, count };
+      });
+    },
+    [selection.id],
+  );
+  const blockingIssues = celErrors.block === selection.id ? celErrors.count : 0;
+  // Held in a ref so an unmemoized host callback cannot re-fire the effect.
+  const onBlockingIssuesChangeRef = React.useRef(onBlockingIssuesChange);
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current = onBlockingIssuesChange;
+  });
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current?.(blockingIssues);
+  }, [blockingIssues]);
 
   if ((!slotMatch && !hops) || !block) {
     return (
@@ -614,6 +652,7 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
         onCommit={(v) => patch({ visibleWhen: writeExpressionSource(block.visibleWhen, v) })}
         objectName={pageObject}
         disabled={readOnly}
+        onBlockingIssuesChange={reportCel}
       />
 
       {blockHasConfig(block.type) && (

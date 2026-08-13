@@ -23,6 +23,7 @@ import {
 import { Plus, X, Code2, ListFilter } from 'lucide-react';
 import { useObjectFields } from '../previews/useObjectFields';
 import { CelPredicateField } from '../CelPredicateField';
+import type { CelLintIssue } from '../celAuthoring';
 import { t, useMetadataLocale } from '../i18n';
 
 type Op = '==' | '!=' | '>' | '<' | '>=' | '<=' | 'truthy' | 'falsy';
@@ -109,7 +110,7 @@ function initFrom(value: string): { rows: Row[]; join: '&&' | '||'; raw: boolean
   return { rows: [], join: '&&', raw: !!value };
 }
 
-export function ConditionBuilder({ label, value, onCommit, objectName, fields: fieldsProp, disabled }: {
+export function ConditionBuilder({ label, value, onCommit, objectName, fields: fieldsProp, disabled, onBlockingIssuesChange }: {
   label?: string;
   value: string;
   onCommit: (cel: string) => void;
@@ -118,6 +119,17 @@ export function ConditionBuilder({ label, value, onCommit, objectName, fields: f
    *  when omitted, fields are loaded from `objectName`. */
   fields?: Array<{ name: string; label?: string; hidden?: boolean }>;
   disabled?: boolean;
+  /**
+   * Report how many BLOCKING author-time issues this editor is showing — a CEL
+   * predicate that does not parse (objectui#4527). The inspector above
+   * aggregates these and hands the total to the host through
+   * `MetadataInspectorProps.onBlockingIssuesChange`, because the Save button
+   * belongs to the host, not here.
+   *
+   * Optional: mount sites with no Save to gate simply omit it. Fires whenever
+   * the aggregate changes, `0` when everything is clean.
+   */
+  onBlockingIssuesChange?: (count: number) => void;
 }) {
   const { fields: hookFields } = useObjectFields(objectName);
   const fields = fieldsProp ?? hookFields;
@@ -165,6 +177,37 @@ export function ConditionBuilder({ label, value, onCommit, objectName, fields: f
     emit(nextRows, nextJoin);
   };
 
+  /* ─── Blocking CEL verdicts → the inspector's aggregate (objectui#4527) ───
+   *
+   * The raw-expression editor is this component's ONLY CEL site — the row
+   * builder compiles rows itself and mounts no `CelPredicateField` — so the
+   * aggregate is that one editor's error count, DERIVED against the mode
+   * rather than repaired by a reset effect.
+   *
+   * Deriving is what prevents the wedge. The raw editor exists only while
+   * `raw` is true, and it can vanish while its last verdict was "1 error":
+   * the adopt effect above flips `raw` false in the same commit when an
+   * externally-changed value round-trips as a simple predicate, which
+   * unmounts the editor and cancels its pending debounced lint. Nothing will
+   * ever report `0` for it again, so a remembered count would hold Save shut
+   * with no editor left on screen to fix it. */
+  const [celErrors, setCelErrors] = React.useState(0);
+  const reportCel = React.useCallback((issues: CelLintIssue[]) => {
+    // Only `error` blocks Save; `warning` is advisory (typo / blast-radius),
+    // matching the RLS editor and objectui#4306.
+    const errs = issues.filter((i) => i.severity === 'error').length;
+    setCelErrors((prev) => (prev === errs ? prev : errs));
+  }, []);
+  const blockingIssues = raw ? celErrors : 0;
+  // Held in a ref so an unmemoized parent callback cannot re-fire the effect.
+  const onBlockingIssuesChangeRef = React.useRef(onBlockingIssuesChange);
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current = onBlockingIssuesChange;
+  });
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current?.(blockingIssues);
+  }, [blockingIssues]);
+
   const compiled = compile(rows, join);
 
   if (raw) {
@@ -185,6 +228,7 @@ export function ConditionBuilder({ label, value, onCommit, objectName, fields: f
           label={tLocal('engine.condition.celLabel')}
           value={value}
           onChange={(v) => { lastEmitted.current = v; onCommit(v); }}
+          onLintChange={reportCel}
           disabled={disabled}
           placeholder="record.status != 'done' && user.isAdmin"
           objectName={objectName}

@@ -108,6 +108,17 @@ export interface ViewVariantInspectorProps extends MetadataDefaultInspectorProps
   /** Clear the current selection (scoped mode only). */
   onClearSelection?: () => void;
   /**
+   * Report how many BLOCKING author-time issues this inspector is showing —
+   * conditional-formatting rules whose CEL does not parse (objectui#4527).
+   *
+   * Only the SCOPED path can carry this today: `ViewInspector` is a
+   * `MetadataInspectorProps` component and forwards the host's callback, while
+   * `ViewDefaultInspector` (the home panel) is a
+   * `MetadataDefaultInspectorProps` component whose contract has no such
+   * channel — so on that path it is simply absent and nothing is reported.
+   */
+  onBlockingIssuesChange?: (count: number) => void;
+  /**
    * Pre-resolved field catalog for the bound object. When supplied, both
    * this inspector and its {@link FieldsListEditor} skip the network fetch
    * (`useObjectFields`) and use this list instead. Hosts that already hold
@@ -193,6 +204,7 @@ export function ViewVariantInspector({
   readOnly,
   onClearSelection,
   onSelectionChange,
+  onBlockingIssuesChange,
   objectFieldsOverride,
   locale,
   serverSchema,
@@ -232,6 +244,40 @@ export function ViewVariantInspector({
   const cfRules = Array.isArray(variant.conditionalFormatting)
     ? (variant.conditionalFormatting as unknown[])
     : [];
+
+  /* ─── Blocking CEL verdicts → the host's Save gate (objectui#4527) ─────
+   *
+   * The conditional-formatting editor below mounts one `CelPredicateField`
+   * per rule and owns the per-rule map; this inspector only stamps that
+   * editor's aggregate with the variant it describes, so a verdict that
+   * lands after the author switched variants cannot gate the one now on
+   * screen. Mismatch is read as 0 at aggregation time rather than repaired
+   * by a reset effect. The formatting editor is rendered for list families
+   * only, so a form variant never reports anything but 0. */
+  const [celErrors, setCelErrors] = React.useState<{ variant: string; count: number }>({
+    variant: variantKey,
+    count: 0,
+  });
+  const reportCel = React.useCallback(
+    (count: number) => {
+      setCelErrors((prev) => {
+        if (prev.variant !== variantKey) return { variant: variantKey, count };
+        if (prev.count === count) return prev;
+        return { variant: variantKey, count };
+      });
+    },
+    [variantKey],
+  );
+  const blockingIssues =
+    celErrors.variant === variantKey && !isFormFamily ? celErrors.count : 0;
+  // Held in a ref so an unmemoized host callback cannot re-fire the effect.
+  const onBlockingIssuesChangeRef = React.useRef(onBlockingIssuesChange);
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current = onBlockingIssuesChange;
+  });
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current?.(blockingIssues);
+  }, [blockingIssues]);
   const widgetContext = React.useMemo(
     () => ({
       objectFields: objectFields.map((f) => ({
@@ -359,6 +405,7 @@ export function ViewVariantInspector({
             onChange={(rules) =>
               writeVariant({ conditionalFormatting: rules.length > 0 ? rules : undefined })
             }
+            onBlockingIssuesChange={reportCel}
           />
         </div>
       )}

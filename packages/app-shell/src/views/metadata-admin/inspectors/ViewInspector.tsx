@@ -39,6 +39,11 @@ export function ViewInspector(props: MetadataInspectorProps) {
       onPatch={props.onPatch}
       onSelectionChange={props.onSelectionChange}
       onClearSelection={props.onClearSelection}
+      // The host's blocking-issues channel must survive this router, or the
+      // variant inspector's CEL verdicts stop one component short of Save
+      // and the wiring is inert (objectui#4527). The default (home) path
+      // below has no such prop to forward — see ViewVariantInspectorProps.
+      onBlockingIssuesChange={props.onBlockingIssuesChange}
       readOnly={props.readOnly}
       locale={props.locale}
       variantKey={binding?.storeKey ?? 'list'}
