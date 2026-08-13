@@ -1190,6 +1190,15 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'perm.readOnly': 'Read-only (this metadata type has no runtime write channel)',
   'perm.readOnly.hint':
     'The metadata-type registry declares both allowOrgOverride and allowRuntimeCreate false for this type, so the platform accepts no runtime write for it. Edit the source artifact and redeploy, or ask an operator for the documented OS_METADATA_WRITABLE escape hatch.',
+  // objectui#4518 — the ARTIFACT tier, the server's SECOND refusal. Distinct
+  // from `perm.readOnly` above on purpose: the TYPE does have a runtime write
+  // channel here (a brand-new set authored on this screen saves fine), so
+  // blaming the type would be the mirror-image lie. What is locked is THIS set,
+  // because a code package ships it and overwriting a packaged item is an
+  // overlay — which `permission` has not opted into.
+  'perm.readOnly.artifact': 'Read-only (this set is provided by a code package)',
+  'perm.readOnly.artifact.hint':
+    'A code package ships this permission set, so an environment-scope edit would overlay a packaged item — and the metadata-type registry declares allowOrgOverride false for permission (ADR-0005 forbids per-org overlay of a packaged set: silent privilege drift). The server refuses the write with 403 not_overridable. Edit the source artifact and redeploy, create a new runtime set instead, or ask an operator for the documented OS_METADATA_WRITABLE escape hatch.',
   // Designer wrapper
   'designer.unsavedChanges': 'Unsaved changes',
   'designer.editingOverlay': 'Editing overlay',
@@ -2962,6 +2971,12 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'perm.readOnly': '只读（该元数据类型没有运行时写入通道）',
   'perm.readOnly.hint':
     '元数据类型注册表对该类型声明 allowOrgOverride 与 allowRuntimeCreate 均为 false，平台不接受它的任何运行时写入。请修改源工件后重新部署，或由运维启用有文档记载的 OS_METADATA_WRITABLE 逃生阀。',
+  // objectui#4518 —见 EN 表同键注释：这是服务端的第二道闸门（artifact 层），
+  // 与上面的「类型没有写入通道」是两回事：该类型有运行时写入通道，被锁的是「这一个」
+  // 由代码包提供的权限集。
+  'perm.readOnly.artifact': '只读（该权限集由代码包提供）',
+  'perm.readOnly.artifact.hint':
+    '该权限集由代码包提供，因此在环境作用域下编辑它属于覆盖（overlay）已打包的条目；而元数据类型注册表对 permission 声明 allowOrgOverride 为 false（ADR-0005 禁止对已打包权限集做按组织覆盖：会造成权限静默漂移）。服务端会以 403 not_overridable 拒绝该写入。请修改源工件后重新部署，或改为新建一个运行时权限集，或由运维启用有文档记载的 OS_METADATA_WRITABLE 逃生阀。',
   // Designer wrapper
   'designer.unsavedChanges': '未保存的修改',
   'designer.editingOverlay': '编辑覆盖层',

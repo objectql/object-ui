@@ -109,6 +109,33 @@ interface ObjectSummary {
   owdExternal?: string;
 }
 
+/**
+ * Is this item backed by a **code-package artifact**? (objectui#4518)
+ *
+ * The client-side mirror of the server's `isArtifactBacked`
+ * (metadata-protocol `protocol.ts`), and byte-for-byte the same predicate
+ * `ResourceEditPage:1332` already computes inline for its own two-tier gate.
+ *
+ * A non-null `code` layer alone is NOT proof of a code package: a published
+ * ORG item also surfaces its active version in `code`, tagged with the
+ * `sys_metadata` provenance sentinel. The server excludes exactly that
+ * sentinel ("`lookupArtifactItem` only returns items whose `_packageId` marks
+ * a genuine code package (the `'sys_metadata'` rehydration sentinel is
+ * excluded)"), so an org-authored set stays editable after publish instead of
+ * being mis-read as a read-only packaged item.
+ *
+ * `null` / a failed layered read answers `false` — "no artifact known". That
+ * is the fail-OPEN direction on purpose: it is what the sibling's
+ * `layered?.code != null` does, it is the pre-#4518 behaviour, and a transient
+ * read failure must not invent a lock. The cost is bounded and honest — the
+ * save still round-trips to the server's own gate.
+ */
+function isArtifactBackedLayer(layered: { code?: unknown } | null | undefined): boolean {
+  const code = layered?.code;
+  if (code == null) return false;
+  return (code as { _packageId?: string })._packageId !== 'sys_metadata';
+}
+
 /** Localized short label for an OWD value; falls back to the raw value. */
 function owdLabel(t: (k: string) => string, value: string): string {
   const key: Record<string, string> = {
@@ -210,8 +237,13 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
   const adapter = useAdapter();
   const { entries } = useMetadataTypes(client);
   const entry: RichMetadataTypeEntry | undefined = entries.find((t) => t.type === type);
-  // Two independent read-only gates, and each reads the flag that actually
-  // governs it (objectui#4446):
+  // Does a code package SHIP this set? Read off the layered envelope the load
+  // effect below already fetches, via {@link isArtifactBackedLayer}. Starts
+  // `false` ("no artifact known") and is re-derived on every load, so a slow or
+  // failed read never invents a lock — see the helper's doc (objectui#4518).
+  const [codeIsArtifact, setCodeIsArtifact] = React.useState(false);
+  // Three independent read-only gates, and each reads the fact that actually
+  // governs it (objectui#4446, #4518):
   //
   //  • TYPE gate — the metadata type must offer SOME runtime write channel.
   //    That is the DISJUNCTION `allowOrgOverride || allowRuntimeCreate`, not
@@ -237,17 +269,81 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
   //    `allowOrgOverride` ONLY, so a `resolved.allowRuntimeCreate` would be
   //    silently `undefined`.
   //
+  //  • ARTIFACT gate — the server's SECOND tier, added by objectui#4518. See
+  //    the block below the state declaration for why the type tier alone is
+  //    not the whole gate.
+  //
   //  • HOST gate — the package-level `readOnly` prop the Studio Access pillar
   //    passes for a read-only package. UNCHANGED and still dominant: this is
   //    the "Studio 维持包级只读" half of the objectstack#5768 ruling, and a
   //    code-defined package stays locked here exactly as before.
   //
-  // Either gate locks every authoring affordance below. Note this predicate is
-  // now byte-identical to the one `PageShell`'s WritabilityBadge already uses
-  // (`readOnly` → `allowOrgOverride` → `allowRuntimeCreate` → read-only), so
-  // the header badge and these controls can no longer disagree — the very
-  // divergence recorded in `PermissionMatrixEditor.readonlyHeaderBadge.test.tsx`.
-  const writable = !!(entry?.allowOrgOverride || entry?.allowRuntimeCreate) && !readOnly;
+  // Any of the three locks every authoring affordance below.
+  //
+  // ── The ARTIFACT tier (objectui#4518) ─────────────────────────────────────
+  //
+  // The server's metadata write gate is TWO tiers, and #4446 modelled only the
+  // first. `saveMetaItem` refuses a second time, AFTER the type-tier
+  // disjunction above has already passed (metadata-protocol `protocol.ts`):
+  //
+  //     if (this.environmentId !== undefined) {
+  //         const artifactBacked = this.isArtifactBacked(request.type, request.name);
+  //         if (artifactBacked && !overlayAllowed) { … status 403 not_overridable }
+  //     }
+  //
+  // So for an item a code package SHIPS, `allowRuntimeCreate` is not enough —
+  // overwriting it is an OVERLAY, and overlaying needs `allowOrgOverride`. The
+  // method's own doc states the split: "overlaying a packaged item" (requires
+  // `allowOrgOverride`) vs "authoring a DB-only item" (requires only
+  // `allowRuntimeCreate`). `permission` sits exactly in the gap — `false` /
+  // `true` — so without this tier the matrix offered live checkboxes and a Save
+  // button that failed at the end with a 403 instead of a surface that explains
+  // itself up front.
+  //
+  // `ResourceEditPage:1332` has modelled both tiers all along; this is that
+  // same three-way rule, with the same `sys_metadata` sentinel (see
+  // {@link isArtifactBackedLayer}), read off the layered envelope this editor
+  // ALREADY fetches. No new probe — the ruling on #4518 forbids one, and the
+  // entry flags plus `layered.code` are the whole input.
+  //
+  // ── …scoped to the environment door, which is the binding constraint ──────
+  //
+  // The server's artifact tier is `environmentId !== undefined`-scoped, and a
+  // client cannot see that key: it is a SERVER-side row-scoping property of the
+  // kernel (`ObjectStackProtocolImplementation.environmentId`), the console
+  // never passes one to `useMetadataClient`, and `MetadataClient` bakes it into
+  // a private base URL. The only place it is readable is `GET /discovery` — a
+  // new probe, which is exactly what was ruled out.
+  //
+  // The condition used instead is the one the filing itself names, and it is a
+  // fact this component already holds: `packageId`. Under a `packageId` the
+  // write is a package-door DRAFT (ADR-0086 P0/P2) and the measured behaviour
+  // is 200 — that is the #4446 headline case (a code-declared set on the
+  // single-kernel showcase, `PUT …/permission/<n>?package=<pkg>` → 200), which
+  // this must NOT re-lock. It also cannot: under a `packageId` a code-defined
+  // package already arrives with the host `readOnly` prop set, so the artifact
+  // case is covered there by a gate that dominates anyway. The one uncovered
+  // surface — the metadata-admin route at environment scope — is precisely
+  // where this engages.
+  //
+  // Known, deliberate residue (reported with the fix, not hidden): on a SINGLE
+  // kernel the server disengages its artifact tier entirely, so an env-scope
+  // edit of a code-declared set there would be accepted (200) while this
+  // renders read-only. That is the conservative direction — an honest lock
+  // rather than a Save that 403s — and closing it would need the kernel's
+  // environment topology on the client, i.e. the probe the ruling forbids.
+  const artifactTierApplies = !packageId && codeIsArtifact;
+  const canWriteByType = artifactTierApplies
+    ? !!entry?.allowOrgOverride
+    : !!(entry?.allowOrgOverride || entry?.allowRuntimeCreate);
+  const writable = canWriteByType && !readOnly;
+  // Which gate to NAME when the surface is locked (host > artifact > type).
+  // The artifact tier is the DECIDING one only where the type tier would have
+  // said yes: with both flags false the honest reason is still "this type has
+  // no runtime write channel at all", which is also the refusal the server
+  // reaches first (`!overlayAllowed && !runtimeCreateAllowed`).
+  const lockedByArtifactTier =
+    artifactTierApplies && !entry?.allowOrgOverride && !!entry?.allowRuntimeCreate;
   const locale = useMetadataLocale();
   const t = React.useCallback((k: string) => translate(k, locale), [locale]);
   const OBJECT_ACTIONS = React.useMemo(() => getObjectActions(locale), [locale]);
@@ -311,6 +407,10 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
   React.useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    // Re-derived from the envelope below. Cleared here so a switch to another
+    // set can never carry the previous one's artifact verdict for a frame
+    // (objectui#4518).
+    setCodeIsArtifact(false);
     (async () => {
       try {
         const [lay, objList, pendingDraft] = await Promise.all([
@@ -327,6 +427,10 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
             : Promise.resolve(null),
         ]);
         if (cancelled) return;
+        // ARTIFACT tier input (objectui#4518) — the `code` layer of the SAME
+        // envelope the display baseline comes from, so the writability verdict
+        // and the body on screen can never be read from different round trips.
+        setCodeIsArtifact(isArtifactBackedLayer(lay));
         const draftBody = pendingDraft
           ? (((pendingDraft as any).item ?? pendingDraft) as PermissionSetDraft)
           : null;
@@ -750,11 +854,17 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
               <span className="text-xs text-muted-foreground shrink-0">{t('perm.basics.editHint')}</span>
             )}
             {!writable && (
-              // Same badge slot, two distinct reasons, and each names the gate
-              // that ACTUALLY tripped (objectui#4446):
+              // Same badge slot, three distinct reasons, and each names the gate
+              // that ACTUALLY tripped (objectui#4446, #4518):
               //
               //  • host gate — a read-only PACKAGE; mirror the top-bar wording
               //    so the screen is not self-contradictory.
+              //  • artifact gate — a code package SHIPS this set and the type
+              //    has not opted into per-org overlay, so an environment-scope
+              //    write of it is refused (403 `not_overridable`). Naming the
+              //    type here would be a lie in the other direction: the type
+              //    DOES have a runtime write channel — a brand-new set authored
+              //    here saves fine — it is this PARTICULAR set that is packaged.
               //  • type gate — the metadata type offers no runtime write
               //    channel at all (`allowOrgOverride` AND `allowRuntimeCreate`
               //    both false). It used to read "OS_METADATA_WRITABLE not
@@ -770,9 +880,19 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
               <Badge
                 variant="secondary"
                 className="ml-auto shrink-0"
-                title={readOnly ? t('engine.studio.pkg.readonlyHint') : t('perm.readOnly.hint')}
+                title={
+                  readOnly
+                    ? t('engine.studio.pkg.readonlyHint')
+                    : lockedByArtifactTier
+                      ? t('perm.readOnly.artifact.hint')
+                      : t('perm.readOnly.hint')
+                }
               >
-                {readOnly ? t('engine.studio.pkg.readonly') : t('perm.readOnly')}
+                {readOnly
+                  ? t('engine.studio.pkg.readonly')
+                  : lockedByArtifactTier
+                    ? t('perm.readOnly.artifact')
+                    : t('perm.readOnly')}
               </Badge>
             )}
           </button>
