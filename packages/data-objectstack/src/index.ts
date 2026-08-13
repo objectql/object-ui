@@ -1054,6 +1054,61 @@ function unwrapViewDraft(resp: unknown): Record<string, any> | null {
 }
 
 /**
+ * Outcome of {@link ObjectStackAdapter.deleteView}'s delete against ONE of a
+ * view's two homes — the pending draft, or the published overlay (#4479).
+ */
+export interface ViewHomeDeleteOutcome {
+  /**
+   * True when this home held a row and the server removed it. False is the
+   * "there was nothing here" answer, which is a success, not a failure: the
+   * framework reports a missing home as a 200 carrying `reset:false`.
+   */
+  removed: boolean;
+  /** The server receipt's `reset` flag, when it sent one. */
+  reset?: boolean;
+  /** The server receipt's human-readable message, when it sent one. */
+  message?: string;
+}
+
+/**
+ * Receipt for {@link ObjectStackAdapter.deleteView} (#4479).
+ *
+ * The per-home fields are ADDITIVE over the original `{ deleted: boolean }`:
+ * a caller that only reads `deleted` is unaffected, and one that needs to tell
+ * "draft gone, overlay left" from "both gone" now can.
+ */
+export interface DeleteViewResult {
+  /**
+   * True only when no home is left serving the view AND at least one home
+   * actually held a row. A view that existed in neither home answers `false`
+   * — the same answer that shape has always given.
+   */
+  deleted: boolean;
+  /** Outcome against the pending draft (`?state=draft`). */
+  draft?: ViewHomeDeleteOutcome;
+  /** Outcome against the published overlay. */
+  published?: ViewHomeDeleteOutcome;
+}
+
+/**
+ * Read one delete receipt into a {@link ViewHomeDeleteOutcome}.
+ *
+ * The `deleted ?? reset ?? true` ladder is carried over verbatim from the
+ * single-call `deleteView` this replaced, so a server that answers a shape
+ * with neither key is read exactly as it was before (#4479): the framework
+ * sends `reset`, the SDK's typed metadata shape names `deleted`, and the
+ * final `true` is the "it answered 2xx and said nothing" default.
+ */
+function readViewDeleteReceipt(result: unknown): ViewHomeDeleteOutcome {
+  const r = (result ?? undefined) as Record<string, any> | undefined;
+  return {
+    removed: !!(r?.deleted ?? r?.reset ?? true),
+    ...(typeof r?.reset === 'boolean' ? { reset: r.reset } : {}),
+    ...(typeof r?.message === 'string' ? { message: r.message } : {}),
+  };
+}
+
+/**
  * Merge a partial view patch onto the CURRENT view document.
  *
  * ADR-0005 overlay rows store the *full* view document, so a partial update is
@@ -3457,22 +3512,112 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   }
 
   /**
-   * Delete an overlay view (reset to artifact default if one exists, or
-   * remove entirely if it was a user-created view). Routes to
-   * `DELETE /api/v1/meta/view/:name`.
+   * Delete an overlay view — from **every home it has**.
+   *
+   * A view has two possible homes, the same two {@link updateView} addresses:
+   * the pending per-item **draft** (`DELETE /meta/view/:name?state=draft`) and
+   * the **published** overlay (`DELETE /meta/view/:name`). This method used to
+   * issue only the second, and the three cases came out like this (#4479):
+   *
+   * | case               | before                                              |
+   * |--------------------|-----------------------------------------------------|
+   * | draft-only view    | BUG — the published delete answered `reset:false` /  |
+   * |                    | "nothing to delete", the draft survived, and the tab |
+   * |                    | was still there after reload                        |
+   * | published-only     | correct — `reset:true`, tab gone                     |
+   * | published + draft  | ACCIDENTALLY correct — the published row went, so    |
+   * |                    | the tab went; the orphan draft stayed behind        |
+   *
+   * **Why this is not the mechanical mirror of #4139.** `updateView` probes
+   * the draft first and writes back to whichever home the read resolved, and
+   * that is right for an update in all three cases. Copying it here would be
+   * wrong in the third: `persistRuntimeMetadata` (app-shell) stages EVERY
+   * runtime edit as a draft, so "publish a view, then edit it" routinely
+   * produces a pair — and a draft-first-only delete on a pair discards the
+   * draft and leaves the published row serving the view. That is not Delete
+   * view, it is **Discard draft**, a deliberately different operation that
+   * already exists (`discardRuntimeDraft`, documented as "the published
+   * overlay is untouched"). The clean statement of the asymmetry: for an
+   * update, one home is the right home; for a delete, "remove this view" is
+   * satisfied only when NO home is left serving it.
+   *
+   * So both homes are deleted, **draft first**. The order is load-bearing on
+   * the failure path: a fault between the two calls leaves the PUBLISHED
+   * overlay intact, so the view is still served and the operation is cleanly
+   * retryable. The reverse order would strand a draft-only view — which is
+   * precisely the bug shape above.
+   *
+   * **Two blind calls, no probe.** The framework's `deleteMetaItem` answers a
+   * missing home with a **200** carrying `reset:false` (`"No pending draft
+   * for view/x."` / `"No view 'x' found — nothing to delete."`), never a 404,
+   * so there is nothing for a probe to protect against. `updateView` needs its
+   * probe for a different reason — its read must resolve the row the merge
+   * writes back to — and that reason has no counterpart for a delete.
+   *
+   * **One transport, one error contract.** Both halves go through
+   * {@link MetadataClient} (`reset`), the transport that can express the
+   * `?state=` qualifier and the one `updateView`'s draft half already uses.
+   * The published half used to go through `client.meta.deleteItem`; measured,
+   * that issues the byte-identical request (`DELETE
+   * {baseUrl}/api/v1/meta/view/:name`, no environment scoping is configured on
+   * this adapter), so routing it here costs no addressing change and buys a
+   * single `MetadataError` shape across both calls instead of two.
+   *
+   * @returns `deleted` is true only when no home is left serving the view AND
+   *   at least one actually held a row. A view that existed in neither home
+   *   still answers `false`, unchanged. The per-home outcomes are additive:
+   *   a partial result is observable rather than rounded up to `true`.
+   * @throws when either delete fails, matching {@link updateView}'s
+   *   convention of surfacing the fault rather than degrading. A failure of
+   *   the PUBLISHED half after the draft was discarded carries the partial
+   *   state on the error's `outcome` — "draft gone, overlay left" is exactly
+   *   what the old `{ deleted: boolean }` could not express.
    *
    * Invalidates through {@link invalidateViewKeys}: the deleted row leaves the
    * batch override map too, and a ghost entry there is what the object page
-   * would keep applying (objectui#4363).
+   * would keep applying (objectui#4363). Fired in a `finally`, so it happens
+   * once per call on EVERY outcome including the throw — after a half-failure
+   * the draft row really is gone, and #4363's asymmetry decides it: an
+   * unnecessary invalidation costs one refetch, a missed one costs the cache's
+   * full 5-minute TTL of stale overrides.
    */
   async deleteView(
     objectName: string,
     viewName: string,
-  ): Promise<{ deleted: boolean }> {
+  ): Promise<DeleteViewResult> {
     await this.connect();
-    const result: any = await this.client.meta.deleteItem('view', viewName);
-    this.invalidateViewKeys(objectName, viewName);
-    return { deleted: !!(result?.deleted ?? result?.reset ?? true) };
+    const metaClient = this.metadataClient();
+    try {
+      // ── Draft home, first ────────────────────────────────────────────────
+      const draft = readViewDeleteReceipt(
+        await metaClient.reset('view', viewName, { state: 'draft' }),
+      );
+
+      // ── Published home ───────────────────────────────────────────────────
+      let published: ViewHomeDeleteOutcome;
+      try {
+        published = readViewDeleteReceipt(await metaClient.reset('view', viewName));
+      } catch (err) {
+        const outcome: DeleteViewResult = {
+          deleted: false,
+          draft,
+          published: { removed: false },
+        };
+        throw Object.assign(
+          new Error(
+            `deleteView: view "${viewName}" on object "${objectName}" is NOT fully removed` +
+              ` — the draft home was ${draft.removed ? 'discarded' : 'already absent'},` +
+              ' but deleting the published overlay failed. The published row is still' +
+              ' serving the view; retry the delete.',
+          ),
+          { cause: err, outcome },
+        );
+      }
+
+      return { deleted: draft.removed || published.removed, draft, published };
+    } finally {
+      this.invalidateViewKeys(objectName, viewName);
+    }
   }
 
 

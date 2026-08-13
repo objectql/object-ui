@@ -87,6 +87,18 @@ function makeDS(opts: {
       });
     if (url.includes('/meta/view/')) {
       if ((init?.method ?? 'GET') === 'PUT') return json({ success: true, version: 2 });
+      // #4479 — `deleteView` addresses BOTH homes over this wire, so the
+      // harness has to answer DELETE. The framework never 404s a missing
+      // home: it reports one with a 200 carrying `reset:false`. Modelled
+      // faithfully (a home "has a row" exactly when this harness was told to
+      // serve one) so the pins below stay pins on INVALIDATION rather than
+      // becoming accidental assertions about the transport.
+      if ((init?.method ?? 'GET') === 'DELETE') {
+        const hasRow = url.includes('state=draft')
+          ? opts.draft != null
+          : opts.published != null && !(opts.published instanceof Error);
+        return json({ success: true, reset: hasRow });
+      }
       if (url.includes('state=draft')) {
         if (opts.draft == null) return json({ error: 'not found' }, 404);
         return json({ type: 'view', name: opts.draft.name, item: opts.draft });
