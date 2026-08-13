@@ -29,6 +29,7 @@ import {
   TimelineGanttBarContent,
 } from './index';
 import { renderChildren, cn } from '@object-ui/components';
+import { useDisplayLocale } from '@object-ui/i18n';
 
 // Constants
 /**
@@ -58,8 +59,21 @@ export function resolveTimelineScale(schema: { scale?: unknown; timeScale?: unkn
  * scale produces a non-empty header row — `hour` / `quarter` / `year` used to
  * fall through the month/week/day chain and return `[]`, blanking the axis
  * (#2942). Exported for the spec-parity test.
+ *
+ * `locale` is threaded in rather than read here: this is a pure function, and
+ * the session's locale lives behind a hook (#4513). The three `Intl` branches
+ * below used to pass a literal `'en-US'`, so a fully Chinese timeline rendered
+ * an English axis. The default is `'en'` — the same concrete last resort
+ * `useDisplayLocale()` falls back to, and byte-identical to the retired
+ * `'en-US'` at all three sites — so the existing 3-argument call sites keep
+ * producing exactly what they produced before.
  */
-export function generateTimeScaleHeaders(scale: string, minDate: string, maxDate: string): string[] {
+export function generateTimeScaleHeaders(
+  scale: string,
+  minDate: string,
+  maxDate: string,
+  locale: string = 'en',
+): string[] {
   const headers: string[] = [];
   const start = new Date(minDate);
   const end = new Date(maxDate);
@@ -68,13 +82,13 @@ export function generateTimeScaleHeaders(scale: string, minDate: string, maxDate
   switch (scale) {
     case 'hour':
       while (current <= end) {
-        headers.push(current.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric' }));
+        headers.push(current.toLocaleString(locale, { month: 'short', day: 'numeric', hour: 'numeric' }));
         current.setHours(current.getHours() + 1);
       }
       break;
     case 'day':
       while (current <= end) {
-        headers.push(current.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        headers.push(current.toLocaleDateString(locale, { month: 'short', day: 'numeric' }));
         current.setDate(current.getDate() + 1);
       }
       break;
@@ -105,7 +119,7 @@ export function generateTimeScaleHeaders(scale: string, minDate: string, maxDate
     case 'month':
     default:
       while (current <= end) {
-        headers.push(current.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+        headers.push(current.toLocaleDateString(locale, { month: 'short', year: 'numeric' }));
         current.setMonth(current.getMonth() + 1);
       }
       break;
@@ -150,14 +164,24 @@ function calculateBarDimensions(
   };
 }
 
-// Helper function to format date
-function formatDate(dateString: string, format?: string): string {
+/**
+ * Format one item date for display.
+ *
+ * `locale` is a REQUIRED parameter, not an optional one (#4513): this helper is
+ * module-private, every call site sits inside `TimelineRenderer`, and the two
+ * ways it used to get a locale were both wrong in the same session. `'short'`
+ * passed nothing at all — and no tag means the MACHINE's locale, which has
+ * nothing to do with the user — while `'long'` passed a literal `'en-US'`. A
+ * required parameter is what keeps a future branch from quietly reintroducing
+ * either. `'iso'` is a machine format by definition and stays locale-free.
+ */
+function formatDate(dateString: string, format: string | undefined, locale: string): string {
   const date = new Date(dateString);
   if (format === 'short') {
-    return date.toLocaleDateString();
+    return date.toLocaleDateString(locale);
   }
   if (format === 'long') {
-    return date.toLocaleDateString('en-US', {
+    return date.toLocaleDateString(locale, {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -211,6 +235,14 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
       onItemClick,
     } = schema;
 
+    // The one locale channel every renderer in this repo resolves through:
+    // tenant regional default → active UI language → 'en' (#4513, the channel
+    // #4468 / PR #4512 converged `@object-ui/fields` onto). Read once here,
+    // above every variant's early return so the hook count can never depend on
+    // `variant`, and threaded down — `formatDate` and `generateTimeScaleHeaders`
+    // are module-level functions and cannot host a hook themselves.
+    const displayLocale = useDisplayLocale();
+
     // Vertical Timeline
     if (variant === 'vertical') {
       // Detect whether the data was annotated with a `group` key
@@ -230,10 +262,10 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
           ? { backgroundColor: `${item.color}33`, borderColor: item.color }
           : undefined;
         const dateLabel = item.time
-          ? formatDate(item.time, dateFormat)
-          : (item.startDate ? formatDate(item.startDate, dateFormat) : '');
+          ? formatDate(item.time, dateFormat, displayLocale)
+          : (item.startDate ? formatDate(item.startDate, dateFormat, displayLocale) : '');
         const endLabel = item.endDate && item.endDate !== item.startDate
-          ? formatDate(item.endDate, dateFormat)
+          ? formatDate(item.endDate, dateFormat, displayLocale)
           : '';
         const meta = Array.isArray(item.meta) ? item.meta : [];
         return (
@@ -318,7 +350,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
                 <div className="mt-4 text-center">
                   {item.time && (
                     <TimelineTime dateTime={item.time}>
-                      {formatDate(item.time, dateFormat)}
+                      {formatDate(item.time, dateFormat, displayLocale)}
                     </TimelineTime>
                   )}
                   {item.title && <TimelineTitle>{item.title}</TimelineTitle>}
@@ -353,6 +385,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
         resolveTimelineScale(schema as { scale?: unknown; timeScale?: unknown }),
         minDate,
         maxDate,
+        displayLocale,
       );
 
       return (
@@ -408,7 +441,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
                           width={dimensions.width}
                           variant={item.variant || 'default'}
                           onClick={() => onItemClick?.(item, row, rowIndex, itemIndex)}
-                          title={`${item.title || ''}\n${formatDate(item.startDate, dateFormat)} - ${formatDate(item.endDate, dateFormat)}`}
+                          title={`${item.title || ''}\n${formatDate(item.startDate, dateFormat, displayLocale)} - ${formatDate(item.endDate, dateFormat, displayLocale)}`}
                         >
                           <TimelineGanttBarContent>
                             {item.title}
