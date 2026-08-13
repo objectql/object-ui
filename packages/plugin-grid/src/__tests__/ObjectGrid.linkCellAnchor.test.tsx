@@ -24,17 +24,29 @@
  * handed to the existing SPA path, modifier / non-primary clicks are left to
  * the browser.
  *
- * RED-FIRST, measured on this file against the unfixed `ObjectGrid`:
+ * RED-FIRST — the fix was committed, then `ObjectGrid.tsx` and `ObjectView.tsx`
+ * were reverted to `origin/main` with these tests kept. MEASURED, 5 red / 7
+ * green in this file:
  *   ✗ renders a real anchor at the host-built record URL
  *       → AssertionError: expected null not to be null   (the span, no <a>)
- *   ✗ plain left click is prevented and takes the existing SPA path
- *       → TypeError: Cannot read properties of null (reading 'dispatchEvent')
+ *   ✗ the auto-linked primary field gets the same anchor
+ *       → expect(received).toHaveAttribute()  (received null)
+ *   ✗ plain left click is prevented and takes the existing SPA path, exactly once
+ *       → Unable to fire a "click" event - please provide a DOM element
  *   ✗ ⌘/Ctrl click is NOT prevented and does not run the SPA path
- *       → TypeError: Cannot read properties of null (reading 'dispatchEvent')
+ *       → Unable to fire a "click" event - please provide a DOM element
  *   ✗ middle click is NOT prevented and does not run the SPA path
- *       → TypeError: Cannot read properties of null (reading 'dispatchEvent')
- * The whole `must-not-change` block below is GREEN in both worlds — that is
- * what makes it a control rather than a restatement of the fix.
+ *       → Unable to fire a "click" event - please provide a DOM element
+ *
+ * The three click cases fail by NOT FINDING the anchor rather than by
+ * observing the wrong click behavior — worth stating, because it bounds what
+ * they prove against `origin/main`: there, "no anchor" and "an anchor that
+ * mishandles modifier clicks" are indistinguishable. They discriminate in the
+ * FORWARD direction, pinning the split as `LinkCell` is edited from here on.
+ *
+ * The whole `must-not-change` block below, plus the two "host publishes no
+ * href" cases, are GREEN in both worlds — that is what makes them controls
+ * rather than a restatement of the fix.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
