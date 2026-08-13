@@ -2165,6 +2165,42 @@ export function DataPillar({
 
   const fieldCount = React.useMemo(() => readFields(objDraft.fields).entries.length, [objDraft]);
 
+  /**
+   * The design-mode grid's columns: the object's own fields in metadata order,
+   * dropping framework-managed/audit fields so the grid opens on the meaningful
+   * columns first. Also drops a field named `actions` — the grid always pins its
+   * own row-actions column headed "Actions", so a data column of the same name
+   * reads as a duplicated column. (The field stays editable in the form designer.)
+   *
+   * Memoized because the IDENTITY of this array, not its contents, is a data-fetch
+   * input downstream (objectui#4567). It reaches `ListView` unchanged — plugin-view's
+   * ObjectView forwards it to the `renderListView` slot as `columns` by reference
+   * (plugin-view/src/ObjectView.tsx) — and ListView derives its `$expand` fields from
+   * `schema.columns` with that array in the memo's dependency array BY IDENTITY, which
+   * is itself in the fetch effect's dependency array (plugin-list/src/ListView.tsx).
+   * Built inline, this allocated a fresh array on every render of the pillar, so the
+   * Studio grid issued a duplicate find() per render — measured 1 -> 4 across three
+   * re-renders that changed nothing. The pillar re-renders constantly (its whole
+   * schema is a fresh object literal each time), so that was a steady-state duplicate
+   * query source against the backend, invisible in the UI because the rows just
+   * repainted with the same data.
+   *
+   * Keyed on `objDraft.fields` rather than on `objDraft`: `onPatch` replaces the draft
+   * object while keeping `fields` identical, so the looser key would churn the columns
+   * — and refetch — on every unrelated draft edit (icon, label). The dependency stays
+   * LIVE: a real field add/remove/reorder produces a new `fields`, hence a new array,
+   * hence the refetch that change must have. Stabilising identity here is deliberately
+   * a PRODUCER-side fix; ListView's by-identity dependency is correct for a genuine
+   * column change and is left alone.
+   */
+  const gridColumns = React.useMemo(
+    () =>
+      readFields(objDraft.fields)
+        .entries.map((e) => e.name)
+        .filter((n) => !STUDIO_SYSTEM_FIELD_NAMES.has(n) && n !== 'actions'),
+    [objDraft.fields],
+  );
+
   const onPatch = React.useCallback((patch: Record<string, unknown>) => {
     setObjDraft((d) => ({ ...d, ...patch }));
     setDirty(true);
@@ -2596,14 +2632,11 @@ export function DataPillar({
                           // own fields as columns (in metadata order), dropping
                           // framework-managed/audit fields so the grid opens on the
                           // meaningful columns first — the way Airtable does.
+                          // Memoized at the top of the component: this array's IDENTITY
+                          // is a fetch input downstream, so rebuilding it inline here
+                          // issued a duplicate find() on every render (objectui#4567).
                           table: {
-                            fields: readFields(objDraft.fields)
-                              .entries.map((e) => e.name)
-                              // Also drop a field named `actions`: the grid always pins
-                              // its own row-actions column headed "Actions", so a data
-                              // column of the same name reads as a duplicated column.
-                              // The field stays editable in the form designer.
-                              .filter((n) => !STUDIO_SYSTEM_FIELD_NAMES.has(n) && n !== 'actions'),
+                            fields: gridColumns,
                           },
                         } as never
                       }
