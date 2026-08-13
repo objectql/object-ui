@@ -227,10 +227,22 @@ user's side). The server cannot order by the related name without a join, and
 `objectstack#4256` settled that it will not add one.
 
 So the sort picker withholds relational fields and says so. To sort by a related
-record's name, denormalize it onto this object with a **formula field** and sort
-that column like any other text column. A relational field that the view's
-CURRENT sort already uses stays listed, labelled `(by ID)`, so existing view
-metadata round-trips instead of silently losing its sort.
+record's name, denormalize that name onto this object as a **stored field,
+written when the source changes**, then sort by that field — the remedy the
+server's own refusal prescribes, in the same words the sort panel's hint uses.
+
+**Not a formula field.** A formula value is computed on read, so no driver
+materializes a column behind it, and since `objectstack#6994` the server answers
+a sort that names one with a hard `400 INVALID_SORT` (before that it degraded
+silently: the rows came back in an arbitrary order under a `200`, `asc` and
+`desc` identical). The picker withholds formula fields for the same reason
+(`objectui#4243`), so there is no formula column here to sort "like any other
+text column" — the column you sort is the stored one the denormalization writes.
+
+A field the view's CURRENT sort already uses stays listed under both rules —
+relational ones labelled `(by ID)` — so existing view metadata round-trips
+instead of silently losing its sort, and a sort the server would refuse can
+still be edited away in the picker that otherwise hides its field.
 
 Column-header sorting inside the grid is unaffected: it is client-side over the
 rows already loaded, where the label the cell shows IS available, so it orders by
