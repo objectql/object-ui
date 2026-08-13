@@ -73,8 +73,23 @@ declare const typesNode: TypesSchemaNode;
  * TS2322. The call-boundary spelling below is the same defect at an argument,
  * where the compiler reports TS2345 instead; both are pinned because both are
  * how the collision reached real call sites.
+ *
+ * ⚠️ Both live INSIDE never-called functions, and that is load-bearing rather
+ * than stylistic. `typesNode` and `acceptsCoreNode` are `declare`d — they are
+ * type-level fictions with no runtime existence — so a top-level
+ * `export const coreNodeHoldsTypesNode: CoreSchemaNode = typesNode;` type-checks
+ * exactly the same but **throws `ReferenceError: typesNode is not defined` the
+ * moment vitest imports the module**, failing the whole suite before a single
+ * case runs. Round 1 of this card only ever type-checked this file (the
+ * reconciliation was withdrawn before it reached a vitest run), so the defect
+ * was latent in the preserved pin and surfaced the first time both checkers saw
+ * it. A function body is checked by `tsc` just as thoroughly and never
+ * executes, which is what lets one file be read by both tools.
  */
-export const coreNodeHoldsTypesNode: CoreSchemaNode = typesNode;
+export function assignmentPositionCompiles(): void {
+  const coreNodeHoldsTypesNode: CoreSchemaNode = typesNode;
+  void coreNodeHoldsTypesNode;
+}
 
 export function crossPackageHandoffCompiles(): void {
   // Pre-fix this is the 19-of-35 error class from #4548, verbatim.
