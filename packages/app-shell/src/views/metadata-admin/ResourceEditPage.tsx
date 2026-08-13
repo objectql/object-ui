@@ -508,7 +508,14 @@ function MetadataResourceEditPageImpl({
   // component that has gone away cannot retract its last verdict, and a host
   // that waited for one would wedge Save shut.
   const [blockingReport, setBlockingReport] = React.useState({ key: '', count: 0 });
-  const selectionKey = selection ? `${type}:${name}:${selection.kind}:${selection.id}` : '';
+  // Covers BOTH inspector branches. With no selection the editor renders the
+  // registered DEFAULT inspector instead, and that surface hosts CEL too (a
+  // hook's guard, an action's predicates, a view's formatting rules) — so it
+  // gets its own stamp rather than sharing the scoped one (objectui#4527).
+  // Distinct keys are what stop one branch's verdict from gating the other.
+  const selectionKey = selection
+    ? `${type}:${name}:${selection.kind}:${selection.id}`
+    : `${type}:${name}:default`;
   const inspectorBlocking = blockingReport.key === selectionKey ? blockingReport.count : 0;
   React.useEffect(() => {
     if (!editing) setSelection(null);
@@ -2349,6 +2356,9 @@ function MetadataResourceEditPageImpl({
                               }))
                             }
                             onSelectionChange={setSelection}
+                            onBlockingIssuesChange={(count) =>
+                              setBlockingReport({ key: selectionKey, count })
+                            }
                             readOnly={formReadOnly}
                             locale={locale}
                             serverSchema={entry?.schema as Record<string, unknown> | undefined}

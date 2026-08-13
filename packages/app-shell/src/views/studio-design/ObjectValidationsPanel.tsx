@@ -272,12 +272,15 @@ function RuleTypeFields({
   patch,
   disabled,
   locale,
+  onBlockingIssuesChange,
 }: {
   rule: ValidationRuleDraft;
   fields: FieldOpt[];
   patch: (p: Partial<ValidationRuleDraft>) => void;
   disabled?: boolean;
   locale: string;
+  /** Blocking CEL error count for this rule's guard (objectui#4527). */
+  onBlockingIssuesChange?: (count: number) => void;
 }) {
   const fieldSelect = (label: string, value: string | undefined, onSet: (v: string) => void) => (
     <label className="block">
@@ -312,6 +315,7 @@ function RuleTypeFields({
         onCommit={(cel) => patch({ condition: writeExpressionSource(rule.condition, cel) })}
         fields={fields}
         disabled={disabled}
+        onBlockingIssuesChange={onBlockingIssuesChange}
       />
     </div>
   );
@@ -433,10 +437,18 @@ export function ObjectValidationsPanel({
   draft,
   onPatch,
   disabled,
+  onBlockingIssuesChange,
 }: {
   draft: Record<string, unknown>;
   onPatch: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
+  /**
+   * Report how many BLOCKING author-time issues the panel is showing — rule
+   * guards whose CEL does not parse (objectui#4527). This panel owns no Save;
+   * the Data pillar's "Save draft" writes the object, so it holds this count
+   * and refuses to write.
+   */
+  onBlockingIssuesChange?: (count: number) => void;
 }) {
   const locale = useMetadataLocale();
   const rules = React.useMemo(() => readRules(draft.validations), [draft.validations]);
@@ -457,6 +469,44 @@ export function ObjectValidationsPanel({
     [draft.fields],
   );
   const firstField = fields.find((f) => !f.hidden)?.name ?? fields[0]?.name;
+
+  /* ─── Blocking CEL verdicts → the Data pillar's Save gate (objectui#4527) ──
+   *
+   * Master-detail: only the SELECTED rule's ConditionBuilder is mounted, so
+   * the map is keyed by rule NAME and a verdict deliberately SURVIVES
+   * deselection — a rule whose guard does not parse is still in the document
+   * and saving would still publish it, and it stays reachable by selecting it
+   * again. What must not survive is a DELETED rule: its editor is gone and can
+   * never report `0`, so the total is DERIVED against the live rule-name set
+   * rather than repaired by a reset effect.
+   *
+   * Known limit: the lint lives in the editor, so a faulty rule the author
+   * never opens is never counted. Strictly better than no gate, and the
+   * mechanical scope the #4527 phase-2 ruling asked for. */
+  const [celErrors, setCelErrors] = React.useState<Record<string, number>>({});
+  const reportCel = React.useCallback((ruleName: string, count: number) => {
+    setCelErrors((prev) => (prev[ruleName] === count ? prev : { ...prev, [ruleName]: count }));
+  }, []);
+  const liveRuleNames = React.useMemo(
+    () => new Set(rules.map((r) => r.name ?? '')),
+    [rules],
+  );
+  const blockingIssues = React.useMemo(() => {
+    let total = 0;
+    for (const [name, count] of Object.entries(celErrors)) {
+      if (!liveRuleNames.has(name)) continue; // pruned: the rule is gone
+      total += count;
+    }
+    return total;
+  }, [celErrors, liveRuleNames]);
+  // Held in a ref so an unmemoized host callback cannot re-fire the effect.
+  const onBlockingIssuesChangeRef = React.useRef(onBlockingIssuesChange);
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current = onBlockingIssuesChange;
+  });
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current?.(blockingIssues);
+  }, [blockingIssues]);
 
   const commit = (next: ValidationRuleDraft[]) => onPatch({ validations: next });
 
@@ -636,6 +686,7 @@ export function ObjectValidationsPanel({
               patch={(p) => patchRule(sel.name!, p)}
               disabled={disabled}
               locale={locale}
+              onBlockingIssuesChange={(count) => reportCel(sel.name!, count)}
             />
 
             {/* runs-on events */}

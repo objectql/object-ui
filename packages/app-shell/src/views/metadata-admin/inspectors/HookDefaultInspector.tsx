@@ -115,6 +115,7 @@ export function HookDefaultInspector({
   readOnly,
   locale,
   serverSchema,
+  onBlockingIssuesChange,
 }: MetadataDefaultInspectorProps) {
   const tr = React.useCallback((key: string) => t(key, locale), [locale]);
 
@@ -144,6 +145,37 @@ export function HookDefaultInspector({
     const next = on ? [...new Set([...events, ev])] : events.filter((e) => e !== ev);
     onPatch({ events: next });
   };
+
+  /* ─── Blocking CEL verdicts → the host's Save gate (objectui#4527) ─────
+   *
+   * The "Run only when" guard is this inspector's only CEL site. The count is
+   * STAMPED with the hook it describes and mismatch is read as 0 at
+   * aggregation time, so a verdict that lands after the host switched hooks
+   * cannot gate the one now on screen — derivation, not a reset effect. */
+  const hookKey = str('name');
+  const [celErrors, setCelErrors] = React.useState<{ hook: string; count: number }>({
+    hook: hookKey,
+    count: 0,
+  });
+  const reportCel = React.useCallback(
+    (count: number) => {
+      setCelErrors((prev) => {
+        if (prev.hook !== hookKey) return { hook: hookKey, count };
+        if (prev.count === count) return prev;
+        return { hook: hookKey, count };
+      });
+    },
+    [hookKey],
+  );
+  const blockingIssues = celErrors.hook === hookKey ? celErrors.count : 0;
+  // Held in a ref so an unmemoized host callback cannot re-fire the effect.
+  const onBlockingIssuesChangeRef = React.useRef(onBlockingIssuesChange);
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current = onBlockingIssuesChange;
+  });
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current?.(blockingIssues);
+  }, [blockingIssues]);
 
   // A single object → give ConditionBuilder its fields; '*' / multi → raw mode.
   const conditionObject = !allObjects && objectNames.length === 1 ? objectNames[0] : undefined;
@@ -262,6 +294,7 @@ export function HookDefaultInspector({
           onCommit={(v) => onPatch({ condition: writeExpressionSource(draft.condition, v) })}
           objectName={conditionObject}
           disabled={readOnly}
+          onBlockingIssuesChange={reportCel}
         />
       </div>
 

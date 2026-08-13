@@ -46,12 +46,25 @@ export function ObjectSettingsPanel({
   onPatch,
   disabled,
   locale,
+  onBlockingIssuesChange,
 }: {
   name: string;
   draft: Record<string, unknown>;
   onPatch: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
   locale: SupportedLocale;
+  /**
+   * Forward the object inspector's blocking author-time issue count to the Data
+   * pillar, which owns the Save this panel writes through (objectui#4527).
+   *
+   * INERT TODAY, and deliberately so: `ObjectDefaultInspector` mounts no CEL
+   * editor, so nothing downstream ever calls this. It is wired anyway to keep
+   * the panel-host family uniform — the next CEL editor added to the object
+   * inspector is gated by construction rather than by remembering to come back
+   * here. Only the forwarding is covered by test; there is no verdict to
+   * produce.
+   */
+  onBlockingIssuesChange?: (count: number) => void;
 }) {
   const DefaultInspector = getMetadataDefaultInspector('object');
 
@@ -128,6 +141,7 @@ export function ObjectSettingsPanel({
               onPatch={onPatch}
               readOnly={!!disabled}
               locale={locale}
+              onBlockingIssuesChange={onBlockingIssuesChange}
             />
           ) : (
             <p className="text-[12px] text-muted-foreground">{t('engine.studio.settings.noInspector', locale)}</p>

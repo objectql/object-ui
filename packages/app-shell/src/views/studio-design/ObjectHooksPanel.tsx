@@ -95,6 +95,31 @@ export function ObjectHooksPanel({
   const [saving, setSaving] = React.useState(false);
   const [nonce, setNonce] = React.useState(0);
 
+  /* ─── Blocking CEL verdicts → this panel's OWN Save (objectui#4527) ────────
+   *
+   * Unlike the object's other panels, this one writes the hook itself
+   * (`client.save('hook', …, { mode: 'draft' })`), so it owns the button that
+   * has to refuse. The count is STAMPED with the hook it describes and
+   * mismatch is read as 0, so a verdict that lands after the author switched
+   * hooks cannot gate the one now on screen — derivation, not a reset effect,
+   * and the selected hook always has its editor available to fix in. */
+  const [celErrors, setCelErrors] = React.useState<{ hook: string; count: number }>({
+    hook: '',
+    count: 0,
+  });
+  const selectedHookName = String(draft?.name ?? '');
+  const reportCel = React.useCallback(
+    (count: number) => {
+      setCelErrors((prev) => {
+        if (prev.hook !== selectedHookName) return { hook: selectedHookName, count };
+        if (prev.count === count) return prev;
+        return { hook: selectedHookName, count };
+      });
+    },
+    [selectedHookName],
+  );
+  const blockingIssues = celErrors.hook === selectedHookName ? celErrors.count : 0;
+
   React.useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -250,7 +275,8 @@ export function ObjectHooksPanel({
                 <button
                   type="button"
                   onClick={save}
-                  disabled={!dirty || saving}
+                  disabled={!dirty || saving || blockingIssues > 0}
+                  title={blockingIssues > 0 ? t('perm.cel.saveBlocked', locale) : undefined}
                   className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] hover:bg-muted disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
@@ -272,6 +298,7 @@ export function ObjectHooksPanel({
                   readOnly={!!disabled}
                   locale={locale}
                   serverSchema={hookSchema}
+                  onBlockingIssuesChange={reportCel}
                 />
               ) : (
                 <div className="p-3">

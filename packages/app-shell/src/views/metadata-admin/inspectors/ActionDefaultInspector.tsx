@@ -276,12 +276,23 @@ interface ActionParam {
 
 /* ─────────────── inspector ─────────────── */
 
+/**
+ * The CEL editors this inspector mounts, as aggregation keys. Errors are
+ * counted PER SITE rather than into one running total: the two predicate
+ * editors lint independently and asynchronously, so a single shared counter
+ * would let whichever reported last overwrite the other — fixing "Visible
+ * when" would hand back a writable Save while "Disabled when" was still
+ * malformed (objectui#4527, the shape ObjectFieldInspector uses for its four).
+ */
+type ActionCelSite = 'visible' | 'disabled';
+
 export function ActionDefaultInspector({
   draft,
   onPatch,
   readOnly,
   locale,
   serverSchema,
+  onBlockingIssuesChange,
 }: MetadataDefaultInspectorProps) {
   const tr = React.useCallback((key: string) => t(key, locale), [locale]);
 
@@ -295,6 +306,42 @@ export function ActionDefaultInspector({
   // AI exposure — flattened keys (objectui/server convention, read by ActionPreview).
   const aiExposed = draft.aiExposed === true;
   const aiDescription = typeof draft.aiDescription === 'string' ? (draft.aiDescription as string) : '';
+
+  /* ─── Blocking CEL verdicts → the host's Save gate (objectui#4527) ─────
+   *
+   * Per-site map (see {@link ActionCelSite}), STAMPED with the action it
+   * describes so a verdict that lands after the panel switched actions cannot
+   * gate the one now on screen. Mismatch is read as 0 at aggregation time
+   * rather than repaired by a reset effect. */
+  const actionKey = str('name');
+  const [celErrors, setCelErrors] = React.useState<{
+    action: string;
+    sites: Partial<Record<ActionCelSite, number>>;
+  }>({ action: actionKey, sites: {} });
+  const reportCel = React.useCallback(
+    (site: ActionCelSite, count: number) => {
+      setCelErrors((prev) => {
+        if (prev.action !== actionKey) return { action: actionKey, sites: { [site]: count } };
+        if (prev.sites[site] === count) return prev;
+        return { action: actionKey, sites: { ...prev.sites, [site]: count } };
+      });
+    },
+    [actionKey],
+  );
+  const blockingIssues = React.useMemo(() => {
+    if (celErrors.action !== actionKey) return 0;
+    let total = 0;
+    for (const count of Object.values(celErrors.sites)) total += count ?? 0;
+    return total;
+  }, [celErrors, actionKey]);
+  // Held in a ref so an unmemoized host callback cannot re-fire the effect.
+  const onBlockingIssuesChangeRef = React.useRef(onBlockingIssuesChange);
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current = onBlockingIssuesChange;
+  });
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current?.(blockingIssues);
+  }, [blockingIssues]);
 
   const patchBody = (p: Record<string, unknown>) => onPatch({ body: { ...body, ...p } });
   const patchParam = (i: number, p: Partial<ActionParam>) =>
@@ -474,8 +521,8 @@ export function ActionDefaultInspector({
         {/* Both are `ExpressionInputSchema` in the spec (`disabled` as
             `boolean | ExpressionInput`), so a persisted action carries the
             ADR-0089 envelope — same read/write pair as the hook guard (#3218). */}
-        <ConditionBuilder label="Visible when" value={expressionSource(draft.visible)} onCommit={(v) => onPatch({ visible: writeExpressionSource(draft.visible, v) })} objectName={objectName} disabled={readOnly} />
-        <ConditionBuilder label="Disabled when" value={expressionSource(draft.disabled)} onCommit={(v) => onPatch({ disabled: writeExpressionSource(draft.disabled, v) })} objectName={objectName} disabled={readOnly} />
+        <ConditionBuilder label="Visible when" value={expressionSource(draft.visible)} onCommit={(v) => onPatch({ visible: writeExpressionSource(draft.visible, v) })} objectName={objectName} disabled={readOnly} onBlockingIssuesChange={(n) => reportCel('visible', n)} />
+        <ConditionBuilder label="Disabled when" value={expressionSource(draft.disabled)} onCommit={(v) => onPatch({ disabled: writeExpressionSource(draft.disabled, v) })} objectName={objectName} disabled={readOnly} onBlockingIssuesChange={(n) => reportCel('disabled', n)} />
       </div>
 
       {/* 7 ─ AI exposure */}

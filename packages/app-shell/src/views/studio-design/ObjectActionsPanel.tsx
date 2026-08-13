@@ -70,10 +70,18 @@ export function ObjectActionsPanel({
   onPatch,
   disabled,
   actionSchema,
+  onBlockingIssuesChange,
 }: {
   draft: Record<string, unknown>;
   onPatch: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
+  /**
+   * Report how many BLOCKING author-time issues the selected action's editor is
+   * showing — `visible` / `disabled` predicates whose CEL does not parse
+   * (objectui#4527). This panel owns no Save; the object draft's "Save draft"
+   * writes the actions, so the Data pillar holds this count and refuses.
+   */
+  onBlockingIssuesChange?: (count: number) => void;
   /**
    * The live server JSONSchema for the `action` type (`/meta/types`). Handed to
    * ActionDefaultInspector as `serverSchema` so its "More fields" section can
@@ -106,6 +114,39 @@ export function ObjectActionsPanel({
   );
 
   const objectName = typeof draft.name === 'string' ? draft.name : '';
+
+  /* ─── Blocking CEL verdicts → the Data pillar's Save gate (objectui#4527) ──
+   *
+   * Master-detail: only the SELECTED action's inspector is mounted, so the map
+   * is keyed by action NAME and a verdict deliberately survives deselection —
+   * an action whose predicate does not parse is still in the document and
+   * saving would still publish it, and it stays reachable by selecting it
+   * again. A DELETED action's inspector can never report `0`, so the total is
+   * DERIVED against the live action-name set rather than repaired by an effect.
+   */
+  const [celErrors, setCelErrors] = React.useState<Record<string, number>>({});
+  const reportCel = React.useCallback((actionName: string, count: number) => {
+    setCelErrors((prev) => (prev[actionName] === count ? prev : { ...prev, [actionName]: count }));
+  }, []);
+  const liveActionNames = React.useMemo(
+    () => new Set(actions.map((a) => String(a.name ?? ''))),
+    [actions],
+  );
+  const blockingIssues = React.useMemo(() => {
+    let total = 0;
+    for (const [name, count] of Object.entries(celErrors)) {
+      if (!liveActionNames.has(name)) continue; // pruned: the action is gone
+      total += count;
+    }
+    return total;
+  }, [celErrors, liveActionNames]);
+  const onBlockingIssuesChangeRef = React.useRef(onBlockingIssuesChange);
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current = onBlockingIssuesChange;
+  });
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current?.(blockingIssues);
+  }, [blockingIssues]);
 
   const addAction = React.useCallback(() => {
     const name = nextActionName(objectName, actions.map((a) => String(a.name ?? '')));
@@ -221,6 +262,7 @@ export function ObjectActionsPanel({
               readOnly={!!disabled}
               locale={locale}
               serverSchema={actionSchema}
+              onBlockingIssuesChange={(count) => reportCel(String(sel.name ?? ''), count)}
             />
           </>
         ) : (

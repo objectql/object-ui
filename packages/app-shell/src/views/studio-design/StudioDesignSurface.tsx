@@ -1287,6 +1287,20 @@ function InterfacesPillar({
   // block tree, so `selection` never populates; without this the panel would
   // sit permanently on the "click a block" empty state.
   const DefaultInspector = getMetadataDefaultInspector(current?.type ?? '');
+  // Blocking author-time issues the right-rail inspector is showing — a CEL
+  // predicate that does not parse must not be saveable here either
+  // (objectui#4527). #4306 wired the Data pillar only, which left the SAME
+  // malformed-CEL publish reachable through this pillar with the gate inert.
+  //
+  // One hold serves both rail branches, stamped with which of them produced it
+  // and with the selection it described, so it expires by construction when the
+  // selection changes, when the rail swaps scoped for default, or when the leaf
+  // changes — an unmounted inspector can never retract its last verdict.
+  const [blockingReport, setBlockingReport] = React.useState({ key: '', count: 0 });
+  const inspectorKey = `${current?.type ?? ''}:${current?.name ?? ''}:${
+    selection ? `${selection.kind}:${selection.id}` : 'default'
+  }`;
+  const inspectorBlocking = blockingReport.key === inspectorKey ? blockingReport.count : 0;
   // A studio-canvas surface (e.g. object → runtime records grid) renders the
   // running app, not an editable draft — schema editing is the Data pillar's
   // job — so those leaves are not draft-editable in this canvas.
@@ -1544,6 +1558,9 @@ function InterfacesPillar({
           onPatch={onPatch}
           onClearSelection={() => setSelection(null)}
           onSelectionChange={setSelection}
+          onBlockingIssuesChange={(count: number) =>
+            setBlockingReport({ key: inspectorKey, count })
+          }
           readOnly={false}
           locale={locale}
         />
@@ -1595,6 +1612,9 @@ function InterfacesPillar({
           draft={draft}
           onPatch={onPatch}
           onSelectionChange={setSelection}
+          onBlockingIssuesChange={(count: number) =>
+            setBlockingReport({ key: inspectorKey, count })
+          }
           readOnly={false}
           locale={locale}
         />
@@ -1638,8 +1658,14 @@ function InterfacesPillar({
         )}
         <button type="button"
           onClick={doSave}
-          disabled={!current || !isEditable || !!saving || readOnly}
-          title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : undefined}
+          disabled={!current || !isEditable || !!saving || readOnly || inspectorBlocking > 0}
+          title={
+            inspectorBlocking > 0
+              ? t('perm.cel.saveBlocked', locale)
+              : readOnly
+                ? t('engine.studio.pkg.readonlyHint', locale)
+                : undefined
+          }
           className="ml-auto inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
         >
           {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
@@ -1973,6 +1999,17 @@ export function DataPillar({
   const [blockingReport, setBlockingReport] = React.useState({ key: '', count: 0 });
   const fieldSelKey = fieldSel ? `${current?.name ?? ''}:${fieldSel.kind}:${fieldSel.id}` : '';
   const inspectorBlocking = blockingReport.key === fieldSelKey ? blockingReport.count : 0;
+  // The pillar's PANEL family reports separately (objectui#4527): the
+  // validations, actions and settings panels all write through this same draft
+  // and own no Save of their own, so their CEL faults have to reach this
+  // button too. Kept apart from the field inspector's count above because the
+  // two expire on different things.
+  //
+  // Stamped with the panel TAB: exactly one panel is mounted at a time, so
+  // leaving the tab unmounts the reporter and it can never retract its last
+  // verdict — deriving against the live tab is what stops a fault authored
+  // under Validations from wedging Save on a tab with no CEL editor at all.
+  const [panelBlockingReport, setPanelBlockingReport] = React.useState({ key: '', count: 0 });
   const [dirty, setDirty] = React.useState(false);
   const [hasDraft, setHasDraft] = React.useState(false);
   const [saving, setSaving] = React.useState<false | 'draft' | 'publish'>(false);
@@ -1986,6 +2023,16 @@ export function DataPillar({
   // Validations edits `validations` rules; Settings edits object basics +
   // the ADR-0085 semantic roles. All patch the one `objDraft`.
   const [viewMode, setViewMode] = React.useState<'grid' | 'form' | 'rules' | 'settings' | 'hooks' | 'actions' | 'api'>('grid');
+  // Stamp + read for the panel-family count declared above.
+  const panelKey = `${current?.name ?? ''}:${viewMode}`;
+  const panelBlocking = panelBlockingReport.key === panelKey ? panelBlockingReport.count : 0;
+  const reportPanelBlocking = React.useCallback(
+    (count: number) => setPanelBlockingReport({ key: panelKey, count }),
+    [panelKey],
+  );
+  // Either source closes the door: a malformed field formula and a malformed
+  // rule guard are both unsaveable, and neither excuses the other.
+  const saveBlocking = inspectorBlocking + panelBlocking;
   // Within the Form view: 布局 (WYSIWYG drag/section designer) ⇄ 预览 (live form).
   const [formMode, setFormMode] = React.useState<'layout' | 'preview'>('layout');
   // Tracks which object's baseline is currently loaded — so we (re)load exactly
@@ -2270,9 +2317,9 @@ export function DataPillar({
         )}
         <button type="button"
           onClick={doSave}
-          disabled={!current || !dirty || !!saving || readOnly || inspectorBlocking > 0}
+          disabled={!current || !dirty || !!saving || readOnly || saveBlocking > 0}
           title={
-            inspectorBlocking > 0
+            saveBlocking > 0
               ? t('perm.cel.saveBlocked', locale)
               : readOnly
                 ? t('engine.studio.pkg.readonlyHint', locale)
@@ -2435,7 +2482,12 @@ export function DataPillar({
                 </div>
               )}
               {viewMode === 'rules' ? (
-                <ObjectValidationsPanel draft={objDraft} onPatch={onPatch} disabled={readOnly} />
+                <ObjectValidationsPanel
+                  draft={objDraft}
+                  onPatch={onPatch}
+                  disabled={readOnly}
+                  onBlockingIssuesChange={reportPanelBlocking}
+                />
               ) : viewMode === 'settings' ? (
                 <ObjectSettingsPanel
                   name={current.name}
@@ -2443,6 +2495,7 @@ export function DataPillar({
                   onPatch={onPatch}
                   locale={locale}
                   disabled={readOnly}
+                  onBlockingIssuesChange={reportPanelBlocking}
                 />
               ) : viewMode === 'hooks' ? (
                 <ObjectHooksPanel
@@ -2457,6 +2510,7 @@ export function DataPillar({
                   onPatch={onPatch}
                   disabled={readOnly}
                   actionSchema={typeSchemas.action}
+                  onBlockingIssuesChange={reportPanelBlocking}
                 />
               ) : viewMode === 'api' ? (
                 <ObjectApiPanel name={current.name} draft={objDraft} />

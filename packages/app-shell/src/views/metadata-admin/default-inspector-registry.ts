@@ -33,6 +33,26 @@ export interface MetadataDefaultInspectorProps {
    * scoped inspector for that selection.
    */
   onSelectionChange?: (next: MetadataSelection | null) => void;
+  /**
+   * Report how many BLOCKING author-time issues the inspector is currently
+   * showing — e.g. a CEL expression that does not parse (objectui#4527).
+   *
+   * Symmetric with `MetadataInspectorProps.onBlockingIssuesChange` (#4306), and
+   * deliberately the SAME shape: the default (no-selection) inspectors host CEL
+   * editors too — the hook guard, an action's visible/disabled predicates, a
+   * view's conditional formatting — and the host owns Save, so only the host
+   * can refuse to write. Without this member no host could pass the callback at
+   * all, which is why the whole default-inspector family published malformed
+   * expressions while the scoped family already refused them.
+   *
+   * Fires whenever the aggregate changes, `0` when everything is clean.
+   *
+   * Optional — an inspector with nothing to block on simply never calls it.
+   * Hosts must expire their own count when the inspected item changes or the
+   * inspector unmounts rather than waiting for a final `0`, since a component
+   * that has gone away cannot report anything.
+   */
+  onBlockingIssuesChange?: (count: number) => void;
   /** Whether the host is in edit mode. False → disable inputs. */
   readOnly: boolean;
   /** Active UI locale for i18n. */
