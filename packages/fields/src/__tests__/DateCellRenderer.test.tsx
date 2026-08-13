@@ -52,6 +52,15 @@ describe('formatRelativeDate', () => {
   });
 });
 
+/**
+ * Nothing in this file mounts an `I18nProvider`, and that is load-bearing
+ * rather than incidental (objectui#4468): these cases are the pin on
+ * `useDisplayLocale()`'s LAST resort — the concrete `'en'` a renderer resolves
+ * to when neither a tenant locale nor an active UI language exists. The
+ * session-locale cases live in `date-locale-channel.test.tsx`; mounting a
+ * provider here would leave react-i18next's global instance on that language
+ * and quietly turn these into assertions about test ordering.
+ */
 describe('DateCellRenderer', () => {
   it('does not label a past start_date as "Overdue" (regression: field-role-agnostic formatter)', () => {
     render(<DateCellRenderer value={daysAgo(6)} field={{ type: 'date', name: 'start_date' } as any} />);

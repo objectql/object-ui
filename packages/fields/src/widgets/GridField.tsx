@@ -17,6 +17,7 @@ import {
 } from '@object-ui/components';
 import { Plus, Trash2, SlidersHorizontal, Maximize2, Copy, GripVertical } from 'lucide-react';
 import { resolveFieldRuleState } from '@object-ui/core';
+import { useDisplayLocale } from '@object-ui/i18n';
 import { LookupField } from './LookupField';
 import { FileCell } from './FileField';
 import { toDateInputValue, toDateTimeInputValue, fromDateTimeInputValue } from './nativeDateValue';
@@ -290,27 +291,31 @@ const isTemporal = (t?: string) => t === 'date' || t === 'datetime' || t === 'ti
  *
  * An unparseable value falls through to its raw string rather than rendering
  * "Invalid Date" — showing the user what is actually stored beats hiding it.
+ *
+ * `locale` is threaded rather than left to `Intl`'s default (objectui#4468):
+ * the default is the MACHINE's locale, which has nothing to do with the
+ * session, so a Chinese form rendered `6/17/2026` in its line items.
  */
-function temporalText(type: string | undefined, value: any): string {
+function temporalText(type: string | undefined, value: any, locale: string): string {
   const raw = String(value);
   if (type === 'time') return raw;
   if (type === 'date') {
     const ymd = toDateInputValue(value);
     if (!ymd) return raw;
     const [y, m, d] = ymd.split('-').map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString();
+    return new Date(y, m - 1, d).toLocaleDateString(locale);
   }
   const dt = value instanceof Date ? value : new Date(raw);
   if (Number.isNaN(dt.getTime())) return raw;
-  return `${dt.toLocaleDateString()} ${dt.toLocaleTimeString()}`;
+  return `${dt.toLocaleDateString(locale)} ${dt.toLocaleTimeString(locale)}`;
 }
 
 /** Read-only display text for a cell in list mode (select → option label,
  *  currency/number → formatted, date/datetime/time → localized, empty → em
  *  dash). Lookups render separately. */
-function displayText(c: GridColumn, value: any): string {
+function displayText(c: GridColumn, value: any, locale: string): string {
   if (value === null || value === undefined || value === '') return '—';
-  if (isTemporal(c.type)) return temporalText(c.type, value);
+  if (isTemporal(c.type)) return temporalText(c.type, value, locale);
   if (c.type === 'file') {
     const files = Array.isArray(value) ? value : [value];
     if (files.length === 0) return '—';
@@ -389,6 +394,10 @@ export function GridField({
   const allColumns: GridColumn[] = cfg.columns || [];
   const rows: Row[] = Array.isArray(value) ? value : [];
   const contextRecord = props.contextRecord;
+  // The one locale channel every field renderer resolves through: tenant
+  // regional default → active UI language → 'en' (objectui#4468). Read here
+  // and passed down, since `displayText` is a pure helper.
+  const displayLocale = useDisplayLocale();
 
   // Per-cell CEL rule state (B2 in grids). A column with no readonlyWhen/
   // requiredWhen resolves to its static flags (cheap fast-path — no engine
@@ -693,7 +702,7 @@ export function GridField({
                         // for a date, and for a datetime it would ALSO have been
                         // wrong to render as a bare day (objectui#3569). Now that
                         // the three types are distinct, each formats as itself.
-                        displayText(c, row[c.field])
+                        displayText(c, row[c.field], displayLocale)
                       ) : row[c.field] != null && row[c.field] !== '' ? (
                         String(row[c.field])
                       ) : (
@@ -753,7 +762,7 @@ export function GridField({
       }
       return (
         <span className={cn('px-2 text-sm text-foreground', isNumeric(c.type) && 'tabular-nums', (val == null || val === '') && 'text-muted-foreground')}>
-          {displayText(c, val)}
+          {displayText(c, val, displayLocale)}
         </span>
       );
     }
@@ -765,7 +774,7 @@ export function GridField({
           title="Computed"
           data-computed={c.field}
         >
-          {displayText(c, val)}
+          {displayText(c, val, displayLocale)}
         </span>
       );
     }

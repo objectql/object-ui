@@ -814,7 +814,14 @@ export function BooleanCellRenderer({ value, field }: CellRendererProps): React.
  * Date field cell renderer
  */
 export function DateCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
-  const { locale } = useLocalization();
+  // `useDisplayLocale()`, NOT `useLocalization().locale` (objectui#4468). The
+  // raw tenant locale is `undefined` on any workspace that never configured
+  // one, and `Intl` reads the MACHINE's locale from `undefined` — so a `zh`
+  // console rendered `逾期 6 天` (which resolves through `t`, the ACTIVE UI
+  // language) beside `In 3 days` and `6 days ago` (which resolve through
+  // `Intl`) on the SAME row. One channel for both halves, or the row
+  // disagrees with itself.
+  const locale = useDisplayLocale();
   const t = useFieldTranslate();
   if (!value) return <EmptyValue />;
   const safe = coerceToSafeValue(value);
@@ -851,17 +858,26 @@ export function DateCellRenderer({ value, field }: CellRendererProps): React.Rea
  * DateTime field cell renderer (Airtable-style with date and time visually separated)
  */
 export function DateTimeCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  // Hook before every early return — a value flipping between null and set
+  // must not change the hook count between renders (same rule as the number /
+  // currency renderers above). This is the site objectui#4468 caught rendering
+  // `8/11/2026 12:00 am` inside an otherwise Chinese grid: both calls passed
+  // `undefined`, i.e. the machine's locale, on every session.
+  const locale = useDisplayLocale();
   if (!value) return <EmptyValue />;
   const safe = coerceToSafeValue(value);
   const date = safe != null ? new Date(safe as string | number) : null;
   if (date === null || isNaN(date.getTime())) return <EmptyValue />;
 
-  const datePart = date.toLocaleDateString(undefined, {
+  const datePart = date.toLocaleDateString(locale, {
     month: 'numeric',
     day: 'numeric',
     year: 'numeric',
   });
-  const timePart = date.toLocaleTimeString(undefined, {
+  // `hour12` stays declared: this is the compact Airtable-style cell, and the
+  // 12-hour face is its design, not a locale artefact. Locales that write no
+  // am/pm marker simply ignore it.
+  const timePart = date.toLocaleTimeString(locale, {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,

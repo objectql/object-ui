@@ -1,5 +1,6 @@
 import React from 'react';
 import { EmptyValue } from '@object-ui/components';
+import { useDisplayLocale } from '@object-ui/i18n';
 import { FieldWidgetComponentProps } from './types';
 
 /**
@@ -7,6 +8,10 @@ import { FieldWidgetComponentProps } from './types';
  * Values are computed on the backend and cannot be edited
  */
 export function FormulaField({ value, field, ...props }: FieldWidgetComponentProps<any>) {
+  // Before the empty-value early return — the hook count must not change when
+  // a value flips between null and set. A `date` return type used to format
+  // through the MACHINE's locale (objectui#4468).
+  const locale = useDisplayLocale();
   const formulaField = field as any;
   const returnType = formulaField?.return_type || 'text';
 
@@ -20,7 +25,7 @@ export function FormulaField({ value, field, ...props }: FieldWidgetComponentPro
   } else if (returnType === 'boolean') {
     displayValue = value ? 'Yes' : 'No';
   } else if (returnType === 'date') {
-    displayValue = new Date(value).toLocaleDateString();
+    displayValue = new Date(value).toLocaleDateString(locale);
   } else {
     displayValue = String(value);
   }

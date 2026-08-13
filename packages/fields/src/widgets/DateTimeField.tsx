@@ -1,5 +1,6 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
+import { useDisplayLocale } from '@object-ui/i18n';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
 import { openNativePicker } from './openNativePicker';
@@ -10,12 +11,16 @@ import { toDateTimeInputValue, fromDateTimeInputValue } from './nativeDateValue'
  * Displays both date and time in locale format when readonly
  */
 export function DateTimeField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
+  // Before the readonly early return — the hook count must not depend on a
+  // prop. See DateField for why the bare `toLocale*` calls were wrong
+  // (objectui#4468).
+  const locale = useDisplayLocale();
   if (readonly) {
     if (!value) return <EmptyValue />;
     const date = new Date(value);
     return (
       <span className="text-sm">
-        {date.toLocaleDateString()} {date.toLocaleTimeString()}
+        {date.toLocaleDateString(locale)} {date.toLocaleTimeString(locale)}
       </span>
     );
   }
