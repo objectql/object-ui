@@ -28,7 +28,7 @@ import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useSafeFieldLabel, usePredicateScope, useRelatedRecordActions } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES, coerceToSafeValue } from '@object-ui/fields';
-import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
+import { useLocalization, useDisplayLocale, resolveFieldCurrency } from '@object-ui/i18n';
 import { stateMachineNextValues, isFieldInlineEditable } from './inline-edit-options';
 import {
   Badge, Button, NavigationOverlay, EmptyValue,
@@ -535,6 +535,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [error, setError] = useState<Error | null>(null);
   // Tenant default currency (ADR-0053) backstops amount cells that lack a code.
   const { currency: tenantCurrency } = useLocalization();
+  // The one date/number locale resolver: tenant regional default → active UI
+  // language → 'en' (objectui#4272). Read unconditionally at component level.
+  const displayLocale = useDisplayLocale();
   const { t } = useGridTranslation();
   const { fieldLabel: resolveFieldLabel, translateOptions, actionLabel: resolveActionLabel } = useSafeFieldLabel();
   const [objectSchema, setObjectSchema] = useState<any>(null);
@@ -2994,7 +2997,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                     {dateCols[0] && (
                       <span className="tabular-nums">
                         {row[dateCols[0].accessorKey]
-                          ? formatDate(row[dateCols[0].accessorKey], 'short')
+                          ? formatDate(row[dateCols[0].accessorKey], 'short', { locale: displayLocale })
                           : '—'}
                       </span>
                     )}
@@ -3011,7 +3014,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                   <div key={col.accessorKey} className="flex justify-between items-center py-0.5">
                     <span className="text-xs text-muted-foreground">{col.header}</span>
                     <span className="text-xs text-muted-foreground tabular-nums">
-                      {row[col.accessorKey] ? formatDate(row[col.accessorKey], 'short') : '—'}
+                      {row[col.accessorKey] ? formatDate(row[col.accessorKey], 'short', { locale: displayLocale }) : '—'}
                     </span>
                   </div>
                 ))}

@@ -27,7 +27,7 @@ import { toast } from 'sonner';
 import type { ObjectGridSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
 import { GanttConfigSchema } from '@objectstack/spec/ui';
 import { useNavigationOverlay, SchemaRendererContext } from '@object-ui/react';
-import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
+import { useLocalization, useDisplayLocale, resolveFieldCurrency } from '@object-ui/i18n';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import {
   AlertDialog,
@@ -430,6 +430,9 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   const [objectSchema, setObjectSchema] = useState<any>(null);
   // Tenant default currency (ADR-0053) for currency tooltips lacking a code.
   const { currency: tenantCurrency } = useLocalization();
+  // The one date/number locale resolver: tenant regional default → active UI
+  // language → 'en' (objectui#4272). Read unconditionally at component level.
+  const displayLocale = useDisplayLocale();
   const { t } = useGanttTranslation();
 
   // Surface write-back failures (拖拽/连线/删除/行内编辑) as an error toast —
@@ -643,16 +646,16 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       // No field def at all → sniff ISO date / datetime strings so raw
       // `2026-08-14T08:00:00.000Z` payloads still format like real date fields.
       if (type == null && typeof value === 'string') {
-        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return formatDate(value);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return formatDate(value, undefined, { locale: displayLocale });
         if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value) && !isNaN(new Date(value).getTime())) {
-          return formatDateTime(value);
+          return formatDateTime(value, { locale: displayLocale });
         }
       }
       switch (type) {
         case 'date':
-          return formatDate(value as any);
+          return formatDate(value as any, undefined, { locale: displayLocale });
         case 'datetime':
-          return formatDateTime(value as any);
+          return formatDateTime(value as any, { locale: displayLocale });
         case 'number':
         case 'integer':
         case 'float':
@@ -765,7 +768,10 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         data: record,
       };
     }).filter(task => !isNaN(task.start.getTime()) && !isNaN(task.end.getTime()));
-  }, [data, ganttConfig, objectSchema]);
+    // `displayLocale` is a dependency because the tooltip strings are FORMATTED
+    // in here: without it a language switch would leave already-built tooltips
+    // on the previous locale.
+  }, [data, ganttConfig, objectSchema, displayLocale]);
 
   // Dynamic Group by accessor (动态 Group by). Resolves each task's grouping
   // value off its backing record, mapping select options / lookups to their

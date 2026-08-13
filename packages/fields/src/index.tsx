@@ -558,8 +558,13 @@ export function formatDate(value: string | Date | number, style?: string, option
   if (!(date instanceof Date) || isNaN(date.getTime())) return '—';
 
   if (style === 'short') {
-    // Compact format for mobile: "Jan 15, '24"
-    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    // Compact format for mobile: "Jan 15, '24" / "1月 15, '24".
+    // Only the MONTH token is localized: the surrounding compact shape (day,
+    // apostrophe + 2-digit year) is a deliberate fixed layout for narrow
+    // cards, not a locale-derived one. The tag comes from `options.locale`
+    // like the default branch below — hardcoding `'en-US'` here made this the
+    // one branch that ignored a locale its caller had threaded (objectui#4272).
+    const month = date.toLocaleDateString(options?.locale, { month: 'short' });
     const day = date.getDate();
     const year = String(date.getFullYear()).slice(-2);
     return `${month} ${day}, '${year}`;
@@ -583,14 +588,22 @@ export function formatDate(value: string | Date | number, style?: string, option
 }
 
 /**
- * Format datetime value
+ * Format datetime value.
+ *
+ * `options` mirrors {@link formatDate}'s and is optional, so an existing
+ * caller that passes nothing keeps the exact runtime-default behavior it had.
+ * Before objectui#4272 the parameter did not exist at all, which meant no
+ * caller could localize this function however hard it tried — it always handed
+ * `Intl` an `undefined` tag, i.e. the MACHINE's locale, which is neither of
+ * the repo's two locale channels. Callers should pass the tag from
+ * `useDisplayLocale()`.
  */
-export function formatDateTime(value: string | Date | number): string {
+export function formatDateTime(value: string | Date | number, options?: DateDisplayOptions): string {
   if (value === null || value === undefined || value === '') return '—';
   const date = value instanceof Date ? value : new Date(value as any);
   if (!(date instanceof Date) || isNaN(date.getTime())) return '—';
-  
-  return date.toLocaleDateString(undefined, {
+
+  return date.toLocaleDateString(options?.locale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

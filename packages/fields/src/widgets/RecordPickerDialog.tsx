@@ -42,7 +42,7 @@ import type { DataSource, LookupColumnDef, LookupFilterDef } from '@object-ui/ty
 // — shared with plugin-list's `buildEffectiveFilter` and plugin-view's
 // ObjectView, so a spec `ViewFilterRule[]` lowers in exactly one place.
 import { mergeFilterNodes } from '@object-ui/core';
-import { useSafeFieldLabel } from '@object-ui/i18n';
+import { useSafeFieldLabel, useDisplayLocale } from '@object-ui/i18n';
 import { useFieldTranslation } from './useFieldTranslation';
 import { useRecordQuery } from './useRecordQuery';
 
@@ -496,6 +496,9 @@ export function RecordPickerDialog({
 }: RecordPickerDialogProps) {
   const { t } = useFieldTranslation();
   const { translateOptions } = useSafeFieldLabel();
+  // The one date/number locale resolver: tenant regional default → active UI
+  // language → 'en' (objectui#4272). Read unconditionally at component level.
+  const displayLocale = useDisplayLocale();
 
   // Query state (records/loading/error/total + page/search/sort) lives in the
   // shared useRecordQuery kernel — instantiated after mergedFilter below.
@@ -860,13 +863,13 @@ export function RecordPickerDialog({
       // Handle MongoDB types / expanded references
       if (val.$numberDecimal) return String(Number(val.$numberDecimal));
       if (val.$oid) return String(val.$oid);
-      if (val.$date) return new Date(val.$date).toLocaleDateString();
+      if (val.$date) return new Date(val.$date).toLocaleDateString(displayLocale);
       if (val.name || val.label) return String(val.name || val.label);
       return JSON.stringify(val);
     }
     if (typeof val === 'boolean') return val ? 'Yes' : 'No';
     return String(val);
-  }, [cellRenderer, titleFormat, displayField, columnFieldDescriptors]);
+  }, [cellRenderer, titleFormat, displayField, columnFieldDescriptors, displayLocale]);
 
   // Render sort indicator for a column
   const renderSortIcon = useCallback((field: string) => {
