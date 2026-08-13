@@ -56,11 +56,23 @@ describe('ObjectGrid export permission gate', () => {
 /**
  * Dead-format gate (objectui#2942): declared formats the runtime cannot
  * deliver must not render as menu items whose click silently does nothing.
- * pdf is implemented nowhere; xlsx needs the server stream, which inline
- * (provider: 'value') data never has.
+ * xlsx needs the server stream, which inline (provider: 'value') data never
+ * has; pdf is implemented nowhere.
+ *
+ * `'pdf'` is no longer AUTHORABLE (objectui#4535): it left the spec's format
+ * enum in @objectstack/spec 17.0.0 (objectstack#8010, after PDF export itself
+ * was declined as objectstack#1301 NOT_PLANNED), and the local type dropped it
+ * with the spec. These two cases therefore no longer pin a supported
+ * declaration — they pin the LEGACY one: metadata stored before the retirement
+ * still carries `'pdf'` until `os migrate meta --from 16` rewrites it, and such
+ * a value must keep reaching the user as "not in the menu" rather than as a
+ * dead menu item. The schema here is `any`, which is what a stored document
+ * arriving from the wire is, so the cases read the same after the retirement as
+ * before it — the format filter that drops them is format-agnostic and has no
+ * `'pdf'` branch to lose.
  */
 describe('ObjectGrid export dead formats', () => {
-  it('drops pdf and (with inline data) xlsx from the menu, keeping csv', async () => {
+  it('drops a legacy pdf and (with inline data) xlsx from the menu, keeping csv', async () => {
     renderGrid({ exportOptions: { formats: ['csv', 'xlsx', 'pdf'] } });
 
     fireEvent.click(screen.getByRole('button', { name: /export/i }));
@@ -71,6 +83,8 @@ describe('ObjectGrid export dead formats', () => {
   });
 
   it('hides the export button entirely when no declared format is deliverable', () => {
+    // A pre-17 document whose only format is the retired `'pdf'`: nothing is
+    // deliverable, so the toolbar offers no export at all.
     renderGrid({ exportOptions: { formats: ['pdf'] } });
     expect(screen.queryAllByRole('button', { name: /export/i }).length).toBe(0);
   });

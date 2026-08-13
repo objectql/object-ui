@@ -22,7 +22,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import type { ObjectGridSchema, DataSource, ListColumn, ViewData, TableSortItem, DataTableSchema } from '@object-ui/types';
+import type { ObjectGridSchema, DataSource, ListColumn, ViewData, TableSortItem, DataTableSchema, ListViewExportFormat } from '@object-ui/types';
 import { isSystemManagedField } from '@object-ui/types';
 import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useSafeFieldLabel, usePredicateScope, useRelatedRecordActions } from '@object-ui/react';
@@ -1688,17 +1688,25 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   }, [objectSchema, schemaFields, schemaColumns, dataConfig, hasInlineData, navigation.handleClick, executeAction, data, resolveFieldLabel, translateOptions, schema.objectName, perms]);
 
   // Formats this grid can actually deliver (objectui#2942): the server stream
-  // handles csv/xlsx/json, the client fallback only csv/json, and pdf exists
-  // nowhere (declined platform-side — objectstack#1301). Declared-but-dead
+  // handles csv/xlsx/json, the client fallback only csv/json. Declared-but-dead
   // formats used to render as menu items whose click did nothing; now they're
   // dropped from the menu (with a one-time warning for the app author).
+  //
+  // The filter is format-AGNOSTIC — it keeps what `supported` lists — so it
+  // still covers the live case (`xlsx` declared with no server stream) and, for
+  // free, the legacy one: `'pdf'` was declined platform-side
+  // (objectstack#1301) and left the spec's format enum in 17.0.0
+  // (objectstack#8010), so it is no longer authorable, but metadata stored
+  // before the retirement still carries it until `os migrate meta --from 16`
+  // runs. Such a value reaches here and is dropped by the same rule, with no
+  // `'pdf'`-specific branch to keep alive (objectui#4535).
   // (Hoisted above the error/loading early returns to satisfy hooks rules.)
   const exportableFormats = useMemo(() => {
     const declared = schema.exportOptions?.formats || ['csv', 'json'];
     const serverAvailable = typeof dataSource?.exportDownload === 'function'
       && !!objectName
       && !hasInlineData
-      && (schema.exportOptions as any)?.streaming !== false;
+      && schema.exportOptions?.streaming !== false;
     const supported = serverAvailable ? ['csv', 'xlsx', 'json'] : ['csv', 'json'];
     return declared.filter((f: string) => supported.includes(f));
   }, [schema.exportOptions, dataSource, objectName, hasInlineData]);
@@ -1711,7 +1719,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     }
   }, [schema.exportOptions, exportableFormats]);
 
-  const handleExport = useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
+  const handleExport = useCallback((format: ListViewExportFormat) => {
     // Object-level export permission gate. Default-allow: an explicit
     // `operations.export === false` blocks it, and — when the server hands down
     // an effective API operation set for this object (#3391) — so does its
@@ -1741,7 +1749,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       && !!objectName
       && !hasInlineData
       // Honor an opt-out: schema.exportOptions.streaming === false forces client-side.
-      && (exportConfig as any)?.streaming !== false;
+      && exportConfig?.streaming !== false;
 
     if (serverEligible) {
       const cols = generateColumns().filter((c: any) => c.accessorKey !== '_actions');

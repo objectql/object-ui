@@ -457,6 +457,66 @@ export interface BulkActionDef {
 }
 
 /**
+ * Export formats a list view may offer (objectui#4535).
+ *
+ * `'pdf'` is NOT here: PDF export was declined platform-side
+ * (objectstack#1301 NOT_PLANNED) and the value left the spec's format enum in
+ * `@objectstack/spec` 17.0.0 (objectstack#8010), where declaring it is now a
+ * parse-time refusal carrying a migration prescription. It was never
+ * renderable on this side either — no ObjectUI export path has ever produced a
+ * PDF, so a declared `'pdf'` only ever reached the user as a console line.
+ * `'xlsx'` is delivered by the server stream alone; the client fallback path
+ * produces `'csv'` and `'json'`.
+ */
+export type ListViewExportFormat = 'csv' | 'xlsx' | 'json';
+
+/**
+ * Export options for a list view — the object form of `exportOptions`.
+ *
+ * **This key set is the spec's, and it is exactly what `ObjectGrid` reads.**
+ * It mirrors `ListViewExportOptionsSchema` in `@objectstack/spec` 17.0.0
+ * (`packages/spec/src/ui/view.zod.ts`, added by objectstack#8010 /
+ * objectstack#8324): `formats`, `maxRecords`, `includeHeaders`,
+ * `fileNamePrefix`, `streaming`. Upstream derived those five keys FROM this
+ * renderer's reads, so the two are one contract read from either end:
+ *
+ * - a sixth key declared here is capability surface with no reader — the
+ *   compile-time key-set assertion in `objectql.exportOptions.test.ts` reds;
+ * - a sixth key READ by `ObjectGrid` without being declared here recreates the
+ *   undeclared-but-read defect objectstack#8010 closed — the source scan in
+ *   `plugin-grid`'s `ObjectGrid.exportOptionsKeys.test.ts` reds.
+ *
+ * NOTE (objectui#4535): this restates the five keys rather than deriving them
+ * from the spec symbol, because objectui still pins
+ * `@objectstack/spec@17.0.0-rc.6`, whose `ListView.exportOptions` is the LEGACY
+ * bare format array (`('csv' | 'xlsx' | 'json' | 'pdf')[]`) — the object form is
+ * not importable from the pin yet. Deriving this type from the published spec
+ * symbol becomes possible when the pin bumps; the shape below IS the new spec
+ * shape, so nothing here changes when it does.
+ */
+export interface ListViewExportOptions {
+  /**
+   * Formats offered in the export menu (default: `['csv', 'json']`).
+   * XLSX is delivered by the server stream only.
+   */
+  formats?: ListViewExportFormat[];
+  /** Maximum number of records to export; 0 or absent = unlimited. */
+  maxRecords?: number;
+  /** Include column headers in the exported file (default true). */
+  includeHeaders?: boolean;
+  /**
+   * Download file name prefix — replaces the object label and suppresses the
+   * view label in the generated file name.
+   */
+  fileNamePrefix?: string;
+  /**
+   * Set false to force the client-side export path (csv/json only) instead of
+   * the server stream.
+   */
+  streaming?: boolean;
+}
+
+/**
  * ObjectGrid Schema
  * A specialized grid component that automatically fetches and displays data from ObjectQL objects.
  * Implements the grid view type from @objectstack/spec view.zod ListView schema.
@@ -779,19 +839,10 @@ export interface ObjectGridSchema extends BaseSchema {
 
   /**
    * Export options configuration for exporting grid data.
-   * Supports csv, xlsx, json, and pdf formats.
-   * Aligned with @objectstack/spec ListViewSchema.exportOptions.
+   * See {@link ListViewExportOptions} — the key set is the spec's, and the one
+   * that `ObjectGrid` reads.
    */
-  exportOptions?: {
-    /** Formats available for export */
-    formats?: Array<'csv' | 'xlsx' | 'json' | 'pdf'>;
-    /** Maximum number of records to export (0 = unlimited) */
-    maxRecords?: number;
-    /** Include column headers in export */
-    includeHeaders?: boolean;
-    /** Custom file name prefix */
-    fileNamePrefix?: string;
-  };
+  exportOptions?: ListViewExportOptions;
 
   /**
    * Navigation configuration for row click behavior.
@@ -1649,13 +1700,12 @@ export interface NamedListView {
   /** Fields to hide from the current view */
   hiddenFields?: string[];
 
-  /** Export options configuration */
-  exportOptions?: {
-    formats?: Array<'csv' | 'xlsx' | 'json' | 'pdf'>;
-    maxRecords?: number;
-    includeHeaders?: boolean;
-    fileNamePrefix?: string;
-  };
+  /**
+   * Export options configuration — the same object form the grid reads, so a
+   * saved view and a directly-authored grid cannot declare different export
+   * surfaces (objectui#4535). See {@link ListViewExportOptions}.
+   */
+  exportOptions?: ListViewExportOptions;
 
   /** Row action identifiers */
   rowActions?: string[];

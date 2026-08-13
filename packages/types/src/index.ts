@@ -361,6 +361,8 @@ export type {
   KanbanNativeConditionalFormattingRule,
   ObjectChartSchema,
   ListViewSchema,
+  ListViewExportFormat,
+  ListViewExportOptions,
   ObjectGridSchema,
   ObjectFormSchema,
   ObjectFormSection,
