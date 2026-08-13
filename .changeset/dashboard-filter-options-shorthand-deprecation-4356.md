@@ -1,0 +1,17 @@
+---
+"@object-ui/core": minor
+---
+
+fix(core): bare-string filter options — docs/examples stop teaching it, the runtime lift warns (objectui#4356)
+
+`globalFilters[].options` had two de-facto contracts. `@objectstack/spec`'s `GlobalFilterSchema` accepts only `{ value, label }` pairs, while `normalizeFilterOptions` also lifted a bare-string shorthand (`options: ['EMEA', 'APAC']`) — so a dashboard authored that way rendered correctly in objectui and was refused the moment it reached the platform's validation. That is the "one strict contract beats N dialects" divergence AGENTS.md #0.1 names, with the renderer's tolerance hiding the producer's bug instead of surfacing it.
+
+Maintainer ruling of 2026-08-12 on objectstack#7917, verbatim 「7917 ②」: **the spec stays strict; the runtime lift retires behind a deprecation window sized by a stored-dashboard survey.** This is Phases 0 and 1 of that window, shipped together. Phase 2 (removing the lift) is scheduled on objectstack#7917 and is deliberately not here.
+
+**Phase 1 — the lift now says so out loud.** `normalizeFilterOptions` still lifts a bare string, unchanged and mechanically lossless (`'EMEA'` becomes `{ value: 'EMEA', label: 'EMEA' }`), because stored dashboards carry the shorthand and dropping it silently would turn a rendering filter into an empty one. It now also logs a deprecation warning naming the offending filter, quoting the offending values, and printing the canonical replacement. The warning fires **once per offending filter per session** — `resolveDashboardFilterDefs` runs on every dashboard render, and a warning that floods the console is a warning that gets muted — and it is dev-mode only, matching the `warnOnDeprecatedObjectParams` convention in `actions/actionKeys.ts`. It does not fire for canonical object options, and a mixed array names only its bare members, since partial migrations happen. A silent lift can never be retired, because nothing would ever show that the last shorthand document is gone (ADR-0078).
+
+**Phase 0 — objectui stopped teaching the form.** The stored-dashboard survey on objectstack#7917 found the shorthand's source: objectui's own docs and its schema-catalog corpus — which the catalog's `package.json` declares an AI RAG/few-shot retrieval source — still authored it, so the stored population was still growing. All seven non-test occurrences are corrected to the pair form: `content/docs/guide/dashboard-filters.md` (a code block **and** a prose passage that presented the shorthand as an equal alternative), `content/docs/plugins/plugin-dashboard.mdx`, `packages/plugin-dashboard/README.md`, and the three `examples/schema-catalog` `filtered-dashboard*.json` entries. Warning authors while the docs still taught the form would have been a contradiction users report as a bug.
+
+**Guardrail.** The schema catalog previously asserted only that its entries were structurally well-formed and rendered without throwing — which is exactly how a spec-invalid example got in. Every `globalFilters[]` entry in every `plugin-dashboard` catalog example is now parsed with the real `@objectstack/spec` `GlobalFilterSchema`, with a non-vacuity control so a broken sweep cannot read as green.
+
+New export: `resetDashboardFilterWarnings()`, the warn-once memo reset, matching `resetActionKeyWarnings`. Graded `minor` for that additive export — measured, the emitted `.d.ts` gains exactly one declaration and narrows nothing.

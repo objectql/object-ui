@@ -55,9 +55,13 @@ export interface DashboardFilterDef {
   type: 'text' | 'select' | 'date' | 'number' | 'lookup' | 'dateRange';
   /**
    * Static options, NORMALIZED to `{ value, label }` pairs by
-   * `resolveDashboardFilterDefs` — authors may write either the
-   * @objectstack/spec object form (`{ value, label }`) or the bare-string
-   * shorthand; consumers always see the object form.
+   * `resolveDashboardFilterDefs` — consumers always see the object form.
+   *
+   * The canonical authoring form is @objectstack/spec's `{ value, label }`
+   * pair, and it is the ONLY one the platform accepts at publish. A bare-string
+   * shorthand in a STORED document is still lifted here, with a deprecation
+   * warning, on the objectstack#7917 retirement schedule — see
+   * `normalizeFilterOptions`. Do not author a new one.
    *
    * The PAIR SHAPE is normalized; the label's own vocabulary is not. `label`
    * is `I18nLabel` in `GlobalFilterSchema.options[]` too, and it reaches the
@@ -191,6 +195,36 @@ function warnDateFilter(message: string): void {
 }
 
 /**
+ * Dev-mode gate, matching `actions/actionKeys.ts` — a deprecation warning that
+ * floods a production console is a warning that gets muted.
+ */
+const isDev = (): boolean =>
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.NODE_ENV !==
+  'production';
+
+/**
+ * Warn-once memo for the bare-string `options` shorthand (objectui#4356).
+ *
+ * Keyed by filter NAME **and** the offending values, deliberately — the same
+ * reasoning `warnOnUnknownActionKeys` records for its own memo. Keying on the
+ * name alone would report the first dashboard carrying a shorthand `status`
+ * filter and stay silent about every other one, sending the author to fix one
+ * symptom; keying on the values alone would collapse two genuinely different
+ * filters that happen to share an option list. The memo is bounded by the
+ * number of authored filters either way.
+ *
+ * This lives at module scope because `resolveDashboardFilterDefs` runs on every
+ * dashboard render — per-call state would warn once per frame, which is the
+ * flood the dedupe exists to prevent.
+ */
+const warnedShorthandOptions = new Set<string>();
+
+/** Reset the shorthand-options warn-once memo. Exported for tests. */
+export function resetDashboardFilterWarnings(): void {
+  warnedShorthandOptions.clear();
+}
+
+/**
  * Apply the ADR-0089 legacy-alias lift to ONE stored `globalFilters` entry, and
  * say so out loud when it fires (objectui#4165).
  *
@@ -309,8 +343,37 @@ function normalizeDateDefault(type: DashboardFilterDef['type'], defaultValue: un
  * Normalize a filter's static `options` declaration to `{ value, label }`
  * pairs. The @objectstack/spec `GlobalFilterSchema.options` form is
  * `{ value, label }` objects; the bare-string shorthand (`options: ['EMEA', …]`)
- * is also accepted. Rendering an un-normalized option crashes React — this is
- * the single place both shapes converge.
+ * is still lifted, but is DEPRECATED and now says so out loud. Rendering an
+ * un-normalized option crashes React — this is the single place both shapes
+ * converge.
+ *
+ * ## The shorthand's deprecation (objectui#4356, objectstack#7917)
+ *
+ * Maintainer ruling of 2026-08-12 on objectstack#7917, verbatim 「7917 ②」:
+ * option ② — **the spec stays strict; the runtime bare-string lift retires
+ * behind a deprecation window sized by a stored-dashboard survey.** So a
+ * document spelling `options: ['EMEA']` renders here and is refused the moment
+ * it reaches the platform's validation — the "one strict contract beats N
+ * dialects" divergence AGENTS.md #0.1 names, with the renderer's tolerance
+ * acting as a second de-facto contract.
+ *
+ * This is the WARN half of that window (Phase 1). The lift itself is unchanged
+ * and remains mechanically lossless (`'EMEA'` → `{ value: 'EMEA', label:
+ * 'EMEA' }`), because stored dashboards carry the shorthand and dropping it
+ * silently would turn a rendering filter into an empty one. Removal (Phase 2)
+ * is scheduled on objectstack#7917, earliest one minor release after this ships
+ * and not before the live-tenant channel has actually been queried.
+ *
+ * The warning is not decoration: a silent lift can never be retired, because
+ * nothing would ever show that the last shorthand document is gone (ADR-0078 —
+ * nothing silently inert). It is the same reasoning `liftLegacyFilterDeclaration`
+ * records above, for the sibling alias.
+ *
+ * Phase 0 shipped in the same PR: objectui's own docs, its `plugin-dashboard`
+ * README and its schema-catalog corpus stopped TEACHING the shorthand, so the
+ * stored population is no longer growing while this warning asks authors to
+ * migrate. Warning authors while the docs still taught the form would have been
+ * a contradiction users report as a bug.
  *
  * ## What is normalized, and what is deliberately NOT (objectui#4032 / #4163)
  *
@@ -336,9 +399,12 @@ function normalizeDateDefault(type: DashboardFilterDef['type'], defaultValue: un
  */
 function normalizeFilterOptions(
   options: unknown,
+  filterName: string,
 ): Array<{ value: string; label: string | I18nLabel }> | undefined {
   if (!Array.isArray(options) || options.length === 0) return undefined;
   const normalized: Array<{ value: string; label: string | I18nLabel }> = [];
+  /** Every bare-string member, in authored order — one warning names them all. */
+  const shorthand: string[] = [];
   for (const o of options) {
     if (o === null || o === undefined) continue;
     if (typeof o === 'object') {
@@ -351,10 +417,39 @@ function normalizeFilterOptions(
         label: (typeof label === 'string' && label) || isMap ? label : String(value),
       });
     } else {
+      shorthand.push(String(o));
       normalized.push({ value: String(o), label: String(o) });
     }
   }
+  if (shorthand.length > 0) warnShorthandOptions(filterName, shorthand);
   return normalized.length > 0 ? normalized : undefined;
+}
+
+/**
+ * Say the deprecated shorthand out loud — once per offending filter per
+ * session, naming the filter and printing the canonical replacement.
+ *
+ * Collected per FILTER rather than per option: a filter declaring
+ * `['EMEA', 'APAC', 'AMER']` is one authoring mistake in one place, so it earns
+ * one warning carrying all three values, not three warnings the author has to
+ * reassemble. A MIXED array (`[{ value: 'won', … }, 'lost']`) names only the
+ * bare members, which are the ones that need rewriting — partial migrations
+ * happen and a warning that re-reports the already-canonical members is noise.
+ */
+function warnShorthandOptions(filterName: string, shorthand: string[]): void {
+  if (!isDev()) return;
+  const memo = `${filterName}:${shorthand.join(',')}`;
+  if (warnedShorthandOptions.has(memo)) return;
+  warnedShorthandOptions.add(memo);
+  const canonical = shorthand.map((v) => `{ value: ${JSON.stringify(v)}, label: ${JSON.stringify(v)} }`).join(', ');
+  warnDateFilter(
+    `filter "${filterName}": \`options\` carries the bare-string shorthand ` +
+      `(${shorthand.map((v) => JSON.stringify(v)).join(', ')}), which @objectstack/spec's ` +
+      `\`GlobalFilterSchema\` REFUSES at publish — a dashboard authored this way renders here ` +
+      `and is rejected the moment it reaches the platform (objectui#4356). Rewrite the stored ` +
+      `dashboard to the canonical pair form: [${canonical}]. Still lifted here for already-` +
+      `persisted dashboards; the lift is removed on the objectstack#7917 schedule.`,
+  );
 }
 
 /**
@@ -397,7 +492,17 @@ export function resolveDashboardFilterDefs(
       field: f.field,
       label: f.label,
       type,
-      options: normalizeFilterOptions(f.options),
+      // `name` is the identifying context the deprecation warning needs, and
+      // the local above already resolved it — nothing new is threaded through a
+      // public signature for it. `normalizeFilterOptions` is module-private, so
+      // widening ITS parameter list is not a contract move.
+      //
+      // (Deliberately not restating that local's expression here: the
+      // column-identity ratchet in `__tests__/column-identity.ratchet.test.ts`
+      // is a LINE-LEVEL scanner, so a comment quoting it reads as a second
+      // dual read and fails the count — a false positive worth avoiding rather
+      // than absorbing into the inventory, which would mask a future real one.)
+      options: normalizeFilterOptions(f.options, name),
       optionsFrom: f.optionsFrom,
       // framework#4475 — same preset-name lifting the built-in `dateRange`
       // above already does; see normalizeDateDefault for why a bare string is

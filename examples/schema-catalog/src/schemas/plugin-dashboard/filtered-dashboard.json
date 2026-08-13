@@ -14,7 +14,11 @@
       "field": "region",
       "label": "Region",
       "type": "select",
-      "options": ["EMEA", "APAC", "AMER"]
+      "options": [
+        { "value": "EMEA", "label": "EMEA" },
+        { "value": "APAC", "label": "APAC" },
+        { "value": "AMER", "label": "AMER" }
+      ]
     }
   ],
   "widgets": [

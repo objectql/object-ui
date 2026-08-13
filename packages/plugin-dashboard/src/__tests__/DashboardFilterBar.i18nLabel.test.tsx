@@ -162,7 +162,16 @@ describe('DashboardFilterBar — inline per-locale filter labels (#4032 / #4163)
           field: 'stage',
           type: 'select',
           label: 'Stage',
-          options: [{ value: 'won', label: 'Won' }, 'lost'],
+          // Both options in @objectstack/spec's `{ value, label }` pair form.
+          // This case used to spell the second one as the bare string 'lost' to
+          // also exercise a MIXED array; that shorthand is deprecated and now
+          // warns (objectui#4356), and the mixed-array lift has its own pin in
+          // `packages/core/src/utils/__tests__/dashboard-filters.test.ts`
+          // (`names ONLY the bare members of a MIXED array`), which asserts
+          // this exact `{ value: 'lost', label: 'lost' }` result. What THIS
+          // case is for — a plain-string label surviving the i18n path
+          // untouched — is unchanged.
+          options: [{ value: 'won', label: 'Won' }, { value: 'lost', label: 'lost' }],
         },
       ],
     } as never);

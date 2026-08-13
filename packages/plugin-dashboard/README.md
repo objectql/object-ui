@@ -219,7 +219,14 @@ into each bound widget's inline query (`AND`-combined with the widget's own
       "field": "region",            // default binding target
       "label": "Region",
       "type": "select",             // text | select | date | number | lookup
-      "options": ["EMEA", "APAC", "AMER"]
+      // Canonical @objectstack/spec pair form — the only form the platform
+      // accepts at publish. The bare-string shorthand (["EMEA", …]) is
+      // deprecated: still lifted at runtime, now warns (objectui#4356).
+      "options": [
+        { "value": "EMEA", "label": "EMEA" },
+        { "value": "APAC", "label": "APAC" },
+        { "value": "AMER", "label": "AMER" }
+      ]
       // or dynamic: "optionsFrom": { "object": "accounts", "valueField": "region" }
     }
   ],

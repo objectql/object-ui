@@ -135,7 +135,12 @@ describe('DashboardWidgetInspector — dashboard filter bindings (framework#2501
   const filteredDraft = (widgetExtra: Record<string, unknown> = {}) => ({
     dateRange: { field: 'created_at', defaultRange: 'last_30_days' },
     globalFilters: [
-      { name: 'region', field: 'region', label: 'Region', type: 'select', options: ['EMEA'] },
+      // Options in @objectstack/spec's `{ value, label }` pair form. Nothing in
+      // this suite reads the list — it is scenery for the BINDINGS under test —
+      // so the deprecated bare-string shorthand it used to spell bought nothing
+      // and now warns (objectui#4356). Its coverage is
+      // `packages/core/src/utils/__tests__/dashboard-filters.test.ts`.
+      { name: 'region', field: 'region', label: 'Region', type: 'select', options: [{ value: 'EMEA', label: 'EMEA' }] },
     ],
     widgets: [widget(widgetExtra)],
   });

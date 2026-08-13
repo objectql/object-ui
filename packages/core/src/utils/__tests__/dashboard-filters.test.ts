@@ -6,12 +6,13 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   resolveDashboardFilterDefs,
   dashboardFilterVariableDefs,
   buildFilterCondition,
   buildWidgetScopedFilter,
+  resetDashboardFilterWarnings,
   DATE_RANGE_FILTER_NAME,
   DATE_RANGE_PRESETS,
   type DashboardFilterDef,
@@ -37,15 +38,26 @@ const dateDef: DashboardFilterDef = {
 
 describe('resolveDashboardFilterDefs', () => {
   it('normalizes options: spec {value,label} objects AND bare-string shorthand → {value,label} pairs', () => {
-    const defs = resolveDashboardFilterDefs({
-      globalFilters: [
-        // @objectstack/spec object form — rendering this un-normalized as a
-        // React child crashed the Revenue Pulse dashboard (caught in dogfood).
-        { name: 'region', field: 'region', type: 'select', options: [{ value: 'amer', label: 'AMER' }, { value: 'emea', label: 'EMEA' }] },
-        // objectui bare-string shorthand.
-        { name: 'status', field: 'status', type: 'select', options: ['draft', 'paid'] },
-      ] as any,
-    });
+    // The shorthand arm now also emits the #4356 deprecation warning, so this
+    // case captures `console.warn` rather than letting it reach the suite's
+    // output — the warning must be audible to AUTHORS, not to our own test log.
+    // Its own pins are in the `[#4356]` block at the foot of this file.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    resetDashboardFilterWarnings();
+    let defs;
+    try {
+      defs = resolveDashboardFilterDefs({
+        globalFilters: [
+          // @objectstack/spec object form — rendering this un-normalized as a
+          // React child crashed the Revenue Pulse dashboard (caught in dogfood).
+          { name: 'region', field: 'region', type: 'select', options: [{ value: 'amer', label: 'AMER' }, { value: 'emea', label: 'EMEA' }] },
+          // objectui bare-string shorthand — DEPRECATED (#4356), still lifted.
+          { name: 'status', field: 'status', type: 'select', options: ['draft', 'paid'] },
+        ] as any,
+      });
+    } finally {
+      warn.mockRestore();
+    }
     expect(defs[0].options).toEqual([
       { value: 'amer', label: 'AMER' },
       { value: 'emea', label: 'EMEA' },
@@ -576,5 +588,135 @@ describe('[#4165] legacy `{ preset }` declaration — ADR-0089 alias lift', () =
     const { defs, warnings } = resolveQuietly([withBounds]);
     expect(defs[0].defaultValue).toEqual({ preset: 'last_7_days', from: '2026-01-01' });
     expect(warnings.filter((m) => m.includes('LEGACY'))).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #4356 — the bare-string `options` shorthand is DEPRECATED and says so.
+//
+// Maintainer ruling of 2026-08-12 on objectstack#7917, verbatim 「7917 ②」: the
+// spec stays strict and the runtime lift retires behind a deprecation window.
+// This block is the warn half (Phase 1). The lift itself is unchanged — the
+// LIFT pins live in `resolveDashboardFilterDefs` above and stay green in both
+// directions, which is exactly what "the lift is untouched" has to mean.
+//
+// What each pin here is for:
+//  - the WARNING pin is the discriminating one: it goes red the moment the
+//    warning is removed, and it is what makes the window closable (ADR-0078 —
+//    a silent lift can never be retired, because nothing would ever show that
+//    the last shorthand document is gone);
+//  - the ONCE pin protects the render path. `resolveDashboardFilterDefs` runs
+//    on every dashboard render, so a warning without the memo floods the
+//    console per frame — and a warning that floods is a warning that gets muted;
+//  - the CANONICAL-SILENCE pin is a false-positive guard, and it is honestly
+//    NOT a discrimination proof: it passes vacuously against a build with no
+//    warning at all. Its value is post-change — it goes red if the warn ever
+//    starts firing on healthy dashboards, which would be every dashboard.
+// ---------------------------------------------------------------------------
+describe('[#4356] bare-string `options` shorthand — deprecation warning', () => {
+  /** Capture warnings without letting them reach the suite's console. */
+  const resolveQuietly = (globalFilters: unknown[]) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      return {
+        defs: resolveDashboardFilterDefs({ globalFilters } as any),
+        warnings: warn.mock.calls.map((c) => String(c[0])),
+      };
+    } finally {
+      warn.mockRestore();
+    }
+  };
+
+  beforeEach(() => {
+    resetDashboardFilterWarnings();
+  });
+
+  it('still lifts a bare string, byte-identically, AND warns', () => {
+    const { defs, warnings } = resolveQuietly([
+      { name: 'region', field: 'region', type: 'select', options: ['EMEA', 'APAC'] },
+    ]);
+
+    // The lift is untouched — mechanically lossless, as the survey measured.
+    expect(defs[0].options).toEqual([
+      { value: 'EMEA', label: 'EMEA' },
+      { value: 'APAC', label: 'APAC' },
+    ]);
+
+    const shorthandWarnings = warnings.filter((m) => m.includes('bare-string shorthand'));
+    expect(shorthandWarnings).toHaveLength(1);
+    // Names the offending filter, the offending values, and the canonical form
+    // — a warning an author cannot act on is not a deprecation, it is noise.
+    expect(shorthandWarnings[0]).toContain('filter "region"');
+    expect(shorthandWarnings[0]).toContain('"EMEA"');
+    expect(shorthandWarnings[0]).toContain('{ value: "EMEA", label: "EMEA" }');
+    expect(shorthandWarnings[0]).toContain('objectui#4356');
+  });
+
+  it('warns ONCE per offending filter across repeated renders, not once per render', () => {
+    // The render path calls this on every frame. Three resolves, one warning.
+    const filters = [{ name: 'status', field: 'status', type: 'select', options: ['draft', 'paid'] }];
+    const first = resolveQuietly(filters);
+    const second = resolveQuietly(filters);
+    const third = resolveQuietly(filters);
+
+    expect(first.warnings.filter((m) => m.includes('bare-string shorthand'))).toHaveLength(1);
+    expect(second.warnings.filter((m) => m.includes('bare-string shorthand'))).toHaveLength(0);
+    expect(third.warnings.filter((m) => m.includes('bare-string shorthand'))).toHaveLength(0);
+
+    // …and the lift keeps working on every one of them, memo or not. A dedupe
+    // that also suppressed the BEHAVIOUR would be a silent data change.
+    expect(third.defs[0].options).toEqual([
+      { value: 'draft', label: 'draft' },
+      { value: 'paid', label: 'paid' },
+    ]);
+  });
+
+  it('warns separately for a DIFFERENT filter — the memo is not a global mute', () => {
+    // Keying the memo on the values alone would report the first filter and
+    // send the author to fix one symptom while the rest stayed silent.
+    const { warnings } = resolveQuietly([
+      { name: 'region', field: 'region', type: 'select', options: ['EMEA'] },
+      { name: 'status', field: 'status', type: 'select', options: ['draft'] },
+    ]);
+    const shorthandWarnings = warnings.filter((m) => m.includes('bare-string shorthand'));
+    expect(shorthandWarnings).toHaveLength(2);
+    expect(shorthandWarnings[0]).toContain('filter "region"');
+    expect(shorthandWarnings[1]).toContain('filter "status"');
+  });
+
+  it('says NOTHING for canonical `{ value, label }` options', () => {
+    // False-positive guard: this would otherwise fire on every healthy
+    // dashboard in the product.
+    const { defs, warnings } = resolveQuietly([
+      {
+        name: 'region',
+        field: 'region',
+        type: 'select',
+        options: [{ value: 'emea', label: 'EMEA' }, { value: 'apac', label: { en: 'APAC', 'zh-CN': '亚太' } }],
+      },
+    ]);
+    expect(warnings.filter((m) => m.includes('bare-string shorthand'))).toEqual([]);
+    // The I18nLabel map survives untouched (#4032 / #4163 must-not-change).
+    expect(defs[0].options).toEqual([
+      { value: 'emea', label: 'EMEA' },
+      { value: 'apac', label: { en: 'APAC', 'zh-CN': '亚太' } },
+    ]);
+  });
+
+  it('names ONLY the bare members of a MIXED array', () => {
+    // Partial migrations happen — the survey found one in this very repo. A
+    // warning that re-reported the already-canonical members would send the
+    // author back to options they had just fixed.
+    const { defs, warnings } = resolveQuietly([
+      { name: 'stage', field: 'stage', type: 'select', options: [{ value: 'won', label: 'Won' }, 'lost'] },
+    ]);
+    const shorthandWarnings = warnings.filter((m) => m.includes('bare-string shorthand'));
+    expect(shorthandWarnings).toHaveLength(1);
+    expect(shorthandWarnings[0]).toContain('"lost"');
+    expect(shorthandWarnings[0]).not.toContain('"won"');
+    expect(defs[0].options).toEqual([
+      { value: 'won', label: 'Won' },
+      { value: 'lost', label: 'lost' },
+    ]);
   });
 });

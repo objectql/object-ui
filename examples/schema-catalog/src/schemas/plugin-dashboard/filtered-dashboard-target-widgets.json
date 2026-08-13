@@ -9,7 +9,12 @@
       "field": "status",
       "label": "Status",
       "type": "select",
-      "options": ["draft", "sent", "paid", "void"],
+      "options": [
+        { "value": "draft", "label": "draft" },
+        { "value": "sent", "label": "sent" },
+        { "value": "paid", "label": "paid" },
+        { "value": "void", "label": "void" }
+      ],
       "targetWidgets": ["invoices_by_region", "invoices_recent"]
     }
   ],

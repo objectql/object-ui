@@ -95,7 +95,11 @@ Add a `globalFilters` entry. Each entry renders one control in the filter bar:
       "field": "region",
       "label": "Region",
       "type": "select",
-      "options": ["EMEA", "APAC", "AMER"]
+      "options": [
+        { "value": "EMEA", "label": "EMEA" },
+        { "value": "APAC", "label": "APAC" },
+        { "value": "AMER", "label": "AMER" }
+      ]
     }
   ]
 }
@@ -128,11 +132,21 @@ and the runtime logs a `console.warn` naming the filter and the value. It is
 deliberately not compared as-is: `field = "last_7_dayz"` matches no row, and
 the widget would render a perfectly healthy-looking `0`.
 
-Static `options` accept the `@objectstack/spec` object form
-(`{ "value": "amer", "label": "AMER" }` — canonical, and what the spec
-validates) or a bare-string shorthand (`["EMEA", "APAC"]`); the runtime
-normalizes both to value/label pairs. Options can also be fetched from an
-object at runtime:
+Static `options` are `@objectstack/spec` object pairs —
+`{ "value": "amer", "label": "AMER" }`. This is the only form the platform
+accepts: a dashboard is validated against `GlobalFilterSchema` when it is
+published, and anything else is refused there.
+
+> **Deprecated: the bare-string shorthand.** `"options": ["EMEA", "APAC"]` is
+> still lifted by the runtime to `{ "value": "EMEA", "label": "EMEA" }` pairs so
+> that already-stored dashboards keep rendering, but it now logs a deprecation
+> warning naming the filter, and it is scheduled for removal
+> ([objectui#4356](https://github.com/objectstack-ai/objectui/issues/4356)).
+> Write the object form. The lift is mechanically lossless, so migrating a
+> stored dashboard is a direct rewrite of each string `X` to
+> `{ "value": "X", "label": "X" }`.
+
+Options can also be fetched from an object at runtime:
 
 ```json
 {
