@@ -7,6 +7,7 @@
  */
 
 import type { SchemaNode } from '@object-ui/core';
+import type { ListViewExportFormat, ListViewExportOptions } from '@object-ui/types';
 import type { BridgeContext, BridgeFn } from '../types';
 import type { ListView, ListColumn, RowHeight } from '@objectstack/spec/ui';
 
@@ -113,6 +114,54 @@ function mapDensity(
   return ROW_HEIGHT_TO_DENSITY[rowHeight];
 }
 
+/**
+ * The spec's own parse-time lift, applied where `parse` cannot reach
+ * (objectui#4585).
+ *
+ * `@objectstack/spec` accepts BOTH spellings of `view.exportOptions` and lifts
+ * the legacy bare format array to the object form at parse (objectstack#8010,
+ * `ui/view.zod.ts`):
+ *
+ *     z.array(ListViewExportFormatSchema).transform((formats) => ({ formats }))
+ *
+ * That transform never runs on this path. The bridge's input is a TypeScript
+ * type, not a parsed value — there is no `parse`/`safeParse` anywhere under
+ * `spec-bridge/` — so a host that parses first hands over the object form while
+ * a host that forwards raw stored metadata hands over whatever was authored,
+ * and nothing here can tell them apart. The legacy array therefore used to
+ * reach the `object-grid` node verbatim, where `ObjectGrid` reads
+ * `exportOptions.formats` and only that: `.formats` on an array is `undefined`,
+ * the renderer's `['csv', 'json']` default won, and the view's declared formats
+ * were dropped with no error and no console line — the export button still
+ * showed, because a non-empty array is truthy.
+ *
+ * This mirrors that transform and NOTHING more: the same contract applied one
+ * layer out, not a second de-facto one (AGENTS.md #0.1 — the consumer-side
+ * `Array.isArray` fallback in the renderer is what that rule forbids). Hence:
+ *
+ * - the object form passes through by reference, unread and unrewritten;
+ * - an empty array lifts to `{ formats: [] }`, exactly as the spec's transform
+ *   does — its `z.array()` carries no `.min(1)`, so `[]` is a legal input that
+ *   wraps rather than defaults. ObjectGrid then offers no format and hides the
+ *   export button: "declared zero formats", read literally;
+ * - a `'pdf'` stored before its retirement is carried, not filtered. The spec
+ *   REFUSES `'pdf'` at parse with a migration prescription (objectstack#8010;
+ *   PDF export itself was declined as objectstack#1301 NOT_PLANNED) — it does
+ *   not silently drop the value, so neither may this. Such a format dies
+ *   downstream in ObjectGrid's format-AGNOSTIC menu filter, kept deliberately
+ *   at objectui#4535 for metadata predating `os migrate meta --from 16`.
+ */
+function liftExportOptions(
+  exportOptions: NonNullable<ListViewSpec['exportOptions']> | ListViewExportOptions,
+): ListViewExportOptions {
+  if (!Array.isArray(exportOptions)) return exportOptions;
+  // The pinned `@objectstack/spec@17.0.0-rc.6` still admits `'pdf'` as an array
+  // member (the enum narrowing arrives with the pin bump), so the element type
+  // here is wider than the renderer-side `ListViewExportFormat`. Narrowing it by
+  // filtering would invent precisely the silent drop the spec declines to do.
+  return { formats: exportOptions as ListViewExportFormat[] };
+}
+
 /** Transforms a ListView spec into a DataTable SchemaNode */
 export const bridgeListView: BridgeFn<ListViewSpec> = (
   spec: ListViewSpec,
@@ -155,7 +204,7 @@ export const bridgeListView: BridgeFn<ListViewSpec> = (
   if (spec.virtualScroll != null) node.virtualScroll = spec.virtualScroll;
   if (spec.conditionalFormatting) node.conditionalFormatting = spec.conditionalFormatting;
   if (spec.inlineEdit != null) node.inlineEdit = spec.inlineEdit;
-  if (spec.exportOptions) node.exportOptions = spec.exportOptions;
+  if (spec.exportOptions) node.exportOptions = liftExportOptions(spec.exportOptions);
   if (spec.emptyState) node.emptyState = spec.emptyState;
   if (spec.userActions) node.userActions = spec.userActions;
   if (spec.appearance) node.appearance = spec.appearance;

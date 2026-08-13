@@ -387,14 +387,24 @@ describe('P1 SpecBridge Protocol Alignment', () => {
       expect(node.sharing.type).toBe('collaborative');
     });
 
-    it('should pass through exportOptions string[] format', () => {
+    // AUTHORIZED PIN MOVE (objectui#4585). This used to pin the bare array
+    // reaching the node verbatim — the one shape ObjectGrid cannot read, since
+    // it takes `exportOptions.formats` and `.formats` on an array is
+    // `undefined`. The pin was about the bridge's output shape and never
+    // rendered it, so the bridge stayed green while the view's declared formats
+    // were silently replaced by the renderer's `['csv', 'json']` default. The
+    // bridge now applies the spec's own parse-time lift, so the legacy spelling
+    // arrives in the shape the renderer reads. Full coverage of the lift lives
+    // in `ListViewExportOptionsLift.test.ts`; the end-to-end consequence is
+    // pinned in plugin-grid's `specBridgeExportFormats.test.tsx`.
+    it('should lift a legacy exportOptions array to the spec object form', () => {
       const bridge = new SpecBridge();
       const node = bridge.transformListView({
         name: 'export_spec',
         exportOptions: ['csv', 'xlsx'],
       });
 
-      expect(node.exportOptions).toEqual(['csv', 'xlsx']);
+      expect(node.exportOptions).toEqual({ formats: ['csv', 'xlsx'] });
     });
 
     it('should pass through exportOptions object format', () => {
