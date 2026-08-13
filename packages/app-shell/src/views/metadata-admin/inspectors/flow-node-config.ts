@@ -233,6 +233,16 @@ export interface FlowConfigField {
   showWhen?: { field: string; equals: string[] };
   /** Column schema for `objectList` fields (array-of-objects repeater). */
   columns?: FlowConfigColumn[];
+  /**
+   * For a `keyValue` field that shares its map with typed sibling fields: the
+   * keys those siblings own, which this editor must neither show nor overwrite
+   * (#4305). A connector action whose descriptor publishes an `inputSchema` gets
+   * a typed field per declared key, and the repeater stays behind — bound to the
+   * SAME `connectorConfig.input` map — for the undeclared extras only. The host
+   * inspector filters the value it passes down and merges the commit back, so
+   * the stored map round-trips whole.
+   */
+  omitKeys?: string[];
   /** Reference target for `reference` fields — drives the combobox data source. */
   ref?: FlowReferenceSpec;
   /**

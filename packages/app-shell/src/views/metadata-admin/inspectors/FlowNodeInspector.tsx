@@ -41,6 +41,14 @@ import {
 } from './flow-node-config';
 import { translateNodeLabel } from '../i18n';
 import { jsonSchemaToFlowFields } from './json-schema-to-fields';
+import {
+  applyConnectorInputForm,
+  connectorActionInputSchema,
+  connectorInputExtras,
+  connectorInputFields,
+  mergeConnectorInputExtras,
+  useConnectorRegistry,
+} from './connector-input-fields';
 import { applyDecisionBranches, syncDecisionEdgesByOrder, withBranchTargets } from './flow-decision-edges';
 import { useActionConfigSchemas } from '../previews/useFlowNodePalette';
 import { FlowNodeConfigField } from './FlowNodeConfigField';
@@ -137,18 +145,52 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
   );
   // In-scope variable references for this node, for the data-picker (#1934).
   const { groups: scopeGroups, approvalExpressionGroups } = useFlowScope(draft as Record<string, unknown>, loc?.scopeAnchorId, nestedLoopRefs);
+  // #4305 — a COMMITTED connector action (connector + action both chosen) types
+  // its Input section from that action's descriptor `inputSchema`. Read the
+  // committed pair and the stored input map off the node's spec-structured
+  // `connectorConfig` block: both are needed before any registry fetch, and the
+  // stored map decides whether a closed schema still needs the repeater.
+  const { connectorId, actionId, storedInput } = React.useMemo<{
+    connectorId?: string;
+    actionId?: string;
+    storedInput?: unknown;
+  }>(() => {
+    const cc = node?.connectorConfig;
+    if (!cc || typeof cc !== 'object' || Array.isArray(cc)) return {};
+    const block = cc as Record<string, unknown>;
+    return {
+      connectorId: typeof block.connectorId === 'string' && block.connectorId ? block.connectorId : undefined,
+      actionId: typeof block.actionId === 'string' && block.actionId ? block.actionId : undefined,
+      storedInput: block.input,
+    };
+  }, [node]);
+  const connectors = useConnectorRegistry(!!connectorId && !!actionId);
+  const connectorInput = React.useMemo(
+    () => connectorInputFields(connectorActionInputSchema(connectors, connectorId, actionId)),
+    [connectors, connectorId, actionId],
+  );
+  // Hoisted so this memo reads only the node's TYPE, never the node object: with
+  // `node?.type` inline the compiler infers a dependency on all of `node` while
+  // the declared dep is the narrower `node?.type`, and it then declines to
+  // memoize the form at all ("existing memoization could not be preserved").
+  const nodeType = node?.type;
   const fields = React.useMemo(() => {
-    const schema = node?.type ? configSchemas[node.type] : undefined;
+    const schema = nodeType ? configSchemas[nodeType] : undefined;
     const serverFields = schema !== undefined ? jsonSchemaToFlowFields(schema) : null;
     // A published configSchema describes `node.config` ONLY, so it replaces just
     // the config-rooted fields — the spec-structured sibling blocks
     // (connectorConfig / waitEventConfig / boundaryConfig) and top-level
     // `timeoutMs` are always kept from the hand-written group (framework#4045).
-    const resolved = mergeServerFlowFields(serverFields, node?.type);
+    const resolved = mergeServerFlowFields(serverFields, nodeType);
     // Localize both the hardcoded table and the engine-published configSchema
     // fields (they share field ids for built-in nodes); no-op for English.
-    return localizeFlowFields(node?.type, resolved, locale);
-  }, [configSchemas, node?.type, locale]);
+    const localized = localizeFlowFields(nodeType, resolved, locale);
+    // Applied AFTER localization on purpose: the typed input fields are labelled
+    // by the DESCRIPTOR (its `title` / `description`) — the connector's own i18n
+    // channel — so they must not be overlaid from the client's zh table, while
+    // the extras repeater keeps the localized "Input" label it always had.
+    return applyConnectorInputForm(localized, connectorInput, storedInput);
+  }, [configSchemas, nodeType, locale, connectorInput, storedInput]);
   const config = asConfig(node);
   const visibleFields = fields.filter((f) => isFieldVisible(f, node, fields));
 
@@ -221,6 +263,17 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
     const path = field.path;
     let stored = value;
     let nextEdges: FlowEdge[] | undefined;
+    // #4305 — the Input repeater standing beside typed fields edits only the
+    // undeclared extras, but its commit REPLACES whatever map it was handed. Fold
+    // the edit back over the stored map so the typed keys (and the stored key
+    // order) survive: without this, one extras edit would wipe every typed input.
+    if (field.omitKeys) {
+      stored = mergeConnectorInputExtras(
+        getFieldValue(node, field),
+        (value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}),
+        field.omitKeys,
+      );
+    }
     // Decision→edge mirroring is TOP-LEVEL only. A top-level decision drives
     // routing via its out-edges (the engine/simulator read edge.condition, not
     // node.config.conditions), and the Branches editor's Target column (#1942)
@@ -357,7 +410,11 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
                 getFieldValue(node, field),
                 Array.isArray((draft as { edges?: unknown }).edges) ? ((draft as { edges: FlowEdge[] }).edges) : [],
               )
-            : getFieldValue(node, effField);
+            : effField.omitKeys
+              // #4305 — show this repeater only the keys the typed sibling
+              // fields do not own; `setField` merges its commit back.
+              ? connectorInputExtras(getFieldValue(node, effField), effField.omitKeys)
+              : getFieldValue(node, effField);
         return (
           <FlowNodeConfigField
             key={field.id}
