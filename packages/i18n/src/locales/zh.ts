@@ -2,6 +2,20 @@
  * 中文 (zh) - Chinese language pack for Object UI
  */
 const zh = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: '您正在以 {{user}} 的身份操作 —— 所有操作都会记录为该用户。',
+      startedBy: '由管理员 {{admin}} 发起。',
+      stop: '结束模拟登录',
+      stopping: '正在结束…',
+      stopFailed: '无法结束模拟登录:{{reason}}',
+      notRestored: '服务器接受了请求,但没有恢复您的管理员会话 —— 您仍在以 {{user}} 的身份操作。请退出登录后重新登录以结束。',
+    },
+  },
   // objectui#2600 B5 — 能力选择器的作用域分组标题(能力标签本身来自
   // sys_capability 注册表,这里只本地化分组标题这类 UI 字符串)。
   capability: {

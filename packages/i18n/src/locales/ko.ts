@@ -1,4 +1,18 @@
 const ko = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: '{{user}} 계정을 대행하고 있습니다. 모든 작업이 해당 사용자로 기록됩니다.',
+      startedBy: '관리자 {{admin}}이(가) 시작했습니다.',
+      stop: '대행 종료',
+      stopping: '종료하는 중…',
+      stopFailed: '대행을 종료할 수 없습니다: {{reason}}',
+      notRestored: '서버가 요청을 받았지만 관리자 세션을 복원하지 않았습니다. 여전히 {{user}} 계정을 대행하고 있습니다. 로그아웃 후 다시 로그인하여 종료하세요.',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
   capability: {
     label: {

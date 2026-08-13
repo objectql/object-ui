@@ -1,4 +1,18 @@
 const fr = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: 'Vous incarnez {{user}} — chaque action est enregistrée en son nom.',
+      startedBy: 'Démarré par l’administrateur {{admin}}.',
+      stop: 'Arrêter l’usurpation',
+      stopping: 'Arrêt en cours…',
+      stopFailed: 'Impossible d’arrêter l’usurpation : {{reason}}',
+      notRestored: 'Le serveur a accepté la demande mais n’a pas restauré votre session administrateur — vous incarnez toujours {{user}}. Déconnectez-vous puis reconnectez-vous pour y mettre fin.',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
   capability: {
     label: {

@@ -1,4 +1,18 @@
 const ja = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: '{{user}} になりすまして操作しています。すべての操作はこのユーザーとして記録されます。',
+      startedBy: '管理者 {{admin}} が開始しました。',
+      stop: 'なりすましを終了',
+      stopping: '終了しています…',
+      stopFailed: 'なりすましを終了できませんでした: {{reason}}',
+      notRestored: 'サーバーはリクエストを受け付けましたが、管理者セッションを復元しませんでした。まだ {{user}} として操作しています。サインアウトして再度サインインして終了してください。',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
   capability: {
     label: {

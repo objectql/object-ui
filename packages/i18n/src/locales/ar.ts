@@ -1,4 +1,18 @@
 const ar = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: 'أنت تنتحل هوية {{user}} — يُسجَّل كل إجراء باسمه.',
+      startedBy: 'بدأها المسؤول {{admin}}.',
+      stop: 'إنهاء انتحال الهوية',
+      stopping: 'جارٍ الإنهاء…',
+      stopFailed: 'تعذّر إنهاء انتحال الهوية: {{reason}}',
+      notRestored: 'قبل الخادم الطلب لكنه لم يستعد جلسة المسؤول — ما زلت تنتحل هوية {{user}}. سجّل الخروج ثم الدخول مرة أخرى لإنهائها.',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
   capability: {
     label: {

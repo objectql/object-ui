@@ -1,4 +1,18 @@
 const de = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: 'Sie handeln als {{user}} — jede Aktion wird dieser Person zugeschrieben.',
+      startedBy: 'Gestartet von Administrator {{admin}}.',
+      stop: 'Identitätswechsel beenden',
+      stopping: 'Wird beendet…',
+      stopFailed: 'Identitätswechsel konnte nicht beendet werden: {{reason}}',
+      notRestored: 'Der Server hat die Anfrage angenommen, aber Ihre Administratorsitzung nicht wiederhergestellt — Sie handeln weiterhin als {{user}}. Melden Sie sich ab und erneut an, um dies zu beenden.',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
   capability: {
     label: {

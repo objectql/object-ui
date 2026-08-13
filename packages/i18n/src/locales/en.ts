@@ -2,6 +2,20 @@
  * English (en) - Default language pack for Object UI
  */
 const en = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: 'You are impersonating {{user}} — every action is recorded as them.',
+      startedBy: 'Started by administrator {{admin}}.',
+      stop: 'Stop impersonating',
+      stopping: 'Stopping…',
+      stopFailed: 'Could not stop impersonating: {{reason}}',
+      notRestored: 'The server accepted the request but did not restore your administrator session — you are still impersonating {{user}}. Sign out and sign in again to end it.',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from
   // the sys_capability registry; only these group titles are UI strings).
   capability: {

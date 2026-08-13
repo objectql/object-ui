@@ -1,4 +1,18 @@
 const ru = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: 'Вы работаете от имени {{user}} — все действия записываются на этого пользователя.',
+      startedBy: 'Начато администратором {{admin}}.',
+      stop: 'Прекратить работу от чужого имени',
+      stopping: 'Завершение…',
+      stopFailed: 'Не удалось прекратить работу от чужого имени: {{reason}}',
+      notRestored: 'Сервер принял запрос, но не восстановил сеанс администратора — вы всё ещё работаете от имени {{user}}. Выйдите и войдите снова, чтобы завершить.',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
   capability: {
     label: {

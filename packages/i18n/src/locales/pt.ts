@@ -1,4 +1,18 @@
 const pt = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: 'Você está personificando {{user}} — todas as ações são registradas em nome dele.',
+      startedBy: 'Iniciado pelo administrador {{admin}}.',
+      stop: 'Parar personificação',
+      stopping: 'Encerrando…',
+      stopFailed: 'Não foi possível parar a personificação: {{reason}}',
+      notRestored: 'O servidor aceitou a solicitação, mas não restaurou sua sessão de administrador — você ainda está personificando {{user}}. Saia e entre novamente para encerrar.',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
   capability: {
     label: {
