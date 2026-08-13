@@ -11,11 +11,41 @@
  *
  * Two independent gates share one `writable` switch inside the editor:
  *   • host gate — `readOnly` prop (read-only package in Studio), and
- *   • type gate — `allowOrgOverride: false` on the metadata type
- *     (environment-level OS_METADATA_WRITABLE).
+ *   • type gate — the metadata type offers NO runtime write channel, i.e.
+ *     `allowOrgOverride` AND `allowRuntimeCreate` are BOTH false.
  * Either one must disable every checkbox / bulk button / input, hide Save,
  * and show a read-only badge — worded for ITS reason, so the badge never
  * contradicts the surrounding surface.
+ *
+ * ## The type gate is a DISJUNCTION, and this suite used to say otherwise
+ *
+ * objectui#4446. Until then the switch read `allowOrgOverride` alone and this
+ * header called that flag "environment-level OS_METADATA_WRITABLE". Both were
+ * wrong, and in the same way — they collapsed two different doors into one:
+ *
+ *   • `allowOrgOverride` = may an ORG OVERLAY a code-shipped item;
+ *   • `allowRuntimeCreate` = may an item be AUTHORED at runtime — which is
+ *     what this editor's Save actually does under a `packageId`
+ *     (`mode: 'draft'` + `packageId`, ADR-0086 P0/P2).
+ *
+ * The server refuses only when BOTH are false (`!isOverlayAllowed &&
+ * !isRuntimeCreateAllowed`, metadata-protocol `protocol.ts`), so gating on the
+ * first alone locked a surface the server accepts. `permission` is exactly that
+ * shape on a stock boot — `allowOrgOverride: false` (ADR-0005 forbids per-org
+ * overlay of a packaged permission set: silent privilege drift) with
+ * `allowRuntimeCreate: true`, which objectstack#6483 kept open on purpose.
+ *
+ * And `OS_METADATA_WRITABLE` was never the type gate's reason: it does not sit
+ * beside `allowOrgOverride`, it FLIPS it (`getMetaTypes` emits
+ * `allowOrgOverride: base.allowOrgOverride || isEnvOverridden`). So there is no
+ * reachable state in which the old badge text was the honest explanation —
+ * whenever the hatch is on for a type, that type is writable and no read-only
+ * badge renders at all.
+ *
+ * What this suite pins, therefore: the HOST gate is unchanged and still
+ * dominant (the "Studio 维持包级只读" half of the objectstack#5768 ruling), and
+ * the TYPE gate now trips only when the type really has no write channel — and
+ * says so.
  */
 
 import '@testing-library/jest-dom/vitest';
@@ -58,9 +88,14 @@ function makeClient() {
   } as any;
 }
 
-// Flipped per-test to drive the TYPE-level gate (resolveResourceConfig reads
-// allowOrgOverride straight off the server entry).
+// Flipped per-test to drive the TYPE-level gate. Both flags are read straight
+// off the server entry, the way DirectoryPage / EmbeddedItemEditor /
+// ResourceEditPage read them (objectui#4446).
 let allowOrgOverride = true;
+// The other half of the disjunction. `false` is the historical default of this
+// suite (the key simply did not exist in the fixture, so it read `undefined`);
+// the stock-boot `permission` shape sets it true with allowOrgOverride false.
+let allowRuntimeCreate = false;
 // One stable client per test — the editor's load effect depends on the client
 // reference, so a fresh object per render would re-trigger it forever.
 let clientImpl: any;
@@ -70,7 +105,7 @@ vi.mock('./useMetadata', () => ({
   useMetadataTypes: () => ({
     loading: false,
     error: null,
-    entries: [{ type: 'permission', label: 'Permission', allowOrgOverride }],
+    entries: [{ type: 'permission', label: 'Permission', allowOrgOverride, allowRuntimeCreate }],
   }),
 }));
 
@@ -79,6 +114,7 @@ import { PermissionMatrixEditPage } from './PermissionMatrixEditor';
 afterEach(() => {
   cleanup();
   allowOrgOverride = true;
+  allowRuntimeCreate = false;
   server.saved = [];
 });
 
@@ -150,14 +186,89 @@ describe('PermissionMatrixEditPage — read-only package gate (host readOnly)', 
 });
 
 describe('PermissionMatrixEditPage — type-level gate keeps its own wording', () => {
-  it('allowOrgOverride=false hides Save and shows the environment badge', async () => {
+  it('no write channel at all (both flags false) hides Save and names the TYPE as the reason', async () => {
     allowOrgOverride = false;
+    allowRuntimeCreate = false;
     renderMatrix();
     await screen.findByText('Account');
 
     expect(screen.queryByRole('button', { name: /^Save$/ })).toBeNull();
     expect(screen.getByLabelText('a_account Read')).toBeDisabled();
-    // Env-gate reason, untouched by the package gate.
-    expect(screen.getByText(/OS_METADATA_WRITABLE/)).toBeInTheDocument();
+
+    // Type-gate reason, untouched by the package gate — and it names the type,
+    // not a deployment env var (objectui#4446). The old wording claimed
+    // "OS_METADATA_WRITABLE not enabled", which no reachable state supports:
+    // that hatch FLIPS allowOrgOverride to true, so when it is on this badge
+    // does not render.
+    expect(screen.queryByText(/OS_METADATA_WRITABLE/)).toBeNull();
+    const badge = screen.getByText(/no runtime write channel/);
+    expect(badge).toBeInTheDocument();
+    // The env var survives as the documented REMEDY, in the hint only.
+    expect(badge).toHaveAttribute('title', expect.stringContaining('allowRuntimeCreate'));
+    expect(badge).toHaveAttribute('title', expect.stringContaining('OS_METADATA_WRITABLE'));
+    // Package wording must NOT be borrowed for a type-gate lock.
+    expect(screen.queryByText('Read-only', { exact: true })).toBeNull();
+  });
+
+  /**
+   * ── The defect objectui#4446 was filed for ────────────────────────────────
+   *
+   * The stock-boot `permission` shape, measured on a live QA run
+   * (objectstack#7637): the registry declares `allowOrgOverride: false` and
+   * `allowRuntimeCreate: true`, and the server ACCEPTS the package-door write
+   * (`PUT /api/v1/meta/permission/<n>?package=<pkg>` → 200). Pre-fix the editor
+   * disabled all 207 checkboxes and hid Save anyway, then blamed
+   * `OS_METADATA_WRITABLE`.
+   *
+   * RED-FIRST: this case fails on `origin/main` — Save is absent and every
+   * control disabled.
+   */
+  it('stock-boot permission shape (allowRuntimeCreate only) is EDITABLE — the server accepts this write', async () => {
+    allowOrgOverride = false;
+    allowRuntimeCreate = true;
+    renderMatrix();
+    await screen.findByText('Account');
+
+    expect(screen.getByRole('button', { name: /^Save$/ })).toBeEnabled();
+    expect(screen.getByLabelText('a_account Read')).toBeEnabled();
+
+    // Row bulk-set buttons are live too — `writable` drives all of them.
+    const row = screen.getByText('Account').closest('tr')!;
+    for (const name of ['R', 'CRUD', 'All', 'None']) {
+      expect(within(row).getByRole('button', { name })).toBeEnabled();
+    }
+
+    // …and no read-only badge of EITHER wording is claiming otherwise.
+    expect(screen.queryByText(/OS_METADATA_WRITABLE/)).toBeNull();
+    expect(screen.queryByText(/no runtime write channel/)).toBeNull();
+    expect(screen.queryByText('Read-only', { exact: true })).toBeNull();
+  });
+
+  it('MUST NOT CHANGE — the package gate still wins over allowRuntimeCreate', async () => {
+    // The "Studio 维持包级只读" half of the objectstack#5768 ruling: a
+    // code-defined package stays locked no matter what the type permits.
+    allowOrgOverride = false;
+    allowRuntimeCreate = true;
+    renderMatrix({ readOnly: true });
+    await screen.findByText('Account');
+
+    expect(screen.queryByRole('button', { name: /^Save$/ })).toBeNull();
+    for (const box of screen.getAllByRole('checkbox')) expect(box).toBeDisabled();
+    // …and it is still the PACKAGE that is named as the reason.
+    const badge = screen.getByText('Read-only', { exact: true });
+    expect(badge).toHaveAttribute('title', expect.stringContaining('Read-only package'));
+    expect(screen.queryByText(/no runtime write channel/)).toBeNull();
+  });
+
+  it('MUST NOT CHANGE — an allowOrgOverride package is byte-identical to before', async () => {
+    allowOrgOverride = true;
+    allowRuntimeCreate = false;
+    renderMatrix();
+    await screen.findByText('Account');
+
+    expect(screen.getByRole('button', { name: /^Save$/ })).toBeEnabled();
+    expect(screen.getByLabelText('a_account Read')).toBeEnabled();
+    expect(screen.queryByText('Read-only', { exact: true })).toBeNull();
+    expect(screen.queryByText(/no runtime write channel/)).toBeNull();
   });
 });

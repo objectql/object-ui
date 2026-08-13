@@ -15,9 +15,9 @@
  * they disagreed, because they read different inputs:
  *
  *   • the CONTROLS read `!!resolved.allowOrgOverride && !readOnly` — the type
- *     registry AND the host package gate, which is the right answer;
- *   • the BADGE read `entry.allowOrgOverride` alone. `permission` is one of the
- *     15 overlay-allowed types, so that flag is true and the badge said
+ *     registry AND the host package gate;
+ *   • the BADGE read `entry.allowOrgOverride` alone. `permission` was then one
+ *     of the 15 overlay-allowed types, so that flag was true and the badge said
  *     "writable" no matter which package you were in.
  *
  * This suite pins the display side only. The gating assertions here are
@@ -25,6 +25,31 @@
  * read-only intact ("Studio 维持包级只读") pending the per-type A-half review,
  * so a fix that made anything editable would be the wrong fix even though the
  * badge assertions would still pass.
+ *
+ * ## Amendment — objectui#4446: the CONTROLS were the outlier, not the badge
+ *
+ * The paragraph above called the controls' formula "the right answer". That was
+ * wrong on the type half, and this suite could not see it: every case here
+ * drives the HOST gate (`readOnly` true/absent) with `allowOrgOverride: true`
+ * throughout, so it never rendered the one shape where the two disagree.
+ *
+ * `WritabilityBadge` is read-only exactly when
+ * `readOnly || (!allowOrgOverride && !allowRuntimeCreate)`; the controls were
+ * read-only when `readOnly || !allowOrgOverride`. The gap is precisely
+ * `!allowOrgOverride && allowRuntimeCreate` — which is the stock-boot
+ * `permission` shape today (objectstack#6483 set `allowOrgOverride: false` and
+ * deliberately kept `allowRuntimeCreate: true`). There the badge said
+ * "create-only" over 207 dead checkboxes.
+ *
+ * So the badge already consulted the full disjunction and the controls did not.
+ * Fixing the controls (`allowOrgOverride || allowRuntimeCreate`) makes the two
+ * predicates byte-identical rather than merely closer — the convergence is
+ * pinned below, across all four states, so neither side can drift again.
+ *
+ * The host gate is UNTOUCHED and still dominant, so "Studio 维持包级只读" holds
+ * exactly as before: a read-only package locks this screen whatever the type
+ * permits. What changed is the type half, and only in the direction the server
+ * itself already allows (it refuses only when BOTH flags are false).
  */
 
 import '@testing-library/jest-dom/vitest';
@@ -61,20 +86,31 @@ function makeClient() {
 }
 
 // The type registry says this type IS overlay-allowed — the exact condition the
-// defect needed. `permission` really is in the server's overlay-allowed list.
+// #4036 defect needed. (`permission` was in the server's overlay-allowed list
+// when this suite was written; objectstack#6483 has since flipped it to
+// `allowOrgOverride: false` + `allowRuntimeCreate: true`. These cases keep the
+// original shape on purpose — it is the must-not-change control for #4446 —
+// while the convergence describe at the bottom drives the current one.)
+let typeFlags: { allowOrgOverride?: boolean; allowRuntimeCreate?: boolean } = {
+  allowOrgOverride: true,
+};
+
 vi.mock('./useMetadata', () => ({
   useMetadataClient: () => clientImpl,
   useMetadataTypes: () => ({
     loading: false,
     error: null,
-    entries: [{ type: 'permission', label: 'Permission', allowOrgOverride: true }],
+    entries: [{ type: 'permission', label: 'Permission', ...typeFlags }],
   }),
 }));
 vi.mock('./AssignedUsersSection', () => ({ AssignedUsersSection: () => null }));
 
 import { PermissionMatrixEditPage } from './PermissionMatrixEditor';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  typeFlags = { allowOrgOverride: true };
+});
 
 async function renderMatrix(props?: { readOnly?: boolean }) {
   clientImpl = makeClient();
@@ -150,4 +186,71 @@ describe('PermissionMatrixEditPage — header writability badge vs the package g
     expect(screen.getByRole('button', { name: /^Save$/ })).toBeEnabled();
     expect(screen.getByLabelText('a_account Read')).toBeEnabled();
   });
+});
+
+/**
+ * The convergence itself (objectui#4446). One table, four states, and in each
+ * one the question "is the header badge read-only?" and the question "are the
+ * controls locked?" must get the SAME answer. Pre-fix row 3 is the divergence:
+ * badge "create-only" (not read-only) over disabled controls with no Save.
+ */
+describe('PermissionMatrixEditPage — badge and controls read ONE predicate (#4446)', () => {
+  const cases: Array<{
+    label: string;
+    flags: { allowOrgOverride?: boolean; allowRuntimeCreate?: boolean };
+    readOnly?: boolean;
+    expectWritable: boolean;
+  }> = [
+    {
+      label: 'read-only package dominates both flags',
+      flags: { allowOrgOverride: true, allowRuntimeCreate: true },
+      readOnly: true,
+      expectWritable: false,
+    },
+    {
+      label: 'overlay-allowed type in a writable package',
+      flags: { allowOrgOverride: true, allowRuntimeCreate: false },
+      expectWritable: true,
+    },
+    {
+      // The stock-boot `permission` shape — the #4446 defect.
+      label: 'runtime-creatable-only type in a writable package',
+      flags: { allowOrgOverride: false, allowRuntimeCreate: true },
+      expectWritable: true,
+    },
+    {
+      label: 'no write channel at all',
+      flags: { allowOrgOverride: false, allowRuntimeCreate: false },
+      expectWritable: false,
+    },
+  ];
+
+  for (const c of cases) {
+    it(`${c.label} → ${c.expectWritable ? 'writable' : 'locked'}, and both renderings agree`, async () => {
+      typeFlags = c.flags;
+      await renderMatrix(c.readOnly ? { readOnly: true } : undefined);
+
+      // CONTROLS side.
+      const save = screen.queryByRole('button', { name: /^Save$/ });
+      const readBox = screen.getByLabelText('a_account Read');
+
+      // BADGE side — the header slot, addressed structurally (see above).
+      const badgeSaysReadOnly = headerBadgeTexts().includes('read-only');
+
+      if (c.expectWritable) {
+        expect(save).not.toBeNull();
+        expect(save).toBeEnabled();
+        expect(readBox).toBeEnabled();
+        expect(badgeSaysReadOnly).toBe(false);
+      } else {
+        expect(save).toBeNull();
+        expect(readBox).toBeDisabled();
+        expect(badgeSaysReadOnly).toBe(true);
+      }
+
+      // The invariant, stated as the equality it is: the header never claims a
+      // writability the controls do not deliver, and never withholds one they do.
+      expect(badgeSaysReadOnly).toBe(!c.expectWritable);
+    });
+  }
 });

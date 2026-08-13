@@ -1182,7 +1182,14 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'perm.admin.assignableSets': 'Assignable permission sets',
   'perm.admin.noSets': 'No permission sets loaded.',
   'perm.loading': 'Loading permission set {name}…',
-  'perm.readOnly': 'Read-only (OS_METADATA_WRITABLE not enabled)',
+  // objectui#4446 — names the gate that actually tripped. The old wording
+  // ("OS_METADATA_WRITABLE not enabled") blamed a deployment env var for a
+  // per-type registry declaration, and had no reachable honest case: the env
+  // var FLIPS `allowOrgOverride` to true, so whenever it is on for this type
+  // the surface is writable and this badge never renders.
+  'perm.readOnly': 'Read-only (this metadata type has no runtime write channel)',
+  'perm.readOnly.hint':
+    'The metadata-type registry declares both allowOrgOverride and allowRuntimeCreate false for this type, so the platform accepts no runtime write for it. Edit the source artifact and redeploy, or ask an operator for the documented OS_METADATA_WRITABLE escape hatch.',
   // Designer wrapper
   'designer.unsavedChanges': 'Unsaved changes',
   'designer.editingOverlay': 'Editing overlay',
@@ -2951,7 +2958,10 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'perm.admin.assignableSets': '可分配权限集',
   'perm.admin.noSets': '未加载权限集。',
   'perm.loading': '加载权限集 {name}…',
-  'perm.readOnly': '只读（OS_METADATA_WRITABLE 未启用）',
+  // objectui#4446 — 见 EN 表同键注释：旧文案把「每类型注册表声明」说成「部署环境变量未启用」。
+  'perm.readOnly': '只读（该元数据类型没有运行时写入通道）',
+  'perm.readOnly.hint':
+    '元数据类型注册表对该类型声明 allowOrgOverride 与 allowRuntimeCreate 均为 false，平台不接受它的任何运行时写入。请修改源工件后重新部署，或由运维启用有文档记载的 OS_METADATA_WRITABLE 逃生阀。',
   // Designer wrapper
   'designer.unsavedChanges': '未保存的修改',
   'designer.editingOverlay': '编辑覆盖层',

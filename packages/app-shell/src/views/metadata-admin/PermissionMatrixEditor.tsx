@@ -73,7 +73,6 @@ import { CapabilityMultiSelectField, parseCapabilityNames } from '@object-ui/fie
 import { PageShell } from './PageShell';
 import { HistoryPanel } from './ResourceHistoryPage';
 import { useMetadataClient, useMetadataTypes, type RichMetadataTypeEntry } from './useMetadata';
-import { resolveResourceConfig } from './registry';
 import { t as translate, useMetadataLocale } from './i18n';
 import { PermissionAdvancedFacets } from './PermissionAdvancedFacets';
 import { errorCodeIs } from '@object-ui/types';
@@ -211,12 +210,44 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
   const adapter = useAdapter();
   const { entries } = useMetadataTypes(client);
   const entry: RichMetadataTypeEntry | undefined = entries.find((t) => t.type === type);
-  const resolved = resolveResourceConfig(type, entry);
-  // Two independent read-only gates: the metadata TYPE may forbid org
-  // overrides (allowOrgOverride), and the HOST may pass a package-level
-  // `readOnly` (read-only package in the Studio Access pillar). Either one
-  // must lock every authoring affordance below.
-  const writable = !!resolved.allowOrgOverride && !readOnly;
+  // Two independent read-only gates, and each reads the flag that actually
+  // governs it (objectui#4446):
+  //
+  //  • TYPE gate — the metadata type must offer SOME runtime write channel.
+  //    That is the DISJUNCTION `allowOrgOverride || allowRuntimeCreate`, not
+  //    `allowOrgOverride` alone: those are two different doors, and this
+  //    editor's Save goes through the second one. `allowOrgOverride` is
+  //    permission to OVERLAY a code-shipped item per org; `allowRuntimeCreate`
+  //    is permission to author an item at runtime — which is what a save under
+  //    a `packageId` does (`mode: 'draft'` + `packageId`, ADR-0086 P0/P2).
+  //    The server's own gate is that same disjunction: `saveMetaItem` and
+  //    `promoteDraftForPublish` refuse only when BOTH are false
+  //    (`!isOverlayAllowed && !isRuntimeCreateAllowed`, metadata-protocol
+  //    `protocol.ts`). Gating on `allowOrgOverride` alone therefore locked a
+  //    surface the server accepts: `permission` is `allowOrgOverride: false`
+  //    (ADR-0005 forbids per-org overlay of a packaged permission set — silent
+  //    privilege drift) but `allowRuntimeCreate: true`, and objectstack#6483
+  //    kept that second door open on purpose ("Runtime-created sets … ride
+  //    `allowRuntimeCreate` (still `true`) and keep working").
+  //    `useMetadata.ts` states the convention on the field itself: "UI
+  //    affordances ('+ New', Save, Delete on DB-only items) should activate
+  //    when either flag is true" — DirectoryPage:171/175, EmbeddedItemEditor:93
+  //    and ResourceEditPage:1332 all already read it that way. Read the raw
+  //    server `entry` like they do; `resolveResourceConfig` forwards
+  //    `allowOrgOverride` ONLY, so a `resolved.allowRuntimeCreate` would be
+  //    silently `undefined`.
+  //
+  //  • HOST gate — the package-level `readOnly` prop the Studio Access pillar
+  //    passes for a read-only package. UNCHANGED and still dominant: this is
+  //    the "Studio 维持包级只读" half of the objectstack#5768 ruling, and a
+  //    code-defined package stays locked here exactly as before.
+  //
+  // Either gate locks every authoring affordance below. Note this predicate is
+  // now byte-identical to the one `PageShell`'s WritabilityBadge already uses
+  // (`readOnly` → `allowOrgOverride` → `allowRuntimeCreate` → read-only), so
+  // the header badge and these controls can no longer disagree — the very
+  // divergence recorded in `PermissionMatrixEditor.readonlyHeaderBadge.test.tsx`.
+  const writable = !!(entry?.allowOrgOverride || entry?.allowRuntimeCreate) && !readOnly;
   const locale = useMetadataLocale();
   const t = React.useCallback((k: string) => translate(k, locale), [locale]);
   const OBJECT_ACTIONS = React.useMemo(() => getObjectActions(locale), [locale]);
@@ -635,9 +666,16 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
       stats={stats}
       embedded={embedded}
       // The header badge must report the gate that actually governs this
-      // screen. `permission` is overlay-allowed in the registry, so without
-      // this the hero rendered "writable" while every control below it was
-      // disabled by the package gate (objectui#4036).
+      // screen: without this the hero rendered "writable" while every control
+      // below it was disabled by the package gate (objectui#4036).
+      //
+      // Still the HOST gate only, deliberately — `WritabilityBadge` reads the
+      // type flags itself, and its own read-only condition (`readOnly ||
+      // (!allowOrgOverride && !allowRuntimeCreate)`) is now exactly `!writable`
+      // above. Passing `!writable` here instead would collapse that to one
+      // input but make a TYPE-gate lock claim the PACKAGE as its reason, since
+      // this branch's tooltip is `engine.studio.pkg.readonlyHint` — trading the
+      // divergence for a fresh lie (objectui#4446).
       readOnly={readOnly}
       actions={
         <>
@@ -712,14 +750,27 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
               <span className="text-xs text-muted-foreground shrink-0">{t('perm.basics.editHint')}</span>
             )}
             {!writable && (
-              // Same badge slot, two distinct reasons: a read-only PACKAGE
-              // (host gate — mirror the top-bar wording so the screen is not
-              // self-contradictory) vs. metadata writes disabled environment-
-              // wide (type gate).
+              // Same badge slot, two distinct reasons, and each names the gate
+              // that ACTUALLY tripped (objectui#4446):
+              //
+              //  • host gate — a read-only PACKAGE; mirror the top-bar wording
+              //    so the screen is not self-contradictory.
+              //  • type gate — the metadata type offers no runtime write
+              //    channel at all (`allowOrgOverride` AND `allowRuntimeCreate`
+              //    both false). It used to read "OS_METADATA_WRITABLE not
+              //    enabled", which blamed a deployment env var for what is a
+              //    per-type registry declaration. That wording had NO reachable
+              //    honest case: `OS_METADATA_WRITABLE` does not sit beside
+              //    `allowOrgOverride`, it FLIPS it — `getMetaTypes` emits
+              //    `allowOrgOverride: base.allowOrgOverride || isEnvOverridden`
+              //    — so whenever the hatch is on for this type the surface is
+              //    writable and this badge does not render. The env var is a
+              //    documented REMEDY (it appears in the server's own 403 text),
+              //    never the cause, so it belongs in the hint, not the label.
               <Badge
                 variant="secondary"
                 className="ml-auto shrink-0"
-                title={readOnly ? t('engine.studio.pkg.readonlyHint') : undefined}
+                title={readOnly ? t('engine.studio.pkg.readonlyHint') : t('perm.readOnly.hint')}
               >
                 {readOnly ? t('engine.studio.pkg.readonly') : t('perm.readOnly')}
               </Badge>
