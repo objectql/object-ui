@@ -23,6 +23,11 @@ import { extractRecords, buildExpandFields, getRecordDisplayName } from '@object
 import { getBadgeColorClasses, getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import { KanbanRenderer, KANBAN_UNCOLUMNED_ID } from './index';
 import { KanbanSchema } from './types';
+import {
+  collectRequiredWhenPromptFields,
+  type RequiredWhenPromptField,
+} from './requiredWhenPrompt';
+import { RequiredFieldsDialog } from './RequiredFieldsDialog';
 
 /**
  * English fallbacks for the record-detail drawer heading this board opens on
@@ -566,22 +571,22 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
   // card stays in the target column even after KanbanImpl's reset effect
   // re-syncs from props; the backend update reconciles asynchronously and
   // is reverted with a warning if it fails.
-  const handleCardMove = React.useCallback(
+  //
+  // `extraValues` carries the fields a `requiredWhen` prompt collected
+  // (objectui#4254), so the column value and everything the move makes
+  // required go out as ONE PATCH — two writes would leave the record in the
+  // state the engine refuses if the second one failed. With no prompt the
+  // spread is empty and the body is exactly what it has always been.
+  const persistCardMove = React.useCallback(
     async (
       cardId: string,
       fromColumnId: string,
       toColumnId: string,
-      _newIndex: number,
+      extraValues?: Record<string, unknown>,
     ) => {
-      void _newIndex;
       const groupBy = schema.groupBy;
       const objectName = schema.objectName;
-      if (!groupBy || fromColumnId === toColumnId) return;
-      // #2792: the "Uncategorized" lane is a display bucket, not a real option.
-      // Dragging a card OUT of it into a real column repairs the record's
-      // status (handled below); dropping one IN would write the sentinel id as
-      // a bogus status, so refuse to persist that direction.
-      if (toColumnId === KANBAN_UNCOLUMNED_ID) return;
+      if (!groupBy) return;
 
       // Optimistic local update so the card visibly stays in the new column.
       // Skipped when data is owned by a parent (ListView): `fetchedData` is not
@@ -604,7 +609,19 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
       try {
         await dataSource.update(objectName, String(cardId), {
           [groupBy]: toColumnId,
+          ...(extraValues ?? {}),
         });
+        // Land the prompt-collected values locally too, so a card that shows
+        // one of them as a `cardFields` cell reflects what was just written
+        // instead of waiting for a refetch. Only ever runs on the prompt path
+        // — a normal move takes no extra keys and so takes no extra state.
+        if (extraValues && !hasExternalData) {
+          setFetchedData((prev) =>
+            prev.map((r) =>
+              String(r.id ?? r._id) === String(cardId) ? { ...r, ...extraValues } : r,
+            ),
+          );
+        }
       } catch (err) {
         console.warn('[ObjectKanban] Failed to persist card move', err);
         // Surface the failure — never silently snap the card back. A row-level
@@ -651,6 +668,84 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
     [schema.groupBy, schema.objectName, dataSource, hasExternalData, tt],
   );
 
+  /**
+   * The drop that is waiting on required fields (objectui#4254). Non-null only
+   * while the collect dialog is open; the move has NOT been PATCHed yet.
+   */
+  const [pendingMove, setPendingMove] = useState<{
+    cardId: string;
+    fromColumnId: string;
+    toColumnId: string;
+    fields: RequiredWhenPromptField[];
+  } | null>(null);
+  const [pendingSubmitting, setPendingSubmitting] = useState(false);
+
+  // Pre-evaluate the target column's `requiredWhen` predicates and collect what
+  // the move makes required BEFORE writing anything (objectui#4254). The board
+  // used to PATCH the column value alone into a refusal the user could neither
+  // read nor act on; with no prompted field this is inert and the move takes
+  // the unchanged path below.
+  const handleCardMove = React.useCallback(
+    async (
+      cardId: string,
+      fromColumnId: string,
+      toColumnId: string,
+      _newIndex: number,
+    ) => {
+      void _newIndex;
+      const groupBy = schema.groupBy;
+      if (!groupBy || fromColumnId === toColumnId) return;
+      // #2792: the "Uncategorized" lane is a display bucket, not a real option.
+      // Dragging a card OUT of it into a real column repairs the record's
+      // status (handled below); dropping one IN would write the sentinel id as
+      // a bogus status, so refuse to persist that direction.
+      if (toColumnId === KANBAN_UNCOLUMNED_ID) return;
+
+      // The record as stored, not the card-shaped projection: `effectiveData`
+      // overlays a derived `title`/`badges`, and the predicates must see the
+      // record's own field values.
+      const record = (Array.isArray(rawData) ? rawData : []).find(
+        (r) => String(r?.id ?? r?._id) === String(cardId),
+      );
+      const fields = collectRequiredWhenPromptFields(
+        objectDef?.fields,
+        record,
+        groupBy,
+        toColumnId,
+      );
+      if (fields.length > 0) {
+        // No optimistic write and no PATCH: the card sits in its source column
+        // behind the modal until the user commits, so Cancel needs no rollback
+        // and a refusal that never happens cannot need one either.
+        setPendingMove({ cardId, fromColumnId, toColumnId, fields });
+        return;
+      }
+
+      await persistCardMove(cardId, fromColumnId, toColumnId);
+    },
+    [schema.groupBy, rawData, objectDef, persistCardMove],
+  );
+
+  // Label + localized options for each prompted field, resolved with the same
+  // helpers the cards use so the dialog names a field exactly as the board does.
+  const pendingFields = useMemo(() => {
+    if (!pendingMove) return [];
+    const objectKey = objectDef?.name || schema.objectName || '';
+    return pendingMove.fields.map((f) => {
+      const options = f.def.options;
+      const localized =
+        objectKey && Array.isArray(options)
+          ? translateOptions(objectKey, f.name, options)
+          : options;
+      const declaredLabel = typeof f.def.label === 'string' ? f.def.label : '';
+      return {
+        ...f,
+        def: { ...f.def, ...(localized ? { options: localized } : {}) },
+        label: fieldLabel(objectKey, f.name, declaredLabel || f.name),
+      };
+    });
+  }, [pendingMove, objectDef, schema.objectName, translateOptions, fieldLabel]);
+
   // Error branch renders only after every hook above has run, so hook order
   // stays stable across renders (no early return before the hooks).
   if (error) {
@@ -677,6 +772,34 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
         },
         onCardMove: handleCardMove,
       }} />
+      {pendingMove && (
+        <RequiredFieldsDialog
+          open
+          fields={pendingFields}
+          submitting={pendingSubmitting}
+          onCancel={() => setPendingMove(null)}
+          onSubmit={async (values) => {
+            const move = pendingMove;
+            setPendingSubmitting(true);
+            try {
+              // ONE combined PATCH: the column value and everything the move
+              // made required. `persistCardMove` owns the optimistic write,
+              // the toast and the #4138 rollback, so a refusal of the combined
+              // body behaves exactly like a refusal of a plain move — and the
+              // dialog closes rather than looping on an arbitrary server error.
+              await persistCardMove(
+                move.cardId,
+                move.fromColumnId,
+                move.toColumnId,
+                values,
+              );
+            } finally {
+              setPendingSubmitting(false);
+              setPendingMove(null);
+            }
+          }}
+        />
+      )}
       {navigation.isOverlay && navigation.isOpen && navigation.selectedRecord && (() => {
         const objectName = schema.objectName;
         const rec = navigation.selectedRecord as Record<string, any>;

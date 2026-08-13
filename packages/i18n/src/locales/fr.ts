@@ -627,6 +627,8 @@ const fr = {
     deleteColumn: "Supprimer la colonne",
     noCards: "Aucune carte",
     cardTitlePlaceholder: "Saisir le titre de la carte…",
+    requiredFieldsTitle: "Compléter les champs obligatoires",
+    requiredFieldsDescription: "Ce déplacement rend les champs ci-dessous obligatoires. Remplissez-les pour continuer.",
   },
   timeline: {
     bucket: {

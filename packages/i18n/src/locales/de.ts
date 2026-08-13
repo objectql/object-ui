@@ -627,6 +627,8 @@ const de = {
     deleteColumn: "Spalte löschen",
     noCards: "Keine Karten",
     cardTitlePlaceholder: "Kartentitel eingeben…",
+    requiredFieldsTitle: "Erforderliche Felder ausfüllen",
+    requiredFieldsDescription: "Durch diese Verschiebung werden die folgenden Felder zu Pflichtfeldern. Füllen Sie sie aus, um fortzufahren.",
   },
   timeline: {
     bucket: {

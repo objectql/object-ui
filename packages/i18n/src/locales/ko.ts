@@ -627,6 +627,8 @@ const ko = {
     deleteColumn: "열 삭제",
     noCards: "카드 없음",
     cardTitlePlaceholder: "카드 제목 입력…",
+    requiredFieldsTitle: "필수 항목 입력",
+    requiredFieldsDescription: "이 이동으로 아래 항목이 필수가 됩니다. 입력한 후 계속하세요.",
   },
   timeline: {
     bucket: {

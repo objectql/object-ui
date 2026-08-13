@@ -631,6 +631,8 @@ const ar = {
     deleteColumn: "حذف عمود",
     noCards: "لا بطاقات",
     cardTitlePlaceholder: "أدخل عنوان البطاقة…",
+    requiredFieldsTitle: "أكمل الحقول المطلوبة",
+    requiredFieldsDescription: "يجعل هذا النقل الحقول أدناه مطلوبة. أكملها للمتابعة.",
   },
   timeline: {
     bucket: {

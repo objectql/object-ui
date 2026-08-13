@@ -631,6 +631,8 @@ const es = {
     deleteColumn: "Eliminar columna",
     noCards: "Sin tarjetas",
     cardTitlePlaceholder: "Escriba el título de la tarjeta…",
+    requiredFieldsTitle: "Complete los campos obligatorios",
+    requiredFieldsDescription: "Este movimiento hace que los campos siguientes sean obligatorios. Complételos para continuar.",
   },
   timeline: {
     bucket: {

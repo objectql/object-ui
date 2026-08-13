@@ -626,6 +626,8 @@ const pt = {
     deleteColumn: "Excluir coluna",
     noCards: "Sem cartões",
     cardTitlePlaceholder: "Digite o título do cartão…",
+    requiredFieldsTitle: "Preencha os campos obrigatórios",
+    requiredFieldsDescription: "Esta movimentação torna os campos abaixo obrigatórios. Preencha-os para continuar.",
   },
   timeline: {
     bucket: {

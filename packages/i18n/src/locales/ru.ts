@@ -633,6 +633,8 @@ const ru = {
     deleteColumn: "Удалить колонку",
     noCards: "Нет карточек",
     cardTitlePlaceholder: "Введите название карточки…",
+    requiredFieldsTitle: "Заполните обязательные поля",
+    requiredFieldsDescription: "Это перемещение делает поля ниже обязательными. Заполните их, чтобы продолжить.",
   },
   timeline: {
     bucket: {

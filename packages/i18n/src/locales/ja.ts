@@ -627,6 +627,8 @@ const ja = {
     deleteColumn: "カラムを削除",
     noCards: "カードがありません",
     cardTitlePlaceholder: "カードのタイトルを入力…",
+    requiredFieldsTitle: "必須項目を入力してください",
+    requiredFieldsDescription: "この移動により以下の項目が必須になります。入力して続行してください。",
   },
   timeline: {
     bucket: {

@@ -676,6 +676,8 @@ const en = {
     cardTitlePlaceholder: 'Enter card title…',
     uncategorized: 'Uncategorized',
     columns: 'columns',
+    requiredFieldsTitle: 'Complete required fields',
+    requiredFieldsDescription: 'This move makes the fields below required. Fill them in to continue.',
   },
   timeline: {
     bucket: {
