@@ -95,6 +95,7 @@ import type {
   RowColorConfig,
   GalleryConfig,
   TimelineConfig,
+  NavigationConfig,
   GanttConfig as SpecGanttConfig,
 } from '@objectstack/spec/ui';
 
@@ -1769,42 +1770,30 @@ export interface NamedListView {
 }
 
 /**
- * Navigation configuration for row/item click behavior.
- * Aligned with @objectstack/spec ListView.navigation.
+ * Navigation configuration for row/item click behavior — the spec's
+ * `NavigationConfig`, under this package's older local name.
+ *
+ * This used to be a hand-written interface mirroring the spec's six keys, and
+ * it had drifted on exactly one of them: it required `mode`, under a doc
+ * comment that itself said `@default 'page'` (objectui#4588). The spec declares
+ * `mode: NavigationModeSchema.default('page')`
+ * (`@objectstack/spec` `ui/view.zod.ts` `NavigationConfigSchema`), and a
+ * `.default()` lands on the AUTHORING side as `| undefined` — which is why the
+ * spec publishes its own type as `z.input< typeof NavigationConfigSchema >`.
+ * So `navigation: { view: 'summary_view' }` is legal authored metadata that
+ * lets the mode default, and the hand copy refused it.
+ *
+ * `index.ts` already re-exports that same spec type under its own name
+ * (`NavigationConfig`), so this package published two disagreeing spellings of
+ * one spec object. They are one type now. Per this file's rule above —
+ * "Never Redefine Types. ALWAYS import them." — the per-key documentation lives
+ * with the schema in the spec rather than being restated here, so there is no
+ * third place to keep the `'page'` default in sync.
+ *
+ * objectui#4550 / PR objectui#4586 made the same collapse for
+ * `@object-ui/react`'s `NavigationConfig`.
  */
-export interface ViewNavigationConfig {
-  /**
-   * How to open the target view on interaction
-   * - page: Full page navigation
-   * - drawer: Slide-out panel
-   * - modal: Dialog overlay
-   * - split: Side-by-side panel
-   * - popover: Hover/click preview card
-   * - new_window: Open in new browser tab
-   * - none: No navigation on click
-   * @default 'page'
-   */
-  mode: 'page' | 'drawer' | 'modal' | 'split' | 'popover' | 'new_window' | 'none';
-  
-  /** Target view/form config name */
-  view?: string;
-  
-  /** Prevent default navigation behavior */
-  preventNavigation?: boolean;
-  
-  /** Open in new tab (for page/new_window modes) */
-  openNewTab?: boolean;
-  
-  /**
-   * [#2578] Overlay size bucket for drawer/modal detail. `'auto'` (default):
-   * the renderer derives it from field count and clamps to the viewport.
-   * Prefer this over the pixel `width`.
-   */
-  size?: 'auto' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
-
-  /** @deprecated [#2578 → `size`] Pixel/percent width — can't be authored blind. Renderer fallback only. */
-  width?: string | number;
-}
+export type ViewNavigationConfig = NavigationConfig;
 
 /**
  * ListView component node — DERIVED from the zod `ListViewSchema` (issue #2231), which
