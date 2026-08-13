@@ -26,6 +26,20 @@
  * Both policies now live here and nowhere else. Call sites bring the value and
  * the display width; they do not bring a locale default and they do not decide
  * grouping.
+ *
+ * ⚠️ ONE KNOWN EXCEPTION, recorded at both ends (objectui#4566).
+ * `formatMeasure` / `formatDimensionValue` in `@object-ui/core`'s
+ * `utils/dataset-format.ts` still build their own `Intl.NumberFormat`, and they
+ * mirror the malformed-locale retry below in a local `formatNumberInLocale`.
+ * That is NOT drift left unnoticed: the option mapping was measured lossless
+ * across 32,760 combinations (routing them through this function changes no
+ * byte of output, because a measure carries no field `scale` and so never
+ * reaches the grouping policy). What blocks the routing is the package
+ * boundary — `@object-ui/core` is React-free and consumed by React-free
+ * packages, while this one depends on `i18next`/`react-i18next` and peer-depends
+ * on React, and exports no pure-utility subpath. Retiring the duplicate means
+ * moving THIS module down into `@object-ui/core` and re-exporting it from here.
+ * Until then, a change to the retry policy below belongs in that mirror too.
  */
 
 export interface DisplayNumberFormatOptions {

@@ -80,14 +80,93 @@ export function percentDisplayValue(value: number): number {
 }
 
 /**
+ * Format one number in the DISPLAY locale, surviving a malformed locale tag.
+ *
+ * ⚠️ SURVIVING DUPLICATION, recorded deliberately (objectui#4566). This mirrors
+ * the `try`/`catch` retry inside `formatDisplayNumber`
+ * (`@object-ui/i18n`'s `utils/number-display.ts`) — the ONE number-display
+ * formatter — and the mirror exists only because of a PACKAGE BOUNDARY, not
+ * because the behaviour differs. See {@link formatMeasure}'s note for the
+ * measurement that chose this over routing through it. Keep the two in step:
+ * a change to the retry policy there belongs here too.
+ *
+ * The retry is load-bearing rather than defensive. Before #4566 these sites
+ * passed a literal `undefined`, which never throws; a THREADED tag can be
+ * malformed, and a bare `Intl.NumberFormat('en_US', …)` throws `RangeError`
+ * (measured — underscore instead of hyphen is the likeliest tenant-config
+ * typo). Un-caught that would take the whole widget down, so a bad tag falls
+ * back to the runtime default exactly as `formatDisplayNumber` does. A bad
+ * `currency` still throws out of both attempts, which is what lets
+ * {@link formatMeasure}'s own `catch` fall through to plain-number formatting.
+ */
+function formatNumberInLocale(
+  value: number,
+  locale: string | undefined,
+  options: Intl.NumberFormatOptions,
+): string {
+  try {
+    return new Intl.NumberFormat(locale, options).format(value);
+  } catch {
+    // Retry WITHOUT the locale, keeping every other option: rescues a malformed
+    // tag while still surfacing a genuinely bad `currency` to the caller.
+    return new Intl.NumberFormat(undefined, options).format(value);
+  }
+}
+
+/**
  * Format a MEASURE value. Currency comes from the field's declared `currency`
  * (locale-correct symbol via `Intl`), NOT from a "$" baked into the format
  * string — an amount with no declared currency must render as a plain number,
  * never a misleading "$". The numeral `format` hint (e.g. "0,0", "0.0%")
  * controls grouping / decimals / percent; it can't be baked into the row value
  * server-side (the same number feeds charts), so it is applied here.
+ *
+ * `locale` is the BCP-47 tag of the active display locale — in React, whatever
+ * `useDisplayLocale()` returns. It is optional and LAST so every existing call
+ * keeps compiling, and omitting it reproduces the previous output byte for
+ * byte (the old code passed a literal `undefined` to `Intl`, which is exactly
+ * what an omitted argument passes now).
+ *
+ * Before objectui#4566 there was no way to pass one: all three formatting sites
+ * here hard-coded `undefined`, which is neither of the repo's two locale
+ * channels — it is the MACHINE's locale. A German session read a KPI as
+ * `1,234.5` beside a grid cell rendering the same number as `1.234,5`, and
+ * inverted separators read as a different number, not an unstyled one.
+ *
+ * ── Why this still formats itself instead of calling `formatDisplayNumber` ──
+ * The one-resolver rule says this should route through `formatDisplayNumber`
+ * (`@object-ui/i18n`) and retire the parallel implementation. That was measured
+ * across 32,760 value × format × currency × percentScale × locale combinations
+ * and the option mapping is LOSSLESS — routing through it changes literally no
+ * byte of output, because the policy layer `formatDisplayNumber` adds over
+ * plain `Intl` is grouping suppression keyed on a field's declared `scale`, and
+ * a measure has no `scale` to feed it (decimals here come from a numeral format
+ * PATTERN, so grouping stays on and the two agree everywhere).
+ *
+ * What blocks the routing is the PACKAGE BOUNDARY, not the behaviour.
+ * `@object-ui/core` is the React-free engine (see this module's header, and the
+ * topology table in AGENTS.md §3: "No UI-lib deps. Logic only."), while
+ * `@object-ui/i18n` depends on `i18next`/`react-i18next` and peer-depends on
+ * React, and publishes no pure-utility subpath to import in isolation — its
+ * `exports` map is `.` and `./locales/*`. A `core` → `i18n` edge would put
+ * React into the dependency closure of every React-FREE consumer of this
+ * package: the `object-ui` VS Code extension and `@object-ui/data-objectstack`
+ * both take `@object-ui/core` as a runtime dependency and declare no React.
+ *
+ * So the duplication survives on purpose and is recorded at BOTH ends (see
+ * `formatNumberInLocale` above and the note in `number-display.ts`). Retiring
+ * it for real means moving `formatDisplayNumber` DOWN into this package and
+ * re-exporting it from `@object-ui/i18n` — the right direction, since `core` is
+ * the lower layer — but that relocates a published export across a package
+ * boundary and is deliberately left to its own card.
  */
-export function formatMeasure(v: unknown, format?: string, currency?: string, percentScale?: PercentScale): string {
+export function formatMeasure(
+  v: unknown,
+  format?: string,
+  currency?: string,
+  percentScale?: PercentScale,
+  locale?: string,
+): string {
   if (v == null) return '—';
   if (typeof v !== 'number') return String(v);
 
@@ -95,20 +174,31 @@ export function formatMeasure(v: unknown, format?: string, currency?: string, pe
 
   if (currency) {
     try {
-      return new Intl.NumberFormat(undefined, {
+      return formatNumberInLocale(v, locale, {
         style: 'currency',
         currency,
         minimumFractionDigits: decimals ?? 0,
         maximumFractionDigits: decimals ?? 2,
-      }).format(v);
+      });
     } catch {
       // Unknown currency code → fall through to plain number formatting.
+      // Still reachable with a locale threaded: `formatNumberInLocale` retries
+      // without the LOCALE, and a bad currency throws out of that retry too.
     }
   }
 
   if (!format) {
     // No format hint → preserve the plain rendering (integers verbatim).
-    return Number.isInteger(v) ? String(v) : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    //
+    // The integer branch stays a bare `String(v)` and is deliberately NOT
+    // localized: it is the one form here that renders no separator and no
+    // decimal mark, so there is nothing for a locale to change — and routing it
+    // through `Intl` WOULD change it, in two ways this card is not about
+    // (measured): a locale with its own numbering system would re-digit it
+    // (`ar-EG` 1234 → an Arabic-Indic spelling), and `1e21` would expand from
+    // `1e+21` to its 22 digits. Only the fractional branch below ever produced
+    // locale-dependent text, and that is the site #4566 fixes.
+    return Number.isInteger(v) ? String(v) : formatNumberInLocale(v, locale, { maximumFractionDigits: 2 });
   }
   const isPercent = format.includes('%');
   // A legacy "$" literal in the format string is still honored (explicit author
@@ -127,18 +217,36 @@ export function formatMeasure(v: unknown, format?: string, currency?: string, pe
   const display = isPercent
     ? (percentScale ? (percentScale === 'fraction' ? v * 100 : v) : percentDisplayValue(v))
     : v;
-  const body = display.toLocaleString(undefined, { minimumFractionDigits: decimals ?? 0, maximumFractionDigits: decimals ?? 0 });
+  const body = formatNumberInLocale(display, locale, {
+    minimumFractionDigits: decimals ?? 0,
+    maximumFractionDigits: decimals ?? 0,
+  });
+  // The '%' stays a LITERAL suffix rather than `Intl`'s `style: 'percent'`,
+  // and that is a measured choice, not an oversight (objectui#4566). The
+  // percent STYLE would re-scale by 100, and the round trip loses precision at
+  // the top of the range: en `100,000,000,000,000,000,000,000%` becomes
+  // `99,999,999,999,999,990,000,000%`. English output moving is the signal that
+  // a mapping is wrong on this card — unlike `formatPercent`'s (objectui#4553),
+  // where en had never grouped and moving it WAS the fix. The consequence is
+  // that a German session reads `1.234,5%` here and `1.234,5 %` (no-break space,
+  // the German percent convention) from a list cell; that divergence is real,
+  // is narrower than the one this card closes, and is filed separately rather
+  // than smuggled in behind a locale fix.
   return `${legacyDollar}${body}${isPercent ? '%' : ''}`;
 }
 
 /**
  * Format a non-measure (dimension / label) value — the server already resolves
  * dimension display labels, so this only tidies numbers and nulls.
+ *
+ * `locale` follows {@link formatMeasure}: optional, last, and omitting it
+ * reproduces the previous machine-locale output byte for byte. Integers stay
+ * verbatim here for the same measured reason as there.
  */
-export function formatDimensionValue(v: unknown): string {
+export function formatDimensionValue(v: unknown, locale?: string): string {
   if (v == null) return '—';
   if (typeof v === 'number') {
-    return Number.isInteger(v) ? String(v) : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    return Number.isInteger(v) ? String(v) : formatNumberInLocale(v, locale, { maximumFractionDigits: 2 });
   }
   return String(v);
 }

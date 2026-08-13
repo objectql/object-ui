@@ -64,7 +64,7 @@ import {
   type DatasetDrillRange,
 } from '@object-ui/core';
 import { cn, Skeleton, ChartSkeleton, GridSkeleton } from '@object-ui/components';
-import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
+import { useSafeFieldLabel, useSafeTranslate, useDisplayLocale } from '@object-ui/i18n';
 import { BarChart3, AlertTriangle, Download, ArrowUpIcon, ArrowDownIcon, MinusIcon } from 'lucide-react';
 import { useFilterScope } from '@object-ui/react';
 import { resolveFilterPlaceholders, computeMetricDelta } from './utils';
@@ -111,11 +111,19 @@ export { pivotRowId, pivotCellKey };
  * holding that combination's measure values. No re-aggregation — the dataset
  * already grouped by every dimension, so each cell maps to exactly one row (the
  * index is also what drill-through uses to read `drillRawRows`).
+ *
+ * `locale` is the display-locale tag the header LABELS are formatted in
+ * (objectui#4566) — this is a plain exported function, not a component, so it
+ * cannot read `useDisplayLocale()` itself. It affects `rowHeaders`/`colHeaders`
+ * only; the `id`s are opaque keys built by `pivotBucketId` from the RAW values
+ * and are deliberately untouched by it, so a locale change can never re-key a
+ * cell (which would break the `cellIndex` lookup and drill-through with it).
  */
 export function buildPivot(
   rows: Array<Record<string, unknown>>,
   rowDims: string[],
   colDim: string,
+  locale?: string,
 ): {
   rowHeaders: Array<{ id: string; labels: string[] }>;
   colHeaders: Array<{ id: string; label: string }>;
@@ -137,8 +145,8 @@ export function buildPivot(
     // one-element tuple costs nothing and keeps one encoding for one kind of id.
     const rid = pivotBucketId(rowDims.map((d) => pivotDimensionValue(row[d])));
     const cid = pivotBucketId([pivotDimensionValue(row[colDim])]);
-    if (!rowSeen.has(rid)) { rowSeen.add(rid); rowHeaders.push({ id: rid, labels: rowDims.map((d) => formatDimensionValue(row[d])) }); }
-    if (!colSeen.has(cid)) { colSeen.add(cid); colHeaders.push({ id: cid, label: formatDimensionValue(row[colDim]) }); }
+    if (!rowSeen.has(rid)) { rowSeen.add(rid); rowHeaders.push({ id: rid, labels: rowDims.map((d) => formatDimensionValue(row[d], locale)) }); }
+    if (!colSeen.has(cid)) { colSeen.add(cid); colHeaders.push({ id: cid, label: formatDimensionValue(row[colDim], locale) }); }
     cellIndex.set(pivotCellKey(rid, cid), index);
   });
   return { rowHeaders, colHeaders, cellIndex };
@@ -697,6 +705,14 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
 
   const tt = useSafeTranslate();
   const { fieldLabel, fieldOptionLabel } = useSafeFieldLabel();
+  // The display locale every measure and dimension value below is formatted in
+  // (objectui#4566). `formatMeasure` / `formatDimensionValue` are pure
+  // functions in `@object-ui/core`, so the tag has to arrive as an argument —
+  // this is the one place in this component allowed to read it. Nothing here
+  // formats inside a `useMemo`, so unlike objectui#4542 / #4553 there is no
+  // dependency array to add it to; the sites below are all in the render body
+  // and re-run whenever the provider changes.
+  const displayLocale = useDisplayLocale();
 
   // ADR-0021 dual-form: the widget's presentation-scope `filter` must flow into
   // the dataset query as `runtimeFilter`, or a dataset-bound widget renders the
@@ -1006,7 +1022,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     const accentClass = metricAccentTextClass(widget?.colorVariant);
     return (
       <div className="flex h-full w-full flex-col items-start justify-center gap-1 p-2">
-        <span className={cn('text-2xl font-semibold tabular-nums', accentClass)}>{formatMeasure(value, f?.format, f?.currency, f?.percentScale)}</span>
+        <span className={cn('text-2xl font-semibold tabular-nums', accentClass)}>{formatMeasure(value, f?.format, f?.currency, f?.percentScale, displayLocale)}</span>
         {delta && (
           <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground" data-testid="dataset-compare-trend">
             <span className={cn(
@@ -1109,12 +1125,12 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // (an avg/min/max can't be recombined). With <2 dimensions a cross-tab is
     // meaningless, so it degrades to the flat grouped table.
     if (isMatrix) {
-      const pivot = buildPivot(displayRows, rowDims, colDim);
+      const pivot = buildPivot(displayRows, rowDims, colDim, displayLocale);
       // Single measure → one column per across-bucket; multiple → bucket × measure.
       const cellCols = pivot.colHeaders.flatMap((col) =>
         values.map((m) => ({ col, measure: m, header: values.length === 1 ? col.label : `${col.label} · ${headerLabel(m)}` })),
       );
-      const fmtMeasure = (v: unknown, m: string) => formatMeasure(v, measureField(m)?.format, measureField(m)?.currency, measureField(m)?.percentScale);
+      const fmtMeasure = (v: unknown, m: string) => formatMeasure(v, measureField(m)?.format, measureField(m)?.currency, measureField(m)?.percentScale, displayLocale);
       // ── The comparison, stacked inside the cell (objectui#3614) ───────────
       // A cross-tab's columns are already `bucket × measure`; giving the
       // comparison a column of its own would make them `bucket × measure ×
@@ -1313,7 +1329,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
                 key={i}
                 className={cn('border-t', canDrill && 'cursor-pointer hover:bg-accent/40')}
                 data-testid={canDrill ? 'dataset-drill-row' : undefined}
-                onClick={canDrill ? () => openDrill(i, drillDims.map((d) => formatDimensionValue(row[d])).filter(Boolean).join(' / ')) : undefined}
+                onClick={canDrill ? () => openDrill(i, drillDims.map((d) => formatDimensionValue(row[d], displayLocale)).filter(Boolean).join(' / ')) : undefined}
               >
                 {columns.map((c) => {
                   // A comparison column formats as the measure it compares.
@@ -1321,8 +1337,8 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
                   return (
                     <td key={c} className="px-2 py-1 whitespace-nowrap tabular-nums">
                       {measure
-                        ? formatMeasure(row[c], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale)
-                        : formatDimensionValue(row[c])}
+                        ? formatMeasure(row[c], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale, displayLocale)
+                        : formatDimensionValue(row[c], displayLocale)}
                     </td>
                   );
                 })}
