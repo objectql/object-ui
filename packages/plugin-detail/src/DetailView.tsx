@@ -44,8 +44,8 @@ import { RecordComments } from './RecordComments';
 import { ActivityTimeline } from './ActivityTimeline';
 import { HistoryTimeline } from './HistoryTimeline';
 import { RecordMetaFooter } from './RecordMetaFooter';
-import { SchemaRenderer, useSafeFieldLabel, useDataInvalidation, useInlineEdit } from '@object-ui/react';
-import { buildExpandFields, getRecordDisplayName, formatTitleTemplate } from '@object-ui/core';
+import { SchemaRenderer, useSafeFieldLabel, useDataInvalidation, useInlineEdit, useRowPredicate } from '@object-ui/react';
+import { buildExpandFields, getRecordDisplayName, formatTitleTemplate, userActionPredicates } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import type { DetailViewSchema, DataSource, ActionSchema, SchemaNode } from '@object-ui/types';
@@ -300,13 +300,111 @@ export const DetailView: React.FC<DetailViewProps> = ({
     objectAllowsDelete,
   );
 
+  /**
+   * Per-record CRUD predicates from the object's `userActions.edit` / `delete`
+   * OBJECT form (objectui#2614) — the header's fourth gate (objectui#4419).
+   *
+   * The boolean form of the same key already reached this surface: the host
+   * lowers it into `schema.showEdit` / `showDelete` through the affordance
+   * resolver. The predicate form did not, so an author upgrading from "nobody
+   * may delete this object" to "these records may not be deleted" silently
+   * lost the header while keeping the row kebab — a key whose scope SHRANK
+   * when a predicate was added to it (ADR-0078: no silently-inert metadata).
+   *
+   * Parsed by `userActionPredicates` from `@object-ui/core` — THE parser for
+   * this shape, the same import `RelatedList` makes a few files over and the
+   * same one `plugin-grid`'s `resolveRowCrudAffordances` feeds the row kebab
+   * from. A boolean flag yields NO predicates, which is what keeps the boolean
+   * form the host's channel alone rather than growing a second definition of
+   * it here.
+   */
+  const editPredicates = React.useMemo(
+    () => userActionPredicates(objectSchema?.userActions?.edit),
+    [objectSchema],
+  );
+  const deletePredicates = React.useMemo(
+    () => userActionPredicates(objectSchema?.userActions?.delete),
+    [objectSchema],
+  );
+  /**
+   * The object's field definitions, handed to every predicate on this record
+   * for the same reason the row kebab passes them (`ObjectGrid` →
+   * `RowActionMenu`'s `objectFields`): a relation field must bind as the
+   * stored FOREIGN KEY rather than whatever `$expand` substituted for it on
+   * this surface, or `record.owner == os.user.id` answers a different question
+   * here than it does on the list.
+   */
+  const objectFields = objectSchema?.fields;
+
+  /**
+   * `visibleWhen` — fails CLOSED, and counts as DECLARED by `!= null` rather
+   * than by truthiness, so `visibleWhen: false` hides the affordance instead
+   * of reading as "ungated" (the objectui#3492 invariant that
+   * `isBuiltinRowActionVisible` restates for the row surfaces). `?? true`
+   * expresses the ungated default as a boolean, which `useRowPredicate`
+   * short-circuits without touching the engine — a boolean handed to CEL
+   * faults and would fail closed.
+   *
+   * `useRowPredicate` IS the row surfaces' evaluator: `plugin-grid`'s
+   * `evalRowActionVisibility` (the body of `isBuiltinRowActionVisible`)
+   * documents itself as mirroring `useRowPredicate(pred, row, { fallback:
+   * false, warnOnError: true, label, fields })` exactly, boolean
+   * short-circuit included, and is hook-free only because a row loop
+   * evaluates a variable number of actions inside one `useMemo`. The header
+   * evaluates a fixed arity of one record, so the hook form is that same
+   * evaluator without the constraint that shaped the wrapper.
+   */
+  const editVisible = useRowPredicate(editPredicates?.visibleWhen ?? true, data, {
+    fallback: false,
+    warnOnError: true,
+    label: 'builtin:edit:visibleWhen',
+    fields: objectFields,
+  });
+  const deleteVisible = useRowPredicate(deletePredicates?.visibleWhen ?? true, data, {
+    fallback: false,
+    warnOnError: true,
+    label: 'builtin:delete:visibleWhen',
+    fields: objectFields,
+  });
+  /**
+   * `disabledWhen` — fails SOFT (an unevaluable predicate must not grey a
+   * button forever), and the `!= null` gate lives OUTSIDE the evaluation, so
+   * `disabledWhen: ''` reads as "no condition" rather than as "disable".
+   * Verbatim the posture of `DataTableBuiltinRowActionItem`.
+   */
+  const editDisabledPred = useRowPredicate(editPredicates?.disabledWhen, data, {
+    fallback: false,
+    warnOnError: true,
+    label: 'builtin:edit:disabledWhen',
+    fields: objectFields,
+  });
+  const deleteDisabledPred = useRowPredicate(deletePredicates?.disabledWhen, data, {
+    fallback: false,
+    warnOnError: true,
+    label: 'builtin:delete:disabledWhen',
+    fields: objectFields,
+  });
+  const editDisabled = editPredicates?.disabledWhen != null && editDisabledPred;
+  const deleteDisabled = deletePredicates?.disabledWhen != null && deleteDisabledPred;
+
   const schema = React.useMemo<DetailViewSchema>(
     () => ({
       ...gatedSchema,
-      showEdit: gatedSchema.showEdit && objectAllowsUpdate && canEditRecord,
-      showDelete: gatedSchema.showDelete && objectAllowsDelete && canDeleteRecord,
+      // The predicate is a FOURTH conjunct — the permission/writability gates
+      // above are untouched, so a predicate that holds can never resurrect a
+      // button the user is not allowed to press.
+      showEdit: gatedSchema.showEdit && objectAllowsUpdate && canEditRecord && editVisible,
+      showDelete: gatedSchema.showDelete && objectAllowsDelete && canDeleteRecord && deleteVisible,
     }),
-    [gatedSchema, objectAllowsUpdate, canEditRecord, objectAllowsDelete, canDeleteRecord],
+    [
+      gatedSchema,
+      objectAllowsUpdate,
+      canEditRecord,
+      editVisible,
+      objectAllowsDelete,
+      canDeleteRecord,
+      deleteVisible,
+    ],
   );
 
 
@@ -685,6 +783,13 @@ export const DetailView: React.FC<DetailViewProps> = ({
         icon: 'edit',
         type: 'script',
         className: 'sm:hidden',
+        // `edit.disabledWhen` greys this entry exactly as it greys the desktop
+        // CTA below and the row kebab's Edit — one predicate, one answer, on
+        // every breakpoint. Set only when it HOLDS: `action:menu` reads a
+        // declared `disabled` by `!= null`, so a `false` would still be a
+        // declared gate (harmless, but it would say something the object did
+        // not declare).
+        ...(editDisabled ? { disabled: true } : null),
         onClick: handleEdit,
       });
     }
@@ -706,6 +811,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
         type: 'script',
         variant: 'destructive',
         tags: ['separator-before'],
+        // `delete.disabledWhen` — kebab symmetry, same rule as Edit above.
+        ...(deleteDisabled ? { disabled: true } : null),
         onClick: handleDelete,
       });
     }
@@ -715,6 +822,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
     t,
     schema.showEdit,
     schema.showDelete,
+    editDisabled,
+    deleteDisabled,
     handleShare,
     handleEdit,
     handleDelete,
@@ -1025,7 +1134,16 @@ export const DetailView: React.FC<DetailViewProps> = ({
             {schema.showEdit && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="default" onClick={handleEdit} className="gap-2 hidden sm:inline-flex">
+                  {/* `userActions.edit.disabledWhen` greys the CTA instead of
+                      removing it — the kebab's rule for the same key
+                      (objectui#4419): `visibleWhen` decides existence,
+                      `disabledWhen` decides pressability. */}
+                  <Button
+                    variant="default"
+                    disabled={editDisabled}
+                    onClick={() => { if (!editDisabled) handleEdit(); }}
+                    className="gap-2 hidden sm:inline-flex"
+                  >
                     <Edit className="h-4 w-4" />
                     <span className="hidden sm:inline">{t('detail.edit')}</span>
                   </Button>
