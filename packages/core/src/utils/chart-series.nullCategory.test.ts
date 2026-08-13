@@ -372,6 +372,41 @@ describe('findChartSeriesRow — the measured limits of the bucket label (object
     expect(findChartSeriesRow(merged, ['status', 'priority'], ['n'], NULL_CATEGORY_LABEL, 'High')).toBe(-1);
   });
 
+  it('and the SAME two groups keep both drills when the empty-string row comes first', () => {
+    // The other row order of the case above, pinned because the two do NOT
+    // behave alike and only one of them loses anything. The bucket takes its
+    // label from whichever row CREATED it: with the `''` row first the label is
+    // the raw empty string, `isNullCategory` never fires, and `xOf` reads a null
+    // row back as `''` whenever the clicked category is not the bucket label —
+    // so BOTH segments resolve, and neither resolves to the wrong record.
+    //
+    // This is the ruling's STOP condition measured to its end (objectui#4497):
+    // "two raw groups mapping to one label" is real, but it costs a drill in
+    // exactly one of the two orders. Widening `findChartSeriesRow` to close that
+    // one would make a bar labelled `(None)` drill to a row whose stored value
+    // is `''` — a wrong click traded for a dead one — so the limit is filed
+    // (objectui#4508) rather than fixed here.
+    const merged = [
+      { status: '', priority: 'High', n: 5 },
+      { status: null, priority: 'Low', n: 3 },
+    ];
+    expect(buildChartSeries(merged, ['status', 'priority'], ['n']).data).toEqual([
+      { status: '', High: 5, Low: 3 },
+    ]);
+    expect(findChartSeriesRow(merged, ['status', 'priority'], ['n'], '', 'High')).toBe(0);
+    expect(findChartSeriesRow(merged, ['status', 'priority'], ['n'], '', 'Low')).toBe(1);
+
+    // MEASURED, and deliberately not what was predicted: the reader is looser
+    // than the writer. `xOf` accepts BOTH spellings of "no value" (the bucket
+    // label and the legacy `''`) unconditionally — #4466's stated design — so
+    // it resolves the label even in this order, where NO bar was labelled with
+    // it. Harmless in the real flow, because the only category a renderer ever
+    // hands back is one recharts actually painted (here: `''`), and it is the
+    // slack that makes the two callers' label agreement a non-issue. Pinned
+    // because the asymmetry is invisible from `buildChartSeries` alone.
+    expect(findChartSeriesRow(merged, ['status', 'priority'], ['n'], NULL_CATEGORY_LABEL, 'Low')).toBe(1);
+  });
+
   it('first match wins when a STORED value spells the bucket label literally', () => {
     // A row whose stored category IS the label string keeps its own bucket (the
     // key is `'(None)'`, not `''`), so two bars carry the same axis text and the
