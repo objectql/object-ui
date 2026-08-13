@@ -42,7 +42,12 @@ vi.mock('@object-ui/react', async () => {
       );
     },
     useDataScope: () => undefined,
-    SchemaRendererContext: actual.SchemaRendererContext || (await vi.importActual('react')).createContext({}),
+    // `vi.importActual` answers `unknown` unless the module's type is named, so
+    // the `.createContext` read was unchecked — it would have survived the
+    // export being renamed or removed (objectui#4040).
+    SchemaRendererContext:
+      actual.SchemaRendererContext ||
+      (await vi.importActual<typeof import('react')>('react')).createContext({}),
   };
 });
 

@@ -19,9 +19,17 @@ afterEach(cleanup);
  * the payload was missing the options the author wrote.
  */
 describe('DatasetWidget — query-affecting widget options (#3588)', () => {
-  const makeSource = () => ({ queryDataset: vi.fn(async () => ({ rows: [], fields: [] })) });
+  // The two parameters are DECLARED because this suite reads them back:
+  // `DatasetWidget` calls the adapter as `queryDataset(dataset, selection)`
+  // (`DatasetCapableSource` in `../DatasetWidget`), and a bare
+  // `vi.fn(async () => …)` types `mock.calls` as an array of EMPTY tuples, so
+  // every `[1]` read below is out of bounds and resolves to `undefined` —
+  // silently, because the reads are cast (objectui#4040).
+  const makeSource = () => ({
+    queryDataset: vi.fn(async (_dataset: string, _selection: unknown) => ({ rows: [], fields: [] })),
+  });
 
-  const selectionOf = (src: { queryDataset: ReturnType<typeof vi.fn> }) =>
+  const selectionOf = (src: ReturnType<typeof makeSource>) =>
     src.queryDataset.mock.calls[0]?.[1] as Record<string, unknown>;
 
   it('lowers options.dateGranularity into the selection', async () => {

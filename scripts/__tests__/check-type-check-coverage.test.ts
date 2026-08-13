@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 // `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here —
 // re-adding one is now itself an error (TS2578). See objectui#3494.
 import {
+  TEST_DEBT,
   auditPackages,
   collect,
   listTestFiles,
@@ -50,10 +51,18 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 /** All tables empty, so a fixture tree is judged on its own merits. */
 const NO_TABLES = { debt: {}, notCompiled: [], checkedByOwnBuild: {}, testDebt: {} };
 
-/** Builds a throwaway workspace and runs the REAL collector + audit over it. */
+/**
+ * Builds a throwaway workspace and runs the REAL collector + audit over it.
+ *
+ * `tables` overrides the empty defaults for the one block that needs a DECLARED
+ * entry to judge — what the tables do is itself part of the gate's behaviour,
+ * and the `TEST_DEBT` block at the bottom of this file asks that question now
+ * that the real table is empty (objectui#4040).
+ */
 function withWorkspace(
   build: (write: (rel: string, contents: string) => void) => void,
   run: (verdict: { dir: string; errors: string[]; packages: ReturnType<typeof collect> }) => void,
+  tables: Partial<typeof NO_TABLES> = {},
 ): void {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-type-check-coverage-'));
   const write = (rel: string, contents: string) => {
@@ -64,7 +73,7 @@ function withWorkspace(
   try {
     build(write);
     const packages = collect(dir);
-    run({ dir, errors: auditPackages(packages, { ...NO_TABLES, root: dir }), packages });
+    run({ dir, errors: auditPackages(packages, { ...NO_TABLES, ...tables, root: dir }), packages });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -785,5 +794,96 @@ describe('examples/schema-catalog is wired up, in this repository', () => {
       expect(adopter.chainsTestConfig, `${name} does not chain it off "type-check"`).toBe(true);
       expect(adopter.testConfigSkips, `${name}'s test project misses test files`).toEqual([]);
     }
+  });
+});
+
+describe('TEST_DEBT is empty, and what an empty table does (objectui#4040)', () => {
+  const packages = collect(repoRoot);
+  // Same shape the blocks above use: the build reads `src/`, the tests live in
+  // `test/`, so the build program never reaches them.
+  const buildConfig = JSON.stringify({ include: ['src/**/*'], exclude: ['node_modules', 'dist', 'test'] }, null, 2);
+
+  it('is empty — every package that has tests compiles them', () => {
+    // The terminal state of the objectui#4040 program. `@object-ui/plugin-dashboard`
+    // was the last entry (declared 6, measured 14 — wrong in the same direction
+    // the whole table was wrong in); wiring its `tsconfig.test.json` took the
+    // list to zero.
+    //
+    // Stated as the table AND as the property the table is about, because the
+    // first alone would be satisfied by deleting an entry without paying it:
+    // section 6 catches a paid-off entry that lingers, and the second assertion
+    // here catches the opposite — a package that stops compiling its tests while
+    // the table stays empty, which is section 5c's job in the gate.
+    expect(Object.keys(TEST_DEBT)).toEqual([]);
+
+    const uncovered = packages
+      .filter((p) => p.hasScript && p.testFiles > 0 && !testsCovered(p))
+      .map((p) => p.name)
+      .sort();
+    expect(uncovered).toEqual([]);
+  });
+
+  it('does NOT close the population — a declared entry still suppresses 5c', () => {
+    // Worth pinning precisely because "empty table" reads like "no new rows
+    // allowed", and that is not what this gate does. It is declared, reasoned
+    // and shrink-only: a package whose tests nothing reads may still DECLARE the
+    // gap instead of fixing it, exactly as the thirteen graduated packages did.
+    // What the empty table changes is that such a row can now only arrive as a
+    // deliberate edit to a table that has been at zero — never unnoticed.
+    withWorkspace(
+      (write) => {
+        write('packages/demo/package.json', manifest('@fixture/demo', 'tsc --noEmit'));
+        write('packages/demo/tsconfig.json', buildConfig);
+        write('packages/demo/src/index.ts', 'export const demo = 1;\n');
+        write('packages/demo/test/a.test.ts', A_TEST);
+      },
+      ({ errors }) => {
+        expect(errors).toEqual([]);
+      },
+      { testDebt: { '@fixture/demo': { errors: 3, issue: 4118 } } },
+    );
+  });
+
+  it('makes a SILENT gap impossible — undeclared and unread is red', () => {
+    // The other half of the same fixture, with the entry taken away: this is the
+    // direction the empty table now leaves nothing between. Identical tree, one
+    // table difference, opposite verdict.
+    withWorkspace(
+      (write) => {
+        write('packages/demo/package.json', manifest('@fixture/demo', 'tsc --noEmit'));
+        write('packages/demo/tsconfig.json', buildConfig);
+        write('packages/demo/src/index.ts', 'export const demo = 1;\n');
+        write('packages/demo/test/a.test.ts', A_TEST);
+      },
+      ({ errors }) => {
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toContain('that no `tsc`');
+      },
+    );
+  });
+
+  it('keeps the ratchet: an entry whose package graduated has to leave', () => {
+    // Section 6, which is what stops the table from drifting back up by
+    // accretion — and is the rule this PR obeyed in deleting the last row.
+    withWorkspace(
+      (write) => {
+        write(
+          'packages/demo/package.json',
+          manifest('@fixture/demo', 'tsc --noEmit && tsc -p tsconfig.test.json'),
+        );
+        write('packages/demo/tsconfig.json', buildConfig);
+        write(
+          'packages/demo/tsconfig.test.json',
+          JSON.stringify({ compilerOptions: { noEmit: true }, include: ['test/**/*.test.ts'] }, null, 2),
+        );
+        write('packages/demo/src/index.ts', 'export const demo = 1;\n');
+        write('packages/demo/test/a.test.ts', A_TEST);
+      },
+      ({ errors }) => {
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toContain('type-checks its tests now — delete its TEST_DEBT entry');
+      },
+      { testDebt: { '@fixture/demo': { errors: 3, issue: 4118 } } },
+    );
   });
 });

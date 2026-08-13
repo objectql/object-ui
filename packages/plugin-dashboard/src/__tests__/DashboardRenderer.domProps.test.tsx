@@ -237,7 +237,15 @@ describe("the grid's click channel has one carrier (objectui#4432)", () => {
       <DashboardRenderer
         schema={DASHBOARD}
         designMode
-        onWidgetClick={(id) => selections.push(id)}
+        // `id` is annotated rather than inferred, and that is not a style
+        // choice: `DashboardRendererProps` carries `[key: string]: any`, which
+        // makes `'ref' extends keyof Props` true, so React's `PropsWithoutRef`
+        // resolves to `Pick<Props, string | number>` and every NAMED prop —
+        // `onWidgetClick` included — collapses to the index signature at the
+        // JSX call site. The annotation restates the type the interface itself
+        // still declares, `(widgetId: string | null) => void`, so this callback
+        // is checked even though the element around it is not (objectui#4040).
+        onWidgetClick={(id: string | null) => selections.push(id)}
         onClick={() => hostClicks.push('host')}
       />,
     );
@@ -263,7 +271,8 @@ describe("the grid's click channel has one carrier (objectui#4432)", () => {
       <DashboardRenderer
         schema={DASHBOARD}
         designMode
-        onWidgetClick={(id) => selections.push(id)}
+        // Annotated for the same reason as the case above.
+        onWidgetClick={(id: string | null) => selections.push(id)}
         onClick={'navigate' as never}
       />,
     );

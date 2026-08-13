@@ -546,7 +546,11 @@ describe('DatasetWidget', () => {
           { region: 'new_york', quarter: 'q1' },
         ],
       })),
-      find: vi.fn(async () => ({ data: [] })),
+      // Parameters DECLARED because the drill assertion below reads
+      // `find.mock.calls[0][1]`: a bare `vi.fn(async () => …)` types `mock.calls`
+      // as an array of EMPTY tuples, so that read is out of bounds and resolves
+      // to `undefined` — invisibly, since it is cast (objectui#4040).
+      find: vi.fn(async (_object: string, _params: unknown) => ({ data: [] })),
       getObjectSchema: vi.fn(async () => ({ fields: { region: { type: 'text', label: 'Region' } } })),
     };
     render(<DatasetWidget widget={{ type: 'pivot', dataset: 'deals', dimensions: ['region', 'quarter'], values: ['amount'] }} dataSource={src} />);
@@ -591,7 +595,11 @@ describe('DatasetWidget', () => {
           { region: 'literal_emptyset', quarter: 'q1' },
         ],
       })),
-      find: vi.fn(async () => ({ data: [] })),
+      // Parameters DECLARED because the drill assertion below reads
+      // `find.mock.calls[0][1]`: a bare `vi.fn(async () => …)` types `mock.calls`
+      // as an array of EMPTY tuples, so that read is out of bounds and resolves
+      // to `undefined` — invisibly, since it is cast (objectui#4040).
+      find: vi.fn(async (_object: string, _params: unknown) => ({ data: [] })),
       getObjectSchema: vi.fn(async () => ({ fields: { region: { type: 'text', label: 'Region' } } })),
     };
     render(<DatasetWidget widget={{ type: 'pivot', dataset: 'deals', dimensions: ['region', 'quarter'], values: ['amount'] }} dataSource={src} />);

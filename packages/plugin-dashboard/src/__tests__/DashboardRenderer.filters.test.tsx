@@ -25,8 +25,19 @@ import { DashboardRenderer } from '../DashboardRenderer';
 
 afterEach(cleanup);
 
-/** A dataset data source that records every `queryDataset` call. */
-const makeQueryDataset = () => vi.fn(async () => ({ rows: [{ count: 1 }], fields: [] }));
+/**
+ * A dataset data source that records every `queryDataset` call.
+ *
+ * The two parameters are DECLARED, not decorative: `DatasetWidget` calls this
+ * adapter as `queryDataset(dataset, selection)` (see `DatasetCapableSource` in
+ * `../DatasetWidget`), and a bare `vi.fn(async () => …)` types `mock.calls` as
+ * an array of EMPTY tuples — so `c[0]` / `c[1]` below read out of bounds and
+ * `lastRuntimeFilter` was comparing and casting `undefined` while every
+ * assertion still passed. Declaring the call shape here is what lets `tsc`
+ * check the two reads this whole file is built on (objectui#4040).
+ */
+const makeQueryDataset = () =>
+  vi.fn(async (_dataset: string, _selection: unknown) => ({ rows: [{ count: 1 }], fields: [] }));
 
 /** The `runtimeFilter` of the LAST `queryDataset` call for a given dataset. */
 const lastRuntimeFilter = (
@@ -81,7 +92,22 @@ describe('DashboardRenderer dashboard-level filters', () => {
     const schema: DashboardComponentSchema = {
       type: 'dashboard',
       globalFilters: [
-        { name: 'region', field: 'region', type: 'select', options: ['EMEA', 'APAC'], defaultValue: 'EMEA' },
+        // Options in @objectstack/spec's `{ value, label }` pair form. The
+        // bare-string shorthand these used to spell is a UI-side authoring
+        // convenience that `GlobalFilterSchema` does not declare; its own
+        // coverage is `packages/core/src/utils/__tests__/dashboard-filters.test.ts`,
+        // which pins `normalizeFilterOptions` lifting it. Nothing here reads the
+        // list — the broadcast under test comes from `defaultValue`.
+        {
+          name: 'region',
+          field: 'region',
+          type: 'select',
+          options: [
+            { value: 'EMEA', label: 'EMEA' },
+            { value: 'APAC', label: 'APAC' },
+          ],
+          defaultValue: 'EMEA',
+        },
       ],
       widgets: [
         { id: 'w1', type: 'bar', dataset: 'invoices', values: ['count'], filter: { status: 'paid' } },
@@ -138,7 +164,8 @@ describe('DashboardRenderer dashboard-level filters', () => {
     const schema: DashboardComponentSchema = {
       type: 'dashboard',
       globalFilters: [
-        { name: 'region', field: 'region', type: 'select', options: ['EMEA'], defaultValue: 'EMEA' },
+        // Pair form, as above — the shorthand's own pin lives in `@object-ui/core`.
+        { name: 'region', field: 'region', type: 'select', options: [{ value: 'EMEA', label: 'EMEA' }], defaultValue: 'EMEA' },
       ],
       widgets: [
         { id: 'w1', type: 'metric', dataset: 'sales', values: ['revenue'], filter: { stage: 'won' } } as any,

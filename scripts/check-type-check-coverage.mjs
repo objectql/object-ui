@@ -126,9 +126,24 @@ export const CHECKED_BY_OWN_BUILD = {
 // react declared 27 and measured 43), so remeasure before planning against any
 // number here. The tranche-4 remeasurement of `core` (56) and `app-shell` (62)
 // held exactly at tranche 5, which is what a measured number is supposed to do.
-export const TEST_DEBT = {
-  "@object-ui/plugin-dashboard": { errors: 6, issue: 4118 },
-};
+// The last entry, `@object-ui/plugin-dashboard`, was declared 6 and measured 14
+// — wrong in the same direction, to the end.
+//
+// EMPTY, and that is the objectui#4040 program's terminal state: all 41 packages
+// that have tests now compile them. Note what an empty table does and does not
+// do. It does NOT close the population: section 5c below still accepts a fresh
+// TEST_DEBT entry as an alternative to a `tsconfig.test.json`, so a package that
+// stops reading its tests can still DECLARE the gap rather than fix it — the
+// gate's whole design is "declared, reasoned, shrink-only", not "forbidden".
+// What is now structurally impossible is a SILENT one: a package whose tests no
+// program reads and which is not listed here fails 5c, an entry that has been
+// paid off fails section 6, and a `tsconfig.test.json` that exists but is
+// chained by nothing, emits, misses a test file, or is chained while missing
+// fails 5a/5b/5·—. So a new row can only appear as a deliberate, reviewable
+// addition to a table that has been at zero — which is exactly the ratchet
+// objectui#4291/#4347 tightened. Adding one back is a decision, never an
+// accident; keep it that way.
+export const TEST_DEBT = {};
 
 // ── Collect workspace packages ───────────────────────────────────────────────
 export const GROUPS = ["packages", "apps", "examples"];
