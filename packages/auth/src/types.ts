@@ -107,6 +107,18 @@ export interface AuthClientSession {
   expiresAt?: Date;
   /** Refresh token */
   refreshToken?: string;
+  /**
+   * objectui#4467 — set by better-auth's admin plugin while this session is an
+   * IMPERSONATION: the id of the administrator who started it. Present on
+   * `GET /auth/get-session` for the whole life of the impersonated session, so
+   * a console that reads it survives full SPA reboots (it is a property of the
+   * session, not a memory of the click that created it).
+   *
+   * Its presence is what raises the impersonation banner — see
+   * `@object-ui/app-shell`'s `ImpersonationBanner`. Absent on every ordinary
+   * session, which is why the banner costs a normal session nothing.
+   */
+  impersonatedBy?: string;
 }
 
 /** Authentication state */

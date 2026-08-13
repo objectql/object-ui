@@ -6,11 +6,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { authGateEvents } from './auth-gate-events';
 import type { AuthUser, AuthClient, AuthProviderOptions, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions } from './types';
 import { AuthCtx, type AuthContextValue } from './AuthContext';
-import { createAuthClient } from './createAuthClient';
+import { createAuthClient, TokenStorage } from './createAuthClient';
 import { ActiveOrganizationStorage } from './createAuthenticatedFetch';
 
 export interface AuthProviderProps extends AuthProviderOptions {
@@ -89,6 +89,84 @@ export function AuthProvider({
     ? user !== null && session !== null
     : true;
 
+  // True while `loadSession` is awaiting the server. Read by the rotation
+  // subscription below: a rotation the server performs INSIDE our own
+  // `getSession` is already reflected in the answer we are about to apply, and
+  // re-entering on it would loop this provider against the server forever.
+  const sessionLoadInFlight = useRef(false);
+
+  /**
+   * The ONE session loader. Runs on mount (below) and on every later
+   * re-resolution — `refreshSession` on the context, and the rotation
+   * subscription — so "how the console learns who it is" has a single
+   * implementation rather than one per caller.
+   *
+   * `isCancelled` mirrors `refreshOrganizations` further down: an unmount or a
+   * superseding call must not write state, and must not clear the loading flag
+   * on behalf of a newer load.
+   */
+  const loadSession = useCallback(async (isCancelled?: () => boolean) => {
+    sessionLoadInFlight.current = true;
+    try {
+      const result = await client.getSession();
+      if (isCancelled?.()) return;
+      if (result) {
+        setUser(result.user);
+        setSession(result.session);
+      } else {
+        // A re-resolution that comes back empty means the session ENDED
+        // (revoked, expired, signed out in another tab). On mount both are
+        // already null, so this changes nothing there.
+        setUser(null);
+        setSession(null);
+      }
+    } catch (err) {
+      if (isCancelled?.()) return;
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      sessionLoadInFlight.current = false;
+      if (!isCancelled?.()) {
+        setIsLoading(false);
+      }
+    }
+  }, [client]);
+
+  /**
+   * objectui#4467 — re-resolve identity in place. Never raises `isLoading`:
+   * the console stays on screen while the answer is fetched (`loadSession`
+   * only ever lowers the flag). Guest / preview identities are synthetic and
+   * have no server to ask, so this is a no-op there.
+   */
+  const refreshSession = useCallback(async () => {
+    if (!enabled || isPreviewMode) return;
+    await loadSession();
+  }, [enabled, isPreviewMode, loadSession]);
+
+  /**
+   * objectui#4467 — an OWNERLESS session rotation re-resolves identity.
+   *
+   * `TokenStorage` notifies only when a token we already held is replaced by a
+   * different one (see its header). Sign-in / sign-out do not qualify: those
+   * callers update identity themselves. What does qualify is a rotation
+   * observed on the wire by code that has no idea it just changed who the user
+   * is — `createAuthenticatedFetch` capturing `set-auth-token` from a generic
+   * metadata action, which is exactly how the console starts and stops
+   * impersonation.
+   *
+   * This is the honest seam for the refresh. The console's action runtime
+   * executes `type: 'api'` actions generically; it cannot know that one
+   * particular endpoint was auth-relevant without hard-coding that endpoint
+   * into a generic runtime. The rotation IS the signal, and it is the server's
+   * own declaration rather than our guess about the URL.
+   */
+  useEffect(() => {
+    if (!enabled || isPreviewMode) return;
+    return TokenStorage.subscribeRotation(() => {
+      if (sessionLoadInFlight.current) return;
+      void loadSession();
+    });
+  }, [enabled, isPreviewMode, loadSession]);
+
   // Load session on mount (only if auth is enabled and not in preview mode)
   useEffect(() => {
     if (isPreviewMode) {
@@ -131,28 +209,9 @@ export function AuthProvider({
     }
 
     let cancelled = false;
-
-    async function loadSession() {
-      try {
-        const result = await client.getSession();
-        if (cancelled) return;
-        if (result) {
-          setUser(result.user);
-          setSession(result.session);
-        }
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof Error ? err : new Error(String(err)));
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadSession();
+    loadSession(() => cancelled);
     return () => { cancelled = true; };
-  }, [client, enabled, isPreviewMode, previewMode]);
+  }, [client, enabled, isPreviewMode, previewMode, loadSession]);
 
   // Notify on auth state changes
   useEffect(() => {
@@ -679,6 +738,7 @@ export function AuthProvider({
       signIn,
       signUp,
       signOut,
+      refreshSession,
       updateUser,
       forgotPassword,
       sendVerificationEmail,
@@ -721,7 +781,7 @@ export function AuthProvider({
     }),
     [
       user, session, isAuthenticated, isAuthEnabled, isLoading, error, isPreviewMode, previewMode,
-      signIn, signUp, signOut, updateUser, forgotPassword, sendVerificationEmail, resetPassword, changePassword, setInitialPassword, hasLocalPassword, getAuthConfig, signInWithProvider,
+      signIn, signUp, signOut, refreshSession, updateUser, forgotPassword, sendVerificationEmail, resetPassword, changePassword, setInitialPassword, hasLocalPassword, getAuthConfig, signInWithProvider,
       sendPhoneOtp, signInWithPhoneOtp, signInWithPhonePassword, requestPhonePasswordReset, resetPasswordWithPhoneOtp,
       remediationRequired, enrollTotp, verifyTotp,
       organizations, activeOrganization, activeMember, isOrganizationsLoading, switchOrganization, createOrganization, refreshOrganizations,

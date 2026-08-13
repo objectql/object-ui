@@ -18,9 +18,26 @@ const TOKEN_STORAGE_KEY = 'auth-session-token';
 /**
  * Simple token storage backed by localStorage.
  * Falls back to in-memory storage when localStorage is unavailable (SSR, tests).
+ *
+ * ## Rotation notifications (objectui#4467)
+ *
+ * `subscribeRotation` fires when a token WE ALREADY HELD is replaced by a
+ * different one — i.e. the server rotated the session under a request nobody
+ * was watching. That is the only case with no owner: sign-in, sign-up and
+ * sign-out all set/clear this storage from `AuthProvider`, which updates its
+ * own identity state in the same breath, so those transitions deliberately
+ * stay silent (first store: no notify; `clear()`: no notify; re-storing the
+ * same value, as `getSession` does on every boot: no notify).
+ *
+ * A rotation with no owner is exactly what impersonation produces — the
+ * console POSTs `/auth/admin/impersonate-user` through a generic metadata
+ * action, the server hands back a NEW session token in `set-auth-token`, and
+ * nothing in that code path knows the identity just changed. See
+ * `AuthProvider`'s subscription and `__tests__/impersonation-lane-4467.test.tsx`.
  */
 export const TokenStorage = {
   _memoryToken: null as string | null,
+  _rotationListeners: new Set<() => void>(),
 
   get(): string | null {
     try {
@@ -32,12 +49,21 @@ export const TokenStorage = {
   },
 
   set(token: string): void {
+    const previous = this.get();
     this._memoryToken = token;
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(TOKEN_STORAGE_KEY, token);
       }
     } catch { /* SSR / test */ }
+    // Rotation = a token we were already using got replaced. See the header.
+    if (previous && previous !== token) {
+      for (const listener of [...this._rotationListeners]) {
+        try {
+          listener();
+        } catch { /* a listener must never break the write that triggered it */ }
+      }
+    }
   },
 
   clear(): void {
@@ -47,6 +73,17 @@ export const TokenStorage = {
         localStorage.removeItem(TOKEN_STORAGE_KEY);
       }
     } catch { /* SSR / test */ }
+  },
+
+  /**
+   * Observe session-token ROTATIONS (see the header for what does and does not
+   * count as one). Returns an unsubscribe function.
+   */
+  subscribeRotation(listener: () => void): () => void {
+    this._rotationListeners.add(listener);
+    return () => {
+      this._rotationListeners.delete(listener);
+    };
   },
 };
 
