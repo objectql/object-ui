@@ -127,7 +127,15 @@ describe('dataset inspector format sample follows the display locale (objectui#4
     );
     // The decimal COMMA is the point: `12.3%` and `12,3%` read as different
     // numbers to the two audiences, not as the same one restyled.
-    expect(sampleText()).toBe('12,3%');
+    //
+    // PIN MOVED (objectui#4576). The German expectation gained the no-break
+    // space before the sign. `formatMeasure` appended a literal '%' in every
+    // locale; it now renders the locale's own percent convention, the one a
+    // list cell has used since #4553. The en sample in the case below is
+    // UNMOVED, which is what says this was a convention change and not a
+    // numeral one. Same class as the two moves in
+    // `packages/core/src/utils/__tests__/dataset-format.locale.test.ts`.
+    expect(sampleText()).toBe('12,3\u00a0%');
   });
 
   it('keeps the en percent sample byte-identical (must-not-change)', () => {
