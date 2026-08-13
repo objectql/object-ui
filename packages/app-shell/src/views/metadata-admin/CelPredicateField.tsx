@@ -124,6 +124,22 @@ export function CelPredicateField({
   t,
   id,
 }: CelPredicateFieldProps) {
+  /**
+   * This component renders BOTH halves of the label association itself — the
+   * `Label htmlFor` and the `Textarea id` below — so binding them is its own
+   * guarantee, not something every call site has to remember (objectui#4533).
+   *
+   * While `id` was optional with no fallback, omitting it left both `undefined`:
+   * the label read correctly on screen and resolved to nothing, so the editor
+   * had no accessible name. The RLS `USING` / `CHECK` clauses — the row-filter
+   * authoring surface of a permission set — were mounted that way, and
+   * `getByLabelText` refused them outright.
+   *
+   * An explicit `id` still wins: four inspector call sites and the
+   * conditional-formatting editor address their editors by exact id.
+   */
+  const fallbackId = React.useId();
+  const fieldId = id ?? fallbackId;
   const taRef = React.useRef<HTMLTextAreaElement>(null);
   const [issues, setIssues] = React.useState<CelLintIssue[]>([]);
   const [linted, setLinted] = React.useState(false);
@@ -304,17 +320,19 @@ export function CelPredicateField({
   // even alongside warnings — the type is what dataset measure eligibility
   // keys off, so the author should see it whenever it is known.
   const showType = role === 'value' && linted && !!value.trim() && errors.length === 0 && inferredType !== null;
-  const listId = id ? `${id}-ac` : undefined;
+  // Derived from the resolved id, so the combobox can name its own popup even
+  // when the call site passed no id (objectui#4533 — same association hole).
+  const listId = `${fieldId}-ac`;
 
   return (
     <div>
-      <Label className="text-[10px] uppercase text-muted-foreground" htmlFor={id}>
+      <Label className="text-[10px] uppercase text-muted-foreground" htmlFor={fieldId}>
         {label}
       </Label>
       <div className="relative">
         <Textarea
           ref={taRef}
-          id={id}
+          id={fieldId}
           value={value}
           disabled={disabled}
           rows={2}
