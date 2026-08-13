@@ -15,7 +15,6 @@ import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
 import { ViewSettingsPopover } from './components/ViewSettingsPopover';
 import { UserFilters } from './UserFilters';
 import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
-import type { NavigationConfig } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
@@ -1727,15 +1726,21 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   }, [onSearchChange]);
 
   // --- NavigationConfig support ---
-  // The assertion bridges two spellings of ONE spec object and changes no
-  // value: `@object-ui/react`'s `NavigationConfig` alias re-declares `mode` as
-  // NON-optional, while the spec-derived `ListViewSchema['navigation']` leaves
-  // it optional. The hook's own body defaults it (`navigation?.mode ?? 'page'`),
-  // so a spec-shaped value is valid input and only the alias is tighter than
-  // its implementation. Surfaced by objectui#4528: this call used to type-check
-  // for the wrong reason, because the erased props type made `schema` `any`.
+  // No assertion, deliberately. `schema.navigation` is the spec-derived
+  // `ListViewSchema['navigation']` and the hook's `NavigationConfig` is now the
+  // spec's authored config verbatim — `mode` optional and all (objectui#4550).
+  // Two spellings of one spec object, so they simply agree.
+  //
+  // This call carried `as NavigationConfig | undefined` from objectui#4528
+  // until then. That cast bridged nothing real: the alias re-declared `mode` as
+  // required while the hook it fronts defaults it (`navigation?.mode ?? 'page'`),
+  // so the cast's only job was to get a valid value past an over-tight type.
+  // objectui#4550 fixed that at the producer, which deleted the reason for the
+  // cast — and a cast kept past its reason is how the next reader learns the
+  // wrong thing about the contract. Neither the cast nor its removal touches
+  // the runtime value.
   const navigation = useNavigationOverlay({
-    navigation: schema.navigation as NavigationConfig | undefined,
+    navigation: schema.navigation,
     objectName: schema.objectName,
     onNavigate: schema.onNavigate,
     onRowClick,

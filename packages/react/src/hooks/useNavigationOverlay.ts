@@ -23,7 +23,8 @@ import type { NavigationConfigSchema, NavigationMode as SpecNavigationMode } fro
 import type { SpecAuthoredInput } from '../spec-input';
 
 /**
- * The spec's `NavigationConfigSchema`, authoring side, with `mode` required.
+ * The spec's `NavigationConfigSchema`, authoring side — by reference, with no
+ * divergence of its own.
  *
  * This was a hand copy carrying the note "inline … to avoid importing from
  * @object-ui/types (which may not be a direct dependency of @object-ui/react)".
@@ -33,10 +34,35 @@ import type { SpecAuthoredInput } from '../spec-input';
  * `@object-ui/app-shell`, where the dependency had likewise been there all
  * along. Check `package.json` before believing such a note (objectstack#4115).
  *
- * The ONE divergence: the spec defaults `mode`, so its authoring side makes it
- * optional; this hook dispatches on `mode` and its callers always supply one,
- * so it is required here. Every other key is the spec's, by reference. Pinned
- * by `__tests__/offline-nav-performance-spec-parity.test.ts`.
+ * `mode` is OPTIONAL, because the spec says so and this hook agrees.
+ * `packages/spec/src/ui/view.zod.ts` declares
+ * `mode: NavigationModeSchema.default('page')`, and a `.default()` lands on the
+ * AUTHORING side as `| undefined` — so `navigation: { view: 'summary_view' }`
+ * is legal authored metadata that lets the mode default.
+ *
+ * Until objectui#4550 this alias `Omit`ted `mode` and re-added it as
+ * `NonNullable<…>`, on the stated reasoning that "this hook dispatches on
+ * `mode` and its callers always supply one". Both halves were false.
+ * `useNavigationOverlay` does not require `mode` — it DEFAULTS it
+ * (`navigation?.mode ?? 'page'`, ~140 lines below), and `'page'` is meaningful
+ * behaviour rather than a placeholder. And callers did not always supply one:
+ * `ListView` carried `schema.navigation as NavigationConfig | undefined` purely
+ * to get a spec-shaped value past this declaration — a value the hook had
+ * always been willing to take.
+ *
+ * The rule that makes this a producer-side fix rather than a caller-side one:
+ * a type in front of an implementation must not be stricter than the
+ * implementation. When it is, every caller pays in assertions, and an assertion
+ * is exactly the renderer-side workaround AGENTS.md #0.1 sends back to the
+ * producer. Here the producer was this line.
+ *
+ * `@object-ui/types` re-exports the spec's own `NavigationConfig` unchanged, so
+ * that published name and this one now agree — they did not before, which is
+ * how one monorepo shipped two `NavigationConfig`s that disagreed about whether
+ * `mode` could be omitted. Pinned by
+ * `__tests__/offline-nav-performance-spec-parity.test.ts` (the type) and
+ * `__tests__/useNavigationOverlay.modeDefault.test.tsx` (the default behaviour
+ * the relaxation rests on).
  *
  * Two per-key notes the hand copy carried, kept here because a derived alias
  * has no members to hang them on:
@@ -45,12 +71,7 @@ import type { SpecAuthoredInput } from '../spec-input';
  *  - `width` is DEPRECATED by #2578 in favour of `size`. It still wins when
  *    present, because app-shell pre-resolves `size` into it.
  */
-export type NavigationConfig = Omit<
-  SpecAuthoredInput<typeof NavigationConfigSchema>,
-  'mode'
-> & {
-  mode: NonNullable<SpecAuthoredInput<typeof NavigationConfigSchema>['mode']>;
-};
+export type NavigationConfig = SpecAuthoredInput<typeof NavigationConfigSchema>;
 
 /**
  * Pixel cap per overlay `size` bucket, clamped to the viewport at render —
@@ -89,7 +110,7 @@ export function resolveOverlayWidth(navigation: NavigationConfig | undefined): s
  * The overlay modes — the spec's own union, DERIVED since objectui#4167.
  *
  * rc.6 publishes `NavigationMode` (`z.input<typeof NavigationModeSchema>`), and
- * this alias resolved to exactly it already: `NavigationConfig['mode']` above is
+ * this alias resolved to exactly it already: `NavigationConfig['mode']` was then
  * `NonNullable<…['mode']>`, and stripping the `undefined` that the schema's
  * `.default()` puts on the authoring side leaves the seven-member enum itself.
  * So the spec reference was one hop away rather than absent — the alias just
@@ -98,8 +119,16 @@ export function resolveOverlayWidth(navigation: NavigationConfig | undefined): s
  *
  * Bound to the spec directly instead: the seven members now arrive from the
  * schema that validates them. `__tests__/offline-nav-performance-spec-parity.test.ts`
- * pins that this stays the same type as `NavigationConfig['mode']`, so the two
- * spellings cannot silently come apart if the spec ever stops defaulting `mode`.
+ * pins that this stays the same type as `NonNullable<NavigationConfig['mode']>`,
+ * so the two spellings cannot silently come apart if the spec ever stops
+ * defaulting `mode` or defaults it on a narrower union.
+ *
+ * The `NonNullable` in that pin is objectui#4550's mark and is load-bearing:
+ * `NavigationConfig` no longer strips the authoring-side `undefined`, so
+ * `NavigationConfig['mode']` is `NavigationMode | undefined` and a bare
+ * equality would now fail for a reason unrelated to the drift being guarded.
+ * What stays pinned is the MEMBERSHIP — the seven modes this hook switches on
+ * are exactly the seven the exported union publishes.
  */
 export type NavigationMode = SpecNavigationMode;
 

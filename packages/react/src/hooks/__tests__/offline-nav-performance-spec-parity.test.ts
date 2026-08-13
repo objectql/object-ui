@@ -233,7 +233,7 @@ describe('OfflineCacheConfig keeps its defaulted keys authorable', () => {
   });
 });
 
-describe('NavigationConfig derives from the spec, requiring only `mode`', () => {
+describe('NavigationConfig IS the spec\'s authored navigation config', () => {
   it('is pinned at compile time', () => {
     type SpecNavigationInput = SpecAuthoredInput<typeof NavigationConfigSchema>;
     type _SpecNotAny = Assert<Equal<IsAny<SpecNavigationInput>, false>>;
@@ -247,14 +247,35 @@ describe('NavigationConfig derives from the spec, requiring only `mode`', () => 
     type _NoLocalOnlyKeys = Assert<Equal<Exclude<keyof NavigationConfig, keyof SpecNavigationInput>, never>>;
     type _NoMissingKeys = Assert<Equal<Exclude<keyof SpecNavigationInput, keyof NavigationConfig>, never>>;
 
-    // `mode` is the ONE narrowing, and it is required here. If the spec ever
-    // makes `mode` required itself, `_StillNarrowed` fails and this alias
-    // should collapse to `SpecAuthoredInput<typeof NavigationConfigSchema>`.
-    type _ModeIsRequired = Assert<Equal<undefined extends NavigationConfig['mode'] ? true : false, false>>;
-    type _StillNarrowed = Assert<Equal<Extends<SpecNavigationInput, NavigationConfig>, false>>;
-    type _EverythingElseMatches = Assert<
-      Extends<Omit<SpecNavigationInput, 'mode'>, Omit<NavigationConfig, 'mode'>>
-    >;
+    // objectui#4550 — the narrowing is GONE, and these three pins are the
+    // inverted descendants of the ones that described it.
+    //
+    // The alias used to `Omit` `mode` and re-add it as `NonNullable<…>`, which
+    // made it strictly tighter than BOTH the spec that produces the value and
+    // the hook that consumes it (`navigation?.mode ?? 'page'`, 140 lines below
+    // the declaration). A required key in front of an implementation that
+    // defaults it is not a contract, and the cost was paid at every spec-typed
+    // caller: `ListView` had to write `schema.navigation as NavigationConfig`
+    // to hand the hook a value the hook was always happy to take.
+    //
+    // The previous spelling of this block predicted its own end — "if the spec
+    // ever makes `mode` required itself, `_StillNarrowed` fails and this alias
+    // should collapse to `SpecAuthoredInput<typeof NavigationConfigSchema>`."
+    // The collapse arrived from the other direction (the spec never moved; the
+    // alias was wrong all along), but it is the same collapse.
+    type _IsExactlyTheSpecInput = Assert<Equal<NavigationConfig, SpecNavigationInput>>;
+
+    // `mode` is OPTIONAL to author, because the spec defaults it
+    // (`packages/spec/src/ui/view.zod.ts` → `mode: NavigationModeSchema.default('page')`)
+    // and a `.default()` lands on the AUTHORING side as `| undefined`. This is
+    // the assertion that was false before objectui#4550.
+    type _ModeIsOptional = Assert<Equal<undefined extends NavigationConfig['mode'] ? true : false, true>>;
+
+    // Assignability now runs BOTH ways. `_LocalIsASpecConfig` above is the one
+    // direction that always held; this is the one the narrowing blocked, and
+    // it is the direction every caller actually needs — spec produces, alias
+    // consumes.
+    type _SpecShapedValueFits = Assert<Extends<SpecNavigationInput, NavigationConfig>>;
 
     // The overlay buckets the hook maps to pixel widths are the spec's, and
     // `size` is the key #2578 added — the deprecated `width` is still here too.
@@ -265,7 +286,7 @@ describe('NavigationConfig derives from the spec, requiring only `mode`', () => 
   });
 
   it('still carries every overlay mode the hook switches on', () => {
-    const all: NavigationConfig['mode'][] = [
+    const all: NonNullable<NavigationConfig['mode']>[] = [
       'page',
       'drawer',
       'modal',
@@ -284,19 +305,25 @@ describe('NavigationConfig derives from the spec, requiring only `mode`', () => 
     // spec's `NavigationMode` directly, and this is the pin the declaration
     // promises: the two spellings must stay the SAME type.
     //
-    // They can come apart in a way nothing else would catch. The equality holds
-    // today only because `NavigationConfig` above strips the `undefined` that
-    // `NavigationConfigSchema`'s `.default('page')` puts on `mode`'s authoring
-    // side. If the spec ever stops defaulting `mode`, or defaults it on a
-    // narrower union, `NavigationConfig['mode']` moves and the exported alias
-    // does not — and every call site keeps compiling, because the hook's
+    // They can come apart in a way nothing else would catch. If the spec ever
+    // stops defaulting `mode`, or defaults it on a narrower union,
+    // `NavigationConfig['mode']` moves and the exported alias does not — and
+    // every call site keeps compiling, because the hook's
     // `navigation?.mode ?? 'page'` would still be assignable either way.
     //
     // Both directions, deliberately: a one-way `extends` is satisfied by a
     // narrowing as well as by equality, and a narrowing is exactly the drift
     // that would delete a mode the hook switches on.
+    //
+    // `NonNullable` is objectui#4550's mark on this pin, and it is load-bearing
+    // rather than cosmetic. The alias no longer strips the `undefined` that
+    // `.default('page')` puts on the authoring side, so `NavigationConfig['mode']`
+    // is now `NavigationMode | undefined` — a bare `Equal` here would fail for
+    // a reason that has nothing to do with the drift this test exists to catch.
+    // What must stay pinned is the MEMBERSHIP: the seven modes the hook
+    // switches on are exactly the seven the exported union publishes.
     type _ModeIsSpecMode = Assert<Equal<NavigationMode, SpecNavigationMode>>;
-    type _ModeIsConfigMode = Assert<Equal<NavigationMode, NavigationConfig['mode']>>;
+    type _ModeIsConfigMode = Assert<Equal<NavigationMode, NonNullable<NavigationConfig['mode']>>>;
 
     // Runtime half — the type assertions above are erased, so this is what
     // fails visibly if the union ever loses a member.
