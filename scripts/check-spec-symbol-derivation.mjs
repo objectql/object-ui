@@ -466,24 +466,33 @@ export const CLAIM_ALLOW = {
 //   - derive it (`z.infer< typeof SpecX >`, `SpecAuthoredInput< … >`, or an
 //     import of the spec type) — the claim becomes structural and the entry goes;
 //   - keep the copy and move it to CLAIM_ALLOW with the reason it exists;
-//   - or delete the claim from the comment, because it was never true. Eight of
-//     these name a spec symbol the installed spec does not export at all
-//     (`DateFormatSchema`, `NumberFormatSchema`, `PluralRuleSchema`,
-//     `LocaleConfigSchema`, `FieldChangeEntrySchema`, `MentionSchema`,
-//     `ReactionSchema`, `RecordSubscriptionSchema`) — a canonical-sounding
-//     pointer to nothing, which is the planted premise in its purest form. The
-//     failure message names them, so the next reader does not have to re-measure.
+//   - or delete the claim from the comment, because it is not true here.
+//
+// Eight entries left by that last route in objectui#4597 — the i18n formatters'
+// four and views.ts's four, which cited `DateFormatSchema`, `NumberFormatSchema`,
+// `PluralRuleSchema`, `LocaleConfigSchema`, `FieldChangeEntrySchema`,
+// `MentionSchema`, `ReactionSchema` and `RecordSubscriptionSchema`. Measuring
+// them answered the question #4597 left open, and the answer was NOT "these
+// names never existed": all eight were real exports the protocol RETIRED, and
+// each local key set was faithful to the schema it named. The feed four went
+// from `@objectstack/spec/data` in the 16.0.0 major (feed surface replaced by
+// the data API over `sys_comment` / `sys_activity`); the i18n four went from
+// `@objectstack/spec/ui` in 17.0.0-rc.6 itself — present through rc.5 — under
+// ADR-0049 enforce-or-remove (objectstack#5055). Their comments now record that
+// provenance instead of vouching for a symbol the pinned spec has dropped.
+//
+// Worth keeping for whoever measures the next batch: "the installed spec does
+// not export it" does not distinguish a name that never existed from one the
+// protocol retired on purpose, and the fix differs. Read the spec's CHANGELOG
+// and its own retirement notes before concluding a citation was always wrong.
 const CLAIM_DEBT_ISSUE = 4592;
 const CLAIM_DEBT = {
   "@object-ui/types": [
-    "FieldChangeEntry",
     "ListViewExportOptions",
     "ManagedByBucket",
-    "Mention",
     "ObjectFormSchema",
     "ObjectFormSection",
     "PageRegionWidth",
-    "Reaction",
     "RecordActivityComponentProps",
     "RecordChatterComponentProps",
     "RecordComponentAriaProps",
@@ -491,10 +500,8 @@ const CLAIM_DEBT = {
     "RecordHighlightsComponentProps",
     "RecordPathComponentProps",
     "RecordRelatedListComponentProps",
-    "RecordSubscription",
     "SubmitBehavior",
   ],
-  "@object-ui/i18n": ["SpecDateFormat", "SpecLocaleConfig", "SpecNumberFormat", "SpecPluralRule"],
   "@object-ui/core": ["ResultDialogFieldSpec", "ViewDataConfig"],
   "@object-ui/app-shell": ["RecordLookupBinding"],
   "@object-ui/plugin-view": ["ROW_HEIGHT_OPTIONS"],
