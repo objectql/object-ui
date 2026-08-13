@@ -771,7 +771,16 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     // `displayLocale` is a dependency because the tooltip strings are FORMATTED
     // in here: without it a language switch would leave already-built tooltips
     // on the previous locale.
-  }, [data, ganttConfig, objectSchema, displayLocale]);
+    //
+    // `tenantCurrency` is one for exactly the same reason, in the other channel
+    // (objectui#4542): the `'currency'` case resolves its code down to the
+    // tenant default eagerly in here. That default arrives from
+    // `GET /api/v1/auth/me/localization`, which is cosmetic and non-blocking and
+    // therefore answers AFTER first paint — so the memo has to be able to re-run
+    // on it alone. It is not covered by `displayLocale`: a tenant that
+    // configures a currency but no locale (the common shape) leaves that value
+    // untouched, and the tooltip would keep its pre-resolution rendering.
+  }, [data, ganttConfig, objectSchema, displayLocale, tenantCurrency]);
 
   // Dynamic Group by accessor (动态 Group by). Resolves each task's grouping
   // value off its backing record, mapping select options / lookups to their
