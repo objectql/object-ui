@@ -25,7 +25,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData, TableSortItem, DataTableSchema } from '@object-ui/types';
 import { isSystemManagedField } from '@object-ui/types';
 import type { I18nLabel } from '@objectstack/spec/ui';
-import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useSafeFieldLabel, usePredicateScope } from '@object-ui/react';
+import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useSafeFieldLabel, usePredicateScope, useRelatedRecordActions } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES, coerceToSafeValue } from '@object-ui/fields';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
@@ -80,36 +80,126 @@ export function parseSchemaSort(sort: unknown): TableSortItem[] {
   return items;
 }
 
+/**
+ * The class list both faces of {@link LinkCell} wear — the anchor is a visual
+ * no-op against the span it upgrades, so a list does not change appearance
+ * depending on whether its host publishes record URLs.
+ */
+const LINK_CELL_CLASS =
+  'text-primary font-medium underline-offset-4 hover:underline cursor-pointer truncate block max-w-full';
+
+/**
+ * A row's primary key — the value the host's record-URL builder addresses.
+ * Mirrors what `useNavigationOverlay.handleClick` reads off the same row, so
+ * the anchor's href and the click path can never point at different records.
+ */
+function rowRecordId(row: unknown): string | number | undefined {
+  const rec = row as Record<string, unknown> | null | undefined;
+  const id = rec?.id ?? rec?._id;
+  return typeof id === 'string' || typeof id === 'number' ? id : undefined;
+}
+
 // Clickable text cell that can safely contain other interactive content
 // (e.g., EmailCellRenderer's copy button). Using <button> here would
 // produce an invalid <button> > <button> nesting (hydration error +
 // breaks the inner copy click). role="link" + tabIndex + keyboard
 // handlers preserves accessibility while allowing arbitrary children.
+//
+// objectui#4490 — that span was the whole cell, so the list's link column had
+// none of a link's native affordances: no middle-click / ⌘-click open-in-new-
+// tab, no "copy link address", no hover status-bar URL, and `role="link"` with
+// no `href` is a weaker contract for assistive tech than a real anchor. PR
+// #4489 had just given detail-page and related-list lookup VALUES real anchors,
+// which left the list — the surface users open records from — as the weakest of
+// the three.
+//
+// So when the host publishes a record URL this renders a real `<a href>`, with
+// the split #4489 established:
+//   - plain left click → `preventDefault()` + the existing `onActivate`, so SPA
+//     navigation (drawer / modal / page, whatever the view configured) is
+//     completely unchanged;
+//   - modifier / non-primary click → NOT prevented, so the browser does what it
+//     does with any link.
+//
+// **The URL is not built here.** This package has no router and no business
+// knowing what a record route looks like; the host publishes its own builder
+// through `RelatedRecordActionsContext.recordHref` — the same seam #4489 used,
+// and for the console list surface the same builder its "open in new window"
+// action already navigates with. No host, or a host that cannot route to this
+// object, renders EXACTLY the span below: same markup, same behavior, nothing
+// to un-learn (the Studio designer, embedded renderers, standalone grids).
 const LinkCell: React.FC<{
   testId: string;
   onActivate: () => void;
+  /** Object whose record this row is — passed to the host's URL builder. */
+  objectName?: string;
+  /** This row's primary key. Absent (a row with no id) ⇒ no anchor. */
+  recordId?: string | number | null;
   children: React.ReactNode;
-}> = ({ testId, onActivate, children }) => (
-  <span
-    role="link"
-    tabIndex={0}
-    data-testid={testId}
-    className="text-primary font-medium underline-offset-4 hover:underline cursor-pointer truncate block max-w-full"
-    onClick={(e) => {
-      e.stopPropagation();
-      onActivate();
-    }}
-    onKeyDown={(e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
+}> = ({ testId, onActivate, objectName, recordId, children }) => {
+  const host = useRelatedRecordActions();
+  const href =
+    objectName && recordId != null && recordId !== '' && host?.recordHref
+      ? host.recordHref(objectName, recordId)
+      : null;
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        data-testid={testId}
+        className={LINK_CELL_CLASS}
+        onClick={(e) => {
+          // The row underneath carries its own click handler (open the record,
+          // and on a modifier click open it in a new tab). Following this link
+          // must never ALSO fire that — on a modifier click that would open two
+          // tabs, one from the anchor and one from the row.
+          e.stopPropagation();
+          // Modifier and non-primary clicks belong to the browser (new tab, new
+          // window) — that is the entire point of rendering a real href.
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+          e.preventDefault();
+          onActivate();
+        }}
+        onKeyDown={(e) => {
+          // Enter is the anchor's OWN activation: the browser fires a click for
+          // it, which the handler above turns into the SPA path. Handling it
+          // here too would activate twice. Space is the one the span had that a
+          // link does not do natively, so it is carried over explicitly.
+          if (e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            onActivate();
+          }
+        }}
+      >
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <span
+      role="link"
+      tabIndex={0}
+      data-testid={testId}
+      className={LINK_CELL_CLASS}
+      onClick={(e) => {
         e.stopPropagation();
         onActivate();
-      }
-    }}
-  >
-    {children}
-  </span>
-);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          onActivate();
+        }
+      }}
+    >
+      {children}
+    </span>
+  );
+};
 
 
 // Default English fallback translations for the grid
@@ -1278,6 +1368,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                     <LinkCell
                       testId={isPrimaryField ? 'primary-field-link' : 'link-cell'}
                       onActivate={() => navigation.handleClick(row)}
+                      objectName={schema.objectName}
+                      recordId={rowRecordId(row)}
                     >
                       {displayContent}
                     </LinkCell>
@@ -1293,6 +1385,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                     <LinkCell
                       testId={isPrimaryField ? 'primary-field-link' : 'link-cell'}
                       onActivate={() => navigation.handleClick(row)}
+                      objectName={schema.objectName}
+                      recordId={rowRecordId(row)}
                     >
                       {displayContent}
                     </LinkCell>
@@ -1432,6 +1526,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 <LinkCell
                   testId="primary-field-link"
                   onActivate={() => navigation.handleClick(row)}
+                  objectName={schema.objectName}
+                  recordId={rowRecordId(row)}
                 >
                   {displayContent}
                 </LinkCell>
@@ -1442,6 +1538,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
               <LinkCell
                 testId="primary-field-link"
                 onActivate={() => navigation.handleClick(row)}
+                objectName={schema.objectName}
+                recordId={rowRecordId(row)}
               >
                 {value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>}
               </LinkCell>

@@ -70,7 +70,8 @@ import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
-import { ActionProvider, useNavigationOverlay, SchemaRenderer, useActionTextLocalizer } from '@object-ui/react';
+import { ActionProvider, useNavigationOverlay, SchemaRenderer, useActionTextLocalizer, RelatedRecordActionsProvider } from '@object-ui/react';
+import type { RelatedRecordActionsValue, RelatedRecordHandlers } from '@object-ui/react';
 import { toast } from 'sonner';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
 import { useEnvironmentEntitlements } from '../environment/useEnvironmentEntitlements';
@@ -158,6 +159,83 @@ export function timelineViewOptions(viewDef: any, objectDef: any): Record<string
         ...(declaredStart ? { startDateField: declaredStart } : {}),
         titleField: viewDef?.timeline?.titleField || objectDef?.titleField || 'name',
         descriptionField: viewDef?.timeline?.descriptionField,
+    };
+}
+
+/**
+ * THE record-detail URL this list surface builds — one route shape, one place.
+ *
+ * Derived from the LIST's own pathname rather than re-assembled from route
+ * params, because that is what the "open in new window" navigation action has
+ * always used here: strip a trailing `/view/:viewId` and append
+ * `/record/:recordId`. It therefore works wherever this page is mounted, and —
+ * more to the point — every affordance that opens a record in a new tab from
+ * this page addresses the SAME URL by construction.
+ *
+ * Since objectui#4490 it also backs the href the list's link column publishes
+ * through {@link RelatedRecordActionsValue.recordHref}, so the anchor a user
+ * middle-clicks and the tab the row's ⌘-click opens cannot drift apart.
+ *
+ * Exported for the pin test.
+ */
+export function listRecordDetailUrl(pathname: string, recordId: string | number): string {
+    const basePath = pathname.replace(/\/view\/.*$/, '');
+    return `${basePath}/record/${encodeURIComponent(String(recordId))}`;
+}
+
+/** No related-list handlers — see {@link listRecordActionsValue}. */
+const NO_RELATED_HANDLERS: RelatedRecordHandlers = Object.freeze({});
+
+/**
+ * What the object LIST page publishes on `RelatedRecordActionsContext`
+ * (objectui#4490).
+ *
+ * `RelatedRecordActionsProvider` was mounted only on the record DETAIL body
+ * (by `RelatedRecordActionsBridge`), which is why PR #4489's real anchors
+ * reached lookup values there and the list page's own `link: true` column was
+ * left with a click-only `span role="link"`. The list host publishes the same
+ * pair here, so `LinkCell` can render a real anchor without knowing anything
+ * about routes — one mechanism, all three surfaces.
+ *
+ * Two deliberate limits:
+ *
+ *  - **`resolve` returns no handlers.** This surface has no related lists — a
+ *    list page's rows are not a child collection — so there is nothing to
+ *    resolve. An empty handler set is exactly what the context documents as
+ *    "capability unavailable", i.e. the same read-only outcome a consumer gets
+ *    with no provider at all, so nothing that renders under this page gains an
+ *    affordance it did not have.
+ *  - **`recordHref` addresses THIS view's object only.** {@link
+ *    listRecordDetailUrl} is derived from the current list's pathname, so it
+ *    can only name records of the object being listed; any other object is
+ *    `null`, which consumers must render as the plain value (a lookup cell
+ *    pointing at a third object stays exactly as it renders today). The
+ *    console-wide, any-object builder lives on the detail page's bridge, which
+ *    has the routable-object set this page does not.
+ *
+ * `pathname` is read at CALL time (not captured) so a view switch or a drill-in
+ * cannot leave a stale base behind — the same freshness rule the bridge's
+ * builder documents for its `?from=` trail.
+ *
+ * Exported for the pin test.
+ */
+export function listRecordActionsValue(
+    objectName: string,
+    openRecordPage: (recordId: string | number) => void,
+    getPathname: () => string = () => window.location.pathname,
+): RelatedRecordActionsValue {
+    const addressable = (targetObjectName: string, recordId: string | number) =>
+        targetObjectName === objectName && recordId != null && recordId !== '';
+    return {
+        resolve: () => NO_RELATED_HANDLERS,
+        recordHref: (targetObjectName, recordId) =>
+            addressable(targetObjectName, recordId)
+                ? listRecordDetailUrl(getPathname(), recordId)
+                : null,
+        openRecord: (targetObjectName, recordId) => {
+            if (!addressable(targetObjectName, recordId)) return;
+            openRecordPage(recordId);
+        },
     };
 }
 
@@ -1404,9 +1482,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const handleNavOverlayNavigate = useCallback(
         (recordId: string | number, action?: string) => {
             if (action === 'new_window') {
-                // Open record detail in a new browser tab with Console-correct URL
-                const basePath = window.location.pathname.replace(/\/view\/.*$/, '');
-                window.open(`${basePath}/record/${encodeURIComponent(String(recordId))}`, '_blank');
+                // Open record detail in a new browser tab with Console-correct URL.
+                // Same builder the list's link column publishes as its href
+                // (objectui#4490) — one record-route shape for this surface.
+                window.open(listRecordDetailUrl(window.location.pathname, recordId), '_blank');
                 return;
             }
             // Default: navigate to record detail page.
@@ -1427,6 +1506,20 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             }
         },
         [navigate, viewId, location.pathname, location.search, objectDef, activeView?.name, activeView?.label, viewLabel, objectLabel]
+    );
+    /**
+     * The list surface's half of the record-link mechanism (objectui#4490):
+     * publish this page's record-URL builder so the grid's `link: true` column
+     * can render a real anchor instead of a click-only `span role="link"`.
+     * See {@link listRecordActionsValue} for what this does and does NOT claim.
+     *
+     * The record drawer/overlay below mounts `RecordDetailView`, which brings
+     * its own `RelatedRecordActionsBridge` around the whole detail body — that
+     * nearer provider keeps owning the detail surface, exactly as before.
+     */
+    const listRecordActions = useMemo(
+        () => listRecordActionsValue(objectDef.name, handleNavOverlayNavigate),
+        [objectDef.name, handleNavOverlayNavigate],
     );
     const navOverlay = useNavigationOverlay({
         navigation: detailNavigation,
@@ -1954,6 +2047,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
 
     return (
         <ActionProvider {...actionRuntime.actionProviderProps}>
+        <RelatedRecordActionsProvider value={listRecordActions}>
         <div className="h-full flex flex-col bg-background min-w-0 overflow-hidden">
              {/* 1. Header with breadcrumb + description.
                  The managed-by badge sits inline with the title so the
@@ -2344,6 +2438,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
              )}
         </div>
         {actionRuntime.dialogs}
+        </RelatedRecordActionsProvider>
         </ActionProvider>
     );
 }
