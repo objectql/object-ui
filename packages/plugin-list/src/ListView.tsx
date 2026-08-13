@@ -866,6 +866,15 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // the first window are reachable, and we never stack a second pager on top.
   const [serverPage, setServerPage] = React.useState(1);
   const [serverTotal, setServerTotal] = React.useState<number | null>(null);
+  // The params of the last successful fetch — the query behind the window this
+  // view is currently showing (objectui#4501). Handed DOWN with that window, in
+  // the same block as `rowCount`/`page`: whoever renders the rows may need to
+  // re-issue the query (the grid's cross-page "select all N matching" fans out
+  // over the whole match set), and this view is the only side that knows what it
+  // asked for. Held in state rather than a ref so a consumer re-renders when the
+  // query moves, and written only inside the stale-request guard below, so it is
+  // always the query that produced the rows on screen.
+  const [lastFindParams, setLastFindParams] = React.useState<Record<string, unknown> | null>(null);
 
   // Grouping state (initialized from schema, user can add/remove via popover).
   // Supports three input shapes from the schema:
@@ -1466,7 +1475,11 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         const paginate = currentView === 'grid' && !(groupingConfig?.fields?.length);
         const skip = paginate ? (serverPage - 1) * effectivePageSize : 0;
 
-        const results = await dataSource.find(schema.objectName, {
+        // Hoisted out of the `find` call so the exact params that produced this
+        // window can be handed down with it (objectui#4501). One object, one
+        // query — a second literal reconstructed for the consumer would be a
+        // copy free to drift from what was actually asked.
+        const findParams: Record<string, unknown> = {
            ...(hasFilter ? { $filter: finalFilter } : {}),
            $orderby: sort,
            $top: effectivePageSize,
@@ -1479,7 +1492,9 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                ? { $searchFields: schema.searchableFields }
                : {}),
            } : {}),
-        });
+        };
+
+        const results = await dataSource.find(schema.objectName, findParams);
 
         // Stale request guard: only apply the latest request's results
         if (!isMounted || requestId !== fetchRequestIdRef.current) return;
@@ -1508,6 +1523,9 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           : undefined;
         const knownTotal = typeof rawTotal === 'number' ? rawTotal : null;
         setServerTotal(paginate ? knownTotal : null);
+        // Past the stale-request guard, so this is the query behind the rows
+        // that were just set — never an in-flight one that lost the race.
+        setLastFindParams(findParams);
         setDataLimitReached(
           !(paginate && knownTotal != null) && items.length >= effectivePageSize,
         );
@@ -3132,6 +3150,15 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                   // saved view's sort" a non-question: there is one sort.
                   sort: currentSort,
                   onSortChange: handleHeaderSort,
+                  // …and the query itself (objectui#4501). The grid's
+                  // cross-page "select all N matching" re-issues it to collect
+                  // the whole match set; on this path the grid never ran a
+                  // fetch, so without this it had no query to replay and asked
+                  // the server for the unfiltered object. Handed down here
+                  // rather than anywhere else because this block IS the
+                  // handoff: the window, its total, its page — and what was
+                  // asked to get them.
+                  findParams: lastFindParams,
                 }
               : {})}
           />
