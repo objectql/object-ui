@@ -54,6 +54,7 @@ import {
   type FieldTypeId,
 } from '../previews/field-types';
 import { CelPredicateField } from '../CelPredicateField';
+import type { CelLintIssue } from '../celAuthoring';
 import { t, tFormat } from '../i18n';
 
 
@@ -172,12 +173,22 @@ function buildTypeOptions(locale?: string): Array<{ value: string; label: string
 
 /* ─────────────── Inspector ─────────────── */
 
+/**
+ * The CEL editors this inspector mounts, as aggregation keys. Errors are
+ * counted PER SITE rather than into one running total: the four editors lint
+ * independently and asynchronously, so a single shared counter would let
+ * whichever reported last overwrite the others — the multi-source aggregation
+ * bug that lets a still-broken rule hand back a writable Save (objectui#4306).
+ */
+type CelSite = 'formula' | 'visibleWhen' | 'readonlyWhen' | 'requiredWhen';
+
 export function ObjectFieldInspector({
   selection,
   draft,
   onPatch,
   onClearSelection,
   onSelectionChange,
+  onBlockingIssuesChange,
   readOnly,
   locale,
 }: MetadataInspectorProps) {
@@ -203,6 +214,63 @@ export function ObjectFieldInspector({
     formulaEdited.current = false;
   }, [name]);
 
+  /* ─── Blocking CEL verdicts → the host's Save gate (objectui#4306) ─────
+   *
+   * Mirrors the shape PermissionAdvancedFacets uses for its per-clause map:
+   * identity-preserving writes (so an unchanged verdict re-renders nothing),
+   * a summed memo, and a reporter held in a ref so an unmemoized host callback
+   * cannot re-fire the effect. Declared above the `!entry` early return —
+   * these are hooks, and their order must not depend on the selection
+   * resolving to a live field. */
+  const fieldType: string | null = entry
+    ? typeof entry.def.type === 'string'
+      ? (entry.def.type as string)
+      : 'text'
+    : null;
+  // The map is STAMPED with the field it describes, and the stale-verdict
+  // rules are read at aggregation time rather than repaired by reset effects.
+  // Deriving beats correcting here: an effect-based prune leaves a one-render
+  // window in which Save is still gated by an editor that is already gone.
+  const [celErrors, setCelErrors] = React.useState<{
+    field: string;
+    sites: Partial<Record<CelSite, number>>;
+  }>({ field: name, sites: {} });
+  const reportCel = React.useCallback(
+    (site: CelSite, issues: CelLintIssue[]) => {
+      const errs = issues.filter((i) => i.severity === 'error').length;
+      setCelErrors((prev) => {
+        // A verdict that arrives after the selection moved describes the field
+        // now on screen, not the one it was queued for.
+        if (prev.field !== name) return { field: name, sites: { [site]: errs } };
+        if (prev.sites[site] === errs) return prev;
+        return { field: name, sites: { ...prev.sites, [site]: errs } };
+      });
+    },
+    [name],
+  );
+
+  const blockingIssues = React.useMemo(() => {
+    // A different field re-binds every editor: the outgoing field's verdicts
+    // must never gate Save for the one now open.
+    if (celErrors.field !== name) return 0;
+    let total = 0;
+    for (const [site, count] of Object.entries(celErrors.sites)) {
+      // The formula editor exists only while the field IS a formula. Counting
+      // a verdict it left behind would wedge Save shut with no editor on
+      // screen to fix it (#4306 ruling item 2).
+      if (site === 'formula' && fieldType !== 'formula') continue;
+      total += count ?? 0;
+    }
+    return total;
+  }, [celErrors, name, fieldType]);
+  const onBlockingIssuesChangeRef = React.useRef(onBlockingIssuesChange);
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current = onBlockingIssuesChange;
+  });
+  React.useEffect(() => {
+    onBlockingIssuesChangeRef.current?.(blockingIssues);
+  }, [blockingIssues]);
+
   if (!entry) {
     return (
       <InspectorShell
@@ -217,7 +285,9 @@ export function ObjectFieldInspector({
   }
 
   const def = entry.def;
-  const type = (typeof def.type === 'string' ? def.type : 'text') as FieldTypeId;
+  // Same value the prune effect above keys on — derived once so the two can
+  // never drift apart.
+  const type = fieldType as FieldTypeId;
   const typeMeta = FIELD_TYPE_META[type];
 
   /* ─── Patch helpers ─── */
@@ -490,6 +560,7 @@ export function ObjectFieldInspector({
                   ...(v.trim() ? {} : { returnType: undefined }),
                 });
               }}
+              onLintChange={(issues) => reportCel('formula', issues)}
               onInferredTypeChange={(inferred) => {
                 if (!formulaEdited.current) return;
                 // Spec: `returnType` carries only a PROVEN concrete type —
@@ -617,6 +688,7 @@ export function ObjectFieldInspector({
             label={tr('designer.field.visibleWhen')}
             value={readPredicate(def.visibleWhen)}
             onChange={(v) => patchDef({ visibleWhen: writePredicate(def.visibleWhen, v) })}
+            onLintChange={(issues) => reportCel('visibleWhen', issues)}
             disabled={readOnly}
             placeholder="record.status != 'draft'"
             objectName={typeof (draft as any).name === 'string' ? ((draft as any).name as string) : undefined}
@@ -630,6 +702,7 @@ export function ObjectFieldInspector({
             label={tr('designer.field.readonlyWhen')}
             value={readPredicate(def.readonlyWhen)}
             onChange={(v) => patchDef({ readonlyWhen: writePredicate(def.readonlyWhen, v) })}
+            onLintChange={(issues) => reportCel('readonlyWhen', issues)}
             disabled={readOnly}
             placeholder="record.status == 'closed'"
             objectName={typeof (draft as any).name === 'string' ? ((draft as any).name as string) : undefined}
@@ -643,6 +716,7 @@ export function ObjectFieldInspector({
             label={tr('designer.field.requiredWhen')}
             value={readPredicate(def.requiredWhen)}
             onChange={(v) => patchDef({ requiredWhen: writePredicate(def.requiredWhen, v) })}
+            onLintChange={(issues) => reportCel('requiredWhen', issues)}
             disabled={readOnly}
             placeholder="record.amount > 10000"
             objectName={typeof (draft as any).name === 'string' ? ((draft as any).name as string) : undefined}

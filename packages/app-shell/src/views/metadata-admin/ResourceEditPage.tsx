@@ -499,6 +499,17 @@ function MetadataResourceEditPageImpl({
   React.useEffect(() => {
     setSelection(null);
   }, [type, name]);
+  // Blocking author-time issues reported by the scoped inspector (e.g. a CEL
+  // formula that does not parse) — Save must refuse them rather than publish a
+  // malformed definition (objectui#4306).
+  //
+  // The count is STAMPED with the selection it describes, so it expires by
+  // construction when the selection changes or the inspector unmounts: a
+  // component that has gone away cannot retract its last verdict, and a host
+  // that waited for one would wedge Save shut.
+  const [blockingReport, setBlockingReport] = React.useState({ key: '', count: 0 });
+  const selectionKey = selection ? `${type}:${name}:${selection.kind}:${selection.id}` : '';
+  const inspectorBlocking = blockingReport.key === selectionKey ? blockingReport.count : 0;
   React.useEffect(() => {
     if (!editing) setSelection(null);
   }, [editing]);
@@ -1351,6 +1362,9 @@ function MetadataResourceEditPageImpl({
   React.useEffect(() => {
     if (!autoSaveEnabled) return;
     if (createMode || readOnly || !editing || !isDirty || saving) return;
+    // Autosave is a save door like any other: gating only the button would let
+    // the timer publish the malformed definition a second later (objectui#4306).
+    if (inspectorBlocking > 0) return;
     let snap: string;
     try {
       snap = JSON.stringify(draft);
@@ -1363,7 +1377,7 @@ function MetadataResourceEditPageImpl({
       doSaveRef.current(false);
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
-  }, [draft, isDirty, editing, saving, createMode, readOnly, autoSaveEnabled]);
+  }, [draft, isDirty, editing, saving, createMode, readOnly, autoSaveEnabled, inspectorBlocking]);
 
   // Keyboard shortcut — ⌘S / Ctrl+S triggers save when dirty.
   React.useEffect(() => {
@@ -1372,14 +1386,16 @@ function MetadataResourceEditPageImpl({
         if (!canWrite || readOnly) return;
         if (!editing && !createMode) return;
         e.preventDefault();
-        if (!saving && (createMode || isDirty)) {
+        // Third save door — the shortcut must respect the same gate as the
+        // button and the autosave timer (objectui#4306).
+        if (!saving && (createMode || isDirty) && inspectorBlocking === 0) {
           doSaveRef.current(false);
         }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [canWrite, readOnly, editing, createMode, saving, isDirty]);
+  }, [canWrite, readOnly, editing, createMode, saving, isDirty, inspectorBlocking]);
 
   // Beforeunload guard — browser-native "leave site?" prompt when the
   // user closes the tab / reloads with unsaved changes.
@@ -1720,14 +1736,16 @@ function MetadataResourceEditPageImpl({
         <Button
           size="sm"
           onClick={() => doSave(false)}
-          disabled={saving || (!createMode && !isDirty)}
+          disabled={saving || (!createMode && !isDirty) || inspectorBlocking > 0}
           className="h-7 w-7 p-0 relative"
           title={
             saving
               ? t('engine.edit.saving', locale)
-              : !createMode && !isDirty
-                ? t('engine.edit.noChanges', locale)
-                : `${t('engine.edit.save', locale)} (⌘S)`
+              : inspectorBlocking > 0
+                ? t('perm.cel.saveBlocked', locale)
+                : !createMode && !isDirty
+                  ? t('engine.edit.noChanges', locale)
+                  : `${t('engine.edit.save', locale)} (⌘S)`
           }
         >
           {saving ? (
@@ -2312,6 +2330,9 @@ function MetadataResourceEditPageImpl({
                             }
                             onClearSelection={() => setSelection(null)}
                             onSelectionChange={setSelection}
+                            onBlockingIssuesChange={(count) =>
+                              setBlockingReport({ key: selectionKey, count })
+                            }
                             readOnly={formReadOnly}
                             locale={locale}
                           />

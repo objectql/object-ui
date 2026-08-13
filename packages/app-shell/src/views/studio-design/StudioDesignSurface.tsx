@@ -1962,6 +1962,17 @@ export function DataPillar({
   const [error, setError] = React.useState<string | null>(null);
   // field management — a selected field opens ObjectFieldInspector (full type + config)
   const [fieldSel, setFieldSel] = React.useState<MetadataSelection | null>(null);
+  // Blocking author-time issues the field inspector is showing — a CEL formula
+  // that does not parse must not be saveable, let alone publishable as the live
+  // field definition (objectui#4306).
+  //
+  // The count is STAMPED with the selection it came from, so it expires by
+  // construction when the selection changes or the panel closes: an unmounted
+  // inspector can never retract its last verdict, and a host that waited for
+  // one would leave Save wedged shut with nothing on screen to fix.
+  const [blockingReport, setBlockingReport] = React.useState({ key: '', count: 0 });
+  const fieldSelKey = fieldSel ? `${current?.name ?? ''}:${fieldSel.kind}:${fieldSel.id}` : '';
+  const inspectorBlocking = blockingReport.key === fieldSelKey ? blockingReport.count : 0;
   const [dirty, setDirty] = React.useState(false);
   const [hasDraft, setHasDraft] = React.useState(false);
   const [saving, setSaving] = React.useState<false | 'draft' | 'publish'>(false);
@@ -2259,8 +2270,14 @@ export function DataPillar({
         )}
         <button type="button"
           onClick={doSave}
-          disabled={!current || !dirty || !!saving || readOnly}
-          title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : undefined}
+          disabled={!current || !dirty || !!saving || readOnly || inspectorBlocking > 0}
+          title={
+            inspectorBlocking > 0
+              ? t('perm.cel.saveBlocked', locale)
+              : readOnly
+                ? t('engine.studio.pkg.readonlyHint', locale)
+                : undefined
+          }
           className={
             (savedAt && !dirty ? '' : 'ml-auto ') +
             'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50'
@@ -2707,6 +2724,8 @@ export function DataPillar({
                   onPatch,
                   onClearSelection: () => setFieldSel(null),
                   onSelectionChange: setFieldSel,
+                  onBlockingIssuesChange: (count: number) =>
+                    setBlockingReport({ key: fieldSelKey, count }),
                   readOnly,
                   locale,
                 })

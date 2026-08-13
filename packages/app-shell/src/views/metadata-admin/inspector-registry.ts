@@ -43,6 +43,21 @@ export interface MetadataInspectorProps {
    * that need to redirect the focused sub-element.
    */
   onSelectionChange?: (next: MetadataSelection | null) => void;
+  /**
+   * Report how many BLOCKING author-time issues the inspector is currently
+   * showing — e.g. a CEL expression that does not parse (objectui#4306).
+   *
+   * The host owns Save, so only the host can refuse to write; an inspector that
+   * renders a fault it cannot act on is how a malformed formula got saved and
+   * published as the live field definition. Fires whenever the aggregate
+   * changes, `0` when everything is clean.
+   *
+   * Optional — an inspector with nothing to block on simply never calls it.
+   * Hosts must reset their own count when the selection changes or the
+   * inspector unmounts rather than waiting for a final `0`, since a component
+   * that has gone away cannot report anything.
+   */
+  onBlockingIssuesChange?: (count: number) => void;
   /** Whether the host is in edit mode. False → disable inputs. */
   readOnly: boolean;
   /** Active UI locale for i18n. */
