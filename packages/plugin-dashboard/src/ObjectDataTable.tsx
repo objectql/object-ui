@@ -11,7 +11,7 @@ import { useDataScope, SchemaRendererContext, SchemaRenderer, useFilterScope } f
 import { extractRecords, isDrillEnabled } from '@object-ui/core';
 import type { DrillDownConfig } from '@object-ui/types';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
-import { useSafeFieldLabel, useObjectTranslation, useLocalization } from '@object-ui/i18n';
+import { useSafeFieldLabel, useObjectTranslation, useLocalization, useDisplayLocale } from '@object-ui/i18n';
 import { resolveFilterPlaceholders } from './utils';
 import {
   buildFieldMeta,
@@ -135,6 +135,9 @@ export function computeLookupExpand(
 export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSource: propDataSource, className }) => {
   // Tenant default currency backstops columns that omit an explicit code.
   const { currency: tenantCurrency } = useLocalization();
+  // objectui#4553: percent/number cells are FORMATTED inside the memo below,
+  // so the locale is both an argument and a dependency of it.
+  const displayLocale = useDisplayLocale();
   const context = useContext(SchemaRendererContext);
   const dataSource = propDataSource || context?.dataSource;
   const boundData = useDataScope(schema.bind);
@@ -310,7 +313,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
       if (typeof col.cell === 'function') return { ...col, ...fieldMeta, align: inferredAlign };
 
       // Tenant-default currency backstops a currency column with no explicit code.
-      const cell = (value: any): React.ReactNode => renderFieldValue(value, fieldMeta, tenantCurrency);
+      const cell = (value: any): React.ReactNode => renderFieldValue(value, fieldMeta, tenantCurrency, displayLocale);
       return { ...col, ...fieldMeta, align: inferredAlign, cell };
     };
 
@@ -334,7 +337,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
       : Object.keys(finalData[0]).filter((k) => !k.startsWith('_') && !isSystemField(k));
 
     return orderedKeys.map((k) => enrich({ header: buildHeader(k), accessorKey: k }));
-  }, [schema.columns, schema.objectName, finalData, objectSchema, fieldLabel, fieldOptionLabel, tenantCurrency]);
+  }, [schema.columns, schema.objectName, finalData, objectSchema, fieldLabel, fieldOptionLabel, tenantCurrency, displayLocale]);
 
   // Note: per-cell select-label translation that used to happen here is now
   // handled by SelectCellRenderer in the shared field registry, which also

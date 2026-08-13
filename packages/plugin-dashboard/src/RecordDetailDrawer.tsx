@@ -25,7 +25,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@object-ui/components';
-import { useSafeFieldLabel, useLocalization } from '@object-ui/i18n';
+import { useSafeFieldLabel, useLocalization, useDisplayLocale } from '@object-ui/i18n';
 import {
   indexObjectFields,
   buildFieldMeta,
@@ -80,6 +80,8 @@ export const RecordDetailDrawer: React.FC<RecordDetailDrawerProps> = ({
 }) => {
   const { fieldLabel, fieldOptionLabel } = useSafeFieldLabel();
   const { currency: tenantCurrency } = useLocalization();
+  // objectui#4553: see ObjectDataTable — formatted in the memo, so it is a dep.
+  const displayLocale = useDisplayLocale();
 
   const rows = useMemo(() => {
     if (!record) return [];
@@ -105,11 +107,11 @@ export const RecordDetailDrawer: React.FC<RecordDetailDrawerProps> = ({
       return {
         key,
         label,
-        node: renderFieldValue(record[key], fieldMeta, tenantCurrency),
+        node: renderFieldValue(record[key], fieldMeta, tenantCurrency, displayLocale),
         numeric: isNumericFieldMeta(fieldMeta),
       };
     });
-  }, [record, objectSchema, objectName, fields, fieldLabel, fieldOptionLabel, tenantCurrency]);
+  }, [record, objectSchema, objectName, fields, fieldLabel, fieldOptionLabel, tenantCurrency, displayLocale]);
 
   if (!record) return null;
 

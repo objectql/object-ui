@@ -24,6 +24,21 @@
  * `1.234,50`. The separators are INVERTED, so the amount is not merely
  * unstyled — it reads as a different number.
  *
+ * ── Phase 2 update (objectui#4553): the percent row is now threaded too ──
+ * The inversion described below was resolved at the PRODUCER: `formatPercent`
+ * gained an optional locale (parameter 3, matching its siblings) and now routes
+ * through `formatDisplayNumber`. Two expectations in this file MOVED as a
+ * result, both deliberately and under a ruling:
+ *
+ *   - the `de` percent case, which asserted the un-localized `1235%` as
+ *     evidence of the inversion, now asserts `1.235 %`; and
+ *   - the `en` percent expectation, which is the one thing in the `en` case
+ *     that is NOT byte-identical — `formatPercent` never grouped, so `1235%`
+ *     was wrong in en-US as well, and grouping it is the fix.
+ *
+ * The historical account below is kept because it is the reason the percent row
+ * could not land with the other two.
+ *
  * ── The card's premise held for two of the three formatters, not three ───
  * Measured against `@object-ui/fields` before writing any fix (the signature
  * measurement objectui#4553's ruling required):
@@ -62,8 +77,8 @@
  *   de currency `EUR1,234.50` → `1.234,50 EUR` RED before, green after
  *                             (symbol moves to the END as well as the
  *                              separators inverting — doubly un-fakeable)
- *   de percent  `1235%`     → `1235%`        GREEN BOTH SIDES — the inverted
- *                                            premise, pinned as evidence
+ *   de percent  `1235%`     → `1.235 %`      RED as of phase 2 (was the
+ *                                            inverted-premise pin in #4557)
  *   en number / currency / percent           GREEN BOTH SIDES — PINS. `en` and
  *                                            the runner's `en-US` coincide, so
  *                                            these assert byte-identical
@@ -259,36 +274,49 @@ describe('ObjectGantt tooltips — numeric values follow the display locale (obj
 
     expect(screen.getByTestId(QTY).textContent).toBe('Qty=1,234.50');
     expect(screen.getByTestId(AMOUNT).textContent).toBe(`Amount=${EURO}1,234.50`);
-    expect(screen.getByTestId(RATIO).textContent).toBe('Ratio=1235%');
+    // MOVED by objectui#4553 phase 2, and the one expectation in this `en` case
+    // that is NOT byte-identical: `formatPercent` never grouped, so this row
+    // read `1235%` in en-US too. Grouping it is the fix, not a regression.
+    expect(screen.getByTestId(RATIO).textContent).toBe('Ratio=1,235%');
     expect(screen.getByTestId(DUE).textContent).toBe('Due=Jan 5, 2024');
   });
 
   /**
-   * PIN, green on both sides — and the card's PREMISE INVERSION, recorded in
-   * the tree rather than only in a report.
+   * PIN MOVED, deliberately and under a ruling — this case previously asserted
+   * the OPPOSITE, and the change of expectation is the point.
    *
-   * objectui#4553 states that all three numeric formatters reach
-   * `formatDisplayNumber` with `locale: undefined`. `formatPercent` does not:
-   * it is `${percentDisplayValue(value).toFixed(precision)}%`, so it touches no
-   * `Intl` at all and takes no locale parameter to thread. Its output is
-   * therefore not the machine's locale but NO locale — ASCII, ungrouped,
-   * identical on every machine. German would want `1.235 %`; every session
-   * gets `1235%`.
+   * When PR #4557 landed, this row was the card's measured premise inversion:
+   * `formatPercent(value, precision)` took no locale, so it rendered in NO
+   * locale at all (`1235%` on every machine — ungrouped even in en-US), and it
+   * was pinned that way as evidence rather than as an endorsement, with a note
+   * that it would go red the day `formatPercent` grew a locale.
    *
-   * Fixing it means adding a parameter to a `@object-ui/fields` export, which
-   * is outside this card's ruled surface — so it is pinned as-is here and
-   * escalated. This assertion is a change-detector for a known-wrong output,
-   * NOT a statement that the output is right; it is expected to fail on the
-   * day `formatPercent` grows a locale, and that failure is the signal to
-   * update it.
+   * That day is objectui#4553 phase 2. `formatPercent` now takes a locale as
+   * its third parameter and routes through `formatDisplayNumber`, so the row
+   * finally speaks the same convention as the number, currency and date rows
+   * beside it. The old expectation is retired exactly as its own comment
+   * predicted.
    */
-  it('de percent stays ASCII and ungrouped — formatPercent takes no locale (objectui#4553 inverted premise)', async () => {
+  it('de percent follows the display locale (objectui#4553 phase 2 — pin moved)', async () => {
     renderSession('de');
     await waitFor(() => expect(screen.getByTestId('gv-fields-1')).toBeDefined());
 
-    expect(screen.getByTestId(RATIO).textContent).toBe('Ratio=1235%');
-    // The German rendering this row cannot currently produce, spelled out so
-    // the gap is legible without re-deriving it from the formatter.
-    expect(screen.getByTestId(RATIO).textContent).not.toBe(`Ratio=1.235${NBSP}%`);
+    expect(screen.getByTestId(RATIO).textContent).toBe(`Ratio=1.235${NBSP}%`);
+    // The pre-phase-2 rendering, spelled out so the move is legible in place.
+    expect(screen.getByTestId(RATIO).textContent).not.toBe('Ratio=1235%');
+  });
+
+  /**
+   * The whole tooltip now speaks ONE convention — the card's original
+   * complaint, closed. Number, currency, percent and date rows together.
+   */
+  it('every row of one tooltip agrees on the German convention', async () => {
+    renderSession('de');
+    await waitFor(() => expect(screen.getByTestId('gv-fields-1')).toBeDefined());
+
+    expect(screen.getByTestId(QTY).textContent).toBe('Qty=1.234,50');
+    expect(screen.getByTestId(AMOUNT).textContent).toBe(`Amount=1.234,50${NBSP}${EURO}`);
+    expect(screen.getByTestId(RATIO).textContent).toBe(`Ratio=1.235${NBSP}%`);
+    expect(screen.getByTestId(DUE).textContent).toBe('Due=5. Jan. 2024');
   });
 });

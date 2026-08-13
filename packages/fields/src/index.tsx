@@ -467,14 +467,55 @@ export function formatNumber(value: number, decimals: number = 2, locale?: strin
 }
 
 /**
- * Format percent value
- * Handles both decimal (0.8 = 80%) and whole number (80 = 80%) inputs.
+ * The percent rendering itself, on a value ALREADY in display magnitude (`80`
+ * means 80%).
+ *
+ * Split out from {@link formatPercent} because `PercentCellRenderer`'s
+ * whole-percent branch needs this exact rendering under a DIFFERENT scaling
+ * policy (see there). Two copies of the expression is precisely the drift
+ * `percentDisplayValue`'s doc comment exists to prevent, so there is one copy
+ * and the scaling decision is made by the caller.
  */
-export function formatPercent(value: number, precision: number = 0): string {
+function formatPercentBody(displayValue: number, precision: number, locale?: string): string {
+  try {
+    // `style: 'percent'` multiplies by 100, so the display magnitude is divided
+    // back out. Going through `Intl` rather than appending a literal '%' is what
+    // buys the locale's percent CONVENTION and not merely its separators:
+    // German writes `1.235 %` with a no-break space before the sign, English
+    // `1,235%` with none. Both bounds are set to `precision` so the width is
+    // exactly the one the caller asked for — the same contract `toFixed` gave.
+    return formatDisplayNumber(displayValue / 100, {
+      locale,
+      style: 'percent',
+      minimumFractionDigits: precision,
+      maximumFractionDigits: precision,
+    });
+  } catch {
+    return `${displayValue.toFixed(precision)}%`;
+  }
+}
+
+/**
+ * Format percent value.
+ * Handles both decimal (0.8 = 80%) and whole number (80 = 80%) inputs.
+ *
+ * `locale` is the third positional parameter, matching {@link formatNumber} and
+ * {@link formatCurrency} — the shape the sibling formatters already use.
+ * Callers should pass the tag from `useDisplayLocale()`.
+ *
+ * Before objectui#4553 this function took no locale and never touched `Intl`:
+ * its whole body was `${percentDisplayValue(value).toFixed(precision)}%`, so it
+ * rendered in NO locale rather than the machine's — an ASCII decimal mark and
+ * never a grouping separator, byte-identical on every machine. That made
+ * `1235%` the output everywhere, which is wrong in en-US as well as in German,
+ * so the grouping and the locale are fixed together: en output MOVES from
+ * `1235%` to `1,235%` at four digits and up, and that move is the fix.
+ */
+export function formatPercent(value: number, precision: number = 0, locale?: string): string {
   // Scale a fraction-stored percent (0.8 → 80%) via the shared core helper, so
   // the list cell and the dashboard measure formatter (`formatMeasure`) agree.
   const displayValue = percentDisplayValue(value);
-  return `${displayValue.toFixed(precision)}%`;
+  return formatPercentBody(displayValue, precision, locale);
 }
 
 /**
@@ -722,8 +763,12 @@ const WHOLE_PERCENT_FIELD_PATTERN = /progress|completion/;
  * Percent field cell renderer with mini progress bar
  */
 export function PercentCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
+  // Hook before the empty-value early return — a value flipping between null
+  // and set must not change the hook count between renders (same rule as
+  // NumberCellRenderer / CurrencyCellRenderer above).
+  const locale = useDisplayLocale();
   if (value == null) return <EmptyValue />;
-  
+
   const safe = coerceToSafeValue(value);
   const percentField = field as any;
   const precision = percentField.precision ?? 0;
@@ -737,7 +782,16 @@ export function PercentCellRenderer({ value, field }: CellRendererProps): React.
   const barValue = isWholePercentField
     ? numValue
     : (numValue > -1 && numValue < 1) ? numValue * 100 : numValue;
-  const formatted = isWholePercentField ? `${numValue.toFixed(precision)}%` : formatPercent(numValue, precision);
+  // Both branches render through the same locale-aware body (objectui#4553);
+  // they differ ONLY in the scaling policy, which is the whole point of the
+  // branch. The whole-percent branch used to be a second bare `toFixed` path,
+  // so before this card a `progress` field was ungrouped and unlocalized even
+  // where an ordinary percent column would not have been — leaving it behind
+  // would have made ONE grid internally inconsistent, which is worse than the
+  // uniform defect it had.
+  const formatted = isWholePercentField
+    ? formatPercentBody(numValue, precision, locale)
+    : formatPercent(numValue, precision, locale);
   const clampedBar = Math.max(0, Math.min(100, barValue));
   
   // Layout contract (objectstack#5066): THE NUMBER IS THE CONTENT, THE BAR IS

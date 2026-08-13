@@ -679,21 +679,15 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
             resolveFieldCurrency(def as any, tenantCurrency),
             displayLocale,
           );
-        // ⚠️ `percent` is deliberately NOT threaded here, and it is the one row
-        // in this switch that still ignores the display locale.
-        // `formatPercent(value, precision)` takes no locale parameter at all:
-        // it is `${percentDisplayValue(value).toFixed(precision)}%`, so it
-        // constructs no `Intl.NumberFormat` and never reaches
-        // `formatDisplayNumber`. Its output is therefore not the machine's
-        // locale but NO locale — ASCII `.`, never grouped, identical on every
-        // machine (`1235%` where German wants `1.235 %`). Fixing it means
-        // growing a `@object-ui/fields` export's signature, which objectui#4553's
-        // ruled surface excludes; escalated on that card rather than patched
-        // with a locale-aware reimplementation here, which would fork percent
-        // formatting away from the list cell and the dashboard measure
-        // formatter that share `percentDisplayValue` today.
+        // `percent` completes the switch (objectui#4553 phase 2). It could not
+        // be threaded when the other two were: `formatPercent` took no locale
+        // parameter and never touched `Intl`, so it rendered in NO locale at
+        // all — ASCII `.`, never grouped, `1235%` on every machine. That was
+        // fixed at the producer rather than reimplemented here, which would
+        // have forked percent formatting away from the list cell renderer and
+        // the dashboard that share `percentDisplayValue`.
         case 'percent':
-          return formatPercent(Number(value));
+          return formatPercent(Number(value), undefined, displayLocale);
         case 'boolean':
         case 'checkbox':
           return value ? 'Yes' : 'No';

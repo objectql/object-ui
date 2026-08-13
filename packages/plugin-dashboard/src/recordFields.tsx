@@ -169,6 +169,11 @@ export function renderFieldValue(
   value: any,
   fieldMeta: FieldMeta,
   tenantCurrency?: string,
+  // BCP-47 display locale from `useDisplayLocale()` (objectui#4553). Optional
+  // and last, so an existing caller that passes nothing keeps the behavior it
+  // had. This is a plain function rather than a component, so the locale has to
+  // arrive as an argument — there is no hook to read it from here.
+  displayLocale?: string,
 ): React.ReactNode {
   if (value == null || value === '') return '';
   const fmt = fieldMeta.format;
@@ -183,7 +188,7 @@ export function renderFieldValue(
   if (typeof fmt === 'string' && /%/.test(fmt) && typeof value === 'number') {
     const decimals = (fmt.match(/0\.(0+)%/) || [undefined, ''] as any)[1].length;
     const normalized = value > 1 ? value / 100 : value;
-    return formatPercent(normalized * 100, decimals);
+    return formatPercent(normalized * 100, decimals, displayLocale);
   }
   if (typeof fmt === 'string' && /[YMDHms]/.test(fmt)) {
     return formatDate(value, fmt);

@@ -3007,7 +3007,10 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                     )}
                     {percentCols[0] && row[percentCols[0].accessorKey] != null && (
                       <span className="tabular-nums">
-                        {formatPercent(Number(row[percentCols[0].accessorKey]))}
+                        {/* objectui#4553: the mobile card's percent cell takes
+                            the same `displayLocale` its date sibling above
+                            already does (objectui#4272). */}
+                        {formatPercent(Number(row[percentCols[0].accessorKey]), undefined, displayLocale)}
                       </span>
                     )}
                   </div>
