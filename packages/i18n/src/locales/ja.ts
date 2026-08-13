@@ -1,4 +1,18 @@
 const ja = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: '{{user}} になりすまして操作しています。すべての操作はこのユーザーとして記録されます。',
+      startedBy: '管理者 {{admin}} が開始しました。',
+      stop: 'なりすましを終了',
+      stopping: '終了しています…',
+      stopFailed: 'なりすましを終了できませんでした: {{reason}}',
+      notRestored: 'サーバーはリクエストを受け付けましたが、管理者セッションを復元しませんでした。まだ {{user}} として操作しています。サインアウトして再度サインインして終了してください。',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
   capability: {
     label: {
@@ -507,6 +521,8 @@ const ja = {
     loadErrorUnauthorizedMessage: "セッションの有効期限が切れたか、サインアウトしています。再度サインインしてください。",
     loadErrorRejectedTitle: "このビューのクエリは拒否されました",
     loadErrorRejectedMessage: "サーバーはこのビューのフィルターまたはクエリ設定を処理できませんでした。フィルターを解除すると解消することがほとんどです。ビューがこの状態で保存されている場合は、管理者による修正が必要です。",
+    loadErrorApiDisabledTitle: "このオブジェクトは API から利用できません",
+    loadErrorApiDisabledMessage: "このオブジェクトが API に公開されていないため、このページはレコードを読み込めません。これは権限ではなくオブジェクト自体の設定です。管理者が API アクセスを有効にするまで、このページは動作しません。",
     retry: "再試行",
     managedBy: {
       system: {
@@ -962,6 +978,7 @@ const ja = {
   chart: {
     noData: "チャートデータがありません",
     loading: "チャート読み込み中…",
+    nullCategory: "（未設定）",
   },
   map: {
     searchLocations: "場所を検索…",
@@ -2163,6 +2180,7 @@ const ja = {
     members: "メンバー",
     settings: "ワークスペース設定",
     multiOrgDisabled: "このインスタンスでは新しい組織の作成が無効です。",
+    createFailed: 'ワークスペースの作成に失敗しました',
   },
   help: {
     onThisPage: "このページの内容",
@@ -2524,6 +2542,23 @@ const ja = {
     noMatches: "検索条件に一致する組織がありません。",
   },
   organization: {
+    roles: {
+      owner: 'オーナー',
+      admin: '管理者',
+      delegatedAdmin: '委任管理者',
+      member: 'メンバー',
+    },
+    errors: {
+      notAllowedToInvite: 'この組織にユーザーを招待する権限がありません。',
+      notAllowedToInviteWithRole: 'このロールでユーザーを招待する権限がありません。',
+      alreadyInvited: 'このユーザーはすでにこの組織に招待されています。',
+      organizationExists: 'その組織はすでに存在します。',
+      slugTaken: 'そのスラッグはすでに使用されています。',
+      notAllowedToCreate: '新しい組織を作成する権限がありません。',
+      notTheRecipient: 'この招待の宛先はあなたではありません。',
+      invitationNotFound: 'この招待は存在しないか、有効期限が切れています。',
+      unknown: '問題が発生しました。もう一度お試しください。',
+    },
     backToList: "組織一覧に戻る",
     notFound: "組織が見つかりません",
     notFoundDescription: "この組織は存在しないか、アクセス権がありません。",
@@ -2535,6 +2570,7 @@ const ja = {
     members: {
       title: "メンバー",
       inviteMember: "メンバーを招待",
+      inviteRestrictedNote: "組織の管理者のみがメンバーを招待できます。",
       removeMember: "メンバーを削除",
       removeConfirmTitle: "メンバーを削除しますか？",
       removeConfirmDescription: "{{name}} を組織から削除します。アクセス権は直ちに失われます。",
@@ -2543,6 +2579,8 @@ const ja = {
       removeFailed: "メンバーの削除に失敗しました",
       roleUpdated: "ロールを更新しました",
       roleUpdateFailed: "ロールの更新に失敗しました",
+      memberActions: 'メンバーの操作',
+      loadFailed: 'メンバーの読み込みに失敗しました',
     },
     invitations: {
       title: "招待",
@@ -2569,6 +2607,9 @@ const ja = {
       sentDescription: "以下のリンクを招待相手に共有してください。承諾にはサインインが必要です。",
       linkLabel: "承諾リンク",
       invitedAs: "{{email}} を {{role}} として招待しました",
+      copyLinkLabel: '招待リンクをコピー',
+      loadFailed: '招待の読み込みに失敗しました',
+      inviteFailed: 'メンバーの招待に失敗しました',
       status: {
         all: "すべて",
         pending: "待機中",

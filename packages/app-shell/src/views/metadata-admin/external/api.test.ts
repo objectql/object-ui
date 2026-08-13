@@ -10,13 +10,24 @@ import {
   type ObjectDraft,
 } from './api';
 
-/** Build a minimal Response-like object the client's `jsonOrThrow` accepts. */
+/**
+ * Build a minimal Response-like object the client's `jsonOrThrow` accepts.
+ *
+ * `headers` is real (objectui#4467): these calls go out through
+ * `createAuthenticatedFetch`, which reads `set-auth-token` off every API
+ * response to adopt a session rotation the server declares — the same capture
+ * the auth lane has always done. A fake that omits `headers` is not a
+ * `Response`, and the cast is the only reason the compiler ever believed it
+ * was; an empty `Headers` keeps the fake honest without asserting anything
+ * about rotation.
+ */
 function jsonResponse(body: unknown, init: { status?: number; ok?: boolean } = {}): Response {
   const status = init.status ?? 200;
   return {
     ok: init.ok ?? status < 400,
     status,
     statusText: 'STATUS',
+    headers: new Headers(),
     json: async () => body,
   } as unknown as Response;
 }

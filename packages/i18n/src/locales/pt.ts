@@ -1,4 +1,18 @@
 const pt = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: 'Você está personificando {{user}} — todas as ações são registradas em nome dele.',
+      startedBy: 'Iniciado pelo administrador {{admin}}.',
+      stop: 'Parar personificação',
+      stopping: 'Encerrando…',
+      stopFailed: 'Não foi possível parar a personificação: {{reason}}',
+      notRestored: 'O servidor aceitou a solicitação, mas não restaurou sua sessão de administrador — você ainda está personificando {{user}}. Saia e entre novamente para encerrar.',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
   capability: {
     label: {
@@ -506,6 +520,8 @@ const pt = {
     loadErrorUnauthorizedMessage: "Sua sessão expirou ou você saiu. Entre novamente para ver estes registros.",
     loadErrorRejectedTitle: "A consulta desta visualização foi rejeitada",
     loadErrorRejectedMessage: "O servidor não conseguiu processar o filtro ou as opções de consulta desta visualização. Limpar os filtros costuma resolver; se a visualização estiver salva assim, um administrador precisa corrigi-la.",
+    loadErrorApiDisabledTitle: "Este objeto não está disponível pela API",
+    loadErrorApiDisabledMessage: "Esta página não consegue carregar seus registros porque o objeto não está exposto pela API. Isso é uma configuração do próprio objeto, não uma permissão — um administrador precisa habilitar o acesso via API para que esta página funcione.",
     retry: "Tentar novamente",
     managedBy: {
       system: {
@@ -961,6 +977,7 @@ const pt = {
   chart: {
     noData: "Nenhum dado de gráfico disponível",
     loading: "Carregando gráfico…",
+    nullCategory: "(Não especificado)",
   },
   map: {
     searchLocations: "Pesquisar locais…",
@@ -2162,6 +2179,7 @@ const pt = {
     members: "Membros",
     settings: "Configurações do espaço de trabalho",
     multiOrgDisabled: "A criação de novas organizações está desativada nesta instância.",
+    createFailed: 'Falha ao criar o espaço de trabalho',
   },
   help: {
     onThisPage: "Nesta página",
@@ -2523,6 +2541,23 @@ const pt = {
     noMatches: "Nenhuma organização corresponde à sua pesquisa.",
   },
   organization: {
+    roles: {
+      owner: 'Proprietário',
+      admin: 'Administrador',
+      delegatedAdmin: 'Administrador delegado',
+      member: 'Membro',
+    },
+    errors: {
+      notAllowedToInvite: 'Você não tem permissão para convidar usuários para esta organização.',
+      notAllowedToInviteWithRole: 'Você não tem permissão para convidar um usuário com esta função.',
+      alreadyInvited: 'Este usuário já foi convidado para esta organização.',
+      organizationExists: 'Essa organização já existe.',
+      slugTaken: 'Esse slug já está em uso.',
+      notAllowedToCreate: 'Você não tem permissão para criar uma nova organização.',
+      notTheRecipient: 'Você não é o destinatário deste convite.',
+      invitationNotFound: 'Este convite não existe mais ou expirou.',
+      unknown: 'Algo deu errado. Tente novamente.',
+    },
     backToList: "Voltar para as organizações",
     notFound: "Organização não encontrada",
     notFoundDescription: "Esta organização não existe ou você não tem acesso.",
@@ -2534,6 +2569,7 @@ const pt = {
     members: {
       title: "Membros",
       inviteMember: "Convidar membro",
+      inviteRestrictedNote: "Apenas administradores da organização podem convidar membros.",
       removeMember: "Remover membro",
       removeConfirmTitle: "Remover membro?",
       removeConfirmDescription: "Isso removerá {{name}} da organização. O acesso será perdido imediatamente.",
@@ -2542,6 +2578,8 @@ const pt = {
       removeFailed: "Falha ao remover o membro",
       roleUpdated: "Função atualizada",
       roleUpdateFailed: "Falha ao atualizar a função",
+      memberActions: 'Ações do membro',
+      loadFailed: 'Falha ao carregar os membros',
     },
     invitations: {
       title: "Convites",
@@ -2568,6 +2606,9 @@ const pt = {
       sentDescription: "Compartilhe o link abaixo com a pessoa convidada. Ela precisará entrar para aceitar.",
       linkLabel: "Link de aceitação",
       invitedAs: "{{email}} convidado como {{role}}",
+      copyLinkLabel: 'Copiar link do convite',
+      loadFailed: 'Falha ao carregar os convites',
+      inviteFailed: 'Falha ao convidar o membro',
       status: {
         all: "Todos",
         pending: "Pendente",

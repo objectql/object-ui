@@ -2,6 +2,20 @@
  * 中文 (zh) - Chinese language pack for Object UI
  */
 const zh = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: '您正在以 {{user}} 的身份操作 —— 所有操作都会记录为该用户。',
+      startedBy: '由管理员 {{admin}} 发起。',
+      stop: '结束模拟登录',
+      stopping: '正在结束…',
+      stopFailed: '无法结束模拟登录:{{reason}}',
+      notRestored: '服务器接受了请求,但没有恢复您的管理员会话 —— 您仍在以 {{user}} 的身份操作。请退出登录后重新登录以结束。',
+    },
+  },
   // objectui#2600 B5 — 能力选择器的作用域分组标题(能力标签本身来自
   // sys_capability 注册表,这里只本地化分组标题这类 UI 字符串)。
   capability: {
@@ -550,6 +564,8 @@ const zh = {
     loadErrorUnauthorizedMessage: '登录状态已过期或已退出。请重新登录后查看这些记录。',
     loadErrorRejectedTitle: '该视图的查询被拒绝',
     loadErrorRejectedMessage: '服务器无法处理该视图的筛选条件或查询参数。清除筛选条件通常即可恢复;如果视图本身就是这样保存的,需要管理员修正。',
+    loadErrorApiDisabledTitle: '该对象未开放 API 访问',
+    loadErrorApiDisabledMessage: '此页面无法加载记录,因为该对象未通过 API 开放。这是对象自身的设置,而不是权限问题 —— 需要管理员为其启用 API 访问,此页面才能正常工作。',
     retry: '重试',
     managedBy: {
       system: {
@@ -998,6 +1014,7 @@ const zh = {
   chart: {
     noData: '暂无图表数据',
     loading: '图表加载中…',
+    nullCategory: '(未指定)',
   },
   report: {
     total: '总计',
@@ -2237,6 +2254,7 @@ const zh = {
     members: '成员',
     settings: '工作区设置',
     multiOrgDisabled: '此实例已禁用创建新组织。',
+    createFailed: '创建工作区失败',
   },
   help: {
     keyboardShortcuts: '键盘快捷键',
@@ -2641,6 +2659,23 @@ const zh = {
     noMatches: '没有匹配的工作区。',
   },
   organization: {
+    roles: {
+      owner: '所有者',
+      admin: '管理员',
+      delegatedAdmin: '受托管理员',
+      member: '成员',
+    },
+    errors: {
+      notAllowedToInvite: '您无权邀请用户加入该组织。',
+      notAllowedToInviteWithRole: '您无权以该角色邀请用户。',
+      alreadyInvited: '该用户已被邀请加入本组织。',
+      organizationExists: '该组织已存在。',
+      slugTaken: '该标识已被占用。',
+      notAllowedToCreate: '您无权创建新组织。',
+      notTheRecipient: '您不是该邀请的收件人。',
+      invitationNotFound: '该邀请已失效或已过期。',
+      unknown: '出了点问题，请重试。',
+    },
     backToList: '返回组织列表',
     notFound: '未找到组织',
     notFoundDescription: '该组织不存在，或您没有访问权限。',
@@ -2652,6 +2687,7 @@ const zh = {
     members: {
       title: '成员',
       inviteMember: '邀请成员',
+      inviteRestrictedNote: '只有组织管理员可以邀请成员。',
       removeMember: '移除成员',
       removeConfirmTitle: '移除成员？',
       removeConfirmDescription: '将把 {{name}} 从该组织中移除，其访问权限会立即失效。',
@@ -2660,6 +2696,8 @@ const zh = {
       removeFailed: '移除成员失败',
       roleUpdated: '角色已更新',
       roleUpdateFailed: '更新角色失败',
+      memberActions: '成员操作',
+      loadFailed: '加载成员失败',
     },
     invitations: {
       title: '邀请',
@@ -2686,6 +2724,9 @@ const zh = {
       sentDescription: '请将下方链接发送给受邀人。对方需要登录后才能接受。',
       linkLabel: '接受链接',
       invitedAs: '{{email}} 已以 {{role}} 身份受邀',
+      copyLinkLabel: '复制邀请链接',
+      loadFailed: '加载邀请失败',
+      inviteFailed: '邀请成员失败',
       status: {
         all: '全部',
         pending: '等待中',

@@ -17,6 +17,8 @@ import type { AuthInvitation } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, Building2, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { resolveOrgRoleLabel } from '../orgRoleLabel';
+import { resolveOrgErrorMessage } from '../orgErrorMessage';
 
 type InvitationWithOrg = AuthInvitation & {
   organizationName?: string;
@@ -65,7 +67,12 @@ export function AcceptInvitationPage() {
       })
       .catch((err) => {
         if (!cancelled)
-          setError(err instanceof Error ? err.message : 'Invitation not found or expired');
+          setError(
+            resolveOrgErrorMessage(err, t, {
+              key: 'organization.errors.invitationNotFound',
+              defaultValue: 'This invitation no longer exists or has expired',
+            }),
+          );
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -73,7 +80,7 @@ export function AcceptInvitationPage() {
     return () => {
       cancelled = true;
     };
-  }, [invitationId, isAuthenticated, getInvitation]);
+  }, [invitationId, isAuthenticated, getInvitation, t]);
 
   const handleAccept = async () => {
     if (!invitation || !invitationId) return;
@@ -84,10 +91,13 @@ export function AcceptInvitationPage() {
       toast.success(t('organization.accept.accepted', { defaultValue: 'Invitation accepted' }));
       navigate('/home');
     } catch (err) {
+      // objectui#4474 — the card's site 5: a wrong recipient produced better-auth's
+      // English sentence under the translated title. Mapped by `code` now.
       toast.error(
-        err instanceof Error
-          ? err.message
-          : t('organization.accept.acceptFailed', { defaultValue: 'Failed to accept invitation' }),
+        resolveOrgErrorMessage(err, t, {
+          key: 'organization.accept.acceptFailed',
+          defaultValue: 'Failed to accept invitation',
+        }),
       );
       setIsAccepting(false);
     }
@@ -102,9 +112,10 @@ export function AcceptInvitationPage() {
       navigate('/organizations');
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : t('organization.accept.declineFailed', { defaultValue: 'Failed to decline invitation' }),
+        resolveOrgErrorMessage(err, t, {
+          key: 'organization.accept.declineFailed',
+          defaultValue: 'Failed to decline invitation',
+        }),
       );
       setIsDeclining(false);
     }
@@ -158,7 +169,7 @@ export function AcceptInvitationPage() {
                   defaultValue:
                     'You have been invited to join {{orgName}} as {{role}}.',
                   orgName: invitation.organizationName ?? invitation.organizationId,
-                  role: invitation.role,
+                  role: resolveOrgRoleLabel(invitation.role, t),
                 })}
               </p>
             </div>
@@ -176,7 +187,9 @@ export function AcceptInvitationPage() {
                 <span className="text-muted-foreground">
                   {t('organization.accept.role', { defaultValue: 'Role' })}
                 </span>
-                <span className="font-medium capitalize">{invitation.role}</span>
+                <span className="font-medium" data-testid="accept-invitation-role">
+                  {resolveOrgRoleLabel(invitation.role, t)}
+                </span>
               </div>
               {invitation.expiresAt && (
                 <div className="flex justify-between text-sm">

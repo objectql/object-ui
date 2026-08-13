@@ -18,9 +18,26 @@ const TOKEN_STORAGE_KEY = 'auth-session-token';
 /**
  * Simple token storage backed by localStorage.
  * Falls back to in-memory storage when localStorage is unavailable (SSR, tests).
+ *
+ * ## Rotation notifications (objectui#4467)
+ *
+ * `subscribeRotation` fires when a token WE ALREADY HELD is replaced by a
+ * different one — i.e. the server rotated the session under a request nobody
+ * was watching. That is the only case with no owner: sign-in, sign-up and
+ * sign-out all set/clear this storage from `AuthProvider`, which updates its
+ * own identity state in the same breath, so those transitions deliberately
+ * stay silent (first store: no notify; `clear()`: no notify; re-storing the
+ * same value, as `getSession` does on every boot: no notify).
+ *
+ * A rotation with no owner is exactly what impersonation produces — the
+ * console POSTs `/auth/admin/impersonate-user` through a generic metadata
+ * action, the server hands back a NEW session token in `set-auth-token`, and
+ * nothing in that code path knows the identity just changed. See
+ * `AuthProvider`'s subscription and `__tests__/impersonation-lane-4467.test.tsx`.
  */
 export const TokenStorage = {
   _memoryToken: null as string | null,
+  _rotationListeners: new Set<() => void>(),
 
   get(): string | null {
     try {
@@ -32,12 +49,21 @@ export const TokenStorage = {
   },
 
   set(token: string): void {
+    const previous = this.get();
     this._memoryToken = token;
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(TOKEN_STORAGE_KEY, token);
       }
     } catch { /* SSR / test */ }
+    // Rotation = a token we were already using got replaced. See the header.
+    if (previous && previous !== token) {
+      for (const listener of [...this._rotationListeners]) {
+        try {
+          listener();
+        } catch { /* a listener must never break the write that triggered it */ }
+      }
+    }
   },
 
   clear(): void {
@@ -47,6 +73,17 @@ export const TokenStorage = {
         localStorage.removeItem(TOKEN_STORAGE_KEY);
       }
     } catch { /* SSR / test */ }
+  },
+
+  /**
+   * Observe session-token ROTATIONS (see the header for what does and does not
+   * count as one). Returns an unsubscribe function.
+   */
+  subscribeRotation(listener: () => void): () => void {
+    this._rotationListeners.add(listener);
+    return () => {
+      this._rotationListeners.delete(listener);
+    };
   },
 };
 
@@ -62,13 +99,34 @@ interface BetterAuthErrorLike {
 
 /**
  * Build an `Error` from a better-auth client error, preserving the machine
- * `code` on the thrown Error so callers (LoginForm/RegisterForm) can map it to
- * a localized message instead of surfacing the raw English server text. Falls
- * back to the server message, then the HTTP status.
+ * `code` on the thrown Error so callers (LoginForm/RegisterForm, and every
+ * organization screen) can map it to a localized message instead of surfacing
+ * the raw English server text. Falls back to the server message, then
+ * `fallbackMessage`, then the HTTP status.
+ *
+ * ## Why every organization route now comes through here (objectui#4474)
+ *
+ * This helper existed for sign-in/sign-up only. Every `organization.*` method
+ * below threw `new Error(error.message ?? '…')` directly and therefore **dropped
+ * `code` at the boundary** — so a console screen holding the rejection had the
+ * English sentence and nothing else to key on. That is what forced the
+ * organization UI to echo better-auth's English verbatim in a zh session: the
+ * only remaining way to localize it would have been matching the English text,
+ * which binds the console to a third party's copy-editing and breaks silently
+ * the day they reword a sentence.
+ *
+ * The repair belongs HERE rather than at the console call sites: the code is
+ * produced at this boundary, and a consumer cannot recover information the
+ * producer discarded. `message` is unchanged for every caller — this only stops
+ * throwing away the half of the pair that was already being computed.
+ * `packages/auth/src/__tests__/org-error-code-4474.test.ts` pins both halves.
  */
-function toAuthError(error: BetterAuthErrorLike): Error & { code?: string } {
+function toAuthError(
+  error: BetterAuthErrorLike,
+  fallbackMessage?: string,
+): Error & { code?: string } {
   const err = new Error(
-    error.message ?? `Auth request failed with status ${error.status}`,
+    error.message ?? fallbackMessage ?? `Auth request failed with status ${error.status}`,
   ) as Error & { code?: string };
   if (error.code) err.code = error.code;
   return err;
@@ -718,7 +776,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
 
     async listOrganizations(): Promise<AuthOrganization[]> {
       const { data, error } = await (betterAuth as any).organization.list();
-      if (error) throw new Error(error.message ?? 'Failed to list organizations');
+      if (error) throw toAuthError(error, 'Failed to list organizations');
       return (data ?? []) as AuthOrganization[];
     },
 
@@ -728,7 +786,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         slug: orgData.slug,
         logo: orgData.logo,
       });
-      if (error) throw new Error(error.message ?? 'Failed to create organization');
+      if (error) throw toAuthError(error, 'Failed to create organization');
       return data as unknown as AuthOrganization;
     },
 
@@ -736,7 +794,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       const { data, error } = await (betterAuth as any).organization.setActive({
         organizationId: orgId,
       });
-      if (error) throw new Error(error.message ?? 'Failed to set active organization');
+      if (error) throw toAuthError(error, 'Failed to set active organization');
       return (data ?? null) as AuthOrganization | null;
     },
 
@@ -764,7 +822,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       const { data, error } = await (betterAuth as any).organization.listMembers({
         query: { organizationId: orgId },
       });
-      if (error) throw new Error(error.message ?? 'Failed to get members');
+      if (error) throw toAuthError(error, 'Failed to get members');
       const result = data as unknown as { members?: AuthOrganizationMember[] } | AuthOrganizationMember[];
       if (Array.isArray(result)) return result;
       return (result?.members ?? []) as AuthOrganizationMember[];
@@ -789,7 +847,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         ...(inviteData.businessUnitId ? { businessUnitId: inviteData.businessUnitId } : {}),
         ...(inviteData.positions?.length ? { positions: inviteData.positions } : {}),
       });
-      if (error) throw new Error(error.message ?? 'Failed to invite member');
+      if (error) throw toAuthError(error, 'Failed to invite member');
       return data as unknown as AuthInvitation;
     },
 
@@ -798,7 +856,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         organizationId: removeData.organizationId,
         memberIdOrUserId: removeData.memberIdOrUserId,
       });
-      if (error) throw new Error(error.message ?? 'Failed to remove member');
+      if (error) throw toAuthError(error, 'Failed to remove member');
     },
 
     async updateMemberRole(payload: { organizationId: string; memberId: string; role: string }): Promise<void> {
@@ -807,7 +865,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         memberId: payload.memberId,
         role: payload.role,
       });
-      if (error) throw new Error(error.message ?? 'Failed to update member role');
+      if (error) throw toAuthError(error, 'Failed to update member role');
     },
 
     async updateOrganization(orgId: string, orgData: Partial<Pick<AuthOrganization, 'name' | 'slug' | 'logo' | 'metadata'>>): Promise<AuthOrganization> {
@@ -815,7 +873,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         organizationId: orgId,
         data: orgData,
       });
-      if (error) throw new Error(error.message ?? 'Failed to update organization');
+      if (error) throw toAuthError(error, 'Failed to update organization');
       return data as unknown as AuthOrganization;
     },
 
@@ -823,14 +881,14 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       const { error } = await (betterAuth as any).organization.delete({
         organizationId: orgId,
       });
-      if (error) throw new Error(error.message ?? 'Failed to delete organization');
+      if (error) throw toAuthError(error, 'Failed to delete organization');
     },
 
     async leaveOrganization(orgId: string): Promise<void> {
       const { error } = await (betterAuth as any).organization.leave({
         organizationId: orgId,
       });
-      if (error) throw new Error(error.message ?? 'Failed to leave organization');
+      if (error) throw toAuthError(error, 'Failed to leave organization');
     },
 
     // --- Invitation methods ---
@@ -839,36 +897,36 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       const { data, error } = await (betterAuth as any).organization.listInvitations({
         query: { organizationId: orgId },
       });
-      if (error) throw new Error(error.message ?? 'Failed to list invitations');
+      if (error) throw toAuthError(error, 'Failed to list invitations');
       return (data ?? []) as AuthInvitation[];
     },
 
     async cancelInvitation(invitationId: string): Promise<void> {
       const { error } = await (betterAuth as any).organization.cancelInvitation({ invitationId });
-      if (error) throw new Error(error.message ?? 'Failed to cancel invitation');
+      if (error) throw toAuthError(error, 'Failed to cancel invitation');
     },
 
     async getInvitation(invitationId: string): Promise<AuthInvitation> {
       const { data, error } = await (betterAuth as any).organization.getInvitation({
         query: { id: invitationId },
       });
-      if (error) throw new Error(error.message ?? 'Failed to load invitation');
+      if (error) throw toAuthError(error, 'Failed to load invitation');
       return data as unknown as AuthInvitation;
     },
 
     async acceptInvitation(invitationId: string): Promise<void> {
       const { error } = await (betterAuth as any).organization.acceptInvitation({ invitationId });
-      if (error) throw new Error(error.message ?? 'Failed to accept invitation');
+      if (error) throw toAuthError(error, 'Failed to accept invitation');
     },
 
     async rejectInvitation(invitationId: string): Promise<void> {
       const { error } = await (betterAuth as any).organization.rejectInvitation({ invitationId });
-      if (error) throw new Error(error.message ?? 'Failed to reject invitation');
+      if (error) throw toAuthError(error, 'Failed to reject invitation');
     },
 
     async listUserInvitations(): Promise<AuthInvitation[]> {
       const { data, error } = await (betterAuth as any).organization.listUserInvitations();
-      if (error) throw new Error(error.message ?? 'Failed to list invitations');
+      if (error) throw toAuthError(error, 'Failed to list invitations');
       return (data ?? []) as AuthInvitation[];
     },
   };

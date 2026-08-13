@@ -1,4 +1,18 @@
 const es = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: 'Está suplantando a {{user}}: todas las acciones se registran a su nombre.',
+      startedBy: 'Iniciado por el administrador {{admin}}.',
+      stop: 'Dejar de suplantar',
+      stopping: 'Finalizando…',
+      stopFailed: 'No se pudo dejar de suplantar: {{reason}}',
+      notRestored: 'El servidor aceptó la solicitud pero no restauró su sesión de administrador: sigue suplantando a {{user}}. Cierre sesión y vuelva a iniciarla para terminar.',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
   capability: {
     label: {
@@ -511,6 +525,8 @@ const es = {
     loadErrorUnauthorizedMessage: "Su sesión ha expirado o ha cerrado sesión. Inicie sesión de nuevo para ver estos registros.",
     loadErrorRejectedTitle: "La consulta de esta vista fue rechazada",
     loadErrorRejectedMessage: "El servidor no pudo procesar el filtro ni las opciones de consulta de esta vista. Borrar los filtros suele resolverlo; si la vista está guardada así, un administrador debe corregirla.",
+    loadErrorApiDisabledTitle: "Este objeto no está disponible a través de la API",
+    loadErrorApiDisabledMessage: "Esta página no puede cargar sus registros porque el objeto no está expuesto a través de la API. Es un ajuste del propio objeto, no un permiso: un administrador debe habilitar el acceso por API para que esta página funcione.",
     retry: "Reintentar",
     managedBy: {
       system: {
@@ -966,6 +982,7 @@ const es = {
   chart: {
     noData: "No hay datos de gráfico disponibles",
     loading: "Cargando gráfico…",
+    nullCategory: "(Sin especificar)",
   },
   map: {
     searchLocations: "Buscar ubicaciones…",
@@ -2167,6 +2184,7 @@ const es = {
     members: "Miembros",
     settings: "Configuración del espacio de trabajo",
     multiOrgDisabled: "La creación de nuevas organizaciones está deshabilitada en esta instancia.",
+    createFailed: 'No se pudo crear el espacio de trabajo',
   },
   help: {
     onThisPage: "En esta página",
@@ -2528,6 +2546,23 @@ const es = {
     noMatches: "Ninguna organización coincide con tu búsqueda.",
   },
   organization: {
+    roles: {
+      owner: 'Propietario',
+      admin: 'Administrador',
+      delegatedAdmin: 'Administrador delegado',
+      member: 'Miembro',
+    },
+    errors: {
+      notAllowedToInvite: 'No tiene permiso para invitar usuarios a esta organización.',
+      notAllowedToInviteWithRole: 'No tiene permiso para invitar a un usuario con este rol.',
+      alreadyInvited: 'Este usuario ya ha sido invitado a esta organización.',
+      organizationExists: 'Esa organización ya existe.',
+      slugTaken: 'Ese slug ya está en uso.',
+      notAllowedToCreate: 'No tiene permiso para crear una organización nueva.',
+      notTheRecipient: 'No es el destinatario de esta invitación.',
+      invitationNotFound: 'Esta invitación ya no existe o ha caducado.',
+      unknown: 'Algo salió mal. Inténtelo de nuevo.',
+    },
     backToList: "Volver a las organizaciones",
     notFound: "Organización no encontrada",
     notFoundDescription: "Esta organización no existe o no tienes acceso.",
@@ -2539,6 +2574,7 @@ const es = {
     members: {
       title: "Miembros",
       inviteMember: "Invitar miembro",
+      inviteRestrictedNote: "Solo los administradores de la organización pueden invitar a miembros.",
       removeMember: "Eliminar miembro",
       removeConfirmTitle: "¿Eliminar miembro?",
       removeConfirmDescription: "Se eliminará a {{name}} de la organización y perderá el acceso de inmediato.",
@@ -2547,6 +2583,8 @@ const es = {
       removeFailed: "No se pudo eliminar al miembro",
       roleUpdated: "Rol actualizado",
       roleUpdateFailed: "No se pudo actualizar el rol",
+      memberActions: 'Acciones del miembro',
+      loadFailed: 'No se pudieron cargar los miembros',
     },
     invitations: {
       title: "Invitaciones",
@@ -2573,6 +2611,9 @@ const es = {
       sentDescription: "Comparte el enlace de abajo con la persona invitada. Tendrá que iniciar sesión para aceptarla.",
       linkLabel: "Enlace de aceptación",
       invitedAs: "{{email}} invitado como {{role}}",
+      copyLinkLabel: 'Copiar enlace de invitación',
+      loadFailed: 'No se pudieron cargar las invitaciones',
+      inviteFailed: 'No se pudo invitar al miembro',
       status: {
         all: "Todas",
         pending: "Pendiente",

@@ -1,4 +1,18 @@
 const ar = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: 'أنت تنتحل هوية {{user}} — يُسجَّل كل إجراء باسمه.',
+      startedBy: 'بدأها المسؤول {{admin}}.',
+      stop: 'إنهاء انتحال الهوية',
+      stopping: 'جارٍ الإنهاء…',
+      stopFailed: 'تعذّر إنهاء انتحال الهوية: {{reason}}',
+      notRestored: 'قبل الخادم الطلب لكنه لم يستعد جلسة المسؤول — ما زلت تنتحل هوية {{user}}. سجّل الخروج ثم الدخول مرة أخرى لإنهائها.',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
   capability: {
     label: {
@@ -511,6 +525,8 @@ const ar = {
     loadErrorUnauthorizedMessage: "انتهت صلاحية جلستك أو تم تسجيل خروجك. سجّل الدخول مرة أخرى لعرض هذه السجلات.",
     loadErrorRejectedTitle: "تم رفض استعلام طريقة العرض هذه",
     loadErrorRejectedMessage: "تعذّر على الخادم معالجة عامل التصفية أو خيارات الاستعلام لطريقة العرض هذه. مسح عوامل التصفية يحل المشكلة عادةً؛ وإذا كانت طريقة العرض محفوظة بهذا الشكل، فيجب على المسؤول تصحيحها.",
+    loadErrorApiDisabledTitle: "هذا الكائن غير متاح عبر واجهة API",
+    loadErrorApiDisabledMessage: "لا يمكن لهذه الصفحة تحميل سجلاتها لأن الكائن غير معروض عبر واجهة API. هذا إعداد خاص بالكائن نفسه وليس صلاحية — يجب على المسؤول تفعيل الوصول عبر API حتى تعمل هذه الصفحة.",
     retry: "إعادة المحاولة",
     managedBy: {
       system: {
@@ -969,6 +985,7 @@ const ar = {
   chart: {
     noData: "لا تتوفر بيانات للرسم البياني",
     loading: "جاري تحميل الرسم البياني…",
+    nullCategory: "(غير محدد)",
   },
   map: {
     searchLocations: "البحث عن المواقع…",
@@ -2170,6 +2187,7 @@ const ar = {
     members: "الأعضاء",
     settings: "إعدادات مساحة العمل",
     multiOrgDisabled: "إنشاء مؤسسات جديدة معطّل في هذا النشر.",
+    createFailed: 'تعذّر إنشاء مساحة العمل',
   },
   help: {
     onThisPage: "في هذه الصفحة",
@@ -2531,6 +2549,23 @@ const ar = {
     noMatches: "لا توجد مؤسسات تطابق بحثك.",
   },
   organization: {
+    roles: {
+      owner: 'المالك',
+      admin: 'المسؤول',
+      delegatedAdmin: 'مسؤول مفوَّض',
+      member: 'عضو',
+    },
+    errors: {
+      notAllowedToInvite: 'لا يُسمح لك بدعوة مستخدمين إلى هذه المؤسسة.',
+      notAllowedToInviteWithRole: 'لا يُسمح لك بدعوة مستخدم بهذا الدور.',
+      alreadyInvited: 'تمت دعوة هذا المستخدم إلى هذه المؤسسة بالفعل.',
+      organizationExists: 'هذه المؤسسة موجودة بالفعل.',
+      slugTaken: 'هذا المُعرِّف مستخدَم بالفعل.',
+      notAllowedToCreate: 'لا يُسمح لك بإنشاء مؤسسة جديدة.',
+      notTheRecipient: 'لست المستلم المقصود بهذه الدعوة.',
+      invitationNotFound: 'لم تعد هذه الدعوة موجودة أو أنها منتهية الصلاحية.',
+      unknown: 'حدث خطأ ما. يرجى المحاولة مرة أخرى.',
+    },
     backToList: "العودة إلى المؤسسات",
     notFound: "المؤسسة غير موجودة",
     notFoundDescription: "هذه المؤسسة غير موجودة أو ليس لديك صلاحية الوصول إليها.",
@@ -2542,6 +2577,7 @@ const ar = {
     members: {
       title: "الأعضاء",
       inviteMember: "دعوة عضو",
+      inviteRestrictedNote: "لا يمكن دعوة الأعضاء إلا لمسؤولي المؤسسة.",
       removeMember: "إزالة العضو",
       removeConfirmTitle: "إزالة العضو؟",
       removeConfirmDescription: "سيؤدي ذلك إلى إزالة {{name}} من المؤسسة، وسيفقد صلاحية الوصول فورًا.",
@@ -2550,6 +2586,8 @@ const ar = {
       removeFailed: "فشل إزالة العضو",
       roleUpdated: "تم تحديث الدور",
       roleUpdateFailed: "فشل تحديث الدور",
+      memberActions: 'إجراءات العضو',
+      loadFailed: 'تعذّر تحميل الأعضاء',
     },
     invitations: {
       title: "الدعوات",
@@ -2576,6 +2614,9 @@ const ar = {
       sentDescription: "شارك الرابط أدناه مع المدعوّ. سيحتاج إلى تسجيل الدخول للقبول.",
       linkLabel: "رابط القبول",
       invitedAs: "تمت دعوة {{email}} بصفة {{role}}",
+      copyLinkLabel: 'نسخ رابط الدعوة',
+      loadFailed: 'تعذّر تحميل الدعوات',
+      inviteFailed: 'تعذّرت دعوة العضو',
       status: {
         all: "الكل",
         pending: "قيد الانتظار",

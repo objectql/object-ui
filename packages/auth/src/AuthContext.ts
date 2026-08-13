@@ -40,6 +40,21 @@ export interface AuthContextValue {
   signUp: (name: string, email: string, password: string) => Promise<{ requiresVerification: boolean }>;
   /** Sign out the current user */
   signOut: () => Promise<void>;
+  /**
+   * objectui#4467 — re-resolve `user`/`session` from the server, in place.
+   *
+   * The same loader the provider runs on mount, exposed for the transitions
+   * that change WHO the session is without going through `signIn`/`signOut`:
+   * starting and stopping impersonation. Deliberately does NOT raise
+   * `isLoading` — a refresh must not blank the console it is running under.
+   *
+   * Callers rarely need it: a session rotation observed on the wire refreshes
+   * identity on its own (see `TokenStorage.subscribeRotation`). Call it when
+   * you must AWAIT the new identity before deciding what to show — the
+   * impersonation banner's exit does, so a stop that did not restore the
+   * administrator can fail loudly instead of appearing to succeed.
+   */
+  refreshSession: () => Promise<void>;
   /** Update user profile */
   updateUser: (data: Partial<AuthUser>) => Promise<void>;
   /** Request password reset */

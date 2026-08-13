@@ -1,4 +1,18 @@
 const ru = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: 'Вы работаете от имени {{user}} — все действия записываются на этого пользователя.',
+      startedBy: 'Начато администратором {{admin}}.',
+      stop: 'Прекратить работу от чужого имени',
+      stopping: 'Завершение…',
+      stopFailed: 'Не удалось прекратить работу от чужого имени: {{reason}}',
+      notRestored: 'Сервер принял запрос, но не восстановил сеанс администратора — вы всё ещё работаете от имени {{user}}. Выйдите и войдите снова, чтобы завершить.',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
   capability: {
     label: {
@@ -513,6 +527,8 @@ const ru = {
     loadErrorUnauthorizedMessage: "Сессия истекла или вы вышли из системы. Войдите снова, чтобы просмотреть эти записи.",
     loadErrorRejectedTitle: "Запрос этого представления отклонён",
     loadErrorRejectedMessage: "Сервер не смог обработать фильтр или параметры запроса этого представления. Обычно помогает сброс фильтров; если представление сохранено в таком виде, исправить его должен администратор.",
+    loadErrorApiDisabledTitle: "Этот объект недоступен через API",
+    loadErrorApiDisabledMessage: "Страница не может загрузить записи, потому что объект не открыт через API. Это настройка самого объекта, а не права доступа — администратор должен включить доступ по API, чтобы эта страница заработала.",
     retry: "Повторить",
     managedBy: {
       system: {
@@ -972,6 +988,7 @@ const ru = {
   chart: {
     noData: "Нет данных для графика",
     loading: "Загрузка графика…",
+    nullCategory: "(Не указано)",
   },
   map: {
     searchLocations: "Поиск местоположений…",
@@ -2173,6 +2190,7 @@ const ru = {
     members: "Участники",
     settings: "Настройки рабочего пространства",
     multiOrgDisabled: "Создание новых организаций отключено в этой среде.",
+    createFailed: 'Не удалось создать рабочее пространство',
   },
   help: {
     onThisPage: "На этой странице",
@@ -2535,6 +2553,23 @@ const ru = {
     noMatches: "Нет организаций, соответствующих запросу.",
   },
   organization: {
+    roles: {
+      owner: 'Владелец',
+      admin: 'Администратор',
+      delegatedAdmin: 'Делегированный администратор',
+      member: 'Участник',
+    },
+    errors: {
+      notAllowedToInvite: 'У вас нет прав приглашать пользователей в эту организацию.',
+      notAllowedToInviteWithRole: 'У вас нет прав приглашать пользователя с этой ролью.',
+      alreadyInvited: 'Этот пользователь уже приглашён в эту организацию.',
+      organizationExists: 'Такая организация уже существует.',
+      slugTaken: 'Этот идентификатор уже занят.',
+      notAllowedToCreate: 'У вас нет прав создавать новую организацию.',
+      notTheRecipient: 'Вы не являетесь получателем этого приглашения.',
+      invitationNotFound: 'Это приглашение больше не существует или истекло.',
+      unknown: 'Что-то пошло не так. Попробуйте ещё раз.',
+    },
     backToList: "Назад к организациям",
     notFound: "Организация не найдена",
     notFoundDescription: "Эта организация не существует или у вас нет к ней доступа.",
@@ -2546,6 +2581,7 @@ const ru = {
     members: {
       title: "Участники",
       inviteMember: "Пригласить участника",
+      inviteRestrictedNote: "Только администраторы организации могут приглашать участников.",
       removeMember: "Удалить участника",
       removeConfirmTitle: "Удалить участника?",
       removeConfirmDescription: "{{name}} будет удалён из организации и сразу потеряет доступ.",
@@ -2554,6 +2590,8 @@ const ru = {
       removeFailed: "Не удалось удалить участника",
       roleUpdated: "Роль обновлена",
       roleUpdateFailed: "Не удалось обновить роль",
+      memberActions: 'Действия с участником',
+      loadFailed: 'Не удалось загрузить участников',
     },
     invitations: {
       title: "Приглашения",
@@ -2580,6 +2618,9 @@ const ru = {
       sentDescription: "Отправьте ссылку ниже приглашённому. Чтобы принять приглашение, ему нужно войти в систему.",
       linkLabel: "Ссылка для принятия",
       invitedAs: "{{email}} приглашён как {{role}}",
+      copyLinkLabel: 'Скопировать ссылку-приглашение',
+      loadFailed: 'Не удалось загрузить приглашения',
+      inviteFailed: 'Не удалось пригласить участника',
       status: {
         all: "Все",
         pending: "Ожидает",

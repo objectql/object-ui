@@ -131,6 +131,39 @@ export function createAuthenticatedFetch(
       }
     }
     const response = await fetch(input, { ...init, headers });
+    // Adopt a session rotation the server declares on the response, exactly as
+    // the auth lane already does (`createBearerFetch` in createAuthClient.ts).
+    //
+    // ## Why this lane needs it too (objectui#4467)
+    //
+    // The console injects the same localStorage bearer from two places: the
+    // AUTH lane (sign-in / get-session / the auth endpoints) and THIS one — the
+    // adapter, `provider: 'api'` data sources, and every metadata `type: 'api'`
+    // action (`useConsoleActionRuntime`'s `apiHandler`). better-auth's
+    // server-side bearer plugin hands a rotated session token back in
+    // `set-auth-token` on whichever lane the call arrived over. Only the auth
+    // lane read it, so a rotation issued to a data-lane call was dropped on the
+    // floor and the browser kept sending the OLD token.
+    //
+    // Impersonation is exactly that call: `POST /auth/admin/impersonate-user`
+    // runs as an ordinary metadata action, so the impersonated session token
+    // arrived here and was discarded — while the server's bearer plugin kept
+    // overwriting the impersonation cookie with the admin bearer we kept
+    // sending. Impersonation was a complete no-op in the console, not merely an
+    // invisible one.
+    //
+    // The rule is the server's declared contract and carries no knowledge of
+    // which endpoint rotated: one contract, one answer, on both lanes. Gated on
+    // `isApiCall` — the same condition that decided we authenticated this
+    // request at all — so a response we never sent the bearer to cannot rotate
+    // the session. Untrusted targets are the `sameOriginOnly` option's job (it
+    // short-circuits above, before any header work).
+    if (isApiCall) {
+      const rotatedToken = response.headers.get('set-auth-token');
+      if (rotatedToken) {
+        TokenStorage.set(rotatedToken);
+      }
+    }
     // ADR-0069 — surface an auth-policy gate (expired password / required MFA)
     // to the remediation overlay. Clone so the caller still reads the body.
     if (isApiCall && response.status === 403) {

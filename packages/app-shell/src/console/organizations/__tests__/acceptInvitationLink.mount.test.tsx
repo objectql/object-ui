@@ -192,7 +192,10 @@ async function shareLinkFromInviteDialog(): Promise<{ shown: string; copied: str
   // The "share link" view: a read-only field holding the accept URL, plus a
   // copy button. Both must carry the same openable URL.
   const field = await screen.findByRole('textbox');
-  fireEvent.click(screen.getByLabelText('Copy'));
+  // The label was a bare "Copy" until objectui#4474 gave this icon-only button
+  // the same name as the Invitations tab's copy control — same action, same
+  // words. Only the query moved; every URL assertion below is unchanged.
+  fireEvent.click(screen.getByLabelText('Copy invitation link'));
   await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
   return { shown: (field as HTMLInputElement).value, copied: writeText.mock.calls[0][0] as string };
 }

@@ -174,12 +174,13 @@ describe('ListView-hosted grid — cross-page select-all under external paginati
     );
     expect(within(bar).getByText(/26 selected \(all matches\)/)).toBeInTheDocument();
 
-    // Scope note, stated rather than faked: the COLLECTED id set is materialized
-    // only when a bulk action is dispatched (`resolveBulkRows` re-issues the
-    // query), so it is not observable from the selection UI this test drives.
-    // Asserting it here would need a bulk action + its dialog, and it would
-    // additionally pin `lastFindParamsRef` — internal-loader-only state whose
-    // behaviour on THIS external path is a separate, filed finding (#4501).
+    // Scope note: the COLLECTED id set is materialized only when a bulk action
+    // is dispatched (`resolveBulkRows` re-issues the query), so it is not
+    // observable from the selection UI *this* case drives — it pins the
+    // selection-state escalation. The dispatched fan-out is pinned end to end by
+    // the last describe block in this file, which #4501 (PR #4510, since landed)
+    // is what made assertable: before it there was no query on this path to
+    // replay, so there was nothing honest to assert.
   });
 
   it('shows no banner for a partial page selection', async () => {
@@ -245,5 +246,114 @@ describe('standalone ObjectGrid — the internal-loader path is unchanged (#4464
     expect(await screen.findByTestId('bulk-select-all-matching')).toHaveTextContent(
       'Select all 26 matching',
     );
+  });
+});
+
+/**
+ * The full path, end to end — the assertion #4501 (PR #4510) made possible.
+ *
+ * Two halves meet here and neither is sufficient alone. #4510 pinned the SEAM in
+ * two places, each with one side stubbed or synthesized: `ListView.findParamsHandoff`
+ * asserts the producer against a STUB grid, and `plugin-grid`'s
+ * `bulkFanoutHostParams` asserts the consumer against a HAND-WRITTEN `HOST_PARAMS`
+ * literal, reaching the escalation only by starting on the internal path and
+ * re-rendering into host-driven mode — because on `main` the pure host path could
+ * not reach the affordance at all. That was #4464's defect, and this branch's fix.
+ *
+ * So this block is the composition neither could make: the REAL ListView issuing a
+ * REAL filtered query, the REAL grid offering the escalation off the host's
+ * `rowCount`, and the dispatched fan-out replaying the very params that produced
+ * the rows on screen — compared against what ListView actually put on the wire, not
+ * against a literal that can drift from it.
+ *
+ * It is also the composed shape's own pin: the offer needs #4510's FLOOR (params
+ * present) and its count comes from #4503's RESOLVED total (the host's `rowCount`).
+ * Drop either and this case fails — no affordance, or "Select all undefined".
+ */
+describe('ListView-hosted grid — the escalation fans out with the HOST\'s real query (#4464 × #4501)', () => {
+  /** 40 records; the view's filter matches 26 of them (`c-14` … `c-39`). */
+  const ALL = Array.from({ length: 40 }, (_, i) => ({
+    id: `c-${i}`,
+    name: `Contact ${i}`,
+    status: i >= 14 ? 'active' : 'archived',
+  }));
+  const MATCHING = ALL.filter((r) => r.status === 'active');
+
+  /** A server that answers the query it is given — filtered or not. */
+  function makeFilteringDataSource() {
+    const find = vi.fn(async (_object: string, params: any) => {
+      const source = params?.$filter ? MATCHING : ALL;
+      const top = params?.$top ?? PAGE_SIZE;
+      const skip = params?.$skip ?? 0;
+      const data = source.slice(skip, skip + top).map((r) => ({ ...r }));
+      return { data, total: source.length, hasMore: skip + data.length < source.length };
+    });
+    return {
+      find,
+      findOne: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      getObjectSchema: async (name: string) => ({
+        name,
+        fields: { id: { type: 'text' }, name: { type: 'text' }, status: { type: 'text' } },
+      }),
+    } as any;
+  }
+
+  it('replays the $filter/$orderby ListView queried with, and delivers the match set', async () => {
+    const ds = makeFilteringDataSource();
+    const onBulkDelete = vi.fn();
+    render(
+      <I18nProvider config={{ defaultLanguage: 'en', detectBrowserLanguage: false }}>
+        <SchemaRendererProvider dataSource={ds}>
+          <ListView
+            schema={listSchema({
+              filter: [{ field: 'status', operator: 'equals', value: 'active' }],
+              sort: [{ field: 'name', order: 'asc' }],
+              bulkActions: ['delete'],
+            })}
+            dataSource={ds}
+            onBulkDelete={onBulkDelete}
+          />
+        </SchemaRendererProvider>
+      </I18nProvider>,
+    );
+
+    // The window on screen is page 1 of the FILTERED collection.
+    await waitFor(() => expect(screen.getByText('Contact 14')).toBeInTheDocument());
+    await waitFor(() => expect(rowCheckboxes().length).toBe(PAGE_SIZE));
+    // What ListView actually asked the server — the yardstick for the replay.
+    const hostParams = { ...ds.find.mock.calls[ds.find.mock.calls.length - 1][1] };
+    expect(hostParams.$filter).toBeTruthy();
+
+    fireEvent.click(headerCheckbox() as HTMLElement);
+    // The offer itself is the composition: #4510's floor admits it (ListView
+    // handed `findParams` down) and #4503's resolved total gives it its count.
+    expect(await screen.findByTestId('bulk-select-all-matching')).toHaveTextContent(
+      `Select all ${MATCHING.length} matching`,
+    );
+    fireEvent.click(screen.getByTestId('bulk-select-all-matching'));
+    await waitFor(() =>
+      expect(screen.queryByTestId('bulk-select-all-matching')).not.toBeInTheDocument(),
+    );
+
+    // Dispatch the bulk action: THIS is what materializes the fanned-out set.
+    const before = ds.find.mock.calls.length;
+    fireEvent.click(screen.getByTestId('bulk-action-delete'));
+    await waitFor(() => expect(onBulkDelete).toHaveBeenCalled());
+    const fanout = ds.find.mock.calls.slice(before).map((c: any[]) => c[1]);
+
+    // One 500-record page, carrying the host's query verbatim — `$filter` and
+    // `$orderby` included. Pre-#4510 this was `{}`: the whole-object read.
+    expect(fanout).toHaveLength(1);
+    const { $top: _top, $skip: _skip, ...replayed } = hostParams;
+    expect(fanout[0]).toEqual({ ...replayed, $top: 500, $skip: 0 });
+
+    // …so the executor receives the MATCH SET and nothing outside it.
+    const delivered = onBulkDelete.mock.calls[0][0];
+    expect(delivered).toHaveLength(MATCHING.length);
+    expect(delivered.every((r: any) => r.status === 'active')).toBe(true);
+    expect(delivered.some((r: any) => r.id === 'c-0')).toBe(false);
   });
 });

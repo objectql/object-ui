@@ -827,8 +827,20 @@ export const ObjectChart = (props: any) => {
   // ADR-0021 (#1759): when the chart binds to a dataset, derive data/xAxisKey/
   // series from its dimensions/measures via the shared buildChartSeries helper —
   // this pivots a second dimension into grouped series, matching DatasetWidget.
+  //
+  // `nullCategoryLabel` is this layer's half of objectui#4466: core maps a null
+  // category value to a bucket so the group renders at all, and the LABEL comes
+  // from here because `@object-ui/core` is React-free and cannot read the locale
+  // bundle (same division as `dimensionOptionTranslator` above — core takes the
+  // resolver, the renderer holds the provider).
   const datasetChart = schema.dataset
-    ? buildChartSeries(relabelDimensions(finalData, dimensionLabels), schema.dimensions, schema.values, datasetFields)
+    ? buildChartSeries(
+        relabelDimensions(finalData, dimensionLabels),
+        schema.dimensions,
+        schema.values,
+        datasetFields,
+        { nullCategoryLabel: tt('chart.nullCategory', '(None)') },
+      )
     : null;
 
   const finalSchema = datasetChart

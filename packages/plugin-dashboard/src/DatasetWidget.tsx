@@ -1344,9 +1344,18 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // axis with its count intact (cloud#667). `chartRows` stays index-aligned with
   // `state.rows`/`drillRawRows`, so drill-through still maps to the raw value.
   const chartRows = relabelDimensions(state.rows, dimensionLabels);
+  // objectui#4500 — the null-category bucket's LABEL. `@object-ui/core` is
+  // React-free and cannot read the locale bundle, so it falls back to the
+  // English `NULL_CATEGORY_LABEL`; the resolved label has to come from here
+  // (the same division ObjectChart uses — core takes the string, the renderer
+  // holds the provider). ONE binding on purpose: `buildChartSeries` writes it
+  // into the rendered rows and `findChartSeriesRow` matches a clicked category
+  // against it, so the two drifting apart costs the bucket bar its drill —
+  // a visible bar that silently no-ops (#4498's dead-click rule).
+  const nullCategoryLabel = tt('chart.nullCategory', '(None)');
   // ADR-0021 (#1759): shared helper — pivots a second dimension into grouped
   // series so multi-dimension dataset widgets match the chart-view renderer.
-  const { data: chartData, xAxisKey, series } = buildChartSeries(chartRows, dimensions, values, state.fields);
+  const { data: chartData, xAxisKey, series } = buildChartSeries(chartRows, dimensions, values, state.fields, { nullCategoryLabel });
 
   // The author's PRESENTATION, merged onto those derived bindings — per-series
   // mark and axis binding, plus the axis definitions (#4229). Membership stays
@@ -1409,7 +1418,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // Map a clicked chart segment back to its dataset row, then drill through to
   // the underlying records — same governed path the table/pivot rows use.
   const handleChartDrill = (ev: { category?: string; series?: string; value?: number }) => {
-    const idx = findChartSeriesRow(chartRows, dimensions, values, ev?.category, ev?.series);
+    const idx = findChartSeriesRow(chartRows, dimensions, values, ev?.category, ev?.series, { nullCategoryLabel });
     if (idx < 0) return;
     // `series` is a real (second) dimension value only when pivoted; otherwise
     // it's the measure name — omit it from the drawer title.

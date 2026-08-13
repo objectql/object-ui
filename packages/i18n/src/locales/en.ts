@@ -2,6 +2,20 @@
  * English (en) - Default language pack for Object UI
  */
 const en = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: 'You are impersonating {{user}} — every action is recorded as them.',
+      startedBy: 'Started by administrator {{admin}}.',
+      stop: 'Stop impersonating',
+      stopping: 'Stopping…',
+      stopFailed: 'Could not stop impersonating: {{reason}}',
+      notRestored: 'The server accepted the request but did not restore your administrator session — you are still impersonating {{user}}. Sign out and sign in again to end it.',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from
   // the sys_capability registry; only these group titles are UI strings).
   capability: {
@@ -578,6 +592,8 @@ const en = {
     loadErrorUnauthorizedMessage: 'Your session has expired or you are signed out. Sign in again to view these records.',
     loadErrorRejectedTitle: 'This view’s query was rejected',
     loadErrorRejectedMessage: 'The server could not process this view’s filter or query options. Clearing the filters usually fixes it; if the view is saved this way, an administrator needs to correct it.',
+    loadErrorApiDisabledTitle: 'This object isn’t available through the API',
+    loadErrorApiDisabledMessage: 'This page can’t load its records because the object is not exposed through the API. That is a setting on the object itself, not a permission — an administrator has to enable API access for it before this page can work.',
     retry: 'Retry',
     managedBy: {
       system: {
@@ -1045,6 +1061,7 @@ const en = {
   chart: {
     noData: 'No chart data available',
     loading: 'Loading chart…',
+    nullCategory: '(None)',
   },
   report: {
     total: 'Total',
@@ -2337,6 +2354,7 @@ const en = {
     members: 'Members',
     settings: 'Workspace settings',
     multiOrgDisabled: 'Creating new organizations is disabled on this instance.',
+    createFailed: 'Failed to create workspace',
   },
   help: {
     onThisPage: 'On this page',
@@ -2756,6 +2774,23 @@ const en = {
   // is the org PICKER — same domain, different surface, and the singular /
   // plural spelling is the only thing telling them apart at a call site.
   organization: {
+    roles: {
+      owner: 'Owner',
+      admin: 'Admin',
+      delegatedAdmin: 'Delegated Admin',
+      member: 'Member',
+    },
+    errors: {
+      notAllowedToInvite: 'You are not allowed to invite users to this organization',
+      notAllowedToInviteWithRole: 'You are not allowed to invite a user with this role',
+      alreadyInvited: 'This user has already been invited to this organization',
+      organizationExists: 'Organization already exists',
+      slugTaken: 'That URL slug is already taken',
+      notAllowedToCreate: 'You are not allowed to create a new organization',
+      notTheRecipient: 'You are not the recipient of the invitation',
+      invitationNotFound: 'This invitation no longer exists or has expired',
+      unknown: 'Something went wrong. Please try again.',
+    },
     backToList: 'Back to organizations',
     notFound: 'Organization not found',
     notFoundDescription: 'This organization does not exist or you do not have access.',
@@ -2767,6 +2802,7 @@ const en = {
     members: {
       title: 'Members',
       inviteMember: 'Invite member',
+      inviteRestrictedNote: 'Only organization admins can invite members.',
       removeMember: 'Remove member',
       removeConfirmTitle: 'Remove member?',
       removeConfirmDescription: 'This will remove {{name}} from the organization. They will lose access immediately.',
@@ -2775,6 +2811,8 @@ const en = {
       removeFailed: 'Failed to remove member',
       roleUpdated: 'Role updated',
       roleUpdateFailed: 'Failed to update role',
+      memberActions: 'Member actions',
+      loadFailed: 'Failed to load members',
     },
     invitations: {
       title: 'Invitations',
@@ -2804,6 +2842,9 @@ const en = {
       sentDescription: 'Share the link below with the invitee. They will need to sign in to accept.',
       linkLabel: 'Accept link',
       invitedAs: '{{email}} invited as {{role}}',
+      copyLinkLabel: 'Copy invitation link',
+      loadFailed: 'Failed to load invitations',
+      inviteFailed: 'Failed to invite member',
       status: {
         all: 'All',
         pending: 'Pending',

@@ -1,4 +1,18 @@
 const ko = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: '{{user}} 계정을 대행하고 있습니다. 모든 작업이 해당 사용자로 기록됩니다.',
+      startedBy: '관리자 {{admin}}이(가) 시작했습니다.',
+      stop: '대행 종료',
+      stopping: '종료하는 중…',
+      stopFailed: '대행을 종료할 수 없습니다: {{reason}}',
+      notRestored: '서버가 요청을 받았지만 관리자 세션을 복원하지 않았습니다. 여전히 {{user}} 계정을 대행하고 있습니다. 로그아웃 후 다시 로그인하여 종료하세요.',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
   capability: {
     label: {
@@ -507,6 +521,8 @@ const ko = {
     loadErrorUnauthorizedMessage: "세션이 만료되었거나 로그아웃되었습니다. 다시 로그인한 후 확인하세요.",
     loadErrorRejectedTitle: "이 뷰의 쿼리가 거부되었습니다",
     loadErrorRejectedMessage: "서버가 이 뷰의 필터 또는 쿼리 옵션을 처리하지 못했습니다. 필터를 지우면 대부분 해결됩니다. 뷰가 이 상태로 저장되어 있다면 관리자가 수정해야 합니다.",
+    loadErrorApiDisabledTitle: "이 객체는 API로 제공되지 않습니다",
+    loadErrorApiDisabledMessage: "객체가 API에 공개되어 있지 않아 이 페이지는 레코드를 불러올 수 없습니다. 이는 권한이 아니라 객체 자체의 설정입니다. 관리자가 API 액세스를 활성화해야 이 페이지가 동작합니다.",
     retry: "다시 시도",
     managedBy: {
       system: {
@@ -962,6 +978,7 @@ const ko = {
   chart: {
     noData: "차트 데이터가 없습니다",
     loading: "차트 로딩 중…",
+    nullCategory: "(미지정)",
   },
   map: {
     searchLocations: "위치 검색…",
@@ -2163,6 +2180,7 @@ const ko = {
     members: "구성원",
     settings: "워크스페이스 설정",
     multiOrgDisabled: "이 인스턴스에서는 새 조직을 만들 수 없습니다.",
+    createFailed: '워크스페이스를 만들지 못했습니다',
   },
   help: {
     onThisPage: "이 페이지에서",
@@ -2523,6 +2541,23 @@ const ko = {
     noMatches: "검색과 일치하는 조직이 없습니다.",
   },
   organization: {
+    roles: {
+      owner: '소유자',
+      admin: '관리자',
+      delegatedAdmin: '위임 관리자',
+      member: '멤버',
+    },
+    errors: {
+      notAllowedToInvite: '이 조직에 사용자를 초대할 권한이 없습니다.',
+      notAllowedToInviteWithRole: '이 역할로 사용자를 초대할 권한이 없습니다.',
+      alreadyInvited: '이 사용자는 이미 이 조직에 초대되었습니다.',
+      organizationExists: '해당 조직이 이미 존재합니다.',
+      slugTaken: '해당 슬러그는 이미 사용 중입니다.',
+      notAllowedToCreate: '새 조직을 만들 권한이 없습니다.',
+      notTheRecipient: '이 초대의 수신자가 아닙니다.',
+      invitationNotFound: '이 초대는 더 이상 존재하지 않거나 만료되었습니다.',
+      unknown: '문제가 발생했습니다. 다시 시도해 주세요.',
+    },
     backToList: "조직 목록으로 돌아가기",
     notFound: "조직을 찾을 수 없음",
     notFoundDescription: "이 조직이 존재하지 않거나 접근 권한이 없습니다.",
@@ -2534,6 +2569,7 @@ const ko = {
     members: {
       title: "구성원",
       inviteMember: "구성원 초대",
+      inviteRestrictedNote: "조직 관리자만 구성원을 초대할 수 있습니다.",
       removeMember: "구성원 제거",
       removeConfirmTitle: "구성원을 제거할까요?",
       removeConfirmDescription: "{{name}}을(를) 조직에서 제거합니다. 접근 권한이 즉시 사라집니다.",
@@ -2542,6 +2578,8 @@ const ko = {
       removeFailed: "구성원 제거 실패",
       roleUpdated: "역할이 업데이트됨",
       roleUpdateFailed: "역할 업데이트 실패",
+      memberActions: '멤버 작업',
+      loadFailed: '멤버를 불러오지 못했습니다',
     },
     invitations: {
       title: "초대",
@@ -2568,6 +2606,9 @@ const ko = {
       sentDescription: "아래 링크를 초대 대상자와 공유하세요. 수락하려면 로그인해야 합니다.",
       linkLabel: "수락 링크",
       invitedAs: "{{email}}을(를) {{role}}(으)로 초대함",
+      copyLinkLabel: '초대 링크 복사',
+      loadFailed: '초대를 불러오지 못했습니다',
+      inviteFailed: '멤버를 초대하지 못했습니다',
       status: {
         all: "전체",
         pending: "대기 중",

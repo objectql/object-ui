@@ -37,6 +37,7 @@ import {
 import { ThemeProvider } from '../chrome/ThemeProvider';
 import { LoadingScreen } from '../chrome/LoadingScreen';
 import { RemediationOverlay } from './RemediationOverlay';
+import { ImpersonationBanner } from '../layout/ImpersonationBanner';
 
 // The console's every pre-React / pre-auth gate (Suspense fallback, adapter
 // not ready, org/auth loading) renders this. It used to be a bare, unbranded
@@ -146,6 +147,13 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
             <FavoritesProvider>
               <RecentItemsProvider>
                 <FlowPaletteRecentsProvider>
+                  {/* objectui#4467 — the impersonation indicator. Above the
+                      routes, so it is chrome for EVERY console page (home has
+                      its own layout and would otherwise carry no indicator),
+                      and in flow rather than overlaid, so it never covers the
+                      header it warns about. Renders null on every ordinary
+                      session. */}
+                  <ImpersonationBanner />
                   <Suspense fallback={<LoadingFallback />}>{children}</Suspense>
                   {/* ADR-0069 — full-screen gate (expired password / required MFA) above all routes */}
                   <RemediationOverlay />

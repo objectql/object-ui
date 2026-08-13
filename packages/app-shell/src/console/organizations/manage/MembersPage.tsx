@@ -32,6 +32,9 @@ import { Loader2, MoreHorizontal, UserMinus, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOrgContext } from './orgContext';
 import { InviteMemberDialog } from './InviteMemberDialog';
+import { canInviteMembers, canRemoveMembers } from './orgCapabilities';
+import { resolveOrgRoleLabel } from '../orgRoleLabel';
+import { resolveOrgErrorMessage } from '../orgErrorMessage';
 
 function getMemberInitials(name?: string): string {
   if (!name) return '?';
@@ -48,6 +51,14 @@ export function MembersPage() {
   const { org } = useOrgContext();
   const { getMembers, removeMember, updateMemberRole, activeMember } = useAuth();
 
+  /* objectui#4475 — what this viewer may actually do here. Both read the SAME
+     `activeMember.role` the role-change narrowing below already keys on (one
+     role source per screen), and both are measured against the server gate they
+     mirror — see `orgCapabilities`. `canInvite` is the wider set: it includes
+     `delegated_admin`, which may invite and may not remove. */
+  const canInvite = canInviteMembers(activeMember?.role);
+  const canRemove = canRemoveMembers(activeMember?.role);
+
   const [members, setMembers] = useState<AuthOrganizationMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,11 +74,16 @@ export function MembersPage() {
       const data = await getMembers(org.id);
       setMembers(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load members');
+      setError(
+        resolveOrgErrorMessage(err, t, {
+          key: 'organization.members.loadFailed',
+          defaultValue: 'Failed to load members',
+        }),
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [org.id, getMembers]);
+  }, [org.id, getMembers, t]);
 
   useEffect(() => {
     fetchMembers();
@@ -80,9 +96,10 @@ export function MembersPage() {
       fetchMembers();
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : t('organization.members.roleUpdateFailed', { defaultValue: 'Failed to update role' }),
+        resolveOrgErrorMessage(err, t, {
+          key: 'organization.members.roleUpdateFailed',
+          defaultValue: 'Failed to update role',
+        }),
       );
     }
   };
@@ -96,9 +113,10 @@ export function MembersPage() {
       fetchMembers();
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : t('organization.members.removeFailed', { defaultValue: 'Failed to remove member' }),
+        resolveOrgErrorMessage(err, t, {
+          key: 'organization.members.removeFailed',
+          defaultValue: 'Failed to remove member',
+        }),
       );
     }
   };
@@ -129,16 +147,38 @@ export function MembersPage() {
         <h2 className="text-lg font-semibold">
           {t('organization.members.title', { defaultValue: 'Members' })} ({members.length})
         </h2>
-        <Button onClick={() => setIsInviteOpen(true)} data-testid="invite-member-btn">
-          {t('organization.members.inviteMember', { defaultValue: 'Invite member' })}
-        </Button>
+        {/* objectui#4475 — the Settings tab's convention, applied to this slot:
+            the explanatory copy takes the PLACE of the affordance it replaces
+            (there a form, here the button), in the same `text-sm
+            text-muted-foreground` voice, so the space says why instead of going
+            blank. It is not a disabled button: a control that exists only to
+            refuse is still an invitation to try. */}
+        {canInvite ? (
+          <Button onClick={() => setIsInviteOpen(true)} data-testid="invite-member-btn">
+            {t('organization.members.inviteMember', { defaultValue: 'Invite member' })}
+          </Button>
+        ) : (
+          <p className="text-sm text-muted-foreground" data-testid="invite-restricted-note">
+            {t('organization.members.inviteRestrictedNote', {
+              defaultValue: 'Only organization admins can invite members.',
+            })}
+          </p>
+        )}
       </div>
 
       <Separator />
 
       {/* Member list */}
       <div className="space-y-2">
-        {members.map((member) => (
+        {members.map((member) => {
+          /* [framework #3697] Roles this actor may SET on THIS member — see the
+             menu below for what the list mirrors. Hoisted out of the JSX because
+             objectui#4475 needs its emptiness twice: an actor with no assignable
+             role AND no remove permission gets no menu at all, rather than a
+             trigger that opens onto nothing. */
+          const assignable = assignableOrgRoles(activeMember?.role, member.role);
+          const hasRowActions = assignable.length > 0 || canRemove;
+          return (
           <div
             key={member.id}
             className="flex items-center gap-3 rounded-lg border bg-card p-3"
@@ -156,8 +196,19 @@ export function MembersPage() {
               <div className="truncate text-xs text-muted-foreground">{member.user?.email ?? '—'}</div>
             </div>
 
-            <Badge variant="outline" className="shrink-0 capitalize">
-              {member.role}
+            {/* objectui#4474 — the role badge used to render the raw server
+                identifier under CSS `capitalize`, which made `owner` look like
+                a label in English and left it untranslated everywhere else. It
+                now reads the same shared map the role dropdown and the
+                role-change menu below already read, so one role has one name
+                across the whole feature. `capitalize` goes with it: the map's
+                values are already cased. */}
+            <Badge
+              variant="outline"
+              className="shrink-0"
+              data-testid={`member-role-badge-${member.id}`}
+            >
+              {resolveOrgRoleLabel(member.role, t)}
             </Badge>
 
             {member.createdAt && (
@@ -166,44 +217,62 @@ export function MembersPage() {
               </span>
             )}
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Member actions">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {/* [framework #3697] Roles this actor may SET on THIS member.
-                    Mirrors better-auth's `update-member-role` route: it needs
-                    the `member:["update"]` permission (owner/admin only — a
-                    `delegated_admin` is built from `memberAc` and holds
-                    `member: []`), and only an owner may set `owner` or re-role
-                    someone who already is one. An actor who may re-role nobody
-                    gets no items rather than three that would 403. */}
-                {assignableOrgRoles(activeMember?.role, member.role).map((role) => (
-                  <DropdownMenuItem
-                    key={role}
-                    onClick={() => handleChangeRole(member, role)}
-                    disabled={member.role === role}
-                    data-testid={`member-role-${role}`}
-                  >
-                    <ShieldCheck className="mr-2 h-4 w-4" />
-                    {t(ORG_ROLE_LABELS[role].key, {
-                      defaultValue: ORG_ROLE_LABELS[role].defaultValue,
+            {hasRowActions && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  {/* Icon-only: this aria-label is the ONLY name a screen reader
+                      gets for the row's action menu (objectui#4474). */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    aria-label={t('organization.members.memberActions', {
+                      defaultValue: 'Member actions',
                     })}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={() => setRemovingMember(member)}
-                >
-                  <UserMinus className="mr-2 h-4 w-4" />
-                  {t('organization.members.removeMember', { defaultValue: 'Remove member' })}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {/* Mirrors better-auth's `update-member-role` route: it needs
+                      the `member:["update"]` permission (owner/admin only — a
+                      `delegated_admin` is built from `memberAc` and holds
+                      `member: []`), and only an owner may set `owner` or re-role
+                      someone who already is one. An actor who may re-role nobody
+                      gets no items rather than three that would 403. */}
+                  {assignable.map((role) => (
+                    <DropdownMenuItem
+                      key={role}
+                      onClick={() => handleChangeRole(member, role)}
+                      disabled={member.role === role}
+                      data-testid={`member-role-${role}`}
+                    >
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      {t(ORG_ROLE_LABELS[role].key, {
+                        defaultValue: ORG_ROLE_LABELS[role].defaultValue,
+                      })}
+                    </DropdownMenuItem>
+                  ))}
+                  {/* objectui#4475 — the card's headline: this item used to be
+                      unconditional, so a `member` was offered Remove on every
+                      row INCLUDING the Owner's, and only the server's 403 (or,
+                      on the remove route, a 400 from the lookup that runs first)
+                      told them otherwise. `member:["delete"]` is owner/admin. */}
+                  {canRemove && (
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setRemovingMember(member)}
+                    >
+                      <UserMinus className="mr-2 h-4 w-4" />
+                      {t('organization.members.removeMember', { defaultValue: 'Remove member' })}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Remove confirmation dialog */}
@@ -233,13 +302,18 @@ export function MembersPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Invite dialog */}
-      <InviteMemberDialog
-        organizationId={org.id}
-        open={isInviteOpen}
-        onOpenChange={setIsInviteOpen}
-        onInvited={() => fetchMembers()}
-      />
+      {/* Invite dialog — not mounted for an actor who may not invite. Nothing
+          can open it either way (the trigger is gone), but leaving it out keeps
+          its delegable-scope fetch from running for a viewer who has no use for
+          the answer. */}
+      {canInvite && (
+        <InviteMemberDialog
+          organizationId={org.id}
+          open={isInviteOpen}
+          onOpenChange={setIsInviteOpen}
+          onInvited={() => fetchMembers()}
+        />
+      )}
     </div>
   );
 }

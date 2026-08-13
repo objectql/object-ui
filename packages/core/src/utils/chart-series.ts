@@ -21,6 +21,11 @@
  *    visible instead of just repeating the x-axis label.
  *  - **otherwise** (single dimension, or multiple measures) → first dimension is
  *    the x-axis and each measure is its own series (long format passes through).
+ *
+ * BOTH branches map a NULL first-dimension VALUE to an explicit bucket label
+ * ({@link NULL_CATEGORY_LABEL}) so the group renders instead of vanishing —
+ * objectui#4466 for the single-dimension branch, objectui#4497 for the pivot.
+ * One doctrine, one predicate (`isNullCategory`), two call sites.
  */
 
 export interface ChartResultField {
@@ -52,11 +57,90 @@ export interface ChartSeriesResult {
   series: ChartSeriesBinding[];
 }
 
+/**
+ * The bucket a NULL/undefined category VALUE renders under, when the caller
+ * supplies no localized label of its own (objectui#4466).
+ *
+ * English by construction and deliberately so: this package is React-free and
+ * i18n-free (see {@link OptionLabelTranslator} for the same reason stated one
+ * layer down), so the locale bundle cannot be read here. Every renderer that
+ * has an i18n provider passes its own resolved label through
+ * {@link ChartSeriesOptions.nullCategoryLabel} — this constant is the floor
+ * that keeps a provider-less host (or a caller that has not been wired yet)
+ * drawing the group rather than dropping it.
+ *
+ * Exported so a consumer can recognise the bucket it will be handed —
+ * {@link findChartSeriesRow} uses the same default, which is what makes a
+ * clicked bucket bar resolve back to its (raw null) dataset row.
+ */
+export const NULL_CATEGORY_LABEL = '(None)';
+
+/** Per-call knobs shared by {@link buildChartSeries} / {@link findChartSeriesRow}. */
+export interface ChartSeriesOptions {
+  /**
+   * Display label for a category whose value is `null`/`undefined`. Defaults to
+   * {@link NULL_CATEGORY_LABEL}.
+   *
+   * Pass the SAME value to both helpers: `buildChartSeries` writes it into the
+   * rendered rows and `findChartSeriesRow` matches a clicked category against
+   * it, so a mismatch costs the null bucket its drill-through.
+   */
+  nullCategoryLabel?: string;
+}
+
+/**
+ * Does this row carry `key` with a NULL/undefined value — the shape that gets
+ * the bucket label (objectui#4466 / objectui#4497)?
+ *
+ * ONE predicate for both of `buildChartSeries`' branches, so the doctrine
+ * cannot drift between them: the pivot inherited the single-dimension answer in
+ * objectui#4497 and this is the whole of what "the same answer" means.
+ *
+ * The key must be PRESENT: a row that does not carry the category key at all is
+ * a different defect with a different answer — the dimension was grouped by but
+ * never projected — and it belongs to `hasNoCategoryKey` in plugin-charts'
+ * `AdvancedChartImpl`, which names the unprojected key instead of drawing an
+ * axis (framework#4033). Bucketing that shape would relabel "this dimension was
+ * never projected" as "these records have no value", which is a different
+ * sentence and a false one.
+ */
+function isNullCategory(row: unknown, key: string): boolean {
+  return (
+    !!row &&
+    typeof row === 'object' &&
+    key in row &&
+    (row as Record<string, unknown>)[key] == null
+  );
+}
+
+/**
+ * Map a null/undefined category VALUE to its bucket label, for the
+ * single-dimension branch (objectui#4466).
+ *
+ * Returns the input array itself when nothing was null, and copies only the
+ * rows it rewrites, so the caller's rows are never mutated — dataset surfaces
+ * drill through by index into the RAW rows, which must keep their null.
+ */
+function bucketNullCategories(
+  rows: Array<Record<string, unknown>>,
+  key: string,
+  label: string,
+): Array<Record<string, unknown>> {
+  let changed = false;
+  const next = rows.map((row) => {
+    if (!isNullCategory(row, key)) return row;
+    changed = true;
+    return { ...row, [key]: label };
+  });
+  return changed ? next : rows;
+}
+
 export function buildChartSeries(
   rows: Array<Record<string, unknown>> | null | undefined,
   dimensions: string[] | null | undefined,
   values: string[] | null | undefined,
   fields?: ChartResultField[] | null,
+  options?: ChartSeriesOptions,
 ): ChartSeriesResult {
   const dims = (dimensions ?? []).filter(Boolean);
   const vals = (values ?? []).filter(Boolean);
@@ -69,13 +153,26 @@ export function buildChartSeries(
     const xKey = dims[0];
     const groupKey = dims[1];
     const measure = vals[0];
+    const nullLabel = options?.nullCategoryLabel ?? NULL_CATEGORY_LABEL;
     const seriesKeys: string[] = [];
     const byX = new Map<string, Record<string, unknown>>();
 
     for (const row of safeRows) {
       const xRaw = row[xKey];
       const xId = String(xRaw ?? '');
-      if (!byX.has(xId)) byX.set(xId, { [xKey]: xRaw });
+      // The bucket KEY is untouched — `String(xRaw ?? '')` still decides WHICH
+      // rows share a bar, so every existing grouping is byte-identical. What
+      // changes is the DISPLAY value the bucket carries: a null first-dimension
+      // value used to be written into the emitted row raw, so the bar reached
+      // recharts with a null category and drew no mark — the same defect
+      // objectui#4466 fixed one branch below, and the reason key and row value
+      // were two different things here (objectui#4497).
+      //
+      // The bucket takes its label from the row that CREATED it, exactly as it
+      // took its raw value before.
+      if (!byX.has(xId)) {
+        byX.set(xId, { [xKey]: isNullCategory(row, xKey) ? nullLabel : xRaw });
+      }
       const gId = String(row[groupKey] ?? '');
       if (gId !== '' && !seriesKeys.includes(gId)) seriesKeys.push(gId);
       byX.get(xId)![gId] = row[measure];
@@ -91,9 +188,25 @@ export function buildChartSeries(
   }
 
   // Default: first dimension on the x-axis, one series per measure.
+  //
+  // A row whose category VALUE is null renders under an explicit bucket rather
+  // than reaching the renderer with a null category, which draws no mark at all
+  // (objectui#4466). The measured cost of passing it through was not an empty
+  // chart but a quietly WRONG one: `[{user_id: null, event_count: 51},
+  // {user_id: 'Dev Admin', event_count: 2}]` drew one bar, dropping the
+  // dominant group while the y-axis scale still accommodated it.
+  //
+  // The pivot branch above answers this the SAME way as of objectui#4497 — it
+  // was left alone here only until its own bucketing had been measured, which
+  // is what that card did. The two branches differ in WHERE the label lands
+  // (there: the bucket's display value, the map key untouched; here: the row
+  // itself), never in what a null category means.
+  const xKey = dims[0];
   return {
-    data: safeRows,
-    xAxisKey: dims[0],
+    data: xKey
+      ? bucketNullCategories(safeRows, xKey, options?.nullCategoryLabel ?? NULL_CATEGORY_LABEL)
+      : safeRows,
+    xAxisKey: xKey,
     series: vals.map((v) => ({ dataKey: v, label: labelOf(v) })),
   };
 }
@@ -159,6 +272,26 @@ export function relabelDimensions(
  *
  * Comparison is string-wise on the rows' display values (which is what the chart
  * surfaces as `category` / series key). Returns `-1` when nothing matches.
+ *
+ * The NULL-category bucket {@link buildChartSeries} renders (objectui#4466) is
+ * matched back to its row here, and it has to be: the caller passes the rows it
+ * charted FROM (still carrying the raw null) while the click event carries the
+ * bucket LABEL, so without this the one bar the fix made visible would resolve
+ * to `-1` and its drill-through would silently no-op. Pass the same
+ * `nullCategoryLabel` both helpers were given. The pre-existing `''` spelling
+ * of "no group value" still matches too — `computeDrillFilter` writes that one.
+ *
+ * **`xOf` covers BOTH arms, which is what let objectui#4497 bucket the pivot
+ * branch without touching this function.** Worth stating because the reverse
+ * would be silent: the pivot's emitted rows are AGGREGATED (`byX` collapses N
+ * raw rows into one bucket per first-dimension value), so they are NOT
+ * index-aligned with anything, and a caller cannot drill by the emitted row's
+ * position. It drills by SEARCHING the raw rows here and indexing
+ * `drillRawRows` with what this returns — see `DatasetWidget.handleChartDrill`,
+ * the one production caller. So the pivot's map key and its emitted display
+ * value being two different things never reached the drill: the raw rows this
+ * searches still carry their null either way, and `xOf` reads the label back to
+ * them in the multi-dimension arm exactly as in the single-dimension one.
  */
 export function findChartSeriesRow(
   rows: Array<Record<string, unknown>> | null | undefined,
@@ -166,6 +299,7 @@ export function findChartSeriesRow(
   values: string[] | null | undefined,
   category: string | undefined,
   seriesKey?: string,
+  options?: ChartSeriesOptions,
 ): number {
   const dims = (dimensions ?? []).filter(Boolean);
   const vals = (values ?? []).filter(Boolean);
@@ -173,12 +307,17 @@ export function findChartSeriesRow(
   const xDim = dims[0];
   if (!xDim) return -1;
   const c = String(category ?? '');
+  const nullLabel = options?.nullCategoryLabel ?? NULL_CATEGORY_LABEL;
+  // A null x reads as BOTH its rendered bucket label and the legacy '' — the
+  // two spellings of the same fact, neither of which a stored value can be.
+  const xOf = (r: Record<string, unknown>): string =>
+    r[xDim] == null ? (c === nullLabel ? nullLabel : '') : String(r[xDim]);
   if (dims.length >= 2 && vals.length === 1) {
     const gDim = dims[1];
     const s = String(seriesKey ?? '');
-    return safeRows.findIndex((r) => String(r[xDim] ?? '') === c && String(r[gDim] ?? '') === s);
+    return safeRows.findIndex((r) => xOf(r) === c && String(r[gDim] ?? '') === s);
   }
-  return safeRows.findIndex((r) => String(r[xDim] ?? '') === c);
+  return safeRows.findIndex((r) => xOf(r) === c);
 }
 
 /**

@@ -50,7 +50,8 @@
   "updateInternalDependencies": "patch",
   "ignore": [
     "@object-ui/example-*",
-    "@object-ui/site"
+    "@object-ui/site",
+    "@object-ui/test-support"
   ],
   "___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
     "onlyUpdatePeerDependentsWhenOutOfRange": true

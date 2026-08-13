@@ -26,7 +26,10 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, Copy, Check, X, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOrgContext } from './orgContext';
+import { canCancelInvitations, canInviteMembers } from './orgCapabilities';
 import { resolveConsoleUrl } from '../resolveHomeUrl';
+import { resolveOrgRoleLabel } from '../orgRoleLabel';
+import { resolveOrgErrorMessage } from '../orgErrorMessage';
 
 type StatusFilter = 'all' | 'pending' | 'accepted' | 'rejected' | 'canceled';
 
@@ -47,7 +50,24 @@ function statusBadgeVariant(status: string): 'outline' | 'default' | 'destructiv
 export function InvitationsPage() {
   const { t } = useObjectTranslation();
   const { org } = useOrgContext();
-  const { listInvitations, cancelInvitation } = useAuth();
+  const { listInvitations, cancelInvitation, activeMember } = useAuth();
+
+  /* objectui#4475 — the two pending-row affordances answer to two DIFFERENT
+     server gates, so they get two predicates rather than one "can administer
+     invitations" flag:
+
+       - cancel  -> `invitation:["cancel"]`, which is owner/admin;
+       - copy link -> the delivery half of `invitation:["create"]`. The link IS
+         the invitation (anyone holding it can accept), so handing it out is the
+         issuing capability finishing its job — which is why a `delegated_admin`,
+         who may create invitations but deliberately may not cancel them, keeps
+         this one and loses the other.
+
+     What a `member` may READ here is a separate, server-side question and is
+     escalated as objectstack#8095 — deliberately NOT decided by this card. Only
+     the write affordances are gated; the ledger still renders. */
+  const canCancel = canCancelInvitations(activeMember?.role);
+  const canCopyLink = canInviteMembers(activeMember?.role);
 
   const [invitations, setInvitations] = useState<AuthInvitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,11 +83,16 @@ export function InvitationsPage() {
       const data = await listInvitations(org.id);
       setInvitations(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load invitations');
+      setError(
+        resolveOrgErrorMessage(err, t, {
+          key: 'organization.invitations.loadFailed',
+          defaultValue: 'Failed to load invitations',
+        }),
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [org.id, listInvitations]);
+  }, [org.id, listInvitations, t]);
 
   useEffect(() => {
     fetchInvitations();
@@ -98,9 +123,10 @@ export function InvitationsPage() {
       fetchInvitations();
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : t('organization.invitations.cancelFailed', { defaultValue: 'Failed to cancel invitation' }),
+        resolveOrgErrorMessage(err, t, {
+          key: 'organization.invitations.cancelFailed',
+          defaultValue: 'Failed to cancel invitation',
+        }),
       );
     }
   };
@@ -197,38 +223,53 @@ export function InvitationsPage() {
                 )}
               </div>
 
-              <Badge variant="outline" className="shrink-0 capitalize">
-                {inv.role}
+              {/* Same shared role map as the members badge and the invite
+                  dropdown (objectui#4474) — this one was a sibling holdout the
+                  card's table did not reach. */}
+              <Badge
+                variant="outline"
+                className="shrink-0"
+                data-testid={`invitation-role-badge-${inv.id}`}
+              >
+                {resolveOrgRoleLabel(inv.role, t)}
               </Badge>
 
               <Badge variant={statusBadgeVariant(inv.status)} className="shrink-0 capitalize">
                 {t(`organization.invitations.status.${inv.status}`, { defaultValue: inv.status })}
               </Badge>
 
-              {inv.status === 'pending' && (
+              {inv.status === 'pending' && (canCopyLink || canCancel) && (
                 <div className="flex shrink-0 items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => handleCopyLink(inv)}
-                    aria-label="Copy invitation link"
-                  >
-                    {copiedId === inv.id ? (
-                      <Check className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                    onClick={() => setCancelingInvitation(inv)}
-                    aria-label="Cancel invitation"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  {canCopyLink && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleCopyLink(inv)}
+                      aria-label={t('organization.invitations.copyLinkLabel', {
+                        defaultValue: 'Copy invitation link',
+                      })}
+                    >
+                      {copiedId === inv.id ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
+                  {canCancel && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={() => setCancelingInvitation(inv)}
+                      aria-label={t('organization.invitations.cancelAction', {
+                        defaultValue: 'Cancel invitation',
+                      })}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

@@ -1,5 +1,6 @@
 export { ConsoleLayout } from './ConsoleLayout';
 export { ConsoleNotificationBanners } from './ConsoleNotificationBanners';
+export { ImpersonationBanner } from './ImpersonationBanner';
 export { AppHeader } from './AppHeader';
 export { AppSidebar } from './AppSidebar';
 export { UnifiedSidebar } from './UnifiedSidebar';

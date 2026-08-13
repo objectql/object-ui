@@ -1,4 +1,18 @@
 const de = {
+  // objectui#4467 — the impersonation banner (app-shell ImpersonationBanner).
+  // Raised by `session.impersonatedBy`, so it survives SPA reboots; it names
+  // BOTH parties because the audit trail attributes the work to the impersonated
+  // user, and the exit states its own failure rather than appearing to succeed.
+  impersonation: {
+    banner: {
+      message: 'Sie handeln als {{user}} — jede Aktion wird dieser Person zugeschrieben.',
+      startedBy: 'Gestartet von Administrator {{admin}}.',
+      stop: 'Identitätswechsel beenden',
+      stopping: 'Wird beendet…',
+      stopFailed: 'Identitätswechsel konnte nicht beendet werden: {{reason}}',
+      notRestored: 'Der Server hat die Anfrage angenommen, aber Ihre Administratorsitzung nicht wiederhergestellt — Sie handeln weiterhin als {{user}}. Melden Sie sich ab und erneut an, um dies zu beenden.',
+    },
+  },
   // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
   capability: {
     label: {
@@ -507,6 +521,8 @@ const de = {
     loadErrorUnauthorizedMessage: "Ihre Sitzung ist abgelaufen oder Sie sind abgemeldet. Melden Sie sich erneut an, um diese Datensätze anzuzeigen.",
     loadErrorRejectedTitle: "Die Abfrage dieser Ansicht wurde abgelehnt",
     loadErrorRejectedMessage: "Der Server konnte den Filter oder die Abfrageoptionen dieser Ansicht nicht verarbeiten. Das Zurücksetzen der Filter behebt das meist; ist die Ansicht so gespeichert, muss ein Administrator sie korrigieren.",
+    loadErrorApiDisabledTitle: "Dieses Objekt ist über die API nicht verfügbar",
+    loadErrorApiDisabledMessage: "Diese Seite kann ihre Datensätze nicht laden, weil das Objekt nicht über die API bereitgestellt wird. Das ist eine Einstellung am Objekt selbst und keine Berechtigung – ein Administrator muss den API-Zugriff dafür aktivieren, damit diese Seite funktioniert.",
     retry: "Erneut versuchen",
     managedBy: {
       system: {
@@ -962,6 +978,7 @@ const de = {
   chart: {
     noData: "Keine Diagrammdaten verfügbar",
     loading: "Diagramm wird geladen…",
+    nullCategory: "(Ohne Angabe)",
   },
   map: {
     searchLocations: "Orte suchen…",
@@ -2163,6 +2180,7 @@ const de = {
     members: "Mitglieder",
     settings: "Arbeitsbereichseinstellungen",
     multiOrgDisabled: "Das Erstellen neuer Organisationen ist auf dieser Instanz deaktiviert.",
+    createFailed: 'Arbeitsbereich konnte nicht erstellt werden',
   },
   help: {
     onThisPage: "Auf dieser Seite",
@@ -2524,6 +2542,23 @@ const de = {
     noMatches: "Keine Organisationen entsprechen Ihrer Suche.",
   },
   organization: {
+    roles: {
+      owner: 'Eigentümer',
+      admin: 'Administrator',
+      delegatedAdmin: 'Delegierter Administrator',
+      member: 'Mitglied',
+    },
+    errors: {
+      notAllowedToInvite: 'Sie dürfen keine Benutzer in diese Organisation einladen.',
+      notAllowedToInviteWithRole: 'Sie dürfen keine Benutzer mit dieser Rolle einladen.',
+      alreadyInvited: 'Dieser Benutzer wurde bereits in diese Organisation eingeladen.',
+      organizationExists: 'Diese Organisation existiert bereits.',
+      slugTaken: 'Dieser URL-Slug ist bereits vergeben.',
+      notAllowedToCreate: 'Sie dürfen keine neue Organisation erstellen.',
+      notTheRecipient: 'Sie sind nicht der Empfänger dieser Einladung.',
+      invitationNotFound: 'Diese Einladung existiert nicht mehr oder ist abgelaufen.',
+      unknown: 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.',
+    },
     backToList: "Zurück zu den Organisationen",
     notFound: "Organisation nicht gefunden",
     notFoundDescription: "Diese Organisation existiert nicht oder Sie haben keinen Zugriff darauf.",
@@ -2535,6 +2570,7 @@ const de = {
     members: {
       title: "Mitglieder",
       inviteMember: "Mitglied einladen",
+      inviteRestrictedNote: "Nur Organisationsadministratoren können Mitglieder einladen.",
       removeMember: "Mitglied entfernen",
       removeConfirmTitle: "Mitglied entfernen?",
       removeConfirmDescription: "{{name}} wird aus der Organisation entfernt und verliert sofort den Zugriff.",
@@ -2543,6 +2579,8 @@ const de = {
       removeFailed: "Mitglied konnte nicht entfernt werden",
       roleUpdated: "Rolle aktualisiert",
       roleUpdateFailed: "Rolle konnte nicht aktualisiert werden",
+      memberActions: 'Mitgliedsaktionen',
+      loadFailed: 'Mitglieder konnten nicht geladen werden',
     },
     invitations: {
       title: "Einladungen",
@@ -2569,6 +2607,9 @@ const de = {
       sentDescription: "Teilen Sie den folgenden Link mit der eingeladenen Person. Sie muss sich anmelden, um anzunehmen.",
       linkLabel: "Annahme-Link",
       invitedAs: "{{email}} als {{role}} eingeladen",
+      copyLinkLabel: 'Einladungslink kopieren',
+      loadFailed: 'Einladungen konnten nicht geladen werden',
+      inviteFailed: 'Mitglied konnte nicht eingeladen werden',
       status: {
         all: "Alle",
         pending: "Ausstehend",

@@ -1115,6 +1115,24 @@ function AdvancedChartImplInner({
 /**
  * Detect the framework#4033 shape from props alone: rows are present, the chart
  * plots a category axis, and NOT ONE row carries the key it was told to plot.
+ *
+ * **Key ABSENT is what this asks, and only that** — `key in row` — which is the
+ * line dividing it from objectui#4466's null bucket. The two failures look
+ * identical on screen (an axis frame with no marks) and have different causes
+ * and different answers:
+ *
+ *   - **key absent** — the dataset query grouped by a dimension it never
+ *     PROJECTED, so no value for it exists anywhere. Nothing can be plotted and
+ *     nothing can be labelled; this guard says so, naming the missing key.
+ *   - **key present, value null** — a real group whose key happens to be NULL
+ *     (`{user_id: null, event_count: 50}`, the shipped first-boot state of
+ *     System Overview's "Events by User"). The data IS there, so it is drawn:
+ *     `buildChartSeries` maps it to an explicit bucket label upstream of this
+ *     component, and that guard never fires because `'user_id' in row` is true.
+ *
+ * That upstream mapping deliberately does not ADD the key to a row that lacks
+ * it (see `bucketNullCategories` in `@object-ui/core`), which is what keeps this
+ * predicate meaning what it says.
  */
 function hasNoCategoryKey(props: AdvancedChartImplProps): boolean {
   const chartType = props.chartType === 'column' ? 'bar' : (props.chartType ?? 'bar');
