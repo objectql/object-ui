@@ -39,10 +39,13 @@
  * half: `'en'` and the retired `'en-US'` produce byte-identical output at all
  * five sites, so English rendering must not move by one character.
  *
- * The locale-free headers (`Week n`, `Qn YYYY`, `YYYY`) and the non-date
+ * The locale-free headers (the week / quarter / year buckets) and the non-date
  * rendering (titles, descriptions, row labels) are likewise green on both
  * sides: they never went through `Intl`, and this file pins that the change
- * did not disturb them.
+ * did not disturb them. Their two English spellings were later routed through
+ * the package's TRANSLATE channel by objectui#4520 — a different channel from
+ * the one this card owns — so those two expected strings have moved once,
+ * deliberately; see the case itself.
  *
  * The provider-LESS last resort is deliberately not measured here — see
  * `timeline-date-locale-fallback.test.tsx` for why it cannot be.
@@ -191,18 +194,27 @@ describe('en session — output is byte-identical to the retired en-US (must-not
 });
 
 describe('non-date rendering is undisturbed (green both sides)', () => {
-  it('the locale-free header vocabularies stay exactly as they were — zh', () => {
+  it('the locale-free header vocabularies do not go through `Intl` — zh', () => {
     // `Week n` / `Qn YYYY` / `YYYY` never went through `Intl`, so threading a
-    // locale must not touch them. (The first two ARE English on a zh axis, but
-    // they need the package's translate channel rather than a locale tag —
-    // filed as objectui#4520. Converting them here would be an unrelated
-    // behavior change, and this case pins that #4513 left them alone.)
+    // locale must not touch them — which is what this case pins, on both sides
+    // of #4513.
+    //
+    // ⚠️ AUTHORIZED PIN MOVE (objectui#4520). The first two expectations read
+    // `Week 1` / `Q3 2026` when #4513 wrote them: that card was scoped to the
+    // five `Intl` sites, so it deliberately pinned the two bucket labels
+    // STAYING English to keep its own scope honest, and filed the English as
+    // objectui#4520. #4520 then routed them through the package's translate
+    // channel, so the expected strings — and only they — move here. What the
+    // case asserts is unchanged: threading a LOCALE did not touch them, and a
+    // locale tag is still not what spells them. The `year` header below stays
+    // exactly as it was; `String(getFullYear())` is a bare number with no
+    // vocabulary in it, so no channel has anything to say about it.
     const week = renderSession('zh', <TimelineRenderer schema={gantt('week', AUG_11, AUG_12)} />);
-    expect(week.container.textContent).toContain('Week 1');
+    expect(week.container.textContent).toContain('第 1 周');
     cleanup();
 
     const quarter = renderSession('zh', <TimelineRenderer schema={gantt('quarter', AUG_11, SEP_11)} />);
-    expect(quarter.container.textContent).toContain('Q3 2026');
+    expect(quarter.container.textContent).toContain('2026年第3季度');
     cleanup();
 
     const year = renderSession('zh', <TimelineRenderer schema={gantt('year', AUG_11, SEP_11)} />);

@@ -30,6 +30,11 @@ import {
 } from './index';
 import { renderChildren, cn } from '@object-ui/components';
 import { useDisplayLocale } from '@object-ui/i18n';
+import {
+  useTimelineTranslation,
+  translateTimelineDefault,
+  type TimelineTranslate,
+} from './useTimelineTranslation';
 
 // Constants
 /**
@@ -67,12 +72,22 @@ export function resolveTimelineScale(schema: { scale?: unknown; timeScale?: unkn
  * `useDisplayLocale()` falls back to, and byte-identical to the retired
  * `'en-US'` at all three sites — so the existing 3-argument call sites keep
  * producing exactly what they produced before.
+ *
+ * `t` is threaded on the same seam and for the same reason (#4520). The two are
+ * different kinds of dependency and each covers what the other cannot: a locale
+ * TAG formats a date, a TRANSLATION spells a word. The `week` and `quarter`
+ * branches never touched `Intl`, so #4513 left them reading `Week 1` / `Q3
+ * 2026` on an axis that had just become Chinese. Its default is the package's
+ * own defaults table, which is what the channel serves with no `I18nProvider`
+ * mounted, so 3- and 4-argument call sites keep producing byte-identical
+ * English.
  */
 export function generateTimeScaleHeaders(
   scale: string,
   minDate: string,
   maxDate: string,
   locale: string = 'en',
+  t: TimelineTranslate = translateTimelineDefault,
 ): string[] {
   const headers: string[] = [];
   const start = new Date(minDate);
@@ -95,7 +110,7 @@ export function generateTimeScaleHeaders(
     case 'week': {
       let week = 1;
       while (current <= end) {
-        headers.push(`Week ${week++}`);
+        headers.push(t('timeline.scale.week', { n: week++ }));
         current.setDate(current.getDate() + 7);
       }
       break;
@@ -103,7 +118,12 @@ export function generateTimeScaleHeaders(
     case 'quarter':
       current.setMonth(Math.floor(current.getMonth() / 3) * 3, 1);
       while (current <= end) {
-        headers.push(`Q${Math.floor(current.getMonth() / 3) + 1} ${current.getFullYear()}`);
+        headers.push(
+          t('timeline.scale.quarter', {
+            quarter: Math.floor(current.getMonth() / 3) + 1,
+            year: current.getFullYear(),
+          }),
+        );
         current.setMonth(current.getMonth() + 3);
       }
       break;
@@ -242,6 +262,19 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
     // `variant`, and threaded down — `formatDate` and `generateTimeScaleHeaders`
     // are module-level functions and cannot host a hook themselves.
     const displayLocale = useDisplayLocale();
+
+    // The package's translate channel, read on the same terms and for the same
+    // structural reason as the locale above: one read, above every variant's
+    // early return, threaded down into the module-level helpers that cannot
+    // host a hook (#4520).
+    //
+    // It is a SECOND channel, not a duplicate of the first, and the two are
+    // allowed to disagree: `useDisplayLocale()` puts the tenant's regional
+    // default first (how this org writes dates), while `t` follows the UI
+    // language (what this user reads). A tenant configured `en` with a user
+    // reading Chinese chrome therefore renders `Aug 2026` beside `第 1 周` —
+    // the same split `timeline.bucket.*` has always had in `ObjectTimeline`.
+    const { t } = useTimelineTranslation();
 
     // Vertical Timeline
     if (variant === 'vertical') {
@@ -386,6 +419,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
         minDate,
         maxDate,
         displayLocale,
+        t,
       );
 
       return (
@@ -394,7 +428,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
           <TimelineGanttHeader>
             <TimelineGanttRowLabels className="flex items-center px-2 sm:px-4 py-2 sm:py-3">
               <span className="font-semibold text-xs sm:text-sm">
-                {schema.rowLabel || 'Items'}
+                {schema.rowLabel || t('timeline.gantt.rowLabel')}
               </span>
             </TimelineGanttRowLabels>
             <TimelineGanttGrid>

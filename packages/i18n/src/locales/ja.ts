@@ -639,6 +639,13 @@ const ja = {
       noDate: "日付なし",
       unassigned: "未割当",
     },
+    scale: {
+      week: "第{{n}}週",
+      quarter: "{{year}}年第{{quarter}}四半期",
+    },
+    gantt: {
+      rowLabel: "項目",
+    },
   },
   gantt: {
     viewMode: {

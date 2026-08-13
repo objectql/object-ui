@@ -639,6 +639,13 @@ const fr = {
       noDate: "Sans date",
       unassigned: "Non attribué",
     },
+    scale: {
+      week: "Semaine {{n}}",
+      quarter: "T{{quarter}} {{year}}",
+    },
+    gantt: {
+      rowLabel: "Éléments",
+    },
   },
   gantt: {
     viewMode: {

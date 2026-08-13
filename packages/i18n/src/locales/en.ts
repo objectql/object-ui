@@ -688,6 +688,13 @@ const en = {
       noDate: 'No date',
       unassigned: 'Unassigned',
     },
+    scale: {
+      week: 'Week {{n}}',
+      quarter: 'Q{{quarter}} {{year}}',
+    },
+    gantt: {
+      rowLabel: 'Items',
+    },
   },
   gantt: {
     column: {

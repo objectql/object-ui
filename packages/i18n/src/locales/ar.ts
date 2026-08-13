@@ -643,6 +643,13 @@ const ar = {
       noDate: "بدون تاريخ",
       unassigned: "غير معين",
     },
+    scale: {
+      week: "الأسبوع {{n}}",
+      quarter: "الربع {{quarter}} {{year}}",
+    },
+    gantt: {
+      rowLabel: "العناصر",
+    },
   },
   gantt: {
     viewMode: {

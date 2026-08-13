@@ -639,6 +639,13 @@ const ko = {
       noDate: "날짜 없음",
       unassigned: "미할당",
     },
+    scale: {
+      week: "{{n}}주차",
+      quarter: "{{year}}년 {{quarter}}분기",
+    },
+    gantt: {
+      rowLabel: "항목",
+    },
   },
   gantt: {
     viewMode: {

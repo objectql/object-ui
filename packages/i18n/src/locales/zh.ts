@@ -660,6 +660,13 @@ const zh = {
       noDate: '无日期',
       unassigned: '未分配',
     },
+    scale: {
+      week: '第 {{n}} 周',
+      quarter: '{{year}}年第{{quarter}}季度',
+    },
+    gantt: {
+      rowLabel: '条目',
+    },
   },
   gantt: {
     column: {

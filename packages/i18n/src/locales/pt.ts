@@ -638,6 +638,13 @@ const pt = {
       noDate: "Sem data",
       unassigned: "Não atribuído",
     },
+    scale: {
+      week: "Semana {{n}}",
+      quarter: "T{{quarter}} {{year}}",
+    },
+    gantt: {
+      rowLabel: "Itens",
+    },
   },
   gantt: {
     viewMode: {

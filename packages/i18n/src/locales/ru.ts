@@ -645,6 +645,13 @@ const ru = {
       noDate: "Без даты",
       unassigned: "Не назначено",
     },
+    scale: {
+      week: "Неделя {{n}}",
+      quarter: "{{quarter}} кв. {{year}}",
+    },
+    gantt: {
+      rowLabel: "Элементы",
+    },
   },
   gantt: {
     viewMode: {

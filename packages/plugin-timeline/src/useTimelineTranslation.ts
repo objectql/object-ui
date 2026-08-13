@@ -28,9 +28,49 @@ export const TIMELINE_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'timeline.relative.yesterday': 'Yesterday',
   'timeline.relative.inDays': 'In {{n}} days',
   'timeline.relative.daysAgo': '{{n}} days ago',
+  // Gantt axis vocabulary (objectui#4520). These were `Week ${n}` and
+  // `Q${q} ${year}` template literals in `renderer.tsx`, so a zh session read
+  // an English bucket label beside the Chinese date axis objectui#4513 had just
+  // fixed. The numbers are `{{holes}}` rather than concatenation because the
+  // word order is the translation's to choose: `zh` puts the year first
+  // (`2026年第3季度`), which no `Q${q} ${year}` template can produce.
+  'timeline.scale.week': 'Week {{n}}',
+  'timeline.scale.quarter': 'Q{{quarter}} {{year}}',
+  'timeline.gantt.rowLabel': 'Items',
 };
 
 const TEST_KEY = 'timeline.bucket.today';
+
+/**
+ * The translate fn shape this package threads into its pure helpers.
+ *
+ * `generateTimeScaleHeaders` is a module-level function and cannot host a hook,
+ * so the component reads the channel and passes `t` down — the same seam
+ * objectui#4513 opened for the resolved `locale` string, for the same reason.
+ */
+export type TimelineTranslate = (key: string, params?: Record<string, unknown>) => string;
+
+/**
+ * The English last resort for call sites that have no `t` to hand: the exported
+ * helper's default parameter, and nothing else.
+ *
+ * It is the same lookup `createSafeTranslation` serves on a provider-less host,
+ * spelled here because that one is a hook and this is a pure function. Both
+ * halves are deliberate mirrors of `useSafeTranslation.ts` and must stay that
+ * way — a divergence would only ever show up on hosts with no `I18nProvider`,
+ * where we are least likely to see it:
+ *
+ *   - `||` (not `??`) for the chain, so an empty string falls through to the
+ *     key exactly as the hook's `defaults[key] || …` chain does.
+ *   - `split().join()` (not `replace`/`replaceAll`) for interpolation, which is
+ *     literal on both sides and substitutes EVERY occurrence — i18next's own
+ *     behaviour, and the objectui#3418 fix.
+ */
+export const translateTimelineDefault: TimelineTranslate = (key, params) =>
+  Object.entries(params ?? {}).reduce(
+    (value, [name, v]) => value.split(`{{${name}}}`).join(String(v)),
+    TIMELINE_DEFAULT_TRANSLATIONS[key] || key,
+  );
 
 /**
  * Was a local re-implementation that wrapped the hook in try/catch — a
