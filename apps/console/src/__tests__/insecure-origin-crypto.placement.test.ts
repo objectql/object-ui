@@ -35,8 +35,13 @@ describe('apps/console/index.html — insecure-origin crypto shim placement', ()
   });
 
   it('runs the shim BEFORE the application entry', () => {
-    const shimAt = html.indexOf(SHIM_SRC);
-    const entryAt = html.indexOf(APP_ENTRY);
+    // Compare SCRIPT TAG positions, never raw string positions: both paths are
+    // also named in the explanatory HTML comment above the shim tag, so
+    // `html.indexOf(APP_ENTRY)` finds the COMMENT first and the ordering
+    // assertion inverts while the real markup is correct. (Measured — this
+    // test failed exactly that way before the tag-based lookup.)
+    const shimAt = html.indexOf(`<script type="module" src="${SHIM_SRC}">`);
+    const entryAt = html.indexOf(`<script type="module" src="${APP_ENTRY}">`);
 
     expect(shimAt).toBeGreaterThan(-1);
     expect(entryAt).toBeGreaterThan(-1);
@@ -47,6 +52,8 @@ describe('apps/console/index.html — insecure-origin crypto shim placement', ()
     // Stronger than the pairwise check above: nothing at all may be scheduled
     // to run before the shim except the inline head scripts that precede it,
     // which are pinned here by name so a new one cannot be added silently.
+    // The regex only matches real `<script ...>` tags, so HTML comments that
+    // mention either path cannot perturb the ordering.
     const tags = [...html.matchAll(/<script\b[^>]*>/g)].map((match) => match[0]);
     const shimIndex = tags.findIndex((tag) => tag.includes(SHIM_SRC));
     const entryIndex = tags.findIndex((tag) => tag.includes(APP_ENTRY));

@@ -9,7 +9,7 @@
  * message verbatim against the string the report quotes.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { parseSpecFilter } from '@object-ui/plugin-view';
+import { toFilterGroup, toSortItems } from '@object-ui/plugin-view';
 import {
   randomUuidV4,
   installRandomUuidShim,
@@ -17,10 +17,17 @@ import {
 } from '../insecure-origin-crypto';
 
 /**
- * The real entropy source, captured BEFORE any test stubs the global — the
- * uniqueness sample must not be graded against a fake.
+ * The real entropy source, BOUND once at module load.
+ *
+ * Binding matters: a `(buffer) => globalThis.crypto.getRandomValues(buffer)`
+ * wrapper re-reads the global at call time, so the moment a test stubs
+ * `globalThis.crypto` with an object whose `getRandomValues` IS this wrapper it
+ * recurses into itself until the stack blows. Capturing the native function
+ * up front makes the helper immune to every stub below.
  */
-const realGetRandomValues: GetRandomValues = (buffer) => globalThis.crypto.getRandomValues(buffer);
+const realGetRandomValues: GetRandomValues = globalThis.crypto.getRandomValues.bind(
+  globalThis.crypto
+);
 
 /** Canonical RFC 4122 v4, lowercase: version nibble `4`, variant `8|9|a|b`. */
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -113,8 +120,17 @@ describe('installRandomUuidShim — the installer', () => {
   });
 
   it('reports unavailable rather than throwing when there is no crypto at all', () => {
-    expect(installRandomUuidShim(undefined)).toBe('unavailable');
+    // A host with no `crypto` global whatsoever. Note this goes through the
+    // DEFAULT parameter — `installRandomUuidShim(undefined)` deliberately means
+    // "use globalThis.crypto", per ordinary default-argument semantics, so the
+    // no-crypto case has to be posed by removing the global, not by passing
+    // `undefined`.
+    vi.stubGlobal('crypto', undefined);
+    expect(installRandomUuidShim()).toBe('unavailable');
+
+    // Non-object targets are refused rather than thrown on.
     expect(installRandomUuidShim(null)).toBe('unavailable');
+    expect(installRandomUuidShim('not-a-crypto')).toBe('unavailable');
   });
 
   it('defaults to globalThis.crypto', () => {
@@ -128,17 +144,21 @@ describe('installRandomUuidShim — the installer', () => {
 
 describe('the real consumer path (objectui#4563 repro)', () => {
   /**
-   * RED-FIRST. `parseSpecFilter` -> `parseTriplet` calls `crypto.randomUUID()`
-   * with no guard (packages/plugin-view/src/config/view-config-utils.ts). On an
-   * insecure origin that is exactly the card's crash, and the message below is
-   * the one the report quotes verbatim.
+   * RED-FIRST, through the PUBLIC API of a real in-repo package.
+   *
+   * `toFilterGroup` -> `parseSpecFilter` -> `parseTriplet` mints
+   * `crypto.randomUUID()` with no guard
+   * (packages/plugin-view/src/config/view-config-utils.ts:146), and
+   * `toSortItems` calls it directly (:294). Both are on the list-view config
+   * path the report reproduces. On an insecure origin these are exactly the
+   * card's crash, and the message below is the string the report quotes.
    */
   it('throws the card verbatim TypeError with no shim installed', () => {
     vi.stubGlobal('crypto', insecureOriginCrypto());
 
     let caught: unknown;
     try {
-      parseSpecFilter([['name', '=', 'x']]);
+      toFilterGroup(['name', '=', 'x']);
     } catch (error) {
       caught = error;
     }
@@ -147,16 +167,34 @@ describe('the real consumer path (objectui#4563 repro)', () => {
     expect((caught as TypeError).message).toBe('crypto.randomUUID is not a function');
   });
 
-  it('renders the same filter normally once the shim is installed', () => {
+  it('throws the same TypeError from the sort path with no shim installed', () => {
+    vi.stubGlobal('crypto', insecureOriginCrypto());
+
+    let caught: unknown;
+    try {
+      toSortItems([{ field: 'name', order: 'asc' }]);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TypeError);
+    expect((caught as TypeError).message).toBe('crypto.randomUUID is not a function');
+  });
+
+  it('renders the same filter and sort normally once the shim is installed', () => {
     const cryptoLike = insecureOriginCrypto();
     vi.stubGlobal('crypto', cryptoLike);
     expect(installRandomUuidShim(cryptoLike)).toBe('installed');
 
-    const parsed = parseSpecFilter([['name', '=', 'x']]);
+    const group = toFilterGroup(['name', '=', 'x']);
+    expect(group.conditions).toHaveLength(1);
+    expect(group.conditions[0]?.field).toBe('name');
+    expect(group.conditions[0]?.id).toMatch(UUID_V4);
 
-    expect(parsed.conditions).toHaveLength(1);
-    expect(parsed.conditions[0]?.field).toBe('name');
-    expect(parsed.conditions[0]?.id).toMatch(UUID_V4);
+    const sorts = toSortItems([{ field: 'name', order: 'asc' }]);
+    expect(sorts).toHaveLength(1);
+    expect(sorts[0]?.field).toBe('name');
+    expect(sorts[0]?.id).toMatch(UUID_V4);
   });
 });
 
