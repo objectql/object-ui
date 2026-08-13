@@ -137,7 +137,6 @@ const schema = {
   endDateField?: string,
   allDayField?: string,
   colorField?: string,
-  colorMapping?: Record<string, string>,
   currentDate?: string,
   allowCreate?: boolean,
   onEventClick?: (event: any) => void,
@@ -147,6 +146,28 @@ const schema = {
   className?: string
 }
 ```
+
+### Allowing event creation
+
+`allowCreate: true` adds the header's **New event** button. Clicking it
+dispatches the standard create action — `{ type: 'create', payload: {} }` — on
+the same action channel every other `calendar-view` gesture uses, so the host
+decides what a "create" means (open a form, navigate, call an API).
+
+```tsx
+const schema = {
+  type: 'calendar-view',
+  data: events,
+  allowCreate: true,
+}
+```
+
+Only the boolean `true` turns the button on. Omitting the key, `false`, and any
+non-boolean value all render the calendar without the button — the default.
+
+A React host can supply the affordance directly instead, with or without
+`allowCreate`, by passing its own `onAddClick` handler; an explicit handler
+replaces the action dispatch rather than running alongside it.
 
 ## ObjectCalendar Component
 

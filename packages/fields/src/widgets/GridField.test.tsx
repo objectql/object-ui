@@ -293,9 +293,15 @@ describe('GridField / LineItemsField — editable line items', () => {
      */
     describe('read-only display formats each temporal type as itself', () => {
       const row = { merchant: 'Chipotle', incurred_on: '2026-06-17T00:00:00.000Z', incurred_at: STORED_ISO, started_at: '14:30' };
-      const expectedDay = new Date(2026, 5, 17).toLocaleDateString();
+      // Spelled `'en'` rather than bare `toLocaleDateString()` (objectui#4468):
+      // the bare call reads the MACHINE's locale, so these pins agreed with the
+      // widget only by the accident of a CI runner set to en-US — and they
+      // would have kept agreeing with it after the widget started following the
+      // session locale, which is the bug this suite has to be able to see.
+      // `'en'` is what `useDisplayLocale()` resolves to with no provider.
+      const expectedDay = new Date(2026, 5, 17).toLocaleDateString('en');
       const dt = new Date(STORED_ISO);
-      const expectedInstant = `${dt.toLocaleDateString()} ${dt.toLocaleTimeString()}`;
+      const expectedInstant = `${dt.toLocaleDateString('en')} ${dt.toLocaleTimeString('en')}`;
 
       it('formats date / datetime / time in the read-only table', () => {
         render(<GridField value={[row]} onChange={() => {}} field={temporalField} readonly />);
@@ -323,6 +329,13 @@ describe('GridField / LineItemsField — editable line items', () => {
         );
         expect(screen.getByTestId('line-items-readonly').textContent).toContain('not-a-date');
       });
+
+      // The `zh` half of this — the sub-grid following the SESSION locale
+      // (objectui#4468) — lives in `__tests__/date-locale-channel.test.tsx`,
+      // not here. Mounting an `I18nProvider` anywhere in THIS file changes what
+      // the provider-less renders further down resolve, and the file-columns
+      // chip test reads a translated `aria-label`; keeping the provider in its
+      // own file keeps that coupling out of the way.
     });
   });
 

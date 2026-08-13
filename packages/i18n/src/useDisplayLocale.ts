@@ -19,8 +19,7 @@ import { useObjectTranslation } from './provider';
  *  1. **`useLocalization().locale`** — the tenant's resolved regional default
  *     (ADR-0053, served by `GET /api/v1/auth/me/localization`). An org that has
  *     explicitly configured a display locale means it, so it outranks the UI
- *     language, and this keeps numbers agreeing with `DateCellRenderer`, which
- *     already formats from this channel. Frequently `undefined`: the endpoint is
+ *     language. Frequently `undefined`: the endpoint is
  *     cosmetic and non-blocking, so an unconfigured or still-loading tenant
  *     simply has no answer here (the state objectui#4033 was measured in — a
  *     fresh database, console running `zh-CN`).
@@ -41,6 +40,15 @@ import { useObjectTranslation } from './provider';
  * Provider-safe at every step: `useLocalization` returns `{}` outside its
  * provider and `useObjectTranslation` reads an optional context, so a renderer
  * mounted standalone (tests, docs demos) degrades instead of throwing.
+ *
+ * **This composition is also the whole `'zh'` ↔ BCP-47 story** (objectui#4468).
+ * There is no mapping table anywhere and none is needed: the UI language codes
+ * this renderer ships (`'zh'`, `'ja'`, `'de'`, …) are already well-formed
+ * BCP-47 language subtags, so `Intl` accepts them verbatim. The one thing a
+ * caller must not do is reach past this hook for the raw tenant locale and hand
+ * `Intl` the `undefined` it gets on an unconfigured workspace — `undefined`
+ * means "the MACHINE's locale", which is neither channel. Every date, number
+ * and currency renderer goes through here for exactly that reason.
  */
 export function useDisplayLocale(): string {
   const { locale } = useLocalization();
