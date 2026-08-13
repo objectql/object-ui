@@ -11,16 +11,17 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer } from '../SchemaRenderer';
-// `BaseSchema.visible` now declares `boolean | string` (objectui#4581), so the
-// two visibility cases below state their predicate strings directly — no cast.
+// `BaseSchema.visible` AND `.disabled` now both declare `boolean | string`
+// (objectui#4581), so every predicate-string case below states its expression
+// directly — no casts left in this file.
 //
-// `.disabled` is the SAME gap and is NOT yet widened: the renderer evaluates it
-// through the same `evaluateCondition` (`SchemaRenderer.tsx:466`) and the
-// `disabledOn?: string` sibling exists for the same reason, but #4581 named only
-// `visible` and `ariaLabel`, so widening `disabled` was left to its own card
-// rather than taken unruled. The two `disabled` casts below are what remains of
-// the gap — drop them when that lands.
-import type { BaseSchema } from '@object-ui/types';
+// The header that stood here said the `disabled` casts were "what remains of
+// the gap — drop them when that lands". This is that landing: #4580's ruling
+// Q3-A widened `disabled` on the same evidence as `visible` (the renderer
+// evaluates it through the same `evaluateCondition` at
+// `SchemaRenderer.tsx:466`, and the `disabledOn?: string` sibling exists for
+// the same reason), and the two casts are gone. The `BaseSchema` import went
+// with them — nothing in this file needs the name any more.
 import { SchemaRendererContext } from '../context/SchemaRendererContext';
 
 // Simple test component
@@ -133,7 +134,7 @@ describe('SchemaRenderer Expression Integration', () => {
     it('evaluates disabled expression string', () => {
       render(
         <SchemaRendererContext.Provider value={{ dataSource: { status: 'locked' } }}>
-          <SchemaRenderer schema={{ type: 'test-component', disabled: '${data.status === "locked"}' } as unknown as BaseSchema} />
+          <SchemaRenderer schema={{ type: 'test-component', disabled: '${data.status === "locked"}' }} />
         </SchemaRendererContext.Provider>
       );
       expect(screen.getByTestId('test-component')).toHaveAttribute('data-disabled', 'true');
@@ -142,7 +143,7 @@ describe('SchemaRenderer Expression Integration', () => {
     it('does not set disabled when expression is false', () => {
       render(
         <SchemaRendererContext.Provider value={{ dataSource: { status: 'active' } }}>
-          <SchemaRenderer schema={{ type: 'test-component', disabled: '${data.status === "locked"}' } as unknown as BaseSchema} />
+          <SchemaRenderer schema={{ type: 'test-component', disabled: '${data.status === "locked"}' }} />
         </SchemaRendererContext.Provider>
       );
       expect(screen.getByTestId('test-component')).not.toHaveAttribute('data-disabled');

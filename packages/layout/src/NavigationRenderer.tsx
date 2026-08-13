@@ -65,7 +65,7 @@ import {
   cn,
   useIsMobile,
 } from '@object-ui/components';
-import type { NavigationItem } from '@object-ui/types';
+import type { NavigationItem, KeyedI18nLabel } from '@object-ui/types';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -254,11 +254,19 @@ export function resolveIcon(name?: string): React.ComponentType<any> {
 
 /**
  * Resolve a NavigationItem label to a plain string.
- * Handles both plain strings and I18nLabel objects { key, defaultValue }.
- * When a `t` function is provided, I18nLabel objects are translated via i18next.
+ *
+ * Handles both plain strings and the KEYED i18n form
+ * `{ key, defaultValue?, params? }` — named `KeyedI18nLabel` in
+ * `@object-ui/types` since #4581, which is what this signature now states
+ * instead of a third inline copy of the same object literal. When a `t`
+ * function is provided the key is translated via i18next.
+ *
+ * "Keyed", not the spec's `I18nLabel`: that one is the INLINE LOCALE MAP
+ * (`{ en: 'Owner' }`) resolved against a BCP-47 locale, and the two answer
+ * wrongly for each other's input, silently (objectui#4167).
  */
 export function resolveLabel(
-  label: string | { key: string; defaultValue?: string; params?: Record<string, any> },
+  label: string | KeyedI18nLabel,
   t?: (key: string, options?: any) => string,
 ): string {
   if (typeof label === 'string') return label;

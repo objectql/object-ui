@@ -58,6 +58,15 @@ export {
  * the `@object-ui/react` twin (`packages/react/src/utils/i18n.ts`), which is the
  * same vocabulary without a `t`. Import the spec's as `resolveInlineI18nLabel`
  * when you need the map form; the two names now say which is which.
+ *
+ * NOTE — the inline object literal below is `KeyedI18nLabel` from
+ * `@object-ui/types` (#4581), which named this shape and retired the two other
+ * copies (`packages/react/src/utils/i18n.ts`,
+ * `packages/layout/src/NavigationRenderer.tsx`). This third one is left spelled
+ * out ON PURPOSE: PR #4208 — the rc.6 train, still open and blocked on #4165 —
+ * has a pending change to this file, and a type-spelling swap here would be a
+ * rebase conflict for the train rather than a cleanup. Swap it to the named
+ * type once #4208 lands.
  */
 export function resolveKeyedI18nLabel(
   label: string | { key: string; defaultValue?: string; params?: Record<string, any> } | undefined,

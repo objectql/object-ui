@@ -11,7 +11,10 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer } from '../SchemaRenderer';
-import type { BaseSchema } from '@object-ui/types';
+// No `BaseSchema` import any more: the keyed-`ariaLabel` fixture below was the
+// only thing that needed it, for an `as unknown as BaseSchema` cast that
+// objectui#4581 made unnecessary by declaring the vocabulary the renderer
+// resolves.
 
 // A simple test component that forwards ARIA attributes
 const TestWidget: React.FC<any> = (props) => (
@@ -47,20 +50,43 @@ describe('SchemaRenderer AriaProps injection', () => {
     expect(el).toHaveAttribute('aria-label', 'Close dialog');
   });
 
-  it('should resolve ariaLabel from I18nLabel object', () => {
+  it('should resolve ariaLabel from a KeyedI18nLabel object', () => {
     render(
       <SchemaRenderer
         schema={{
           type: 'test-widget',
-          // AriaPropsSchema declares `ariaLabel: string | I18nLabel` and the
-          // renderer resolves the keyed form; `BaseSchema.ariaLabel` is the
-          // narrower `string` (objectui#4548).
+          // No cast: `BaseSchema.ariaLabel` declares `string | KeyedI18nLabel`
+          // (objectui#4581), which is the vocabulary the renderer actually
+          // resolves — `SchemaRenderer.tsx:111` calls `resolveKeyedI18nLabel`.
+          // This fixture carried `as unknown as BaseSchema` while the
+          // declaration said the narrower `string` (objectui#4548).
           ariaLabel: { key: 'dialog.close', defaultValue: 'Close dialog' },
-        } as unknown as BaseSchema}
+        }}
       />
     );
     const el = screen.getByTestId('test-widget');
     expect(el).toHaveAttribute('aria-label', 'Close dialog');
+  });
+
+  it('should resolve a KeyedI18nLabel carrying params', () => {
+    render(
+      <SchemaRenderer
+        schema={{
+          type: 'test-widget',
+          // `params` is the limb the withdrawn `string | I18nLabel` spelling
+          // REJECTED outright (PR #4593's probe, #4580 ruling Q2-B). Without a
+          // `t`, this package's resolver falls back to `defaultValue` — the
+          // point here is that the shape is authorable at all.
+          ariaLabel: {
+            key: 'greeting.hello',
+            defaultValue: 'Hello, Ada',
+            params: { name: 'Ada' },
+          },
+        }}
+      />
+    );
+    const el = screen.getByTestId('test-widget');
+    expect(el).toHaveAttribute('aria-label', 'Hello, Ada');
   });
 
   it('should inject aria-describedby from ariaDescribedBy', () => {

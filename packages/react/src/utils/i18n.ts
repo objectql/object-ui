@@ -1,3 +1,5 @@
+import type { KeyedI18nLabel } from '@object-ui/types';
+
 /**
  * Resolves objectui's KEYED i18n label to a plain string.
  *
@@ -34,8 +36,14 @@
  * convention, which is exactly what objectstack#4115 exists to replace with a
  * rule. `Keyed` is the counterpart of that `Inline`: the name now says which
  * vocabulary it resolves, at every call site, with no comment required.
+ *
+ * The keyed shape itself is now named too — `KeyedI18nLabel` in
+ * `@object-ui/types` (#4581) — so `BaseSchema.ariaLabel`, this parameter and
+ * the layout twin all state one type instead of three copies of one object
+ * literal. The `Inline`/`Keyed` split above is the naming half of #4167; the
+ * named shape is the declaration half.
  */
-export function resolveKeyedI18nLabel(label: string | { key: string; defaultValue?: string; params?: Record<string, any> } | undefined): string | undefined {
+export function resolveKeyedI18nLabel(label: string | KeyedI18nLabel | undefined): string | undefined {
   if (label === undefined || label === null) return undefined;
   if (typeof label === 'string') return label;
   return label.defaultValue || label.key;

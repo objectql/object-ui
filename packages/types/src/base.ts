@@ -17,6 +17,40 @@
  */
 
 /**
+ * A KEYED i18n label — a reference INTO a translation bundle (objectui#4581).
+ *
+ * This is objectui's own label vocabulary, and it is NOT the spec's
+ * `I18nLabel`. The two are structurally confusable and answer wrongly for each
+ * other's input, silently — objectui#4167 is the card that names the hazard,
+ * and PR #4169 the one that had to alias five imports by hand because neither
+ * shape had a name that said which it was:
+ *
+ * - KEYED (this type): `{ key, defaultValue?, params? }`, resolved against a
+ *   translation bundle by `resolveKeyedI18nLabel`
+ *   (`packages/react/src/utils/i18n.ts`, and the `t`-taking twin in
+ *   `packages/app-shell/src/utils/index.ts`).
+ * - INLINE (`I18nLabel`, re-exported from `@objectstack/spec/ui`):
+ *   `string | Record<string, string>` — a locale MAP like
+ *   `{ en: 'Owner' }` — resolved against a BCP-47 locale by the spec's own
+ *   `resolveI18nLabel(label, locale)`.
+ *
+ * The shape below is the census of the three inline copies that existed before
+ * this type was minted — `packages/react/src/utils/i18n.ts`,
+ * `packages/layout/src/NavigationRenderer.tsx` and
+ * `packages/app-shell/src/utils/index.ts` — which were verified identical in
+ * their object half first. It is a NAME for what was already there, not a new
+ * capability.
+ */
+export type KeyedI18nLabel = {
+  /** Translation-bundle key, e.g. `dialog.close`. */
+  key: string;
+  /** Rendered when the key is missing from the bundle, or no `t` is available. */
+  defaultValue?: string;
+  /** Interpolation values for the key's placeholders, e.g. `{{name}}`. */
+  params?: Record<string, any>;
+};
+
+/**
  * Base schema interface that all component schemas extend.
  * This is the fundamental building block of the Object UI protocol.
  * 
@@ -150,9 +184,22 @@ export interface BaseSchema {
   /**
    * Controls whether the component is disabled.
    * Applies to interactive components like buttons and inputs.
+   *
+   * Accepts a PREDICATE STRING as well as a boolean (objectui#4581), on exactly
+   * the `visible` evidence one slot over: the renderer does not read this key
+   * as a boolean, it evaluates it — `SchemaRenderer.tsx:466` calls
+   * `evaluator.evaluateCondition(newSchema.disabled)`, and `evaluateCondition`
+   * is declared
+   * `(condition: string | boolean | undefined, context?) => boolean`. The
+   * sibling key `disabledOn` is `string` for the same reason. The asymmetry
+   * with `visible` was accidental rather than deliberate (#4580 ruling Q3-A);
+   * the two fixtures exercising it had been casting past the declaration.
+   *
    * @default false
+   * @example false
+   * @example "${data.status === 'locked'}"
    */
-  disabled?: boolean;
+  disabled?: boolean | string;
 
   /**
    * Expression for conditional disabling.
@@ -169,8 +216,29 @@ export interface BaseSchema {
   /**
    * Accessibility label for screen readers.
    * Rendered as aria-label attribute.
+   *
+   * Accepts the KEYED i18n form as well as a plain string (objectui#4581),
+   * because that is what the renderer resolves:
+   * `packages/react/src/SchemaRenderer.tsx:111` reads
+   * `aria['aria-label'] = resolveKeyedI18nLabel(schema.ariaLabel)`, and
+   * `resolveKeyedI18nLabel` accepts `{ key, defaultValue?, params? }` — the
+   * shape now named {@link KeyedI18nLabel}.
+   *
+   * NOT `I18nLabel`. The original #4581 text asked for `string | I18nLabel`,
+   * and PR #4593 measured that spelling wrong in three ways before the ruling
+   * withdrew it (#4580 Q2-B): `I18nLabel` is the spec's INLINE LOCALE MAP
+   * (`string | Record<string, string>`), so the shipped keyed fixture was
+   * accepted only *vacuously* — as a locale map whose "locales" are named `key`
+   * and `defaultValue`; the same label carrying `params` was REJECTED
+   * (`Type '{ name: string; }' is not assignable to type 'string'`); and a
+   * genuine `{ en: 'Owner' }` type-checked while `resolveKeyedI18nLabel`
+   * returns `undefined` for it, rendering an EMPTY aria-label. The two
+   * vocabularies are structurally confusable — objectui#4167's exact hazard.
+   *
+   * @example "Close dialog"
+   * @example { key: 'dialog.close', defaultValue: 'Close dialog' }
    */
-  ariaLabel?: string;
+  ariaLabel?: string | KeyedI18nLabel;
 
   /**
    * Additional properties specific to the component type.

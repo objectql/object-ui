@@ -83,6 +83,12 @@ export {
 // ============================================================================
 export type {
   BaseSchema,
+  // objectui's KEYED i18n label — `{ key, defaultValue?, params? }`, a
+  // reference INTO a translation bundle. Deliberately NOT the spec's
+  // `I18nLabel` re-exported further down this file, which is the INLINE LOCALE
+  // MAP; the two are structurally confusable (objectui#4167) and this name is
+  // half of what stops them being mixed up (#4581).
+  KeyedI18nLabel,
   SchemaNode,
   ComponentRendererProps,
   ComponentInput,
