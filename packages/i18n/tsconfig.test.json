@@ -27,11 +27,17 @@
     // Naming `types` at all switches off automatic `@types/*` inclusion, so
     // both have to be listed here.
     "types": ["node", "@testing-library/jest-dom"],
-    // Drop the root tsconfig's source-tree `paths`. This package depends on no
-    // workspace package, so nothing here resolves through them today — but
-    // leaving them in would let a future test reach a sibling's `src/` as a
-    // program input (TS6059) instead of through a declared dependency, which is
-    // exactly the leak the template exists to close.
+    // Drop the root tsconfig's source-tree `paths` so `@object-ui/core`
+    // resolves through the workspace dependency's built `.d.ts` instead of
+    // pulling `packages/core/src` in as a program input (TS6059) — the leak
+    // this template exists to close. `type-check` dependsOn `^build`
+    // (turbo.json), so that `.d.ts` exists by the time this runs.
+    //
+    // This package DOES depend on a workspace package as of objectui#4576:
+    // `utils/number-display.ts` re-exports `formatDisplayNumber` and friends
+    // from `@object-ui/core`, which is where they now live. Checking the
+    // re-export identity pin against the built declarations — rather than
+    // against core's source — is the point: it is the published contract.
     "paths": {}
   },
   // No `src/**/*.d.ts` entry, unlike plugin-map's project: this package keeps no

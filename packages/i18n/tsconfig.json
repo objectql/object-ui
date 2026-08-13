@@ -10,5 +10,14 @@
     "lib": ["ES2020", "DOM"]
   },
   "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"],
+  // `utils/number-display.ts` re-exports `@object-ui/core` (objectui#4576).
+  // The root tsconfig's `paths` map that specifier at the SOURCE tree
+  // (`packages/core/src`), which would make those files program inputs under
+  // this project's `rootDir: "src"` and fail as TS6059. The reference is what
+  // redirects them to core's built declarations instead — the same shape
+  // `packages/core/tsconfig.json` already uses for `../types`.
+  "references": [
+    { "path": "../core" }
+  ]
 }

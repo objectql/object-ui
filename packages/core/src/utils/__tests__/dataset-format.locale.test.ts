@@ -67,12 +67,22 @@ describe('formatMeasure follows the display locale (objectui#4566)', () => {
   it('formats a percent measure in the threaded locale', () => {
     // The decimal COMMA is the whole point: `60.8%` and `60,8%` read as
     // different numbers to the two audiences, not as the same one restyled.
-    expect(formatMeasure(0.608_333_333, '0.0%', undefined, undefined, 'de-DE')).toBe('60,8%');
+    //
+    // PIN MOVED (objectui#4576). The German expectation gained the no-break
+    // space before the sign. That is not this case's subject drifting — it is
+    // the divergence #4566 recorded and declined to fix here, now closed: a
+    // German list cell has written `60,8${NBSP}%` since #4553, and the measure
+    // appended a literal '%'. The en-US line beside it is UNMOVED, which is
+    // what says this was a convention change and not a numeral one.
+    expect(formatMeasure(0.608_333_333, '0.0%', undefined, undefined, 'de-DE')).toBe(`60,8${NBSP}%`);
     expect(formatMeasure(0.608_333_333, '0.0%', undefined, undefined, 'en-US')).toBe('60.8%');
   });
 
   it('honours a declared percentScale in the threaded locale', () => {
-    expect(formatMeasure(1, '0.0%', undefined, 'fraction', 'de-DE')).toBe('100,0%');
+    // PIN MOVED (objectui#4576) — same reason as the case above; the declared
+    // `percentScale` behaviour it actually pins is untouched, and en-US is
+    // byte-identical.
+    expect(formatMeasure(1, '0.0%', undefined, 'fraction', 'de-DE')).toBe(`100,0${NBSP}%`);
     expect(formatMeasure(1, '0.0%', undefined, 'fraction', 'en-US')).toBe('100.0%');
   });
 

@@ -59,6 +59,12 @@ export * from './utils/dashboard-filters.js';
 export * from './utils/merge-filters.js';
 export * from './utils/compare-to.js';
 export * from './utils/chart-series.js';
+// The ONE number-display formatter (objectui#4033) — grouping policy, display
+// locale and the percent convention. It lived in `@object-ui/i18n` until
+// objectui#4576; it is pure, and living above `core` was what kept
+// `dataset-format` below from reaching it (so the two drifted). `@object-ui/i18n`
+// re-exports these names unchanged, so both import paths name the same symbol.
+export * from './utils/number-display.js';
 export * from './utils/dataset-format.js';
 // Pivot lookup-key encoders, shared by every cross-tab renderer so the
 // dashboard widget and the report renderer key their buckets identically

@@ -1293,6 +1293,9 @@ importers:
 
   packages/i18n:
     dependencies:
+      '@object-ui/core':
+        specifier: workspace:*
+        version: link:../core
       i18next:
         specifier: ^26.3.6
         version: 26.3.6(typescript@6.0.3)

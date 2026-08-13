@@ -20,6 +20,8 @@
 import type { AnalyticsResult } from '@objectstack/spec/contracts';
 import type { PercentScale } from '@objectstack/spec/data';
 
+import { formatDisplayNumber, type DisplayNumberFormatOptions } from './number-display.js';
+
 /**
  * Column metadata the analytics server returns alongside the rows — the spec's
  * `AnalyticsResult.fields[]` element BY REFERENCE, never a local restatement of
@@ -74,6 +76,16 @@ export type { PercentScale } from '@objectstack/spec/data';
  * percent cell renderer (`formatPercent` in `@object-ui/fields`) and the dataset
  * measure formatter ({@link formatMeasure}) so a percent renders identically as
  * a row value and as an aggregated metric — the two surfaces can never drift.
+ *
+ * ⚠️ That last sentence was briefly FALSE, and objectui#4576 is what made it
+ * true again. Sharing the SCALING was never enough on its own: between #4553
+ * and #4576 the cell renderer got the locale's percent CONVENTION from `Intl`
+ * while {@link formatMeasure} appended a literal '%', so a German session read
+ * `1.234,5 %` in a list cell and `1.234,5%` in a dashboard measure — the same
+ * number, scaled identically, rendered under two conventions. Both ends now go
+ * through the locale's own percent affix. If a third surface ever needs percent
+ * display, it takes BOTH halves from here — the scaling AND the convention —
+ * or this promise breaks again in the same place.
  */
 export function percentDisplayValue(value: number): number {
   return value > -1 && value < 1 ? value * 100 : value;
@@ -82,35 +94,40 @@ export function percentDisplayValue(value: number): number {
 /**
  * Format one number in the DISPLAY locale, surviving a malformed locale tag.
  *
- * ⚠️ SURVIVING DUPLICATION, recorded deliberately (objectui#4566). This mirrors
- * the `try`/`catch` retry inside `formatDisplayNumber`
- * (`@object-ui/i18n`'s `utils/number-display.ts`) — the ONE number-display
- * formatter — and the mirror exists only because of a PACKAGE BOUNDARY, not
- * because the behaviour differs. See {@link formatMeasure}'s note for the
- * measurement that chose this over routing through it. Keep the two in step:
- * a change to the retry policy there belongs here too.
+ * THE DUPLICATE IS GONE (objectui#4576). This used to be a hand-mirrored copy
+ * of the `try`/`catch` retry inside `formatDisplayNumber` — the ONE
+ * number-display formatter — kept in step by a comment at each end because a
+ * PACKAGE BOUNDARY stood between them: `formatDisplayNumber` lived in
+ * `@object-ui/i18n`, which depends on `i18next`/`react-i18next` and
+ * peer-depends on React, and this package is the React-free engine. #4566
+ * measured the option mapping LOSSLESS across 32,760 combinations and recorded
+ * the duplication rather than crossing that boundary; #4576 removed the
+ * boundary instead, by moving the pure function DOWN into this package
+ * (`./number-display.ts`), where `@object-ui/i18n` now re-exports it.
  *
- * The retry is load-bearing rather than defensive. Before #4566 these sites
- * passed a literal `undefined`, which never throws; a THREADED tag can be
- * malformed, and a bare `Intl.NumberFormat('en_US', …)` throws `RangeError`
- * (measured — underscore instead of hyphen is the likeliest tenant-config
- * typo). Un-caught that would take the whole widget down, so a bad tag falls
- * back to the runtime default exactly as `formatDisplayNumber` does. A bad
+ * So this is a thin ADAPTER, not a second implementation: it converts the
+ * `Intl`-shaped option bag these call sites already speak into
+ * {@link DisplayNumberFormatOptions}, and every policy decision — grouping,
+ * the malformed-locale retry, the percent convention — is made in the one
+ * home. The retry is load-bearing rather than defensive: before #4566 these
+ * sites passed a literal `undefined`, which never throws, but a THREADED tag
+ * can be malformed and a bare `Intl.NumberFormat('en_US', …)` throws
+ * `RangeError` (measured — underscore instead of hyphen is the likeliest
+ * tenant-config typo), which would take the whole widget down. A bad
  * `currency` still throws out of both attempts, which is what lets
  * {@link formatMeasure}'s own `catch` fall through to plain-number formatting.
+ *
+ * ⚠️ `scale` is deliberately never passed. A measure carries no field `scale`
+ * (its decimals come from a numeral format PATTERN), so the grouping policy
+ * keyed on it must not fire here — which is exactly why #4566 measured the two
+ * implementations byte-identical across all 32,760 combinations.
  */
 function formatNumberInLocale(
   value: number,
   locale: string | undefined,
-  options: Intl.NumberFormatOptions,
+  options: Omit<DisplayNumberFormatOptions, 'locale' | 'scale'>,
 ): string {
-  try {
-    return new Intl.NumberFormat(locale, options).format(value);
-  } catch {
-    // Retry WITHOUT the locale, keeping every other option: rescues a malformed
-    // tag while still surfacing a genuinely bad `currency` to the caller.
-    return new Intl.NumberFormat(undefined, options).format(value);
-  }
+  return formatDisplayNumber(value, { ...options, locale });
 }
 
 /**
@@ -133,32 +150,25 @@ function formatNumberInLocale(
  * `1,234.5` beside a grid cell rendering the same number as `1.234,5`, and
  * inverted separators read as a different number, not an unstyled one.
  *
- * ── Why this still formats itself instead of calling `formatDisplayNumber` ──
- * The one-resolver rule says this should route through `formatDisplayNumber`
- * (`@object-ui/i18n`) and retire the parallel implementation. That was measured
- * across 32,760 value × format × currency × percentScale × locale combinations
- * and the option mapping is LOSSLESS — routing through it changes literally no
- * byte of output, because the policy layer `formatDisplayNumber` adds over
- * plain `Intl` is grouping suppression keyed on a field's declared `scale`, and
- * a measure has no `scale` to feed it (decimals here come from a numeral format
- * PATTERN, so grouping stays on and the two agree everywhere).
+ * ── This routes through `formatDisplayNumber` (objectui#4576) ──
+ * It did not always. #4566 measured the option mapping across 32,760
+ * value × format × currency × percentScale × locale combinations and found it
+ * LOSSLESS — routing changes no byte of output, because the policy layer
+ * `formatDisplayNumber` adds over plain `Intl` is grouping suppression keyed on
+ * a field's declared `scale`, and a measure has no `scale` to feed it (decimals
+ * here come from a numeral format PATTERN, so grouping stays on and the two
+ * agree everywhere). What blocked it was the PACKAGE BOUNDARY: the formatter
+ * lived in `@object-ui/i18n`, which depends on `i18next`/`react-i18next` and
+ * peer-depends on React, while this package is the React-free engine (AGENTS.md
+ * §3: "No UI-lib deps. Logic only.") and a runtime dependency of React-FREE
+ * consumers — the `object-ui` VS Code extension and `@object-ui/data-objectstack`.
  *
- * What blocks the routing is the PACKAGE BOUNDARY, not the behaviour.
- * `@object-ui/core` is the React-free engine (see this module's header, and the
- * topology table in AGENTS.md §3: "No UI-lib deps. Logic only."), while
- * `@object-ui/i18n` depends on `i18next`/`react-i18next` and peer-depends on
- * React, and publishes no pure-utility subpath to import in isolation — its
- * `exports` map is `.` and `./locales/*`. A `core` → `i18n` edge would put
- * React into the dependency closure of every React-FREE consumer of this
- * package: the `object-ui` VS Code extension and `@object-ui/data-objectstack`
- * both take `@object-ui/core` as a runtime dependency and declare no React.
- *
- * So the duplication survives on purpose and is recorded at BOTH ends (see
- * `formatNumberInLocale` above and the note in `number-display.ts`). Retiring
- * it for real means moving `formatDisplayNumber` DOWN into this package and
- * re-exporting it from `@object-ui/i18n` — the right direction, since `core` is
- * the lower layer — but that relocates a published export across a package
- * boundary and is deliberately left to its own card.
+ * #4576 removed the boundary rather than working around it: `formatDisplayNumber`
+ * is pure, so it moved DOWN into this package (`./number-display.ts`) and
+ * `@object-ui/i18n` re-exports it. The duplicate implementation this file used
+ * to carry is gone, and with it the drift that duplicate produced — see the
+ * percent note in the body, and {@link percentDisplayValue}'s promise, which
+ * is true again.
  */
 export function formatMeasure(
   v: unknown,
@@ -174,8 +184,10 @@ export function formatMeasure(
 
   if (currency) {
     try {
+      // No `style: 'currency'` here: `formatDisplayNumber` derives that from the
+      // presence of `currency` itself, which is also what keeps its "money
+      // always groups" policy in one place instead of two.
       return formatNumberInLocale(v, locale, {
-        style: 'currency',
         currency,
         minimumFractionDigits: decimals ?? 0,
         maximumFractionDigits: decimals ?? 2,
@@ -217,22 +229,35 @@ export function formatMeasure(
   const display = isPercent
     ? (percentScale ? (percentScale === 'fraction' ? v * 100 : v) : percentDisplayValue(v))
     : v;
+  // The percent sign is the LOCALE's, not a literal '%' (objectui#4576).
+  //
+  // Until #4576 this appended a hard-coded '%' to a decimal-formatted body, so
+  // a German session read `1.234,5%` from a dashboard measure beside
+  // `1.234,5 %` (no-break space — the German percent convention) from a list
+  // cell showing the SAME number, because `formatPercent` had gone through
+  // `Intl` since #4553. That contradicted {@link percentDisplayValue}'s own
+  // promise that the two surfaces "can never drift": the SCALING had stopped
+  // drifting, the CONVENTION had started. Measured to differ in de, fr, es, ru,
+  // sv, cs, fi (no-break space), tr (the sign moves to the FRONT: `%1.234,5`)
+  // and ar (its own sign plus U+061C); en, ja, zh were already identical.
+  //
+  // `style: 'percentPoints'` is what closes it, and the choice of route is
+  // measured, not incidental. `display` is already in percentage POINTS, while
+  // `Intl`'s `style: 'percent'` wants a fraction — so routing through that (the
+  // way `formatPercent` does) would mean dividing by 100 for `Intl` to multiply
+  // straight back, and that round trip is lossy at rounding TIES: 27,581 of
+  // 1,200,013 ordinary-magnitude en-US forms move (`0.175` at 2 decimals goes
+  // from `0.18%` to `0.17%`), plus `MAX_SAFE_INTEGER` and everything from 1e23
+  // up. Formatting the points directly with the percent UNIT was measured to
+  // produce a byte-identical percent affix to `style: 'percent'` across all 171
+  // locale tags tested, while moving ZERO of those 1,200,013 en forms — the
+  // same convention by a route that does not touch the value.
   const body = formatNumberInLocale(display, locale, {
+    style: isPercent ? 'percentPoints' : 'decimal',
     minimumFractionDigits: decimals ?? 0,
     maximumFractionDigits: decimals ?? 0,
   });
-  // The '%' stays a LITERAL suffix rather than `Intl`'s `style: 'percent'`,
-  // and that is a measured choice, not an oversight (objectui#4566). The
-  // percent STYLE would re-scale by 100, and the round trip loses precision at
-  // the top of the range: en `100,000,000,000,000,000,000,000%` becomes
-  // `99,999,999,999,999,990,000,000%`. English output moving is the signal that
-  // a mapping is wrong on this card — unlike `formatPercent`'s (objectui#4553),
-  // where en had never grouped and moving it WAS the fix. The consequence is
-  // that a German session reads `1.234,5%` here and `1.234,5 %` (no-break space,
-  // the German percent convention) from a list cell; that divergence is real,
-  // is narrower than the one this card closes, and is filed separately rather
-  // than smuggled in behind a locale fix.
-  return `${legacyDollar}${body}${isPercent ? '%' : ''}`;
+  return `${legacyDollar}${body}`;
 }
 
 /**
