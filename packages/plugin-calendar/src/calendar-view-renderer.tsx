@@ -190,6 +190,36 @@ function resolveAuthoredCurrentDate(raw: unknown): Date | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
+/**
+ * Resolve the declared `allowCreate` input: does this node get the add
+ * affordance (objectui#4454)?
+ *
+ * The input was declared (`type: 'boolean'`, "Allow creating events by clicking
+ * on dates") and read by nobody. The handler it would gate — `handleAddClick`
+ * below, dispatching `{ type: 'create' }` on this widget's own `onAction`
+ * channel — was already BUILT and never passed, so `CalendarView`, which renders
+ * its "New event" button behind `{onAddClick && …}`, never saw a handler and the
+ * button never existed. Both halves of one feature were present and never
+ * introduced to each other: an authorable key with no read site, and a handler
+ * with no caller. ADR-0049's enforce-or-remove framing, answered ENFORCE here
+ * because the intent was already in the tree.
+ *
+ * The wiring goes THROUGH the declared `onAddClick` hatch rather than around it
+ * via a second prop: that key is already one of {@link HOST_CALLBACKS}, so a
+ * React host can supply the affordance today and that path is not disturbed.
+ * `allowCreate` supplies the hatch's value for the SDUI path, where an author
+ * writing JSON can never produce a function.
+ *
+ * Only the boolean `true` turns it on. Everything else — absent, `false`, and
+ * the off-type spellings JSON invites (`'true'`, `1`) — gets `undefined`, which
+ * is the absent-key answer every other resolver here gives and, on this prop,
+ * literally the thing that makes the button not render. That is what keeps
+ * today's behaviour byte-identical for every node that never authored the key.
+ */
+function resolveAuthoredAllowCreate(raw: unknown): boolean {
+  return raw === true;
+}
+
 // Calendar View Renderer - Airtable-style calendar for displaying records as events
 ComponentRegistry.register('calendar-view',
   ({
@@ -220,6 +250,10 @@ ComponentRegistry.register('calendar-view',
     // The declared `view` input: CONSUMED and narrowed to its declared enum
     // below (objectui#4453).
     view: authoredView,
+    // The declared `allowCreate` input: CONSUMED below and turned into the
+    // `onAddClick` hatch's value (objectui#4454). Both authoring channels land
+    // here, the node's own key and a `props: { allowCreate }` container.
+    allowCreate: authoredAllowCreate,
     // Everything else. READ for declared keys, NEVER spread: this is the raw
     // channel the old `{...props}` handed straight to `CalendarView`, and the
     // reason an authored string could land on a function-typed prop.
@@ -276,6 +310,10 @@ ComponentRegistry.register('calendar-view',
     // The declared `view` input, narrowed to the enum it declares.
     const view = resolveAuthoredView(authoredView);
 
+    // The declared `allowCreate` input, narrowed to the boolean it declares
+    // (objectui#4454).
+    const allowCreate = resolveAuthoredAllowCreate(authoredAllowCreate);
+
     // The declared host hatches, each kept only at its declared type. Read out
     // of `rest`; `rest` itself never reaches `CalendarView`.
     const hostCallbacks = pickHostCallbacks(rest);
@@ -300,12 +338,16 @@ ComponentRegistry.register('calendar-view',
       });
     };
 
+    // Standard "Create" action trigger, gated by the declared `allowCreate`
+    // input below. It goes through `dispatchAction`, the narrowed `onAction`,
+    // exactly like `handleEventClick` — so an authored
+    // `onAction: 'NOT-A-FUNCTION'` cannot turn this newly-live affordance into
+    // objectui#4453's uncaught handler crash.
     const handleAddClick = () => {
-       // Standard "Create" action trigger
-       dispatchAction?.({
-         type: 'create',
-         payload: {}
-       });
+      dispatchAction?.({
+        type: 'create',
+        payload: {},
+      });
     };
 
     // The forward set is exactly `CalendarViewProps` — nothing else can reach
@@ -334,6 +376,15 @@ ComponentRegistry.register('calendar-view',
         // string that used to land on this prop now lands nowhere, so the
         // fallback stands.
         onEventClick={hostCallbacks.onEventClick ?? handleEventClick}
+        // The declared `allowCreate` input, finally wired (objectui#4454).
+        // Same precedence rule as `onEventClick` directly above: a host's own
+        // handler REPLACES the `onAction` dispatch, and it keeps working with
+        // no `allowCreate` authored at all — that is the pre-existing hatch
+        // path this card must not disturb. `undefined` when the flag is not
+        // the boolean `true`, which is what makes `CalendarView` render no
+        // "New event" button — today's behaviour, unchanged, for every node
+        // that never authored the key.
+        onAddClick={hostCallbacks.onAddClick ?? (allowCreate ? handleAddClick : undefined)}
       />
     );
   }
@@ -383,13 +434,18 @@ ComponentRegistry.register('calendar-view',
         defaultValue: 'color',
         description: 'Field name for event color'
       },
+      // `colorMapping` used to be declared here and is RETIRED (objectui#4493,
+      // ADR-0049 enforce-or-remove). It had no read site anywhere — not in this
+      // renderer, whose event mapping takes the colour straight off the record
+      // (`color: record[colorField]`), and not in `CalendarView`, which resolves
+      // a colour from `event.color`. An author who wrote the documented
+      // `colorMapping: { meeting: 'blue' }` got no mapping, no warning and no
+      // error: the raw field value was used as the colour, which for a picklist
+      // value like `meeting` is not a colour at all. Removed rather than
+      // implemented because no measured app authors it — declared authorable
+      // surface with nothing behind it is the one state that must not persist,
+      // and a capability nobody pulls on is not worth building.
       {
-        name: 'colorMapping',
-        type: 'object',
-        label: 'Color Mapping',
-        description: 'Map field values to colors (e.g., {meeting: "blue", deadline: "red"})'
-      },
-      { 
         name: 'view', 
         type: 'enum', 
         enum: ['month', 'week', 'day'], 

@@ -558,8 +558,19 @@ describe('calendar-view: the rest of the forward set is consumed or declared (ob
               zzcanary: 'CANARY-STR',
               zzcanaryobj: { nested: true },
               reference_to: 'contacts',
-              allowCreate: true,
+              // Declared and registered here, and read by nobody, when this
+              // canary was written. `colorMapping`'s declaration has since been
+              // RETIRED (objectui#4493), which is why it belongs in the tail
+              // above rather than beside `allowCreate` below: it is now an
+              // ordinary unknown authored key.
               colorMapping: { meeting: 'blue' },
+              // NOT part of the dropped tail any more. `allowCreate` is a
+              // CONSUMED declared input as of objectui#4454 — it supplies the
+              // `onAddClick` hatch, so this node also renders the header's
+              // "New event" button. Kept on the canary so the combination is
+              // exercised: turning the affordance on must not disturb anything
+              // this file pins.
+              allowCreate: true,
               props: { zzcanaryprop: 'CANARY-PROP' },
             } as never
           }
