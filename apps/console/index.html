@@ -49,20 +49,75 @@
     <!--
       crypto.randomUUID fallback for INSECURE ORIGINS (objectui#4563).
 
-      `crypto.randomUUID` is secure-context-only, so on `http://LAN-IP` (the
-      ordinary way a second device reaches a dev box) the browser omits it and
-      every unguarded caller throws "crypto.randomUUID is not a function" —
-      taking the list views into the ErrorBoundary. The module below restores
-      the method from `crypto.getRandomValues`, guarded on ABSENCE so a native
-      implementation is never replaced.
+      `crypto.randomUUID` is secure-context-only, so on `http://LAN-IP` — the
+      ordinary way a second device reaches a dev box — the browser omits it and
+      every unguarded caller throws "crypto.randomUUID is not a function",
+      taking the console's list views into the ErrorBoundary. The console's own
+      graph carries unguarded calls in five packages, and the report's stack
+      attributes the throwing frame to a VENDORED chunk this repository does not
+      author, so guaranteeing the platform method is the only fix that reaches
+      every caller. `crypto.getRandomValues` is NOT secure-context-gated, so the
+      entropy stays cryptographic; we only rebuild the RFC 4122 formatting.
 
-      ORDER IS LOAD-BEARING: this tag MUST stay ahead of the /src/main.tsx entry
-      below. Both are `type="module"`, hence deferred and executed in DOCUMENT
-      ORDER, which is what makes the shim precede every consumer in the app's
-      module graph. `src/__tests__/insecure-origin-crypto.placement.test.ts`
-      fails if the tag is moved, renamed or removed.
+      WHY THIS IS AN INLINE CLASSIC SCRIPT, and not a module one.
+      A classic inline script runs SYNCHRONOUSLY, during parse, before any
+      module chunk executes. That is the only bundler-independent guarantee, and
+      it is not theoretical: shipping this as a separate module-type entry
+      placed above the app entry was MEASURED to be too late. Vite merges the
+      two HTML module entries into a single chunk, and the merged entry's static
+      imports are hoisted above the shim's body — 16 chunks, vendor-react,
+      ui-components and RecordDetailView among them, evaluated before the shim
+      installed. Document order between module scripts is real but it is not
+      preserved through bundling, so it cannot carry this guarantee.
+
+      Behaviour, pinned by src/__tests__/insecure-origin-crypto.test.ts, which
+      extracts THIS script text and executes it (so the tests grade exactly what
+      ships, with no second copy to drift): guarded on ABSENCE, so a native
+      implementation is never replaced; and with no entropy source it installs
+      NOTHING rather than degrading to Math.random — an id generator that only
+      looks like crypto is worse than the honest absence. Surfacing that state
+      to the user is objectui#4570, deliberately not this shim's job.
     -->
-    <script type="module" src="/src/insecure-origin-crypto.ts"></script>
+    <script>
+      (function installInsecureOriginRandomUuid() {
+        var cryptoRef = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
+        if (!cryptoRef || typeof cryptoRef.getRandomValues !== 'function') return;
+        // Never override a working implementation (a real CSPRNG must win).
+        if (typeof cryptoRef.randomUUID === 'function') return;
+
+        var octets = [];
+        for (var i = 0; i < 256; i++) octets.push((i + 0x100).toString(16).slice(1));
+
+        var randomUUID = function () {
+          var b = new Uint8Array(16);
+          cryptoRef.getRandomValues(b);
+          b[6] = (b[6] & 0x0f) | 0x40; // version 4
+          b[8] = (b[8] & 0x3f) | 0x80; // RFC 4122 variant
+          return (
+            octets[b[0]] + octets[b[1]] + octets[b[2]] + octets[b[3]] + '-' +
+            octets[b[4]] + octets[b[5]] + '-' +
+            octets[b[6]] + octets[b[7]] + '-' +
+            octets[b[8]] + octets[b[9]] + '-' +
+            octets[b[10]] + octets[b[11]] + octets[b[12]] + octets[b[13]] +
+            octets[b[14]] + octets[b[15]]
+          );
+        };
+
+        try {
+          Object.defineProperty(cryptoRef, 'randomUUID', {
+            value: randomUUID,
+            writable: true,
+            configurable: true,
+          });
+        } catch (_defineFailed) {
+          try {
+            cryptoRef.randomUUID = randomUUID;
+          } catch (_assignFailed) {
+            /* Nothing installable here — refuse rather than pretend. */
+          }
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

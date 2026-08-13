@@ -11,8 +11,10 @@ method undefined, and every unguarded caller threw
 `TypeError: crypto.randomUUID is not a function`, taking the console's list
 views into the ErrorBoundary.
 
-The console entry now installs an RFC 4122 v4 fallback built on
+The console's HTML entry now installs an RFC 4122 v4 fallback built on
 `crypto.getRandomValues` (which is not secure-context-gated, so the entropy
-stays cryptographic). It is guarded on absence and never replaces a native
-implementation, so secure origins are unaffected; with no entropy source
-available it installs nothing rather than degrading to `Math.random`.
+stays cryptographic). It runs as an inline classic script, synchronously during
+parse, so it precedes every bundled chunk. It is guarded on absence and never
+replaces a native implementation, so secure origins are unaffected; with no
+entropy source available it installs nothing rather than degrading to
+`Math.random`.
