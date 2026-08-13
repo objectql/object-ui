@@ -251,6 +251,52 @@ export interface GlobalSearchResult {
   hits: GlobalSearchHit[];
 }
 
+/**
+ * Outcome of a {@link DataSource.deleteView} delete against ONE of a view's two
+ * homes — the pending draft, or the published overlay (objectui#4479).
+ */
+export interface ViewHomeDeleteOutcome {
+  /**
+   * True when this home held a row and the server removed it. False is the
+   * "there was nothing here" answer, which is a success, not a failure: the
+   * framework reports a missing home as a 200 carrying `reset:false`.
+   */
+  removed: boolean;
+  /** The server receipt's `reset` flag, when it sent one. */
+  reset?: boolean;
+  /** The server receipt's human-readable message, when it sent one. */
+  message?: string;
+}
+
+/**
+ * Receipt for {@link DataSource.deleteView} (objectui#4479, moved here by
+ * objectui#4564).
+ *
+ * The per-home fields are ADDITIVE over the original `{ deleted: boolean }`:
+ * a caller that only reads `deleted` is unaffected, and one that needs to tell
+ * "draft gone, overlay left" from "both gone" now can.
+ *
+ * Declared HERE rather than in the adapter that first returned it, because the
+ * dependency runs `@object-ui/data-objectstack` -> `@object-ui/types` and never
+ * the other way. While the shape lived downstream, the interface could only
+ * declare the narrow `{ deleted: boolean }`, and a consumer reaching an adapter
+ * THROUGH `DataSource` was handed a type that had already discarded the
+ * per-home outcomes — the adapter's wider return being assignable to the
+ * narrower declaration is what kept that silent (objectui#4564).
+ */
+export interface DeleteViewResult {
+  /**
+   * True only when no home is left serving the view AND at least one home
+   * actually held a row. A view that existed in neither home answers `false`
+   * — the same answer that shape has always given.
+   */
+  deleted: boolean;
+  /** Outcome against the pending draft (`?state=draft`). */
+  draft?: ViewHomeDeleteOutcome;
+  /** Outcome against the published overlay. */
+  published?: ViewHomeDeleteOutcome;
+}
+
 export interface DataSource<T = any> {
   /**
    * Fetch multiple records.
@@ -534,8 +580,16 @@ export interface DataSource<T = any> {
    * Delete an overlay view. Routes to `DELETE /api/v1/meta/view/:name`,
    * which resets to the artifact default if one exists or removes the
    * overlay entirely if it was a user-created view.
+   *
+   * A view has TWO homes — the pending per-item draft (`?state=draft`) and the
+   * published overlay — and "remove this view" is satisfied only when neither
+   * is left serving it (objectui#4479). The receipt is
+   * {@link DeleteViewResult}: `deleted` is the unchanged single-bit answer, and
+   * the optional per-home outcomes let a caller tell a partial result ("draft
+   * gone, overlay left") from a complete one instead of having it rounded up.
+   * Implementations that address only one home report the other absent.
    */
-  deleteView?(objectName: string, viewName: string): Promise<{ deleted: boolean }>;
+  deleteView?(objectName: string, viewName: string): Promise<DeleteViewResult>;
 
 
   /**

@@ -281,6 +281,8 @@ export type {
   QueryParams,
   QueryResult,
   DataSource,
+  DeleteViewResult,
+  ViewHomeDeleteOutcome,
   GlobalSearchHit,
   GlobalSearchResult,
   BatchRef,

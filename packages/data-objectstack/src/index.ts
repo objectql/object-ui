@@ -19,6 +19,12 @@ import {
 import type { AnalyticsResult, DatasetSelection } from '@objectstack/spec/contracts';
 import type {
   DataSource,
+  // #4564 — the canonical `deleteView` receipt shapes, declared beside the
+  // `DataSource` interface they belong to. Imported for the local uses below
+  // and re-exported under the same names further down, so this package's
+  // existing importers are untouched by the move.
+  DeleteViewResult,
+  ViewHomeDeleteOutcome,
   BatchTransactionOperation,
   DataSourceMutationEvent,
   QueryParams,
@@ -1054,41 +1060,26 @@ function unwrapViewDraft(resp: unknown): Record<string, any> | null {
 }
 
 /**
- * Outcome of {@link ObjectStackAdapter.deleteView}'s delete against ONE of a
- * view's two homes — the pending draft, or the published overlay (#4479).
- */
-export interface ViewHomeDeleteOutcome {
-  /**
-   * True when this home held a row and the server removed it. False is the
-   * "there was nothing here" answer, which is a success, not a failure: the
-   * framework reports a missing home as a 200 carrying `reset:false`.
-   */
-  removed: boolean;
-  /** The server receipt's `reset` flag, when it sent one. */
-  reset?: boolean;
-  /** The server receipt's human-readable message, when it sent one. */
-  message?: string;
-}
-
-/**
- * Receipt for {@link ObjectStackAdapter.deleteView} (#4479).
+ * `deleteView`'s receipt shapes, RE-EXPORTED from `@object-ui/types` (#4564).
  *
- * The per-home fields are ADDITIVE over the original `{ deleted: boolean }`:
- * a caller that only reads `deleted` is unaffected, and one that needs to tell
- * "draft gone, overlay left" from "both gone" now can.
+ * #4479 first declared both here, because this adapter is where the widened
+ * receipt is produced. That left the shared `DataSource.deleteView?` unable to
+ * describe it: the dependency runs this package -> `@object-ui/types` and never
+ * the other way, so the interface kept the narrow `{ deleted: boolean }` and a
+ * consumer reaching this adapter THROUGH `DataSource` was handed a type with
+ * the per-home outcomes already discarded. Nothing failed to compile — a wider
+ * return is assignable to a narrower declaration — which is precisely why the
+ * gap was silent until #4564 measured it.
+ *
+ * So the canonical declarations now live beside the interface they belong to,
+ * in `packages/types/src/data.ts`, and this package re-exports them under the
+ * SAME names: every importer PR #4562 left pointing at
+ * `@object-ui/data-objectstack` keeps compiling, and now gets the very type the
+ * shared contract speaks rather than a structural twin of it. Pinned by
+ * `deleteViewContract.types.test.ts`, which asserts type IDENTITY — mutual
+ * assignability would have been satisfied by a copy that was already drifting.
  */
-export interface DeleteViewResult {
-  /**
-   * True only when no home is left serving the view AND at least one home
-   * actually held a row. A view that existed in neither home answers `false`
-   * — the same answer that shape has always given.
-   */
-  deleted: boolean;
-  /** Outcome against the pending draft (`?state=draft`). */
-  draft?: ViewHomeDeleteOutcome;
-  /** Outcome against the published overlay. */
-  published?: ViewHomeDeleteOutcome;
-}
+export type { DeleteViewResult, ViewHomeDeleteOutcome } from '@object-ui/types';
 
 /**
  * Read one delete receipt into a {@link ViewHomeDeleteOutcome}.
