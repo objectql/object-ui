@@ -27,7 +27,7 @@ import {
   buildDatasetFieldHelpers,
   type DatasetResultField,
 } from '@object-ui/core';
-import { useSafeFieldLabel } from '@object-ui/i18n';
+import { useSafeFieldLabel, useDisplayLocale } from '@object-ui/i18n';
 
 // Lazy-loaded so the (recharts-backed) chart bundle only loads when a dataset
 // preview actually renders a chart — keeps the metadata-admin bundle small.
@@ -48,6 +48,13 @@ type PreviewState =
 export function DatasetPreview({ draft }: MetadataPreviewProps) {
   const adapter = useAdapter();
   const { fieldLabel } = useSafeFieldLabel();
+  // The display locale the measure / dimension cells below format in
+  // (objectui#4575, completing objectui#4566's channel). Deliberately NOT the
+  // `locale` PROP in scope: that one is the metadata designer's own chrome
+  // language (`useMetadataLocale()`, which resolves to exactly 'en-US' or
+  // 'zh-CN'), while these numbers must match what the report and dashboard
+  // render for the same dataset — which is `useDisplayLocale()`.
+  const displayLocale = useDisplayLocale();
 
   const objectName = (draft as Record<string, unknown>).object as string | undefined;
 
@@ -225,8 +232,8 @@ export function DatasetPreview({ draft }: MetadataPreviewProps) {
                     {columns.map((c) => (
                       <td key={c} className="px-2 py-1 tabular-nums whitespace-nowrap">
                         {measureNames.includes(c)
-                          ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency, measureField(c)?.percentScale)
-                          : formatDimensionValue(row[c])}
+                          ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency, measureField(c)?.percentScale, displayLocale)
+                          : formatDimensionValue(row[c], displayLocale)}
                       </td>
                     ))}
                   </tr>

@@ -71,7 +71,7 @@ import {
   type DatasetResultField,
   type DatasetDrillRange,
 } from '@object-ui/core';
-import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
+import { useSafeFieldLabel, useSafeTranslate, useDisplayLocale } from '@object-ui/i18n';
 import { mergeFilters } from './mergeFilters';
 import { useDatasetDimensionLabels } from './useDatasetDimensionLabels';
 
@@ -411,6 +411,14 @@ function DatasetReportTable({
   );
   const { fieldLabel } = useSafeFieldLabel();
   const tt = useSafeTranslate();
+  // The display locale every measure and dimension value below is formatted in
+  // (objectui#4575, completing objectui#4566's channel). `formatMeasure` /
+  // `formatDimensionValue` are pure functions in `@object-ui/core`, which is
+  // React-free, so the tag has to arrive as an argument. Nothing in this
+  // component formats inside a `useMemo` — every site is in the render body —
+  // so there is no dependency array to add it to here (the matrix below is the
+  // one place in this file where there is).
+  const displayLocale = useDisplayLocale();
   // objectui#4330 — the option list this report's select dimensions are
   // localized against. Null (and free) for a report whose dimensions own no
   // options, or before the read lands.
@@ -484,8 +492,8 @@ function DatasetReportTable({
               {columns.map((c) => (
                 <td key={c} className="px-2 py-1 tabular-nums whitespace-nowrap">
                   {values.includes(c)
-                    ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency, measureField(c)?.percentScale)
-                    : formatDimensionValue(row[c])}
+                    ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency, measureField(c)?.percentScale, displayLocale)
+                    : formatDimensionValue(row[c], displayLocale)}
                 </td>
               ))}
             </tr>
@@ -499,7 +507,7 @@ function DatasetReportTable({
               )}
               {values.map((measure) => (
                 <td key={measure} className="px-2 py-1 tabular-nums whitespace-nowrap">
-                  {formatMeasure(grandTotal[measure], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale)}
+                  {formatMeasure(grandTotal[measure], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale, displayLocale)}
                 </td>
               ))}
             </tr>
@@ -684,6 +692,10 @@ function DatasetReportChart({
   );
   const ChartComponent = useRegistryComponent('chart');
   const { fieldLabel } = useSafeFieldLabel();
+  // objectui#4575 — the single-value metric below is a MEASURE like any other
+  // and follows the display locale. (The series charts render their own labels
+  // through the chart component, not through `formatMeasure`.)
+  const displayLocale = useDisplayLocale();
   // objectui#4330 — the embedded chart plots the SAME dimension the table
   // beneath it groups by, so it takes the same label map. Leaving it out would
   // put the two spellings of one value on one screen, which is the defect this
@@ -734,7 +746,7 @@ function DatasetReportChart({
         {title ? <h3 className="mb-2 text-sm font-semibold">{title}</h3> : null}
         <div className="flex flex-col gap-0.5 py-2">
           <span className="text-2xl font-semibold tabular-nums">
-            {formatMeasure(state.rows[0]?.[yAxis], mf?.format, mf?.currency, mf?.percentScale)}
+            {formatMeasure(state.rows[0]?.[yAxis], mf?.format, mf?.currency, mf?.percentScale, displayLocale)}
           </span>
           <span className="text-xs text-muted-foreground">{headerLabel(yAxis)}</span>
         </div>
@@ -788,8 +800,17 @@ function bucketId(dims: string[], row: Row): string {
   return pivotBucketId(dims.map((d) => pivotDimensionValue(row[d])));
 }
 
-function bucketLabel(dims: string[], row: Row): string {
-  return dims.map((d) => formatDimensionValue(row[d])).join(' / ');
+/**
+ * `locale` is the display-locale tag the bucket's numeric values are formatted
+ * in (objectui#4575) — this is a plain function, not a component, so it cannot
+ * read `useDisplayLocale()` itself and the caller threads it. It affects the
+ * human-readable LABEL only; the matching bucket `id` comes from
+ * {@link bucketId}, which is built from the RAW values and is deliberately
+ * untouched by the locale, so a locale change can never re-key a cell (which
+ * would break the `cells` lookup and drill-through with it).
+ */
+function bucketLabel(dims: string[], row: Row, locale?: string): string {
+  return dims.map((d) => formatDimensionValue(row[d], locale)).join(' / ');
 }
 
 /**
@@ -838,6 +859,12 @@ function DatasetMatrixTable({
   );
   const tt = useSafeTranslate();
   const { fieldLabel } = useSafeFieldLabel();
+  // objectui#4575 — the display locale every measure and dimension value here
+  // is formatted in. Unlike the flat table above, this component formats inside
+  // a `useMemo` (the header labels `bucketLabel` builds), so the locale also
+  // joins that memo's dependency array — threading it into the call alone would
+  // leave the headers frozen in the locale they were first built with.
+  const displayLocale = useDisplayLocale();
   // objectui#4330 — both axes' dimensions, one read (see the flat table above).
   const dimensionLabels = useDatasetDimensionLabels(state.object, state.dimensionFields, [
     ...rows,
@@ -869,14 +896,14 @@ function DatasetMatrixTable({
         const key: Row = {};
         const display: Row = {};
         for (const d of rows) { key[d] = raw[d]; display[d] = r[d]; }
-        rowHeaders.push({ id: rid, label: bucketLabel(rows, r), key, display });
+        rowHeaders.push({ id: rid, label: bucketLabel(rows, r, displayLocale), key, display });
       }
       if (!seenCol.has(cid)) {
         seenCol.add(cid);
         const key: Row = {};
         const display: Row = {};
         for (const d of columnsAcross) { key[d] = raw[d]; display[d] = r[d]; }
-        colHeaders.push({ id: cid, label: bucketLabel(columnsAcross, r), key, display });
+        colHeaders.push({ id: cid, label: bucketLabel(columnsAcross, r, displayLocale), key, display });
       }
       // Keyed by pivotCellKey, not `${rid} ${cid}`: a plain space is a boundary
       // only while no dimension value contains one, and they do constantly
@@ -887,7 +914,13 @@ function DatasetMatrixTable({
       cells.set(pivotCellKey(rid, cid), { row: raw, index });
     });
     return { rowHeaders, colHeaders, cells };
-  }, [state, rows, columnsAcross, dimensionLabels]);
+    // `displayLocale` is load-bearing here, not decorative: the header labels
+    // above are built inside this memo (objectui#4575). Measured — with the
+    // locale threaded into `bucketLabel` but absent from these deps, a session
+    // that switches locale without refetching keeps the previous locale's
+    // headers, and the pin for that is the "re-labels the across header when
+    // only the locale changes" case in DatasetReportRenderer.measureLocale.test.tsx.
+  }, [state, rows, columnsAcross, dimensionLabels, displayLocale]);
 
   if (values.length === 0) return <EmptyMeasures dataset={dataset} />;
   if (state.status === 'loading' || state.status === 'idle') return <FetchStates status={state.status} />;
@@ -977,7 +1010,7 @@ function DatasetMatrixTable({
             <tr key={rh.id} className="border-t">
               {rows.map((d) => (
                 <td key={d} className="px-2 py-1 whitespace-nowrap font-medium">
-                  {formatDimensionValue(rh.display[d])}
+                  {formatDimensionValue(rh.display[d], displayLocale)}
                 </td>
               ))}
               {cellCols.map((cc) => {
@@ -991,7 +1024,7 @@ function DatasetMatrixTable({
                     data-testid={clickable ? 'dataset-drill-cell' : undefined}
                     onClick={clickable ? () => drillCell(rh.key, cc.col.key, entry!.index) : undefined}
                   >
-                    {formatMeasure(value, measureField(cc.measure)?.format, measureField(cc.measure)?.currency, measureField(cc.measure)?.percentScale)}
+                    {formatMeasure(value, measureField(cc.measure)?.format, measureField(cc.measure)?.currency, measureField(cc.measure)?.percentScale, displayLocale)}
                   </td>
                 );
               })}
@@ -1002,7 +1035,7 @@ function DatasetMatrixTable({
                     className="px-2 py-1 text-right tabular-nums whitespace-nowrap font-medium"
                     data-testid="matrix-row-total"
                   >
-                    {formatMeasure(rowTotalById.get(rh.id)?.[measure], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale)}
+                    {formatMeasure(rowTotalById.get(rh.id)?.[measure], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale, displayLocale)}
                   </td>
                 ))}
             </tr>
@@ -1016,7 +1049,7 @@ function DatasetMatrixTable({
               )}
               {cellCols.map((cc) => (
                 <td key={`${cc.col.id}-${cc.measure}`} className="px-2 py-1 text-right tabular-nums whitespace-nowrap">
-                  {formatMeasure(colTotalById.get(cc.col.id)?.[cc.measure], measureField(cc.measure)?.format, measureField(cc.measure)?.currency, measureField(cc.measure)?.percentScale)}
+                  {formatMeasure(colTotalById.get(cc.col.id)?.[cc.measure], measureField(cc.measure)?.format, measureField(cc.measure)?.currency, measureField(cc.measure)?.percentScale, displayLocale)}
                 </td>
               ))}
               {showTotalCol &&
@@ -1026,7 +1059,7 @@ function DatasetMatrixTable({
                     className="px-2 py-1 text-right tabular-nums whitespace-nowrap"
                     data-testid="matrix-grand-total"
                   >
-                    {formatMeasure(grandTotal?.[measure], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale)}
+                    {formatMeasure(grandTotal?.[measure], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale, displayLocale)}
                   </td>
                 ))}
             </tr>

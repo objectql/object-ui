@@ -33,6 +33,7 @@ import {
 import { InspectorComboField, type InspectorComboOption } from './InspectorComboField';
 import { toFieldName } from '../previews/object-fields-io';
 import { formatMeasure } from '@object-ui/core';
+import { useDisplayLocale } from '@object-ui/i18n';
 import { conditionToGroup, groupToCondition, type FilterCondition } from './datasetFilterCondition';
 import {
   useObjectOptions,
@@ -176,9 +177,16 @@ function MeasureFormatField({ measure, onPatch, disabled }: { measure: Measure; 
   const { kind, decimals } = parseMeasureFormat(measure.format, measure.currency);
   const currency = measure.currency || 'USD';
   const apply = (k: string, d: number, c: string) => onPatch(buildMeasureFormat(k, d, c));
+  // The sample is a PREVIEW of authored formatting, so it has to be rendered
+  // through the same channel as the surfaces it previews (objectui#4575): a
+  // German session picking "Number · 1 decimal" is shown `1.234,5`, because
+  // that is what the report and the dashboard will render. Showing the machine
+  // locale's form here would make the sample lie about the one thing it exists
+  // to demonstrate.
+  const displayLocale = useDisplayLocale();
   // The percent sample is a hand-picked 0–1 FRACTION, so it says so rather than
   // leaving the formatter to infer a scale from the sample's magnitude.
-  const sample = formatMeasure(kind === 'percent' ? 0.1234 : 1234.5, measure.format, measure.currency, kind === 'percent' ? 'fraction' : undefined);
+  const sample = formatMeasure(kind === 'percent' ? 0.1234 : 1234.5, measure.format, measure.currency, kind === 'percent' ? 'fraction' : undefined, displayLocale);
   return (
     <div className="space-y-1.5">
       <div className="grid grid-cols-2 gap-1.5">
