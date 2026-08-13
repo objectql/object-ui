@@ -328,9 +328,18 @@ export interface ActivityEntry {
 }
 
 // ============================================================================
-// Feed / Chatter Protocol Types
-// Aligned with @objectstack/spec FeedItemSchema, MentionSchema, ReactionSchema,
-// FieldChangeEntrySchema, RecordSubscriptionSchema
+// Feed / Chatter timeline types
+//
+// Provenance (objectui#4597): `@objectstack/spec/data` exported `FeedItemSchema`,
+// `MentionSchema`, `ReactionSchema`, `FieldChangeEntrySchema` and
+// `RecordSubscriptionSchema` through 15.1.1. The 16.0.0 major removed the whole
+// feed surface, directing consumers to the data API over `sys_comment` /
+// `sys_activity` — reactions and threaded replies are fields on `sys_comment`.
+// `FeedItemType` and `FeedFilterMode` were deliberately KEPT as live activity-
+// timeline config, which is why the import below still resolves.
+//
+// So the interfaces in this section are shapes this package owns: the protocol
+// no longer models them, and there is nothing upstream left to derive from.
 // ============================================================================
 
 /**
@@ -348,7 +357,10 @@ export type { FeedItemType };
 
 /**
  * FeedItem — A single item in the unified activity feed.
- * Aligned with @objectstack/spec FeedItemSchema.
+ *
+ * Local shape; its cited `FeedItemSchema` went with the 16.0.0 feed removal
+ * (see the section banner). Only `type` is still protocol-bound, through the
+ * `FeedItemType` import above.
  */
 export interface FeedItem {
   /** Unique identifier */
@@ -393,7 +405,13 @@ export interface FeedItem {
 
 /**
  * FieldChangeEntry — A single field change within a feed item.
- * Aligned with @objectstack/spec FieldChangeEntrySchema.
+ *
+ * Local shape; its cited `FieldChangeEntrySchema` went with the 16.0.0 feed
+ * removal (see the section banner). The pinned protocol's nearest surviving
+ * shape is `FieldChangeSchema` in `@objectstack/spec/kernel`, but that is a
+ * different thing — change tracking keyed `path` / `originalValue` /
+ * `currentValue` / `changedBy` / `changedAt`, with none of the display keys a
+ * timeline row needs. Do not re-point this at it.
  */
 export interface FieldChangeEntry {
   /** Field API name */
@@ -412,7 +430,10 @@ export interface FieldChangeEntry {
 
 /**
  * Mention — An @mention within a feed item.
- * Aligned with @objectstack/spec MentionSchema.
+ *
+ * Local shape; its cited `MentionSchema` went with the 16.0.0 feed removal (see
+ * the section banner), and no shape of this meaning survives under any other
+ * name in the pinned protocol.
  */
 export interface Mention {
   /** Mention target type */
@@ -429,7 +450,10 @@ export interface Mention {
 
 /**
  * Reaction — An emoji reaction on a feed item.
- * Aligned with @objectstack/spec ReactionSchema.
+ *
+ * Local shape; its cited `ReactionSchema` went with the 16.0.0 feed removal
+ * (see the section banner). Reactions are now persisted as fields on
+ * `sys_comment` rather than modelled as their own protocol shape.
  */
 export interface Reaction {
   /** Emoji identifier (e.g. '👍', '❤️', '🎉') */
@@ -444,7 +468,11 @@ export interface Reaction {
 
 /**
  * RecordSubscription — Notification subscription state for a record.
- * Aligned with @objectstack/spec RecordSubscriptionSchema.
+ *
+ * Local shape; its cited `RecordSubscriptionSchema` went with the 16.0.0 feed
+ * removal (see the section banner). The `Subscription` shapes the pinned
+ * protocol still exports are unrelated — realtime transport channels, event
+ * subscriptions and app billing — so none of them is a replacement.
  */
 export interface RecordSubscription {
   /** Record ID */

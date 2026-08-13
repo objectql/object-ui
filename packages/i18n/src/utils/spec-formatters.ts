@@ -7,23 +7,38 @@
  */
 
 /**
- * @object-ui/i18n - Spec-aligned i18n utilities
+ * @object-ui/i18n - locale formatting helpers
  *
- * Runtime consumers for @objectstack/spec v2.0.7 i18n types:
- * - PluralRuleSchema → resolvePlural()
- * - DateFormatSchema → formatDateSpec()
- * - NumberFormatSchema → formatNumberSpec()
- * - LocaleConfigSchema → applyLocaleConfig()
+ * ## Provenance of the four shapes below (objectui#4597)
+ *
+ * They were authored against `@objectstack/spec/ui`, which exported
+ * `PluralRuleSchema`, `DateFormatSchema`, `NumberFormatSchema` and
+ * `LocaleConfigSchema` up to and including 17.0.0-rc.5. The pinned
+ * 17.0.0-rc.6 removed all four under ADR-0049 enforce-or-remove
+ * (objectstack#5055, maintainer ruling 2026-08-06): they carried no key on any
+ * authorable shape and nothing ever parsed them, so the vocabulary was retired
+ * rather than given a door. The key sets here were faithful to the retired
+ * schemas — this is a retirement, not a drift.
+ *
+ * Nothing in the pinned protocol models locale formatting today, so the
+ * interfaces below are declarations this package owns outright, not a view onto
+ * a protocol type. The retirement note records that localisation returns as
+ * authorable metadata through a new ADR — "the formatter that reads a
+ * LocaleConfig first, the vocabulary second" — so re-derive these at that point
+ * instead of assuming they still track anything upstream.
  *
  * @module spec-formatters
  */
 
 // ============================================================================
-// PluralRuleSchema Consumer
+// Plural rules
 // ============================================================================
 
 /**
- * Spec-aligned PluralRule (mirrors @objectstack/spec PluralRuleSchema).
+ * Plural forms for a single translation key, in CLDR categories.
+ *
+ * Local shape — authored against the protocol's `PluralRuleSchema`, retired in
+ * 17.0.0-rc.6 (see the module doc), so there is nothing upstream to derive from.
  */
 export interface SpecPluralRule {
   /** Translation key */
@@ -81,11 +96,14 @@ export function resolvePlural(
 }
 
 // ============================================================================
-// DateFormatSchema Consumer
+// Date formatting
 // ============================================================================
 
 /**
- * Spec-aligned DateFormat (mirrors @objectstack/spec DateFormatSchema).
+ * Date/time formatting options passed through to `Intl.DateTimeFormat`.
+ *
+ * Local shape — authored against the protocol's `DateFormatSchema`, retired in
+ * 17.0.0-rc.6 (see the module doc), so there is nothing upstream to derive from.
  */
 export interface SpecDateFormat {
   dateStyle?: 'full' | 'long' | 'medium' | 'short';
@@ -95,7 +113,7 @@ export interface SpecDateFormat {
 }
 
 /**
- * Format a date using @objectstack/spec DateFormatSchema configuration.
+ * Format a date using a {@link SpecDateFormat} configuration.
  *
  * @example
  * ```ts
@@ -124,11 +142,15 @@ export function formatDateSpec(
 }
 
 // ============================================================================
-// NumberFormatSchema Consumer
+// Number formatting
 // ============================================================================
 
 /**
- * Spec-aligned NumberFormat (mirrors @objectstack/spec NumberFormatSchema).
+ * Number formatting options passed through to `Intl.NumberFormat`.
+ *
+ * Local shape — authored against the protocol's `NumberFormatSchema`, retired
+ * in 17.0.0-rc.6 (see the module doc), so there is nothing upstream to derive
+ * from.
  */
 export interface SpecNumberFormat {
   style?: 'currency' | 'percent' | 'decimal' | 'unit';
@@ -140,7 +162,7 @@ export interface SpecNumberFormat {
 }
 
 /**
- * Format a number using @objectstack/spec NumberFormatSchema configuration.
+ * Format a number using a {@link SpecNumberFormat} configuration.
  *
  * @example
  * ```ts
@@ -170,11 +192,15 @@ export function formatNumberSpec(
 }
 
 // ============================================================================
-// LocaleConfigSchema Consumer
+// Locale configuration
 // ============================================================================
 
 /**
- * Spec-aligned LocaleConfig (mirrors @objectstack/spec LocaleConfigSchema).
+ * One locale's formatting defaults, resolved by `applyLocaleConfig()`.
+ *
+ * Local shape — authored against the protocol's `LocaleConfigSchema`, retired
+ * in 17.0.0-rc.6 (see the module doc), so there is nothing upstream to derive
+ * from.
  */
 export interface SpecLocaleConfig {
   /** BCP 47 language code (e.g., 'en-US', 'zh-CN') */
@@ -190,7 +216,7 @@ export interface SpecLocaleConfig {
 }
 
 /**
- * Apply a LocaleConfigSchema to configure i18n formatting defaults.
+ * Apply a {@link SpecLocaleConfig} to configure i18n formatting defaults.
  * Returns resolved formatting functions bound to the locale config.
  *
  * @example
