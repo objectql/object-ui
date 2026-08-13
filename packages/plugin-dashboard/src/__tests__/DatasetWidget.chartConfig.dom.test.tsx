@@ -26,16 +26,19 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, cleanup, screen, waitFor } from '@testing-library/react';
 
 // Registers `chart` in the ComponentRegistry, which is what `SchemaRenderer`
-// resolves the widget's `{ type: 'chart' }` schema through.
+// resolves the widget's `{ type: 'chart' }` schema through. This is the
+// package's whole published surface, and it is all this file needs: production
+// reaches `AdvancedChartImpl` ONLY through the `React.lazy(() =>
+// import('./AdvancedChartImpl'))` factory inside `ChartRenderer`, so this test
+// reaches it the same way — by rendering the real chain and awaiting the
+// Suspense boundary (objectui#4529). It used to also side-effect import
+// `@object-ui/plugin-charts/AdvancedChartImpl` to pre-warm that chunk, but the
+// package publishes `"."` alone, so that specifier resolved only through this
+// repo's vitest alias — the objectui#4325 packaging gap, whose ruling (PR
+// #4460) is that the unpublished deep subpath goes rather than the surface
+// growing to keep it alive. See `renderWidget` for how the wait it used to
+// shorten is now budgeted instead.
 import '@object-ui/plugin-charts';
-// `ChartRenderer` renders its implementation behind
-// `React.lazy(() => import('./AdvancedChartImpl'))`, and every assertion below
-// lives inside that Suspense boundary. Loading it is unbounded work — under full
-// parallelism a first import of the recharts graph can outlast RTL's 1000ms
-// `waitFor` window — so pay it in the import phase, which no test or hook
-// timeout applies to (AGENTS.md §测试纪律). The alias maps this specifier to the
-// very file the lazy factory imports, so the ESM cache already holds it.
-import '@object-ui/plugin-charts/AdvancedChartImpl';
 import { DatasetWidget } from '../DatasetWidget';
 
 afterEach(cleanup);
@@ -61,7 +64,21 @@ const renderWidget = async (chartConfig?: Record<string, unknown>) => {
   );
   // The chart container only exists once the dataset resolves AND the lazy chart
   // chunk has mounted — i.e. once the whole dashboard chart path really ran.
-  await waitFor(() => expect(view.container.querySelector('[data-slot="chart"]')).not.toBeNull());
+  //
+  // Every witness in this file is post-boundary DOM by design (that is the point
+  // of the file — see the header), so unlike objectui#4325's case the race
+  // cannot be removed by choosing a witness that survives every state of the
+  // boundary. It is BUDGETED instead. Measured on an idle container: 359 ms from
+  // render to chart mount with the lazy chunk cold, against 91 ms when it had
+  // been eagerly pre-imported — so dropping the pre-import moves ~270 ms inside
+  // this wait. That fits RTL's 1000 ms default here and would still be a coin
+  // flip on a loaded machine: AGENTS.md records first-`import()` latencies up to
+  // 976 ms under full parallelism. The budget below is generous on purpose —
+  // `waitFor` polls and returns as soon as the node appears, so a large timeout
+  // costs nothing when the chunk is warm and only spends time it actually needs.
+  await waitFor(() => expect(view.container.querySelector('[data-slot="chart"]')).not.toBeNull(), {
+    timeout: 15000,
+  });
   return view;
 };
 

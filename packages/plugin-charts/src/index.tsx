@@ -15,6 +15,19 @@ export type { BarChartSchema } from './types';
 export { ChartBarRenderer, ChartRenderer };
 export { ObjectChart, ObjectChartBlock } from './ObjectChart';
 
+// The ONE place the author-facing chart schema is translated into the
+// renderer's internal pipeline contract (#2880 S1). Published from this entry
+// — the package's only door — because a consumer that wants to know what
+// `AdvancedChartImpl` is actually handed has to run the schema through the SAME
+// translation the runtime applies; restating the translation instead would make
+// the assertion a copy of the thing under test (objectui#4529, #4471).
+//
+// Costs nothing to ship: `ChartRenderer` above already imports this module
+// statically, so it is in this entry's eager graph either way. This adds a
+// name, not a byte.
+export { normalizeChartSchema } from './normalizeChartSchema';
+export type { NormalizedChartSchema } from './normalizeChartSchema';
+
 // Standard Export Protocol - for manual integration
 export const chartComponents = {
   'bar-chart': ChartBarRenderer,

@@ -47,9 +47,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, cleanup, waitFor } from '@testing-library/react';
 // The renderer's own translation layer, imported read-only so these assertions
 // are made against what `AdvancedChartImpl` receives rather than a restatement
-// of it. `plugin-charts` is a devDependency of this package and vitest aliases
-// it to source.
-import { normalizeChartSchema } from '@object-ui/plugin-charts/normalizeChartSchema';
+// of it. `plugin-charts` is a devDependency of this package, and this is its
+// PUBLISHED root entry — the same module `ChartRenderer` calls, reached the way
+// any consumer outside this repo would reach it (objectui#4529).
+import { normalizeChartSchema } from '@object-ui/plugin-charts';
 
 let lastChartSchema: any = null;
 

@@ -39,38 +39,23 @@
     //
     // `paths` drops the root tsconfig's source-tree mappings so `@object-ui/*`
     // and `@objectstack/spec` resolve through each workspace dependency's built
-    // `.d.ts` rather than pulling sibling sources in as program inputs (TS6059)
-    // — with ONE deliberate exception, which is not a workaround but a
-    // restatement of what the runtime already does:
+    // `.d.ts` rather than pulling sibling sources in as program inputs (TS6059).
     //
-    //   Two suites import `@object-ui/plugin-charts` SUBPATHS, and the repo's
-    //   vitest config (`vitest.config.mts`) aliases the whole package to its
-    //   source, which is the only reason they resolve when the tests RUN:
-    //     - `DatasetWidget.chartConfig.dom.test.tsx` side-effect imports
-    //       `.../AdvancedChartImpl` at module scope to pre-load the chunk
-    //       `ChartRenderer` reaches through `React.lazy`, so the unbounded first
-    //       import is paid in the import phase instead of inside RTL's 1000 ms
-    //       `waitFor` (AGENTS.md §测试纪律).
-    //     - `DatasetWidget.comboPresentation.test.tsx` imports
-    //       `.../normalizeChartSchema` as a VALUE and runs the emitted schema
-    //       through it, so what it pins is what `AdvancedChartImpl` receives
-    //       rather than a restatement of it.
-    //   Neither subpath is published: `@object-ui/plugin-charts`' `exports` map
-    //   declares `"."` alone, and neither name is on the barrel either, so both
-    //   specifiers exist only inside this repo — the same packaging gap
-    //   objectui#4325 found behind `@object-ui/fields/widgets/*`. Filed as
-    //   objectui#4529 rather than fixed here: what this package publishes is a
-    //   product call, and #4325's own answer ("drop the import") does not
-    //   transfer to `normalizeChartSchema`, which is a VALUE the assertions run
-    //   the emitted schema through. The mapping below points `tsc` at the
-    //   very files vitest loads, so the compiler checks the real modules; it is
-    //   the honest description of today's state, and it should be DELETED the
-    //   moment either the subpaths are published or the imports are rebuilt on
-    //   a witness that does not need them. Values are relative to the inherited
-    //   `baseUrl` (the repo root), not to this file.
-    "paths": {
-      "@object-ui/plugin-charts/*": ["packages/plugin-charts/src/*"]
-    }
+    // Empty, like every other wired-up package's. It briefly carried one
+    // exception — `@object-ui/plugin-charts/*` mapped to that package's source —
+    // because two suites imported subpaths the package does not publish (its
+    // `exports` map declares `"."` alone), so they resolved only through the
+    // repo's vitest alias. objectui#4529 ruled both, and both imports now go
+    // through the published root entry, so the mapping is gone rather than
+    // maintained:
+    //   - `normalizeChartSchema` is a genuine cross-package contract — the
+    //     assertions run the emitted schema through the SAME translation layer
+    //     the runtime applies — so plugin-charts publishes it from its entry.
+    //   - `AdvancedChartImpl` was an eager pre-warm of a chunk production only
+    //     ever reaches through `React.lazy`; the surface does not grow to keep
+    //     an eager deep import alive (objectui#4325 / PR #4460), so the import
+    //     is gone and the wait it shortened is budgeted explicitly instead.
+    "paths": {}
   },
   // `src/**/*.d.ts` is pulled in explicitly: the build program gets ambient
   // declarations for free from `"include": ["src"]`, but an ambient declaration
