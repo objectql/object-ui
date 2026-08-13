@@ -9,7 +9,7 @@
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { HeaderBarSchema, BreadcrumbItem as BreadcrumbItemType } from '@object-ui/types';
-import { resolveKeyedI18nLabel, SchemaRenderer } from '@object-ui/react';
+import { resolveKeyedI18nLabel, SchemaRenderer, toRenderableSchema } from '@object-ui/react';
 import {
   SidebarTrigger,
   Separator,
@@ -93,9 +93,9 @@ ComponentRegistry.register('header-bar',
           </div>
         )}
         {schema.actions?.map((action, idx) => (
-          <SchemaRenderer key={idx} schema={action} />
+          <SchemaRenderer key={idx} schema={toRenderableSchema(action)} />
         ))}
-        {schema.rightContent && <SchemaRenderer schema={schema.rightContent} />}
+        {schema.rightContent && <SchemaRenderer schema={toRenderableSchema(schema.rightContent)} />}
       </div>
     </header>
   ),

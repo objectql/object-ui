@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
+import type { BaseSchema, DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
 import { SchemaRenderer, useActionEngine, useObjectLabel, PageVariablesProvider, usePageVariables } from '@object-ui/react';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ActionDef, ActionResult, ActionContext, ModalHandler, SduiDomPassThroughKey } from '@object-ui/core';
@@ -749,7 +749,14 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
             ? buildWidgetScopedFilter(widget, filterDefs, filterValues)
             : undefined;
         const componentSchema = (() => {
-            const cs = getComponentSchema() as Record<string, any>;
+            // `as BaseSchema`, not `as Record< string, any >` (objectui#4548):
+            // the old cast dropped the `type` every branch of
+            // `getComponentSchema` actually sets, so what reached
+            // `SchemaRenderer` was a bag with no component descriptor as far as
+            // the type system knew. Both spellings keep arbitrary key access
+            // (BaseSchema carries an index signature); only this one keeps
+            // `type`.
+            const cs = getComponentSchema() as BaseSchema;
             if (scopedFilter && cs && FILTERABLE_COMPONENT_TYPES.has(cs.type)) {
                 return { ...cs, filter: mergeFilters(cs.filter, scopedFilter) };
             }

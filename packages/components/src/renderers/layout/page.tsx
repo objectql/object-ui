@@ -13,8 +13,8 @@
  */
 
 import React, { useMemo } from 'react';
-import type { PageNodeSchema, PageNodeRegion, SchemaNode } from '@object-ui/types';
-import { SchemaRenderer, PageVariablesProvider, PageVariableActionBridge } from '@object-ui/react';
+import type { BaseSchema, PageNodeSchema, PageNodeRegion, SchemaNode } from '@object-ui/types';
+import { SchemaRenderer, toRenderableSchema, PageVariablesProvider, PageVariableActionBridge } from '@object-ui/react';
 import { ComponentRegistry } from '@object-ui/core';
 import { compile, manifestFromConfigs } from '@object-ui/sdui-parser';
 import { ReactKindPage } from './react-page';
@@ -179,7 +179,7 @@ const RegionContent: React.FC<{
       data-region={region.name}
     >
       {components.map((node: SchemaNode, idx: number) => (
-        <SchemaRenderer key={(node as any)?.id || `${region.name}-${idx}`} schema={node} />
+        <SchemaRenderer key={(node as any)?.id || `${region.name}-${idx}`} schema={toRenderableSchema(node)} />
       ))}
     </div>
   );
@@ -557,7 +557,7 @@ export const PageRenderer: React.FC<{
           </div>
         );
       }
-      return tree ? <SchemaRenderer schema={tree as unknown as SchemaNode} /> : null;
+      return tree ? <SchemaRenderer schema={tree as unknown as BaseSchema} /> : null;
     }
     const TemplateLayout = resolveTemplate(schema);
     if (TemplateLayout) {

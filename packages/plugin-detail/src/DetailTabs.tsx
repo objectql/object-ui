@@ -8,7 +8,7 @@
 
 import * as React from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent, Badge } from '@object-ui/components';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, toRenderableSchema } from '@object-ui/react';
 import type { DetailViewTab } from '@object-ui/types';
 
 export interface DetailTabsProps {
@@ -65,11 +65,11 @@ export const DetailTabs: React.FC<DetailTabsProps> = ({
             {Array.isArray(tab.content) ? (
               <div className="space-y-4">
                 {tab.content.map((schema, index) => (
-                  <SchemaRenderer key={index} schema={schema} data={data} />
+                  <SchemaRenderer key={index} schema={toRenderableSchema(schema)} data={data} />
                 ))}
               </div>
             ) : (
-              <SchemaRenderer schema={tab.content} data={data} />
+              <SchemaRenderer schema={toRenderableSchema(tab.content)} data={data} />
             )}
           </React.Suspense>
         </TabsContent>

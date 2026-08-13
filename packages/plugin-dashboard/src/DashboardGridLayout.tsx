@@ -5,7 +5,7 @@ import { cn, Card, CardHeader, CardTitle, CardContent, Button } from '@object-ui
 import { Edit, GripVertical, Save, X, RefreshCw } from 'lucide-react';
 import { SchemaRenderer, useHasDndProvider, useDnd } from '@object-ui/react';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
-import type { DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
+import type { BaseSchema, DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
 import { isObjectProvider } from './utils';
 import { classifyWidgetType } from './widgetDispatch';
 
@@ -378,7 +378,16 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
         >
           {schema.widgets?.map((widget, index) => {
             const widgetId = widget.id || `widget-${index}`;
-            const componentSchema = getComponentSchema(widget);
+            // `getComponentSchema` builds a node for `SchemaRenderer` in every
+            // branch, but its inferred union is wider than the renderer's
+            // declared input: the passthrough fallback spreads a
+            // `DashboardWidgetSchema` whose `type` is OPTIONAL, and the metric
+            // branches carry `widget.title`'s `I18nLabel` where `BaseSchema`
+            // declares a plain `string`. Both are pre-existing looseness in the
+            // widget types rather than anything this call site can state
+            // truthfully, so the narrowing is named here once (objectui#4548)
+            // instead of being spread across the two render sites below.
+            const componentSchema = getComponentSchema(widget) as BaseSchema | string | null | undefined;
             const isSelfContained = widget.type === 'metric';
             // `DashboardWidget.title` is the spec's `I18nLabel`: since
             // 17.0.0-rc.6 an author may inline a per-locale map

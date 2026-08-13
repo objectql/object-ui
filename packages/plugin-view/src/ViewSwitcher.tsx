@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@object-ui/components';
 import { cva } from 'class-variance-authority';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, toRenderableSchema } from '@object-ui/react';
 import type { ViewSwitcherSchema, ViewType } from '@object-ui/types';
 import {
   Activity,
@@ -368,7 +368,7 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
       );
     }
 
-    return <SchemaRenderer schema={currentViewConfig.schema} {...props} />;
+    return <SchemaRenderer schema={toRenderableSchema(currentViewConfig.schema)} {...props} />;
   })();
 
   return (

@@ -7,6 +7,7 @@
  */
 
 export * from './SchemaRenderer';
+export * from './schema-input';
 export * from './hooks'; // will be empty for now
 export * from './context'; // will be empty for now
 export * from './LazyPluginLoader';

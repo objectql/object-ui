@@ -20,7 +20,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent, waitFor } from '@testing-library/react';
 import { SchemaRenderer, ActionProvider } from '@object-ui/react';
 import type { NavigationHandler } from '@object-ui/core';
-import type { SchemaNode } from '@object-ui/types';
+import type { BaseSchema } from '@object-ui/types';
 // Registers the renderers at module scope, NOT inside a `beforeAll` — there the
 // cold transform is billed to `hookTimeout`, which is why this carried a raised
 // timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
@@ -30,7 +30,7 @@ function renderAnchor(
   schema: Record<string, unknown>,
   onNavigate?: NavigationHandler,
 ) {
-  const tree = <SchemaRenderer schema={{ type: 'a', ...schema } as SchemaNode} />;
+  const tree = <SchemaRenderer schema={{ type: 'a', ...schema } as BaseSchema} />;
   return render(
     onNavigate ? (
       <ActionProvider onNavigate={onNavigate}>{tree}</ActionProvider>

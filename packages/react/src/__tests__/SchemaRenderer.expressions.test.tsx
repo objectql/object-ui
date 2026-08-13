@@ -11,6 +11,12 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer } from '../SchemaRenderer';
+// `@object-ui/types` declares `BaseSchema.visible` / `.disabled` as `boolean`,
+// but BOTH accept a predicate STRING here — that is the capability these cases
+// exercise, and the renderer evaluates it (`evaluateCondition`). The declaration
+// is the narrow one; until it is widened these fixtures state their real shape
+// through `BaseSchema`'s index signature (objectui#4548 measured the gap).
+import type { BaseSchema } from '@object-ui/types';
 import { SchemaRendererContext } from '../context/SchemaRendererContext';
 
 // Simple test component
@@ -43,7 +49,7 @@ describe('SchemaRenderer Expression Integration', () => {
     it('evaluates visible expression string', () => {
       render(
         <SchemaRendererContext.Provider value={{ dataSource: { role: 'admin' } }}>
-          <SchemaRenderer schema={{ type: 'test-component', visible: '${data.role === "admin"}' }} />
+          <SchemaRenderer schema={{ type: 'test-component', visible: '${data.role === "admin"}' } as unknown as BaseSchema} />
         </SchemaRendererContext.Provider>
       );
       expect(screen.getByTestId('test-component')).toBeInTheDocument();
@@ -52,7 +58,7 @@ describe('SchemaRenderer Expression Integration', () => {
     it('hides when visible expression evaluates to false', () => {
       const { container } = render(
         <SchemaRendererContext.Provider value={{ dataSource: { role: 'viewer' } }}>
-          <SchemaRenderer schema={{ type: 'test-component', visible: '${data.role === "admin"}' }} />
+          <SchemaRenderer schema={{ type: 'test-component', visible: '${data.role === "admin"}' } as unknown as BaseSchema} />
         </SchemaRendererContext.Provider>
       );
       expect(container.innerHTML).toBe('');
@@ -123,7 +129,7 @@ describe('SchemaRenderer Expression Integration', () => {
     it('evaluates disabled expression string', () => {
       render(
         <SchemaRendererContext.Provider value={{ dataSource: { status: 'locked' } }}>
-          <SchemaRenderer schema={{ type: 'test-component', disabled: '${data.status === "locked"}' }} />
+          <SchemaRenderer schema={{ type: 'test-component', disabled: '${data.status === "locked"}' } as unknown as BaseSchema} />
         </SchemaRendererContext.Provider>
       );
       expect(screen.getByTestId('test-component')).toHaveAttribute('data-disabled', 'true');
@@ -132,7 +138,7 @@ describe('SchemaRenderer Expression Integration', () => {
     it('does not set disabled when expression is false', () => {
       render(
         <SchemaRendererContext.Provider value={{ dataSource: { status: 'active' } }}>
-          <SchemaRenderer schema={{ type: 'test-component', disabled: '${data.status === "locked"}' }} />
+          <SchemaRenderer schema={{ type: 'test-component', disabled: '${data.status === "locked"}' } as unknown as BaseSchema} />
         </SchemaRendererContext.Provider>
       );
       expect(screen.getByTestId('test-component')).not.toHaveAttribute('data-disabled');

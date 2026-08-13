@@ -25,7 +25,7 @@ import {
   LazyIcon,
 } from '@object-ui/components';
 import { ChevronDown, ChevronRight, Copy, Check, Eye, EyeOff, Pencil } from 'lucide-react';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, toRenderableSchema } from '@object-ui/react';
 import { getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import type { DetailViewSection as DetailViewSectionType, DetailViewField, FieldMetadata } from '@object-ui/types';
 import { applyDetailAutoLayout } from './autoLayout';
@@ -205,7 +205,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     
     // If custom renderer provided
     if (field.render) {
-      return <SchemaRenderer schema={field.render} data={{ ...data, value }} />;
+      return <SchemaRenderer schema={toRenderableSchema(field.render)} data={{ ...data, value }} />;
     }
 
     // Calculate responsive span class so col-span never exceeds the visible

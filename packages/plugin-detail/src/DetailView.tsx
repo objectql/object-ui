@@ -44,7 +44,7 @@ import { RecordComments } from './RecordComments';
 import { ActivityTimeline } from './ActivityTimeline';
 import { HistoryTimeline } from './HistoryTimeline';
 import { RecordMetaFooter } from './RecordMetaFooter';
-import { SchemaRenderer, useSafeFieldLabel, useDataInvalidation, useInlineEdit, useRowPredicate } from '@object-ui/react';
+import { SchemaRenderer, toRenderableSchema, useSafeFieldLabel, useDataInvalidation, useInlineEdit, useRowPredicate } from '@object-ui/react';
 import { buildExpandFields, getRecordDisplayName, formatTitleTemplate, userActionPredicates } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
@@ -1157,7 +1157,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                 menu sits at the far right edge — the standard placement
                 for "more options" affordances. */}
             {headerActionNodes.map((action, index) => (
-              <SchemaRenderer key={`header-action-${index}`} schema={action} data={data} />
+              <SchemaRenderer key={`header-action-${index}`} schema={toRenderableSchema(action)} data={data} />
             ))}
           </div>
         </div>
@@ -1166,7 +1166,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
       {/* Custom Header */}
       {schema.header && (
         <div>
-          <SchemaRenderer schema={schema.header} data={data} />
+          <SchemaRenderer schema={toRenderableSchema(schema.header)} data={data} />
         </div>
       )}
 
@@ -1696,7 +1696,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
       {/* Custom Footer */}
       {schema.footer && (
         <div>
-          <SchemaRenderer schema={schema.footer} data={data} />
+          <SchemaRenderer schema={toRenderableSchema(schema.footer)} data={data} />
         </div>
       )}
       </div>

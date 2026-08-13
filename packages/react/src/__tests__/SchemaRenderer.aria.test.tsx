@@ -11,6 +11,7 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer } from '../SchemaRenderer';
+import type { BaseSchema } from '@object-ui/types';
 
 // A simple test component that forwards ARIA attributes
 const TestWidget: React.FC<any> = (props) => (
@@ -51,8 +52,11 @@ describe('SchemaRenderer AriaProps injection', () => {
       <SchemaRenderer
         schema={{
           type: 'test-widget',
+          // AriaPropsSchema declares `ariaLabel: string | I18nLabel` and the
+          // renderer resolves the keyed form; `BaseSchema.ariaLabel` is the
+          // narrower `string` (objectui#4548).
           ariaLabel: { key: 'dialog.close', defaultValue: 'Close dialog' },
-        }}
+        } as unknown as BaseSchema}
       />
     );
     const el = screen.getByTestId('test-widget');

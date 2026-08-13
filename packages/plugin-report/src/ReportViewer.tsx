@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Badge, Skeleton } from '@object-ui/components';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, toRenderableSchema } from '@object-ui/react';
 import type { ReportViewerSchema, ReportSection, ReportExportFormat, ReportField, ReportGroupBy } from '@object-ui/types';
 import { Download, Printer, RefreshCw } from 'lucide-react';
 import { exportReport } from './ReportExportEngine';
@@ -405,9 +405,20 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
                   <div className="border-t-2 border-dashed my-8 print:page-break-after-always" />
                 )}
 
-                {section.content && (
-                  <SchemaRenderer schema={section.content} />
-                )}
+                {/* `content` may be a single node OR a list of them. The list
+                    case used to be handed to `SchemaRenderer` whole
+                    (objectui#4548): an array has no `type`, so the shallow copy
+                    inside the renderer produced an index-keyed object and the
+                    section rendered the red "Unknown component type: undefined"
+                    box instead of its content. Arrays are mapped here rather
+                    than widened into the renderer's declared input. */}
+                {Array.isArray(section.content)
+                  ? section.content.map((node, nodeIndex) => (
+                      <SchemaRenderer key={nodeIndex} schema={toRenderableSchema(node)} />
+                    ))
+                  : section.content && (
+                      <SchemaRenderer schema={toRenderableSchema(section.content)} />
+                    )}
               </div>
             );
           })}

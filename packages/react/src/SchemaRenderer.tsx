@@ -6,9 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { forwardRef, useContext, useMemo, useEffect, useReducer, useState, Component } from 'react';
+import React, { forwardRef, useContext, useMemo, useEffect, useReducer, useState, Component, type ForwardRefExoticComponent, type RefAttributes } from 'react';
+import type { BaseSchema } from '@object-ui/types';
 import {
-  SchemaNode,
   ComponentRegistry,
   ExpressionEvaluator,
   isObjectUIError,
@@ -201,7 +201,88 @@ export class SchemaErrorBoundary extends Component<
  */
 const NO_DATA_SOURCE: Record<string, any> = {};
 
-export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<string, any>>(({ schema, ...props }, _ref) => {
+/**
+ * The props `SchemaRenderer` DECLARES and reads itself (objectui#4548).
+ *
+ * ## Why `schema` is spelled as this union and not as a `SchemaNode`
+ *
+ * The repo carries two competing `SchemaNode` types: `@object-ui/core`'s
+ * interface (which requires `type: string`) and `@object-ui/types`' union
+ * (`BaseSchema | string | number | boolean | null | undefined`). This component
+ * matched NEITHER. It declared core's — narrower than what it accepts, so every
+ * caller holding the types union was wrong and could not be told — while its
+ * runtime returns early for strings and nullish, which core's interface forbids.
+ * The erasure below hid the mismatch completely: with props collapsed to an
+ * index signature, `schema` resolved to `any` and no call site was ever checked.
+ *
+ * So the contract is STATED HERE, by this component, as what it actually
+ * handles: an object schema, a bare string (rendered as text), or nothing at
+ * all. `number` / `boolean` are deliberately excluded — the runtime tolerates
+ * them defensively (see the primitive guard in the evaluation memo) but no
+ * author should be invited to pass them. Reconciling the two repo-wide
+ * `SchemaNode` spellings is a separate concern and deliberately not done here.
+ */
+export interface SchemaRendererProps {
+  schema: BaseSchema | string | null | undefined;
+}
+
+/**
+ * The open forwarding surface, named once so it reads as the decision it is.
+ *
+ * `SchemaRenderer` passes every prop it does not itself read straight through to
+ * the component the schema names, which is resolved at RUNTIME from a
+ * plugin-extensible registry — so the set of valid keys is not knowable here,
+ * and `packages/react/README.md` documents callers relying on it. The `any` is
+ * the point: this is a pass-through channel, not a typed prop.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- see above: the
+// forwarded value is opaque to this component by construction.
+type ForwardedProps = Record<string, any>;
+
+/**
+ * The renderer loop.
+ *
+ * ## The explicit type annotation is the contract, and it is deliberate
+ *
+ * `forwardRef< T, P >` routes `P` through React's `PropsWithoutRef`:
+ *
+ *     Props extends any ? ('ref' extends keyof Props ? Omit< Props, 'ref' > : Props) : Props
+ *
+ * A string index signature on `P` puts `string` into `keyof Props`, so
+ * `'ref' extends keyof Props` is ALWAYS true, the `Omit` branch always runs, and
+ * `Omit` over a type carrying a string index signature keeps ONLY the index
+ * signature. Every declared prop is erased — on both sides. This component used
+ * to hand `forwardRef` a props type of `{ schema: SchemaNode } & Record< string,
+ * any >`, so its own `schema` resolved to `any` at every one of the ~376 call
+ * sites in this repo, and was not even REQUIRED: `< SchemaRenderer / >` with no
+ * schema at all type-checked (objectui#4548, measured).
+ *
+ * The fix is NOT to close the surface. This is the renderer loop: it forwards
+ * every prop it does not read to the component the schema names, resolved at
+ * RUNTIME from a plugin-extensible `ComponentRegistry`. That forwarding is a
+ * documented, load-bearing feature — `packages/react/README.md` shows
+ * `< SchemaRenderer schema={formSchema} onSubmit={handleSubmit} / >`, and
+ * `@object-ui/components`' form renderer consumes that `onSubmit` as a React
+ * prop. A closed props type would state a FALSE contract and would force every
+ * leaf plugin's props into this package to stay usable.
+ *
+ * So the two halves are separated deliberately:
+ *
+ *   * the `forwardRef` TYPE ARGUMENT is the honest `SchemaRendererProps`, with
+ *     no index signature — nothing for `PropsWithoutRef` to collapse, so
+ *     `schema` survives to the call site typed and required; and
+ *   * the open forwarding surface is stated ONCE, here, in this export
+ *     annotation. Because the annotation is applied to the already-built
+ *     component, `PropsWithoutRef` never runs over it, so `Record< string, any >`
+ *     widens the surface WITHOUT erasing anything.
+ *
+ * The repo-wide guard (`scripts/__tests__/forwardref-props-erasure.guard.test.ts`)
+ * judges the TYPE ARGUMENT only, for exactly this reason: an index signature
+ * there is an accidental eraser, whereas one here is a stated contract.
+ */
+export const SchemaRenderer: ForwardRefExoticComponent<
+  SchemaRendererProps & ForwardedProps & RefAttributes<unknown>
+> = forwardRef<unknown, SchemaRendererProps>(({ schema, ...props }: SchemaRendererProps & ForwardedProps, _ref) => {
   const context = useContext(SchemaRendererContext);
   const dataSource = context?.dataSource || NO_DATA_SOURCE;
   // Ambient host scope (user / app / features), fed by app-shell's
@@ -233,7 +314,19 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
 
   // Evaluate schema expressions against the data source
   const evaluatedSchema = useMemo(() => {
-    if (!schema || typeof schema === 'string') return schema;
+    // Nothing to evaluate unless the node is an OBJECT. `!schema` covers the
+    // nullish/empty cases and `typeof !== 'object'` covers every primitive —
+    // both return the value untouched for the render pass below to place.
+    //
+    // The `typeof` half is what used to be missing (objectui#4548): the guard
+    // named `string` only, so a `number` or `true` fell through to the
+    // `{ ...schema }` shallow copy on the next line, spread to an EMPTY object,
+    // lost its `type`, and surfaced as the red "Unknown component type:
+    // undefined" box — an accident of the spread, not a decision. The declared
+    // props type now excludes those primitives outright; this guard is the
+    // defence-in-depth behind it, and it is what makes the copy below provably
+    // an object spread.
+    if (!schema || typeof schema !== 'object') return schema;
 
     // `data` (record/datasource) plus the ambient host scope. `current_user`
     // is aliased to `user` so both `user.email` and `current_user.email`
@@ -386,10 +479,22 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
   }, [schema, dataSource, predicateScope, pageVariables]);
 
   if (!evaluatedSchema) return null;
-  // Handle visibility: if evaluated schema is hidden, render nothing
-  if (evaluatedSchema?._hidden) return null;
   // If schema is just a string, render it as text
   if (typeof evaluatedSchema === 'string') return <>{evaluatedSchema}</>;
+  // Any other primitive that reached here renders as its text too
+  // (objectui#4548). The declared props type does not admit `number` /
+  // `boolean`, so this is unreachable from typed code and exists for untyped
+  // callers and stored metadata; it replaces the empty-spread "Unknown
+  // component type: undefined" box, which said nothing true about the input.
+  if (typeof evaluatedSchema !== 'object') return <>{String(evaluatedSchema)}</>;
+  // Handle visibility: if evaluated schema is hidden, render nothing.
+  //
+  // Reads AFTER the primitive narrowing above (objectui#4548) so the property
+  // access is on a known object. Behaviour is unchanged: `_hidden` is only ever
+  // set on the object copy built in the memo, so for a string or any other
+  // primitive this test was always falsy and fell through to exactly the
+  // branches that now precede it.
+  if (evaluatedSchema._hidden) return null;
 
   // Dev-mode validation: log once per schema object, attach visual flag
   // when invalid. Production path returns { valid: true, messages: [] }
