@@ -1905,27 +1905,20 @@ const STUDIO_SYSTEM_FIELD_NAMES = new Set<string>([
  * plugin ObjectView's `renderListView` slot, so the object-view still owns data
  * fetching while ListView owns the toolbar + grid. Defined at module scope (not
  * inline) so it stays a static component reference.
+ *
+ * Exported for tests (StudioDesignSurface.gridRefresh.test.tsx) — the refresh
+ * channel this slot rides is a property of THIS function's schema forward, so
+ * the test drives the real slot rather than a reconstruction of it. It is a
+ * render-prop callback rather than a component, so Fast Refresh cannot treat it
+ * as one; the export is scoped to that test and never reaches the package entry
+ * (`index.ts` re-exports a named list, and `package.json` exports only `.`).
  */
-function renderStudioGridList(props: {
+// eslint-disable-next-line react-refresh/only-export-components -- see above
+export function renderStudioGridList(props: {
   schema: Record<string, unknown>;
   dataSource: unknown;
   onEdit?: (record: Record<string, unknown>) => void;
   className?: string;
-  /**
-   * Supplied by the plugin ObjectView's `renderListView` slot, and deliberately
-   * NOT read here. It used to be forwarded as `refreshKey={refreshKey}` to
-   * `ListView`, which reaches nothing: neither `ListView` nor any view
-   * component it renders declares or reads a `refreshKey` prop, so it rode the
-   * `{...props}` forward and was dropped. That was invisible until
-   * objectui#4528 stopped `ListViewProps` erasing itself.
-   *
-   * Removing the dead prop is behaviour-preserving; WIRING it is not, so it is
-   * deliberately left for triage rather than fixed under a type-only card. The
-   * working precedent is `app-shell/src/views/ObjectView.tsx`, which folds the
-   * slot's `refreshKey` into React's `key` to force a remount. Filed as a
-   * separate finding.
-   */
-  refreshKey?: number;
   onAddRecord?: () => void;
 }): React.ReactElement {
   const { schema: listSchema, dataSource: ds, onEdit, className, onAddRecord } = props;
@@ -1933,6 +1926,16 @@ function renderStudioGridList(props: {
     <ListView
       schema={
         {
+          // The spread carries the slot's `refreshTrigger` — the signal the
+          // plugin ObjectView bumps after a mutation, and the ONE refresh input
+          // ListView actually reads (it is in its fetch effect's dependency
+          // array). Keep it: dropping or shadowing `refreshTrigger` here silently
+          // severs the Data pillar's post-mutation refetch, and nothing looks
+          // wrong afterwards because the grid re-renders constantly regardless.
+          // The slot also passes a bare `refreshKey` carrying the same number;
+          // that one is not a prop of ListView or of anything it renders, so the
+          // forward was dead and objectui#4528 removed it (objectui#4549 measured
+          // the channel and dropped the leftover parameter).
           ...listSchema,
           viewType: 'grid',
           showSearch: true,
