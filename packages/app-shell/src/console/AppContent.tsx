@@ -16,7 +16,7 @@ import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/componen
 import { toast } from 'sonner';
 import { useActionRunner, useGlobalUndo, useMutationInvalidationBridge, notifyDataChanged, FilterScopeProvider } from '@object-ui/react';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
-import type { ConnectionState } from '@object-ui/data-objectstack';
+import type { AppAccessVerdict, ConnectionState } from '@object-ui/data-objectstack';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useMetadata } from '../providers/MetadataProvider';
 import { useAdapter } from '../providers/AdapterProvider';
@@ -241,6 +241,57 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
       Promise.resolve(refreshMetadata()).finally(() => setMissingRecheck('done'));
     }
   }, [requestedAppMissing, metadataLoading, previewDrafts, missingRecheck, refreshMetadata]);
+
+  // objectui#4252 — WHY the app is missing, once the re-check above has settled
+  // and it still is. `GET /meta/apps` is filtered per session server-side
+  // (`filterAppForUser`), so a withheld app and a nonexistent one are
+  // byte-identical in the list: both absent. Everything this component can read
+  // from the list has therefore already been read, and the remaining question
+  // has to be asked of the BY-NAME route, which answers it explicitly since
+  // objectstack#8013 (403 `PERMISSION_DENIED` for exists-but-unauthorized; 404
+  // for every kind of absence). The maintainer ruling put the answer there
+  // rather than as a flag in the list, so nothing below re-reads the list.
+  //
+  // Only the measured verdict `denied` changes what renders. `unknown` — an
+  // absent app, an unreachable server, a host that injected an adapter without
+  // the probe — keeps the existing screen exactly as it is today: this fix
+  // exists because the console asserted a state it had not measured, and
+  // guessing in the other direction would be the same defect mirrored.
+  // The verdict is stored WITH the app it describes, and read back only for
+  // that app. Two missing apps in a row keep `requestedAppMissing` true the
+  // whole way across, so nothing in this branch is reset by the transition — a
+  // verdict held loose from its name would ride into the next URL and answer
+  // for an app it never probed, telling a user their typo is a permission
+  // problem. (`missingRecheck` above has the same shape and is deliberately
+  // left alone: its staleness costs one skipped refresh, not a wrong screen.)
+  const [accessProbe, setAccessProbe] = useState<{ app: string; verdict: AppAccessVerdict } | null>(null);
+  useEffect(() => {
+    if (!requestedAppMissing || previewDrafts || missingRecheck !== 'done' || !appName) {
+      // Cleared on the way out too, so the Retry button below (which returns
+      // `missingRecheck` to 'idle') re-asks instead of replaying an answer.
+      setAccessProbe(p => (p === null ? p : null));
+      return;
+    }
+    if (accessProbe?.app === appName) return;
+    const probe = dataSource?.probeAppAccess;
+    if (typeof probe !== 'function') {
+      // AGENTS #1 — the console is protocol-agnostic: a host may inject a
+      // DataSource that cannot answer this. Degrade to today's copy.
+      setAccessProbe({ app: appName, verdict: 'unknown' });
+      return;
+    }
+    let cancelled = false;
+    const probed = appName;
+    void Promise.resolve(probe.call(dataSource, probed))
+      .then(verdict => { if (!cancelled) setAccessProbe({ app: probed, verdict }); })
+      .catch(() => { if (!cancelled) setAccessProbe({ app: probed, verdict: 'unknown' }); });
+    return () => { cancelled = true; };
+  }, [requestedAppMissing, previewDrafts, missingRecheck, appName, accessProbe, dataSource]);
+  // Never the previous app's answer: while a probe for a newly-requested app is
+  // in flight, this is null and the branch below waits rather than rendering the
+  // one it already has.
+  const accessVerdict: AppAccessVerdict | null =
+    accessProbe && accessProbe.app === appName ? accessProbe.verdict : null;
 
   useEffect(() => {
     if (!activeApp?.name) return;
@@ -565,7 +616,43 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // different app, and don't show the misleading "no apps configured" screen
   // below (there ARE apps). requestedAppMissing already excludes pseudo-routes.
   if (requestedAppMissing) {
-    if (missingRecheck !== 'done') return <LoadingScreen />;
+    if (missingRecheck !== 'done' || accessVerdict === null) return <LoadingScreen />;
+    // objectui#4252 — the app EXISTS and this session may not open it. Say that,
+    // and say it as the permanent decision it is: the old copy named a transient
+    // deploy state, which sent a downstream acceptance round chasing a platform
+    // defect for two test batches over a missing permission-set binding.
+    //
+    // No Retry here — retrying a permission decision cannot change it, and a
+    // button that promises otherwise is the same misdirection one layer down.
+    // The way back is `/home` instead, because this screen (like every no-app
+    // surface in this file) returns ABOVE the single `ConsoleLayout` mount and
+    // so carries no header, no navigation and no workspace switcher — the
+    // objectui#4473 strand, which a dead end here would recreate. Router-relative
+    // for the same reason as that fix: `<Navigate>`/`navigate` resolve through
+    // the host's `basename`, and `/home` is part of the outer skeleton every
+    // host mounting this component provides (see this file's header).
+    if (accessVerdict === 'denied') {
+      return (
+        <div className="h-screen flex items-center justify-center">
+          <Empty data-testid="app-access-denied">
+            <EmptyTitle>
+              {t('empty.appAccessDenied', { defaultValue: "You don't have access to this app" })}
+            </EmptyTitle>
+            <EmptyDescription>
+              {t('empty.appAccessDeniedDescription', {
+                defaultValue:
+                  'This app exists, but your account is not authorized to open it. Ask an administrator to grant you access.',
+              })}
+            </EmptyDescription>
+            <div className="mt-4">
+              <Button onClick={() => navigate('/home')} data-testid="app-access-denied-home">
+                {t('empty.appAccessDeniedHome', { defaultValue: 'Back to home' })}
+              </Button>
+            </div>
+          </Empty>
+        </div>
+      );
+    }
     return (
       <div className="h-screen flex items-center justify-center">
         <Empty>

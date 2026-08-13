@@ -36,7 +36,7 @@ import type {
   ImportJobUndoResult,
   ListImportJobsOptions,
 } from '@object-ui/types';
-import { errorCodeIsAnyOf } from '@object-ui/types';
+import { errorCodeIs, errorCodeIsAnyOf } from '@object-ui/types';
 import {
   convertFiltersToAST,
   emulateBatchTransaction,
@@ -490,6 +490,52 @@ export const API_ACCESS_DENIED_CODES = [
  */
 export function isApiAccessDeniedError(error: unknown): boolean {
   return errorCodeIsAnyOf(error, API_ACCESS_DENIED_CODES);
+}
+
+/**
+ * What the by-name meta app route said about THIS session's access to an app
+ * (objectui#4252 / objectstack#8013).
+ *
+ *  - `granted` — the route served the app document.
+ *  - `denied`  — the app EXISTS and the session lacks its `requiredPermissions`.
+ *    The only verdict a caller may render as an authorization refusal.
+ *  - `unknown` — anything else: an absent app, an unpublished one, an app
+ *    withheld by an absent optional service, an unreachable server, an adapter
+ *    that cannot ask. All of these are cases where the server declined to say
+ *    that a permission of the caller's is missing, so no caller may claim it.
+ *
+ * Three values rather than a boolean because the third is not a shade of the
+ * other two: "the app is missing" and "I could not find out" both have to leave
+ * the caller's existing copy alone, and collapsing them into `false` invites a
+ * consumer to read a failed probe as a positive absence.
+ */
+export type AppAccessVerdict = 'granted' | 'denied' | 'unknown';
+
+/**
+ * The ADR-0112 standard catalog code the by-name meta app route answers with
+ * when an app exists and the session lacks its `requiredPermissions`
+ * (objectstack#8013, `sendError(res, 403, 'PERMISSION_DENIED', …)` in
+ * `packages/rest/src/rest-server.ts`).
+ *
+ * Deliberately NOT a member of {@link API_ACCESS_DENIED_CODES}: those two are
+ * pure functions of an object's `enable` metadata — permanent, identical for
+ * every persona — whereas this one is a statement about the CALLER, and the same
+ * request by a different session succeeds. Same word "denied", different
+ * question, so a consumer that wants one must never match the other.
+ */
+export const APP_PERMISSION_DENIED_CODE = 'PERMISSION_DENIED';
+
+/**
+ * True when `error` is the by-name app route's permission denial.
+ *
+ * Discriminates on the ADR-0112 `code`, never on the status (objectui#4408): the
+ * route answers 403 for this and 404 for absence today, but a status is a
+ * transport fact many conditions share, while the code is the contract. The
+ * console's whole reason to call this is to tell two REFUSALS apart, and both
+ * are errors.
+ */
+export function isAppPermissionDeniedError(error: unknown): boolean {
+  return errorCodeIs(error, APP_PERMISSION_DENIED_CODE);
 }
 
 /**
@@ -3448,6 +3494,58 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     } catch {
       // Server doesn't support app metadata — return null to fall back to static config
       return null;
+    }
+  }
+
+  /**
+   * Ask the by-name meta app route WHY an app is not in this session's app list
+   * (objectui#4252).
+   *
+   * `GET /api/v1/meta/apps` is filtered per session server-side
+   * (`filterAppForUser`), so an app withheld by `requiredPermissions` and an app
+   * that does not exist are byte-identical there: both are simply absent. A
+   * console reading only that list has one fact and two conditions, and it
+   * renders its copy for the wrong one — "it may still be publishing" over a
+   * permanent authorization decision, which cost a downstream acceptance round
+   * two test batches spent chasing a platform defect that was a missing
+   * permission-set binding.
+   *
+   * The maintainer ruling (2026-08-12) put the answer on the BY-NAME route
+   * rather than in the list, so the enumeration surface is not widened past what
+   * a by-name probe already implies (objectstack#8013 / PR #8135): an app that
+   * exists and whose `requiredPermissions` the session lacks answers `403` with
+   * `PERMISSION_DENIED` in the declared envelope, and absence — a nonexistent
+   * name, an unpublished app, an app gated by an absent optional service —
+   * keeps answering `404 RESOURCE_NOT_FOUND`.
+   *
+   * ## Why this is a separate method and not a flavour of {@link getApp}
+   *
+   *  - `getApp` degrades EVERY failure to `null`, which is exactly the
+   *    conflation this exists to undo; changing it would silently re-point its
+   *    own callers' fallback-to-static-config path.
+   *  - `getApp` memoises in `metadataCache`. A verdict about the CALLER must not
+   *    be cached beside a document about the APP — one grant, and a cached
+   *    denial outlives the session it described.
+   *
+   * Nothing here throws: a probe that cannot reach an answer returns `unknown`
+   * and the caller keeps whatever it was already showing. Only the measured
+   * `code` produces `denied` — never a status, never a message (objectui#4408).
+   *
+   * @param appName - the app name as it appears in the URL segment
+   */
+  async probeAppAccess(appName: string): Promise<AppAccessVerdict> {
+    if (!appName) return 'unknown';
+    try {
+      // Singular `app`, the address objectstack#8013 pinned its cases against,
+      // and the same one `MetadataProvider` reads items by. No `connect()`
+      // first: this route is only ever asked after the app LIST has already
+      // loaded through this same client, and the client's route resolution
+      // falls back to the conventional `/api/v1/meta` regardless — so a
+      // discovery round trip here could only add a failure mode.
+      await this.client.meta.getItem('app', appName);
+      return 'granted';
+    } catch (err) {
+      return isAppPermissionDeniedError(err) ? 'denied' : 'unknown';
     }
   }
 
