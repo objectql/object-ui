@@ -2784,9 +2784,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       if (typeof value === 'boolean') {
         return <Badge variant={value ? 'default' : 'outline'}>{value ? t('grid.yes') : t('grid.no')}</Badge>;
       }
-      // Detect date-like values
+      // Detect date-like values. The tag comes from `useDisplayLocale()` like
+      // every other date channel: passing no options at all handed `Intl` an
+      // `undefined` tag, i.e. the MACHINE's locale, which is neither of the
+      // repo's two locale channels — so this cell rendered `Mar 15, 2024` on a
+      // zh console while its neighbours rendered `2024年3月15日` (objectui#4541).
       if (typeof value === 'string' && !isNaN(Date.parse(value)) && (key.includes('date') || key.includes('_at') || key.includes('time'))) {
-        return <span className="text-sm tabular-nums">{formatDate(value)}</span>;
+        return <span className="text-sm tabular-nums">{formatDate(value, undefined, { locale: displayLocale })}</span>;
       }
       // Detect currency-like fields by name
       const currencyFields = ['amount', 'price', 'total', 'revenue', 'cost', 'value', 'budget', 'salary'];
