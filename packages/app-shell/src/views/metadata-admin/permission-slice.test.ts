@@ -89,7 +89,10 @@ describe('mergePermissionSlice — Save preserves other packages byte-for-byte',
     expect(merged.objects.a_contact).toBeUndefined(); // removed grant gone
     expect(merged.fields!['a_contact.email']).toBeUndefined();
 
-    // Set-level extras survive from base.
+    // Set-level extras this `edited` does not carry AT ALL survive from base.
+    // (objectui#4302: a facet the edited draft DOES carry now comes from the
+    // edited draft — pinned in permission-slice.facetDrift.test.ts. This case
+    // pins the other half: absence means "not modelled", never "cleared".)
     expect(merged.systemPermissions).toEqual(['api_enabled']);
     expect(merged.tabPermissions).toEqual(full.tabPermissions);
   });

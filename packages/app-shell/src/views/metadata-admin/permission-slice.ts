@@ -13,8 +13,9 @@
  *
  * Overwriting the whole record (the pre-P0 behavior) silently drops the rows
  * other packages contributed. {@link mergePermissionSlice} rebuilds the record
- * from a freshly-read base, keeping the set-level identity and every
- * out-of-scope row, and overlaying only the in-scope rows the user edited.
+ * from a freshly-read base, keeping every out-of-scope row, and overlaying the
+ * in-scope rows plus every facet the editor can author
+ * ({@link EDITOR_AUTHORED_KEYS}).
  */
 
 export interface ObjectPerm {
@@ -43,9 +44,40 @@ export interface PermissionSetDraft {
   fields?: Record<string, FieldPerm>;
   systemPermissions?: string[];
   tabPermissions?: Record<string, 'visible' | 'hidden' | 'default_on' | 'default_off'>;
+  rowLevelSecurity?: unknown[];
+  adminScope?: Record<string, unknown>;
   // Any extra keys are carried through untouched on save.
   [extra: string]: unknown;
 }
+
+/**
+ * The facets the Access matrix editor can AUTHOR — the keys {@link
+ * mergePermissionSlice} must take from the edited draft rather than from the
+ * freshly-read base (objectui#4302).
+ *
+ * This list is the whole contract of the package door's save: a facet the
+ * editor can author and this list does not name is silently reverted on Save,
+ * with a 200 and no error anywhere — which is how a row-level-security policy
+ * authored in Studio was discarded while the surface showed it as configured.
+ * `permission-slice.authoredKeys.test.ts` scans the editor sources for the keys
+ * their `setDraft(...)` updaters write and fails if any is missing here, so the
+ * next facet added to the editor cannot repeat that silently.
+ *
+ * `objects` / `fields` are authored too, but only within the package's scope —
+ * {@link mergePermissionSlice} carries them through its row-level merge instead
+ * of wholesale, so other packages' contributions survive (ADR-0086 P0).
+ */
+export const EDITOR_AUTHORED_KEYS = [
+  'name',
+  'label',
+  'isDefault',
+  'objects',
+  'fields',
+  'systemPermissions',
+  'rowLevelSecurity',
+  'tabPermissions',
+  'adminScope',
+] as const;
 
 /**
  * Object name embedded in a `${object}.${field}` field-permission key. Object
@@ -87,9 +119,23 @@ export function scopePermissionSet(
  *
  * Out-of-scope rows (other packages' contributions) are copied verbatim from
  * `base`; in-scope rows are taken entirely from `edited` (so removing a grant
- * in the package panel deletes only that package's row). Set-level identity and
- * any extra keys (systemPermissions, tabPermissions, …) come from `base`, with
- * name / label taking the user's edits.
+ * in the package panel deletes only that package's row).
+ *
+ * Everything else follows one rule (objectui#4302): a facet the editor can
+ * author ({@link EDITOR_AUTHORED_KEYS}) comes from `edited`; `base` supplies
+ * only what the editor cannot author. It used to be the other way round — five
+ * named keys from `edited` and every remaining facet from `base` — which meant
+ * `rowLevelSecurity`, `tabPermissions` and `adminScope` were reverted to the
+ * stored values the moment they were edited under a package, with a 200 and no
+ * error. The scoping the package door needs is `objects` / `fields` and nothing
+ * else: the load path narrows exactly those two maps and hands every other
+ * facet to the editors unscoped, so a facet held back here protected no one and
+ * only discarded the author's work.
+ *
+ * A key ABSENT from `edited` still comes from `base`. Absence means "this
+ * caller does not model the facet", not "the author cleared it" — the facet
+ * editors always write a value (an emptied policy list is `[]`, present), so
+ * clearing still persists as clearing.
  */
 export function mergePermissionSlice(
   base: PermissionSetDraft,
@@ -114,12 +160,16 @@ export function mergePermissionSlice(
     if (scopeSet.has(fieldKeyObject(k))) fields[k] = v;
   }
 
-  return {
-    ...base,
-    name: edited.name,
-    label: edited.label,
-    isDefault: edited.isDefault,
-    objects,
-    fields,
-  };
+  const merged: PermissionSetDraft = { ...base };
+  for (const key of EDITOR_AUTHORED_KEYS) {
+    if (key in edited) {
+      (merged as Record<string, unknown>)[key] = (edited as Record<string, unknown>)[key];
+    }
+  }
+  // …except `objects` / `fields`, which are authored per-row: the maps built
+  // above already carry the in-scope rows from `edited` and every out-of-scope
+  // row from `base`, so they override the wholesale copies the loop made.
+  merged.objects = objects;
+  merged.fields = fields;
+  return merged;
 }
