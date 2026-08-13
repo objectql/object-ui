@@ -1031,12 +1031,16 @@ export function viewItemObjectName(item: any): string | undefined {
  * Unwrap a `?state=draft` view read into its bare body, or `null` when there
  * is nothing pending (#4139).
  *
- * The framework answers draft reads in a `{type, name, item}` envelope while a
- * published read is the bare body — an asymmetry `MetadataClient.getDraft`
- * documents and deliberately preserves. An empty body is normalized to `null`
- * so the caller's "is this view draft-backed?" test is a plain truthiness
- * check. Mirrors app-shell's `unwrapDraftBody` (ADR-0034 seam); the two live
- * apart because the seam sits above this adapter, not beside it.
+ * The framework answers EVERY single-item read — draft or published — in a
+ * `{type, name, item}` envelope. `MetadataClient.get()` unwraps it at the
+ * client boundary (objectui#4271) while `getDraft()` deliberately hands the
+ * envelope back, so this helper stays tolerant of both: the call below reaches
+ * it through `get()` and therefore already holds the body, and the passthrough
+ * limb keeps it correct for an envelope arriving by any other route. An empty
+ * body is normalized to `null` so the caller's "is this view draft-backed?"
+ * test is a plain truthiness check. Mirrors app-shell's `unwrapDraftBody`
+ * (ADR-0034 seam); the two live apart because the seam sits above this
+ * adapter, not beside it.
  */
 function unwrapViewDraft(resp: unknown): Record<string, any> | null {
   if (!resp || typeof resp !== 'object') return null;

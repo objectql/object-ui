@@ -462,6 +462,32 @@ async function parseError(res: Response): Promise<MetadataError> {
 }
 
 /**
+ * Is this the single-item response envelope, as opposed to a metadata document?
+ *
+ * Matched by the PRESENCE of the three keys `GetMetaItemResponseSchema`
+ * declares — `type: string`, `name: string`, and an `item` slot — never by
+ * guessing from the payload's contents. The distinction matters in both
+ * directions:
+ *
+ *  - A metadata document may legitimately carry its own `type` and `name`
+ *    (a view is `{ name, type: 'grid', … }`). Without an `item` key it is the
+ *    body, and unwrapping it would destroy it.
+ *  - A document could carry an `item` property of its own. Without the
+ *    envelope's identity keys it is likewise left whole.
+ *
+ * Key COUNT is deliberately not part of the test: a real envelope also spreads
+ * `MetadataProtectionEnvelopeFields` (`lock`, `provenance`, …), so it routinely
+ * has more than three keys.
+ */
+function isMetaItemEnvelope(
+  value: unknown,
+): value is { type: string; name: string; item: unknown } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const env = value as Record<string, unknown>;
+  return typeof env.type === 'string' && typeof env.name === 'string' && 'item' in env;
+}
+
+/**
  * MetadataClient — read/write protocol metadata via the framework REST API.
  *
  * @example
@@ -594,11 +620,16 @@ export class MetadataClient {
   }
 
   /**
-   * Get a single metadata item. Returns the unwrapped item content
-   * (matching the framework REST handler which calls `res.json(item)`).
-   * Returns `null` on 404 to keep the call-site ergonomic.
+   * Fetch a single metadata item and return the response body EXACTLY as the
+   * server sent it — envelope and all.
+   *
+   * The one transport both {@link get} (which unwraps) and {@link getDraft}
+   * (which does not) sit on, so the two can differ in what they hand back
+   * without differing in how they ask. Private on purpose: the envelope is a
+   * wire detail, and the two published contracts above are the supported ways
+   * to read an item.
    */
-  async get<T = unknown>(
+  private async readItemResponse<T = unknown>(
     type: string,
     name: string,
     options: MetadataGetOptions = {},
@@ -618,23 +649,62 @@ export class MetadataClient {
   }
 
   /**
+   * Get a single metadata item. Returns the unwrapped item CONTENT — the
+   * metadata document itself, so `obj.fields` / `obj.label` are reachable
+   * directly.
+   *
+   * The framework answers `GET /meta/:type/:name` with the spec-declared
+   * envelope `{ type, name, item, …protection fields }`
+   * (`GetMetaItemResponseSchema`; objectstack#5563 collapsed this read to that
+   * ONE shape), so the envelope is unwrapped here — at the client boundary,
+   * once — rather than by each caller.
+   *
+   * **This method used to return the envelope while promising the body**
+   * (objectui#4271). Nothing detected the disagreement, because the test
+   * doubles across the repo were written against this docblock: every consumer
+   * reading `obj.fields` got `undefined` in production and a field list in
+   * unit tests. The visible cost was the entire field half of the permission
+   * matrix reporting "No fields registered for this object." for every object,
+   * plus dead RLS CEL autocomplete, an inert report drill-down and a designer
+   * that saved the envelope back over the object body.
+   *
+   * A response that is NOT the envelope (an older server answering the bare
+   * document, or a body of its own shape) passes through untouched, and `null`
+   * still comes back on 404 to keep the call site ergonomic.
+   */
+  async get<T = unknown>(
+    type: string,
+    name: string,
+    options: MetadataGetOptions = {},
+  ): Promise<T | null> {
+    const resp = await this.readItemResponse<unknown>(type, name, options);
+    if (isMetaItemEnvelope(resp)) return (resp.item ?? null) as T | null;
+    return resp as T | null;
+  }
+
+  /**
    * Read the pending draft body for an item (`?state=draft`). Returns
    * `null` when there is no draft pending. Draft reads do NOT fall
    * back to the published overlay or the artifact registry — a `null`
    * unambiguously means "nothing to publish".
    *
-   * Note: the framework wraps draft responses in an envelope
-   * `{ type, name, item }` (matching `getMetaItem`); callers should
-   * read `.item` to get the body. The legacy `get()` returns the
-   * unwrapped body, so this method preserves that asymmetry by
-   * returning whatever the server sent.
+   * Note: this method hands back the `{ type, name, item }` envelope the
+   * framework sends, NOT the body — callers read `.item`. That asymmetry with
+   * {@link get} is deliberate and long-standing (the draft envelope's identity
+   * and protection carriers are part of what a draft reader inspects), so it
+   * is preserved by reading the transport directly instead of going through
+   * `get()`'s unwrap. `unwrapDraftBody` (app-shell) and `unwrapViewDraft`
+   * (this package) are the shared helpers for taking the body out.
    */
   async getDraft<T = unknown>(
     type: string,
     name: string,
     options: { packageId?: string } = {},
   ): Promise<T | null> {
-    return this.get<T>(type, name, { state: 'draft', ...(options.packageId ? { packageId: options.packageId } : {}) });
+    return this.readItemResponse<T>(type, name, {
+      state: 'draft',
+      ...(options.packageId ? { packageId: options.packageId } : {}),
+    });
   }
 
   /**

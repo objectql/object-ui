@@ -266,4 +266,33 @@ describe('runtime-metadata-persistence seam (ADR-0034)', () => {
       expect(unwrapDraftBody({})).toBeNull();
     });
   });
+
+  /**
+   * objectui#4271 — `readRuntimeDraft` reaches the server through
+   * `MetadataClient.get()`, which now unwraps the `{type,name,item}` envelope
+   * at the client boundary. So the value this seam actually receives has
+   * changed shape even though its own code did not. These pin it at the NEW
+   * read; the envelope cases above stay because `unwrapDraftBody` is still the
+   * shared helper for `getDraft()`, which does hand back the envelope.
+   */
+  describe('readRuntimeDraft against the unwrapped get() contract (#4271)', () => {
+    it('resolves the draft body when get() has already unwrapped it', async () => {
+      const metadataClient = makeMetadataClient();
+      metadataClient.get.mockResolvedValue({ regions: [{ name: 'x' }] });
+      const draft = await readRuntimeDraft('page', 'invoice_record', { metadataClient });
+      expect(metadataClient.get).toHaveBeenCalledWith('page', 'invoice_record', { state: 'draft' });
+      expect(draft).toEqual({ regions: [{ name: 'x' }] });
+    });
+
+    it('still reads "nothing pending" as null across both shapes', async () => {
+      const metadataClient = makeMetadataClient();
+      // 404 → get() answers null.
+      metadataClient.get.mockResolvedValue(null);
+      expect(await readRuntimeDraft('page', 'p', { metadataClient })).toBeNull();
+      // An empty draft body must not read as a pending draft — this is what
+      // gates the "unpublished changes" indicator.
+      metadataClient.get.mockResolvedValue({});
+      expect(await readRuntimeDraft('page', 'p', { metadataClient })).toBeNull();
+    });
+  });
 });
