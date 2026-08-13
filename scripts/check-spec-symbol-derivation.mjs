@@ -44,8 +44,69 @@
  * distinguishes a re-export from a fork (objectui#3003, and the insight already
  * written down in `spec-subschema-parity.test.ts`).
  *
+ * ── Rule 2: a spec-alignment CLAIM must have something behind it ─────────────
+ * Everything above matches BY NAME, and that is the hole objectui#4592 records:
+ * a hand copy that was RENAMED away from the spec's symbol has nothing for rule
+ * 1 to match, so it passes every run. `ViewNavigationConfig`
+ * (packages/types/src/objectql.ts, objectui#4588) was exactly that — the spec's
+ * six navigation keys, hand-written, drifted on `mode` (required here, published
+ * input-optional by the spec's `.default('page')`), carrying the comment
+ * "Aligned with @objectstack/spec ListView.navigation". It was found by a manual
+ * census, not by a check.
+ *
+ * The measured decision (objectui#4592, census in the PR): the STRUCTURAL
+ * alternative — "does this local type mirror a spec object's key set, whatever
+ * it is called" — was built as a one-off and run over the tree. It reports 38
+ * sites at >= 0.80 key overlap, nearly all of them legitimately distinct layers
+ * (`ApprovalActionLite`, `SimEdge`, `BulkResult`). An ALLOW map with 38 entries
+ * is not a guard, it is a second copy of the codebase, so that instrument was
+ * NOT built. Worse for it: the census cannot see the biggest sub-class at all —
+ * eight declarations here claim alignment with spec symbols that the installed
+ * spec does not export (`ReactionSchema`, `DateFormatSchema`, …), and a key-set
+ * comparison has nothing to compare against.
+ *
+ * What both known instances DID carry is the prose claim. So rule 2 is a
+ * heuristic on that claim, and it is deliberately cheap:
+ *
+ *   FLAG an exported declaration when its own doc comment claims alignment with
+ *   `@objectstack/spec` AND the declaration references no spec-bound identifier
+ *   anywhere in its body.
+ *
+ * Claim = one of these phrases, case-insensitive, within CLAIM_WINDOW characters
+ * of an `@objectstack/spec` mention in the SAME comment block:
+ *
+ *   aligned with / aligns with / spec-aligned   mirrors / mirrored / mirroring
+ *   matches / matching                          same shape|keys|union|vocabulary as
+ *   identical to                                in sync with
+ *   canonical                                   source of truth
+ *   copy of / copied from                       conforms to
+ *
+ * Three precision rules, each of which removed real false positives from the
+ * measured run — they are load-bearing, not decoration:
+ *
+ *   - Only the comment block ATTACHED to the declaration is read, never the
+ *     file's licence banner. Reading all leading comments let a banner's prose
+ *     supply the claim phrase for whichever declaration happened to sit first.
+ *   - The claim phrase must sit within CLAIM_WINDOW of the spec mention.
+ *     `ChartDataSeries` (packages/types/src/data-display.ts) reads "positionally
+ *     aligned with the chart's `categories`" and separately explains what
+ *     `@objectstack/spec/ui` owns — a model citizen that a bare co-occurrence
+ *     test flags and a proximity test does not.
+ *   - Renderers are not shapes. A function, class, or const initialised with an
+ *     arrow/function/call expression is skipped, on the same judgement the ALLOW
+ *     entries for `AuthProvider` / `ListView` / `UserFilters` already make: a
+ *     component that RENDERS the spec's shape is not a second declaration of it,
+ *     so "Aligned with @objectstack/spec ReactionSchema" on a `<ReactionPicker>`
+ *     is a statement about what it draws.
+ *
+ * `SpecAuthoredInput` (@object-ui/react) counts as derivation evidence by name:
+ * its entire purpose is to bind a local type to a spec schema's authoring input.
+ *
  * Run:  node scripts/check-spec-symbol-derivation.mjs
- * Exit: 0 = OK, 1 = a spec-named symbol is hand-written, or the allowlist is stale
+ *       node scripts/check-spec-symbol-derivation.mjs --ledger        (rule 1 DEBT)
+ *       node scripts/check-spec-symbol-derivation.mjs --claim-ledger  (rule 2 ledger)
+ * Exit: 0 = OK, 1 = a spec-named symbol is hand-written, a spec-alignment claim
+ *       has nothing behind it, or either allowlist/ledger is stale
  */
 
 import ts from "typescript";
@@ -344,6 +405,103 @@ const SKIP_PATH_SEGMENTS = ["components/src/ui/", "plugin-chatbot/src/elements/"
 
 const isSpecModule = (m) => m === "@objectstack/spec" || m.startsWith("@objectstack/spec/");
 
+// ── Rule 2: spec-alignment claims (objectui#4592) ────────────────────────────
+// See the header for what a claim is and why the three precision rules exist.
+
+/** Max characters between a claim phrase and the `@objectstack/spec` mention it claims alignment with. */
+export const CLAIM_WINDOW = 60;
+
+/** A local helper whose only job is binding a local type to a spec schema's authoring input. */
+const DERIVATION_HELPERS = new Set(["SpecAuthoredInput"]);
+
+export const CLAIM_PATTERNS = [
+  /\baligned?\s+with\b/i,
+  /\baligns\s+with\b/i,
+  /\bspec-aligned\b/i,
+  /\bmirror(?:s|ed|ing)?\b/i,
+  /\bmatch(?:es|ing)?\b/i,
+  /\bsame\s+(?:shape|keys|union|vocabulary)\s+as\b/i,
+  /\bidentical\s+to\b/i,
+  /\bin\s+sync\s+with\b/i,
+  /\bcanonical\b/i,
+  /\bsource\s+of\s+truth\b/i,
+  /\bcop(?:y|ied)\s+(?:of|from)\b/i,
+  /\bconforms?\s+to\b/i,
+];
+
+// Deliberate, reasoned duplications — the rule-1 ALLOW map's governance exactly:
+// declared, reasoned, shrink-only, and stale entries fail the guard. An entry
+// belongs here only when the declaration's OWN comment already states why the
+// copy exists; anything merely untriaged belongs in CLAIM_DEBT below, which is
+// where "we have not decided yet" is supposed to live.
+// Key format: "<package>:<symbol>".
+export const CLAIM_ALLOW = {
+  "@object-ui/app-shell:MarketplacePackageTranslation": {
+    reason:
+      "Deliberate copy with the reason written at the declaration: the app-shell bundle must not " +
+      "pull in `@objectstack/spec` for five translatable marketplace strings. A bundle-size " +
+      "duplication is a decision, not a drifted premise — and the comment says so rather than " +
+      "claiming the copy IS the spec's type.",
+    issue: 4592,
+  },
+  "@object-ui/core:ElementDataSourceConfig": {
+    reason:
+      "Deliberate divergence, documented at the declaration: `filter` is typed `unknown` rather " +
+      "than the spec's `FilterCondition` because three legitimately different filter shapes reach " +
+      "a renderer. The comment names the diverging key and its reason, which is exactly the " +
+      "difference between a documented dialect and a planted premise.",
+    issue: 4592,
+  },
+};
+
+// ── The claim ledger ─────────────────────────────────────────────────────────
+// Same governance as rule 1's DEBT: named symbols, shrink-only, regenerated by
+// `--claim-ledger` so it is never hand-maintained. These are the spec-alignment
+// claims that predate this rule. The rule exists to stop the BLEEDING — a new
+// unbacked claim fails on the PR that writes it — not to retro-fix 28 comments
+// across nine packages in one card (objectui#4592 owns `scripts/**` only, and
+// most of these surfaces belong to other seats).
+//
+// To burn one down, pick whichever is true of the declaration:
+//   - derive it (`z.infer< typeof SpecX >`, `SpecAuthoredInput< … >`, or an
+//     import of the spec type) — the claim becomes structural and the entry goes;
+//   - keep the copy and move it to CLAIM_ALLOW with the reason it exists;
+//   - or delete the claim from the comment, because it was never true. Eight of
+//     these name a spec symbol the installed spec does not export at all
+//     (`DateFormatSchema`, `NumberFormatSchema`, `PluralRuleSchema`,
+//     `LocaleConfigSchema`, `FieldChangeEntrySchema`, `MentionSchema`,
+//     `ReactionSchema`, `RecordSubscriptionSchema`) — a canonical-sounding
+//     pointer to nothing, which is the planted premise in its purest form. The
+//     failure message names them, so the next reader does not have to re-measure.
+const CLAIM_DEBT_ISSUE = 4592;
+const CLAIM_DEBT = {
+  "@object-ui/types": [
+    "FieldChangeEntry",
+    "ListViewExportOptions",
+    "ManagedByBucket",
+    "Mention",
+    "ObjectFormSchema",
+    "ObjectFormSection",
+    "PageRegionWidth",
+    "Reaction",
+    "RecordActivityComponentProps",
+    "RecordChatterComponentProps",
+    "RecordComponentAriaProps",
+    "RecordDetailsComponentProps",
+    "RecordHighlightsComponentProps",
+    "RecordPathComponentProps",
+    "RecordRelatedListComponentProps",
+    "RecordSubscription",
+    "SubmitBehavior",
+  ],
+  "@object-ui/i18n": ["SpecDateFormat", "SpecLocaleConfig", "SpecNumberFormat", "SpecPluralRule"],
+  "@object-ui/core": ["ResultDialogFieldSpec", "ViewDataConfig"],
+  "@object-ui/app-shell": ["RecordLookupBinding"],
+  "@object-ui/mobile": ["SpecResponsiveConfig"],
+  "@object-ui/plugin-view": ["ROW_HEIGHT_OPTIONS"],
+  "@object-ui/react": ["DensityModeValue"],
+};
+
 // ── 1. Enumerate every `@objectstack/spec` export name, per subpath ──────────
 // Types AND values: the drifted symbols in the table above are mostly types, and
 // a runtime `import()` only sees values. The compiler's own view of each
@@ -483,6 +641,154 @@ function referencesSpec(node, bindings, skipLiterals, exclude) {
   return found;
 }
 
+/**
+ * Strip comment syntax and collapse whitespace, so a claim split across `*`-
+ * prefixed lines reads as one sentence. Without this, "Aligned with\n *
+ * @objectstack/spec X" measures a window across the line noise.
+ */
+export function normalizeDoc(text) {
+  return text
+    .replace(/^[ \t]*(?:\/\*\*?|\*\/|\*|\/\/)[ \t]?/gm, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * The comment block ATTACHED to a declaration — never the file's licence banner.
+ *
+ * Two conditions, and both were needed against the real tree. Only the LAST
+ * leading block counts (a banner plus a real doc comment are two blocks, and
+ * reading them joined let the banner's prose supply the claim phrase for
+ * whichever declaration sat first). And a block separated from the declaration
+ * by a BLANK LINE is not attached at all — otherwise a file whose banner is its
+ * only comment donates that banner to its first declaration, which is the same
+ * bug wearing the other half's clothes.
+ */
+function attachedDoc(node, fullText) {
+  const ranges = ts.getLeadingCommentRanges(fullText, node.getFullStart()) ?? [];
+  if (ranges.length === 0) return "";
+  const last = ranges[ranges.length - 1];
+  const gap = fullText.slice(last.end, node.getStart());
+  if (/\n[ \t]*\n/.test(gap)) return "";
+  return fullText.slice(last.pos, last.end);
+}
+
+const SPEC_MENTION = "@objectstack/spec";
+
+/**
+ * Does this doc comment CLAIM alignment with `@objectstack/spec`?
+ * Returns `{ phrase, distance, symbols }` or null. `symbols` are the capitalised
+ * identifiers named right after a spec mention — the symbols the claim points
+ * at, used only to sharpen the failure message.
+ */
+export function findClaim(docText) {
+  const text = normalizeDoc(docText);
+  const mentions = [];
+  for (let i = text.indexOf(SPEC_MENTION); i !== -1; i = text.indexOf(SPEC_MENTION, i + 1)) mentions.push(i);
+  if (mentions.length === 0) return null;
+
+  for (const pattern of CLAIM_PATTERNS) {
+    const hit = pattern.exec(text);
+    if (!hit) continue;
+    const start = hit.index;
+    const end = hit.index + hit[0].length;
+    for (const at of mentions) {
+      const distance = at >= end ? at - end : start - (at + SPEC_MENTION.length);
+      if (distance < 0 || distance > CLAIM_WINDOW) continue;
+      // Proximity alone is not enough: the claim and the mention must be in the
+      // SAME sentence. `ChartDataSeries` reads "positionally aligned with the
+      // chart's `categories`. Renamed off `ChartSeries`: `@objectstack/spec/ui`
+      // owns that name…" — two sentences, two subjects, 53 characters apart, and
+      // the alignment claim is about the categories array rather than the spec.
+      // A window without this test flags it, which the measured run confirmed.
+      const between = at >= end ? text.slice(end, at) : text.slice(at + SPEC_MENTION.length, start);
+      if (/[.;!?](?:\s|$)/.test(between)) continue;
+      const symbols = [];
+      for (const m of mentions) {
+        // `@objectstack/spec/ui ReactionSchema` — take the identifiers the claim
+        // names just after the mention (its subpath included, then skipped).
+        const tail = text.slice(m + SPEC_MENTION.length, m + SPEC_MENTION.length + 48);
+        for (const s of tail.matchAll(/[`'"\s(]([A-Z][A-Za-z0-9_]{2,})\b/g)) symbols.push(s[1]);
+      }
+      return { phrase: hit[0], distance, symbols: [...new Set(symbols)], text };
+    }
+  }
+  return null;
+}
+
+/** A renderer is not a shape — see the header's third precision rule. */
+function isRendererLike(stmt) {
+  if (ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt)) return true;
+  if (ts.isVariableStatement(stmt)) {
+    const init = stmt.declarationList.declarations[0]?.initializer;
+    if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init) || ts.isCallExpression(init))) return true;
+  }
+  return false;
+}
+
+/**
+ * Rule 2's scan: exported declarations whose doc comment claims spec alignment
+ * while the declaration itself references nothing spec-bound.
+ */
+export function scanFileForClaims(file, specNames = new Map()) {
+  const text = readFileSync(file, "utf8");
+  const sf = ts.createSourceFile(
+    file,
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    /\.tsx$/.test(file) ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  );
+
+  const specBindings = new Set(DERIVATION_HELPERS);
+  for (const stmt of sf.statements) {
+    if (!ts.isImportDeclaration(stmt) || !ts.isStringLiteral(stmt.moduleSpecifier)) continue;
+    if (!isSpecModule(stmt.moduleSpecifier.text)) continue;
+    const clause = stmt.importClause;
+    if (!clause) continue;
+    if (clause.name) specBindings.add(clause.name.text);
+    const named = clause.namedBindings;
+    if (named && ts.isNamespaceImport(named)) specBindings.add(named.name.text);
+    if (named && ts.isNamedImports(named)) for (const el of named.elements) specBindings.add(el.name.text);
+  }
+
+  const findings = [];
+  for (const stmt of sf.statements) {
+    if (!hasExportModifier(stmt)) continue;
+
+    let nameNode = null;
+    if (
+      (ts.isTypeAliasDeclaration(stmt) || ts.isInterfaceDeclaration(stmt) || ts.isEnumDeclaration(stmt)) &&
+      stmt.name
+    ) {
+      nameNode = stmt.name;
+    } else if (ts.isVariableStatement(stmt)) {
+      const decl = stmt.declarationList.declarations[0];
+      if (decl && ts.isIdentifier(decl.name)) nameNode = decl.name;
+    }
+    if (!nameNode) continue; // functions/classes are renderers — see isRendererLike
+    if (isRendererLike(stmt)) continue;
+
+    const claim = findClaim(attachedDoc(stmt, text));
+    if (!claim) continue;
+    // `skipLiterals: false` on purpose — rule 1 asks "is this THE spec's symbol",
+    // where only a structural position counts. Rule 2 asks the weaker question
+    // "does this declaration have ANY compile-time tie to what it claims", and a
+    // spec type used on a member is a tie a spec change can still break.
+    if (referencesSpec(stmt, specBindings, false, nameNode)) continue;
+
+    const { line } = sf.getLineAndCharacterOfPosition(stmt.getStart(sf));
+    findings.push({
+      name: nameNode.text,
+      file,
+      line: line + 1,
+      phrase: claim.phrase,
+      dangling: claim.symbols.filter((s) => !specNames.has(s)),
+    });
+  }
+  return findings;
+}
+
 function scanFile(file, specNames) {
   const text = readFileSync(file, "utf8");
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, /\.tsx$/.test(file) ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
@@ -564,11 +870,15 @@ function scanFile(file, specNames) {
 }
 
 // ── 3. Report ────────────────────────────────────────────────────────────────
+function main() {
 const specNames = specExportNames();
 const files = sourceFiles().filter((f) => !SKIP_PATH_SEGMENTS.some((seg) => f.includes(seg)));
 
 const violations = [];
 for (const file of files) violations.push(...scanFile(file, specNames));
+
+const claims = [];
+for (const file of files) claims.push(...scanFileForClaims(file, specNames));
 
 const matchedAllowKeys = new Set();
 const unallowed = [];
@@ -598,6 +908,37 @@ if (process.argv.includes("--ledger")) {
       return `  ${JSON.stringify(pkg)}: [\n` + names.map((n) => `    ${JSON.stringify(n)},`).join("\n") + `\n  ],`;
     });
   console.log("const DEBT = {\n" + lines.join("\n") + "\n};");
+  process.exit(0);
+}
+
+// Rule 2's own bookkeeping, in the same shape: CLAIM_ALLOW first, then whatever
+// is left grouped by package for the ledger and the ratchets.
+const matchedClaimAllowKeys = new Set();
+const unallowedClaims = [];
+for (const c of claims) {
+  const pkg = packageNameFor(c.file);
+  const key = `${pkg}:${c.name}`;
+  if (CLAIM_ALLOW[key]) {
+    matchedClaimAllowKeys.add(key);
+    continue;
+  }
+  unallowedClaims.push({ ...c, pkg, key });
+}
+
+const claimsByPackage = new Map();
+for (const c of unallowedClaims) {
+  if (!claimsByPackage.has(c.pkg)) claimsByPackage.set(c.pkg, []);
+  claimsByPackage.get(c.pkg).push(c);
+}
+
+if (process.argv.includes("--claim-ledger")) {
+  const lines = [...claimsByPackage.entries()]
+    .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+    .map(([pkg, found]) => {
+      const names = [...new Set(found.map((c) => c.name))].sort();
+      return `  ${JSON.stringify(pkg)}: [\n` + names.map((n) => `    ${JSON.stringify(n)},`).join("\n") + `\n  ],`;
+    });
+  console.log("const CLAIM_DEBT = {\n" + lines.join("\n") + "\n};");
   process.exit(0);
 }
 
@@ -652,23 +993,106 @@ for (const key of Object.keys(ALLOW)) {
   }
 }
 
-const outstanding = Object.values(DEBT).reduce((sum, names) => sum + names.length, 0);
+// ── Rule 2's three checks, in the same order and with the same governance ────
 
-if (errors.length === 0) {
+const claimErrors = [];
+
+// 4. A spec-alignment claim that is not in the ledger is NEW — the half that
+//    stops rule 2's bleeding, by name, on the PR that writes the comment.
+for (const [pkg, found] of claimsByPackage) {
+  const declared = new Set(CLAIM_DEBT[pkg] ?? []);
+  const fresh = found.filter((c) => !declared.has(c.name));
+  if (fresh.length === 0) continue;
+  claimErrors.push(
+    `${pkg} claims spec alignment on ${fresh.length} declaration${fresh.length === 1 ? "" : "s"} that reference` +
+      `${fresh.length === 1 ? "s" : ""} nothing from the spec:\n` +
+      fresh
+        .map(
+          (c) =>
+            `        \`${c.name}\`  ${relative(root, c.file)}:${c.line}  (claim: "${c.phrase}")` +
+            (c.dangling.length
+              ? `\n            …and names \`${c.dangling.join("`, `")}\`, which @objectstack/spec does not export.`
+              : "")
+        )
+        .join("\n") +
+      `\n      Back the claim or drop it: derive the declaration (\`z.infer< typeof SpecX >\`,\n` +
+      `      \`SpecAuthoredInput< … >\`, or import the spec type), add a CLAIM_ALLOW entry saying why\n` +
+      `      the copy is deliberate, or delete the sentence — a canonical-sounding comment with\n` +
+      `      nothing behind it is a planted premise for the next session, not stale documentation.`
+  );
+}
+
+// 5. Ratchet — a claim-ledger entry whose declaration is fixed (or gone) must be
+//    deleted, or it reserves the symbol for a future unbacked claim.
+for (const [pkg, names] of Object.entries(CLAIM_DEBT)) {
+  const live = new Set((claimsByPackage.get(pkg) ?? []).map((c) => c.name));
+  const stale = names.filter((n) => !live.has(n));
+  if (stale.length === 0) continue;
+  claimErrors.push(
+    `${pkg} lists ${stale.length} symbol${stale.length === 1 ? "" : "s"} in CLAIM_DEBT whose spec-alignment` +
+      ` claim is gone — \`${stale.join("`, `")}\`.\n` +
+      `      Delete them from scripts/check-spec-symbol-derivation.mjs (\`--claim-ledger\` regenerates\n` +
+      `      the block) so the symbol cannot re-acquire an unbacked claim silently` +
+      `${CLAIM_DEBT_ISSUE ? ` (and close #${CLAIM_DEBT_ISSUE} once the ledger is empty)` : ""}.`
+  );
+}
+
+// 6. Ratchet — a CLAIM_ALLOW entry that excuses nothing is stale and must go.
+for (const key of Object.keys(CLAIM_ALLOW)) {
+  if (!matchedClaimAllowKeys.has(key)) {
+    claimErrors.push(
+      `${key} is in CLAIM_ALLOW but no longer carries an unbacked spec-alignment claim — the\n` +
+        `      declaration was derived, renamed, removed, or the claim was deleted. Delete the entry\n` +
+        `      so the exemption cannot be inherited by a future claim under the same name.`
+    );
+  }
+}
+
+const outstanding = Object.values(DEBT).reduce((sum, names) => sum + names.length, 0);
+const outstandingClaims = Object.values(CLAIM_DEBT).reduce((sum, names) => sum + names.length, 0);
+
+if (errors.length === 0 && claimErrors.length === 0) {
   console.log(
     `✅  spec symbol derivation: ${files.length} files scanned against ${specNames.size} spec export names; ` +
       `${Object.keys(ALLOW).length} declared dialect${Object.keys(ALLOW).length === 1 ? "" : "s"}, ` +
-      `${outstanding} untriaged collision${outstanding === 1 ? "" : "s"} in ${Object.keys(DEBT).length} packages.`
+      `${outstanding} untriaged collision${outstanding === 1 ? "" : "s"} in ${Object.keys(DEBT).length} packages.\n` +
+      `✅  spec alignment claims: ${Object.keys(CLAIM_ALLOW).length} declared deliberate ` +
+      `${Object.keys(CLAIM_ALLOW).length === 1 ? "copy" : "copies"}, ` +
+      `${outstandingClaims} unbacked claim${outstandingClaims === 1 ? "" : "s"} in ` +
+      `${Object.keys(CLAIM_DEBT).length} packages.`
   );
   process.exit(0);
 }
 
-console.error("❌  a spec-named symbol is hand-written, not derived:\n");
-for (const message of errors) console.error(`    • ${message}\n`);
-console.error(
-  "A local declaration under a spec export's name is read by the next agent as the spec's own\n" +
-    "definition — that is how #2901 was filed with a backwards premise. See\n" +
-    "https://github.com/objectstack-ai/objectstack/issues/4115 for the four symbols that had\n" +
-    "already drifted when this guard was written."
-);
+if (errors.length > 0) {
+  console.error("❌  a spec-named symbol is hand-written, not derived:\n");
+  for (const message of errors) console.error(`    • ${message}\n`);
+  console.error(
+    "A local declaration under a spec export's name is read by the next agent as the spec's own\n" +
+      "definition — that is how #2901 was filed with a backwards premise. See\n" +
+      "https://github.com/objectstack-ai/objectstack/issues/4115 for the four symbols that had\n" +
+      "already drifted when this guard was written.\n"
+  );
+}
+
+if (claimErrors.length > 0) {
+  console.error("❌  a spec-alignment claim has nothing behind it:\n");
+  for (const message of claimErrors) console.error(`    • ${message}\n`);
+  console.error(
+    "Rule 1 above matches BY NAME, so a hand copy that was RENAMED away from the spec's symbol is\n" +
+      "invisible to it — `ViewNavigationConfig` (objectui#4588) carried the spec's six navigation\n" +
+      "keys, drifted on `mode`, and passed every CI run under the comment \"Aligned with\n" +
+      "@objectstack/spec ListView.navigation\". The claim is the part both known instances shared.\n" +
+      "See https://github.com/objectstack-ai/objectui/issues/4592."
+  );
+}
+
 process.exit(1);
+}
+
+// Run only when invoked directly — the test suite imports `findClaim` /
+// `scanFileForClaims` / `normalizeDoc` from here and must not trigger a repo
+// scan (or a process.exit) on import. Same guard shape as
+// scripts/check-control-bytes.mjs.
+const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invokedDirectly) main();
