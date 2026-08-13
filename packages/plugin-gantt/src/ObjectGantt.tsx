@@ -656,13 +656,42 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           return formatDate(value as any, undefined, { locale: displayLocale });
         case 'datetime':
           return formatDateTime(value as any, { locale: displayLocale });
+        // The numeric rows take the same `displayLocale` as the temporal ones
+        // above (objectui#4553). Without it these reached
+        // `new Intl.NumberFormat(undefined, …)`, i.e. the MACHINE's locale —
+        // neither of the repo's two locale channels — so one tooltip rendered
+        // two conventions: a German session read `5. Jan. 2024` on the date row
+        // and `1,234.50` on the amount row beside it, where German groups with
+        // `.` and marks the decimal with `,`. Inverted separators do not read
+        // as an unstyled number; they read as a DIFFERENT number.
         case 'number':
         case 'integer':
         case 'float':
         case 'decimal':
-          return formatNumber(Number(value));
+          // `decimals` keeps its default: the display width is not this card's
+          // subject, only the locale that renders it.
+          return formatNumber(Number(value), undefined, displayLocale);
         case 'currency':
-          return formatCurrency(Number(value), resolveFieldCurrency(def as any, tenantCurrency));
+          // The CODE was already resolved correctly (objectui#4542 made the memo
+          // watch it); the locale that renders that code is what was missing.
+          return formatCurrency(
+            Number(value),
+            resolveFieldCurrency(def as any, tenantCurrency),
+            displayLocale,
+          );
+        // ⚠️ `percent` is deliberately NOT threaded here, and it is the one row
+        // in this switch that still ignores the display locale.
+        // `formatPercent(value, precision)` takes no locale parameter at all:
+        // it is `${percentDisplayValue(value).toFixed(precision)}%`, so it
+        // constructs no `Intl.NumberFormat` and never reaches
+        // `formatDisplayNumber`. Its output is therefore not the machine's
+        // locale but NO locale — ASCII `.`, never grouped, identical on every
+        // machine (`1235%` where German wants `1.235 %`). Fixing it means
+        // growing a `@object-ui/fields` export's signature, which objectui#4553's
+        // ruled surface excludes; escalated on that card rather than patched
+        // with a locale-aware reimplementation here, which would fork percent
+        // formatting away from the list cell and the dashboard measure
+        // formatter that share `percentDisplayValue` today.
         case 'percent':
           return formatPercent(Number(value));
         case 'boolean':
