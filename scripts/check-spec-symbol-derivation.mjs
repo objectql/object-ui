@@ -99,6 +99,44 @@
  *     so "Aligned with @objectstack/spec ReactionSchema" on a `<ReactionPicker>`
  *     is a statement about what it draws.
  *
+ * ── The tie is judged against the symbols the claim CITES (objectui#4607) ────
+ * The tie test above asks "does this declaration reference ANY spec-bound
+ * identifier". That question is symbol-AGNOSTIC, so a claim about symbol X
+ * passed on an incidental reference to an unrelated symbol Y.
+ *
+ * The measured specimen: `FeedItem` (packages/types/src/views.ts) carried
+ * "Aligned with @objectstack/spec FeedItemSchema" while `FeedItemSchema` had
+ * been removed from `@objectstack/spec/data` in the 16.0.0 major — and it never
+ * appeared in a single gate run, purely because one member is typed
+ * `FeedItemType`, the one feed symbol that survived the removal. It sat four
+ * lines from a section banner making the same claim, in the same file as four
+ * declarations that WERE flagged, and it was found by reading the file rather
+ * than by any run of this script.
+ *
+ * Note the asymmetry, which is what made it expensive: the more spec-integrated
+ * a declaration is, the weaker the check on its prose became. A fully
+ * hand-written fork got its claim scrutinised; one importing a single live spec
+ * type for one member did not.
+ *
+ * Hence the fourth precision rule, deliberately narrow:
+ *
+ *   When the claim NAMES symbols and EVERY one of them is absent from the
+ *   installed spec's export set, the declaration is flagged whatever else it
+ *   references. A tie to a DIFFERENT symbol is not something behind THIS claim.
+ *
+ * Two limits on it, both deliberate:
+ *
+ *   - A claim naming at least one LIVE symbol stays governed by the tie test
+ *     above, unchanged. A claim citing live `A` while tied to live `B` is a
+ *     claim-vs-tie MISMATCH, and judging those is a KNOWN NON-GOAL of this rule
+ *     (objectui#4607). It would need a name-relatedness allowance for the
+ *     legitimate `type: FeedItemType` shape — where the citation and the tie are
+ *     genuinely different-but-related symbols — and that allowance is a
+ *     different instrument, not a tightening of this one.
+ *   - Given no spec export set to check against, nothing can be known to dangle
+ *     and this rule stays out of the way entirely. A verdict fabricated from
+ *     ignorance of the spec would flag every citation in the repo at once.
+ *
  * `SpecAuthoredInput` (@object-ui/react) counts as derivation evidence by name:
  * its entire purpose is to bind a local type to a spec schema's authoring input.
  *
@@ -685,7 +723,12 @@ const SPEC_MENTION = "@objectstack/spec";
  * Does this doc comment CLAIM alignment with `@objectstack/spec`?
  * Returns `{ phrase, distance, symbols }` or null. `symbols` are the capitalised
  * identifiers named right after a spec mention — the symbols the claim points
- * at, used only to sharpen the failure message.
+ * at.
+ *
+ * `symbols` is load-bearing, not decoration: since objectui#4607 it decides
+ * whether the tie test applies at all (a claim every one of whose cited symbols
+ * is absent from the spec is flagged regardless of an incidental tie), as well
+ * as sharpening the failure message it always did.
  */
 export function findClaim(docText) {
   const text = normalizeDoc(docText);
@@ -713,7 +756,18 @@ export function findClaim(docText) {
       for (const m of mentions) {
         // `@objectstack/spec/ui ReactionSchema` — take the identifiers the claim
         // names just after the mention (its subpath included, then skipped).
-        const tail = text.slice(m + SPEC_MENTION.length, m + SPEC_MENTION.length + 48);
+        let tail = text.slice(m + SPEC_MENTION.length, m + SPEC_MENTION.length + 48);
+        // Stop at the end of the SENTENCE, the same discipline the claim/mention
+        // pairing above applies. Without it the window scrapes the capitalised
+        // opening words of the NEXT sentence and reports them as cited symbols:
+        // `ActionDef` (packages/core/src/actions/ActionRunner.ts) reads
+        // "…mirroring `@objectstack/spec`'s `ActionSchema`. Open key set on a
+        // data bag is correct", and `Open` is prose, not a citation. Harmless
+        // while `symbols` only decorated a message; since objectui#4607 it
+        // decides whether the tie test applies, and a claim whose only "cited
+        // symbols" are prose words would read as citing nothing but dangling.
+        const sentenceEnd = tail.search(/[.;!?](?:\s|$)/);
+        if (sentenceEnd !== -1) tail = tail.slice(0, sentenceEnd);
         for (const s of tail.matchAll(/[`'"\s(]([A-Z][A-Za-z0-9_]{2,})\b/g)) symbols.push(s[1]);
       }
       return { phrase: hit[0], distance, symbols: [...new Set(symbols)], text };
@@ -777,11 +831,23 @@ export function scanFileForClaims(file, specNames = new Map()) {
 
     const claim = findClaim(attachedDoc(stmt, text));
     if (!claim) continue;
+
+    const dangling = claim.symbols.filter((s) => !specNames.has(s));
+    // The tie is judged against the symbols the claim CITES (objectui#4607) —
+    // see the header's fourth precision rule. When the claim names symbols and
+    // the spec exports NONE of them, no reference elsewhere in the declaration
+    // can be evidence for THIS claim, so the tie test below is not consulted.
+    // Guarded on a non-empty `specNames`: with no export set to check against,
+    // "dangling" is unknowable and the rule must not manufacture a verdict from
+    // ignorance of the spec.
+    const citesOnlyDanglingSymbols =
+      specNames.size > 0 && claim.symbols.length > 0 && dangling.length === claim.symbols.length;
+
     // `skipLiterals: false` on purpose — rule 1 asks "is this THE spec's symbol",
     // where only a structural position counts. Rule 2 asks the weaker question
     // "does this declaration have ANY compile-time tie to what it claims", and a
     // spec type used on a member is a tie a spec change can still break.
-    if (referencesSpec(stmt, specBindings, false, nameNode)) continue;
+    if (!citesOnlyDanglingSymbols && referencesSpec(stmt, specBindings, false, nameNode)) continue;
 
     const { line } = sf.getLineAndCharacterOfPosition(stmt.getStart(sf));
     findings.push({
@@ -789,7 +855,7 @@ export function scanFileForClaims(file, specNames = new Map()) {
       file,
       line: line + 1,
       phrase: claim.phrase,
-      dangling: claim.symbols.filter((s) => !specNames.has(s)),
+      dangling,
     });
   }
   return findings;
