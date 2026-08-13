@@ -497,7 +497,6 @@ const CLAIM_DEBT = {
   "@object-ui/i18n": ["SpecDateFormat", "SpecLocaleConfig", "SpecNumberFormat", "SpecPluralRule"],
   "@object-ui/core": ["ResultDialogFieldSpec", "ViewDataConfig"],
   "@object-ui/app-shell": ["RecordLookupBinding"],
-  "@object-ui/mobile": ["SpecResponsiveConfig"],
   "@object-ui/plugin-view": ["ROW_HEIGHT_OPTIONS"],
   "@object-ui/react": ["DensityModeValue"],
 };

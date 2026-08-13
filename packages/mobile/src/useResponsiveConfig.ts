@@ -9,10 +9,30 @@
 import { useMemo } from 'react';
 import { useBreakpoint } from './useBreakpoint';
 import { resolveResponsiveValue } from './breakpoints';
-import type { BreakpointName } from '@object-ui/types';
+import type { BreakpointName, SpecResponsiveConfig } from '@object-ui/types';
 
 /**
- * Spec-aligned ResponsiveConfig (mirrors @objectstack/spec ResponsiveConfigSchema).
+ * The responsive layout config this hook consumes — re-exported, not re-declared
+ * (objectui#4598).
+ *
+ * This used to be a hand-written interface over the same four keys, under a
+ * comment asserting it mirrored the schema. The assertion was true on the day it
+ * was written and maintained by nobody after that: the interface named the
+ * schema without ever referring to it, so a key added or retired upstream would
+ * have moved the two apart in silence. `ViewNavigationConfig` (objectui#4588)
+ * read the same way until it had drifted on `mode`.
+ *
+ * `@object-ui/types` — already this package's only runtime dependency — publishes
+ * the schema's own type at `index.ts` under this exact name, imported from
+ * `@objectstack/spec/ui` rather than copied. Re-exporting it costs no new
+ * dependency edge and leaves the published name unchanged, so the four keys are
+ * now whatever the schema says they are rather than whatever this file last
+ * remembered. `@object-ui/core`'s `ResponsiveProtocol` already binds through the
+ * same re-export.
+ *
+ * `responsive-config-spec-parity.test.ts` pins the chain to the schema itself,
+ * because the one link this file cannot see is `@object-ui/types` re-growing a
+ * hand copy of its own.
  *
  * @example
  * ```ts
@@ -23,16 +43,7 @@ import type { BreakpointName } from '@object-ui/types';
  * };
  * ```
  */
-export interface SpecResponsiveConfig {
-  /** The target breakpoint for this config */
-  breakpoint?: BreakpointName;
-  /** Breakpoints on which the component is hidden */
-  hiddenOn?: BreakpointName[];
-  /** Grid column counts per breakpoint (1-12) */
-  columns?: Partial<Record<BreakpointName, number>>;
-  /** Display order per breakpoint */
-  order?: Partial<Record<BreakpointName, number>>;
-}
+export type { SpecResponsiveConfig };
 
 /**
  * Resolved responsive state from a SpecResponsiveConfig.
