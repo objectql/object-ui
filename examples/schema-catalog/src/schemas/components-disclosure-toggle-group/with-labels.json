@@ -1,5 +1,6 @@
 {
-  "type": "single",
+  "type": "toggle-group",
+  "selectionType": "single",
   "items": [
     {
       "value": "list",

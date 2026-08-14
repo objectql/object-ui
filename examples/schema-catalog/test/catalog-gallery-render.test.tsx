@@ -37,19 +37,47 @@
  * registerCatalogBlocks.ts` now loads the nine further packages that census
  * resolves to, which takes 31 of those 33 tiles from the panel to a drawn
  * component. What registration cannot reach is named — never skipped silently —
- * in the tables below. Four classes are defects in the entries, one issue each:
+ * in the tables below. Four classes were defects in the entries, one issue each:
  *
  *   objectui#4624  1 entry  names root type "single", which nothing registers
  *   objectui#4625  6 entries author the bare `calendar` keyword, which belongs
  *                          to plugin-calendar's data-bound ObjectCalendar
- *   objectui#4626  2 entries render a blank tile — each authors a key its own
- *                          renderer never reads (found by the control below)
+ *   objectui#4626  2 entries were filed as blank tiles, each authoring a key
+ *                          its own renderer never reads — one of the two was
+ *                          measured to be neither (see below)
  *   objectui#4627  2 entries author 2024 event dates, outside the window
  *                          `calendar-view` paints
  *
- * #4625 is the reason this file asserts three diagnostic strings rather than
- * one: registering a package is not the same as a tile drawing, and a pin that
- * named only OBJUI-001 would have reported those six as fixed.
+ * The first three are FIXED in the entries as of objectui#4624's PR, so the
+ * eight entries they covered carry the full assertion set here and no longer
+ * appear in either table. What that PR measured, and corrects in this header:
+ *
+ *  - #4625's six now author `ui:calendar`, the namespaced key the primitive is
+ *    registered under. Probed through this file's own render path before the
+ *    rewrite: `type: 'ui:calendar'` resolves and paints the date-picker grid
+ *    (115 elements), because `Registry.get(type)` looks the string up verbatim
+ *    and `register()` stores the namespaced form as `ui:calendar`. The bare
+ *    keyword still reaches `ObjectCalendar` — that is not a bug to route
+ *    around, it is `skipFallback: true` working as designed.
+ *  - #4626's `basic-tooltip` was a real blank tile: it authored its trigger
+ *    under `children`, which the tooltip renderer never reads. Now `trigger`.
+ *  - #4626's `basic-hover-card` was NOT blank and authored no unread key.
+ *    Measured: the text renderer reads `schema.content || schema.value`
+ *    (`packages/components/src/renderers/basic/text.tsx:35,40`), so the
+ *    authored `value` WAS read and the tile drew the text node "Hover over
+ *    me" — which `drewSomething` accepts, and which an element-only view of
+ *    the DOM (the one the filing reports) cannot see. Its real defect was
+ *    that a bare text node is not an element, so `HoverCardTrigger asChild`
+ *    had nothing to attach to and the card could never open; the trigger is
+ *    now a link-variant button, the shape the renderer's own `defaultProps`
+ *    declare. Removing its exclusion turns nothing red — verified by removing
+ *    it BEFORE touching the entry.
+ *
+ * DATASOURCE_REQUIRED stays asserted, for the reason #4625 first supplied:
+ * registering a package is not the same as a tile drawing, and a pin naming
+ * only OBJUI-001 would have reported those six as fixed. It is now a
+ * regression guard — an entry sliding back to the bare `calendar` keyword
+ * fails on that string rather than on the panel.
  *
  * Six further entries are not rendered here at all, for reasons that are limits
  * of the environment rather than defects in anything: `plugin-editor`'s three
@@ -69,10 +97,15 @@
  *
  * ## What is asserted, per entry
  *
- * None of the three diagnostics, and — the non-vacuity half, since an entry
- * that renders nothing at all trivially satisfies all three — the tile actually
- * produced DOM or text of its own. That control is not decoration: it is what
- * found objectui#4626's two blank tiles, which no red-tile sweep can see. For
+ * None of the three diagnostics — all three, for every entry: there are no
+ * per-entry diagnostic exemptions left — and, the non-vacuity half, since an
+ * entry that renders nothing at all trivially satisfies all three, the tile
+ * actually produced DOM or text of its own. That control is not decoration: it
+ * is what found objectui#4626's blank tooltip tile, which no red-tile sweep can
+ * see. Note what it deliberately does NOT claim: text alone satisfies it, so a
+ * tile drawing a bare text node passes — correctly, since `components-basic-
+ * text/*` are exactly that. `basic-hover-card` is the case that proves the
+ * distinction matters in both directions (see the header). For
  * the categories objectui#4616 newly registered, a stronger positive control on
  * top: the titles the entry itself authors are on screen
  * (`AUTHORED_TEXT_EXEMPT` records the two that cannot be asserted that way,
@@ -121,9 +154,11 @@ const FAILED_TO_RENDER = 'failed to render';
  * The data-bound plugins' guard when the host supplies no data source
  * (`ObjectCalendar.tsx`, `ObjectGantt.tsx`, `ObjectMap.tsx` all throw it).
  * Asserted alongside the other two because registering a package is not the
- * same as the tile drawing: `components-form-calendar/*` trades the OBJUI-001
- * panel for exactly this string, and a pin that named only the panel would
- * report those six as fixed.
+ * same as the tile drawing: `components-form-calendar/*` used to trade the
+ * OBJUI-001 panel for exactly this string, and a pin that named only the panel
+ * would have reported those six as fixed. They now author `ui:calendar` and
+ * draw the primitive, so this string is what would catch them sliding back to
+ * the bare keyword.
  */
 const DATASOURCE_REQUIRED = 'DataSource required for object/api providers';
 
@@ -153,18 +188,6 @@ const HOST_PACKAGES = [
 const EXCLUSIONS: Record<string, string> = {
   'core-schema-renderer/unknown-component-type':
     'Demonstrates the OBJUI-001 panel on purpose — the panel IS the example.',
-  'components-disclosure-toggle-group/with-labels':
-    'Authoring defect, not registration: the entry names root type "single", which no ' +
-    'package registers. Its two siblings spell the same thing "toggle-group" + ' +
-    '"selectionType": "single". Filed as objectui#4624.',
-  'components-overlay-tooltip/basic-tooltip':
-    'Blank tile, not a red one, and not registration: the entry authors its trigger under ' +
-    '"children", which the tooltip renderer never reads (it reads "trigger" / "body"), so ' +
-    'the tile renders nothing at all. Filed as objectui#4626.',
-  'components-overlay-hover-card/basic-hover-card':
-    'Blank tile, not a red one, and not registration: both slots author {"type":"text", ' +
-    '"value":…} and the text renderer reads "content", so both render empty. ' +
-    'Filed as objectui#4626.',
   // The three below are an ENVIRONMENT limit, not a defect in the entries.
   // Rendering `code-editor` mounts `@monaco-editor/react`, which appends its
   // loader as a `script` tag pointing at a CDN. happy-dom cannot fetch it and
@@ -195,29 +218,6 @@ const EXCLUSIONS: Record<string, string> = {
   'plugin-map/event-venue-finder': 'maplibre needs WebGL2 and a live tile host.',
   'plugin-map/real-time-delivery-tracking': 'maplibre needs WebGL2 and a live tile host.',
   'plugin-map/store-locator-map': 'maplibre needs WebGL2 and a live tile host.',
-};
-
-/**
- * Entries allowed ONE named diagnostic, because that diagnostic is a defect
- * this card measured and filed rather than caused. Every other assertion still
- * applies to them — including the other two diagnostics — so the exemption is
- * one string wide, not one entry wide.
- *
- * All six `components-form-calendar` entries author the bare `calendar`
- * keyword, which `@object-ui/components` deliberately registers as
- * `ui:calendar` only ("collides with the plugin-calendar full CRUD calendar
- * VIEW", `skipFallback: true`). So the bare keyword reaches `ObjectCalendar`,
- * which has no data source here and says so. Registering the package is what
- * exposed it; correcting six entries' authored type is a separate decision,
- * filed as objectui#4625.
- */
-const KNOWN_DIAGNOSTIC: Record<string, string> = {
-  'components-form-calendar/custom-style': DATASOURCE_REQUIRED,
-  'components-form-calendar/date-range': DATASOURCE_REQUIRED,
-  'components-form-calendar/form-integration': DATASOURCE_REQUIRED,
-  'components-form-calendar/multiple-dates': DATASOURCE_REQUIRED,
-  'components-form-calendar/simple-calendar': DATASOURCE_REQUIRED,
-  'components-form-calendar/single-date': DATASOURCE_REQUIRED,
 };
 
 /**
@@ -302,10 +302,6 @@ interface Rendered {
  */
 const drewSomething = (elements: number, text: string) =>
   elements > WRAPPER_ELEMENTS || text.trim().length > 0;
-
-/** Which diagnostics this entry must not show. */
-const diagnosticsFor = (id: string) =>
-  ALL_DIAGNOSTICS.filter((d) => d !== KNOWN_DIAGNOSTIC[id]);
 
 /** Render one entry exactly as `SchemaThumbnail` does, then let it settle. */
 async function renderEntry(schema: unknown): Promise<Rendered> {
@@ -426,11 +422,7 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
 
   it('every exclusion still names a real entry', () => {
     const ids = new Set(entries.map((e) => e.id));
-    for (const id of [
-      ...Object.keys(EXCLUSIONS),
-      ...Object.keys(KNOWN_DIAGNOSTIC),
-      ...Object.keys(AUTHORED_TEXT_EXEMPT),
-    ]) {
+    for (const id of [...Object.keys(EXCLUSIONS), ...Object.keys(AUTHORED_TEXT_EXEMPT)]) {
       expect(ids.has(id), `${id} is excluded but no longer exists in the catalog`).toBe(true);
     }
   });
@@ -440,7 +432,7 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
     async (id, schema) => {
       const r = await renderEntry(schema);
       try {
-        for (const diagnostic of diagnosticsFor(id)) {
+        for (const diagnostic of ALL_DIAGNOSTICS) {
           expect(r.text, `${id} shows "${diagnostic}"`).not.toContain(diagnostic);
         }
         // Positive control: the tile drew something of its own.
@@ -494,7 +486,7 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
       if (EXCLUSIONS[entry.id]) continue;
       const r = await renderEntry(entry.schema);
       const hits: string[] = [];
-      for (const diagnostic of diagnosticsFor(entry.id)) {
+      for (const diagnostic of ALL_DIAGNOSTICS) {
         const n = occurrences(r.text, diagnostic);
         counts[diagnostic] += n;
         if (n) hits.push(`${diagnostic} x${n}`);

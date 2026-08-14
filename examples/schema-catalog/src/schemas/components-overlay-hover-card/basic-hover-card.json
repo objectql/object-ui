@@ -1,8 +1,9 @@
 {
   "type": "hover-card",
   "trigger": {
-    "type": "text",
-    "value": "Hover over me"
+    "type": "button",
+    "variant": "link",
+    "label": "Hover over me"
   },
   "content": {
     "type": "text",

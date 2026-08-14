@@ -8,7 +8,7 @@
       "className": "text-sm font-medium"
     },
     {
-      "type": "calendar",
+      "type": "ui:calendar",
       "mode": "single",
       "className": "rounded-md border"
     }
