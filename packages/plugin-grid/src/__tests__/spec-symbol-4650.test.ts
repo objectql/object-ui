@@ -34,6 +34,14 @@
  * sibling plugins whose `tsconfig.test.json` deliberately does not pull in
  * `@types/node`.
  *
+ * The spec is reached through a type-level `import('@objectstack/spec/ui').X`
+ * rather than an `import type * as SpecUi` statement, and that is not a style
+ * choice: a namespace import of that subpath necessarily binds `FormField` and
+ * `FormFieldSchema`, which `eslint.config.js` restricts to an ERROR because the
+ * spec's form-view types erase to `any` and importing them silently deletes type
+ * safety (objectui#3090). A type-level `import(…)` names one member and declares
+ * no binding, so it asks the question without opening that door.
+ *
  * The GA half of the ratchet — "the spec still owns `ObjectGridProps`, so this
  * rename still has a reason" — is not asserted here, and deliberately so: this
  * repo is pinned to `^17.0.0-rc.6`, which does not export that name yet (#4636 /
@@ -46,7 +54,6 @@
  */
 
 import { describe, it } from 'vitest';
-import type * as SpecUi from '@objectstack/spec/ui';
 import type { ObjectGridComponentProps, ObjectGridProps } from '../index';
 
 type Assert<T extends true> = T;
@@ -63,7 +70,7 @@ describe('the rename off the spec name holds', () => {
     // tripwire firing. Rename again (checking the next name here FIRST), or
     // derive from the spec if by then the two really are the same thing.
     // @ts-expect-error `@objectstack/spec/ui` must not own this name.
-    type _NewNameIsFree = SpecUi.ObjectGridComponentProps;
+    type _NewNameIsFree = import('@objectstack/spec/ui').ObjectGridComponentProps;
 
     // Guard against the pin lying: a local type that erased to `any` would
     // satisfy every assignability question below while proving nothing

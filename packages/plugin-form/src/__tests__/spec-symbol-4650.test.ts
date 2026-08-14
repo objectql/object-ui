@@ -21,16 +21,19 @@
  * `PageHeaderComponentProps` (app-shell) and the `Record*ComponentProps` family
  * in `@object-ui/types`.
  *
- * See the plugin-grid sibling for why these are compile-time pins rather than a
- * runtime name probe, and why the "the spec still owns the old name" half of the
- * ratchet is not asserted before the pin reaches GA.
+ * The spec is reached through a type-level `import('@objectstack/spec/ui').X`
+ * rather than an `import type * as` statement because a namespace import of that
+ * subpath binds `FormField`/`FormFieldSchema`, which `eslint.config.js` restricts
+ * to an ERROR (objectui#3090). See the plugin-grid sibling for that in full, for
+ * why these are compile-time pins rather than a runtime name probe, and for why
+ * the "the spec still owns the old name" half of the ratchet is not asserted
+ * before the pin reaches GA.
  *
  * Compiled by this package's `tsconfig.test.json` (objectui#3181) — without
  * that, every `Assert<…>` below is erased before vitest runs and proves nothing.
  */
 
 import { describe, it } from 'vitest';
-import type * as SpecUi from '@objectstack/spec/ui';
 import type { ObjectFormComponentProps, ObjectFormProps } from '../index';
 
 type Assert<T extends true> = T;
@@ -44,7 +47,7 @@ describe('the rename off the spec name holds', () => {
     // @ts-expect-error `@objectstack/spec/ui` must not own this name. If it
     // starts to, tsc fails with "Unused '@ts-expect-error' directive" — the
     // tripwire firing, not a stale suppression.
-    type _NewNameIsFree = SpecUi.ObjectFormComponentProps;
+    type _NewNameIsFree = import('@objectstack/spec/ui').ObjectFormComponentProps;
 
     // A local type erased to `any` would satisfy every assertion below while
     // proving nothing (objectstack#4171 is that failure for other symbols).
