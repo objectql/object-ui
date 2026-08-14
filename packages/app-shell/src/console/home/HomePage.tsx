@@ -22,6 +22,7 @@ import { useRecentItems } from '../../hooks/useRecentItems';
 import { useFavorites } from '../../hooks/useFavorites';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
+import { usePermissions } from '@object-ui/permissions';
 import { useAgents, isAskAgent, agentHasCapability } from '@object-ui/plugin-chatbot';
 import { HomeAppsStrip } from './HomeAppsStrip';
 import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail';
@@ -61,34 +62,130 @@ function useHomeAiAvailability(): {
 }
 
 /**
+ * [ADR-0066] The system capability every metadata-authoring surface behind the
+ * home CTAs ultimately requires. The server is the authority (it refuses the
+ * write either way); what follows is only the presentational half.
+ */
+const AUTHORING_CAPABILITY = 'manage_metadata';
+
+/**
+ * May this session author metadata?
+ *
+ * objectstack#8270 — on the EE single-database multi-tenant deployment a
+ * workspace owner holds `org_owner` + `organization_admin` but NOT
+ * `manage_metadata`; that absence is the intended hosted posture (maintainer
+ * ruling 2026-08-13), not a missing grant. `useIsWorkspaceAdmin` reads ROLES,
+ * so it says `true` for that owner and the builder CTAs rendered — the owner
+ * followed "Build an app", filled in the new-package dialog, and hit a raw
+ * capability refusal at submit. This consumes the answer the server already
+ * gives (`GET /api/v1/auth/me/permissions` → `systemPermissions`, surfaced by
+ * `MePermissionsProvider`); it does NOT re-derive permission logic client-side.
+ *
+ * **Unknown → fail OPEN**, the same doctrine `useCapabilityGate` states for
+ * ADR-0066 gates (framework#3923): the server enforces regardless, and hiding a
+ * permitted user's primary CTA on missing client data is the worse failure.
+ * `hasCapabilities` alone cannot express that here — `MePermissionsProvider`
+ * collapses an ABSENT `systemPermissions` (a backend predating ADR-0066) and a
+ * genuinely empty one into the same `[]`, so gating on it bare would strip the
+ * product's front door from every admin on such a deployment. An empty set is
+ * therefore read as "this backend does not report capabilities" and opens the
+ * gate. The ruled case is unaffected: the EE owner's set is non-empty
+ * (`manage_org_users`, `setup.access`, `setup.write`), so it gates closed.
+ * Hosts with no permission provider at all already fail open inside
+ * `usePermissions`.
+ */
+function useCanAuthorMetadata(): boolean {
+  const { hasCapabilities, systemPermissions } = usePermissions();
+  if (!Array.isArray(systemPermissions) || systemPermissions.length === 0) return true;
+  return hasCapabilities([AUTHORING_CAPABILITY]);
+}
+
+/**
+ * One card of the builder cover. Disabled (not hidden) when the session cannot
+ * author metadata: a vanished primary CTA reads as a broken page, while a
+ * dimmed one plus the reason line below explains the deployment's posture. The
+ * reason also rides the native `title` so it is reachable from the card itself.
+ */
+function BuilderCoverCard({
+  icon: Icon,
+  title,
+  subtitle,
+  onClick,
+  disabled,
+  disabledReason,
+  testId,
+}: {
+  icon: React.ElementType;
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+  disabled: boolean;
+  disabledReason: string;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      title={disabled ? disabledReason : undefined}
+      onClick={disabled ? undefined : onClick}
+      data-testid={testId}
+      className={[
+        'flex items-start gap-3 rounded-xl border bg-card px-4 py-3.5 text-left transition-colors',
+        disabled ? 'cursor-not-allowed opacity-60' : 'hover:border-primary/50 hover:bg-muted/40',
+      ].join(' ')}
+    >
+      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="h-4.5 w-4.5" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold">{title}</span>
+        <span className="mt-0.5 block text-xs text-muted-foreground">{subtitle}</span>
+      </span>
+    </button>
+  );
+}
+
+/**
  * Home AI call-to-action(s). "Build with AI" only when a build agent is
- * deployed; "Ask AI" only when a data/query agent is deployed. Renders nothing
- * when neither exists (AI off, or only custom agents — those are reachable via
- * the assistant launcher / FAB). `layout="stack"` is used by the empty-state;
- * the hero uses the default inline row. Availability is passed in so the host
- * fetches the catalog once.
+ * deployed AND the session may author metadata; "Ask AI" only when a
+ * data/query agent is deployed. Renders nothing when neither exists (AI off, or
+ * only custom agents — those are reachable via the assistant launcher / FAB).
+ * `layout="stack"` is used by the empty-state; the hero uses the default inline
+ * row. Availability is passed in so the host fetches the catalog once.
+ *
+ * "Build with AI" routes to the AI authoring studio, whose output is
+ * draft metadata nobody without `manage_metadata` can publish — so it is one of
+ * the "any other metadata-authoring CTA" the objectstack#8270 ruling covers.
+ * It is HIDDEN rather than disabled: unlike the builder cover it is not the
+ * page's structural front door, the cover below already carries the visible
+ * reason, and a disabled hero button next to a live "Ask AI" would read as a
+ * transient failure. "Ask AI" is read-only and never gated.
  */
 function HomeAiActions({
   askAvailable,
   buildAvailable,
+  canAuthorMetadata,
   navigate,
   t,
   layout = 'row',
 }: {
   askAvailable: boolean;
   buildAvailable: boolean;
+  canAuthorMetadata: boolean;
   navigate: (to: string) => void;
   t: (key: string, opts?: any) => string;
   layout?: 'row' | 'stack';
 }) {
-  if (!askAvailable && !buildAvailable) return null;
+  const showBuild = buildAvailable && canAuthorMetadata;
+  if (!askAvailable && !showBuild) return null;
   const container =
     layout === 'stack'
       ? 'mt-6 flex flex-col sm:flex-row items-center gap-3'
       : 'flex shrink-0 items-center gap-2';
   return (
     <div className={container}>
-      {buildAvailable && (
+      {showBuild && (
         <Button onClick={() => navigate('/ai/build')} data-testid="home-build-with-ai">
           <Sparkles className="mr-2 h-4 w-4" />
           {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
@@ -96,7 +193,7 @@ function HomeAiActions({
       )}
       {askAvailable && (
         <Button
-          variant={buildAvailable ? 'outline' : 'default'}
+          variant={showBuild ? 'outline' : 'default'}
           onClick={() => navigate('/ai/ask')}
           data-testid="home-ask-ai"
         >
@@ -264,6 +361,18 @@ export function HomePage() {
   // deployed (cloud / AI Studio); "Ask AI" only when a data agent is; neither
   // when AI isn't enabled. Community builds typically land in the ask-only state.
   const { askAvailable, buildAvailable } = useHomeAiAvailability();
+  // objectstack#8270 — the authoring CTAs below are gated on the SERVER's
+  // capability answer, not on the admin ROLE: on the EE multi-tenant deploy an
+  // `org_owner` is an admin (`isAdmin === true`) yet deliberately holds no
+  // `manage_metadata`, so role alone offered a front door the backend refuses.
+  const canAuthorMetadata = useCanAuthorMetadata();
+  // Shown wherever an authoring entry point is withheld, so the posture is
+  // explained on screen instead of surfacing as a refusal after a filled-in
+  // dialog. Localized in all ten packs.
+  const authoringGateReason = t('home.build.noCapability', {
+    defaultValue:
+      "Building apps isn't available in this workspace — it requires the “Manage Metadata” permission, which your account doesn't have.",
+  });
 
   const activeApps = filterActiveApps(apps);
 
@@ -315,8 +424,28 @@ export function HomePage() {
           Settings button, and manual "Create App" is deprecated entirely.
           NON-ADMINS can't author the workspace, so they get a quiet "no apps
           yet — ask your admin" state instead of build CTAs they can't use.
+          An admin WITHOUT `manage_metadata` (objectstack#8270 — the EE hosted
+          posture) is a third case: telling them to "set up your first
+          application from the Administration menu" is the same dead end as the
+          builder CTAs, so they get the reason instead of the instruction. AI
+          "Ask" stays offered — it reads data and needs no authoring capability.
         */}
-        {isAdmin ? (
+        {isAdmin && !canAuthorMetadata ? (
+          <Empty>
+            <EmptyTitle>{t('home.noAppsTitle', { defaultValue: 'No applications yet' })}</EmptyTitle>
+            <EmptyDescription data-testid="home-authoring-gate-reason-empty">
+              {authoringGateReason}
+            </EmptyDescription>
+            <HomeAiActions
+              askAvailable={askAvailable}
+              buildAvailable={buildAvailable}
+              canAuthorMetadata={canAuthorMetadata}
+              navigate={navigate}
+              t={t}
+              layout="stack"
+            />
+          </Empty>
+        ) : isAdmin ? (
           <Empty>
             {/*
               No `product` argument: `home.welcome` reads `Build your business
@@ -346,6 +475,7 @@ export function HomePage() {
             <HomeAiActions
               askAvailable={askAvailable}
               buildAvailable={buildAvailable}
+              canAuthorMetadata={canAuthorMetadata}
               navigate={navigate}
               t={t}
               layout="stack"
@@ -392,6 +522,7 @@ export function HomePage() {
             <HomeAiActions
               askAvailable={askAvailable}
               buildAvailable={buildAvailable}
+              canAuthorMetadata={canAuthorMetadata}
               navigate={navigate}
               t={t}
             />
@@ -403,45 +534,42 @@ export function HomePage() {
             * package), or start from a template via the marketplace. Shown to
             * builders/admins only; end users just see their apps below. */}
           {isAdmin && (
-            <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => navigate('/studio')}
-                className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3.5 text-left transition-colors hover:border-primary/50 hover:bg-muted/40"
-              >
-                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Hammer className="h-4.5 w-4.5" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold">
-                    {t('home.build.title', { defaultValue: 'Build an app' })}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {t('home.build.subtitle', {
-                      defaultValue: 'Start from scratch — design objects, forms, automations and interfaces.',
-                    })}
-                  </span>
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/apps/setup/system/marketplace')}
-                className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3.5 text-left transition-colors hover:border-primary/50 hover:bg-muted/40"
-              >
-                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <LayoutTemplate className="h-4.5 w-4.5" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold">
-                    {t('home.template.title', { defaultValue: 'Start with a template' })}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {t('home.template.subtitle', {
-                      defaultValue: 'Install a template app from the marketplace and customize it.',
-                    })}
-                  </span>
-                </span>
-              </button>
+            <div className="mb-6">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <BuilderCoverCard
+                  icon={Hammer}
+                  title={t('home.build.title', { defaultValue: 'Build an app' })}
+                  subtitle={t('home.build.subtitle', {
+                    defaultValue: 'Start from scratch — design objects, forms, automations and interfaces.',
+                  })}
+                  onClick={() => navigate('/studio')}
+                  disabled={!canAuthorMetadata}
+                  disabledReason={authoringGateReason}
+                  testId="home-build-app"
+                />
+                <BuilderCoverCard
+                  icon={LayoutTemplate}
+                  title={t('home.template.title', { defaultValue: 'Start with a template' })}
+                  subtitle={t('home.template.subtitle', {
+                    defaultValue: 'Install a template app from the marketplace and customize it.',
+                  })}
+                  onClick={() => navigate('/apps/setup/system/marketplace')}
+                  disabled={!canAuthorMetadata}
+                  disabledReason={authoringGateReason}
+                  testId="home-start-template"
+                />
+              </div>
+              {/* The "visible reason" the ruling requires: the cover stays in
+                  place (so the page doesn't read as broken) and says, on
+                  screen and in the user's language, why it is inert. */}
+              {!canAuthorMetadata && (
+                <p
+                  className="mt-2 text-xs text-muted-foreground"
+                  data-testid="home-authoring-gate-reason"
+                >
+                  {authoringGateReason}
+                </p>
+              )}
             </div>
           )}
 
@@ -456,6 +584,13 @@ export function HomePage() {
                — unlike the app-independent `sys_*` pages below. */
             onBrowseMarketplace={() => navigate('/apps/setup/system/marketplace')}
             isAdmin={isAdmin}
+            /* objectstack#8270 — this button targets the SAME marketplace route
+               as the gated "Start with a template" cover card above, so leaving
+               it live would make that gate cosmetic: the withheld dead end is
+               still one click away. Gated together, hidden here (a secondary
+               strip-header link, with the cover's reason line already on
+               screen). */
+            canAuthorMetadata={canAuthorMetadata}
           />
 
           {/* Action center — what needs the user; leads the dashboard */}

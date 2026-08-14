@@ -2284,6 +2284,7 @@ const pt = {
     build: {
       title: "Criar um aplicativo",
       subtitle: "Comece do zero — projete objetos, formulários, automações e interfaces.",
+      noCapability: "A criação de aplicativos não está disponível neste espaço de trabalho — ela exige a permissão “Gerenciar metadados”, que sua conta não possui.",
     },
     template: {
       title: "Comece com um modelo",

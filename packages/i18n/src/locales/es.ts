@@ -2289,6 +2289,7 @@ const es = {
     build: {
       title: "Crear una aplicación",
       subtitle: "Empiece desde cero — diseñe objetos, formularios, automatizaciones e interfaces.",
+      noCapability: "La creación de aplicaciones no está disponible en este espacio de trabajo: requiere el permiso «Gestionar metadatos», que su cuenta no tiene.",
     },
     template: {
       title: "Empezar con una plantilla",

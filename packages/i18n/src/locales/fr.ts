@@ -2287,6 +2287,7 @@ const fr = {
     build: {
       title: "Créer une application",
       subtitle: "Partir de zéro — concevez les objets, formulaires, automatisations et interfaces.",
+      noCapability: "La création d'applications n'est pas disponible dans cet espace de travail : elle requiert l'autorisation « Gérer les métadonnées », que votre compte ne possède pas.",
     },
     template: {
       title: "Partir d'un modèle",

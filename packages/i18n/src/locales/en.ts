@@ -2517,6 +2517,7 @@ const en = {
     build: {
       title: 'Build an app',
       subtitle: 'Start from scratch — design objects, forms, automations and interfaces.',
+      noCapability: 'Building apps isn\'t available in this workspace — it requires the “Manage Metadata” permission, which your account doesn\'t have.',
     },
     template: {
       title: 'Start with a template',

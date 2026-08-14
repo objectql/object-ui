@@ -2285,6 +2285,7 @@ const de = {
     build: {
       title: "App erstellen",
       subtitle: "Von Grund auf beginnen — Objekte, Formulare, Automatisierungen und Oberflächen gestalten.",
+      noCapability: "Das Erstellen von Apps ist in diesem Arbeitsbereich nicht verfügbar — es erfordert die Berechtigung „Metadaten verwalten“, die Ihr Konto nicht besitzt.",
     },
     template: {
       title: "Mit einer Vorlage starten",

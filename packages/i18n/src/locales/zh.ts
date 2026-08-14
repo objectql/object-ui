@@ -2377,6 +2377,7 @@ const zh = {
     build: {
       title: '构建应用',
       subtitle: '从零开始 — 设计对象、表单、自动化与界面。',
+      noCapability: '此工作区不提供构建应用功能 — 它需要「管理元数据」权限,而你的账号没有该权限。',
     },
     template: {
       title: '从模板开始',
