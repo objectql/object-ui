@@ -51,10 +51,13 @@
  * one: registering a package is not the same as a tile drawing, and a pin that
  * named only OBJUI-001 would have reported those six as fixed.
  *
- * Two further classes are limits of happy-dom rather than defects in anything
- * — `plugin-map`'s three entries need WebGL2 and `plugin-editor`'s three need
- * Monaco's CDN loader. Each table below says which assertions it lifts for them
- * and why, and each keeps the assertion that objectui#4616 is actually about.
+ * Six further entries are not rendered here at all, for reasons that are limits
+ * of the environment rather than defects in anything: `plugin-editor`'s three
+ * mount Monaco and `plugin-map`'s three mount maplibre, which between them want
+ * a CDN loader script, WebGL2, and a live third-party tile host. The exclusion
+ * table says why for each; what stays pinned for both buckets is the thing
+ * objectui#4616 actually changed — that their types resolve — asserted in the
+ * control case below.
  *
  * ## Why the module-scope package imports
  *
@@ -176,6 +179,22 @@ const EXCLUSIONS: Record<string, string> = {
   'plugin-editor/javascript-editor': "Monaco's CDN loader cannot run under happy-dom.",
   'plugin-editor/python-editor': "Monaco's CDN loader cannot run under happy-dom.",
   'plugin-editor/read-only-json-viewer': "Monaco's CDN loader cannot run under happy-dom.",
+  // The three below are the same class as Monaco, one layer worse. Rendering
+  // `object-map` mounts maplibre, which (a) refuses to initialise without WebGL2
+  // — "WebGL2 is required to display this map", GPUInitializationError, verbatim
+  // from the run — and then trips `SchemaRenderer`'s error boundary tearing its
+  // own painter down, and (b) fetches its style sheet from
+  // `https://demotiles.maplibre.org` over the real network. (b) is the reason
+  // this is an exclusion rather than a narrowed assertion: a unit test that
+  // reaches a third-party host is nondeterministic and makes CI depend on that
+  // host being up, whatever it asserts. All five of `packages/plugin-map`'s own
+  // test files reach the same conclusion and `vi.mock('react-map-gl/maplibre')`;
+  // this pin renders the gallery's real stack, so it cannot mock and must
+  // abstain instead. `ComponentRegistry.get('object-map')` in the control case
+  // is what stays pinned — and that IS what objectui#4616 changed here.
+  'plugin-map/event-venue-finder': 'maplibre needs WebGL2 and a live tile host.',
+  'plugin-map/real-time-delivery-tracking': 'maplibre needs WebGL2 and a live tile host.',
+  'plugin-map/store-locator-map': 'maplibre needs WebGL2 and a live tile host.',
 };
 
 /**
@@ -199,21 +218,6 @@ const KNOWN_DIAGNOSTIC: Record<string, string> = {
   'components-form-calendar/multiple-dates': DATASOURCE_REQUIRED,
   'components-form-calendar/simple-calendar': DATASOURCE_REQUIRED,
   'components-form-calendar/single-date': DATASOURCE_REQUIRED,
-};
-
-/**
- * Entries held to the OBJUI-001 half only. `object-map` mounts maplibre, which
- * refuses to initialise without WebGL2 ("WebGL2 is required to display this
- * map" — GPUInitializationError, verbatim from the run) and then trips
- * `SchemaRenderer`'s error boundary while tearing its own painter down. That is
- * a property of happy-dom, not of the gallery, and it is not something this
- * file can assert its way around — so what IS pinned for these is the thing
- * objectui#4616 fixed: the type resolves, so no "Unknown component type" panel.
- */
-const UNKNOWN_PANEL_ONLY: Record<string, string> = {
-  'plugin-map/event-venue-finder': 'maplibre needs WebGL2, which happy-dom has not',
-  'plugin-map/real-time-delivery-tracking': 'maplibre needs WebGL2, which happy-dom has not',
-  'plugin-map/store-locator-map': 'maplibre needs WebGL2, which happy-dom has not',
 };
 
 /**
@@ -249,9 +253,8 @@ const NEWLY_REGISTERED_CATEGORIES = [
  * defect — filed as objectui#4627. Everything else still applies to them: both
  * draw a real calendar, 163 and 421 elements.
  *
- * (`plugin-map`'s three are absent because `UNKNOWN_PANEL_ONLY` already lifts
- * every assertion but one for them; `plugin-editor`'s three because they are
- * not rendered here at all.)
+ * (`plugin-editor`'s and `plugin-map`'s six are absent from this table because
+ * they are not rendered here at all — see `EXCLUSIONS`.)
  */
 const AUTHORED_TEXT_EXEMPT: Record<string, string> = {
   'plugin-calendar/month-view-calendar': 'date window',
@@ -302,9 +305,7 @@ const drewSomething = (elements: number, text: string) =>
 
 /** Which diagnostics this entry must not show. */
 const diagnosticsFor = (id: string) =>
-  UNKNOWN_PANEL_ONLY[id]
-    ? [UNKNOWN_COMPONENT]
-    : ALL_DIAGNOSTICS.filter((d) => d !== KNOWN_DIAGNOSTIC[id]);
+  ALL_DIAGNOSTICS.filter((d) => d !== KNOWN_DIAGNOSTIC[id]);
 
 /** Render one entry exactly as `SchemaThumbnail` does, then let it settle. */
 async function renderEntry(schema: unknown): Promise<Rendered> {
@@ -427,7 +428,6 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
     const ids = new Set(entries.map((e) => e.id));
     for (const id of [
       ...Object.keys(EXCLUSIONS),
-      ...Object.keys(UNKNOWN_PANEL_ONLY),
       ...Object.keys(KNOWN_DIAGNOSTIC),
       ...Object.keys(AUTHORED_TEXT_EXEMPT),
     ]) {
@@ -443,7 +443,6 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
         for (const diagnostic of diagnosticsFor(id)) {
           expect(r.text, `${id} shows "${diagnostic}"`).not.toContain(diagnostic);
         }
-        if (UNKNOWN_PANEL_ONLY[id]) return;
         // Positive control: the tile drew something of its own.
         expect(drewSomething(r.elements, r.text)).toBe(true);
       } finally {
@@ -458,7 +457,6 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
         (e) =>
           NEWLY_REGISTERED_CATEGORIES.includes(e.meta.category) &&
           !EXCLUSIONS[e.id] &&
-          !UNKNOWN_PANEL_ONLY[e.id] &&
           !AUTHORED_TEXT_EXEMPT[e.id],
       )
       .map((e) => [e.id, e.schema] as const),
