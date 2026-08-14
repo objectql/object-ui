@@ -13,19 +13,35 @@
       "id": "invoices_by_month",
       "title": "Invoices by Month",
       "type": "line",
-      "object": "invoices",
-      "categoryField": "created_at",
-      "categoryGranularity": "month",
-      "aggregate": "count"
+      "options": {
+        "xField": "month",
+        "yField": "count",
+        "data": [
+          { "month": "Jan", "count": 24 },
+          { "month": "Feb", "count": 31 },
+          { "month": "Mar", "count": 28 },
+          { "month": "Apr", "count": 37 },
+          { "month": "May", "count": 42 },
+          { "month": "Jun", "count": 39 }
+        ]
+      }
     },
     {
       "id": "accounts_signed_by_month",
       "title": "Accounts Signed by Month",
       "type": "area",
-      "object": "accounts",
-      "categoryField": "signed_at",
-      "categoryGranularity": "month",
-      "aggregate": "count",
+      "options": {
+        "xField": "month",
+        "yField": "count",
+        "data": [
+          { "month": "Jan", "count": 6 },
+          { "month": "Feb", "count": 9 },
+          { "month": "Mar", "count": 14 },
+          { "month": "Apr", "count": 11 },
+          { "month": "May", "count": 17 },
+          { "month": "Jun", "count": 21 }
+        ]
+      },
       "filterBindings": {
         "dateRange": "signed_at"
       }
@@ -34,8 +50,9 @@
       "id": "all_time_total",
       "title": "All-time Invoices",
       "type": "metric",
-      "object": "invoices",
-      "aggregate": "count",
+      "options": {
+        "value": "3,912"
+      },
       "filterBindings": {
         "dateRange": false
       }

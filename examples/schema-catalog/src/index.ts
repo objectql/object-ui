@@ -3947,7 +3947,7 @@ const REGISTRY: Record<string, Example> = {
     id: 'plugin-dashboard/filtered-dashboard-dataset-widgets',
     meta: {
       title: "Filtered Dashboard — Dataset + Inline Widgets",
-      description: "Dashboard filters scoping dataset-bound widgets (via the dataset query's runtimeFilter) alongside inline object widgets",
+      description: "Dashboard filters scoping dataset-bound widgets (via the dataset query's runtimeFilter) alongside an inline widget",
       category: 'plugin-dashboard',
     },
     schema: plugin_dashboard_filtered_dashboard_dataset_widgets,

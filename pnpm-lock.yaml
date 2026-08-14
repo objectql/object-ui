@@ -657,6 +657,12 @@ importers:
       '@object-ui/layout':
         specifier: workspace:*
         version: link:../../packages/layout
+      '@object-ui/plugin-charts':
+        specifier: workspace:*
+        version: link:../../packages/plugin-charts
+      '@object-ui/plugin-dashboard':
+        specifier: workspace:*
+        version: link:../../packages/plugin-dashboard
       '@object-ui/react':
         specifier: workspace:*
         version: link:../../packages/react

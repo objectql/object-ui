@@ -231,16 +231,24 @@ into each bound widget's inline query (`AND`-combined with the widget's own
     }
   ],
   "widgets": [
+    // Widgets bind a semantic-layer dataset (ADR-0021) and select its
+    // dimensions/measures by name. The pre-ADR-0021 top-level `object` +
+    // `categoryField`/`valueField`/`aggregate` shape was REMOVED — a widget
+    // still carrying it renders "This widget uses a retired data format.
+    // Edit it to bind a dataset." instead of a chart. A renderer-internal
+    // query lives under `options.data` as `{ provider: 'object', object,
+    // aggregate }`; an `options.data` array is fixed demo data.
+    //
     // Default binding: the filter's own `field` (dateRange → created_at).
-    { "id": "w1", "type": "bar", "object": "invoices", "aggregate": "count" },
+    { "id": "w1", "type": "bar", "dataset": "invoices", "dimensions": ["status"], "values": ["count"] },
     // Explicit binding: map each filter to THIS widget's own field.
     {
-      "id": "w2", "type": "line", "object": "accounts", "aggregate": "count",
+      "id": "w2", "type": "line", "dataset": "accounts", "dimensions": ["signed_month"], "values": ["count"],
       "filterBindings": { "dateRange": "signed_at", "region": "sales_region" }
     },
     // Opt out of a filter with `false`.
     {
-      "id": "w3", "type": "metric", "object": "invoices", "aggregate": "count",
+      "id": "w3", "type": "metric", "dataset": "invoices", "values": ["count"],
       "filterBindings": { "region": false }
     }
   ]

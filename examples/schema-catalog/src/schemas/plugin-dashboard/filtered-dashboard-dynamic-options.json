@@ -21,17 +21,31 @@
       "id": "accounts_by_industry",
       "title": "Accounts by Industry",
       "type": "bar",
-      "object": "accounts",
-      "categoryField": "industry",
-      "aggregate": "count"
+      "options": {
+        "xField": "industry",
+        "yField": "count",
+        "data": [
+          { "industry": "Software", "count": 34 },
+          { "industry": "Manufacturing", "count": 22 },
+          { "industry": "Retail", "count": 17 },
+          { "industry": "Healthcare", "count": 12 }
+        ]
+      }
     },
     {
       "id": "invoices_by_status",
       "title": "Invoices by Status",
       "type": "donut",
-      "object": "invoices",
-      "categoryField": "status",
-      "aggregate": "count",
+      "options": {
+        "xField": "status",
+        "yField": "count",
+        "data": [
+          { "status": "Draft", "count": 18 },
+          { "status": "Sent", "count": 31 },
+          { "status": "Paid", "count": 47 },
+          { "status": "Void", "count": 4 }
+        ]
+      },
       "filterBindings": {
         "industry": "account_industry"
       }

@@ -41,9 +41,16 @@
       "id": "invoices_by_status",
       "title": "Invoices by Status",
       "type": "bar",
-      "object": "invoices",
-      "categoryField": "status",
-      "aggregate": "count"
+      "options": {
+        "xField": "status",
+        "yField": "count",
+        "data": [
+          { "status": "Draft", "count": 18 },
+          { "status": "Sent", "count": 31 },
+          { "status": "Paid", "count": 47 },
+          { "status": "Void", "count": 4 }
+        ]
+      }
     }
   ]
 }

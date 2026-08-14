@@ -19,10 +19,17 @@ import React, {
 import { SchemaRenderer, SchemaRendererContext } from '@object-ui/react';
 import { SidebarProvider } from '@object-ui/components';
 import type { SchemaNode } from '@object-ui/core';
-// Registers `page-header` & friends — see the module header (objectui#3787).
-import './registerLayoutBlocks';
+// Registers `page-header` & friends (objectui#3787) plus the dashboard/chart
+// blocks the gallery draws (objectui#4600) — see that module's header.
+import './registerCatalogBlocks';
+import { galleryDataSource } from './galleryDataSource';
 
-const defaultCtx = { dataSource: {} };
+// The gallery's data source. It is handed to `SchemaRenderer` BOTH ways on
+// purpose: the context is what nested blocks read, while `DashboardRenderer`
+// takes `dataSource` as a React prop — a context-only value never reaches it,
+// which is why its dataset-bound widgets rendered "This data source does not
+// support dataset queries." while the context already held one (objectui#4600).
+const defaultCtx = { dataSource: galleryDataSource };
 
 /**
  * Tiny class-based error boundary so a single bad schema doesn't take down
@@ -135,7 +142,7 @@ export function SchemaThumbnail({
             <SchemaRendererContext.Provider value={ctx}>
               <SidebarProvider className="min-h-0 w-full" defaultOpen={false}>
                 <div className="w-full p-4">
-                  <SchemaRenderer schema={schema} />
+                  <SchemaRenderer schema={schema} dataSource={galleryDataSource} />
                 </div>
               </SidebarProvider>
             </SchemaRendererContext.Provider>

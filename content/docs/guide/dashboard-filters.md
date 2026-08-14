@@ -16,16 +16,21 @@ that drives **several charts at once**. ObjectUI models this as a
 Charts stay inline and self-contained; one place owns the filter; each chart
 edit stays local.
 
-> Working examples: the schema catalog ships a `plugin-dashboard/filtered-dashboard`
-> example plus variants for dynamic options, text/number/lookup filter types,
-> dataset widgets, the `targetWidgets` allow-list, and date presets with a
-> custom range.
+> **Working examples**: the schema catalog ships a
+> `plugin-dashboard/filtered-dashboard` example plus variants for dynamic
+> options, text/number/lookup filter types, dataset widgets, the
+> `targetWidgets` allow-list, and date presets with a custom range. They are
+> **presentation** examples — the filter declarations are what they teach, so
+> their widgets carry inline demo data (the dataset variant additionally binds
+> two widgets to a `dataset`), which is what lets the docs gallery draw them
+> with no application behind it. Inline static data is never filtered; see
+> Known limitations at the end of this page.
 
 ## Tutorial: from zero to a filtered dashboard
 
 ### Step 1 — a plain dashboard
 
-Start from two charts over **different** objects. Without filters they always
+Start from two charts over **different** datasets. Without filters they always
 show everything:
 
 ```json
@@ -37,22 +42,43 @@ show everything:
       "id": "invoices_by_status",
       "title": "Invoices by Status",
       "type": "bar",
-      "object": "invoices",
-      "categoryField": "status",
-      "aggregate": "count"
+      "dataset": "invoices",
+      "dimensions": ["status"],
+      "values": ["count"]
     },
     {
       "id": "accounts_signed",
       "title": "Accounts Signed",
       "type": "line",
-      "object": "accounts",
-      "categoryField": "signed_at",
-      "categoryGranularity": "month",
-      "aggregate": "count"
+      "dataset": "accounts",
+      "dimensions": ["signed_month"],
+      "values": ["count"]
     }
   ]
 }
 ```
+
+#### Where a widget's data comes from
+
+Filters scope a widget's **query**, so which data surface a widget uses decides
+whether it can respond at all:
+
+| Surface | Shape | Filtered? |
+| --- | --- | --- |
+| Semantic-layer dataset (ADR-0021) | `"dataset": "invoices"` + `dimensions` + `values` | yes — merged into the dataset query as `runtimeFilter` |
+| Inline object query | `"options": { "data": { "provider": "object", "object": "invoices", "aggregate": { "function": "count", "groupBy": "status" } } }` | yes — `AND`-merged into that query |
+| Inline static data | `"options": { "data": [ … ], "xField": "status", "yField": "count" }` | no — there is no query to scope |
+
+> **Retired: the top-level inline analytics shape.** `object` +
+> `categoryField` / `valueField` / `aggregate` on the widget itself (and the
+> pivot `rowField` / `columnField` pair) was **removed** — the renderer no
+> longer reads those keys, and a stored widget still carrying them renders a
+> visible *"This widget uses a retired data format. Edit it to bind a dataset."*
+> prompt instead of a chart. Rebind such a widget to a `dataset` (select its
+> `dimensions` and `values` by name), or — for a renderer-internal query with
+> no semantic layer behind it — move the query under
+> `options.data` with `"provider": "object"`. `@objectstack/spec` refuses the
+> retired shape at publish, so this is not a soft deprecation.
 
 ### Step 2 — add the built-in date range
 
@@ -179,25 +205,24 @@ widget stores the concept under a different field — or should ignore a filter
     {
       "id": "invoices_by_status",
       "type": "bar",
-      "object": "invoices",
-      "categoryField": "status",
-      "aggregate": "count"
+      "dataset": "invoices",
+      "dimensions": ["status"],
+      "values": ["count"]
     },
     {
       "id": "accounts_signed",
       "type": "line",
-      "object": "accounts",
-      "categoryField": "signed_at",
-      "categoryGranularity": "month",
-      "aggregate": "count",
+      "dataset": "accounts",
+      "dimensions": ["signed_month"],
+      "values": ["count"],
       "filterBindings": { "dateRange": "signed_at", "region": "sales_region" }
     },
     {
       "id": "total_invoices",
       "title": "Total Invoices (all regions)",
       "type": "metric",
-      "object": "invoices",
-      "aggregate": "count",
+      "dataset": "invoices",
+      "values": ["count"],
       "filterBindings": { "region": false }
     }
   ]
@@ -265,9 +290,13 @@ is `{ "preset": "last_30_days" }`, a custom range is
 
 Widgets bound to a semantic-layer `dataset` participate the same way: the
 dashboard merges the scoped filter into the widget's `filter`, which the
-dataset widget forwards to the dataset query as `runtimeFilter`. Inline
-(`object`-based) and dataset-bound widgets can mix freely on one filtered
-dashboard.
+dataset widget forwards to the dataset query as `runtimeFilter`. Dataset-bound
+and inline widgets mix freely on one filtered dashboard — the
+`plugin-dashboard/filtered-dashboard-dataset-widgets` catalog entry is exactly
+that, two dataset-bound widgets beside an inline one. What differs is only what
+each surface can answer: an inline **object query**
+(`options.data` with `"provider": "object"`) is scoped like a dataset widget,
+while an inline **static array** carries no query and is left untouched.
 
 ## Nested variable scopes
 
@@ -281,18 +310,18 @@ stay in sync.
 
 ## Known limitations
 
-- **Static-data widgets are not filtered** — a widget with an inline `data`
-  array has no query to scope, so dashboard filters do not apply to it. Bind
-  the widget to an `object` (or a `dataset`) if it should respond to filters.
-- **Default bindings are metadata-checked for `object` widgets only** — when
-  a filter's default `field` does not exist on an inline widget's object, the
-  binding is skipped with a console warning instead of issuing a query that
-  matches nothing. Dataset-bound widgets can't be checked this way (the
-  dashboard doesn't know the dataset's base-object fields), so map their
-  filters explicitly with `filterBindings: { "<name>": "<field>" }` or opt
-  out with `false`. Explicit string bindings are always honoured as written —
-  a typo shows up as a visibly empty widget rather than a silently dropped
-  filter.
+- **Static-data widgets are not filtered** — a widget whose `options.data` is
+  an inline array has no query to scope, so dashboard filters do not apply to
+  it. Bind the widget to a `dataset` (or give it an `options.data` object
+  query) if it should respond to filters.
+- **A binding is applied as written** — the dashboard does not know a
+  dataset's fields, so it cannot check a binding target for you. A default
+  binding whose field the widget's data does not have produces an empty
+  widget rather than a silent no-op, which is the visible, fixable failure:
+  map the filter explicitly with `filterBindings: { "<name>": "<field>" }`, or
+  opt out with `false`. (`buildWidgetScopedFilter` can skip an unknown default
+  field with a console warning when a host passes it the widget's known field
+  names; the dashboard renderer does not.)
 
 ## i18n
 

@@ -172,18 +172,27 @@ the widget's own `filter`).
     }
   ],
   "widgets": [
-    { "id": "w1", "type": "bar", "object": "invoices", "aggregate": "count" },
+    { "id": "w1", "type": "bar", "dataset": "invoices", "dimensions": ["status"], "values": ["count"] },
     {
-      "id": "w2", "type": "line", "object": "accounts", "aggregate": "count",
+      "id": "w2", "type": "line", "dataset": "accounts", "dimensions": ["signed_month"], "values": ["count"],
       "filterBindings": { "dateRange": "signed_at", "region": "sales_region" }
     },
     {
-      "id": "w3", "type": "metric", "object": "invoices", "aggregate": "count",
+      "id": "w3", "type": "metric", "dataset": "invoices", "values": ["count"],
       "filterBindings": { "region": false }
     }
   ]
 }
 ```
+
+The widgets above bind a **dataset** (ADR-0021). The pre-ADR-0021 top-level
+`object` + `categoryField` / `valueField` / `aggregate` shape was removed: the
+renderer no longer reads those keys and shows a *"This widget uses a retired
+data format. Edit it to bind a dataset."* prompt instead of a chart. A widget
+that needs a renderer-internal query rather than a semantic-layer one puts it
+under `options.data` as `{ "provider": "object", "object": "invoices",
+"aggregate": { "function": "count", "groupBy": "status" } }`; an
+`options.data` **array** is fixed demo data and is not filtered.
 
 Binding rules, in precedence order:
 

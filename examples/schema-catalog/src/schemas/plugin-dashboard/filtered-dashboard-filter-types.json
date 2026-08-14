@@ -33,18 +33,33 @@
       "id": "invoices_by_status",
       "title": "Invoices by Status",
       "type": "bar",
-      "object": "invoices",
-      "categoryField": "status",
-      "aggregate": "count"
+      "options": {
+        "xField": "status",
+        "yField": "count",
+        "data": [
+          { "status": "Draft", "count": 18 },
+          { "status": "Sent", "count": 31 },
+          { "status": "Paid", "count": 47 },
+          { "status": "Void", "count": 4 }
+        ]
+      }
     },
     {
       "id": "invoices_by_month",
       "title": "Invoices by Month",
       "type": "line",
-      "object": "invoices",
-      "categoryField": "created_at",
-      "categoryGranularity": "month",
-      "aggregate": "count",
+      "options": {
+        "xField": "month",
+        "yField": "count",
+        "data": [
+          { "month": "Jan", "count": 24 },
+          { "month": "Feb", "count": 31 },
+          { "month": "Mar", "count": 28 },
+          { "month": "Apr", "count": 37 },
+          { "month": "May", "count": 42 },
+          { "month": "Jun", "count": 39 }
+        ]
+      },
       "filterBindings": {
         "owner": "assigned_to"
       }
@@ -53,8 +68,9 @@
       "id": "total_invoices",
       "title": "Total Invoices (unfiltered)",
       "type": "metric",
-      "object": "invoices",
-      "aggregate": "count",
+      "options": {
+        "value": "1,284"
+      },
       "filterBindings": {
         "customer": false,
         "amount": false,

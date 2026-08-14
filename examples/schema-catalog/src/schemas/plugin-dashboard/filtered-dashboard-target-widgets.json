@@ -23,18 +23,30 @@
       "id": "invoices_by_region",
       "title": "Invoices by Region (allow-listed)",
       "type": "bar",
-      "object": "invoices",
-      "categoryField": "region",
-      "aggregate": "count"
+      "options": {
+        "xField": "region",
+        "yField": "count",
+        "data": [
+          { "region": "EMEA", "count": 41 },
+          { "region": "APAC", "count": 27 },
+          { "region": "AMER", "count": 32 }
+        ]
+      }
     },
     {
       "id": "invoices_recent",
       "title": "Recent Invoices (allow-listed, field override)",
       "type": "line",
-      "object": "invoices",
-      "categoryField": "created_at",
-      "categoryGranularity": "week",
-      "aggregate": "count",
+      "options": {
+        "xField": "week",
+        "yField": "count",
+        "data": [
+          { "week": "W1", "count": 7 },
+          { "week": "W2", "count": 11 },
+          { "week": "W3", "count": 9 },
+          { "week": "W4", "count": 14 }
+        ]
+      },
       "filterBindings": {
         "status": "state"
       }
@@ -43,8 +55,9 @@
       "id": "total_invoices",
       "title": "Total Invoices (not allow-listed)",
       "type": "metric",
-      "object": "invoices",
-      "aggregate": "count"
+      "options": {
+        "value": "1,284"
+      }
     }
   ]
 }

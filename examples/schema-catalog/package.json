@@ -33,6 +33,8 @@
     "@object-ui/core": "workspace:*",
     "@object-ui/fields": "workspace:*",
     "@object-ui/layout": "workspace:*",
+    "@object-ui/plugin-charts": "workspace:*",
+    "@object-ui/plugin-dashboard": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/sdui-parser": "workspace:*",
     "typescript": "^6.0.3"
