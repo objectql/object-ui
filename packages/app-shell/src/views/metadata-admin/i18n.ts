@@ -1004,6 +1004,11 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.packages.create.submit': 'Create package',
   'engine.packages.create.failed': 'Failed to create package',
   'engine.packages.create.exists': 'A package with this id already exists.',
+  // objectstack#8270 — the server refuses package writes without the ADR-0066
+  // `manage_metadata` capability, and its refusal is an English sentence that
+  // reached a zh console verbatim. Deployments that withhold the capability do
+  // so deliberately, so this states the posture rather than inviting a retry.
+  'engine.packages.noCapability': 'You do not have permission to manage packages in this workspace — it requires the “Manage Metadata” permission.',
   'engine.packages.form.basics': 'Basics',
   'engine.packages.form.advanced': 'Advanced',
   'engine.packages.form.namespace': 'Namespace',
@@ -2791,6 +2796,8 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.packages.create.submit': '创建软件包',
   'engine.packages.create.failed': '创建软件包失败',
   'engine.packages.create.exists': '已存在相同 ID 的软件包。',
+  // objectstack#8270 — 这条正是在 zh 控制台里显示为英文原文的服务端拒绝信息。
+  'engine.packages.noCapability': '你没有在此工作区管理软件包的权限 — 该操作需要「管理元数据」权限。',
   'engine.packages.form.basics': '基本信息',
   'engine.packages.form.advanced': '高级',
   'engine.packages.form.namespace': '命名空间',

@@ -211,6 +211,16 @@ export function PackageFormDialog({
       const msg: string = e?.message ?? '';
       if (e?.status === 409 || /already exists/i.test(msg)) {
         setError(t('engine.packages.create.exists', locale));
+      } else if (e?.status === 403 || /manage_metadata/i.test(msg)) {
+        // objectstack#8270 — the `else` below renders the server's own English
+        // sentence, which is how "Managing packages requires the
+        // `manage_metadata` capability." reached a zh console untranslated. A
+        // deployment that withholds the capability does so deliberately
+        // (maintainer ruling 2026-08-13), so this is a settled posture to state,
+        // not a transient failure to retry. Probed the same way as the 409 arm
+        // above — the status when the transport reports one, the message when
+        // it does not.
+        setError(t('engine.packages.noCapability', locale));
       } else {
         setError(msg || t(createMode ? 'engine.packages.create.failed' : 'engine.packages.edit.failed', locale));
       }
