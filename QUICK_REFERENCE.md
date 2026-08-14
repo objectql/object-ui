@@ -111,7 +111,7 @@ Every value below is pinned to the manifest that owns it by
 `scripts/__tests__/quick-reference-current-release-4143.test.ts` — edit the anchor and
 that test tells you to edit this block. The one exception is called out on its row.
 
-- **Version:** 17.4.0 (the version every `@object-ui/*` manifest carries — they are one
+- **Version:** 17.5.0 (the version every `@object-ui/*` manifest carries — they are one
   `fixed` group in `.changeset/config.json`, so a release moves all of them together)
 - **Spec:** `@objectstack/spec` ^17.0.0-rc.6 (declared by the root `package.json` and by
   `apps/console/package.json`)
