@@ -30,7 +30,7 @@
     "@object-ui/core": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@objectstack/spec": "^17.0.0-rc.6",
+    "@objectstack/spec": "^17.0.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.29.0",
     "react": "19.2.8",

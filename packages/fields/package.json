@@ -37,7 +37,7 @@
     "@object-ui/providers": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@objectstack/spec": "^17.0.0-rc.6",
+    "@objectstack/spec": "^17.0.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.29.0",
     "react-markdown": "^10.1.0",
