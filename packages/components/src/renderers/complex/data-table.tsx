@@ -611,7 +611,7 @@ function resolveSelectionMode(selectable: DataTableSchema['selectable'] | 'none'
  * shared instance for every other table on the page.
  */
 const EMPTY_COLUMNS = Object.freeze([]) as unknown as DataTableSchema['columns'];
-const EMPTY_ROWS = Object.freeze([]) as unknown as any[];
+const EMPTY_ROWS = Object.freeze([]) as unknown as DataTableSchema['data'];
 
 /**
  * Value-equality over two normalized column lists (objectui#4618).
@@ -628,16 +628,18 @@ const EMPTY_ROWS = Object.freeze([]) as unknown as any[];
  * (`cell`, `render`), and comparing those by identity is what the sync already
  * did — deep-comparing them is neither possible nor wanted.
  */
-function columnsAreEquivalent(a: readonly any[], b: readonly any[]): boolean {
+function columnsAreEquivalent(a: readonly unknown[], b: readonly unknown[]): boolean {
   if (a === b) return true;
   if (a.length !== b.length) return false;
   return a.every((col, i) => {
     const other = b[i];
     if (col === other) return true;
     if (!col || !other || typeof col !== 'object' || typeof other !== 'object') return false;
-    const keys = Object.keys(col);
-    if (keys.length !== Object.keys(other).length) return false;
-    return keys.every((k) => Object.is(col[k], other[k]));
+    const left = col as Record<string, unknown>;
+    const right = other as Record<string, unknown>;
+    const keys = Object.keys(left);
+    if (keys.length !== Object.keys(right).length) return false;
+    return keys.every((k) => Object.is(left[k], right[k]));
   });
 }
 
