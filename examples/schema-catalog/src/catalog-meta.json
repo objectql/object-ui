@@ -1,0 +1,62 @@
+{
+  "auth/forgot-password": {
+    "description": "Request a password reset email.",
+    "tags": [
+      "password",
+      "reset",
+      "form"
+    ]
+  },
+  "auth/login-simple": {
+    "title": "Simple Login Form",
+    "description": "Email + password sign-in with \"remember me\" and a social provider button.",
+    "tags": [
+      "login",
+      "form",
+      "card",
+      "oauth"
+    ]
+  },
+  "auth/signup": {
+    "title": "Sign Up Form",
+    "description": "Two-column registration form with terms acceptance.",
+    "tags": [
+      "signup",
+      "register",
+      "form",
+      "grid"
+    ]
+  },
+  "auth/two-factor": {
+    "title": "Two-Factor Authentication",
+    "description": "6-digit code verification with resend.",
+    "tags": [
+      "2fa",
+      "otp",
+      "verification"
+    ]
+  },
+  "plugin-dashboard/filtered-dashboard": {
+    "description": "Dashboard-level date + region filters driving multiple charts over different objects"
+  },
+  "plugin-dashboard/filtered-dashboard-dataset-widgets": {
+    "title": "Filtered Dashboard — Dataset + Inline Widgets",
+    "description": "Dashboard filters scoping dataset-bound widgets (via the dataset query's runtimeFilter) alongside an inline widget"
+  },
+  "plugin-dashboard/filtered-dashboard-date-presets": {
+    "title": "Filtered Dashboard — Date Presets + Custom Range",
+    "description": "Built-in dateRange with presets and allowCustomRange; per-widget date-field override and a dateRange: false opt-out"
+  },
+  "plugin-dashboard/filtered-dashboard-dynamic-options": {
+    "title": "Filtered Dashboard — Dynamic Options",
+    "description": "Select filter whose options are fetched from object records via optionsFrom (distinct values at runtime)"
+  },
+  "plugin-dashboard/filtered-dashboard-filter-types": {
+    "title": "Filtered Dashboard — Text / Number / Lookup Filters",
+    "description": "Text ($contains), number (equality) and lookup (optionsFrom) filter types, plus a fully opted-out metric"
+  },
+  "plugin-dashboard/filtered-dashboard-target-widgets": {
+    "title": "Filtered Dashboard — Target Widgets Allow-list",
+    "description": "Legacy targetWidgets allow-list: only listed widgets get the default binding; an explicit filterBindings entry still wins"
+  }
+}

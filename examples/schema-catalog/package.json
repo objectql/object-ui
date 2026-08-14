@@ -21,6 +21,7 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "regenerate": "python3 ../../scripts/regenerate-catalog-index.py",
+    "regenerate:check": "python3 ../../scripts/regenerate-catalog-index.py --check",
     "test": "vitest run",
     "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."
