@@ -6,7 +6,7 @@ import { Edit, GripVertical, Save, X, RefreshCw } from 'lucide-react';
 import { SchemaRenderer, useHasDndProvider, useDnd } from '@object-ui/react';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { BaseSchema, DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
-import { isObjectProvider } from './utils';
+import { isObjectProvider, deriveStaticTableColumns } from './utils';
 import { classifyWidgetType } from './widgetDispatch';
 import { LEGACY_RETIRED_WIDGET_SCHEMA, isLegacyRetiredWidget } from './legacyRetiredWidget';
 import { DatasetWidget } from './DatasetWidget';
@@ -313,10 +313,21 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
         };
       }
 
+      // Static (data-array) table. The `Array.isArray` arm is not decoration:
+      // `options.data` for this widget is authored as a plain ARRAY, and
+      // `widgetData?.items` is `undefined` for one — so this branch resolved
+      // every authored static table to `[]` while `DashboardRenderer`'s mirror
+      // of it read the array all along (objectui#4618).
+      const staticRows = Array.isArray(widgetData) ? widgetData : widgetData?.items || [];
       return {
         type: 'data-table',
         ...options,
-        data: widgetData?.items || [],
+        data: staticRows,
+        // See DashboardRenderer: `columns` is required, and an author who
+        // declared none got a table of empty rows. Explicit columns win.
+        columns: Array.isArray(options.columns) && options.columns.length > 0
+          ? options.columns
+          : deriveStaticTableColumns(staticRows),
         searchable: false,
         pagination: false,
         className: "border-0"

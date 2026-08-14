@@ -16,6 +16,55 @@ export function isObjectProvider(widgetData: unknown): widgetData is { provider:
   );
 }
 
+/**
+ * A record key → a human column header: `unit_price` / `unitPrice` → "Unit Price".
+ *
+ * Single home for the convention, because both halves of the `table` widget
+ * family need it and they must agree: the object-bound path normalizes an
+ * author's `string[]` shorthand with it (`normalizeColumns`), and the static
+ * path derives headers with it when no columns were declared at all.
+ */
+export function humanizeFieldKey(key: string): string {
+  return key
+    // snake_case → spaces
+    .replace(/_/g, ' ')
+    // camelCase → spaces before uppercase letters
+    .replace(/([A-Z])/g, ' $1')
+    .trim()
+    // Title Case each word
+    .replace(/\b\w/g, (c: string) => c.toUpperCase());
+}
+
+/**
+ * Columns for a STATIC (inline `options.data`) table widget whose author
+ * declared none — objectui#4618.
+ *
+ * `DataTableSchema.columns` is a REQUIRED key (`@object-ui/types`
+ * `data-display.ts`), and a `data-table` handed rows but no columns draws one
+ * empty `tr` per row: no `th`, no `td`, nothing readable. Both dashboard
+ * surfaces built exactly that node whenever the widget carried only
+ * `options.data`, so a documented authoring surface rendered a silent blank.
+ *
+ * The object-bound half of the same widget family has always derived columns
+ * from the fetched rows when none were declared (`ObjectDataTable`), so this is
+ * that behaviour reaching the static half — not a new capability. Keys come
+ * from the FIRST row for the same reason it does there: the first record is the
+ * shape the author is describing, and scanning every row would let one ragged
+ * record widen the table.
+ *
+ * `_`-prefixed keys are internal bookkeeping and stay out. Non-record rows
+ * (strings, numbers, arrays) have no keys to name, so they derive nothing and
+ * the table renders its own empty state rather than a header row of noise.
+ */
+export function deriveStaticTableColumns(rows: unknown): Array<{ header: string; accessorKey: string }> {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+  const first = rows[0];
+  if (first == null || typeof first !== 'object' || Array.isArray(first)) return [];
+  return Object.keys(first as Record<string, unknown>)
+    .filter((key) => !key.startsWith('_'))
+    .map((key) => ({ header: humanizeFieldKey(key), accessorKey: key }));
+}
+
 // Re-export the date-macro resolver from core so existing internal imports
 // (`import { resolveDateMacros } from './utils'`) keep working.
 //

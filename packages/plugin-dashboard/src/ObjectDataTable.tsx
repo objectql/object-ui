@@ -12,7 +12,7 @@ import { extractRecords, isDrillEnabled } from '@object-ui/core';
 import type { DrillDownConfig } from '@object-ui/types';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
 import { useSafeFieldLabel, useObjectTranslation, useLocalization, useDisplayLocale } from '@object-ui/i18n';
-import { resolveFilterPlaceholders } from './utils';
+import { resolveFilterPlaceholders, humanizeFieldKey } from './utils';
 import {
   buildFieldMeta,
   renderFieldValue,
@@ -56,17 +56,9 @@ interface NormalizedColumn {
 export function normalizeColumns(columns: (string | Record<string, any>)[]): NormalizedColumn[] {
   return columns.map((col) => {
     if (typeof col === 'string') {
-      return {
-        header: col
-          // snake_case → spaces
-          .replace(/_/g, ' ')
-          // camelCase → spaces before uppercase letters
-          .replace(/([A-Z])/g, ' $1')
-          .trim()
-          // Title Case each word
-          .replace(/\b\w/g, (c: string) => c.toUpperCase()),
-        accessorKey: col,
-      };
+      // Shared with the static-table derivation so both halves of the `table`
+      // widget family spell a header the same way (objectui#4618).
+      return { header: humanizeFieldKey(col), accessorKey: col };
     }
     return col as NormalizedColumn;
   });

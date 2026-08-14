@@ -37,7 +37,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { isObjectProvider } from './utils';
+import { isObjectProvider, deriveStaticTableColumns } from './utils';
 import { classifyWidgetType, METRIC_LIKE_TYPES } from './widgetDispatch';
 import { LEGACY_RETIRED_WIDGET_SCHEMA, isLegacyRetiredWidget } from './legacyRetiredWidget';
 import { DatasetWidget } from './DatasetWidget';
@@ -686,10 +686,20 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                 }
 
                 // Static (data-array) table — drill-to-record stays opt-in.
+                const staticRows = Array.isArray(widgetData) ? widgetData : widgetData?.items || [];
                 return {
                     type: 'data-table',
                     ...options,
-                    data: Array.isArray(widgetData) ? widgetData : widgetData?.items || [],
+                    data: staticRows,
+                    // `columns` is a REQUIRED key of `DataTableSchema`, and this
+                    // branch used to omit it whenever the author declared none —
+                    // a table of empty rows, no headers, no cells (objectui#4618).
+                    // Derive from the rows, as the `provider: 'object'` half of
+                    // this same family already does. An explicit list always wins:
+                    // a declared column set is a whitelist, never a starting point.
+                    columns: Array.isArray(options.columns) && options.columns.length > 0
+                        ? options.columns
+                        : deriveStaticTableColumns(staticRows),
                     searchable: false,
                     pagination: false,
                     className: "border-0"
