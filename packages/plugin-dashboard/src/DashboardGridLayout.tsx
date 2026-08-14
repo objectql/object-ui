@@ -8,6 +8,7 @@ import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { BaseSchema, DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
 import { isObjectProvider } from './utils';
 import { classifyWidgetType } from './widgetDispatch';
+import { LEGACY_RETIRED_WIDGET_SCHEMA, isLegacyRetiredWidget } from './legacyRetiredWidget';
 
 /** Bridges editMode transitions to the ObjectUI DnD system when a DndProvider is present. */
 function DndEditModeBridge({ editMode }: { editMode: boolean }) {
@@ -173,6 +174,16 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
 
   const getComponentSchema = React.useCallback((widget: DashboardWidgetSchema) => {
     if (widget.component) return widget.component;
+
+    // Retired legacy inline-analytics widget (framework#3320) — the SAME
+    // detector `DashboardRenderer` uses, imported rather than restated
+    // (objectui#4612). Without it this stored shape reached the branches below
+    // with no data at all and rendered a silent blank chart / empty table /
+    // em-dash metric: no diagnostic and no path to fix, which is worse for the
+    // author than the pre-retirement state. It must be tested BEFORE the
+    // dispatch branches, exactly as on the sibling surface, because those
+    // branches are what swallow it.
+    if (isLegacyRetiredWidget(widget)) return LEGACY_RETIRED_WIDGET_SCHEMA;
 
     const widgetType = widget.type;
     const options = (widget.options || {}) as Record<string, any>;
