@@ -16,7 +16,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { SchemaRenderer, SchemaRendererContext } from '@object-ui/react';
+import { SchemaRenderer, SchemaRendererContext, toRenderableSchema } from '@object-ui/react';
 import { SidebarProvider } from '@object-ui/components';
 import type { SchemaNode } from '@object-ui/core';
 // Registers `page-header` & friends — see the module header (objectui#3787).
@@ -135,7 +135,7 @@ export function SchemaThumbnail({
             <SchemaRendererContext.Provider value={ctx}>
               <SidebarProvider className="min-h-0 w-full" defaultOpen={false}>
                 <div className="w-full p-4">
-                  <SchemaRenderer schema={schema} />
+                  <SchemaRenderer schema={toRenderableSchema(schema)} />
                 </div>
               </SidebarProvider>
             </SchemaRendererContext.Provider>

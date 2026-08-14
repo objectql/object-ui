@@ -90,17 +90,25 @@ export const NOT_COMPILED = ["@object-ui/example-hello-world"];
 //
 // That escape hatch is exactly how this exemption could rot, so it is verified
 // on every run rather than trusted: setting `ignoreBuildErrors` fails the guard.
-export const CHECKED_BY_OWN_BUILD = {
-  "@object-ui/site": {
-    build: "next build",
-    // Caveat worth knowing: the `docs` CI job runs this build only when
-    // `apps/site/` or `content/` changed (plus every push to main). A PR that
-    // only touches a workspace package in `transpilePackages` therefore does
-    // not re-check the site until it lands. Closing that would mean paying a
-    // Next build on many more PRs — a cost/coverage call, not a silent gap.
-    verifyNoIgnoreBuildErrors: "apps/site/next.config.mjs",
-  },
-};
+//
+// Empty since objectui#4617, and worth keeping that way. Its sole entry was
+// `@object-ui/site`, and the caveat that entry carried — "the `docs` CI job runs
+// this build only when `apps/site/` or `content/` changed", so a PR touching only
+// a `transpilePackages` workspace package "does not re-check the site until it
+// lands" — turned out to describe a live main-red, not a tolerable cost/coverage
+// call. PR #4608 widened `SchemaNode` to a union, touched no file under
+// `apps/site/`, and merged green; the site's five `SchemaRenderer` call sites
+// stopped compiling the moment it landed and `Build Docs` was red on every push
+// to `main` for the next ~5 hours. The exemption was honest about WHAT checked
+// the package and silent about WHEN, and "when" was the half that mattered.
+//
+// The site now carries a real `type-check` script, so it is audited by the same
+// ratchet as every other package and the `Type Check` job reaches it on every PR.
+// `verifyNoIgnoreBuildErrors` retires with the entry rather than being orphaned:
+// its whole job was protecting a coverage claim that rested on `next build`, and
+// coverage no longer rests there — `tsc --noEmit` runs directly, so setting
+// `ignoreBuildErrors` can no longer hide a type error from CI.
+export const CHECKED_BY_OWN_BUILD = {};
 
 // ── Known gaps: tests that nothing type-checks ───────────────────────────────
 // Packages whose tests do not compile yet, so they cannot chain a
