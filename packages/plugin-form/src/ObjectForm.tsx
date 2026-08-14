@@ -45,7 +45,23 @@ import {
 } from './schemaDefaults';
 import { useOccSave } from './occSave';
 
-export interface ObjectFormProps {
+/**
+ * Props of the `ObjectForm` React component.
+ *
+ * Renamed off the bare `ObjectFormProps` (objectui#4650): from 17.0.0
+ * `@objectstack/spec/ui` owns that name, where it is the AUTHORED props
+ * document of the `object-form` element — `z.input<typeof
+ * ObjectFormPropsSchema>`, i.e. serialisable authoring keys only. This is the
+ * RENDERER's props: a live `dataSource`, submit/cancel callbacks and imperative
+ * handles, none of which can exist in authored metadata. Two layers under one
+ * word, resolved the way this repo already resolved it for `PageHeaderProps` ->
+ * `PageHeaderComponentProps` (app-shell) and the `Record*ComponentProps` family
+ * in `@object-ui/types`.
+ *
+ * The barrel keeps `ObjectFormProps` as a deprecated alias of this type, so no
+ * importer breaks. Tripwire: `__tests__/spec-symbol-4650.test.ts`.
+ */
+export interface ObjectFormComponentProps {
   /**
    * The schema configuration for the form
    */
@@ -77,7 +93,7 @@ export interface ObjectFormProps {
  * Returns the input untouched when neither structured key is present (the
  * common case), so there is no allocation on the hot path.
  */
-function foldFormButtons(schema: ObjectFormProps['schema']): ObjectFormProps['schema'] {
+function foldFormButtons(schema: ObjectFormComponentProps['schema']): ObjectFormComponentProps['schema'] {
   const buttons = (schema as { buttons?: ObjectFormSchema['buttons'] }).buttons;
   const defaults = (schema as { defaults?: Record<string, any> }).defaults;
   if (!buttons && !defaults) return schema;
@@ -89,7 +105,7 @@ function foldFormButtons(schema: ObjectFormProps['schema']): ObjectFormProps['sc
   if (buttons?.cancel?.label != null && s.cancelText === undefined) out.cancelText = buttons.cancel.label;
   if (buttons?.reset?.show !== undefined && s.showReset === undefined) out.showReset = buttons.reset.show;
   if (defaults && s.initialValues === undefined) out.initialValues = defaults;
-  return out as ObjectFormProps['schema'];
+  return out as ObjectFormComponentProps['schema'];
 }
 
 /**
@@ -110,7 +126,7 @@ function foldFormButtons(schema: ObjectFormProps['schema']): ObjectFormProps['sc
  * />
  * ```
  */
-export const ObjectForm: React.FC<ObjectFormProps> = ({
+export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
   schema: rawSchema,
   dataSource,
 }) => {
@@ -119,7 +135,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
   // fields) BEFORE dispatching to any variant. This way all variants
   // (Tabbed/Wizard/Split/Drawer/Modal/Simple) transparently honour FLS.
   // Fail-open when no provider mounted (perms.isLoaded false).
-  const schema = useMemo<ObjectFormProps['schema']>(() => {
+  const schema = useMemo<ObjectFormComponentProps['schema']>(() => {
     // framework#1894 / #2998 (ADR-0078): the authored @objectstack/spec
     // FormViewSchema carries the structured `buttons.{submit,cancel,reset}.
     // {show,label}` + `defaults` surface, but this renderer historically read
@@ -133,7 +149,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
     // so groups-only metadata actually renders (it used to be silently
     // ignored). Legacy shape maps `title`→`label`, `defaultCollapsed`→`collapsed`.
     const legacyGroups = (folded as any).groups;
-    const base: ObjectFormProps['schema'] =
+    const base: ObjectFormComponentProps['schema'] =
       !folded.sections?.length && Array.isArray(legacyGroups) && legacyGroups.length
         ? {
             ...folded,
@@ -166,7 +182,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
         ...s,
         fields: filterArr(s.fields),
       })),
-    } as ObjectFormProps['schema'];
+    } as ObjectFormComponentProps['schema'];
   }, [rawSchema, perms]);
   const { sectionLabel } = useSafeFieldLabel();
   const tSec = (s: any) =>
@@ -358,7 +374,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
 /**
  * SimpleObjectForm — default form variant with auto-generated fields from ObjectQL schema.
  */
-const SimpleObjectForm: React.FC<ObjectFormProps> = ({
+const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
   schema,
   dataSource,
 }) => {

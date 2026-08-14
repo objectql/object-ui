@@ -37,7 +37,7 @@ vi.mock(import('@object-ui/react'), async (importOriginal) => ({
 // Mock the implementation. Deliberate whole-module replacement of a LOCAL
 // module: stubbing `ObjectCalendar` is the isolation boundary this test is
 // about, and `./ObjectCalendar`'s only runtime export is the component itself
-// (`ObjectCalendarProps` is type-only and erased at runtime).
+// (`ObjectCalendarComponentProps` is type-only and erased at runtime).
 vi.mock('./ObjectCalendar', () => ({
   ObjectCalendar: ({ dataSource, data, loading }: any) => (
     <div data-testid="calendar-mock">

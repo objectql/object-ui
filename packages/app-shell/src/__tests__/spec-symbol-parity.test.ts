@@ -139,9 +139,15 @@ describe('the spec export-name probe itself works', () => {
 });
 
 /**
- * The ten renames. Each entry is `[local dialect name, the spec name it used to
+ * The renames. Each entry is `[local dialect name, the spec name it used to
  * collide with]`, with a one-line note on what the spec's symbol actually means
  * — the thing the old name falsely claimed.
+ *
+ * Split in two by WHEN the spec took the name (objectui#4650): this table holds
+ * the names the PINNED spec already owns, `RENAMES_PENDING_GA` below holds the
+ * ones 17.0.0 GA introduces. Both halves get the "does not collide" ratchet; the
+ * "spec still owns it" ratchet cannot run against a pre-GA pin, so it arms
+ * itself when the pin is raised.
  */
 const RENAMES: Array<[local: string, formerly: string, specMeaning: string]> = [
   ['ScreenFieldInput', 'FieldInput', "the authoring shape of an object FIELD (Omit<Partial<Field>, 'type'>)"],
@@ -154,8 +160,47 @@ const RENAMES: Array<[local: string, formerly: string, specMeaning: string]> = [
   ['InstalledPackageRow', 'InstalledPackage', 'the full install record (installedAt, upgradeHistory, …)'],
 ];
 
+/**
+ * Renames forced by a name `@objectstack/spec` starts owning in **17.0.0 GA**,
+ * which this repo is not pinned to yet (`^17.0.0-rc.6`; #4636 / PR #4639 raises
+ * it). They are listed apart because the second ratchet below — "the spec still
+ * owns the old name" — is FALSE against the pinned rc and true against GA, so
+ * running it unconditionally would fail today's `main` over a rename that is
+ * exactly what makes the GA tree green (`check:spec-symbols`, objectui#4650).
+ *
+ * `SECRET_MASK` is the one case here where the spec's symbol and this package's
+ * are the SAME thing rather than two layers under one word: the protocol moved
+ * the ADR-0100 credential mask into `spec` (objectstack#7572) so its two readers
+ * stop each declaring a byte-identical literal. The doctrine's preferred arm is
+ * therefore to IMPORT it, and this rename is the pre-bump stand-in — see the
+ * declaration in `views/metadata-admin/widgets.tsx`, which carries the one-line
+ * burn-down. Nothing published breaks either way: the constant is not re-exported
+ * from this package's barrel.
+ */
+const RENAMES_PENDING_GA: Array<[local: string, formerly: string, specMeaning: string]> = [
+  [
+    'OBJECTUI_SECRET_MASK',
+    'SECRET_MASK',
+    'the ADR-0100 credential read mask — the same eight-bullet constant, in `@objectstack/spec/data`',
+  ],
+];
+
+/**
+ * Is the installed spec a pre-release? Read from the package the tests actually
+ * resolve, not from a range in `package.json`: the range is what we asked for,
+ * this is what is on disk, and only the second one decides what the ratchet
+ * below can see.
+ */
+const SPEC_IS_PRERELEASE = ((): boolean => {
+  const require = createRequire(import.meta.url);
+  const { version } = JSON.parse(
+    readFileSync(require.resolve('@objectstack/spec/package.json'), 'utf8'),
+  ) as { version: string };
+  return version.includes('-');
+})();
+
 describe('renamed local dialects do not collide with a spec export', () => {
-  it.each(RENAMES)('the spec does not own `%s`', (local) => {
+  it.each([...RENAMES, ...RENAMES_PENDING_GA])('the spec does not own `%s`', (local) => {
     expect(
       SPEC_NAMES.has(local),
       `@objectstack/spec now exports \`${local}\`. This package declares its own ` +
@@ -180,6 +225,31 @@ describe('renamed local dialects do not collide with a spec export', () => {
         `plain name back) or it moved (then re-check what it means now).`,
     ).toBe(true);
   });
+
+  /**
+   * The same ratchet for the GA-introduced names, armed by the pin rather than
+   * skipped forever: it is inert while the installed spec is a pre-release and
+   * asserts the moment #4636 lands. Written as a runtime branch rather than
+   * `it.skipIf` so the pre-GA half still says out loud which mode it ran in.
+   */
+  it.each(RENAMES_PENDING_GA)(
+    'the spec owns `%s` once the pin reaches GA (second value: %s)',
+    (_local, formerly) => {
+      if (SPEC_IS_PRERELEASE) {
+        expect(
+          SPEC_NAMES.size,
+          'the spec export probe came back empty, so this branch proves nothing',
+        ).toBeGreaterThan(1000);
+        return;
+      }
+      expect(
+        SPEC_NAMES.has(formerly),
+        `@objectstack/spec no longer exports \`${formerly}\`, which is the only ` +
+          `reason this package renamed it. Either the spec dropped it (then take ` +
+          `the plain name back) or it moved (then re-check what it means now).`,
+      ).toBe(true);
+    },
+  );
 });
 
 /**

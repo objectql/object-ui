@@ -61,7 +61,23 @@ export interface CalendarSchema {
   defaultView?: 'month' | 'week' | 'day';
 }
 
-export interface ObjectCalendarProps {
+/**
+ * Props of the `ObjectCalendar` React component.
+ *
+ * Renamed off the bare `ObjectCalendarProps` (objectui#4650): from 17.0.0
+ * `@objectstack/spec/ui` owns that name, where it is the AUTHORED props
+ * document of the `object-calendar` element — `z.input<typeof
+ * ObjectCalendarPropsSchema>`, i.e. serialisable authoring keys only. This is
+ * the RENDERER's props: a live `dataSource`, records pre-fetched by a parent,
+ * and the host callbacks below, none of which can exist in authored metadata.
+ * Two layers under one word, resolved the way this repo already resolved it for
+ * `PageHeaderProps` -> `PageHeaderComponentProps` (app-shell) and the
+ * `Record*ComponentProps` family in `@object-ui/types`.
+ *
+ * The barrel keeps `ObjectCalendarProps` as a deprecated alias of this type, so
+ * no importer breaks. Tripwire: `__tests__/spec-symbol-4650.test.ts`.
+ */
+export interface ObjectCalendarComponentProps {
   schema: ObjectGridSchema | CalendarSchema;
   dataSource?: DataSource;
   className?: string;
@@ -160,7 +176,7 @@ function getCalendarConfig(schema: ObjectGridSchema | CalendarSchema): CalendarC
   return null;
 }
 
-export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
+export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   schema,
   dataSource,
   className,

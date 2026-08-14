@@ -16,7 +16,16 @@ import {
 import { ObjectForm } from './ObjectForm';
 
 export { ObjectForm };
-export type { ObjectFormProps } from './ObjectForm';
+export type { ObjectFormComponentProps } from './ObjectForm';
+
+/**
+ * @deprecated Use `ObjectFormComponentProps`. Renamed in objectui#4650 because
+ * `@objectstack/spec/ui` owns `ObjectFormProps` from 17.0.0, where it means the
+ * AUTHORED props document of the `object-form` element — not this component's
+ * props. The alias denotes the SAME type and is kept only so existing importers
+ * keep compiling.
+ */
+export type { ObjectFormComponentProps as ObjectFormProps } from './ObjectForm';
 export { FormSectionContainer } from './FormSection';
 export type { FormSectionContainerProps } from './FormSection';
 export {

@@ -35,7 +35,16 @@ export { useGroupReorder } from './useGroupReorder';
 export { useColumnSummary } from './useColumnSummary';
 export { FormulaBar } from './FormulaBar';
 export { SplitPaneGrid } from './SplitPaneGrid';
-export type { ObjectGridProps, ObjectGridExternalPaginationProps, ObjectGridColumnState } from './ObjectGrid';
+export type { ObjectGridComponentProps, ObjectGridExternalPaginationProps, ObjectGridColumnState } from './ObjectGrid';
+
+/**
+ * @deprecated Use `ObjectGridComponentProps`. Renamed in objectui#4650 because
+ * `@objectstack/spec/ui` owns `ObjectGridProps` from 17.0.0, where it means the
+ * AUTHORED props document of the `object-grid` element — not this component's
+ * props. The alias denotes the SAME type and is kept only so existing importers
+ * keep compiling.
+ */
+export type { ObjectGridComponentProps as ObjectGridProps } from './ObjectGrid';
 export type { VirtualGridProps, VirtualGridColumn } from './VirtualGrid';
 export type { InlineEditingProps } from './InlineEditing';
 export type { ImportWizardProps, ImportResult } from './ImportWizard';

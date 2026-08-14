@@ -110,7 +110,16 @@ export function bucketCardsIntoColumns(
 // Export types for external use
 export type { KanbanSchema, KanbanCard, KanbanColumn, CardTemplate, ColumnWidthConfig, InlineFieldDefinition } from './types';
 export { ObjectKanban };
-export type { ObjectKanbanProps } from './ObjectKanban';
+export type { ObjectKanbanComponentProps } from './ObjectKanban';
+
+/**
+ * @deprecated Use `ObjectKanbanComponentProps`. Renamed in objectui#4650
+ * because `@objectstack/spec/ui` owns `ObjectKanbanProps` from 17.0.0, where it
+ * means the AUTHORED props document of the `object-kanban` element — not this
+ * component's props. The alias denotes the SAME type and is kept only so
+ * existing importers keep compiling.
+ */
+export type { ObjectKanbanComponentProps as ObjectKanbanProps } from './ObjectKanban';
 
 // Phase 13 L2/L3: New components and hooks
 export { InlineQuickAdd } from './InlineQuickAdd';

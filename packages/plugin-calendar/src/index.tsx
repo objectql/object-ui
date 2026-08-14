@@ -14,11 +14,20 @@ import {
   type ElementDataSourceMapping,
 } from '@object-ui/react';
 import { ObjectCalendar } from './ObjectCalendar';
-import type { ObjectCalendarProps } from './ObjectCalendar';
+import type { ObjectCalendarComponentProps } from './ObjectCalendar';
 
 // Export ObjectCalendar component
 export { ObjectCalendar };
-export type { ObjectCalendarProps };
+export type { ObjectCalendarComponentProps };
+
+/**
+ * @deprecated Use `ObjectCalendarComponentProps`. Renamed in objectui#4650
+ * because `@objectstack/spec/ui` owns `ObjectCalendarProps` from 17.0.0, where
+ * it means the AUTHORED props document of the `object-calendar` element — not
+ * this component's props. The alias denotes the SAME type and is kept only so
+ * existing importers keep compiling.
+ */
+export type { ObjectCalendarComponentProps as ObjectCalendarProps } from './ObjectCalendar';
 
 // Export CalendarView component (merged from plugin-calendar-view)
 export { CalendarView } from './CalendarView';
@@ -51,7 +60,7 @@ const OBJECT_CALENDAR_DATA_SOURCE: ElementDataSourceMapping = {
  * own authored keys, the contents of its `props` container, the injected runtime
  * props (`events`, `ariaLabel`/`role`, `data-obj-*`, …) and a host's trailing
  * props — an UNBOUNDED set, spread onto a component whose props are a CLOSED
- * list. `ObjectCalendarProps` declares eight callbacks and a `locale`, so an
+ * list. `ObjectCalendarComponentProps` declares eight callbacks and a `locale`, so an
  * authored value under any of those names landed on the declared prop, and an
  * SDUI author writing JSON can never produce a function.
  *
@@ -73,13 +82,13 @@ const OBJECT_CALENDAR_DATA_SOURCE: ElementDataSourceMapping = {
  * The objectui#4425 phase-2 ruling (option 1, whitelist bounded by declaration)
  * applied to this renderer exactly as objectui#4453 applied it to the sibling
  * `calendar-view` renderer next door: **the forward set is exactly
- * {@link ObjectCalendarProps}, every key resolved to the type that prop
+ * {@link ObjectCalendarComponentProps}, every key resolved to the type that prop
  * declares; everything else is dropped.** `rest` below is READ for the declared
  * keys and is never spread — that is the whole of this fix.
  *
  * A deny-list could not close this: the leak is the open tail of author-supplied
  * keys, which no enumeration can finish. This list is finishable because
- * `ObjectCalendarProps` declares it — and dropping the tail costs nothing,
+ * `ObjectCalendarComponentProps` declares it — and dropping the tail costs nothing,
  * because `ObjectCalendar` DESTRUCTURES a closed list and reads no other prop.
  * ══════════════════════════════════════════════════════════════════════════ */
 
@@ -100,11 +109,11 @@ const OBJECT_CALENDAR_DATA_SOURCE: ElementDataSourceMapping = {
  * a lenient consumer coercion (AGENTS.md #0.1).
  *
  * The whole family is listed rather than the two reported keys, because the
- * defect is the family's: every one of these is a prop `ObjectCalendarProps`
+ * defect is the family's: every one of these is a prop `ObjectCalendarComponentProps`
  * declares, so listing them narrows what may reach the component and widens
  * nothing.
  *
- * `onEdit` and `onDelete` are declared by `ObjectCalendarProps` but are NOT
+ * `onEdit` and `onDelete` are declared by `ObjectCalendarComponentProps` but are NOT
  * destructured by the component (`ObjectCalendar.tsx` — the record drawer builds
  * its own edit/delete handlers from `dataSource`), so forwarding them is inert
  * today. They are listed anyway: the hatch is bounded by the DECLARATION, and a
@@ -124,7 +133,7 @@ const HOST_CALLBACKS = [
   'onEventDrop',
 ] as const;
 
-type HostCallbacks = Pick<ObjectCalendarProps, (typeof HOST_CALLBACKS)[number]>;
+type HostCallbacks = Pick<ObjectCalendarComponentProps, (typeof HOST_CALLBACKS)[number]>;
 
 /**
  * Read the declared callbacks out of the incoming props, keeping only the values
@@ -174,7 +183,7 @@ function resolveAuthoredLocale(raw: unknown): string | undefined {
  * (a non-array was already ignored) and keeps one rule at this boundary rather
  * than an exception.
  */
-function resolveExternalData(raw: unknown): ObjectCalendarProps['data'] {
+function resolveExternalData(raw: unknown): ObjectCalendarComponentProps['data'] {
   return Array.isArray(raw) ? raw : undefined;
 }
 
@@ -182,7 +191,7 @@ function resolveExternalData(raw: unknown): ObjectCalendarProps['data'] {
  * Resolve the declared `loading` prop, which the component honours only
  * alongside external `data`. A boolean or the absent-key answer.
  */
-function resolveExternalLoading(raw: unknown): ObjectCalendarProps['loading'] {
+function resolveExternalLoading(raw: unknown): ObjectCalendarComponentProps['loading'] {
   return typeof raw === 'boolean' ? raw : undefined;
 }
 
@@ -203,9 +212,9 @@ function resolveExternalLoading(raw: unknown): ObjectCalendarProps['loading'] {
  * shape that produced `dataSource.find is not a function` in objectstack#5576.
  * `find` is the method `ObjectCalendar` itself guards on before fetching.
  */
-function resolveHostDataSource(raw: unknown): ObjectCalendarProps['dataSource'] {
+function resolveHostDataSource(raw: unknown): ObjectCalendarComponentProps['dataSource'] {
   return raw && typeof (raw as { find?: unknown }).find === 'function'
-    ? (raw as ObjectCalendarProps['dataSource'])
+    ? (raw as ObjectCalendarComponentProps['dataSource'])
     : undefined;
 }
 
@@ -242,7 +251,7 @@ export const ObjectCalendarRenderer: React.FC<{ schema: any; [key: string]: any 
       errorTitle="This calendar’s data source could not be resolved"
     >
       {/*
-        The forward set is exactly `ObjectCalendarProps` — nothing else can reach
+        The forward set is exactly `ObjectCalendarComponentProps` — nothing else can reach
         the component, because nothing is spread from `rest` (objectui#4492).
         The registry's own declared inputs (`objectName`, `calendar`, and the
         flat `startDateField` / `titleField` / … spelling `ObjectView` and

@@ -103,7 +103,23 @@ export function resolveKanbanCardFields(
   return [];
 }
 
-export interface ObjectKanbanProps {
+/**
+ * Props of the `ObjectKanban` React component.
+ *
+ * Renamed off the bare `ObjectKanbanProps` (objectui#4650): from 17.0.0
+ * `@objectstack/spec/ui` owns that name, where it is the AUTHORED props
+ * document of the `object-kanban` element — `z.input<typeof
+ * ObjectKanbanPropsSchema>`, i.e. serialisable authoring keys only. This is the
+ * RENDERER's props: a live `dataSource`, records pre-fetched by a parent, and
+ * the host callbacks below, none of which can exist in authored metadata. Two
+ * layers under one word, resolved the way this repo already resolved it for
+ * `PageHeaderProps` -> `PageHeaderComponentProps` (app-shell) and the
+ * `Record*ComponentProps` family in `@object-ui/types`.
+ *
+ * The barrel keeps `ObjectKanbanProps` as a deprecated alias of this type, so
+ * no importer breaks. Tripwire: `__tests__/spec-symbol-4650.test.ts`.
+ */
+export interface ObjectKanbanComponentProps {
   schema: KanbanSchema;
   dataSource?: DataSource;
   className?: string; // Allow override
@@ -115,7 +131,7 @@ export interface ObjectKanbanProps {
   onCardClick?: (record: any) => void;
 }
 
-export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
+export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
   schema,
   dataSource,
   className,

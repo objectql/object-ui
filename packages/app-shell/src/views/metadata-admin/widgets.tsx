@@ -1848,24 +1848,48 @@ function ConditionWidget({ value, onChange, readOnly, context }: WidgetProps) {
 /* secret — write-only / masked credential input (encrypt-on-write fields)     */
 /* -------------------------------------------------------------------------- */
 
-/** Mirrors objectql\'s SECRET_MASK: a stored secret reads back as this, never plaintext. */
-export const SECRET_MASK = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+/**
+ * The ADR-0100 credential read mask: a stored secret reads back as this, never
+ * plaintext.
+ *
+ * Renamed off the bare `SECRET_MASK` (objectui#4650). This is the SAME constant
+ * `@objectstack/spec/data` exports under that name from 17.0.0 \u2014 the protocol
+ * moved it to `spec` (objectstack#7572) precisely so the engine's field-read
+ * path and the settings REST boundary stop each declaring a byte-identical
+ * literal bound by nothing but convention. objectui should therefore IMPORT it
+ * rather than declare it, which is what the #4043 doctrine asks for; that
+ * import cannot be written yet because this repo is still pinned to
+ * `^17.0.0-rc.6`, which does not export the name.
+ *
+ * So the copy stays for now, under a name that cannot be read as the spec's own
+ * definition, and the whole burn-down is this one line: when #4636 / PR #4639
+ * raises the pin, replace the literal with
+ * `export { SECRET_MASK as OBJECTUI_SECRET_MASK } from '@objectstack/spec/data'`
+ * (or re-export it plainly and drop this alias). Nothing outside this package
+ * reads it \u2014 `@object-ui/app-shell`'s barrel does not re-export it \u2014 so that
+ * swap is internal.
+ *
+ * The eight U+2022 BULLET characters are spelled out rather than computed, on
+ * the spec's own reasoning: a plain grep for the mask a client actually received
+ * has to find this declaration. Tripwire: `__tests__/spec-symbol-parity.test.ts`.
+ */
+export const OBJECTUI_SECRET_MASK = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
 
 /**
  * `secret` widget — a write-only credential input for `secret` field types (and
  * `format: 'password'` / `writeOnly` props). A stored secret reads back masked,
  * so the box starts empty with a "leave blank to keep" hint; typing replaces it,
  * a reveal toggle shows what you type, and Clear removes it. Emits the typed
- * value (new secret), `SECRET_MASK` (blank + existing = keep, a no-op on write),
+ * value (new secret), `OBJECTUI_SECRET_MASK` (blank + existing = keep, a no-op on write),
  * `null` (Clear), or `undefined` (blank + none).
  */
 function SecretWidget({ value, onChange, readOnly, schema, id }: WidgetProps) {
-  const stored = value === SECRET_MASK;
+  const stored = value === OBJECTUI_SECRET_MASK;
   const [reveal, setReveal] = React.useState(false);
   const [draft, setDraft] = React.useState<string>(stored || value == null ? '' : String(value));
   const update = (v: string) => {
     setDraft(v);
-    if (v === '') onChange(stored ? SECRET_MASK : undefined); // blank: keep if stored, else unset
+    if (v === '') onChange(stored ? OBJECTUI_SECRET_MASK : undefined); // blank: keep if stored, else unset
     else onChange(v);
   };
   return (

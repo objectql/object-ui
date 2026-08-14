@@ -268,7 +268,7 @@ export interface ObjectGridColumnState {
  * page/sort/search state, and ObjectGrid forwards them straight to its
  * DataTable instead of client-slicing the window it was handed.
  *
- * Kept as its own named interface rather than flattened into `ObjectGridProps`
+ * Kept as its own named interface rather than flattened into `ObjectGridComponentProps`
  * (#4277 裁决 B, 2026-08-11): the two are different classes of contract, and a
  * dozen more members merged into the authoring surface would erase that
  * boundary. Until this existed, every member below was read out of `...rest`
@@ -348,7 +348,24 @@ export interface ObjectGridExternalPaginationProps
   findParams?: Record<string, unknown> | null;
 }
 
-export interface ObjectGridProps extends ObjectGridExternalPaginationProps {
+/**
+ * Props of the `ObjectGrid` React component.
+ *
+ * Renamed off the bare `ObjectGridProps` (objectui#4650): from 17.0.0
+ * `@objectstack/spec/ui` owns that name, where it is the AUTHORED props
+ * document of the `object-grid` element — `z.input<typeof
+ * ObjectGridPropsSchema>`, i.e. serialisable authoring keys only (`label`,
+ * `fields`, `defaultFilters`, `pagination`, …). This is the RENDERER's props: a
+ * live `dataSource`, the host pagination handles below, and eleven callbacks,
+ * none of which can exist in authored metadata. Two layers under one word,
+ * resolved the way this repo already resolved it for `PageHeaderProps` ->
+ * `PageHeaderComponentProps` (app-shell) and the `Record*ComponentProps` family
+ * in `@object-ui/types`.
+ *
+ * The barrel keeps `ObjectGridProps` as a deprecated alias of this type, so no
+ * importer breaks. Tripwire: `__tests__/spec-symbol-4650.test.ts`.
+ */
+export interface ObjectGridComponentProps extends ObjectGridExternalPaginationProps {
   schema: ObjectGridSchema;
   dataSource?: DataSource;
   className?: string;
@@ -499,7 +516,7 @@ function resolveRowHeightMode(rowHeight: unknown): RowHeightMode {
   return rowHeight as RowHeightMode;
 }
 
-export const ObjectGrid: React.FC<ObjectGridProps> = ({
+export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   schema,
   dataSource,
   onEdit,
