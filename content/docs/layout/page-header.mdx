@@ -68,6 +68,52 @@ the right-aligned slot is `action` → React `children` → `actions` → schema
 defaults to `true` on record pages (a `recordId` in scope) that are not embedded in a
 drawer or modal, and `false` otherwise.
 
+## Gating a header action on a relation field
+
+Each header action's `visible` (and `hidden` / `disabled`) is a CEL predicate evaluated
+against the current record. The most common thing it is asked to express — "only the
+record's manager sees this button" — is written against a `lookup` / `master_detail` /
+`user` / `tree` field, and there is exactly one supported spelling for it:
+
+```yaml
+actions:
+  - name: escalate
+    label: Escalate
+    locations: [record_header]
+    visible: os.user.id == record.manager   # ✅ the relation IS its foreign key
+```
+
+**A relation field binds as the id the server stores, never as the record it points at.**
+That is true here regardless of whether this surface expanded the relation for display —
+the record page expands the relations it renders, and the predicate scope collapses them
+back before evaluating, so one predicate reaches one verdict on every surface and matches
+what the same expression means in a server-side rule.
+
+The consequence is that `record.manager.id` is **not** a second spelling of the same
+thing — it faults, because `record.manager` is a string:
+
+```yaml
+    visible: os.user.id == record.manager.id   # ❌ faults: no such key `id`
+```
+
+A predicate that faults is resolved **fail-closed** — the action is not rendered, because
+a precondition that could not be checked is not a precondition that passed. It is never
+resolved silently: the console carries one warning per broken predicate, naming the action
+and quoting the expression, for example:
+
+```plaintext
+[object-ui] A conditional predicate failed to evaluate (page:header action "escalate"
+visible) and was treated as its safe default: "os.user.id == record.manager.id".
+Reason: [runtime] No such key: id. Check the field names and CEL syntax.
+```
+
+An **empty** relation is not a fault: `record.manager` is `null`, the comparison is a
+clean `false`, and the action is simply hidden with nothing logged.
+
+The identity side of the comparison is `os.user` — the spec's canonical CEL identity
+scope, and the same one the server binds — with `current_user`, `user` and `ctx.user`
+available as aliases of it.
+
 ## Examples
 
 ### Simple Header
