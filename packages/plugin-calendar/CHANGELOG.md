@@ -1,5 +1,222 @@
 # @object-ui/plugin-calendar
 
+## 17.5.0
+
+### Minor Changes
+
+- 515328f: `calendar-view` has no declared-but-inert inputs left: `allowCreate` works, `colorMapping` is retired (objectui#4454, objectui#4493)
+
+  Two of this widget's registry inputs were declared and read by nobody — the one
+  state ADR-0049's enforce-or-remove framing says must not persist. Measurement
+  answered them in opposite directions.
+
+  **`allowCreate` is enforced.** The handler it would gate was already built in the
+  renderer — `handleAddClick`, dispatching `{ type: 'create', payload: {} }` on the
+  widget's own `onAction` channel — and simply never passed. `CalendarView` renders
+  its **New event** button behind `onAddClick`, so on the SDUI path that button
+  never existed and the handler was unreachable: both halves of one feature were
+  present and had never been introduced to each other. An authored
+  `allowCreate: true` now supplies the handler to `onAddClick`, and clicking the
+  button dispatches the create action.
+
+  The wiring goes through the declared `onAddClick` hatch rather than around it via
+  a second prop. That key is already one of the renderer's function-typed host
+  hatches (objectui#4453), so a React host could switch the affordance on today and
+  that path is untouched — a host handler still replaces the action dispatch rather
+  than running alongside it, the same precedence `onEventClick` keeps. An authored
+  `onAddClick` string is still dropped, so turning the affordance on cannot
+  reintroduce that card's uncaught handler crash.
+
+  Only the boolean `true` turns it on. Absent, `false`, and the off-type spellings
+  JSON invites (`'true'`, `1`, an object) all resolve to the absent-key answer, which
+  on this prop is literally what makes the button not render. Every node that never
+  authored the key renders exactly as before.
+
+  **`colorMapping` is removed.** It had no read site anywhere: the renderer's event
+  mapping takes the colour straight off the record (`color: record[colorField]`),
+  and `CalendarView` resolves a colour from `event.color`. An author who wrote the
+  documented `colorMapping: { meeting: 'blue' }` got no mapping, no warning and no
+  error — the raw field value was used as the colour, which for a picklist value
+  like `meeting` is not a colour at all. It is retired rather than implemented
+  because no measured app authors it, and a capability with no pull behind it is not
+  worth building. The `content/docs/plugins/plugin-calendar.mdx` schema-API line
+  documenting it is removed in the same change.
+
+  Retiring it is not a behaviour change — the key never had a read site to lose. It
+  becomes an ordinary unknown authored key, dropped at the renderer boundary like
+  any other.
+
+  **Grade.** Minor, not patch: measured both ways against the emitted bundle, the
+  published registry surface moves — `calendar-view`'s `inputs` array loses a member
+  (`colorMapping`: 1 emitted declaration before, 0 after), so the authorable
+  vocabulary this widget publishes narrows by one key, and a second declared input
+  starts producing a user-visible affordance. The emitted `.d.ts` is byte-identical
+  either way; the vocabulary lives in the runtime registry metadata, not in the type
+  surface.
+
+### Patch Changes
+
+- 395e154: authored ISO `currentDate` reaches the calendar as a `Date`; unparseable input falls back to the default instead of crashing
+
+  `plugin-calendar:calendar-view` declares the input `{ name: 'currentDate', type: 'string', description: 'ISO date string for initial calendar date' }`, while `CalendarViewProps.currentDate` is a `Date`. Nothing converted between the two: the authored string rode the renderer's trailing `{...props}` spread into `useState`'s initial `selectedDate`, and the header's `selectedDate.toLocaleDateString(…)` threw `selectedDate.toLocaleDateString is not a function` — the error boundary instead of the calendar. Writing the one spelling the input documents was the one spelling that could not work, and there was no correct authored value at all, since `type: 'string'` cannot express a `Date`.
+
+  The renderer now owes the conversion, at its own boundary. `currentDate` is destructured out of the incoming props so the spread can no longer carry the raw value (the consumed-key pattern from the `events` collision fix), parsed once per authored value, and passed to `CalendarView` as the `Date` its prop type declares. Off-spec input — an unparseable string, or any non-string that is not already a `Date` — gets the same answer as an absent key: the component's own default date. An `Invalid Date` is never manufactured and handed on; it does not throw, it renders the literal text "Invalid Date" into the header and the date picker, which is a silent wrong answer where the default is a usable calendar.
+
+  A `Date` instance passes through untouched, so a React host handing the widget its real declared prop type is unaffected.
+
+- c5756ff: `calendar-view` consumes or declares every prop it forwards — an authored `onEventClick` can no longer crash a click
+
+  `calendar-view`'s renderer ended in `<CalendarView … {...props} />`, where `props` was everything `SchemaRenderer` hands a registered widget: the node's authored keys, the contents of its `props` container, the injected runtime props, and a host's trailing props. That is an unbounded set spread onto a component whose props are a closed list, and the worst collision on it was `onEventClick`: an authored `onEventClick: 'NOT-A-FUNCTION'` rendered a perfectly normal calendar and then threw `onEventClick is not a function` on the first click. React does not route event-handler errors to `SchemaErrorBoundary`, so it surfaced as an uncaught window error — the calendar kept looking fine while its click handling was dead. Both authoring channels reached it, the node's own key and a `props: { onEventClick }` container.
+
+  The forward set is now exactly `CalendarViewProps`, each key resolved to the type that prop declares; nothing else reaches the component. Declared registry inputs are consumed (`view` narrowed to its declared enum, `currentDate` parsed, `className` forwarded, the field-name inputs read off the schema); `CalendarView`'s callbacks are a declared, function-typed host escape hatch — a host-passed function is forwarded exactly as before, and a non-function value, which is all an SDUI author writing JSON can produce, is dropped, the same answer as an absent key; every other key is dropped.
+
+  Fixed with it, from the same boundary: an authored `onAction` string killed the same click through the renderer's own action channel; an authored `onDateClick` / `onNavigate` / `onViewChange` / `onEventDrop` / `onTimeRangeSelect` / `onAddClick` string killed its own gesture the same way; an authored `locale` that `Intl` rejects (`en_US`, the underscore spelling) took the whole render down to the error boundary with `RangeError: Incorrect locale information provided`; and an off-enum `view` (`agenda`) rendered a header with no calendar under it at all, where it now falls back to the component's `month` default.
+
+  No capability is removed and no authorable surface is added: every host path that worked keeps working, including the handler precedence the old spread produced (a host handler replaces the `onAction` dispatch rather than running alongside it). The package's emitted `.d.ts` is unchanged.
+
+- 49b9de6: fix(plugin-calendar): authoring `events` on a `calendar-view` node no longer takes the calendar down
+
+  `calendar-view`'s renderer computed a `CalendarEvent[]` from `schema.data`, passed it
+  as `events={…}`, then spread the remaining props **after** it. `SchemaRenderer`
+  forwards a node's `events` key as a plain prop, so a node authoring `events` — the
+  ordinary SDUI action metadata, legal on any node — landed its `{ onClick: [...] }`
+  object on the `events` array prop: `CalendarView` iterated it and threw
+  `events is not iterable`, and a spec-legal node rendered an error card instead of its
+  calendar.
+
+  The authored key is now destructured out before the spread, so the computed array
+  always wins. This also closes the quiet half of the same collision: an authored
+  `events` **array** never threw — it silently replaced the calendar's contents with
+  itself.
+
+  No capability is removed. Nothing in the renderer layer consumes a node's `events`
+  key (the action path is `properties.action` through `ActionRunner`), and the
+  component's own `onAction` channel is unaffected.
+
+- 3e579d6: `object-calendar` / `view:calendar`: the renderer now consumes or declares every prop it forwards, instead of spreading the authored node into `ObjectCalendar`
+
+  One shared renderer serves both registrations, and it ended in a raw spread of everything `SchemaRenderer` hands a widget — the node's authored keys, its `props` container, the injected runtime props and a host's trailing props — onto a component whose props are a closed list. `ObjectCalendarProps` declares eight callbacks and a `locale`, so an authored value under any of those names landed on the declared prop, and an SDUI author writing JSON can never produce a function:
+
+  - an authored `onDateClick` string threw `onDateClick is not a function` on an empty day-cell click, and an authored `onNavigate` string threw on **Next period** — both as _uncaught_ window errors, because React does not route event-handler errors to `SchemaErrorBoundary`, so the calendar kept looking fine while that gesture was dead;
+  - an authored `locale: 'en_US'` (the underscore spelling a producer writes by accident) threw `RangeError: Incorrect locale information provided` out of render and took the whole calendar to the error boundary.
+
+  The forward set is now exactly `ObjectCalendarProps`, each key resolved to the type that prop declares: the callback family is a declared, function-typed host escape hatch, `locale` is accepted only when `Intl.getCanonicalLocales` takes it, `data`/`loading` keep the parent pre-fetch path at their declared types, and everything else — including the open tail of authored keys — is dropped.
+
+  Host-passed functions are unaffected: a React host's handlers, and `ListView`'s `onRowClick`, still reach the component exactly as before.
+
+- Updated dependencies [0e67b53]
+- Updated dependencies [ceccdcf]
+- Updated dependencies [d6e5124]
+- Updated dependencies [debad27]
+- Updated dependencies [dc2aa3e]
+- Updated dependencies [ee66e2e]
+- Updated dependencies [e2e6360]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [932cbcd]
+- Updated dependencies [734d186]
+- Updated dependencies [f650253]
+- Updated dependencies [6d01319]
+- Updated dependencies [3d9769a]
+- Updated dependencies [8f85f8b]
+- Updated dependencies [d0c3b26]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [f7c6430]
+- Updated dependencies [4dadf0d]
+- Updated dependencies [ae10a01]
+- Updated dependencies [0f21348]
+- Updated dependencies [d2e2caf]
+- Updated dependencies [92876f0]
+- Updated dependencies [f279deb]
+- Updated dependencies [4b70d28]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [ebb4e0e]
+- Updated dependencies [3a9021e]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [613b167]
+- Updated dependencies [b4d3c22]
+- Updated dependencies [1f9b905]
+- Updated dependencies [8f60d73]
+- Updated dependencies [cb13400]
+- Updated dependencies [828549a]
+- Updated dependencies [e1ade8f]
+- Updated dependencies [bc64bfe]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [63fe8fd]
+- Updated dependencies [3e19fe7]
+- Updated dependencies [bb58d1d]
+- Updated dependencies [433ff9f]
+- Updated dependencies [5cc847c]
+- Updated dependencies [6314e87]
+- Updated dependencies [5e2e9fa]
+- Updated dependencies [297534b]
+- Updated dependencies [e7663f2]
+- Updated dependencies [fa21254]
+- Updated dependencies [33c32bf]
+- Updated dependencies [66fb4fa]
+- Updated dependencies [b953a97]
+- Updated dependencies [e076fd5]
+- Updated dependencies [d7f3e30]
+- Updated dependencies [6d641c9]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [c911544]
+- Updated dependencies [a84385b]
+- Updated dependencies [45e1949]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [58bebf6]
+- Updated dependencies [36310dc]
+- Updated dependencies [52d878a]
+- Updated dependencies [456aac8]
+- Updated dependencies [405e808]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [a3ae404]
+- Updated dependencies [7d04b0e]
+- Updated dependencies [bfdf3d4]
+- Updated dependencies [bb68488]
+- Updated dependencies [c0f9a4b]
+- Updated dependencies [b1e42d0]
+- Updated dependencies [2459a3e]
+- Updated dependencies [ac853ce]
+- Updated dependencies [fa51109]
+- Updated dependencies [d6aa172]
+- Updated dependencies [c32a8a1]
+- Updated dependencies [fe52a04]
+- Updated dependencies [d46f9b8]
+- Updated dependencies [3f5f87c]
+- Updated dependencies [2fea4d2]
+- Updated dependencies [f5e1143]
+- Updated dependencies [dad805d]
+- Updated dependencies [7f1cb33]
+- Updated dependencies [f148a64]
+- Updated dependencies [bb68488]
+- Updated dependencies [2e3b0c0]
+- Updated dependencies [35997ce]
+- Updated dependencies [9461dd3]
+- Updated dependencies [78fa331]
+- Updated dependencies [47f551b]
+- Updated dependencies [31ab1ac]
+- Updated dependencies [0082db8]
+- Updated dependencies [ab04728]
+- Updated dependencies [b388950]
+- Updated dependencies [5bf09fd]
+- Updated dependencies [06915b0]
+- Updated dependencies [ff84b05]
+  - @object-ui/i18n@17.5.0
+  - @object-ui/react@17.5.0
+  - @object-ui/components@17.5.0
+  - @object-ui/plugin-detail@17.5.0
+  - @object-ui/core@17.5.0
+  - @object-ui/fields@17.5.0
+  - @object-ui/types@17.5.0
+  - @object-ui/mobile@17.5.0
+
 ## 17.4.0
 
 ### Patch Changes

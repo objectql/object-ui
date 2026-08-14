@@ -1,5 +1,92 @@
 # @object-ui/plugin-map
 
+## 17.5.0
+
+### Patch Changes
+
+- d0c3b26: Every plain `<button>` now declares its `type`. HTML defaults an untyped button to
+  `type="submit"`, so any of these buttons would submit the form it was composed into
+  instead of running its own handler — a real risk for renderers (`drawer`, `tree-view`,
+  `navigation-overlay`) whose placement inside a form is a JSON metadata decision. 114
+  sites were converted to `type="button"`; no site was a genuine submit button, and the
+  DOM is otherwise unchanged.
+
+  The defect class is now closed mechanically by a new `object-ui/button-has-type` ESLint
+  rule (error), so the next untyped button fails CI at write time rather than being found
+  by a fourth audit round (objectui#4045, closing the objectui#3344 family).
+
+- b388d0e: `object-map` reads its configuration from the declared `map` input only — `filter` is the query filter, and a map authored with both stopped rendering markers
+
+  `getMapConfig` probed every filter for a `map` key and, on a hit, used it as the MapConfig: `schema.filter.map`, plus a `schema.filter.map.style` half in the style chain. That shape predates the `{ name: 'map', type: 'object' }` input both registrations declare, and it gave `filter` two meanings inside one block — the query filter at `$filter: schema.filter`, and a configuration slot.
+
+  The probe was written as `'map' in schema.filter`, and `in` walks the prototype chain. The ordinary filter is an **array**, and every array inherits `Array.prototype.map` — so the probe matched, handed the component a _function_ as its map configuration, and the spread of a function is `{}`. The declared `schema.map` was never reached (it sat in the `else` branch), so a map authored with both `map` and `filter` — two documented inputs, no legacy shape required — lost `latitudeField` / `longitudeField` / `titleField`, failed `extractCoordinates` on every record, and rendered zero markers under a "N records with missing or invalid coordinates excluded from the map" banner. The only console output was `[ObjectMap] Invalid map configuration:` from the Zod parse of a function.
+
+  This was reachable two ways and both are fixed by the same deletion: an author writing `filter` alongside `map`, and the `dataSource` binding of objectstack#7121, whose merged filter is an `and` node — `['and', [...], [...]]`, still an array, still carrying `Array.prototype.map`.
+
+  Both legacy reads are gone; the map consumes only what it declares. The `map` config, the top-level `locationField` / `latitudeField` branch, and the `style` / `mapStyle` reads are untouched, and `filter` is passed to the query verbatim — a field genuinely named `map` still filters on it, and nothing is stripped from the author's filter.
+
+  A schema still carrying the legacy `filter.map` stash now gets a dev-mode warning naming the shape and pointing at `schema.map`, rather than silently falling back to the default field names. It is deliberately narrow: own properties only (so an inherited `map` method never triggers it) and object-valued only (so `filter: { map: 'x' }` reads as a filter on a field named `map`), and it warns once per distinct stash because `getMapConfig` runs on every render. Production behavior is unchanged beyond the configuration no longer being read.
+
+- Updated dependencies [ceccdcf]
+- Updated dependencies [d6e5124]
+- Updated dependencies [debad27]
+- Updated dependencies [dc2aa3e]
+- Updated dependencies [ee66e2e]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [f650253]
+- Updated dependencies [3d9769a]
+- Updated dependencies [8f85f8b]
+- Updated dependencies [d0c3b26]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [4dadf0d]
+- Updated dependencies [ae10a01]
+- Updated dependencies [92876f0]
+- Updated dependencies [f279deb]
+- Updated dependencies [4b70d28]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [613b167]
+- Updated dependencies [b4d3c22]
+- Updated dependencies [1f9b905]
+- Updated dependencies [cb13400]
+- Updated dependencies [bc64bfe]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [3e19fe7]
+- Updated dependencies [b953a97]
+- Updated dependencies [d7f3e30]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [a84385b]
+- Updated dependencies [45e1949]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [a3ae404]
+- Updated dependencies [bfdf3d4]
+- Updated dependencies [bb68488]
+- Updated dependencies [b1e42d0]
+- Updated dependencies [2459a3e]
+- Updated dependencies [d6aa172]
+- Updated dependencies [fe52a04]
+- Updated dependencies [3f5f87c]
+- Updated dependencies [f5e1143]
+- Updated dependencies [f148a64]
+- Updated dependencies [bb68488]
+- Updated dependencies [9461dd3]
+- Updated dependencies [47f551b]
+- Updated dependencies [ab04728]
+- Updated dependencies [5bf09fd]
+  - @object-ui/react@17.5.0
+  - @object-ui/components@17.5.0
+  - @object-ui/core@17.5.0
+  - @object-ui/types@17.5.0
+
 ## 17.4.0
 
 ### Patch Changes

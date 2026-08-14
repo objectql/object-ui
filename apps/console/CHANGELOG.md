@@ -1,5 +1,394 @@
 # @object-ui/console
 
+## 17.5.0
+
+### Minor Changes
+
+- 0e67b53: `/accept-invitation/:invitationId` is one route, one component, one namespace — the console now renders the invitation page that actually shows you the invitation
+
+  Two components shipped for this single URL. The console routed its own thin page, which offered nothing but an Accept and a Decline button: it never told the user which organization they had been invited to, in what role, or when the link expires, and accepting left them in whatever organization they were already in. App-shell's page — exported as `DefaultAcceptInvitationPage`, routed by nobody — fetches the invitation, shows the organization, the role and the expiry date, and switches the user into that organization on accept. Console now routes that one. The thin page is deleted.
+
+  Behind them sat two i18n namespaces for one screen: `acceptInvitation.*` (12 keys) for the thin page and `organization.accept.*` (14) for the richer one, both freshly translated into ten languages by different slices of objectui#3546, neither wrong when read on its own. That is 26 keys of duplicated copy with no gate to tell the next author which of the two to edit — the failure mode this repo already has an uncollected precedent for. `acceptInvitation.*` is removed from all ten packs, and its absence is pinned negatively so it cannot drift back: the slice-three test now asserts that no pack defines any of the 12 retired keys (nor an emptied namespace root left by a partial revert), and that neither consuming package asks `t()` for one.
+
+  One behavior needed repairing before the swap was safe rather than after. `?redirect=` is a basename-stripped path by contract in this console — `LoginPage` re-prefixes it with the mount before navigating — and the thin page built it from the route param, correctly. App-shell's page built it from `window.location.pathname`, which already carries the mount, so a console served under a `<base href="/console/">` would have sent the user back to `/console/console/accept-invitation/…` after signing in. It now reads the router (`useLocation`), like every other producer of that parameter in this repo. Under the default `/` mount the two spellings are identical, which is why only a basename case can see the difference; that case is now a test.
+
+  Nothing published was removed: `DefaultAcceptInvitationPage` keeps its export and simply becomes the routed implementation. Downstream apps mounting it get the redirect fix and are otherwise untouched.
+
+- ae10a01: Console chrome reaches the bundle — the list switcher, the aggregate footer, the dialog a11y fallbacks and the whole Settings namespace screen stop being English on non-English consoles
+
+  Six strings on the two screens a user looks at most were hardcoded English literals rather than bundle lookups, so they stayed English on every non-English console with nothing an app could author to change them. They are not object, field, view or action labels — no key in `TranslationData` reaches them — while the console's own bundle already ships zh-CN, ja-JP, es-ES, de, fr, pt, ru, ko and ar and translates hundreds of neighbouring strings. Omissions from an otherwise complete bundle, not a missing capability.
+
+  **Two of the six needed no new keys at all, which is the more interesting half.** The list-view mode switcher named its nine visualizations from a private `VIEW_LABELS` table while `console.objectView.viewType*` — the same nine words — had been resolved through the bundle by the create-view picker for months; the switcher now reads those keys, so the picker's 「画廊」 and the switcher's 「画廊」 cannot drift apart in nine languages. The create/edit dialog's close button is the remainder of a fix that already landed: objectstack#5505 routed the `sr-only` close label through `common.close` for the two Shadcn-synced primitives, but `MobileDialogContent` is a hand-written wrapper outside that regeneration zone with its own close button, and it is exactly what `ModalForm` renders — so the dialog the report measured was the one place still announcing "Close" in English.
+
+  The aggregate footer is the one the original report singled out: the **number** was already locale-formatted and the **prefix** was a hardcoded `Avg: ` / `Sum: `. All eleven aggregation kinds now take their prefix from `grid.summary.*`, and the label/value join is its own key rather than a `': '` baked into the renderer — the separator is translatable content, so zh sets a fullwidth colon and fr the French space-before-colon. The numbers are untouched. The form dialog's `sr-only` description fallback joins the packs too; it is clipped, not visible, so the only way an app could displace it was to author a `description` and thereby put a visible subtitle on every dialog.
+
+  **The Settings namespace screen converts as one unit.** `SettingsView` routed zero framing copy through i18n — save/failure toasts, the env-lock and crypto refusals, the load-error card, the empty-route state, the navigation buttons, the unsaved-changes save bar — while its immediate sibling `SettingsHub`, in the same directory, resolved everything through `t('console.settingsHub.*')`. A zh-CN admin read correctly translated field labels sitting inside an English save bar, because `useSettingsLabel` translates a namespace's authored content but reaches none of the chrome around it. All of it now resolves through a `console.settingsView.*` namespace placed beside the hub's, including the crypto-refusal strings that objectui#4579 deliberately left in English rather than leave one translated string among a dozen literals.
+
+  The save-bar counter was an English plural rule executing in every locale (`change` plus an `s` when the count exceeds one). It is now a real i18next plural family — base key plus `_one` and `_other` in all ten packs — not the `(s)` spelling translated nine ways. The base key is the load-bearing part: i18next asks `Intl.PluralRules` for the one suffix a language needs and, finding no such slot, falls back to English, so without it Russian would read English at counts 2-20 and Arabic at 2-99. Russian and Arabic take the "noun: {count}" form their packs already use for this exact reason, and the counter is verified rendering in-language at 1, 2 and 5.
+
+  The Beta badge reuses the hub's existing key rather than minting a twin, and the refusal messages interpolate their subject through the bundle instead of concatenating a translated word onto an English prefix.
+
+- 3b7d1cc: An unloadable app list no longer lands you on `/home` as though you had no default app — and the Applications page's Set-as-default / Disable / Delete now actually write
+
+  Two defects on the same journey, reported together because the second is why the first had no workaround.
+
+  **The landing.** `resolveLandingPath` reads a list of apps, and an empty list is a legitimate input with a legitimate answer: rule 3 sends you to `/home`, the multi-app launcher. What it could not see is _why_ the list was empty. A failed `GET /meta/app` produces exactly the same `[]` — `MetadataProvider.ensureType` catches and resolves an empty array, so nothing rejects and `loading` goes false — and the resolver then reported "this deployment has no default app" about a deployment it never managed to ask. The wrong answer did not stay soft, either: `Navigate … replace` rewrites `/` to `/home` in history, so a reload re-enters at `/home` and the `isDefault` branch never gets a second chance; if the session also turns out to be dead, the auth guard captures `/home` into `?redirect=%2Fhome` and honors it after sign-in. An error-state fallthrough should never be fossilized as user intent.
+
+  `/` now resolves a landing only from an app list that is an _answer_. The distinguishing fact already existed on the metadata context and is used as-is — `getTypeStatus('app')`, the provider's own per-type load status — so no second dialect of loading or auth state is introduced, and the landing policy itself is untouched: every existing rule, including the empty-list fallthrough and the Setup-only case, still resolves exactly as before when the list genuinely loaded. While the list is unknown the console holds at `/` and re-asks the metadata layer once, so a transient failure heals on its own and a real outage settles on a screen that is at least not a claim about which apps exist.
+
+  The originally reported chain had an earlier link that is already closed: before objectui#4042 the `/` route mounted the resolver with no guard above it, so an unauthenticated visitor ran the whole resolution against a list emptied by a 401. That entry is now guarded and the bare `/` is deliberately not captured as a redirect target, and both facts — plus the legitimate deep-link capture that must keep working — are pinned here for the first time.
+
+  **The Applications page.** Set as default, Disable (and the bulk toggle) and Delete each showed a success toast having issued no request at all, then called `refresh()` — which re-rendered the unchanged server state underneath the confirmation, and is what made the stubs read as a working feature. Their `// TODO: Replace with real API call when backend supports app management` was measured against `@objectstack/client` 17.0.0-rc.6 and its premise is false: the write surface exists, is gated on `manage_metadata`, and is already how app schemas are persisted elsewhere in this console. All four handlers now await a real mutation and report success only afterwards; a refusal surfaces the server's own message. Set-as-default demotes the outgoing default before promoting the new one, so the landing cannot depend on the order the server lists apps in, and the bulk toggle counts the writes that actually landed rather than the size of your selection.
+
+- e4d1c08: `resolveHostAppSegment` is published from `@object-ui/app-shell`'s package root, and the console's local copy of it is deleted
+
+  Which app should host a framework-owned, app-INDEPENDENT page — the Approvals Inbox, the full inbox, an internal form's created record — is one hard-won definition, and `resolveHostAppSegment`'s docblock says so at length: prefer the app the user is in or last had open RE-CHECKED against the live active list, else their first active app, else the two last resorts. It lived in `app-shell/src/utils/appRoute.ts`, and `packages/app-shell` published only its package root, which re-exported `./utils` nowhere. So the definition was unreachable from every consumer outside the package.
+
+  Something outside the package needed it anyway. objectui#4109 had to name a host app for the record an internal `/forms/:name` submit creates, could not import the resolver, and shipped a documented local subset instead: steps 1 and 2 only, returning `null` where upstream falls through further. That is the "two readers of one prose contract" shape this repo keeps paying for (#3367 / #3842) — the next edit to the resolution order lands on one copy — and the divergence was disclosed rather than smuggled precisely so it could be collected later. This is that collection.
+
+  `resolveHostAppSegment` is now exported from the package root, alongside the two predicates it is defined in terms of (`appRouteSegment`, `filterActiveApps`), and the console's copy is gone: `createdRecordPath.ts` holds the URL shape and delegates the choice. The app record type it accepts is derived from the resolver's own signature rather than re-declared, so the call site cannot drift from it either.
+
+  **Behaviour change on the created-record redirect.** Converging on the full resolver means the two cases the subset answered `null` for now name an app. An empty openable list with a preferred app keeps that preferred app unchecked — an empty list means "not loaded yet" at least as often as "this user has no apps", and demoting someone demonstrably rendering inside `/apps/{preferred}/…` would reintroduce the defect objectui#4074 removed. Anything else unresolvable — no apps and nothing preferred, or apps carrying neither `_packageId` nor `name` — lands on `setup`, the least-surprising last resort rather than a broken link. Concretely: an internal form submit that previously stopped on FormPage's in-place confirmation ("no record page to land on") now navigates to the record under the resolved app, which is the same answer every other record link in the console already gives. The write itself was never at stake, only where the user is put afterwards. The remaining `null` from `buildCreatedRecordPath` means what it always should have: there is no record to point at, because the caller has no object or no id.
+
+- 90e792e: Internal `/forms/:name` renders inside the console shell, and an internal submit lands on the record it just created
+
+  A `type: 'form'` action navigates to `/forms/:name` (`ActionRunner.executeForm`). That route was declared at the TOP level of the console route tree, a sibling of the app-shell routes, so clicking a button inside an app dropped the user onto a bare form — no header, no navigation, no way back — while the URL still said they were in the console. It now renders inside the console's layout for app-independent authed pages, the same chrome `/home` and `/organizations` use. The route itself is unchanged: deep links to it keep working, because the missing chrome was the defect, not the navigation.
+
+  The second half is what happens after Submit. The post-submit default was `{ kind: 'thank-you' }` for both form modes, so a signed-in operator who had just created a record was shown the ANONYMOUS confirmation — "Your submission has been received" — with no link to the thing they had created. The default is now mode-aware: an internal submit navigates to the created record's page, while the public `/f/:slug` path keeps `thank-you`, which is the right answer for a visitor who has no console to be sent into. A form view that declares its own `submitBehavior` still wins in both modes, unchanged and untouched — the point of a default is that the corpus never has to opt out of a wrong one.
+
+  Landing on the record needs the created record's id, and that comes from the spec-declared `CreateDataResponse = { object, id, record }` returned by `POST /api/v1/data/:object`. Only that one declared key is read: `record.id` carries the same value, but reading both would be a second de-facto contract for one fact. A response that names no id — or a workspace where no app can host the record's page — falls back to confirming the submit rather than navigating somewhere broken, since the record really was created and silence would be the worse answer.
+
+  No authorable surface changed. The "land on the created record" behaviour is deliberately NOT a new `submitBehavior.kind`: the spec's union (`thank-you | redirect | continue | next-record`) is strict and stays exactly as it is, and nothing parses the new internal default out of metadata — it is only what the renderer does when an author declared nothing.
+
+- 78fa331: console: seed the UI language from the tenant's server-side locale
+
+  `GET /auth/me/localization` has always been fetched on every boot, but its
+  `locale` only ever fed currency/date formatting — the UI language was decided
+  entirely client-side, so a tenant configured `zh-CN` still handed every new
+  device an English console until each user switched by hand.
+
+  The tenant locale now sits in the language precedence chain, between the user's
+  own choice and the browser's:
+
+  1. the user's explicit choice (`objectui-locale`)
+  2. the tenant's server locale, cached at `objectui-locale-seed`
+  3. the browser language
+  4. `en`
+
+  The server value is cached in a slot of its own and is never written into the
+  explicit-choice slot, so it can never masquerade as a preference the user
+  expressed: only a manual switch promotes a language to an explicit choice. A
+  cached seed applies synchronously at bootstrap, and the in-app fetch refreshes
+  that cache from every successful answer, so a tenant that changes its locale
+  reaches choice-less devices on their next boot without an old seed pinning
+  them. On a device's true first visit the fetch is raced against a ~500ms
+  timeout alongside the console's existing pre-mount round-trips and fails open
+  to the browser language; a seed that arrives after the bound is cached for the
+  next boot rather than re-languaging a live session. A tenant locale this build
+  ships no pack for falls through to the next tier instead of half-rendering.
+
+  No platform additions: no new endpoint, no client read/write API, and
+  `sys_user_preference` is untouched.
+
+### Patch Changes
+
+- a00d23c: API Console renders the Storage group again — its catalog key now names the canonical `file-storage` slot instead of the route
+
+  The API Console's service-gated groups are keyed by canonical service-slot name, because the key is looked up directly in `/discovery`'s `services` map — and the framework keys that map by `CoreServiceName`. The storage group was keyed `storage`, which is the _route_ (`/api/v1/storage`), not the slot (`file-storage`). So the lookup missed on every host, and because a miss is indistinguishable from "no such service" the deliberate fail-closed branch (ADR-0076 D12) hid all three storage endpoints — upload, download, delete — on every deployment, whether or not a storage service was registered and healthy.
+
+  The fail-closed posture was never the defect and is unchanged; only the key moves. The group's user-facing name stays `Storage` — that is the route's name, and it was never derived from the catalog key, so no display string and no i18n resource changes.
+
+  The mis-key survived because nothing tied the catalog's keys to the vocabulary they are spelled in: a wrong key produces silence, not an error, and an empty group is exactly what a legitimately absent service looks like. A tripwire now derives that vocabulary from `@objectstack/spec` itself and asserts every service-gated catalog key against it, so a rename on either side fails a test instead of quietly emptying a group. Deriving it also surfaced two further keys that name no slot and therefore can never render — `workflow` (slot retired upstream) and `feed` (never a slot) — recorded as a documented exception set pointing at objectui#4303 rather than fixed here, since neither has a correctly-spelled name to move to.
+
+- 734d186: The console's Applications page is localized — its own chrome only, never the
+  server's words (objectui#4307).
+
+  `AppManagementPage` was raw English end to end: headings, the search field, the
+  selection and bulk controls, the six per-row actions with their tooltip/ARIA
+  pairs, the status badges, and every toast. It was the last un-i18n'd system page,
+  and #4233 / PR #4300 had just given it four live mutations — so the gap became
+  user-visible on every non-English console at the moment operators started using
+  it. 45 keys land under `appManagement.*` in all ten packs, reached through
+  `useObjectTranslation` with the call site's `defaultValue` inline, which is the
+  convention the neighbouring system pages already follow.
+
+  The split that shapes this change is between the strings the PAGE authors and
+  the strings the SERVER authors. `PUT`/`DELETE /api/v1/meta/app/:name` is gated on
+  `manage_metadata` (ADR-0066 D1), so a refusal like `forbidden: manage_metadata
+required` is the server's diagnosis of one specific request; there is no fixed
+  catalogue of those sentences to key against. Each failure toast is therefore a
+  keyed template with a `{{reason}}` hole, and what fills the hole is passed
+  through byte for byte, untranslated. The one part that IS the page's own — what
+  it says when the server sent no message at all — is keyed as
+  `appManagement.toast.unknownError`.
+
+  Two smaller things follow from doing the conversion properly rather than
+  mechanically. The per-failure entry of a bulk toast and the separator between
+  entries are keys, not literals, because bracket style and list punctuation are
+  locale properties (the same rule, and the same past defect, as
+  `validation.formInvalidJoiner`). And the row's controls now name an app through
+  the resolver the visible heading two lines away already used, with `t` passed:
+  an app carrying objectui's keyed label form previously rendered `Select [object
+Object]` into its checkbox's ARIA label.
+
+- 3b4d78e: The Applications page's search box no longer takes the page out on the first keystroke when an app carries a non-string label
+
+  `apps/console/src/pages/system/AppManagementPage.tsx` filtered on `(app.label || '').toLowerCase()`. `label` and `description` are `I18nLabel` in `AppSchema` — `string | Record< string, string >` in `@objectstack/spec` 17.0.0-rc.6 — so an authored non-string label is spec-legal metadata, and an object is **truthy**: the `|| ''` guard never fired for one, and `.toLowerCase()` received the object.
+
+  ```
+  TypeError: (l || "").toLowerCase is not a function
+  ```
+
+  That throw happened inside `filter` **during render**, so it took the whole page down rather than degrading search. It stayed invisible until someone typed, because `if (!searchQuery) return true` returns before either read — the page mounted perfectly with the very metadata that killed it one character later.
+
+  Both reads now go through the resolver the rows already render with: `appTitle` (the single display-name helper objectui#4307 introduced in this file) for the label, and the identical `resolveKeyedI18nLabel(…, t)` call the description paragraph makes. This is a repair to one page's filter, not a new capability — but it does make search match what the operator can actually see: for objectui's keyed label form it now matches the pack's answer rather than the authoring `defaultValue`, and it matches `app.name` wherever the row heading itself falls back to it.
+
+  Routing search through the render path also means it cannot drift out of step again. The inline locale map form (`{ en: 'Storefront', 'zh-CN': '店面' }`) is still resolved by neither path — the row heading falls back to the app name and search now matches on exactly that, instead of crashing on it — so when objectui#4163 widens the resolver, display and search gain the map form in the same commit.
+
+  No first-party app ships a non-string app label today, so this was reachable through authored metadata rather than live in the shipped examples; the crash is real for anyone who authored one, and `AppSchema` accepts it with a green parse.
+
+- d0c3b26: Every plain `<button>` now declares its `type`. HTML defaults an untyped button to
+  `type="submit"`, so any of these buttons would submit the form it was composed into
+  instead of running its own handler — a real risk for renderers (`drawer`, `tree-view`,
+  `navigation-overlay`) whose placement inside a form is a JSON metadata decision. 114
+  sites were converted to `type="button"`; no site was a genuine submit button, and the
+  DOM is otherwise unchanged.
+
+  The defect class is now closed mechanically by a new `object-ui/button-has-type` ESLint
+  rule (error), so the next untyped button fails CI at write time rather than being found
+  by a fourth audit round (objectui#4045, closing the objectui#3344 family).
+
+- 25b9833: Console: restore `crypto.randomUUID` on insecure origins so list views stop crashing on LAN IPs
+
+  `crypto.randomUUID` is exposed only in secure contexts (HTTPS or
+  `http://localhost`). Reaching a dev box over plain HTTP from another machine —
+  `http://192.168.x.x:4001/_console/`, the ordinary second-device flow — left the
+  method undefined, and every unguarded caller threw
+  `TypeError: crypto.randomUUID is not a function`, taking the console's list
+  views into the ErrorBoundary.
+
+  The console's HTML entry now installs an RFC 4122 v4 fallback built on
+  `crypto.getRandomValues` (which is not secure-context-gated, so the entropy
+  stays cryptographic). It runs as an inline classic script, synchronously during
+  parse, so it precedes every bundled chunk. It is guarded on absence and never
+  replaces a native implementation, so secure origins are unaffected; with no
+  entropy source available it installs nothing rather than degrading to
+  `Math.random`.
+
+- 2a40f69: Retire two post-retirement dead surfaces (#4364, #4368). Both were measured at this
+  branch point rather than taken from their cards, and one card's premise only half held.
+
+  Breaking for anyone who typed against the removed declaration, marked `minor` per this
+  repository's version-alignment convention (the major tracks `@objectstack`, never an
+  API-break count):
+
+  - `@object-ui/types` and `@object-ui/permissions` no longer export
+    `ObjectLevelPermission`. It declared a second, parallel home for object-scoped grants
+    (`{ object, actions, effect?, conditions? }`) that nothing constructed, accepted or
+    read once `RoleDefinition.permissions` was retired (#4288) — its only remaining
+    referents were its own definition and the two barrel lines. The wired home is
+    `ObjectPermissionConfig.roles`, whose inner grant shape is declared inline; that is
+    what the evaluator reads, and it is unchanged. `ObjectPermissionConfig`'s doc comment
+    now records the retirement so the surface is not re-declared. (#4364)
+
+  `PermissionCondition` was proposed for retirement on the same card and is **kept**: its
+  premise ("only referent is `ObjectLevelPermission.conditions`") did not hold at this
+  branch point. `evaluateCondition` in `@object-ui/permissions` takes it as a parameter
+  type and implements all eleven of its operators under a 26-case suite. `PermissionEffect`
+  is likewise untouched — `FieldLevelPermission.effect` still reads it.
+
+  No behaviour change, no public surface change:
+
+  - `@object-ui/console` drops `src/utils/metadataConverters.ts` and
+    `src/services/MetadataService.ts`. Both were console-local duplicates of live
+    `@object-ui/app-shell` modules and lost their last importer when the bespoke
+    object-detail widgets were retired (#4365). Both had already drifted behind the live
+    copies they duplicate — the console converter's `referenceTo` chain never read the
+    server's `reference` key, and the console service predates the view cache-invalidation
+    seam (#4373) — which is precisely the imitation trap the card recorded: an author
+    grepping for "the converter" could land on the unexercised copy. The app-shell copies
+    and their tests are untouched. (#4368)
+
+- 6d8231c: A `type: 'form'` action fired from a record now EDITS that record instead of creating a duplicate
+
+  `ActionRunner.executeForm` forwards the record an action was fired from as `/forms/:name?recordId=<id>`, but the console's internal form route never read that param. The only query params it consumed were the `prefill_` ones, so the route rendered EMPTY inputs, and its submit was an unconditional `POST /api/v1/data/:object` — an insert. An "edit this record" action therefore opened a blank form and, on Submit, created a second record while leaving the original untouched. In the showcase app: open any Task, click **Log Time**, fill it in, Submit — a NEW Task appeared. Until objectui#4109 the damage was hidden behind the anonymous "Your submission has been received" panel; once an internal submit started landing on the record it wrote, the duplicate became visible immediately.
+
+  `?recordId=` now selects the whole read/write pair. The route loads the record with `GET /api/v1/data/:object/:id`, prefills the inputs with its stored values, and saves with `PATCH /api/v1/data/:object/:id` — the verb the data plugin declares (`plugin-rest-api.zod.ts`), the one `packages/rest` registers, and the one every other update client in this workspace already spells. After a successful save the user lands back on the record they edited.
+
+  A `recordId` the route cannot honour now fails closed. A record that 404s or 403s, a payload whose object contradicts the form's target, and a present-but-blank `?recordId=` each render the form's error state; none of them falls back to create mode, because a blank form whose submit inserts a duplicate is this bug's exact harm and silently degrading into it would just re-arm it. A `recordId` naming a record of a different object is not found under the form's own object, so it takes the same refusal path.
+
+  When a URL carries both a `recordId` and `prefill_` params, the explicit params win for the fields they name and the record's stored values fill the rest — a producer that forwards both is expressing intent, and the per-field instruction is the more specific one. Stored nulls and empty strings count as real values and beat a field's create-time `defaultValue`, so opening an edit form never silently proposes a change the user did not make.
+
+  Two surfaces are deliberately untouched. Create mode — no `recordId` — behaves exactly as before, and the public `/f/:slug` path ignores `recordId` entirely: an anonymous visitor controls the URL, so honouring it there would turn a public form into an arbitrary-record reader and writer. In `@object-ui/app-shell` only the URL-param registry's documentation changed, recording that `recordId` now has a second reader on a route that can never match the same URL as the record drawer's.
+
+- 3e19fe7: i18n copy: one ellipsis glyph across the ten packs, `usted` in the es draft-preview empty state, and a pt sentence that stops contracting `de` onto its own hole
+
+  Three locale-copy defects that no gate could see, because all three are _value_ defects on keys whose names, placeholders and key sets were already correct.
+
+  **One ellipsis (objectui#3878).** `en` ended 33 values with three ASCII full stops (`Loading...`, `Ask anything...`) and 110 with the typographic ellipsis `…`, and the nine translation packs had copied `en` value by value — so a user could read both glyphs on one screen: `common.loading` beside `dashboard.loading`, `console.ai.askAnything` beside its own panel's siblings. All ten packs now spell it `…` (U+2026), per the maintainer-authorized consistency pass registered on objectstack#6015. 312 pack values changed: 34 in `en` (the 33 trailing plus the one mid-sentence `collaboration.commentPlaceholder`) and 278 across the nine. Eleven inline `defaultValue` call sites were re-synchronised with the new `en` text, which `scripts/check-i18n-call-site-keys.mjs` requires byte-for-byte.
+
+  The convention is now pinned so the split cannot regrow: `packages/i18n/src/__tests__/ellipsis-glyph-3878.test.ts` fails, by key name, on any value in any of the ten packs that holds three ASCII full stops. It is deliberately wider than "a trailing `...` in `en`", because the census showed the narrow rule would have shipped with two holes in it — `collaboration.commentPlaceholder` puts the ellipsis mid-sentence, and `list.loading` had the packs wrong while `en` was already right, which no `en`-only rule can see.
+
+  Fifteen module-local **no-provider fallback** entries were moved with the packs, across `useCollaborationTranslation`, `useFieldTranslation`, `useDetailTranslation`, `ObjectGrid`, `KanbanImpl`, `data-table` and `ConnectionStatus`. Those maps exist to render when no `LocalizationProvider` is mounted, and each one's own docblock requires it to stay byte-identical to the `en` pack — a requirement objectui#3440 already enforces mechanically for the collaboration map. Leaving them behind would have made the provider-less path disagree with the provider path on ten keys.
+
+  **es `usted` (objectui#3875).** `preview.empty.notReadyDescription` said `Revisa la conversación` — the tú imperative — in a namespace that is otherwise 23:1 usted, and it renders _underneath the usted draft-preview banner at the same moment_, not before or after it. `Revisa` → `Revise`; nothing else in the sentence carries a register. The neighbouring `approvalsInbox` namespace is legitimately tú and was left alone.
+
+  **pt contraction (objectui#3877).** `ConcurrentUpdateDialog` splits `detail.concurrentUpdateDescription` on `{{field}}` and renders a bolded label in the gap, and pt left a bare `de` in front of that gap. When the multi-field conflict branch passes the record label (`este registro`), Portuguese users read `de este registro` — a contraction error every native speaker sees, and one that no spelling of the leaf value could fix (`deste registro` renders `de deste registro`). The pt sentence is rewritten so the hole is preceded by the verb `afeta` instead of any preposition, which closes the whole class rather than trading `de` for an `em` or `a` that contract just as hard. pt only; `en` is unchanged.
+
+  No behavior, no keys added or removed, no placeholder changed.
+
+- 297534b: Align 43 inline `defaultValue` strings with the `en` pack, and make the call-site gate enforce it (objectui#3810)
+
+  `t(key, { defaultValue: 'English text' })` only renders that text when i18next
+  **misses** the key. Where the key exists in `packages/i18n/src/locales/en.ts` the
+  pack value always wins, so the inline string is dead code — and 43 of those dead
+  strings said something different from the sentence users actually read.
+
+  `scripts/check-i18n-call-site-keys.mjs` (objectui#3530) now compares the two
+  whenever a call site carries a literal `defaultValue` for a key `en` defines, and
+  fails on any byte of difference. It is a hard rule with **no baseline**: the
+  repo-wide census measured 43 sites in 19 files out of 851 literal inline defaults,
+  and all 43 are aligned here, so there is no debt for a ratchet to hold. A
+  `defaultValue` on a key that is _not_ yet in `en` stays legal — that transition
+  runs for months (objectui#3546) and belongs to the existing `missing-key` rule,
+  which keeps reporting it alone.
+
+  Every fix moved the CALL SITE to the pack's wording. `en.ts` is untouched: its
+  values are what users read today, and changing one would oblige the same change in
+  the nine other packs (`scripts/check-i18n-en-drift.mjs`, objectui#3650). Six of the
+  43 differed only in an ellipsis (`...` against U+2026) — invisible in review, which
+  is how they survived three i18n gates that are each blind to this class by
+  construction.
+
+  The visible effect is confined to hosts that render these components with **no**
+  `I18nProvider` and no initialised i18next instance. There, react-i18next's
+  not-ready `t` returns the `defaultValue`, so the inline string was the rendered
+  one; it now matches what a provider-backed app has always shown. Inside the
+  console — provider mounted — nothing users see changes. The clearest converging
+  examples: the workspaces screen was written as "Organizations" at nine call sites
+  while every user has been reading "Workspaces"; the forgot-password success line
+  was written as "If an account exists, a reset link has been sent." while the pack
+  asserts "We've sent a password reset link to {{email}}."
+
+- 66fb4fa: The console's language menu now asks the app which locales it actually ships, instead of always offering the same ten.
+
+  `LocaleSwitcher` built its items from a module-level `LANGUAGES` constant — exactly the ten codes `@object-ui/i18n` ships packs for — and never consulted the app, even though `GET /api/v1/i18n/locales` has been serving that list all along. It failed in both directions at once. An app shipping a locale outside those ten (`th`, a regional `pt-BR`) had no way to be selected from the console: the bundle could be complete and lint clean, and the menu simply had no entry for it. An app shipping only `en` and `zh` still listed all ten, so picking 日本語 handed the user the console's own chrome in Japanese with everything app-authored in the fallback language — a half-translated UI its author never opted into.
+
+  The menu is now the **intersection**: the app's own locale list ∩ what the renderer can actually resolve (built-in packs, `config.resources`, and — for an app that wires a dynamic `loadLanguage` loader, which is how the console gets its packs — the locales that loader can fetch). Both failure directions close in the same change: an app-shipped locale becomes offerable, and locales the app does not ship disappear. The endpoint is reached through a new `loadLocales` prop on `I18nProvider`, wired exactly like the existing `loadLanguage`: the app owns the transport, the provider owns what is done with the answer. An app that does not wire it keeps today's menu unchanged.
+
+  **The restore validation widened in lockstep, because otherwise this fix would have minted the next bug.** A restored language was validated against "the locales this provider can produce" — built-in packs plus `config.resources` — a bound that was correct only for as long as the menu offered exactly the built-in ten. The moment the menu grows to the app's real list, a locale the user can now pick is a locale that bound rejects, so a user-picked app locale would have been purged on the next page load. It now also accepts a locale a wired dynamic loader may be able to fetch, and the bound stays honest rather than absent: only well-formed BCP-47 tags qualify (`constructor`, `__proto__`, `en_US` are still rejected, as is any stored locale in an app with no loader), and the app's own locale list adjudicates the choice for real once it arrives — a locale the app has since dropped is reverted and purged rather than left locking the UI to a language with no translations.
+
+  Labels come from the built-in native names where they exist (`中文`, `日本語`, … are unchanged) and from `Intl.DisplayNames` for everything else, so an app locale is named in its own language rather than by its code. The endpoint's own `label` is deliberately not used for display: the server sets it to the code echoed back, which would have put `th` in the menu where `ไทย` belongs.
+
+  While the app's list is in flight the switcher renders nothing, following the sibling menus in the same folder — the ten never flash past on an app that only ships two. When there is no backend, the endpoint fails, or the app answers with nothing this renderer can produce, the built-in ten remain as the offline fallback, so the menu is never empty and never unusable.
+
+- 275d7df: Retire the dormant bespoke object-detail page factory and its seven widgets
+
+  `buildObjectDetailPageSchema()` had zero callers. Its only consumer was the registry-driven `MetadataDetailPage`, deleted when the console moved onto the metadata-admin engine; the factory outlived it by months as code no route could reach. The seven widgets it fed — `object-detail-tabs`, `object-properties`, `object-field-designer`, `object-relationships`, `object-keys`, `object-data-experience`, `object-data-preview` — were still registered in `ComponentRegistry` at startup, so they were reachable in principle by any schema naming those types, and in practice by none: nothing in the repository produces one.
+
+  That unreachability is also why 60 lines of hardcoded Chinese UI copy sat in `objectDetailWidgets.tsx` and `ObjectDetailTabsWidget.tsx` against the English-only rule without any gate seeing them — the strings were bare literals, never `t()` keys, and all three i18n gates judge keys. Translating copy that no user can reach, on a surface with no future, was the more expensive of the two exits; the maintainer ruled REMOVE (objectui#3731 / #3736) and both cards close together.
+
+  Deleted: `schemas/objectDetailPageSchema.ts`, `components/schema/objectDetailWidgets.tsx`, `ObjectDetailTabsWidget.tsx`, `ObjectFieldDesignerWidget.tsx`, `registerObjectDetailWidgets.ts`, and the `main.tsx` registration import. No user-visible behaviour changes, because no route rendered any of it. The `skills/objectui/guides/console-development.md` chapter that positioned the factory as the bespoke-editor recipe now points at the live specimen (`PermissionMatrixEditPage`) instead, and the retired names are recorded in that guide's "Retired names" table.
+
+- 36a4124: Settings save: render the fail-closed crypto refusal as its own state instead of a generic save failure
+
+  A deployment with nothing able to encrypt a declared-secret setting refuses the write, and
+  since objectstack#8396 it says so in its own wire envelope — `SETTINGS_CRYPTO_UNAVAILABLE`,
+  with `error.details` locating the refused `{ namespace, key }` and `error.message` carrying
+  the operator prescription. The console read none of it: the code fell through to the generic
+  error path, where the field-error extractor finds no `details.fields` array and returns null,
+  so nothing was marked and the whole refusal collapsed into one transient toast reading "save
+  failed". The admin was told the save did not work; that the DEPLOYMENT cannot encrypt, and
+  which key it refused, was on the wire and thrown away.
+
+  `SettingsView` now branches on the code the way it already does for `SETTINGS_LOCKED`: it
+  names the refused key as `namespace.key` from the declared `error.details` slot, and renders
+  the server's prescription verbatim in a persistent panel — the server owns that copy, so the
+  console frames the refusal but never restates how to fix it. The draft is kept, so the value
+  is not lost while the deployment is reconfigured, and the refusal clears when its claim can
+  actually have become false: a new save attempt, a save that succeeds, a discard, or a reload.
+
+  The value itself is never rendered — the envelope locates the refusal and deliberately does
+  not carry the secret, and the console does not re-introduce it from the draft it is holding.
+  `SETTINGS_LOCKED` and `SETTINGS_VALIDATION` are untouched, and an unrecognized code still
+  takes the generic path.
+
+- b3f665b: `/setup` is a real address again — the console gets a stable deep link into platform administration instead of bouncing you back to home
+
+  Opening `/_console/setup` landed on `/_console/home`. System settings had no direct URL at all: the only way in was clicking the 「系统设置」 card on the home launcher, which meant the entry point could not be bookmarked, could not be pasted into a support runbook, and was asymmetric with Studio, whose front door has been stable for a while.
+
+  The route was never missing — it was occupied. `/setup` mounts the first-run owner-bootstrap wizard (ported here when the Account SPA was retired), and that page evicts everyone it is not meant for: a signed-in visitor via `window.location.assign('/')`, which the landing resolver then turns into `/home` on any multi-app deployment. So the bounce was the wizard doing its job at a URL that had quietly acquired a second, more common meaning.
+
+  `/setup` now decides between the two, on the condition the wizard itself already probes — whether the deployment has an owner (`GET /api/v1/auth/bootstrap-status`). No owner yet: the wizard, unchanged. Otherwise: the platform-administration deep link. A live session short-circuits the probe entirely, because `hasOwner: false` cannot be true while somebody is signed in — which also keeps a failed probe from re-creating the bounce it is meant to remove. The verdict is latched for the lifetime of the mount, because `signUp()` flips the session to authenticated while the wizard is still renaming the bootstrap organization, and re-deciding on that flip would unmount the wizard mid-submission.
+
+  The destination is read from metadata rather than spelled out. `SetupRedirect` (new, exported from `@object-ui/app-shell` alongside `SystemRedirect`, with its policy available as the pure `resolveSetupAppPath`) resolves the Setup app through the same `appRouteSegment()` helper the home launcher's app cards use, and forwards to the app ROOT — so the page you land on is whatever `AppContent` already resolves as that app's landing item, not a second copy of that policy that would drift the next time Setup's navigation is re-ordered. Search and hash carry across the hop, as they do for `SystemRedirect`.
+
+  Two edges are handled rather than papered over. An unauthenticated deep link now goes to `/login?redirect=%2Fsetup` through the console's existing auth-redirect contract — router-derived, so it stays correct under a `<base href>` mount — and lands back on `/setup` after signing in; previously it reached a bare `/login` and the deep link was dropped. And a viewer whose metadata contains no Setup app (the common cause is not a broken build but a missing `setup.access` permission, which filters the app out server-side) gets the shell's ordinary "App not available" screen, with its retry and its one-shot metadata re-check — never a silent landing on home, and never the bare `/apps/setup` pseudo-route, which would have resolved to whichever app happens to be the default.
+
+  `/_console/studio` was checked for the same asymmetry and needed no change: bare `/studio` is a declared front door rendering the builder landing, and `/studio/:packageId` already redirects to its Data pillar.
+
+- 1f34b38: The first-run setup wizard no longer drops a brand-new owner outside the console
+
+  On a console served under a mount — `/_console/`, which the framework CLI configures for every embedded deployment by injecting a `<base href>` — finishing the first-run owner bootstrap landed the new owner on the ORIGIN root instead of the console. Both of `SetupPage`'s exits navigated to a bare `/`: the success path after the account is created and the bootstrap organization renamed, and the bounce that sends an already-signed-in visitor away. `window.location.assign` does not go through React Router, so its `basename` never applied and a root-relative `/` left the SPA. It is the worst possible moment for a dead end — the first screen after creating the account, on a deployment that by definition has no other account to recover with.
+
+  Under the default `/` mount the prefixed and unprefixed spellings are identical, which is why no standalone `os dev` run ever surfaced this.
+
+  Both exits now go through the console-mount helper `LoginPage` already used for exactly this, so they land inside the SPA under every mount. They stay full-page navigations deliberately: the console shell mounts its metadata tree as soon as auth _resolves_ rather than when it authenticates, and re-keys it only on language, so the app list read while nobody was signed in would survive a router navigation and leave the new owner in an appless console. Tearing the document down is what guarantees the console rebuilds with the session.
+
+  The helper itself was module-private to `LoginPage` and had already been copied verbatim into `RegisterPage`. It now lives in one place with all three auth surfaces importing it, so the next mount fix lands once rather than three times. `LoginPage` and `RegisterPage` behaviour is unchanged, and pinned as unchanged across all three mount configurations.
+
+- 234238e: fix(console): a Setup-only environment lands on `/home`, not Setup's all-zero System Overview
+
+  A new builder arriving on a just-created environment (platform SSO, no explicit
+  target) landed on Setup's **System Overview** — a platform-health/audit
+  dashboard reading all zeros, because a fresh environment has no audit history
+  yet. The intended first screen is the environment's own home: build with AI,
+  start from a template, Your apps.
+
+  The path was `resolveLandingPath`'s rule 2. Measured end to end:
+
+      /  →  RootLandingRedirect  →  resolveLandingPath([setup])
+         →  rule 2 "single visible app"  →  /apps/setup
+         →  AppContent.resolveLandingRoute() → the app's first nav item
+         →  dashboard/system_overview
+
+  Rule 2 itself is right — a one-app PRODUCT deployment should not have to click
+  through a one-tile launcher. Setup is not that app: it is the platform
+  administration console that `@objectstack/platform-objects` ships into every
+  deployment, so "the only app this viewer can see is Setup" means _this
+  environment has no product apps yet_, not _Setup is the product_. Under ADR-0075
+  the environment layer's home is the environment's own responsibility, so that
+  case now resolves `/home`.
+
+  Deliberately narrow — everything else is byte-identical:
+
+  - a declared landing still wins (rule 1, `isDefault`, untouched): an admin
+    console that genuinely wants Setup first says so, and gets it;
+  - a one-app product deployment still lands in its app;
+  - `[product, setup]` still resolves `/home` exactly as before — Setup is
+    excluded from the single-app _outcome_, never from the visible _count_;
+  - the `/setup` deep link is unchanged: `/` is "an arrival with no target",
+    `/setup` is an explicit one, and it still resolves into Setup.
+
+- 9461dd3: Form actions no longer carry a record id across an object boundary (#4292).
+
+  `ActionRunner.executeForm` forwarded `/forms/:name?recordId=<id>` unconditionally,
+  and that URL says nothing about which object the id belongs to — so the form route
+  resolved it against the FormView's own target object. When an action fired from a
+  record of a DIFFERENT object and ids collide across objects (per-table integer
+  keys), the form silently prefilled and, since the route learned to honour the param,
+  `PATCH`ed a same-id record of the wrong object.
+
+  - **Producer**: the id is forwarded only when the firing context record's object
+    (`context.objectName`) matches the target view's object; on a mismatch no id is
+    forwarded, preserving create semantics. When it IS forwarded, the object travels
+    with it as `?recordObject=`.
+  - **Consumer**: `/forms/:name` refuses — no record read, no write — when
+    `recordObject` disagrees with the FormView's object. A URL without the param
+    behaves exactly as before, so existing deep links are unaffected.
+  - @object-ui/sdui-parser@17.5.0
+  - @object-ui/react-runtime@17.5.0
+
 ## 17.4.0
 
 ### Patch Changes

@@ -1,5 +1,137 @@
 # @object-ui/plugin-timeline
 
+## 17.5.0
+
+### Minor Changes
+
+- 01c9188: fix(plugin-timeline): dates follow the active locale instead of a hardcoded en-US
+
+  A `zh` console rendered a fully Chinese timeline widget whose axis read
+  `Aug 11` / `Sep 2026` and whose item dates read `August 11, 2026`
+  (objectui#4513). `renderer.tsx` handed `Intl` a literal `'en-US'` at four sites
+  — the hour, day and month gantt headers, and the `long` item date — so nothing
+  a user or a tenant configured could reach them.
+
+  A fifth site was the same defect spelled as an omission: the `short` item date
+  called `toLocaleDateString()` with no tag at all, which means the _machine's_
+  locale. It agreed with the other four only by the accident of an en-US runner,
+  and rendered a third locale on anyone else's machine.
+
+  All five now resolve through `useDisplayLocale()` from `@object-ui/i18n`
+  (tenant regional default → active UI language → `en`) — the one channel every
+  field, number and currency renderer already uses, converged there in
+  objectui#4468. The locale is read once in `TimelineRenderer` and threaded into
+  the two module-level date helpers, which cannot host a hook themselves.
+
+  English output is byte-identical at all five sites: `'en'` and the retired
+  `'en-US'` produce the same forms, and `generateTimeScaleHeaders` gained an
+  optional trailing `locale` parameter that defaults to `'en'`, so existing
+  three-argument callers are unaffected. The locale-free header vocabularies
+  (`Week n`, `Qn YYYY`, `YYYY`) and all non-date rendering are untouched.
+
+- 0082db8: The timeline's gantt bucket labels and its row-label default speak the session language
+
+  objectui#4513 routed every `Intl` call in the timeline renderer through `useDisplayLocale()`, so a Chinese session renders `2026年8月` on the month axis and `2026年8月11日` on item dates. Three sibling strings in the same renderer never went through `Intl` at all and stayed English on that same Chinese axis: the `week` header (`Week 1`), the `quarter` header (`Q3 2026`), and the gantt row-label column default (`Items`). The half-fixed state was the visible one — a Chinese date axis with English bucket labels beside it.
+
+  They are a translation concern rather than a locale-resolver one, and that distinction is the fix: a locale TAG formats a date, only a TRANSLATION spells a word. All three now resolve through the package's existing channel — `useTimelineTranslation` / `TIMELINE_DEFAULT_TRANSLATIONS`, the `createSafeTranslation` factory `ObjectTimeline` already uses for `timeline.bucket.*` — under three new keys carried by all ten locale packs: `timeline.scale.week`, `timeline.scale.quarter`, `timeline.gantt.rowLabel`.
+
+  The week number and the quarter/year ride the channel's own `{{hole}}` parameters rather than being concatenated, because the word order belongs to the translation: Chinese puts the year first (`2026年第3季度`), which no `Q${q} ${year}` template can produce at all. Only the row-label DEFAULT moved — an author who writes `rowLabel` still supplies their own string, and the `year` scale stays a bare `String(getFullYear())` with no vocabulary in it to translate.
+
+  English output is byte-identical to the retired literals: the `en` pack values are the same two templates the code used to interpolate by hand. `generateTimeScaleHeaders` is a pure exported function and cannot host a hook, so the translate fn is threaded in as an optional fifth parameter on the seam #4513 opened for `locale`, defaulting to the package's own defaults table — the same lookup the channel serves with no `I18nProvider` mounted. Existing three- and four-argument call sites are unaffected.
+
+  One consequence is worth stating because it looks like a bug and is not: dates and vocabulary resolve through different channels on purpose. `useDisplayLocale()` puts the tenant's regional default first (how this organization writes dates), while `t` follows the UI language (what this user reads). A tenant configured `en` whose user reads Chinese chrome therefore sees `Aug 2026` beside `第 1 周` — the same split `timeline.bucket.*` has always had.
+
+### Patch Changes
+
+- Updated dependencies [0e67b53]
+- Updated dependencies [ceccdcf]
+- Updated dependencies [d6e5124]
+- Updated dependencies [debad27]
+- Updated dependencies [dc2aa3e]
+- Updated dependencies [ee66e2e]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [932cbcd]
+- Updated dependencies [734d186]
+- Updated dependencies [f650253]
+- Updated dependencies [3d9769a]
+- Updated dependencies [8f85f8b]
+- Updated dependencies [d0c3b26]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [f7c6430]
+- Updated dependencies [4dadf0d]
+- Updated dependencies [ae10a01]
+- Updated dependencies [92876f0]
+- Updated dependencies [f279deb]
+- Updated dependencies [4b70d28]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [613b167]
+- Updated dependencies [b4d3c22]
+- Updated dependencies [1f9b905]
+- Updated dependencies [cb13400]
+- Updated dependencies [828549a]
+- Updated dependencies [e1ade8f]
+- Updated dependencies [bc64bfe]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [3e19fe7]
+- Updated dependencies [bb58d1d]
+- Updated dependencies [5cc847c]
+- Updated dependencies [fa21254]
+- Updated dependencies [33c32bf]
+- Updated dependencies [66fb4fa]
+- Updated dependencies [b953a97]
+- Updated dependencies [d7f3e30]
+- Updated dependencies [6d641c9]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [c911544]
+- Updated dependencies [a84385b]
+- Updated dependencies [45e1949]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [58bebf6]
+- Updated dependencies [405e808]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [a3ae404]
+- Updated dependencies [bfdf3d4]
+- Updated dependencies [bb68488]
+- Updated dependencies [c0f9a4b]
+- Updated dependencies [b1e42d0]
+- Updated dependencies [2459a3e]
+- Updated dependencies [ac853ce]
+- Updated dependencies [fa51109]
+- Updated dependencies [d6aa172]
+- Updated dependencies [fe52a04]
+- Updated dependencies [d46f9b8]
+- Updated dependencies [3f5f87c]
+- Updated dependencies [2fea4d2]
+- Updated dependencies [f5e1143]
+- Updated dependencies [7f1cb33]
+- Updated dependencies [f148a64]
+- Updated dependencies [bb68488]
+- Updated dependencies [2e3b0c0]
+- Updated dependencies [9461dd3]
+- Updated dependencies [78fa331]
+- Updated dependencies [47f551b]
+- Updated dependencies [31ab1ac]
+- Updated dependencies [0082db8]
+- Updated dependencies [ab04728]
+- Updated dependencies [5bf09fd]
+- Updated dependencies [06915b0]
+- Updated dependencies [ff84b05]
+  - @object-ui/i18n@17.5.0
+  - @object-ui/react@17.5.0
+  - @object-ui/components@17.5.0
+  - @object-ui/core@17.5.0
+  - @object-ui/types@17.5.0
+  - @object-ui/mobile@17.5.0
+
 ## 17.4.0
 
 ### Patch Changes

@@ -1,5 +1,180 @@
 # @object-ui/plugin-charts
 
+## 17.5.0
+
+### Minor Changes
+
+- 5fac011: Publish `normalizeChartSchema` from the package entry.
+
+  `normalizeChartSchema` is the single place the author-facing chart schema is translated into the renderer's internal pipeline contract, and `ChartRenderer` calls it on every render. It was not reachable from the package's only entry point, so a consumer that wanted to assert what `AdvancedChartImpl` is actually handed had to restate the translation rather than run it. It is now exported from the entry, along with the `NormalizedChartSchema` type it returns.
+
+  Additive only: nothing is removed or renamed, and the module was already in the entry's eager import graph via `ChartRenderer`, so this publishes a name rather than shipping new bytes.
+
+### Patch Changes
+
+- 5900ac5: Analytics surfaces now run resolved select-option labels through the locale bundle — the chart legend and the related list on one page stop disagreeing
+
+  A dashboard widget grouped by a `select` field rendered the option's authored English label while the related list beside it rendered the translation. The decisive evidence in objectui#4030 is the stored value `orion`: the chart read `Orion Engineered Carbons`, a string with no resemblance to the value and matching the object's `label` byte for byte. So the analytics path had already RESOLVED the option label — it simply never ran the result through the i18n bundle before display. (`domestic → Domestic` differs from its value by case alone, which is why the first diagnosis, "the report groups by stored value", was wrong.)
+
+  There is exactly one resolution channel and this change reuses it rather than adding a chart-side dialect: `fieldOptionLabel` from `useObjectLabel`, i.e. `{ns}.fieldOptions.<object>.<field>.<value>` — the convention `@objectstack/spec` names objectui as the reader of, and the one list, form, kanban and record-picker surfaces already translate select options through. The bundle is applied ONCE, at the output of the label net that landed in objectui#4053/#4263, on the shared option list every consumer reads: chart axis and legend, the table/pivot cells of a dotted dimension, that table's CSV export, per-category colours and the declared category order. `@object-ui/core` gains `localizeFieldOptions` (the pure mirror of `translateOptions`), an optional translator on `buildDimensionLabelMap`, and `resolveDimensionFieldMeta` — the same single relationship walk `resolveDimensionFieldOptions` performs, now keeping the object that OWNS the terminal field, because for `crm_account.industry` the bundle key is `crm_account`, not the dataset's base object.
+
+  Two properties the fix is shaped around. The rows reach this net keyed either way — by stored value when the server did not resolve the dimension, by the English label when it did (ADR-0021) — and the reported screen is the second case, so the map answers to both keys and lands on the same translated display. And identity is untouched: `relabelDimensions` still rewrites display only, so a drilled chart segment clicked as `欧励隆` filters by `orion`, bucket ids and pivot totals keep their raw keys, and an option with no bundle entry (or an `en` console) renders exactly the authored label it renders today.
+
+  The per-locale work moved from the metadata fetch into the render, so switching language now re-labels in place instead of waiting for a refetch.
+
+  Not covered, and unchanged here: a LOCAL select dimension on a table/pivot, whose label the server resolves and whose client-side net is deliberately off (objectui#4263), and a dashboard global filter's own field label, which has no object name in its metadata to key a bundle lookup with — tracked on objectui#4030.
+
+- 3fc2971: A null-keyed group renders as an explicit bucket instead of silently vanishing from a chart (objectui#4466)
+
+  `buildChartSeries`' single-dimension branch passed rows through verbatim, so a row whose category VALUE is `null` reached recharts with a null category and drew no mark. The visible outcome was not an empty chart but a quietly wrong one: rows `[{user_id: null, event_count: 51}, {user_id: 'Dev Admin', event_count: 2}]` drew exactly ONE bar — the dominant group, 51 of 53 events, dropped while the y-axis scale still accommodated it, so the chart understated its own data and the axis proved the data had been there. With every group null it drew axes, gridlines and an axis title with zero marks and no empty state, which is the shipped first-boot state of the built-in System Overview board's "Events by User" (every seeded `sys_audit_log` row is written with `user_id = NULL`).
+
+  The mapping lives in the shared series layer, so dashboard widgets and standalone `ObjectChart` get one answer rather than a per-chart patch in the recharts wrapper. It resolves the two-answers disagreement the card names as well: an empty result set keeps the designed empty state, a non-empty result always draws bars — the null bucket included.
+
+  `@object-ui/core` gains `NULL_CATEGORY_LABEL` and `ChartSeriesOptions`; `buildChartSeries` and `findChartSeriesRow` each take an optional trailing `options`. Both additive — every existing call site compiles and behaves identically, and a result with no null category is still returned by array identity. The two helpers are a pair on purpose: the caller matches a clicked segment against rows that still carry the raw `null`, so `findChartSeriesRow` reads the bucket label back to that row and the newly-visible bar keeps its drill-through instead of resolving to `-1`.
+
+  The label goes through the i18n channel (`chart.nullCategory`, en `(None)` / zh `(未指定)`, all ten packs), passed down by the renderer: `@object-ui/core` is React-free and cannot read the locale bundle, so it takes the resolved string the same way `dimensionOptionTranslator` takes a resolver. Its English constant is the floor for a provider-less host, not the mechanism.
+
+  `hasNoCategoryKey` (framework#4033) is untouched and now documented against this: a row that does not carry the category key AT ALL is a different defect — a dimension grouped by but never projected — and keeps its explanatory placeholder. The bucket deliberately never ADDS the key to such a row, which is what keeps that guard's signal alive. Key absent → the placeholder; key present with a null value → the bucket.
+
+- aca27fa: The multi-dimension pivot branch buckets a null first-dimension value instead of dropping its bar (objectui#4497)
+
+  `buildChartSeries`' pivot branch (2+ dimensions, single measure) bucketed rows by `String(xRaw ?? '')` but wrote the RAW value into the emitted row, so a null first-dimension value produced `{status: null, Low: 3}` and reached recharts with a null category — which draws no mark. Measured at the DOM: a two-group pivot drew ONE bar, and an all-null pivot drew axes and gridlines with zero bar rectangles and no empty state. That is the same mechanism objectui#4466 fixed one branch below, on the branch that card deliberately left pinned as-is until the pivot's own bucketing had been measured.
+
+  The pivot now maps a null/undefined first-dimension VALUE to the same bucket label the single-dimension branch uses — `ChartSeriesOptions.nullCategoryLabel`, defaulting to `NULL_CATEGORY_LABEL`. One doctrine, one predicate, two call sites; no new export, and every existing call site compiles and behaves identically.
+
+  The bucket KEY is untouched, which is what keeps this a display fix: `String(xRaw ?? '')` still decides which rows share a bar, so every existing grouping is byte-identical and only the label the bucket carries changes. Rows that lack the category key entirely are still not bucketed — that shape is a dimension grouped by but never projected (framework#4033), a different defect with a different answer.
+
+  Drill-through needed no change, which was measured rather than assumed: the pivot's emitted rows are AGGREGATED, so they are not index-aligned with `drillRawRows` and the one production caller (`DatasetWidget.handleChartDrill`) already drills by SEARCHING the raw rows through `findChartSeriesRow`. Those raw rows still carry their null, and objectui#4466's label-matching covers the multi-dimension arm as well as the single-dimension one, so the newly-visible bar resolves to the right record. Pinned at both levels so a regression in either half surfaces as the dead click it would be.
+
+- 613b167: A dataset dimension on a dotted relationship path now renders its option labels instead of the raw stored enum
+
+  A `DatasetDimension` whose `field` is a relationship path (`crm_account.industry`) got no select-option resolution at all: the chart plotted `education`, `finance`, `manufacturing` — the database column, unresolved — while the **same underlying field** reached as a **local** dimension rendered `Education`, `Finance`, `Manufacturing` beside it on the same dashboard. Nothing errored, so the widget just quietly showed database enum values to end users; on a non-English deployment those are words that appear nowhere else in the UI, since every form and list shows the translated label.
+
+  The label lookup read options as `baseObject.fields[<path>]`, which only ever matches the local spelling. For a dotted path the options live on the **related** object, so the lookup missed and the renderer fell through to the stored value.
+
+  The object-resolution step of that one lookup now walks the path: each segment before the last must be a declared relationship (`lookup` / `master_detail`, target read from `reference` / `reference_to` / `referenceTo` / `reference_to_object`), and the terminal field's options are read off the object that actually owns it. This is the same lookup for both spellings rather than a dotted-path variant beside it — a single-segment path never enters the walk and resolves exactly as before, so the local and joined paths cannot drift apart. Multi-hop paths (`crm_account.owner.department`) resolve too, which is the shape the dataset designer already emits.
+
+  Hops ride the caller's existing `GET /meta/object/:name` channel — the same authenticated read that fetched the base object — so no new fetch layer is introduced, and objects are fetched once per resolution even when several dimensions share a prefix. Every failure stays best-effort: a segment that is not a relationship, a target that cannot be loaded, or a terminal field with no options yields no mapping and the raw value survives, exactly as it does today.
+
+  Applies to both surfaces that carried this lookup: dashboard dataset widgets (`DatasetWidget`) and the chart view's dataset path (`ObjectChart`).
+
+  Scope: this ends at "the label is in hand". Whether that label then passes through the i18n bundle is a separate gap tracked upstream as objectstack#5076.
+
+- 0b49d60: Analytics: `ObjectChart` consumes the shared label-net helpers instead of a third copy
+
+  objectui#4389 (PR #4404) named two copies of the analytics label-net glue — the dashboard's `DatasetWidget` and plugin-report's dataset block — and retired both into `@object-ui/core` + `@object-ui/react`. There was a THIRD, which that card did not name and its PR deliberately left out of scope: `packages/plugin-charts/src/ObjectChart.tsx` carried its own `translatorFor` closure, its own `buildDimensionLabelMap` loop, and its own base-object-read-then-walk composition. The `translatorFor` copy was logically identical to the two that were deleted, down to the comment explaining the binding.
+
+  `ObjectChart` now calls core's `dimensionOptionTranslator`, `deriveDimensionLabelMaps` and `loadDimensionFieldMeta` directly. Nothing about what a label IS changes — those helpers are the same code the two retired copies were rewritten onto, so the part that was genuinely duplicated three times is now written once.
+
+  Behaviour is unchanged by construction: same two metadata reads in the same order on the dataset path, same one read on the aggregate path, same best-effort fallback (an unresolvable path yields no entry and the raw value survives), same locale-applying memo boundary. `plugin-charts`' 22 test files / 170 assertions pass unchanged and their files are byte-identical to before, which is the acceptance evidence for a pure swap.
+
+  The card's second, optional step — moving the DATASET path's metadata read onto `@object-ui/react`'s `useDatasetDimensionMeta` — was attempted and declined on measurement; the shape blocker is recorded on objectui#4405 and in the PR. The two bug-fix properties the family exists to state (the read rides the host's authenticated `apiFetch`, objectui#4121; the fetched metadata stays locale-free, objectui#4030 / PR #4324) therefore remain stated locally in this file, exactly as before, and are undisturbed by this change.
+
+- bcd3e02: `ObjectChart`'s category option-color / dimension-label probe now rides the host's
+  authenticated fetch (`SchemaRendererContext.apiFetch`) instead of the bare global
+  `fetch`.
+
+  Both metadata reads the effect makes — `GET /api/v1/meta/dataset/{dataset}` and
+  `GET /api/v1/meta/object/{object}` — went out on the global `fetch`, so in a hosted
+  console they skipped whatever the host supplies on that channel (Authorization /
+  tenant headers, base-URL rewrite, draft-preview params). A bearer-token session
+  carries its credential in a header rather than a cookie, so `credentials: 'include'`
+  alone left these two reads unauthenticated. The effect is best-effort and swallows
+  every failure, which made the symptom silent: semantic option colors and dataset
+  dimension labels simply never applied, and the chart fell back to the positional
+  theme palette and raw stored values.
+
+  Standalone embeds are unaffected — with no provider (or a provider that supplies no
+  `apiFetch`) the probe still uses the global `fetch`, the same documented fallback
+  `useRecordEditable` and `provider: 'api'` view sources use.
+
+- Updated dependencies [0e67b53]
+- Updated dependencies [ceccdcf]
+- Updated dependencies [d6e5124]
+- Updated dependencies [debad27]
+- Updated dependencies [dc2aa3e]
+- Updated dependencies [ee66e2e]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [932cbcd]
+- Updated dependencies [734d186]
+- Updated dependencies [f650253]
+- Updated dependencies [3d9769a]
+- Updated dependencies [8f85f8b]
+- Updated dependencies [d0c3b26]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [f7c6430]
+- Updated dependencies [4dadf0d]
+- Updated dependencies [ae10a01]
+- Updated dependencies [92876f0]
+- Updated dependencies [f279deb]
+- Updated dependencies [4b70d28]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [613b167]
+- Updated dependencies [b4d3c22]
+- Updated dependencies [1f9b905]
+- Updated dependencies [cb13400]
+- Updated dependencies [828549a]
+- Updated dependencies [e1ade8f]
+- Updated dependencies [bc64bfe]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [3e19fe7]
+- Updated dependencies [bb58d1d]
+- Updated dependencies [5cc847c]
+- Updated dependencies [fa21254]
+- Updated dependencies [33c32bf]
+- Updated dependencies [66fb4fa]
+- Updated dependencies [b953a97]
+- Updated dependencies [d7f3e30]
+- Updated dependencies [6d641c9]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [a84385b]
+- Updated dependencies [45e1949]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [58bebf6]
+- Updated dependencies [405e808]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [a3ae404]
+- Updated dependencies [bfdf3d4]
+- Updated dependencies [bb68488]
+- Updated dependencies [c0f9a4b]
+- Updated dependencies [b1e42d0]
+- Updated dependencies [2459a3e]
+- Updated dependencies [ac853ce]
+- Updated dependencies [fa51109]
+- Updated dependencies [d6aa172]
+- Updated dependencies [fe52a04]
+- Updated dependencies [d46f9b8]
+- Updated dependencies [3f5f87c]
+- Updated dependencies [2fea4d2]
+- Updated dependencies [f5e1143]
+- Updated dependencies [7f1cb33]
+- Updated dependencies [f148a64]
+- Updated dependencies [bb68488]
+- Updated dependencies [2e3b0c0]
+- Updated dependencies [9461dd3]
+- Updated dependencies [78fa331]
+- Updated dependencies [47f551b]
+- Updated dependencies [31ab1ac]
+- Updated dependencies [0082db8]
+- Updated dependencies [ab04728]
+- Updated dependencies [5bf09fd]
+- Updated dependencies [06915b0]
+- Updated dependencies [ff84b05]
+  - @object-ui/i18n@17.5.0
+  - @object-ui/react@17.5.0
+  - @object-ui/components@17.5.0
+  - @object-ui/core@17.5.0
+  - @object-ui/types@17.5.0
+
 ## 17.4.0
 
 ### Patch Changes

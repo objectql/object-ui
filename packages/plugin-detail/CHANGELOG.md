@@ -1,5 +1,307 @@
 # @object-ui/plugin-detail
 
+## 17.5.0
+
+### Patch Changes
+
+- ceccdcf: Action confirm dialogs and success toasts now honour the bundle's translated
+  `confirmText` / `successMessage`, not just `label` (objectui#4265).
+
+  A TranslationBundle entry for an action carries three keys under one
+  `_actions.<name>` node — `label`, `confirmText`, `successMessage` — and
+  `useObjectLabel()` has always exposed a resolver for each. What had drifted was
+  the call sites: `page:header` (authored record pages), `record:quick_actions`
+  and the related-list row menu resolved the button `label` only and dispatched
+  the authored `confirmText` / `successMessage` untouched. One bundle entry met
+  two fates: the button rendered the translation, the confirm dialog rendered the
+  authored English.
+
+  All action-rendering surfaces now go through one resolver,
+  `useActionTextLocalizer()` (new, exported from `@object-ui/react`), which
+  applies the existing `actionLabel` / `actionConfirm` / `actionSuccess`
+  resolvers over the three keys together. Fallback is unchanged: with no bundle
+  entry — or an entry lacking a key — the authored text renders. A bundle cannot
+  introduce a `confirmText` or `successMessage` the metadata never declared.
+
+- 6d01319: Inline edit no longer offers a record picker for a spec-spelled `autonumber` field that carries a `reference_to`
+
+  `TEXTUAL_REF_FALLBACK_TYPES` — the detail page's one definition of "machine-computed" — spelled the auto-number type `auto_number` only. `@objectstack/spec`, the designer and the metadata importer all spell it `autonumber`, and the set is matched by RAW spelling, so it carried half the type.
+
+  The reader that had no gate in front of it is `InlineFieldInput`'s reference fallback, `!!field.reference_to && !TEXTUAL_REF_FALLBACK_TYPES.has(type)`, on exported public API. A field typed `autonumber` keeps a `reference_to` for relational metadata — which is the entire reason this set exists — so it took the lookup branch and rendered the RECORD PICKER: a searchable list of records offered as replacements for a machine-generated identity. The `auto_number` spelling of the identical field rendered the textual fallback, as intended. Both spellings are now members, matching how `plugin-form` carries both in each of its non-input sets.
+
+  The editability half of the same report (objectui#4219) was already closed from another direction by #4228, whose shared exclusion resolves aliases before matching — a field typed `autonumber` offers no inline affordance in either host. The two gates are a union, so this fix also removes the union's dependence on which spelling the metadata happens to use: previously `autonumber` was held by the exclusion gate alone and `auto_number` by both, and losing either gate would have re-opened a different half of the defect depending on how the field was authored.
+
+  Pins land with it: the reference fallback for `autonumber` (red before this change — the picker really did render), `auto_number` and a real `lookup` as controls in both directions, and set membership asserted directly so the union statement is checked rather than described.
+
+- 63fe8fd: `record:related_list` and the detail synthesizer now declare two shapes they already accepted at runtime.
+
+  `RecordRelatedListRenderer`'s `schema` prop made `objectName` required, which rejected the exact authoring shape the per-element `dataSource` binding exists to support (`{ relationshipField, dataSource: { object, view } }`) — the gate maps the binding onto `objectName` before the body reads it, so the key is supplied, not missing. It is optional on the wrapper's input now, and required everywhere else.
+
+  `ObjectDefLike.fieldGroups` is derived from the spec's authorable field group instead of restating it. The hand-written list had drifted: it omitted `icon` and `description`, both of which the synthesizer passes through to detail section descriptors, so an object definition declaring the group icon the code honours did not type-check against it.
+
+- 3e19fe7: i18n copy: one ellipsis glyph across the ten packs, `usted` in the es draft-preview empty state, and a pt sentence that stops contracting `de` onto its own hole
+
+  Three locale-copy defects that no gate could see, because all three are _value_ defects on keys whose names, placeholders and key sets were already correct.
+
+  **One ellipsis (objectui#3878).** `en` ended 33 values with three ASCII full stops (`Loading...`, `Ask anything...`) and 110 with the typographic ellipsis `…`, and the nine translation packs had copied `en` value by value — so a user could read both glyphs on one screen: `common.loading` beside `dashboard.loading`, `console.ai.askAnything` beside its own panel's siblings. All ten packs now spell it `…` (U+2026), per the maintainer-authorized consistency pass registered on objectstack#6015. 312 pack values changed: 34 in `en` (the 33 trailing plus the one mid-sentence `collaboration.commentPlaceholder`) and 278 across the nine. Eleven inline `defaultValue` call sites were re-synchronised with the new `en` text, which `scripts/check-i18n-call-site-keys.mjs` requires byte-for-byte.
+
+  The convention is now pinned so the split cannot regrow: `packages/i18n/src/__tests__/ellipsis-glyph-3878.test.ts` fails, by key name, on any value in any of the ten packs that holds three ASCII full stops. It is deliberately wider than "a trailing `...` in `en`", because the census showed the narrow rule would have shipped with two holes in it — `collaboration.commentPlaceholder` puts the ellipsis mid-sentence, and `list.loading` had the packs wrong while `en` was already right, which no `en`-only rule can see.
+
+  Fifteen module-local **no-provider fallback** entries were moved with the packs, across `useCollaborationTranslation`, `useFieldTranslation`, `useDetailTranslation`, `ObjectGrid`, `KanbanImpl`, `data-table` and `ConnectionStatus`. Those maps exist to render when no `LocalizationProvider` is mounted, and each one's own docblock requires it to stay byte-identical to the `en` pack — a requirement objectui#3440 already enforces mechanically for the collaboration map. Leaving them behind would have made the provider-less path disagree with the provider path on ten keys.
+
+  **es `usted` (objectui#3875).** `preview.empty.notReadyDescription` said `Revisa la conversación` — the tú imperative — in a namespace that is otherwise 23:1 usted, and it renders _underneath the usted draft-preview banner at the same moment_, not before or after it. `Revisa` → `Revise`; nothing else in the sentence carries a register. The neighbouring `approvalsInbox` namespace is legitimately tú and was left alone.
+
+  **pt contraction (objectui#3877).** `ConcurrentUpdateDialog` splits `detail.concurrentUpdateDescription` on `{{field}}` and renders a bolded label in the gap, and pt left a bare `de` in front of that gap. When the multi-field conflict branch passes the record label (`este registro`), Portuguese users read `de este registro` — a contraction error every native speaker sees, and one that no spelling of the leaf value could fix (`deste registro` renders `de deste registro`). The pt sentence is rewritten so the hole is preceded by the verb `afeta` instead of any preposition, which closes the whole class rather than trading `de` for an `em` or `a` that contract just as hard. pt only; `en` is unchanged.
+
+  No behavior, no keys added or removed, no placeholder changed.
+
+- 6314e87: Inline-editing an `address` on the record detail page now edits it as real sub-fields, instead of collapsing it to one text box reading `[Object]` and saving a string over the structured value.
+
+  `InlineFieldInput`'s type switch routed the scalar and relational families to their dedicated widgets; every structured-object type matched nothing and fell through to the terminal raw text input at the end of the component. That fallback stringifies an object value through `coerceToSafeValue`, whose general-object case extracts `name || label || externalId || id || _id` and otherwise returns the literal `[Object]`. A stored address carries none of those keys, so the edit box read `[Object]`.
+
+  The display half was cosmetic; the write half was not. The fallback is a plain input wired to `onChange(v)`, so whatever the user typed was emitted as a **string** that replaced the whole `{ street, city, state, postalCode, country }` object on save — and `[Object]` was what the user saw as the current value they were correcting, which makes typing over it the natural gesture. An ordinary double-click inline edit therefore destroyed the sub-field structure. This is the input path only: objectui#4037 fixed the display registry, and read mode (including the inline-edit read state before editing starts) already rendered a formatted address.
+
+  `location` and `geolocation` are fixed with it. Both store objects too (`{ latitude, longitude }`), both reached the same terminal input, and both produced the identical `[Object]`-then-overwrite pair — one defect in three spellings, not three defects.
+
+  No new editor was written and no consumer-side tolerance was added. All three route to the widgets the create/edit dialog already uses (`AddressField` / `LocationField` / `GeolocationField`, the form's own structured-value editors), so the two entry points cannot diverge on the value shape they write back, and `coerceToSafeValue` is left untouched — the routing is what stops an address from ever reaching it. `autoFocus` follows the numeric branches' convention and lands on each widget's first sub-input (street / the coordinate box / latitude).
+
+  String-valued types are unchanged: `text`, `textarea`, `email`, `phone`, `url`, `color`, `code`, `time`, `qrcode` and the rest keep the terminal text input, where stringification is the identity and nothing is lost.
+
+- 5e2e9fa: A `password` or `secret` field on the record detail page is no longer inline-editable: it renders no pencil / double-click affordance and produces no editor, on both the details body and the highlights strip.
+
+  Both types are **masked on read** — `getCellRenderer` returns a fixed bullet run for either — so the value the row could hand an editor was never the credential. `InlineFieldInput` had no branch for either type, so both reached the terminal raw text input at the end of the component, and the row's payload value was seeded into a `type="text"` box: rendered in clear, selectable and copyable, in a control the user reads as holding their credential. Committing the row then wrote that placeholder back verbatim over the field. For `secret` the overwritten value is an opaque reference into an encrypted store (ADR-0100), so the write destroyed the pointer, not just the display. Nothing in the flow said so; the failure surfaced later, wherever that credential was used.
+
+  The decision already existed one package over. `INLINE_EXCLUDED_FIELD_TYPES` in `@object-ui/fields` excludes both types with exactly this reasoning, and the grid honours it through `isInlineExcludedFieldType()`. The detail hosts gated on readonly / computed / system only and never consulted it, so the detail page reproduced the precise failure the set exists to prevent. Both hosts now consult that same alias-aware contract (`isInlineExcludedDetailFieldType`, a narrow-only union of the authored and the object type, matching the computed gate under objectui#3355) rather than growing a second hand-maintained list — so the rule cannot drift between the grid and the detail page again.
+
+  Consulting the shared set closes the container family on the detail page with it: `object`, `composite`, `record`, `grid`, `repeater` and `vector` rode the same plain-text fallback with an object-shaped value, and are now excluded too. The spec spelling `autonumber` is likewise excluded, where the detail computed gate only knew the `auto_number` spelling. The heavy-editor family (`markdown`, `html`, `richtext`) loses its one-line text box on the detail page — those are authored in the record form, which has the real editors.
+
+  The binary/attachment family is deliberately exempt and keeps its detail editor. It is in the shared set for a grid-cell reason — a cell cannot host an upload dropzone — while `InlineFieldInput` routes `image` / `avatar` / `signature` / `file` (and the `video` / `audio` spellings) to the same upload widgets the record form uses. That exemption is pinned against the routing it claims, so it cannot outlive it.
+
+  Re-authoring a credential is unchanged and still belongs in the record form, which has the widget for it (`PasswordField`).
+
+- 297534b: Align 43 inline `defaultValue` strings with the `en` pack, and make the call-site gate enforce it (objectui#3810)
+
+  `t(key, { defaultValue: 'English text' })` only renders that text when i18next
+  **misses** the key. Where the key exists in `packages/i18n/src/locales/en.ts` the
+  pack value always wins, so the inline string is dead code — and 43 of those dead
+  strings said something different from the sentence users actually read.
+
+  `scripts/check-i18n-call-site-keys.mjs` (objectui#3530) now compares the two
+  whenever a call site carries a literal `defaultValue` for a key `en` defines, and
+  fails on any byte of difference. It is a hard rule with **no baseline**: the
+  repo-wide census measured 43 sites in 19 files out of 851 literal inline defaults,
+  and all 43 are aligned here, so there is no debt for a ratchet to hold. A
+  `defaultValue` on a key that is _not_ yet in `en` stays legal — that transition
+  runs for months (objectui#3546) and belongs to the existing `missing-key` rule,
+  which keeps reporting it alone.
+
+  Every fix moved the CALL SITE to the pack's wording. `en.ts` is untouched: its
+  values are what users read today, and changing one would oblige the same change in
+  the nine other packs (`scripts/check-i18n-en-drift.mjs`, objectui#3650). Six of the
+  43 differed only in an ellipsis (`...` against U+2026) — invisible in review, which
+  is how they survived three i18n gates that are each blind to this class by
+  construction.
+
+  The visible effect is confined to hosts that render these components with **no**
+  `I18nProvider` and no initialised i18next instance. There, react-i18next's
+  not-ready `t` returns the `defaultValue`, so the inline string was the rendered
+  one; it now matches what a provider-backed app has always shown. Inside the
+  console — provider mounted — nothing users see changes. The clearest converging
+  examples: the workspaces screen was written as "Organizations" at nine call sites
+  while every user has been reading "Workspaces"; the forgot-password success line
+  was written as "If an account exists, a reset link has been sent." while the pack
+  asserts "We've sent a password reset link to {{email}}."
+
+- e7663f2: fix(detail): inline edit no longer destroys array values or flattens types on the record page
+
+  `InlineFieldInput`'s type switch ended in a raw text input, and every type it had
+  no branch for landed there: the value was displayed through `coerceToSafeValue`
+  and written back as whatever the user typed — a bare string.
+
+  Two damage classes survived the earlier passes. Array-valued fields (`tags`,
+  `checkboxes`, an options-less multi picklist) were offered for editing as
+  `"a, b"` — `coerceToSafeValue` joins arrays — and saved back as that string, so
+  the array was gone. Type-lossy scalars (`toggle`, `slider`, `progress`,
+  `rating`, `radio`) round-tripped through `String()`, so a boolean column
+  received `"true"`, a numeric one `"42"`, and `radio` accepted any free-typed
+  value its option list never offered.
+
+  Types the switch already routes keep their editors. Everything else that the
+  fields package can edit inline now falls back to `FieldEditWidget` — the same
+  control the form renders, `json` → the code editor included — and only genuinely
+  string-valued types (`text`, `textarea`, `email`, `phone`, `url`) keep the plain
+  input. A drift guard asserts every field type is exactly one of routed /
+  excluded / delegated / benign, so a new type can no longer inherit the
+  value-destroying default in silence.
+
+  `@object-ui/fields`: the four fixed-option widgets no longer clear the stored
+  value when the field declares no `options` at all. An empty offered set had two
+  opposite causes — a list that cascaded to zero (clear) and a list that was never
+  authored (nothing to decide) — and the second deleted the value on mount, which
+  the grid's inline cell editor has always been able to trigger. `FieldEditWidget`
+  also forwards `autoFocus` to the widget it renders.
+
+- e076fd5: Inline-edit toggle reads "Edit fields" without an I18nProvider, matching every locale pack
+
+  `DETAIL_DEFAULT_TRANSLATIONS` said `Edit fields inline` where all ten packs say
+  `Edit fields`, so `InlineEditSaveBar`'s toggle announced two different names for one
+  control — the map's on provider-less hosts (standalone embeds, the preview gallery),
+  the pack's in the console. The pack wins; the map row now mirrors it byte for byte.
+
+  The three ungated defaults maps (`plugin-detail`, `plugin-list`, `plugin-designer`) are
+  now compared key-by-key against the `en` pack by a new gate, generalizing the
+  collaboration-only precedent from objectui#3440. `LIST_DEFAULT_TRANSLATIONS` and
+  `DESIGNER_DEFAULT_TRANSLATIONS` are exported for it, as `DETAIL_DEFAULT_TRANSLATIONS`
+  and `COLLAB_DEFAULT_TRANSLATIONS` already were.
+
+- 456aac8: `@object-ui/plugin-detail` now declares `react-router-dom` as a peer dependency (`^6.0.0 || ^7.0.0`), the range its three siblings already use.
+
+  It has been importing the router all along — `PermissionFacetLink.tsx` and `record-reference-rail.tsx` both take `Link` and `useParams` from it — while its manifest named it in no field at all. That resolved locally for a reason that does not travel: the workspace root declares `react-router-dom` in its own `devDependencies`, so a `node_modules/react-router-dom` symlink exists at the root of this repository and Node's upward directory walk reaches it from every package directory. A consumer's install has no such root, and this package's rollup config externalises every bare specifier, so the published `dist/index.js` carried an import of a package the manifest never asked for.
+
+  Consumers already installing `@object-ui/app-shell`, `@object-ui/layout` or `@object-ui/plugin-designer` were unaffected — all three declare the same peer — so this closes the case of a consumer that pulls `plugin-detail` on its own.
+
+  A new repository gate, `pnpm check:phantom-deps`, now asserts that every bare specifier a released package imports under `src/` is declared by that package rather than merely resolvable from it, so the next one of these fails on the pull request that introduces it (objectui#4394).
+
+- 7d04b0e: `record:details` stops publishing a `layout` key the spec removed and the renderer never honoured
+
+  `record:details` declared `layout: enum ['auto','custom']` with `defaultValue: 'auto'` and the description "auto uses the object highlightFields; custom uses explicit sections". None of that was ever implemented. The renderer's only `schema.layout` read tested `'inline'` | `'compact'` — two values the schema never permitted — so both legal values fell through the same ternary and the key selected nothing. `auto` and `custom` have behaved identically for as long as both have existed.
+
+  Two directions were wrong with zero diagnostics: `layout: 'auto'` plus explicit `sections` still rendered the sections, and `layout: 'custom'` with no sections silently fell back to the flat body rather than reporting the missing groups. Because the input carried a `defaultValue`, this was not stale documentation — it was the manifest, the generated `sdui-intrinsics.d.ts` and the designer panel actively offering the key. An AI author writing `layout: 'custom'` believed it took effect.
+
+  `@objectstack/spec` 17.0.0 removed the property (objectstack#6946, ADR-0087 D2); `17.0.0-rc.6` is pinned here, so the key is already rejected on parse with a named migration message pointing at `os migrate meta --from 16`. This release completes the objectui half of that retirement: the input declaration is gone, and so is the dead `inline`/`compact` branch — the synthesized layout is now the constant it always resolved to.
+
+  Nothing that worked stops working. The body-source contract is unchanged and is now the only one declared: **`sections` renders the explicit groups; omitting it falls back to the flat body derived from the object's fields.** That is pinned in both directions, plus the empty-array boundary between them, in `recordDetailsBodySource.test.tsx`.
+
+  One gate got sharper on the way through. The parity test's "declares no top-level input the spec does not accept" check read raw `.shape` keys — but an ADR-0087 D2 tombstone stays _in_ the shape as a `z.never()`, so a retired key still answers "is this declared?" with yes. That is precisely why this input survived the rc.6 pin bump with every derived gate green. The check now filters tombstoned members out, so it catches the next D2 retirement instead of waving it through.
+
+- c32a8a1: `richtext` fields are placed like the long-form fields they are — four layout sets stopped spelling the type three ways the spec rejects
+
+  `@objectstack/spec` spells the WYSIWYG type `richtext`, one word, and **rejects** `rich_text` and `rich-text`: both exist only as typo keys in the spec's own `suggestFieldType` table, so `FieldSchema` refuses a field declared with either. Four sets that place fields by matching the RAW type string carried nothing else — `SKIP_TYPES` in the related list spelled it `rich_text`, both `WIDE_FIELD_TYPES` and `SECONDARY_FIELD_TYPES` spelled it `rich-text` — so each set was inert for the only spelling a producer can emit, and every one of them named the type it was failing to handle.
+
+  For a real `richtext` field that meant: it was auto-derived into a related-list column, it never spanned the full row in a multi-column detail section or form (unlike `markdown` and `html` sitting right beside it in the same sets), and it stayed in the dense primary section of the record page instead of dropping into "More details". All four move together — half of them would have left the detail page and the form disagreeing about the same field, which is worse than the uniform gap.
+
+  The dead spellings are dropped rather than kept alongside the live one: the alias table is the single place aliases belong, and a set that carries both invites the next drift. The pins are derived from the spec's own `FieldType` vocabulary instead of enumerated, so a member that stops being a real type name fails by name — replacing an assertion that was green only because the set contained the string it asked about.
+
+  `markdown` joins `richtext` and `html` in the related list's `SKIP_TYPES`, on a measurement rather than on the assumption that it renders raw. It does not: markdown and richtext both render through `MarkdownCellRenderer`, formatted and sanitized. The reason none of the three works in a table is that the formatted output is block-level — a heading, paragraphs, a list — inside a single-line truncating cell, so a document shows as one clipped heading with the rest invisible. `textarea` stays derived for the same reason read the other way: it renders as plain truncated text, which is a useful column. Author-declared columns are untouched — this set only filters the zero-config auto-derive walk.
+
+- 3f5f87c: `SchemaRenderer` states its real contract — a typed, required `schema` and a deliberate forwarding surface
+
+  `SchemaRenderer` is the renderer loop: every registered SDUI component is rendered through it. It handed `forwardRef` a props type of `{ schema: SchemaNode } & Record<string, any>`, which puts `string` into `keyof Props`, so `'ref' extends keyof Props` was always true, React's `PropsWithoutRef` took its `Omit` branch, and `Omit` over a type carrying a string index signature keeps only the index signature. Every declared prop was erased. Measured on the pre-fix source: `keyof ComponentProps<typeof SchemaRenderer>` was `string` and `ComponentProps<typeof SchemaRenderer>['schema']` was `any`, while the type argument went on declaring `SchemaNode`. The other half is the same defect seen from the call site — `<SchemaRenderer />` with no schema at all, `<SchemaRenderer schema={12345} />`, and an arbitrary misspelled prop each type-checked in silence. This is objectui#4422 / PR #4438's trap in the most central component in the repo, spelled `Record<string, any>` rather than `[key: string]: any`, which is why every previous sweep's grep and both shipped guards' detector reported the site as clean.
+
+  Graded **minor, not major**, on objectui#4528's reasoning: the type argument has always DECLARED `schema`; the index signature erased it from the resolved type, and restoring what the declaration documents is a fix to the published contract rather than a contract break.
+
+  **The forwarding surface is kept, deliberately.** This component forwards every prop it does not read to the component the schema names, resolved at runtime from a plugin-extensible registry — `packages/react/README.md` documents exactly that, and `@object-ui/components`' form renderer consumes the `onSubmit` it shows being forwarded. Closing that surface would state a false contract and would force every leaf plugin's props into this package. So the two halves are separated: the `forwardRef` type argument is the honest `SchemaRendererProps`, with no index signature for `PropsWithoutRef` to collapse, and the open surface is stated once in an explicit export annotation, which nothing routes through `Omit`. The published `.d.ts` shows the erasure disappearing: `ForwardRefExoticComponent<Omit<{ schema: SchemaNode } & Record<string, any>, "ref"> & RefAttributes<any>>` becomes `ForwardRefExoticComponent<SchemaRendererProps & Record<string, any> & RefAttributes<any>>`.
+
+  `SchemaRendererProps.schema` is declared as `BaseSchema | string | null | undefined` — what this component actually handles. It previously declared `@object-ui/core`'s `SchemaNode` interface, which requires `type: string` and so contradicted the component's own early returns for strings and nullish, while every caller held `@object-ui/types`' wider union. The erasure hid that mismatch completely.
+
+  **One declared behaviour change.** A non-object, non-string primitive schema now renders as its own text. It previously fell through to the shallow copy `{ ...schema }`, which spreads a primitive to an empty object, lost the `type` the renderer then looked up, and surfaced the red "Unknown component type: undefined" box — an accident of the spread rather than a decision. The declared props type excludes `number` / `boolean` so no author is invited to pass them; the runtime handling is defence-in-depth for untyped callers and stored metadata. Strings, `null`, `undefined`, `0` and `false` render exactly as before, and an object naming an unregistered type still gets the error box; all four are pinned.
+
+  Latent defects the erasure had been hiding, each surfaced by the repo-wide type-check and fixed at its call site: `DashboardRenderer` cast its widget schema to `Record<string, any>`, dropping the `type` every branch of `getComponentSchema` sets; `DashboardGridLayout`'s equivalent now states its return type instead of inferring a union that admitted a shape with no `type`; and `ReportViewer` handed a section's `content` array to the renderer whole, so a multi-node section rendered the unknown-component box instead of its content — arrays are mapped rather than widened into the renderer's declared input.
+
+  A repo-wide structural guard replaces the two per-package siblings' blocked direction: it judges every `forwardRef` in `packages/*/src` (219 sites) and its detector resolves `Record<string, …>` and `string`-keyed mapped types in addition to literal index signatures — the spelling the previous detector went blind on. It judges the type argument only, where an index signature is an accidental eraser, and never an export annotation, where one is a stated contract.
+
+- 2fea4d2: `detail.showEmptyRelated` renders Russian and Arabic again — the "+N empty" button no longer falls through to English at the counts it takes most often
+
+  This was the repo's only pre-existing i18next plural family, and all ten packs defined exactly two slots: `_one` and `_other`. i18next asks `Intl.PluralRules` for the one suffix a language needs for that number, and when the pack has no such slot it walks `fallbackLng` to `en`. Russian has four plural categories and Arabic six, so `ru` at counts 2-4 (`few`) and 5-20, 25-30, … (`many`), and `ar` at 0, 2, 3-10 and 11-99, resolved nothing locally and rendered the English string. The call site is the collapsed-empties button in the record detail's reference rail, whose count is the number of empty related lists — 2 to 4 are the most common values it ever takes, so a Russian user essentially always read English.
+
+  The fix is a base key (no suffix) beside the two existing slots, in all ten packs. The base key is always in i18next's lookup chain, so every category a pack did not enumerate resolves to it, in that pack's own language — and, unlike adding `_few`/`_many` to `ru` alone, it keeps the ten packs' key sets identical, which full key parity requires. Same shape objectui#3546 slice six established for `perm.facet.*`. Where the base key is genuinely reachable it carries a count-invariant phrasing: `ru` uses the «Существительное: {{count}}» form the pack already writes 22 times, `ar` the «{{count}} مفرد(جمع)» marker it uses throughout. For `en`/`de`/`zh`/`ja`/`ko` the base key cannot be reached at all (their categories are covered by the two existing slots) and repeats `_other` for parity; `fr`/`es`/`pt` reach it only from a million up, where the plural form is already correct. No English copy moves.
+
+  The provider-less path needed the same row for a different reason: `createSafeTranslation`'s fallback resolves `defaults[key]` literally and never appends a plural suffix, so the two suffixed rows in plugin-detail's defaults table were unreachable through it and that path answered with the raw key. It now carries the base key too.
+
+  Parity across packs turned out to be necessary and not sufficient — ten identical key sets were green throughout, because the defect is one level below key names: the slot the language needs is not in the set. So the invariant "a plural family must carry a base key" is now asserted over all ten packs in `all-locales-key-parity.test.ts`, where it is pack-intrinsic and fails at PR time without needing a call site to exist. It went red on all ten packs before this change and names the family that is missing its base.
+
+- dad805d: Six i18n keys no longer render as raw key strings on hosts with no `I18nProvider` (objectui#4396)
+
+  `detail.saving`, `list.resetSortToDefault`, `appDesigner.widgetProperties`, `appDesigner.addWidget`, `appDesigner.modeEdit` and `common.delete` were read through `createSafeTranslation` without a row in their hook's defaults table and without an inline `defaultValue` at the call site — the only two fallbacks that path has. On a provider-less host (standalone embedding, the preview gallery, host apps that never mount a provider) `fallbackT` therefore returned the key itself, so users saw `detail.saving` in the inline-edit save button, `list.resetSortToDefault` on the sort popover's reset control, `appDesigner.widgetProperties` as the dashboard inspector heading, `appDesigner.addWidget` as its toolbar label, `appDesigner.modeEdit` as a button's accessible name, and `common.delete` on the designer's destructive confirm.
+
+  Each key now has a row in its consumer hook's defaults table, byte-identical to the `en` pack value. No pack was edited, no key added, no call site changed.
+
+- 35997ce: fix(plugin-detail): synthesize page components in the spec's `properties` carrier so Studio page-create can persist
+
+  Creating a page in Studio never completed. The create path seeds a record
+  page's `regions` from `buildDefaultPageSchema(objectDef)` and PUTs the result,
+  and every node that synthesizer emitted carried its widget props at the TOP
+  level of the component — `{ type: 'page:header', recordChrome: true }`,
+  `{ type: 'page:tabs', items: [...] }`, and the same for `record:highlights`,
+  `record:path`, `record:details`, `record:related_list`, `record:history` and
+  `record:reference_rail`. ADR-0089 D3a closed `PageComponentSchema` with
+  `.strict()`, so those keys are not stripped, they are a parse error
+  (`Unrecognized key(s) on this view/page schema: 'recordChrome', 'actions'`).
+  The server refused the body and no page row was ever stored.
+
+  The props now go where the spec declares them — the node's `properties` bag,
+  which is where `ComponentPropsMap` defines `page:header.recordChrome` and
+  `page:tabs.items` in the first place. Nothing is dropped and nothing changes on
+  screen: a header still defaults to record chrome ON, an author's
+  `recordChrome: false` is still carried (and now actually persists), the tabs
+  keep their items, and `SchemaRenderer` hoists `properties` back onto the node
+  before dispatch, so every renderer receives exactly the props it did before.
+
+  One code path does the wrapping for every node the synthesizer builds, so there
+  is a single answer to "what may go in a page write". Slot overrides are
+  untouched — a node handed in by a caller is still placed verbatim.
+
+- b388950: fix(plugin-detail): the record detail header honors `userActions` predicates
+
+  `userActions.delete` reached the record detail header in its **boolean** form
+  but not in its **predicate** form. `userActions: { delete: false }` removed
+  Delete from the row kebab, the selection bar and the detail header, because the
+  host lowers the boolean into `schema.showDelete`. `userActions: { delete: {
+visibleWhen: … } }` reached only the row kebab: the header ANDed
+  `schema.showDelete ∧ objectAllowsDelete ∧ canDeleteRecord` and never evaluated
+  the predicate, so an author upgrading from "nobody may delete this object" to
+  "these records may not be deleted" silently lost the surface they were most
+  likely to have tested on.
+
+  The header now folds the per-record predicates in as a fourth conjunct,
+  evaluated against the open record through the same helper family the row
+  surfaces use — `userActionPredicates` from `@object-ui/core` for the parse (the
+  import `RelatedList` already makes) and `useRowPredicate` from
+  `@object-ui/react` for the evaluation:
+
+  - `delete.visibleWhen` / `edit.visibleWhen` false → the header affordance is
+    hidden (fails closed; `visibleWhen: false` counts as a declared gate).
+  - `delete.disabledWhen` / `edit.disabledWhen` true → the header affordance
+    renders disabled rather than disappearing, matching the row kebab.
+
+  The existing permission and record-writability gates are unchanged, so a
+  predicate that holds can never resurrect a button the user may not press. The
+  boolean form stays the host's channel — a bare boolean yields no predicate.
+
+- Updated dependencies [0e67b53]
+- Updated dependencies [932cbcd]
+- Updated dependencies [734d186]
+- Updated dependencies [3fc2971]
+- Updated dependencies [f7c6430]
+- Updated dependencies [ae10a01]
+- Updated dependencies [92876f0]
+- Updated dependencies [828549a]
+- Updated dependencies [e1ade8f]
+- Updated dependencies [3e19fe7]
+- Updated dependencies [bb58d1d]
+- Updated dependencies [5cc847c]
+- Updated dependencies [fa21254]
+- Updated dependencies [33c32bf]
+- Updated dependencies [66fb4fa]
+- Updated dependencies [6d641c9]
+- Updated dependencies [45e1949]
+- Updated dependencies [92250d6]
+- Updated dependencies [58bebf6]
+- Updated dependencies [405e808]
+- Updated dependencies [c0f9a4b]
+- Updated dependencies [ac853ce]
+- Updated dependencies [fa51109]
+- Updated dependencies [d46f9b8]
+- Updated dependencies [2fea4d2]
+- Updated dependencies [7f1cb33]
+- Updated dependencies [2e3b0c0]
+- Updated dependencies [78fa331]
+- Updated dependencies [31ab1ac]
+- Updated dependencies [0082db8]
+- Updated dependencies [06915b0]
+- Updated dependencies [ff84b05]
+  - @object-ui/i18n@17.5.0
+
 ## 17.4.0
 
 ### Minor Changes

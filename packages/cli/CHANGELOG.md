@@ -1,5 +1,71 @@
 # @object-ui/cli
 
+## 17.5.0
+
+### Patch Changes
+
+- 64cda47: Fix `objectui init`'s scaffold failing its own `npm run build`, and put the third generator under the real `tsc` gate
+
+  The scaffold `objectui init` writes declares `"build": "tsc && vite build"`, so `tsc` runs on the way to a production build — and its `src/main.tsx` did `import './index.css'` with no ambient declaration behind it. Any user who followed the generated README (`objectui init`, then `npm run build`) got `TS2882: Cannot find module or type declarations for side-effect import of './index.css'` in a file the tool had just written for them, before Vite was ever reached.
+
+  Fixed the same way objectui#3853 fixed the two temp-app generators: the scaffold now writes `src/vite-env.d.ts` (`/// <reference types="vite/client" />`), where the `declare module '*.css'` declarations live. `vite` was already in the scaffold's `devDependencies`, so nothing new is declared.
+
+  Measured rather than assumed: this scaffold had that one error and none of the other four classes objectui#3853 found in the temp apps — those live in a `src/Layout.tsx` this scaffold does not have. The `tsc` gate in `app-generator.test.ts` now covers the init scaffold too, so the strictness its own `tsconfig.json` declares is enforced instead of decorative.
+
+- 9b9fa49: Make the generated temp app pass the strict `tsconfig.json` the generator writes beside it, and gate it with a real `tsc`
+
+  Both app generators (`createTempApp`, `createTempAppWithRouting`) emit a `tsconfig.json` carrying `strict`, `noUnusedLocals` and `noUnusedParameters`, but nothing had ever run it — `dev`/`serve`/`build` go through Vite, which transpiles without type-checking — so the generated sources had drifted 17 errors past their own declared config. A user who copies the temp app out as a scaffold, or runs `tsc` in it, met all 17 at once.
+
+  Fixed at the templates: dropped five imports that were declared and never used (`Link` in `src/App.tsx`; `cn`, `Button`, `SidebarGroupContent`, `SidebarGroupLabel` in `src/Layout.tsx`), typed `DynamicIcon`'s and `AppLayout`'s props (which also types the `menu`/`children` map callbacks by inference, and makes `className` optional so the two call sites that omit it are legal), and added the `src/vite-env.d.ts` every Vite TS scaffold carries — without it the entry's `import './index.css'` has no declaration behind it, in both generators.
+
+  The Lucide lookup no longer needs `@ts-expect-error`: the namespace is narrowed to the component-by-name shape the layout actually uses. No `any` was added.
+
+  A real `tsc -p` over a generated app now runs in the package's tests, so the declared strictness is enforced rather than decorative.
+
+- Updated dependencies [ceccdcf]
+- Updated dependencies [d6e5124]
+- Updated dependencies [debad27]
+- Updated dependencies [dc2aa3e]
+- Updated dependencies [ee26e65]
+- Updated dependencies [f650253]
+- Updated dependencies [3d9769a]
+- Updated dependencies [8f85f8b]
+- Updated dependencies [d0c3b26]
+- Updated dependencies [4dadf0d]
+- Updated dependencies [ae10a01]
+- Updated dependencies [92876f0]
+- Updated dependencies [4b70d28]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [b4d3c22]
+- Updated dependencies [1f9b905]
+- Updated dependencies [cb13400]
+- Updated dependencies [bc64bfe]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [3e19fe7]
+- Updated dependencies [b953a97]
+- Updated dependencies [d7f3e30]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [a84385b]
+- Updated dependencies [45e1949]
+- Updated dependencies [c1d939f]
+- Updated dependencies [a3ae404]
+- Updated dependencies [bfdf3d4]
+- Updated dependencies [bb68488]
+- Updated dependencies [b1e42d0]
+- Updated dependencies [3f5f87c]
+- Updated dependencies [f5e1143]
+- Updated dependencies [f148a64]
+- Updated dependencies [bb68488]
+- Updated dependencies [47f551b]
+- Updated dependencies [ab04728]
+- Updated dependencies [5bf09fd]
+  - @object-ui/react@17.5.0
+  - @object-ui/components@17.5.0
+  - @object-ui/types@17.5.0
+
 ## 17.4.0
 
 ### Patch Changes

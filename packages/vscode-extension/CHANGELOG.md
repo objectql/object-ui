@@ -1,5 +1,41 @@
 # Changelog
 
+## 17.5.0
+
+### Patch Changes
+
+- Updated dependencies [ee66e2e]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [f650253]
+- Updated dependencies [3d9769a]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [92876f0]
+- Updated dependencies [f279deb]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [613b167]
+- Updated dependencies [1f9b905]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [2459a3e]
+- Updated dependencies [d6aa172]
+- Updated dependencies [fe52a04]
+- Updated dependencies [bb68488]
+- Updated dependencies [9461dd3]
+- Updated dependencies [ab04728]
+  - @object-ui/core@17.5.0
+  - @object-ui/types@17.5.0
+
 ## 17.4.0
 
 ### Patch Changes

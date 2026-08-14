@@ -1,5 +1,413 @@
 # @object-ui/plugin-grid
 
+## 17.5.0
+
+### Minor Changes
+
+- 7ffd616: fix(plugin-grid): cross-page "select all N matching" replays the host's real query — or abstains — instead of fanning out unfiltered
+
+  `resolveBulkRows` re-issues the view's query in 500-record pages so a bulk action
+  receives the whole match set rather than the visible window. The query it
+  replayed came from `lastFindParamsRef`, whose only writer is ObjectGrid's own
+  data loader. Under a host that fetches the rows itself — ListView passing `data`
+  plus `manualPagination` and `rowCount`, which is what the console does — that
+  loader never runs, so the ref was not the query behind the rows on screen:
+  absent, or stale from an earlier own-fetch. Either way the `?? {}` default let
+  the fan-out ask the server for the WHOLE OBJECT — no `$filter`, no `$orderby`,
+  no `$search` — and hand up to 5000 unmatched records to a destructive executor
+  (`onBulkDelete`) while the bar read "All N matching records are selected".
+
+  The host now hands its query down as the new optional `findParams` prop on
+  `ObjectGridExternalPaginationProps` (the same shape the internal loader stores),
+  and the fan-out reads whichever side owns the fetch. There is deliberately no
+  grid-side default: when no query is available for the current data path the
+  escalation is **not offered at all** — a host that forgets `findParams` loses
+  the affordance rather than silently collecting the whole object, which is what
+  makes the unfiltered fan-out structurally unreachable rather than merely
+  currently-wired-right. A changed `findParams` also resets the escalation,
+  mirroring the `setSelectAllMatching(false)` the internal loader runs next to its
+  own params write, so "All N matching" cannot survive the host's filter, search,
+  sort or page changing; the comparison is by content, so a host re-render that
+  rebuilds an equal object does not drop the user's escalation.
+
+  The internal-loader path is unchanged: with the ref populated the fan-out issues
+  the same params it always did, and the `selection.type: 'single'` suppression is
+  untouched.
+
+- 24bb2de: grid row menu — the built-in Edit/Delete predicate declarations are derived from the spec-owned authoring type, not hand-restated
+
+  `packages/plugin-grid/src/components/RowActionMenu.tsx` carried its own `BuiltinRowActionPredicates` interface (`{ visibleWhen?: unknown; disabledWhen?: unknown }`) and read it at six declaration sites: both `RowActionMenuProps` predicate props, the shared `isBuiltinRowActionVisible` gate, both `planRowActionMenu` parameters, and the `BuiltinRowActionItem` component. Nothing tied any of them to the type whose values they receive, so a rename at the source would have left every one compiling against a shape that no longer existed — the objectui#3009 hand-copy family, and the mirror of what PR #4423 collapsed in the data-table.
+
+  **Measured true source.** These predicates do NOT flow from `DataTableSchema.rowEditPredicates` / `rowDeletePredicates` — this surface is never handed those keys. `ObjectGrid` resolves the object's `userActions.edit` / `delete` through `resolveRowCrudAffordances`, which returns `CrudAffordances['editPredicates']` / `['deletePredicates']`: the spec-owned `RowCrudPredicates` (ADR-0103, `@objectstack/spec/data`), parsed in exactly one place and re-exported by `@object-ui/core`. Each site now derives from that — per-key `Pick` for the planner (visibility is all it decides), one union alias for the two consumers that serve both built-ins. Measured: with `visibleWhen` renamed at the source, the previous hand-written declarations produce ZERO diagnostics in this package while the derived ones fail to compile at the declarations themselves.
+
+  **Graded `minor` rather than `patch`** because a published type narrows (the objectui#4403 criterion). `RowActionMenuProps.editPredicates` / `deletePredicates` move from `unknown`-valued keys to the spec's `Expression | ExpressionInput` — the authored CEL shorthand or its `{ dialect, source }` envelope — so a consumer passing an `unknown`-typed value, or a bare boolean, stops type-checking. No runtime consumer breaks and no behavior changes; `@object-ui/core` retired the same `unknown` imprecision at its own seam, and this was the last copy of it. (PR #4423's data-table twin stayed `patch` because `DataTableSchema`'s keys were already declared `unknown` — deriving there narrowed nothing.)
+
+  No runtime code was changed, and the package's suite passes unchanged. Alongside it, the "a disabled item still counts toward the menu" rule gains the pin it never had where a user meets it: a row whose only action is `disabledWhen`-gated keeps its "⋮" trigger, and that trigger opens the item, present and `aria-disabled`. The two halves of that rule live in different functions, and each half's own test stayed green while the other regressed. The planner-level case that claimed to pin this is renamed to the verdict it actually decides — the planner never reads `disabledWhen`, so its fixture behaved identically to `{}`.
+
+- 51ac39f: ObjectGrid's host-driven pagination mode is a declared interface instead of twelve `(rest as any)` reads
+
+  `ObjectGridProps` declared twelve members while the component read twelve more out of `...rest`, each through an `as any` cast: `data`, `manualPagination`, `rowCount`, `page`, `pageSize`, `onPageChange`, `onPageSizeChange`, `sort`, `onSortChange`, `search`, `onSearchChange` and `onColumnStateChange`. They are not accidental — together they are the host-driven external-pagination path from framework#2212, where a host has already fetched one window of a larger collection and drives the page/sort/search controls itself, and the component's own comment said so. They were simply declared nowhere, so no call site could be checked against them and no editor could offer them.
+
+  Nothing had caught it because the only untyped caller is `ObjectGridRenderer`, whose `{ schema: any; [key: string]: any }` index signature accepts anything; every typed caller happens to pass only declared props; and the test that exercises the path was compiled by nothing.
+
+  They now live on a named `ObjectGridExternalPaginationProps`, which `ObjectGridProps` extends — a separate interface rather than twelve more members flattened into the authoring surface, so the "advanced host-driven mode" boundary stays visible. The eleven members that already have a counterpart on `DataTableSchema` — the type ObjectGrid forwards them to — are **type-derived** from that declaration (`Partial< Pick< DataTableSchema, … > >`) rather than hand-copied, so the two cannot drift apart; only `onColumnStateChange` is declared explicitly, because the table vocabulary reports per-event `onColumnResize` / `onColumnReorder` rather than the merged `{ order, widths }` layout this reports. `ObjectGridColumnState` is exported for that payload.
+
+  Purely additive for callers: every member is optional, so existing code compiles unchanged, and hosts that were already passing these props now get them checked instead of silently accepted. Runtime behavior is unchanged.
+
+### Patch Changes
+
+- ae10a01: Console chrome reaches the bundle — the list switcher, the aggregate footer, the dialog a11y fallbacks and the whole Settings namespace screen stop being English on non-English consoles
+
+  Six strings on the two screens a user looks at most were hardcoded English literals rather than bundle lookups, so they stayed English on every non-English console with nothing an app could author to change them. They are not object, field, view or action labels — no key in `TranslationData` reaches them — while the console's own bundle already ships zh-CN, ja-JP, es-ES, de, fr, pt, ru, ko and ar and translates hundreds of neighbouring strings. Omissions from an otherwise complete bundle, not a missing capability.
+
+  **Two of the six needed no new keys at all, which is the more interesting half.** The list-view mode switcher named its nine visualizations from a private `VIEW_LABELS` table while `console.objectView.viewType*` — the same nine words — had been resolved through the bundle by the create-view picker for months; the switcher now reads those keys, so the picker's 「画廊」 and the switcher's 「画廊」 cannot drift apart in nine languages. The create/edit dialog's close button is the remainder of a fix that already landed: objectstack#5505 routed the `sr-only` close label through `common.close` for the two Shadcn-synced primitives, but `MobileDialogContent` is a hand-written wrapper outside that regeneration zone with its own close button, and it is exactly what `ModalForm` renders — so the dialog the report measured was the one place still announcing "Close" in English.
+
+  The aggregate footer is the one the original report singled out: the **number** was already locale-formatted and the **prefix** was a hardcoded `Avg: ` / `Sum: `. All eleven aggregation kinds now take their prefix from `grid.summary.*`, and the label/value join is its own key rather than a `': '` baked into the renderer — the separator is translatable content, so zh sets a fullwidth colon and fr the French space-before-colon. The numbers are untouched. The form dialog's `sr-only` description fallback joins the packs too; it is clipped, not visible, so the only way an app could displace it was to author a `description` and thereby put a visible subtitle on every dialog.
+
+  **The Settings namespace screen converts as one unit.** `SettingsView` routed zero framing copy through i18n — save/failure toasts, the env-lock and crypto refusals, the load-error card, the empty-route state, the navigation buttons, the unsaved-changes save bar — while its immediate sibling `SettingsHub`, in the same directory, resolved everything through `t('console.settingsHub.*')`. A zh-CN admin read correctly translated field labels sitting inside an English save bar, because `useSettingsLabel` translates a namespace's authored content but reaches none of the chrome around it. All of it now resolves through a `console.settingsView.*` namespace placed beside the hub's, including the crypto-refusal strings that objectui#4579 deliberately left in English rather than leave one translated string among a dozen literals.
+
+  The save-bar counter was an English plural rule executing in every locale (`change` plus an `s` when the count exceeds one). It is now a real i18next plural family — base key plus `_one` and `_other` in all ten packs — not the `(s)` spelling translated nine ways. The base key is the load-bearing part: i18next asks `Intl.PluralRules` for the one suffix a language needs and, finding no such slot, falls back to English, so without it Russian would read English at counts 2-20 and Arabic at 2-99. Russian and Arabic take the "noun: {count}" form their packs already use for this exact reason, and the counter is verified rendering in-language at 1, 2 and 5.
+
+  The Beta badge reuses the hub's existing key rather than minting a twin, and the refusal messages interpolate their subject through the bundle instead of concatenating a translated word onto an English prefix.
+
+- 77d6f28: fix(plugin-grid): the cross-page "Select all N matching" banner works under external pagination
+
+  `BulkActionBar`'s cross-page affordance was gated on ObjectGrid's `totalMatching`
+  state, whose only writer is the component's own data loader. Under a host that
+  fetches the rows itself — ListView passing `manualPagination` + `rowCount`, which
+  is what the console does — that loader never runs, so the total stayed
+  `undefined` and the banner was permanently absent for any match-set size, even
+  though the pager two lines away was already rendering the correct page count from
+  the host's total.
+
+  The pager's derivation is now hoisted to a single `resolvedTotalMatching` value
+  that both the pager and `BulkActionBar` consume, so the affordance reports the
+  real server total on both paths. The `selection.type: 'single'` suppression is
+  unchanged.
+
+- ebb4e0e: The date formatter's last three en-US channels now follow the display locale
+  (objectui#4272).
+
+  objectui#4468 (PR #4512) pointed every date _renderer_ at `useDisplayLocale()`.
+  Three channels were out of its reach because they are properties of the
+  formatter's signature and of its callers rather than of any renderer, so a `zh`
+  console still met English dates in three places:
+
+  - **`formatDate`'s `'short'` branch** hardcoded
+    `toLocaleDateString('en-US', { month: 'short' })`, so it rendered an English
+    month even when the caller had threaded `options.locale` into that very call.
+    Its only consumers are ObjectGrid's two mobile-card date cells, which threaded
+    no locale — fixing either half alone moves nothing, so both land here.
+  - **`formatDateTime` took no options parameter at all**, so no caller could
+    localize it however hard it tried; it always handed `Intl` an `undefined` tag,
+    which means the MACHINE's locale — neither of the repo's two locale channels.
+    The parameter is optional and lands together with its consumers, plugin-gantt's
+    four tooltip call sites.
+  - **The lookup picker's MongoDB `$date` fallback** called a bare
+    `toLocaleDateString()` with no tag.
+
+  One resolver everywhere, as before: `useDisplayLocale()` (tenant regional
+  default → active UI language → `'en'`). `Intl` accepts `'zh'` verbatim, so there
+  is still no mapping table anywhere.
+
+  English output is byte-identical at every touched site — `en` and `en-US` agree
+  on all twelve short month names — and the `'short'` layout itself is unchanged:
+  only the month token is localized, the compact `"Jan 15, '24"` shape around it
+  is a deliberate fixed layout for narrow cards.
+
+  `@object-ui/fields` is `minor` because `formatDateTime`'s new optional parameter
+  is visible in the package's entry `.d.ts`; the plugin packages' own `.d.ts` files
+  are byte-identical, so their change is module-local.
+
+- 1f9b905: `exportOptions` is the spec's object form: `streaming` is declared, `'pdf'` is retired, and the alignment comment is finally true
+
+  `ObjectGridSchema.exportOptions` carried four keys under a comment claiming alignment with `@objectstack/spec`'s `ListViewSchema.exportOptions`. The comment was false in both directions. The spec declared a bare format ARRAY, not an object, so no authored document could satisfy both spellings at once; and `ObjectGrid` read a fifth key — `streaming`, the opt-out that forces the client-side export path — which appeared in no declaration anywhere, reachable only through an `as any` cast in the renderer. An author had no way to discover the key except by reading the renderer's source, and no schema would have refused it or honoured it.
+
+  objectstack#8010 closed that upstream by declaring `ListViewExportOptionsSchema` with exactly the five keys this renderer reads. This change lands the objectui half of the reconciliation:
+
+  - The five keys are now one exported type, `ListViewExportOptions` — `formats`, `maxRecords`, `includeHeaders`, `fileNamePrefix`, `streaming` — shared by `ObjectGridSchema` and by a saved `NamedListView`, so the two authoring surfaces cannot grow apart. The comment above it names the spec symbol and version it mirrors, which makes it checkable rather than reassuring.
+  - `streaming` is declared, and the renderer's `as any` casts are gone. Removing them against the old four-key type produced two `TS2339: Property 'streaming' does not exist` errors — that red is what the declaration fixes.
+  - `'pdf'` is retired from the local format union, published as `ListViewExportFormat`. PDF export was declined platform-side (objectstack#1301 NOT_PLANNED) and the value left the spec's format enum in `@objectstack/spec` 17.0.0, where authoring it is now a parse-time refusal carrying `os migrate meta --from 16`. No ObjectUI path has ever produced a PDF: a declared `'pdf'` reached the user only as a browser console line.
+
+  Runtime behavior of the export menu is unchanged. The filter that drops undeliverable formats is format-agnostic — it keeps what the active path can deliver — so it still hides `xlsx` when no server stream is available, and it still hides a legacy `'pdf'` that pre-17 stored metadata carries until the migration rewrites it. There was no `'pdf'`-specific branch to delete.
+
+  Two guards keep the contract from re-opening. On the type side, a compile-time assertion pins the interface's key set to exactly the spec's five, so a sixth key fails the build. On the renderer side, a source scan collects every property `ObjectGrid` reads off `exportOptions` — through the alias it binds, and through any cast, since a cast is how `streaming` stayed invisible — and fails if the renderer reads anything the type does not declare.
+
+  `@object-ui/types` is a minor: `ListViewExportFormat` and `ListViewExportOptions` are new exports, `streaming` is a new optional key, and `formats` no longer admits `'pdf'`. Anything still writing that value was authoring metadata the platform now refuses at publish.
+
+- 51ab34e: ObjectGrid's bulk-bar **Clear** now unticks the row checkboxes, instead of only removing the toolbar
+
+  Selecting rows and pressing Clear emptied the bulk-actions bar but left every row checkbox at `data-state="checked"` (the header checkbox stuck at `indeterminate` on a partial pick). The user was stranded on a page of ticked rows with no toolbar left to act on them, and the only way out was a reload or re-selecting and clearing through some other path.
+
+  The selection lives in two places: `selectedRows`, which is the grid's own state and drives the toolbar, and the row checkboxes, which live inside the embedded data-table and only clear when `selectionResetKey` moves. `resetSelection()` writes all three, and the delete / dispatch / dialog-close paths have gone through it since the reset-key mechanism was introduced. Both `BulkActionBar` mount sites, however, hand-wrote their `onClearSelection` as `setSelectedRows([]); setSelectAllMatching(false);` — exactly `resetSelection()` minus the key bump — so Clear updated one source and left the other ticked. Both sites now call `resetSelection()`, so there is one reset for every path that clears a selection rather than three hand-copied ones, and the cross-page "all matching" state drops with it.
+
+- 0ca6096: A gantt task titled `A$&B` no longer prints `{{title}}` back into its own delete dialog — the two hand-rolled provider-less fallback interpolators are literal, like i18next
+
+  objectui#3418 fixed the shared helper's fallback interpolator: `String.prototype.replace` became `split(needle).join(value)`, because `replace` and `replaceAll` both interpret `$&`, `` $` ``, `$'` and `$$` in the **replacement** string and i18next does not. Two hand-rolled copies of that interpolator never got the fix. Both are deliberate non-users of `createSafeTranslation` — each falls back per key so a host dictionary that covers the common keys but lags on newer ones still resolves what it has — so the shared fix had no path to reach them.
+
+  The reachable one is gantt's. `gantt.delete.body` is `'"{{title}}" will be permanently removed. …'` and its call site interpolates the record's own title, which is user data:
+
+  | task title | rendered before                                                       | rendered now                              |
+  | ---------- | --------------------------------------------------------------------- | ----------------------------------------- |
+  | `A$&B`     | `"A{{title}}B" will be permanently removed.`                          | `"A$&B" will be permanently removed.`     |
+  | `` x$`y `` | `"x"y" will be permanently removed.`                                  | `` "x$`y" will be permanently removed. `` |
+  | `p$$q`     | `"p$q" will be permanently removed.`                                  | `"p$$q" will be permanently removed.`     |
+  | `u$'v`     | `"u" will be permanently removed. …v" will be permanently removed. …` | `"u$'v" will be permanently removed.`     |
+
+  The first row is the ugly one: `$&` expands to the matched text, so the placeholder itself is printed back to the user inside the record's own name. Gantt's copy also carried the other half of the same defect — a bare string needle substitutes only the **first** occurrence, where i18next substitutes every one — and `split`/`join` fixes both at once.
+
+  The import wizard's copy used a `g`-flagged `RegExp`, which covered the repeated-placeholder half but could not touch the `$`-pattern half: that harm lives in the replacement string, not the needle. Its values are authored metadata — field labels and type names spliced into `grid.import.missingRequiredHint` and `grid.import.legacyReferenceBlocked` — so a label containing `$&` corrupted the hint the same way. Retiring the `RegExp` also retires an unescaped needle, since the placeholder name went into the pattern uninterpolated; that was inert while every placeholder name is a bare identifier, and is now structurally impossible.
+
+  This is the provider-less path only (standalone embedding, unit tests). With an `I18nProvider` mounted, i18next serves these keys and was already literal on both sides — which is exactly why the divergence was invisible. No pack, key or call site changed; the three `{{count}}` gantt keys take numbers and were never affected, and `gantt.quickFilter.resultSummary`'s deliberate single-brace idiom is resolved by its call site rather than this interpolator and is untouched.
+
+- 3e19fe7: i18n copy: one ellipsis glyph across the ten packs, `usted` in the es draft-preview empty state, and a pt sentence that stops contracting `de` onto its own hole
+
+  Three locale-copy defects that no gate could see, because all three are _value_ defects on keys whose names, placeholders and key sets were already correct.
+
+  **One ellipsis (objectui#3878).** `en` ended 33 values with three ASCII full stops (`Loading...`, `Ask anything...`) and 110 with the typographic ellipsis `…`, and the nine translation packs had copied `en` value by value — so a user could read both glyphs on one screen: `common.loading` beside `dashboard.loading`, `console.ai.askAnything` beside its own panel's siblings. All ten packs now spell it `…` (U+2026), per the maintainer-authorized consistency pass registered on objectstack#6015. 312 pack values changed: 34 in `en` (the 33 trailing plus the one mid-sentence `collaboration.commentPlaceholder`) and 278 across the nine. Eleven inline `defaultValue` call sites were re-synchronised with the new `en` text, which `scripts/check-i18n-call-site-keys.mjs` requires byte-for-byte.
+
+  The convention is now pinned so the split cannot regrow: `packages/i18n/src/__tests__/ellipsis-glyph-3878.test.ts` fails, by key name, on any value in any of the ten packs that holds three ASCII full stops. It is deliberately wider than "a trailing `...` in `en`", because the census showed the narrow rule would have shipped with two holes in it — `collaboration.commentPlaceholder` puts the ellipsis mid-sentence, and `list.loading` had the packs wrong while `en` was already right, which no `en`-only rule can see.
+
+  Fifteen module-local **no-provider fallback** entries were moved with the packs, across `useCollaborationTranslation`, `useFieldTranslation`, `useDetailTranslation`, `ObjectGrid`, `KanbanImpl`, `data-table` and `ConnectionStatus`. Those maps exist to render when no `LocalizationProvider` is mounted, and each one's own docblock requires it to stay byte-identical to the `en` pack — a requirement objectui#3440 already enforces mechanically for the collaboration map. Leaving them behind would have made the provider-less path disagree with the provider path on ten keys.
+
+  **es `usted` (objectui#3875).** `preview.empty.notReadyDescription` said `Revisa la conversación` — the tú imperative — in a namespace that is otherwise 23:1 usted, and it renders _underneath the usted draft-preview banner at the same moment_, not before or after it. `Revisa` → `Revise`; nothing else in the sentence carries a register. The neighbouring `approvalsInbox` namespace is legitimately tú and was left alone.
+
+  **pt contraction (objectui#3877).** `ConcurrentUpdateDialog` splits `detail.concurrentUpdateDescription` on `{{field}}` and renders a bolded label in the gap, and pt left a bare `de` in front of that gap. When the multi-field conflict branch passes the record label (`este registro`), Portuguese users read `de este registro` — a contraction error every native speaker sees, and one that no spelling of the leaf value could fix (`deste registro` renders `de deste registro`). The pt sentence is rewritten so the hole is preceded by the verb `afeta` instead of any preposition, which closes the whole class rather than trading `de` for an `em` or `a` that contract just as hard. pt only; `en` is unchanged.
+
+  No behavior, no keys added or removed, no placeholder changed.
+
+- f565418: fix(plugin-grid): the list link column renders a real anchor when the host publishes record URLs
+
+  The list's `link: true` column (and the auto-linked primary field) rendered as
+  a `span role="link"` with no `href`, navigating only through a click handler.
+  So the surface users actually open records from had none of a link's native
+  affordances — no middle-click / ⌘-click open-in-new-tab, no "copy link
+  address", no hover status-bar URL — and `role="link"` without an href is a
+  weaker contract for assistive tech than a real anchor. It was also the odd one
+  out: the previous release gave record-detail and related-list lookup VALUES
+  real anchors, leaving the list column as the weakest of the three surfaces.
+
+  `LinkCell` now renders a real `<a href>` with the same click split: a plain
+  left click is prevented and handed to the existing in-app navigation, so drawer
+  / modal / page behavior is completely unchanged, while modifier and
+  middle-clicks are left to the browser.
+
+  The URL is not assembled in the grid. The object list page publishes its own
+  record-URL builder through `RelatedRecordActionsContext.recordHref` — the same
+  seam the lookup links use, and the same expression its "open in new window"
+  action already navigated with, so the anchor and that action cannot address
+  different records. A host that publishes no URL renders exactly what it
+  rendered before: the Studio designer, embedded renderers and standalone grids
+  are untouched.
+
+  Neither package's published `dist/index.d.ts` changes (measured both ways —
+  byte-identical), so this is a patch on both: the list host's new helpers are
+  module-level exports behind a barrel that re-exports only `ObjectView`.
+
+- 5e514c4: standalone ObjectGrid resolves off-spec `rowHeight` to compact, matching ListView and the spec bridge, instead of silently styling it as medium
+
+  One component answered one question two ways. `ObjectGrid` seeded its density state with `schema.rowHeight ?? 'compact'`, so an ABSENT `rowHeight` landed on `compact` while an OFF-SPEC one skipped every arm of the density ternaries and came out at their terminal `else` — the `medium` styling. That is the absent-vs-off-spec split objectui#4440 removed from `ListView`, and it made a standalone grid the third answer to a question the rest of the system had already settled: `@object-ui/core`'s `rowHeightToDensityMode` abstains for an off-spec value, the `@object-ui/react` spec bridge abstains, and `ListView` defaults the abstention to `compact`. Off-spec now renders exactly like absent, everywhere.
+
+  Only a standalone grid was affected. When `ListView` owns the grid it overwrites the prop with a value derived from `density.mode`, so nothing off-spec survives that hop.
+
+  The narrowing happens at the state boundary, not in the ternaries. `medium` is still a real row height with its own styling arm, and a leaf renderer's terminal `else` is still legitimate styling — what changes is that nothing unrecognized can reach it. Membership is tested against `ROW_HEIGHT_TO_DENSITY_MODE`, so the admitted values keep one definition in the repo and the build fails if the spec grows a sixth row height without teaching the resolver about it. Both entry points go through the resolver: the initial state and the effect that re-syncs when the `rowHeight` prop changes.
+
+  Two off-spec spellings behaved differently before this, which the report of the defect did not distinguish, and the boundary fix covers both:
+
+  - A plain off-spec value (`'garbage'`) was not a key of the toolbar's row-height icon map either. That map is looked up by the same unvalidated state, so `rowHeightIcons[mode]` was `undefined` and rendering `<RowHeightIcon />` threw `Element type is invalid` — a standalone grid with an off-spec `rowHeight` did not render at all, rather than rendering as `medium`. The toolbar is shown precisely when `schema.rowHeight` is defined, so the crash and the off-spec case coincide exactly.
+  - A prototype member (`'toString'`) WAS reachable through that map's prototype chain, resolving to `Object.prototype.toString` — a function, which React accepts as a component — so it survived to the ternaries and rendered as `medium`, the defect as filed. The resolver uses `hasOwnProperty` rather than `in` for this reason, the same reason `@object-ui/core` does.
+
+  Both are now inert: the state can only ever hold one of the five admitted row heights, so the icon lookup is total and the ternaries never fall through.
+
+- 36310dc: `formatPercent` groups its output and follows the display locale — the last
+  tooltip/cell channel (objectui#4553).
+
+  PR #4557 threaded the gantt tooltip's number and currency rows and measured that
+  the percent row could not follow: `formatPercent(value, precision)` took no
+  locale parameter, and its whole body was
+  `${percentDisplayValue(value).toFixed(precision)}%`. It built no
+  `Intl.NumberFormat` and never reached `formatDisplayNumber` — so unlike its
+  siblings it did not render in the MACHINE's locale, it rendered in **no** locale:
+  an ASCII decimal mark, never a grouping separator, byte-identical on every
+  machine.
+
+  **English output MOVES, and that is the fix.** Because the function never
+  grouped, `1235%` was wrong in en-US too, not only in German. Grouping and locale
+  therefore land together:
+
+  |            | before  | after          |
+  | ---------- | ------- | -------------- |
+  | en, 1234.5 | `1235%` | `1,235%`       |
+  | de, 1234.5 | `1235%` | `1.235\u00a0%` |
+  | de, 80     | `80%`   | `80\u00a0%`    |
+
+  Values below the grouping threshold are unchanged in English (`80%`, `12.5%`,
+  `33.33%`), so the move is confined to four digits and up. German changes at every
+  magnitude, because the no-break space before the sign is part of the locale's
+  percent convention — which is what routing through `Intl` buys over appending a
+  literal `%`.
+
+  The scaling contract is untouched: `percentDisplayValue` still disambiguates a
+  fraction-stored percent (`0.8` → 80%) from a whole one, so the list cell and the
+  dashboard measure formatter still agree.
+
+  Consumers are threaded in the same change, the parameter never landing
+  speculatively:
+
+  - **fields** — `PercentCellRenderer`, on BOTH of its paths. Its whole-percent
+    branch (`progress` / `completion` fields, which store 0-100 and must skip the
+    fraction scaling) was a second bare `toFixed` call; leaving it behind would
+    have made one grid internally inconsistent, so both branches now share one
+    locale-aware body and differ only in the scaling policy.
+  - **plugin-gantt** — the tooltip percent row, completing objectui#4553's switch.
+  - **plugin-grid** — the mobile card's percent cell, which sits in the same
+    density row as a date cell objectui#4272 had already localized.
+  - **plugin-dashboard** — `renderFieldValue`'s percent branch. It is a plain
+    function rather than a component, so it takes the locale as an optional fourth
+    parameter beside the `tenantCurrency` already threaded that way, and both of
+    its callers pass it and declare it in their memo dependency arrays.
+
+  Bumps follow each package's own `.d.ts` diff, measured in both directions.
+  `@object-ui/fields` and `@object-ui/plugin-dashboard` are `minor` on the
+  objectui#4272 / PR #4544 precedent — quoted from that changeset: "`@object-ui/fields`
+  is `minor` because `formatDateTime`'s new optional parameter is visible in the
+  package's entry `.d.ts`; the plugin packages' own `.d.ts` files are
+  byte-identical, so their change is module-local." Here `formatPercent` and
+  `renderFieldValue` each gain an entry-visible optional parameter, while
+  plugin-gantt's and plugin-grid's `.d.ts` files are byte-identical and stay
+  `patch`.
+
+- 4270c11: ObjectGrid's record-detail date fallback follows the display locale
+  (objectui#4541).
+
+  `renderRecordDetail`'s type-inference fallback rendered date-like values with
+  a bare `formatDate(value)` — no options at all. `formatDate` then handed `Intl`
+  an `undefined` tag, and `undefined` is not "the user's locale", it is the
+  **machine's**, which is neither of the repo's two locale channels. On a `zh`
+  console that one cell rendered `Mar 15, 2024` while every neighbouring date
+  cell rendered `2024年3月15日`.
+
+  This was the third `formatDate` site in the file. objectui#4272 (PR #4544)
+  ruled its plugin-grid surface to "ONLY the two date-cell call sites" — the two
+  that pass `'short'` in the mobile card view — and this one was never among
+  them, so it was filed rather than fixed there.
+
+  The fix is pure consumption, not plumbing: the component already reads
+  `useDisplayLocale()` at component level (landed in PR #4544), and
+  `renderRecordDetail` is a plain arrow in the component body that already closes
+  over `tenantCurrency` from that same scope, so the call site simply gains
+  `{ locale: displayLocale }`. No hook was added, and the function is not
+  memoized, so there is no dependency array to keep in step.
+
+  One resolver everywhere, as before: `useDisplayLocale()` (tenant regional
+  default → active UI language → `'en'`). English output is byte-identical — the
+  runner's `en-US` and `en` agree on this branch — and the two `'short'` cells
+  PR #4544 threaded are untouched.
+
+  `patch` rather than `minor`: the package's own `.d.ts` files are byte-identical
+  across the change, so this is module-local (the objectui#4496 precedent).
+
+- Updated dependencies [0e67b53]
+- Updated dependencies [ceccdcf]
+- Updated dependencies [d6e5124]
+- Updated dependencies [debad27]
+- Updated dependencies [dc2aa3e]
+- Updated dependencies [ee66e2e]
+- Updated dependencies [e2e6360]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [932cbcd]
+- Updated dependencies [734d186]
+- Updated dependencies [f650253]
+- Updated dependencies [3d9769a]
+- Updated dependencies [8f85f8b]
+- Updated dependencies [d0c3b26]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [f7c6430]
+- Updated dependencies [4dadf0d]
+- Updated dependencies [ae10a01]
+- Updated dependencies [0f21348]
+- Updated dependencies [d2e2caf]
+- Updated dependencies [92876f0]
+- Updated dependencies [f279deb]
+- Updated dependencies [4b70d28]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [ebb4e0e]
+- Updated dependencies [3a9021e]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [613b167]
+- Updated dependencies [b4d3c22]
+- Updated dependencies [1f9b905]
+- Updated dependencies [8f60d73]
+- Updated dependencies [cb13400]
+- Updated dependencies [828549a]
+- Updated dependencies [e1ade8f]
+- Updated dependencies [bc64bfe]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [3e19fe7]
+- Updated dependencies [bb58d1d]
+- Updated dependencies [433ff9f]
+- Updated dependencies [5cc847c]
+- Updated dependencies [e7663f2]
+- Updated dependencies [fa21254]
+- Updated dependencies [33c32bf]
+- Updated dependencies [66fb4fa]
+- Updated dependencies [b953a97]
+- Updated dependencies [d7f3e30]
+- Updated dependencies [6d641c9]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [c911544]
+- Updated dependencies [a84385b]
+- Updated dependencies [45e1949]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [58bebf6]
+- Updated dependencies [36310dc]
+- Updated dependencies [52d878a]
+- Updated dependencies [405e808]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [a3ae404]
+- Updated dependencies [bfdf3d4]
+- Updated dependencies [bb68488]
+- Updated dependencies [c0f9a4b]
+- Updated dependencies [b1e42d0]
+- Updated dependencies [2459a3e]
+- Updated dependencies [ac853ce]
+- Updated dependencies [fa51109]
+- Updated dependencies [d6aa172]
+- Updated dependencies [fe52a04]
+- Updated dependencies [d46f9b8]
+- Updated dependencies [3f5f87c]
+- Updated dependencies [2fea4d2]
+- Updated dependencies [f5e1143]
+- Updated dependencies [7f1cb33]
+- Updated dependencies [f148a64]
+- Updated dependencies [bb68488]
+- Updated dependencies [2e3b0c0]
+- Updated dependencies [9461dd3]
+- Updated dependencies [78fa331]
+- Updated dependencies [47f551b]
+- Updated dependencies [31ab1ac]
+- Updated dependencies [0082db8]
+- Updated dependencies [ab04728]
+- Updated dependencies [5bf09fd]
+- Updated dependencies [06915b0]
+- Updated dependencies [ff84b05]
+  - @object-ui/i18n@17.5.0
+  - @object-ui/react@17.5.0
+  - @object-ui/components@17.5.0
+  - @object-ui/core@17.5.0
+  - @object-ui/fields@17.5.0
+  - @object-ui/types@17.5.0
+  - @object-ui/permissions@17.5.0
+  - @object-ui/mobile@17.5.0
+
 ## 17.4.0
 
 ### Patch Changes

@@ -1,5 +1,145 @@
 # @object-ui/plugin-chatbot
 
+## 17.5.0
+
+### Minor Changes
+
+- 3256b14: `@object-ui/plugin-chatbot`'s `ChatMessage` is now one type instead of two
+
+  The barrel exported two different `ChatMessage` types: a minimal one it declared itself (`id` / `role` / `content` / `timestamp` / `avatar` / `avatarFallback`) and the shape `<ChatbotEnhanced>` actually renders, re-exported under the alias `ChatbotEnhancedMessage`. The natural name resolved to the narrow one, so an importer reaching for `ChatMessage` silently got the wrong contract — and the compiler could not object, because both shapes existed on purpose and every construction site spreads the extra keys conditionally, which defeats excess-property checking. That is how app-shell's `AiChatPage` ended up unable to read `toolInvocations` off its own function's return value (objectui#4040; re-pointed in PR #4379, but the collision itself was left standing). objectui#4383.
+
+  **Breaking semantics** (declared `minor` per AGENTS.md §版本号策略 — objectui never declares `major` outside an `@objectstack` major sync): `ChatMessage` exported from `@object-ui/plugin-chatbot` now denotes the enhanced shape. In practice this is a widening rather than a removal — every field of the retired shape survives with the same type, and the enhanced shape adds only optional keys (`streaming`, `toolInvocations`, `reasoning`, `sources`, `traceId`, `buildProgress`, `blueprintProgress`, `charts`), so anything that was a valid `ChatMessage` still is, and `<Chatbot messages={…} />` keeps accepting the same values. Code that relied on the name meaning _exactly_ the six-key shape (exhaustive `keyof` maps, `Equal`-style assertions) is the case that changes.
+
+  `ChatbotEnhancedMessage` is kept as a `@deprecated` alias of the same type, so importers that spelled the disambiguating name keep compiling; new code should import `ChatMessage`. Pinned at compile time by `packages/plugin-chatbot/src/__tests__/chat-message-contract.test.ts`.
+
+- eec2e4f: `useObjectChat` declares the message shape it actually hands back
+
+  The hook typed `messages` — and the `onSend(content, messages)` callback fed from it — as `@object-ui/types`' authoring `ChatMessage`. That was true in local mode only. In API mode the values came out of the runtime mapper and were asserted into place with `as OuiChatMessage[]`, and the authoring contract declares none of what they carry: `buildProgress`, `blueprintProgress`, `charts`, and `pendingActionId` / `draftReview` / `proposedPlan` / `proposedChanges` / `builderHandoff` on every tool invocation. Those keys are the HITL approval card, the "Review N changes" affordance, the proposed-plan card, the build panel and the inline charts. They survived only because nothing on the path ever rebuilt a message; anyone writing the obvious thing — reconstruct a message field-by-field from its declared type — deleted all of them, with the compiler agreeing, because the declared type genuinely did not have them.
+
+  The declaration is now the truth, published as `ObjectChatMessage`. The survey behind it found the honest type to be neither of the two `ChatMessage` types on either side, because neither is true of both modes: it stays **wide** where local mode is wide (an authored `'tool'` role and the legacy `'partial-call'` / `'call'` / `'result'` tool states reach this surface unchanged and are folded only at the render seam), **narrow** where both modes are narrow (`timestamp` is `string`, never `Date` — API mode never produces one and local mode absorbs it before emitting), and adds the render-only keys API mode really carries. The `as OuiChatMessage[]` assertion is deleted rather than moved: the mapper's output satisfies the declared type, so the compiler checks that assignment instead of being told to stop looking.
+
+  Nothing about the values changed, and nothing correct breaks. `ObjectChatMessage` is a **subtype** of the authoring `ChatMessage` it replaces, so every consumer that accepted the old declaration still accepts these values — including a host `onSend` callback that types its parameter as `ChatMessage[]`, which keeps type-checking by contravariance. Naming `ObjectChatMessage` is what lets a host _read_ the keys above. The one observable narrowing is deliberate: code that branched on `timestamp instanceof Date` was handling a value this hook cannot emit, and now says so at compile time.
+
+  The seam below it (`chatMessageAdapter.ts`, from objectui#4399) is still necessary and unchanged in behaviour — `'tool'` and the legacy tool states still have to be narrowed for the renderers. What changed is that its pass-through is no longer an act of faith: its input type (`SeamChatMessage`, also exported, alongside `SeamToolInvocation`) names the render-only keys, so the spread preserves them as declared properties the compiler can see, and the pass-through tests type their API-mode fixture directly instead of casting it past the compiler. A cast returning to the hook is now caught by a test rather than by a future outage.
+
+  App-shell carries a comment-only correction on the same family: `AiChatPage` still described `@object-ui/plugin-chatbot` as exporting a second, minimal legacy `ChatMessage` alongside the enhanced one. That collision was retired in objectui#4383 — the barrel publishes one contract and `ChatbotEnhancedMessage` is a deprecated alias of it — so the paragraph was sending readers to look for a hazard that no longer exists.
+
+### Patch Changes
+
+- dde7283: `chatbot` and `chatbot-enhanced` now pass only whitelisted DOM props to their host element (objectui#4431)
+
+  Both registrations destructured `schema` and `className` and forwarded everything else. `SchemaRenderer` hands a registered component the authored node's own keys, the contents of its `props` container, the ARIA it resolved and the host's trailing props — so all of it became attributes on the chat root `div`, because React passes unknown lowercase attributes through in silence and stringifies object values. Measured through the real SDUI path with a data-source adapter attached: **14 non-DOM attributes on each widget**, including `datasource="[object Object]"` (the injected adapter, which only appears on a deployment that really loads data) and a camelCase `arialabel` sitting next to the resolved `aria-label`, so the element carried each ARIA value twice under two spellings — one of them meaningless to assistive technology.
+
+  Both are now consume-or-whitelist: configuration is read off `schema` as before, the evaluated `disabled` verdict is consumed by name, and only `toDomProps`' output reaches the element. The resolved `aria-label` / `aria-describedby`, `role`, `id`, `tabIndex` and the `data-*` family still arrive — dropping them would have been an accessibility regression dressed as a leak fix, so the pin asserts the delivered set exactly, not just the absent one. `chatbot-floating` is untouched: its content mounts through a portal and its root never spread.
+
+  `@object-ui/core` gains the shared executor this migration needs (`utils/dom-props.ts`): `toDomProps` for the SDUI widget contract, plus `pickDomProps` — the mechanism — for a package whose own contract declares a different key set. That is the objectui#4409 dependency direction: plugin packages declare `@object-ui/core` and must not grow a dependency on `@object-ui/fields` to reach a whitelist.
+
+  `@object-ui/fields` keeps its own key list and its compile-time bindings, and now executes them through core's mechanism. Its behaviour is unchanged and its exported `DomProps<P>` is the same structural type. The two lists differ for measured reasons and no longer can drift silently: `name` and `disabled` are legal only on form controls, which is what every field widget renders and what `FieldWidgetComponentProps` declares, while `role` is resolved by `SchemaRenderer` for every SDUI node and is not part of the field contract. A new assertion binds every shared key in both directions, with `role` named as the single deliberate exception.
+
+- 37bbc42: Replace the three `messages as any` casts at the `@object-ui/types` ↔
+  `@object-ui/plugin-chatbot` `ChatMessage` boundary with one explicit typed
+  adapter (`toRuntimeMessages` / `authoredToRuntimeMessage`, now exported).
+
+  The authoring contract (`ChatbotSchema['messages']`) and the runtime contract
+  `<ChatbotEnhanced>` renders are both deliberate and deliberately different; the
+  casts erased ALL of that drift rather than the intentional parts, so a future
+  vocabulary move would have surfaced as rendering behaviour instead of a type
+  error. Each narrowing is now named, documented and tested: an authored
+  `role: 'tool'` message is an assistant message (unchanged rendering — the
+  implicit fallthrough is now the recorded decision), a `Date` timestamp becomes
+  its ISO string (one expression, consumed by both the seam and the hook's
+  `normalizeMessages`), and the legacy tool-invocation states
+  `'partial-call'`/`'call'`/`'result'` map to their AI SDK v6 equivalents as the
+  authoring type's own documentation declares — previously they reached the tool
+  chip unrecognised and rendered a status badge with no label.
+
+- Updated dependencies [0e67b53]
+- Updated dependencies [ceccdcf]
+- Updated dependencies [d6e5124]
+- Updated dependencies [debad27]
+- Updated dependencies [dc2aa3e]
+- Updated dependencies [ee66e2e]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [932cbcd]
+- Updated dependencies [734d186]
+- Updated dependencies [f650253]
+- Updated dependencies [3d9769a]
+- Updated dependencies [8f85f8b]
+- Updated dependencies [d0c3b26]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [f7c6430]
+- Updated dependencies [4dadf0d]
+- Updated dependencies [ae10a01]
+- Updated dependencies [92876f0]
+- Updated dependencies [f279deb]
+- Updated dependencies [4b70d28]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [613b167]
+- Updated dependencies [b4d3c22]
+- Updated dependencies [1f9b905]
+- Updated dependencies [cb13400]
+- Updated dependencies [828549a]
+- Updated dependencies [e1ade8f]
+- Updated dependencies [bc64bfe]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [3e19fe7]
+- Updated dependencies [bb58d1d]
+- Updated dependencies [5cc847c]
+- Updated dependencies [fa21254]
+- Updated dependencies [33c32bf]
+- Updated dependencies [66fb4fa]
+- Updated dependencies [b953a97]
+- Updated dependencies [d7f3e30]
+- Updated dependencies [6d641c9]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [a84385b]
+- Updated dependencies [45e1949]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [58bebf6]
+- Updated dependencies [405e808]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [a3ae404]
+- Updated dependencies [bfdf3d4]
+- Updated dependencies [bb68488]
+- Updated dependencies [c0f9a4b]
+- Updated dependencies [b1e42d0]
+- Updated dependencies [2459a3e]
+- Updated dependencies [ac853ce]
+- Updated dependencies [fa51109]
+- Updated dependencies [d6aa172]
+- Updated dependencies [fe52a04]
+- Updated dependencies [d46f9b8]
+- Updated dependencies [3f5f87c]
+- Updated dependencies [2fea4d2]
+- Updated dependencies [f5e1143]
+- Updated dependencies [7f1cb33]
+- Updated dependencies [f148a64]
+- Updated dependencies [bb68488]
+- Updated dependencies [2e3b0c0]
+- Updated dependencies [9461dd3]
+- Updated dependencies [78fa331]
+- Updated dependencies [47f551b]
+- Updated dependencies [31ab1ac]
+- Updated dependencies [0082db8]
+- Updated dependencies [ab04728]
+- Updated dependencies [5bf09fd]
+- Updated dependencies [06915b0]
+- Updated dependencies [ff84b05]
+  - @object-ui/i18n@17.5.0
+  - @object-ui/react@17.5.0
+  - @object-ui/components@17.5.0
+  - @object-ui/core@17.5.0
+  - @object-ui/types@17.5.0
+
 ## 17.4.0
 
 ### Minor Changes

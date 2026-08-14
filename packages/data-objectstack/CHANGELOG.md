@@ -1,5 +1,354 @@
 # @object-ui/data-objectstack
 
+## 17.5.0
+
+### Minor Changes
+
+- 932cbcd: An app you are not allowed to open now says so, instead of reporting that it may still be publishing
+
+  `GET /api/v1/meta/apps` is filtered per session server-side (`filterAppForUser`), so an app withheld by its `requiredPermissions` and an app that does not exist were byte-identical to the console: both simply absent from the list. With one fact and two conditions, `AppContent` rendered its only copy for an absent app — "This app is not available yet — it may still be publishing. Try again in a moment." — over a permanent authorization decision, under a Retry button that could never succeed.
+
+  That is not a cosmetic complaint. On a downstream acceptance round one role hit this screen while another opened the same app fine, and because the copy names a transient deployment state the finding was filed as a suspected platform defect and carried through two test batches before a clean-baseline investigation found the account was missing a permission-set binding. The gate had been working exactly as designed; the message is what sent everyone to the wrong place.
+
+  The maintainer ruling (2026-08-12) took the contract half first. objectstack#8013 made the BY-NAME route answer an explicit denial — `403` with the ADR-0112 catalog code `PERMISSION_DENIED` in the declared `{ success: false, error: { code, message } }` envelope — for an app that exists and whose `requiredPermissions` the session lacks, while the LIST route stays filtered exactly as before, with no `authorized: false` flag, so the enumeration surface is not widened past what a direct by-name probe already implies. Absence keeps answering `404 RESOURCE_NOT_FOUND`, and so do the two neighbouring refusals the same ruling deliberately left alone: an unpublished app (ADR-0045 §3 keeps it externally unobservable) and an app gated by an absent optional service (ADR-0057 D10 — nothing was denied to the caller).
+
+  This is the console half. When a requested app is missing from the list and the existing post-publish readiness re-check still cannot find it, the console asks the by-name route which of the two it is, through a new `ObjectStackAdapter.probeAppAccess(name)`. On the measured code it renders a plain authorization message with a way back to the launcher; on anything else — an absent app, an unreachable server, a host that injected a DataSource without the probe — today's publishing copy renders byte for byte, retry button included.
+
+  Two properties of that seam are load-bearing rather than incidental. It branches on the ADR-0112 **code**, never the status (objectui#4408): the two answers under test are both errors one status apart, and a status-reading implementation passes the happy path while going blind exactly where the defect lives. And only `denied` moves the copy: this bug exists because the console asserted a state it had not measured, so a probe that fails, times out or cannot be issued must leave the screen alone rather than guess in the other direction.
+
+  `probeAppAccess` is deliberately separate from `getApp` rather than a flag on it: `getApp` degrades every failure to `null` — the very conflation being undone — and memoises in the adapter's metadata cache, where a verdict about the CALLER would outlive the session it described. New public API on the adapter (`probeAppAccess`, `isAppPermissionDeniedError`, `APP_PERMISSION_DENIED_CODE`, `AppAccessVerdict`), purely additive; nothing existing changed shape. Three new `empty.*` keys ship in all ten locale packs.
+
+- 537a0d1: `deleteView` removes every home the view has — deleting a draft-only saved view no longer silently no-ops
+
+  A view has two possible homes: the pending per-item **draft** (`DELETE /api/v1/meta/view/:name?state=draft`) and the **published** overlay (`DELETE /api/v1/meta/view/:name`). `deleteView` addressed only the second, unqualified. Deleting a view that existed only as a draft therefore fired the delete at the published overlay, the server answered `200 {"success":true,"reset":false,"message":"No view '…' found — nothing to delete."}`, the draft survived untouched, and the tab was still there after a reload — while the receipt reported `{ deleted: false }` and nothing surfaced the refusal to the user.
+
+  That is not a corner case. ADR-0034's `persistRuntimeMetadata` (app-shell) stages **every** runtime edit as a draft, and a view created from the `+` tab lives ONLY as a draft until an explicit Publish — so both "a view you just made" and "a published view you have since edited" are routinely draft-carrying.
+
+  **Why this is not the mechanical mirror of #4139.** `updateView` probes the draft first and writes back to whichever home the read resolved; that is right for an update in all cases. Copying it here would have been wrong in one: on a published+draft pair a draft-first-_only_ delete discards the draft and leaves the published row still serving the view. That is not Delete view, it is **Discard draft** — a deliberately different operation that already exists (`discardRuntimeDraft`, documented as "the published overlay is untouched"). The asymmetry has a clean statement: for an update, one home is the right home; for a delete, "remove this view" is satisfied only when _no home is left serving it_.
+
+  So both homes are now deleted, **draft first**. The order is load-bearing on the failure path: a fault between the two calls leaves the published overlay intact, so the view is still served and the delete is cleanly retryable. The reverse order would strand a draft-only view — precisely the bug above.
+
+  **Two blind calls, no probe.** Measured against the framework's `deleteMetaItem`: a missing home is reported as a **200** carrying `reset:false` (`"No pending draft for view/x."` / `"No view 'x' found — nothing to delete."`), never a 404. There is nothing for a probe to protect against, and `updateView`'s probe exists for a different reason — its read must resolve the row the merge writes back to — which has no counterpart for a delete.
+
+  **One transport, one error contract.** Both halves now go through `MetadataClient.reset()`, the transport that can express the `?state=` qualifier and the one `updateView`'s draft half already uses. The published half previously went through `client.meta.deleteItem`; measured, that issues the byte-identical request (this adapter configures no environment scoping), so routing it here changes no addressing and collapses two error shapes into one `MetadataError`.
+
+  The receipt is widened **additively**: `{ deleted }` gains optional `draft` and `published` outcomes (`removed`, plus the server's `reset` / `message`). `deleted` is true only when no home is left serving the view _and_ at least one actually held a row — a view that existed in neither home still answers `false`, unchanged. A failure of the published half after the draft was discarded now throws (matching `updateView`'s convention of surfacing a fault rather than degrading) carrying the partial state on the error's `outcome`: "draft gone, overlay left" is exactly what the old `{ deleted: boolean }` could not express, and it is never rounded up to `true`.
+
+  Cache invalidation moves into a `finally`, so `invalidateViewKeys` fires exactly once per call on **every** outcome including the throw. After a half-failure the draft row really is gone, and objectui#4363's asymmetry decides it: an unnecessary invalidation costs one refetch, a missed one costs the cache's full 5-minute TTL of stale overrides.
+
+  Minor rather than patch: this moves published behavior for existing callers and adds two exported types, the same grading objectui#4271's `get()` unwrap and objectui#4495's `find()` resolve→reject took. The `.d.ts` diff is additive only — `deleteView`'s return widens from an inline `{ deleted: boolean }` to the new `DeleteViewResult`, which still carries `deleted: boolean` — so no consumer needs a code edit to keep compiling. A repo-wide census found one call site (app-shell's `ObjectView` delete handler), which awaits the call and does not read the receipt.
+
+- bec3e14: The `DataSource` contract carries `deleteView`'s per-home outcomes (#4564)
+
+  #4479 / PR #4562 widened the ObjectStack adapter's `deleteView` to return
+  `DeleteViewResult { deleted, draft?, published? }`, so a caller could finally tell a
+  partial delete ("draft gone, published overlay left") from a complete one. The shared
+  interface did not follow: `DataSource.deleteView?` still declared the narrow
+  `Promise<{ deleted: boolean }>`.
+
+  Nothing failed to compile, and that is exactly what made the gap invisible — a wider
+  return is assignable to a narrower declaration, so the adapter satisfied the interface
+  while every consumer reaching it **through** `DataSource` was handed a type with the
+  per-home outcomes already discarded. The one real call site today (app-shell's
+  `ObjectView` delete handler) awaits the call and reads nothing off the receipt, so the
+  loss was latent rather than broken.
+
+  `DeleteViewResult` and `ViewHomeDeleteOutcome` now live in `@object-ui/types`, beside
+  the `DataSource` interface that returns them, and `deleteView?`'s declared return is
+  `Promise<DeleteViewResult>`. The direction was forced: the dependency runs
+  `@object-ui/data-objectstack` to `@object-ui/types` and never the other way, so the
+  shapes could not be imported downward — moving them was the alternative to re-declaring
+  a structural twin in `types`, which the one-resolver rule rejects because a copy is
+  mutually assignable with the original for exactly as long as it takes to drift.
+
+  `@object-ui/data-objectstack` re-exports both names unchanged, so every importer PR
+  #4562 left pointing at it keeps compiling — and now resolves to the same declaration the
+  shared contract speaks rather than a look-alike. A repo-wide census before the move
+  found zero importers of either name outside the declaring file itself, PR #4562's own
+  suite included, so the re-export is insurance rather than a load-bearing shim.
+
+  `deleteView` stays **optional** on the interface and keeps both parameters; the growth is
+  to the return type only, and `deleted` is untouched, so a consumer reading only `deleted`
+  needs no edit.
+
+  Grading, per this repository's version-alignment convention (the major tracks
+  `@objectstack`, never an API-break count):
+
+  - `@object-ui/types` — **minor**: entry-reachable growth. Two new exported interfaces
+    plus a widened method return on `DataSource`, all reachable from the package entry.
+  - `@object-ui/data-objectstack` — **minor**, measured rather than assumed. Its emitted
+    `dist/index.d.ts` is **not** byte-identical after the swap: the two `interface` blocks
+    leave the file and are replaced by a re-export from `@object-ui/types` (121.61 KB to
+    120.25 KB). Both names remain in the public export list, so no importer breaks, but the
+    declaration genuinely moved and the emitted types now depend on `@object-ui/types` for
+    it — that is a minor, not a patch.
+
+- 479cc7b: `MetadataClient.get()` returns the item body its docblock always promised — the field half of the permission matrix is alive again
+
+  `GET /api/v1/meta/:type/:name` answers the spec-declared envelope `{ type, name, item, …protection fields }` — one shape, for published and draft reads alike, since objectstack#5563 collapsed the read to it. `get()` handed that envelope straight back to callers while its own docblock declared it returned "the unwrapped item content". Every consumer reading `obj.fields` therefore read `undefined`.
+
+  The visible cost was the entire field-level half of the permission matrix: expanding any object in `/_console/apps/:app/metadata/permission/:set` reported "No fields registered for this object." with zero checkboxes, for every object, while the network showed that object's 21 fields arriving 200 OK. Reproduced against two objects on fresh loads, and proven not to be the read-only gate — a run with the editor fully writable (864 enabled checkboxes) still showed an empty field sub-table, which is exactly what a read resolving `undefined` predicts.
+
+  That was one symptom of nine. A census of every `get()` call site found **zero** deliberate readers of the envelope and nine consumers reading the body directly, all of them broken the same way: the RLS CEL editor's field lint and autocomplete resolved an empty field set; the dataset inspectors and the preview field/catalog hooks came back empty; the report drill-down's fallback path read `def.object` off the envelope, found nothing and silently returned; the record-page seed synthesized a default layout from an envelope instead of an object; and the Field Designer read `raw.fields` for display and then wrote `{ ...raw, fields }` back — saving the envelope over the object body. None of it was caught, because the test doubles across the repo were written against the docblock: they answered a bare `{ fields }` body, so the suite exercised the documented contract while production ran the other one.
+
+  The fix is at the producer, not the nine consumers. `get()` now unwraps the envelope once, at the client boundary — so every one of those call sites is repaired without being touched. Detection is by the PRESENCE of the three keys `GetMetaItemResponseSchema` declares (`type: string`, `name: string`, an `item` slot), never guessed from payload contents: a metadata document carrying its own `type` and `name` (a view is `{ name, type: 'grid', … }`) has no `item` and is left whole, and a document with an `item` property of its own but no envelope identity is likewise untouched. Key count is deliberately not part of the test, since a real envelope also spreads the ADR-0008 protection carriers. Anything that is not the envelope — an older server answering the bare document — passes through byte-for-byte, and 404 still reads as `null`.
+
+  `getDraft()` is unchanged and keeps returning the envelope, which its docblock declares and roughly eleven call sites depend on by reading `.item`. That asymmetry is now real rather than aspirational: the two methods share one private transport, and differ only in whether they unwrap. `unwrapDraftBody` (app-shell) and `unwrapViewDraft` (this package) remain the shared helpers for taking a draft body out, and both were already tolerant of either shape, so the two seams that reach a draft through `get()` keep their exact semantics — including reading an empty draft as "nothing pending".
+
+  Minor rather than patch: this moves published behavior for existing callers, the same grading `find()`'s resolve-to-reject change took. No signature changed — the `.d.ts` diff is documentation plus one private member — so nothing needs a code edit to keep compiling; a caller that had written its own `.item` compensator against the old behavior would need to drop it, and none exists in this repo.
+
+- 2776b11: data-objectstack: retire the phantom `CloudOperations` surface — the class, its three `Cloud*` types, and the module that claimed to integrate a cloud namespace no client has ever shipped
+
+  `src/cloud.ts` exported a `CloudOperations` class with four methods, all
+  re-exported from the package entry, so this was published surface of
+  `@object-ui/data-objectstack`. Every method optional-chained into
+  `client.cloud?.…`, and no released `@objectstack/client` has ever exported a
+  `cloud` namespace. Re-measured at `17.0.0-rc.6` before deleting: the module's
+  export list is `ObjectStackClient`, `ScopedProjectClient`, `RealtimeAPI`,
+  `QueryBuilder`, `FilterBuilder`, `createQuery`, `createFilter`, and a
+  constructed client's `.cloud` is `undefined`. The nearest real namespaces on the
+  instance — `projects` (which owns `/api/v1/cloud/environments`) and `packages`
+  (which owns marketplace installs) — are not what these methods reached for.
+
+  So every call resolved `undefined` and fell through to a literal:
+
+  | method                | what it returned, always                                      |
+  | :-------------------- | :------------------------------------------------------------ |
+  | `deploy`              | `{ deploymentId: 'deploy-' + Date.now(), status: 'pending' }` |
+  | `getDeploymentStatus` | `{ status: 'unknown' }`                                       |
+  | `searchMarketplace`   | `[]`                                                          |
+  | `installPlugin`       | `{ success: false }`                                          |
+
+  The maintainer's 2026-08-11 ruling removed it rather than repairing it, and named
+  the reason: `deploy()` did not degrade to an error, it **manufactured a
+  plausible success**. A caller got a well-formed `deploymentId` for an operation
+  that never left the process and then polled it forever against
+  `{ status: 'unknown' }`. That is the most dangerous shape for an AI consumer,
+  which builds downstream logic on the fake id instead of getting suspicious.
+  Under the startup-focus principle a declared capability with no producer, no
+  consumer and no business pull is retired, not stubbed.
+
+  **Breaking, in FROM → TO form.** `CloudOperations`, `CloudDeploymentConfig`,
+  `CloudHostingConfig` and `CloudMarketplaceEntry` are no longer exported from
+  `@object-ui/data-objectstack`. It is a `minor` under this repo's version policy
+  (objectui's own breaking changes never declare `major`). Nothing broke that was
+  working: the only in-repo construction site was a test, and every method's
+  observable behaviour was a fabricated constant.
+
+  **No compile-compat stub was left.** The ruling allows one — throwing loud
+  `NotImplemented` — only where a compile need is demonstrated. Measured across the
+  whole repository, the sole importers were the package's own `index.ts`,
+  `v3-compat.test.ts` (three cases asserting the fallback had the right _keys_,
+  which is how the emptiness stayed green) and objectui#3720's vocabulary pin. No
+  app, no other package, no doc. With no consumer to keep compiling, a stub would
+  be a second phantom surface guarding the first.
+
+  The false module header went with it — it read `Cloud namespace integration for
+@objectstack/spec v3.0.0 / Replaces the legacy Hub namespace`, against a resolved
+  spec of `17.0.0-rc.6` and schemas this package never consumed.
+
+  **objectui#3720's pin retires with its subject.** `cloud-environment-vocabulary.pin.test.ts`
+  pinned the doc comment on `CloudDeploymentConfig.environment` — the deliberate
+  three-member deploy-target vocabulary and the `staging`-is-not-a-discovery-member
+  trap. Every fact it held was a claim _about_ that comment, and its spec-side
+  assertions existed only to keep those claims honest; with the type deleted they
+  would pin `@objectstack/spec`'s enums on behalf of no local reader — the same
+  phantom shape this change closes. #3720's conclusion is unaffected and now moot:
+  it found no producer-side deploy-target type to converge onto because the
+  producer did not exist, and this change removes the consumer that was waiting for
+  it. Its pending empty changeset (`cloud-deploy-environment-vocabulary-3720.md`,
+  never released) is removed too, since it announced a deliberate vocabulary on a
+  type this same release deletes.
+
+  A negative pin (`src/cloud-surface-retired-4152.pin.test.ts`) replaces the
+  retired cases and fails if any of the four names returns — reading both the
+  runtime export list (which catches the class) and `index.ts`'s source text
+  (which is the only instrument that can catch a returning `export type`).
+
+- 2e3b0c0: fix(list): an `OBJECT_API_DISABLED` list request renders an honest cannot-work state instead of the empty state
+
+  A list pointed at an object whose `enable` block withholds the API rendered its ordinary
+  empty state, so _"this page cannot work, and never could"_ reached the user as _"you have no
+  records"_ (objectui#4408). The reported instance — `Setup › Advanced › Signing Keys`, whose
+  `sys_jwks` declares `enable.apiEnabled: false` — could not load for any persona and said so
+  to nobody. That is also why the upstream defect objectstack#7544 survived review for its
+  whole life: a merely unpopulated page invites nobody to click through.
+
+  The masking had two halves, in two packages, and neither package could see the other:
+
+  - **`@object-ui/data-objectstack`** (minor — see the grading note below) — `find()` degraded
+    **every** 404 into `{ data: [], total: 0 }` and memoised the resource, so the denial arrived
+    at the surface as a successful empty result, indistinguishable from a genuinely empty
+    object. The two `enable`-block denials are now let through instead: `OBJECT_API_DISABLED`
+    (404) and `OBJECT_API_METHOD_NOT_ALLOWED` (405). The memo skips them too — absorbing one
+    would have pinned the object to "empty" for the rest of the session.
+  - **`@object-ui/plugin-list`** — the load-error panel gained an `api-disabled` kind. The 405
+    half was never swallowed, so it already reached this panel, but classified as `network`:
+    _"check your connection and try again"_ for a condition no retry can change. It now says
+    the object is not exposed through the API, that this is a setting on the object rather than
+    a permission, and it offers **no Retry** button, because every retry re-fetches the
+    identical refusal.
+
+  Both denials are pure functions of the object's metadata — no user, no permission, no
+  context — so neither is transient or per-user, which is exactly the case where a silent empty
+  state is most misleading. Discrimination is on the ADR-0112 `code`, never the status: a
+  missing collection, a missing record and a disabled object are all 404.
+
+  **A genuinely empty object still renders the ordinary empty state**, and a backend without an
+  optional collection still degrades to empty — pinned in both directions, at the adapter, at
+  the view, and once end-to-end over a real adapter and a real `ListView`.
+
+  Also closes a code-propagation gap on the same path: `find()`'s raw `$expand`/`$search`
+  branch bypasses `@objectstack/client` and hand-rolled its own error, stamping only `status`.
+  It now carries the ADR-0112 envelope (`code` + `httpStatus`), so a denial arriving on the
+  branch a list takes whenever it expands a lookup or runs a search is no longer anonymous.
+
+  New strings: `list.loadErrorApiDisabledTitle` / `list.loadErrorApiDisabledMessage`, in the
+  `en` pack and mirrored in the list defaults map.
+
+  ## Grading note — why `@object-ui/data-objectstack` is **minor** and not patch
+
+  Two independent reasons, either of which is sufficient under this repo's precedent
+  (objectui#4403 / #4177, and #4485's grading of `@object-ui/core`'s `toDomProps` lift):
+
+  1. **The emitted `.d.ts` grows two NEW exports.** `isApiAccessDeniedError(error: unknown):
+boolean` and `API_ACCESS_DENIED_CODES` (the readonly tuple
+     `['OBJECT_API_DISABLED', 'OBJECT_API_METHOD_NOT_ALLOWED']`) are added to the package's
+     public surface. Additive surface growth is minor.
+  2. **Observable behaviour on a published API moves.** `ObjectStackDataSource.find()` now
+     **REJECTS** for the two `enable`-block denial codes where it previously **RESOLVED** with
+     `{ data: [], total: 0 }`. No signature changed and nothing was removed, but a caller that
+     relied on those two codes arriving as a successful empty result now receives a rejected
+     promise carrying `code` + `httpStatus`, and must handle it.
+
+  Deliberately unchanged, and still resolving to an empty result exactly as before: a bare 404
+  with no code, `OBJECT_NOT_FOUND` (still memoised) and `RECORD_NOT_FOUND`. The behaviour move
+  is scoped to the two denial codes named above and to nothing else.
+
+  Not major: this follows AGENTS.md's version-alignment rule — objectui's major tracks
+  `@objectstack`'s, so this repo's own breaking semantics are declared as minor with the change
+  described in the body, which is what this note is.
+
+### Patch Changes
+
+- d9d3463: Retire four zero-consumer declared surfaces (dead-surface sweep batch 3, #4328). Each was
+  measured as declared-but-never-read at the branch point, and each is removed rather than
+  left as an authoring surface whose values nothing acts on.
+
+  Breaking for anyone who typed against the removed declarations, marked `minor` per this
+  repository's version-alignment convention (the major tracks `@objectstack`, never an
+  API-break count):
+
+  - `@object-ui/core` no longer exports `mergeViewsIntoObjects`. It was a second copy left
+    behind by the move of that step to the provider layer, and it had drifted: it ignored a
+    view container's default `list` and keyed views by the authored bare key instead of the
+    composer's `<object>.<key>` identity. The live implementation — `MetadataProvider`'s, in
+    `@object-ui/app-shell` — is unchanged and remains the only one. (#3775)
+  - `@object-ui/types`' `RoleDefinition` no longer declares `permissions`. A role's grants
+    live in `ObjectPermissionConfig.roles`, keyed by object; that is the only home any
+    consumer reads (`resolveRoles` walks `inherits` and matches on `name`). The removed
+    field was _required_, so five fixtures across three packages had been declaring an empty
+    array for a value nothing would ever look at. Role-attached grants are now a compile
+    error rather than silently ignored data. (#4288)
+  - `@object-ui/react`'s `RecordContextValue` no longer declares `loading` / `error`. Both
+    had zero producers and zero consumers — no host passed them, no `record:*` renderer read
+    them — and only the provider's memo dependency list still named them. Record-level
+    loading and error state stays where it is actually expressed: each renderer's own data
+    source. (#3773)
+
+  No behaviour change, no request-count change:
+
+  - `@object-ui/data-objectstack` drops five `metadataCache.invalidate('views:<object>')`
+    calls across `updateViewConfig` / `createView` / `updateView` / `deleteView`. No read
+    path has ever populated that key — `listViews` fetches directly, uncached — so all five
+    were permanent no-ops. The invalidations of the keys that do have readers
+    (`view:<object>:<viewId>` for `getView`, `view-overrides:<object>` for
+    `listViewOverrides`) are untouched and now pinned. (#3778)
+
+- c0f9a4b: Studio surfaces the runtime authoring gate's advisory findings instead of discarding them client-side
+
+  The framework's runtime authoring gate produces two kinds of verdict on a metadata write. Errors become a 422 and the author sees them. Advisories ride a **200** — the save succeeded, the row persisted, the version bumped — and until objectstack#7435 the server dropped them into a deduped `console.warn` behind a process-level set. That landing put them on the wire as an optional `advisories[]` on the save response, emitted only when non-empty, and objectui was still throwing them away one layer further out: `MetadataClient.save` parsed the body, returned it as an opaque `T`, and every call site awaited it for its side effect and discarded the value.
+
+  The measured case the fix is built on: a `nightly_purge` flow whose only defect is a `delete_record` node with `multi: true` and no filter yields `errors = 0 / advisories = 1`. The save returns 200, the flow goes live, and nothing anywhere tells the author it deletes every row. That matters most for exactly the authors Studio serves — a Studio tenant or an MCP/AI author has no `os lint` and no CLI config for `sys_metadata` overlay rows, so this gate is not the weakest of four doors, it is the only one.
+
+  `MetadataClient` now carries an `onSaveAdvisory` sink, invoked after a save whose response carried a non-empty `advisories[]`, and the console wires it in `useMetadataClient` — the one hook every app-shell write path takes its client from, so a single wiring covers `ResourceEditPage`, `StudioDesignSurface`, `EmbeddedItemEditor`, `DatasourceResourcePage`, `ObjectHooksPanel` and any future call site rather than a toast copied into twenty of them. The finding shape is re-exported from `@objectstack/spec` (`RuntimeAuthoringIssue`) rather than restated, so it cannot fork from the 422 `issues[]` it deliberately shares a declaration with.
+
+  The affordance is the warning tier and says "Saved" first. A successful save that reads as a failure is the specific defect this surface must not ship, so the toast acknowledges the write, lists `rule` + `message` + `hint` per finding with `where` as secondary context, and renders that text **verbatim** — `message` and `hint` are server prose composed by the gate's rules, not i18n keys. Only the frame around them is translated (`console.saveAdvisoryTitle`, ten packs). The sink is best-effort in both directions: a malformed finding is dropped rather than printed as blanks, and a throwing renderer cannot turn a save the server already committed into an error.
+
+  **What this does not surface yet, and why.** Studio's designer saves as a **draft** on every edit, and drafts are never gated — the framework returns at its D1 early-return (`if (args.state !== 'active') return null`) before running a single rule, so a draft save produces no findings at all rather than producing some that get withheld. The publish step that promotes a draft to active _does_ run the gate, but the publish route returns no `advisories` field until objectstack#7294 lands. So a draft-then-publish flow renders nothing today, at both of its doors, for two different reasons; the active-mode save door renders findings now. That gap is pinned as a test rather than left for a reader to rediscover.
+
+- 605b747: The second metadata client class surfaces the runtime authoring gate's advisories instead of discarding them
+
+  objectui#4133 (PR #4236) put the gate's advisory findings — the ones that ride a **200**, where the save succeeded and the row persisted — in front of Studio authors, but it covered only one of the two client classes that write through `PUT /api/v1/meta/:type/:name`. The wiring lifts at `useMetadataClient`, which is where every app-shell path takes its `MetadataClient` from. `ObjectStackClient.meta.saveItem` — the SDK client hanging off `ObjectStackAdapter` — is a different class reaching the same door, and every one of its callers awaited the call and discarded the response, so an `advisories[]` the server attached was parsed off the wire and dropped one layer further out.
+
+  Those callers all write in **active** mode, so this is not the draft case where the gate never runs: the gate does run for them, produces findings, and the author was told nothing. The list is `MetadataService` (five saves behind the Object Manager and Field Designer), `useNavigationSync`, plugin-designer's Create/EditAppPage, and the adapter's own `updateViewConfig` / view / `updateDashboard` paths.
+
+  `ObjectStackAdapter` now carries an `onSaveAdvisory(listener)` subscription and emits on it after a metadata save whose 200 carried a non-empty `advisories[]`; `AdapterProvider` subscribes once and renders through the same `emitSaveAdvisories` the other client class already uses, so both doors produce one wording on the warning tier that says "Saved" first. The emitter is installed **once at the adapter/client seam** rather than at the call sites: every caller above reaches the save door through the adapter's own long-lived `ObjectStackClient`, so one interception covers all of them, plus any future one, without a toast copied into a dozen places — the same reasoning that put #4133's sink at one factory instead of twenty call sites.
+
+  It is a sibling of the `onWriteWarning` channel (#3431/#3455) rather than a second payload pushed down it, which is what `MetadataSaveAdvisoryEvent` already said it was modelled on. `WriteWarningEvent` is a closed shape whose required `droppedFields` means "fields the write legally stripped", so carrying advisories on it would either force every existing subscriber to grow a branch or make the event lie about what happened. The seam's shape is reused; its event type is not. `readSaveAdvisories` is shared unchanged between the two clients — one reader, two call sites — which the response envelopes make possible: the spec puts `advisories` at the save body's top level, and the SDK returns that body verbatim (it strips its `{ success, data }` envelope only when a `data` key is present, and this body has none). That measurement is pinned by tests that drive a real SDK client through a fake `fetch` rather than stubbing the method under test.
+
+- b42558a: Renaming a freshly-created view now persists — `updateView` reads and writes the same row, instead of reading the published overlay and losing the edit into a rejected partial write
+
+  ADR-0034 stages every runtime-created view as a per-item **draft**: a view made from the `+` tab lives only in the draft row until an explicit Publish, and the UI reads it back through `?preview=draft`. `updateView` addressed neither half of that. Its read went to the published overlay (`client.meta.getItem`, no draft qualifier), which 404s for a draft-only view; a `catch {}` labelled "treat missing as create-equivalent" then substituted `current = {}`, so the read-merge-write cycle merged onto nothing. What went out was the fragment that merge produces — literally `{label, name, object}`, no `viewKind`, no `config` — which the server rejects as an invalid ViewItem (422). Nothing surfaced to the user, and the draft row still held the old label, so the rename simply did not happen. Create, pin and delete were unaffected: they never take this path.
+
+  The read now probes the draft row first and, on a hit, merges onto that body and writes it straight back with `mode: 'draft'`. Whichever row the read resolved is the row the write updates, so the two halves agree by construction rather than by coincidence. Probing the draft **before** the published overlay is what makes it correct for a view that has both: writing the published row while a draft is pending would put the edit somewhere the draft shadows, and Publish would later overwrite it with the pre-edit body — losing the change a second time, further from the cause. A draft edit stays a draft, preserving ADR-0037's guarantee that nothing the preview shows goes live until Publish. Renaming a published view with no draft pending is unchanged, published read to published write.
+
+  The silent catch is gone. A view that resolves in neither home now throws naming the view and the object (creating one is `createView`'s job — no caller of `updateView` relied on the create-equivalent behaviour), and a network, permission or server fault on either read propagates instead of degrading into the partial write that corrupted the row. This turns a class of failure that was previously invisible into an error the existing call sites already catch and surface.
+
+  Set-default and reorder drive the same read-merge-write cycle with `{isDefault}` / `{sortOrder}` patches, so they were emitting the same partial write and are fixed by the same change.
+
+- d2f6e6b: Publishing a view from the console no longer serves a five-minute-stale override map — every writer now routes through one invalidation seam
+
+  `ObjectStackAdapter` caches two view-shaped reads: `getView` under `view:{object}:{name}` and `listViewOverrides` under `view-overrides:{object}`, with `MetadataCache`'s default 5-minute TTL. objectui#4363 made the adapter's own four write paths drop both. But the console's real create-a-view flow never calls any of them: `ObjectView.handleViewCreate` writes through the ADR-0034 metadata seam (`createRuntimeMetadata` → `metadataClient.save`), and Publish goes `RuntimeDraftBar` → `publishRuntimeMetadata` → `metadataClient.publish`. Two writers into the same `/meta/view/:name` rows; only one of them invalidated anything.
+
+  Publish is the sharp end. A create lands an invisible per-item draft, and `listViewOverrides` enumerates published rows, so the map is still honest there. Publish promotes the row into exactly the world the map describes — and nothing dropped the key, so the object page kept applying its pre-publish snapshot for the rest of the TTL. It does not self-heal: `loadViewOverrides` treats a resolved map as authoritative and deliberately does not re-probe per view (objectui#3774, correct — re-probing reinstates the 404 flurry the batch read exists to remove), so the per-view `getView` fallback that would have masked a stale map is by design unreachable.
+
+  The fix is one seam rather than a fifth copy of the key list. `ObjectStackAdapter.invalidateViewKeys(objectName, viewName)` is now the only place that knows which keys a view-row write drops; the adapter's four write paths call it instead of restating the pair, app-shell's ADR-0034 persistence module calls it for `view` saves, creates, publishes and discards, and `MetadataService.saveMetadataItem` calls it when the category is `view` (where it previously named `view:{name}`, which no reader has). Restatement is what this repo keeps paying for — objectui#3778 removed five copies of a key no reader populated, objectui#4363 fixed four copies that named half the live set, and objectui#4373 is the measured proof that a new writer forgets the list by default. A pin suite can only guard writers that exist; a seam makes the next one unable to forget.
+
+  No cache key, no read path and no public signature changed. The adapter's eight existing invalidation pins pass unchanged, which is the evidence that routing four paths through a seam changed nothing observable; two new structural guards keep the key set from being restated again — one asserting each key template appears exactly twice in the adapter (its reader, and the seam), one asserting no app-shell file spells either.
+
+- 85a3082: Every view write path now invalidates the override map — a created, renamed or deleted view is no longer shadowed by a five-minute-stale batch read
+
+  `ObjectStackAdapter` caches two view-shaped reads: `getView` under `view:{object}:{viewId}`, and `listViewOverrides` under `view-overrides:{object}`. Four write paths touch view rows, and until now exactly one of them — `updateViewConfig` — invalidated the second key. `createView`, `updateView` and `deleteView` invalidated only the per-view key, so the batch override map kept answering from a snapshot taken up to `MetadataCache`'s default 5-minute TTL earlier.
+
+  That gap does not heal itself. `loadViewOverrides` in app-shell's `ObjectView` treats a resolved map as authoritative and deliberately does not re-probe per view — that is objectui#3774's fix, and it is correct, since re-probing reinstates the 404 flurry the batch read exists to remove. So the per-view `getView` fallback that would have masked a stale map is by design unreachable, and the stale map is served in full. Meanwhile `listViews` is uncached and answers fresh, so the view switcher could list a view whose override body came from a map written minutes earlier: the sharpest shape is the rename/pin path (`updateView`), where a user edits a view, returns to the object, and is served the pre-edit override.
+
+  All four paths now emit the same ordered pair — the per-view key, then the object's override map. The rule is uniform per method rather than per branch: `updateView`'s draft half invalidates both keys as its published half does, which is deliberate over-invalidation (both readers enumerate published rows, so a draft write stales neither) chosen because an unnecessary invalidation costs one refetch while a missed one costs the full TTL. `createView` names the per-view key too, because `saveItem` is an upsert and an explicit `spec.name` that already exists overwrites a published row a prior `getView` may hold.
+
+  No signature, no cache key and no read path changed; the only difference is which keys each write drops. The pin suite added by objectui#4328 now asserts the full invalidation key set for all five call sites, with the sweep's two pins kept as untouched controls: `listViews` stays uncached, and no write path names the retired `views:{object}` key.
+
+- Updated dependencies [ee66e2e]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [f650253]
+- Updated dependencies [3d9769a]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [92876f0]
+- Updated dependencies [f279deb]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [613b167]
+- Updated dependencies [1f9b905]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [2459a3e]
+- Updated dependencies [d6aa172]
+- Updated dependencies [fe52a04]
+- Updated dependencies [bb68488]
+- Updated dependencies [9461dd3]
+- Updated dependencies [ab04728]
+  - @object-ui/core@17.5.0
+  - @object-ui/types@17.5.0
+
 ## 17.4.0
 
 ### Minor Changes

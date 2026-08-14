@@ -1,5 +1,459 @@
 # @object-ui/types
 
+## 17.5.0
+
+### Minor Changes
+
+- f650253: `BaseSchema.ariaLabel` declares the keyed i18n vocabulary the renderer actually
+  resolves, `.disabled` accepts the predicate string it actually evaluates, and the
+  keyed shape finally has a name (objectui#4581)
+
+  Three slots on one base type had drifted from what the renderer does with them.
+  PR #4593 fixed `visible` and measured the rest; these are the rest.
+
+  `ariaLabel` was `string`, but `SchemaRenderer.tsx:111` resolves it with
+  `resolveKeyedI18nLabel`, whose input is the KEYED form
+  `{ key, defaultValue?, params? }` — a reference into a translation bundle. It is
+  now `string | KeyedI18nLabel`, and `KeyedI18nLabel` is a new exported type in
+  `@object-ui/types` rather than a fourth inline copy of one object literal: the
+  three that existed (`@object-ui/react`'s resolver, `@object-ui/layout`'s
+  `resolveLabel`, `@object-ui/app-shell`'s `t`-taking twin) were verified identical
+  in their object half first, and two of them now import the name.
+
+  The vocabulary matters more than the widening. `#4581` originally asked for
+  `string | I18nLabel`, and that spelling was withdrawn as measured-wrong: the
+  spec's `I18nLabel` is the INLINE LOCALE MAP (`string | Record<string, string>`),
+  a different vocabulary resolved against a BCP-47 locale by a different function
+  of a confusingly similar name. Under it the shipped keyed fixture type-checked
+  only vacuously — as a locale map whose "locales" are named `key` and
+  `defaultValue` — the same label carrying `params` was rejected outright, and a
+  genuine `{ en: 'Owner' }` compiled while rendering an EMPTY `aria-label`. Naming
+  the keyed shape is the declaration half of the fix objectui#4167 started on the
+  naming side; `@object-ui/app-shell`'s copy keeps its inline spelling for now
+  because an open PR has a pending change to that file, and the comment there says
+  so.
+
+  `disabled` was `boolean` on a key the renderer never reads as one:
+  `SchemaRenderer.tsx:466` evaluates it through the same `evaluateCondition` as
+  `visible`, and a `disabledOn?: string` sibling exists for the same reason. It is
+  now `boolean | string`. The asymmetry with `visible` was accidental rather than
+  deliberate.
+
+  Both are widenings on authored-input-dominant properties: authors gain a
+  spelling, nothing that type-checked before stops doing so, and readers already
+  coped with `any` through `BaseSchema`'s index signature. Three test fixtures that
+  had been casting past these declarations with `as unknown as BaseSchema` state
+  their values directly now, and the declared unions are pinned invariantly so
+  neither a missing widening nor an overshoot to `any` can pass unnoticed.
+
+  Declaring the vocabulary honestly also surfaced a real one: the `toggle`
+  renderer writes `aria-label` itself instead of going through SchemaRenderer's
+  resolver, and it forwarded the raw value. Invoked directly it emitted
+  `aria-label="[object Object]"` for a keyed label — announced verbatim by a
+  screen reader. It resolves now. Through `SchemaRenderer` the bug was invisible,
+  because SchemaRenderer injects its own resolved `aria-label` afterwards; a
+  downstream type-check sweep found it, not a test.
+
+  `BaseSchema.label` and `.description` are deliberately unchanged and pinned that
+  way. They receive the spec's inline `I18nLabel` from the view bridges, which is a
+  real defect, but resolving it belongs at the spec-to-schema boundary rather than
+  in this declaration — and that work is still blocked on a design question about
+  where the display locale enters, so it is not in this release.
+
+- 3d9769a: `BaseSchema.visible` accepts the predicate string the renderer evaluates
+
+  `visible` was declared `boolean`, but the renderer never read it as one: it
+  evaluates the key — `SchemaRenderer.tsx:382` calls
+  `evaluator.evaluateCondition(schema.visible)`, and `evaluateCondition` is
+  declared `(condition: string | boolean | undefined, context?) => boolean`. The
+  sibling keys `visibleWhen` and the deprecated `visibleOn` are `string` for that
+  same reason; `visible` simply under-reported a capability it already had, and
+  fixtures exercising it had to cast past the declaration.
+
+  Now `boolean | string` — exactly what the evaluator accepts, no wider.
+
+  Graded **minor** by position analysis of the published `.d.ts`: the only diff is
+  `visible?: boolean` becoming `visible?: boolean | string` on an
+  authored-input-dominant property, with no union member removed and no other
+  declaration touched — the same shape as #4586/#4591. Authors gain a spelling;
+  nothing that previously type-checked stops doing so. Code that READS
+  `schema.visible` was already coping with `any` through `BaseSchema`'s index
+  signature.
+
+- d9d3463: Retire four zero-consumer declared surfaces (dead-surface sweep batch 3, #4328). Each was
+  measured as declared-but-never-read at the branch point, and each is removed rather than
+  left as an authoring surface whose values nothing acts on.
+
+  Breaking for anyone who typed against the removed declarations, marked `minor` per this
+  repository's version-alignment convention (the major tracks `@objectstack`, never an
+  API-break count):
+
+  - `@object-ui/core` no longer exports `mergeViewsIntoObjects`. It was a second copy left
+    behind by the move of that step to the provider layer, and it had drifted: it ignored a
+    view container's default `list` and keyed views by the authored bare key instead of the
+    composer's `<object>.<key>` identity. The live implementation — `MetadataProvider`'s, in
+    `@object-ui/app-shell` — is unchanged and remains the only one. (#3775)
+  - `@object-ui/types`' `RoleDefinition` no longer declares `permissions`. A role's grants
+    live in `ObjectPermissionConfig.roles`, keyed by object; that is the only home any
+    consumer reads (`resolveRoles` walks `inherits` and matches on `name`). The removed
+    field was _required_, so five fixtures across three packages had been declaring an empty
+    array for a value nothing would ever look at. Role-attached grants are now a compile
+    error rather than silently ignored data. (#4288)
+  - `@object-ui/react`'s `RecordContextValue` no longer declares `loading` / `error`. Both
+    had zero producers and zero consumers — no host passed them, no `record:*` renderer read
+    them — and only the provider's memo dependency list still named them. Record-level
+    loading and error state stays where it is actually expressed: each renderer's own data
+    source. (#3773)
+
+  No behaviour change, no request-count change:
+
+  - `@object-ui/data-objectstack` drops five `metadataCache.invalidate('views:<object>')`
+    calls across `updateViewConfig` / `createView` / `updateView` / `deleteView`. No read
+    path has ever populated that key — `listViews` fetches directly, uncached — so all five
+    were permanent no-ops. The invalidations of the keys that do have readers
+    (`view:<object>:<viewId>` for `getView`, `view-overrides:<object>` for
+    `listViewOverrides`) are untouched and now pinned. (#3778)
+
+- 2a40f69: Retire two post-retirement dead surfaces (#4364, #4368). Both were measured at this
+  branch point rather than taken from their cards, and one card's premise only half held.
+
+  Breaking for anyone who typed against the removed declaration, marked `minor` per this
+  repository's version-alignment convention (the major tracks `@objectstack`, never an
+  API-break count):
+
+  - `@object-ui/types` and `@object-ui/permissions` no longer export
+    `ObjectLevelPermission`. It declared a second, parallel home for object-scoped grants
+    (`{ object, actions, effect?, conditions? }`) that nothing constructed, accepted or
+    read once `RoleDefinition.permissions` was retired (#4288) — its only remaining
+    referents were its own definition and the two barrel lines. The wired home is
+    `ObjectPermissionConfig.roles`, whose inner grant shape is declared inline; that is
+    what the evaluator reads, and it is unchanged. `ObjectPermissionConfig`'s doc comment
+    now records the retirement so the surface is not re-declared. (#4364)
+
+  `PermissionCondition` was proposed for retirement on the same card and is **kept**: its
+  premise ("only referent is `ObjectLevelPermission.conditions`") did not hold at this
+  branch point. `evaluateCondition` in `@object-ui/permissions` takes it as a parameter
+  type and implements all eleven of its operators under a 26-case suite. `PermissionEffect`
+  is likewise untouched — `FieldLevelPermission.effect` still reads it.
+
+  No behaviour change, no public surface change:
+
+  - `@object-ui/console` drops `src/utils/metadataConverters.ts` and
+    `src/services/MetadataService.ts`. Both were console-local duplicates of live
+    `@object-ui/app-shell` modules and lost their last importer when the bespoke
+    object-detail widgets were retired (#4365). Both had already drifted behind the live
+    copies they duplicate — the console converter's `referenceTo` chain never read the
+    server's `reference` key, and the console service predates the view cache-invalidation
+    seam (#4373) — which is precisely the imitation trap the card recorded: an author
+    grepping for "the converter" could land on the unexercised copy. The app-shell copies
+    and their tests are untouched. (#4368)
+
+- bec3e14: The `DataSource` contract carries `deleteView`'s per-home outcomes (#4564)
+
+  #4479 / PR #4562 widened the ObjectStack adapter's `deleteView` to return
+  `DeleteViewResult { deleted, draft?, published? }`, so a caller could finally tell a
+  partial delete ("draft gone, published overlay left") from a complete one. The shared
+  interface did not follow: `DataSource.deleteView?` still declared the narrow
+  `Promise<{ deleted: boolean }>`.
+
+  Nothing failed to compile, and that is exactly what made the gap invisible — a wider
+  return is assignable to a narrower declaration, so the adapter satisfied the interface
+  while every consumer reaching it **through** `DataSource` was handed a type with the
+  per-home outcomes already discarded. The one real call site today (app-shell's
+  `ObjectView` delete handler) awaits the call and reads nothing off the receipt, so the
+  loss was latent rather than broken.
+
+  `DeleteViewResult` and `ViewHomeDeleteOutcome` now live in `@object-ui/types`, beside
+  the `DataSource` interface that returns them, and `deleteView?`'s declared return is
+  `Promise<DeleteViewResult>`. The direction was forced: the dependency runs
+  `@object-ui/data-objectstack` to `@object-ui/types` and never the other way, so the
+  shapes could not be imported downward — moving them was the alternative to re-declaring
+  a structural twin in `types`, which the one-resolver rule rejects because a copy is
+  mutually assignable with the original for exactly as long as it takes to drift.
+
+  `@object-ui/data-objectstack` re-exports both names unchanged, so every importer PR
+  #4562 left pointing at it keeps compiling — and now resolves to the same declaration the
+  shared contract speaks rather than a look-alike. A repo-wide census before the move
+  found zero importers of either name outside the declaring file itself, PR #4562's own
+  suite included, so the re-export is insurance rather than a load-bearing shim.
+
+  `deleteView` stays **optional** on the interface and keeps both parameters; the growth is
+  to the return type only, and `deleted` is untouched, so a consumer reading only `deleted`
+  needs no edit.
+
+  Grading, per this repository's version-alignment convention (the major tracks
+  `@objectstack`, never an API-break count):
+
+  - `@object-ui/types` — **minor**: entry-reachable growth. Two new exported interfaces
+    plus a widened method return on `DataSource`, all reachable from the package entry.
+  - `@object-ui/data-objectstack` — **minor**, measured rather than assumed. Its emitted
+    `dist/index.d.ts` is **not** byte-identical after the swap: the two `interface` blocks
+    leave the file and are replaced by a re-export from `@object-ui/types` (121.61 KB to
+    120.25 KB). Both names remain in the public export list, so no importer breaks, but the
+    declaration genuinely moved and the emitted types now depend on `@object-ui/types` for
+    it — that is a minor, not a patch.
+
+- 1f9b905: `exportOptions` is the spec's object form: `streaming` is declared, `'pdf'` is retired, and the alignment comment is finally true
+
+  `ObjectGridSchema.exportOptions` carried four keys under a comment claiming alignment with `@objectstack/spec`'s `ListViewSchema.exportOptions`. The comment was false in both directions. The spec declared a bare format ARRAY, not an object, so no authored document could satisfy both spellings at once; and `ObjectGrid` read a fifth key — `streaming`, the opt-out that forces the client-side export path — which appeared in no declaration anywhere, reachable only through an `as any` cast in the renderer. An author had no way to discover the key except by reading the renderer's source, and no schema would have refused it or honoured it.
+
+  objectstack#8010 closed that upstream by declaring `ListViewExportOptionsSchema` with exactly the five keys this renderer reads. This change lands the objectui half of the reconciliation:
+
+  - The five keys are now one exported type, `ListViewExportOptions` — `formats`, `maxRecords`, `includeHeaders`, `fileNamePrefix`, `streaming` — shared by `ObjectGridSchema` and by a saved `NamedListView`, so the two authoring surfaces cannot grow apart. The comment above it names the spec symbol and version it mirrors, which makes it checkable rather than reassuring.
+  - `streaming` is declared, and the renderer's `as any` casts are gone. Removing them against the old four-key type produced two `TS2339: Property 'streaming' does not exist` errors — that red is what the declaration fixes.
+  - `'pdf'` is retired from the local format union, published as `ListViewExportFormat`. PDF export was declined platform-side (objectstack#1301 NOT_PLANNED) and the value left the spec's format enum in `@objectstack/spec` 17.0.0, where authoring it is now a parse-time refusal carrying `os migrate meta --from 16`. No ObjectUI path has ever produced a PDF: a declared `'pdf'` reached the user only as a browser console line.
+
+  Runtime behavior of the export menu is unchanged. The filter that drops undeliverable formats is format-agnostic — it keeps what the active path can deliver — so it still hides `xlsx` when no server stream is available, and it still hides a legacy `'pdf'` that pre-17 stored metadata carries until the migration rewrites it. There was no `'pdf'`-specific branch to delete.
+
+  Two guards keep the contract from re-opening. On the type side, a compile-time assertion pins the interface's key set to exactly the spec's five, so a sixth key fails the build. On the renderer side, a source scan collects every property `ObjectGrid` reads off `exportOptions` — through the alias it binds, and through any cast, since a cast is how `streaming` stayed invisible — and fails if the renderer reads anything the type does not declare.
+
+  `@object-ui/types` is a minor: `ListViewExportFormat` and `ListViewExportOptions` are new exports, `streaming` is a new optional key, and `formats` no longer admits `'pdf'`. Anything still writing that value was authoring metadata the platform now refuses at publish.
+
+- 38ab505: Retire the `global_nav` Studio designer surfaces, and track the `@objectstack` family at `17.0.0-rc.6` (objectstack#7100 / objectstack#6888).
+
+  ## The retirement
+
+  `global_nav` was an `ACTION_LOCATIONS` member no running-app surface ever rendered. The console's ⌘K palette (`app-shell/src/chrome/CommandPalette.tsx`) builds its groups from nav items, objects, dashboards, pages, reports, recent items, record search and theme; it holds no reference to `global_nav`, to `actionRendersAt`, or to any action-metadata source. An action declaring `locations: ['global_nav']` therefore never reached a user.
+
+  The Studio designer previewed it anyway — a mock frame reading `⌘K · Command palette` with the author's button inside it. That is the sharp edge the maintainer's 2026-08-09 ruling on objectstack#6888 named: an authoring tool promising a surface the product does not have teaches authors, and every AI copying this corpus, to declare dead metadata. `@objectstack/spec` `17.0.0-rc.6` retired the member (7 members → 6) with a named rejection message; this release removes the designer surfaces that outlived it.
+
+  - `metadata-admin/previews/ActionPreview.tsx` — the mock command-palette placement frame is gone. The metadata strip above it still ECHOES whatever `locations` the draft declares, deliberately: reporting what a (possibly stale) draft says is honest, whereas the frame CLAIMED the platform renders it.
+  - `metadata-admin/inspectors/ActionDefaultInspector.tsx` — the `global_nav` entry is gone from `LOCATION_LABELS`. That map is typed `Record< ActionLocation, string >`, so the retirement reached it as a compile error rather than as a silently stale dropdown — the mechanism objectui#3017 installed, firing as designed.
+  - `metadata-admin/previews/block-config.ts` — the `record:quick_actions` location dropdown no longer offers it, and both locale tables drop the now-orphaned `…option.location.global_nav` key.
+  - `@object-ui/components`' `action:bar` doc comment is aligned. The component's published enum is `[...ACTION_LOCATIONS]`, so it followed the retirement on its own; only the prose was stale.
+
+  `@object-ui/core`'s `ActionEngine.getActionsForLocation` is **unchanged and still answers a literal string match**. Narrowing it to the six live members would put a second rejection point beside the schema's — the tolerant-consumer shape the strict-contract rule forbids, inverted. Enforcement stays where it belongs: the parameter type is now six-membered so no type-correct caller can spell the retired value, and `ActionLocationSchema` rejects it by name at authoring and publish time.
+
+  ## The dependency move
+
+  All 37 `@objectstack/*` declarations across 30 `package.json` files move from `^17.0.0-rc.5` to `^17.0.0-rc.6`, and `pnpm-lock.yaml` resolves one copy of each family package at rc.6. The siblings move with `spec` because `client` / `formula` / `lint` pin it **exactly** — leaving them behind would keep two copies of the spec in the tree, the split brain objectui#3560 called out.
+
+  Bumping the pin and repairing the fallout cannot be split: at rc.5 the `Record< ActionLocation, string >` above is missing a key, at rc.6 it has an excess one.
+
+  ## Breaking, in FROM → TO form
+
+  - **`@object-ui/types`' `Theme` now binds the spec's `Theme`, not `ThemeInput`.** rc.6 retired every `…Input` alias and moved the bare name onto the `z.input` side (`X` = `z.input`, `XParsed` = `z.infer`). The runtime shape and this package's exported name are unchanged — `Theme` was, and still is, the AUTHORING shape where `mode` is optional. Re-pointing at `ThemeParsed` would have been the silent swap.
+  - **`SpecReport` / `SpecReportChart` re-point to `ReportParsed` / `ReportChartParsed`, and `SpecReportInput` / `SpecReportChartInput` to `Report` / `ReportChart`.** Same rename, same rule: each local alias keeps the SIDE it had at rc.5.
+  - **`@object-ui/types` no longer re-exports `I18nObject`, `LocaleConfig`, `PluralRule`, `DateFormat` or `NumberFormat`** — all five were retired by rc.6. They were dead re-exports here: nothing in this repo imported them from `@object-ui/types` (`@object-ui/i18n`'s formatter vocabulary in `utils/spec-formatters.ts` is locally declared and never bound the spec symbols). `I18nLabel` survives and is unchanged as a name.
+  - **`I18nLabel` itself widened from `string` to `string | Record< string, string >`** — rc.6 folded the retired `I18nObject`'s per-locale map into it and ships `resolveI18nLabel(label, locale)` as the shared resolver. Every read in this repo that lands in a text slot now goes through that resolver, so an inline map renders its locale instead of `[object Object]`. Reads the compiler cannot see are audited separately in objectui#4163.
+  - **`@object-ui/types`' `GlobalFilterSchema` derives via `.safeExtend`, not `.extend`.** rc.6's `GlobalFilterSchema` carries a refinement and zod 4 refuses `.extend()` on a refined object outright, which threw at module load. `.safeExtend` is zod's prescribed replacement and KEEPS the refinement, so the spec's cross-field rule now also runs on this package's dialect — which is the intended behaviour, since the pinned divergences widen individual fields and were never meant to switch off a whole-object rule.
+
+- c1d939f: One `SchemaNode`, and one label vocabulary — the union wins, and labels resolve where the locale lives
+
+  Two packages published a type called `SchemaNode` and they were not the same type. `@object-ui/core` hand-declared `interface SchemaNode { type: string; … [key: string]: any }`; `@object-ui/types` exported `type SchemaNode = BaseSchema | string | number | boolean | null | undefined`, whose own doc comment names `'Plain string'` a valid node. Both were exported under one name from packages the same consumers import together, so which declaration a call site got depended on which package it happened to import from — #4548's canary measured 19 of 35 errors as exactly that collision. Core's declaration is now a re-export of types', so there is one declaration left to disagree with. Core's entry surface is unchanged: `dist/index.d.ts` is byte-identical across the change.
+
+  Reconciling it exposed a real defect rather than a mechanical narrowing, which is why the first attempt was withdrawn instead of forced. The spec bridges write `spec.label` — the spec's `I18nLabel`, an INLINE locale map like `{ en: 'Owner', 'zh-CN': '负责人' }` — into `node.label`, and `BaseSchema.label` declared `string`. Under core's old index signature that assignment was invisibly `any`; under one honest `SchemaNode` it is a type error. `BaseSchema.label` and `.description` therefore now accept `string | I18nLabel`, and the two bridge assignments compile with their expressions untouched.
+
+  Resolution happens at READ time, in the renderer, against the display locale — not at the bridge. Resolving at the bridge was measured unimplementable: it is a plain class method that cannot call a hook, `BridgeContext` declares no locale, and `updateContext()` has zero callers, so a bridge-resolved label would freeze one audience's language into the node tree with no re-translation channel. React's own invalidation re-translates for free at the read site.
+
+  The widening turned every blind `schema.label`-as-string read into a named compiler error, and that inventory is the audit: it named four sites repo-wide, all one class — the label reaching a React child position, where a map does not render as `[object Object]` but THROWS `Objects are not valid as a React child`, failing the whole subtree. Three are `@object-ui/components` renderers (`filter-builder`, `sidebar-group`, `dropdown-menu`), which now resolve with the spec's own `resolveI18nLabel` against `useDisplayLocale()`. The fourth is `plugin-dashboard`'s `DashboardGridLayout` heading, which resolves with `pickLocalized` against the active UI language — matching the widget-title resolution already in that same component rather than putting two resolvers and two disagreeing locale channels in one render; the two resolvers are limb-for-limb twins with a parity test pinning them.
+
+  One interface now carries both label vocabularies two properties apart — `label`/`description` are the spec's INLINE map, `ariaLabel` is the KEYED bundle reference — and each accepts the other's shape vacuously. That confusability is objectui#4167's known hazard, inherent to the spec's `I18nLabel` design; both shapes are named with cross-referenced doc comments stating which resolver owns which slot, and a pin asserts the two unions do not collapse into each other.
+
+  Finally, the spec bridges declare their return type as `BaseSchema` instead of the union. Both bridges end in a single `return node` on an object literal, so the union described nothing real while forcing a narrowing at every read — 272 mechanical errors across five suites in the first round. That change is a type annotation only; the emitted JavaScript is byte-identical.
+
+- bb68488: Stop declaring 14 symbols under names `@objectstack/spec` owns at `17.0.0-rc.6`
+  (objectui#4167, objectstack#4115).
+
+  The rc.6 bump published nine names this repo already declared locally, on top of
+  four that predate it — `check:spec-symbols` reported all thirteen at once, and a
+  fourteenth (`GlobalFilterSchema`) appeared during the bump itself. Each was
+  triaged on its own rather than blanket-renamed, because the right answer differs
+  per symbol: five bind to the spec, three are renamed because the spec's
+  same-named export means something else, five arrive by derivation, and one is a
+  declared dialect with a written reason.
+
+  **Breaking for importers of `@object-ui/react`, `@object-ui/app-shell` and
+  `@object-ui/types`** — three exported names changed, because the spec exports the
+  same name for a _different_ thing:
+
+  | package               | was                | now                            | what the spec's same-named export actually is                                                                                                          |
+  | :-------------------- | :----------------- | :----------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `react` / `app-shell` | `MetadataState`    | `MetadataCacheState`           | a metadata item's LIFECYCLE state — `'draft' \| 'active' \| 'deprecated' \| 'archived'` (`MetadataStateSchema`, `@objectstack/spec/system`)            |
+  | `react` / `app-shell` | `resolveI18nLabel` | `resolveKeyedI18nLabel`        | a resolver for the INLINE per-locale map (`{ en: 'Owner', 'zh-CN': '负责人' }`) against a BCP-47 locale                                                |
+  | `types`               | `DateRangePreset`  | `FilterBuilderDateRangePreset` | the thirteen HISTORICAL dashboard filter-bar presets; this one is the filter-builder set, which adds eight FUTURE windows the dashboard schema rejects |
+
+  `resolveI18nLabel` is the one where the collision had already started costing
+  something. rc.6 widened `I18nLabel` from `string` to
+  `string | Record< string, string >`, so the same authored value now reaches
+  either resolver — and each answers wrongly, silently, for the other's input: the
+  keyed one returns `undefined` for `{ en: 'Owner' }` (no `key`, no
+  `defaultValue`), and the spec's reads `key` / `defaultValue` / `params` as locale
+  tags. The rc.6 bump PR met this and aliased the spec's import as
+  `resolveInlineI18nLabel` in five files, with hand-written comments at two of
+  them. That is a review convention, which is what objectstack#4115 exists to
+  replace with a rule — so `Keyed` is now the counterpart of that `Inline`, and the
+  name says which vocabulary it resolves at every call site.
+
+  **Eleven keep their names and are now imported or derived from the spec** instead
+  of re-declared: `DATE_RANGE_PRESETS`, `NavigationMode`, `AddressValue`,
+  `BreakpointColumnMap`, `BreakpointOrderMap`, `KanbanConfig`, `CalendarConfig`,
+  `GanttConfig`, plus the three renamed above at their new names.
+
+  **Four of the copies were losing information, not just duplicating it.**
+
+  - **`GanttConfig` declared six keys and called itself canonical; rc.6's
+    `GanttConfigSchema` declares seventeen.** The eleven it never mentioned —
+    `parentField`, `typeField`, `baselineStartField`, `baselineEndField`,
+    `groupByField`, `resourceView`, `assigneeField`, `effortField`, `capacity`,
+    `quickFilters`, `autoZoomToFilter` — are all read by
+    `plugin-gantt/src/ObjectGantt.tsx`, through a local `GanttConfigEx`
+    intersection that existed only because this type did not carry them. It now
+    derives from the spec, with `timeSegments` (shift segmentation) as the one
+    genuinely local extension; the schema is `$loose` upstream, so that key is
+    legal metadata rather than a second dialect.
+  - **`GanttConfig.tooltipFields` carried the comment "not part of the upstream
+    GanttConfigSchema".** It is, as of rc.6, so the key now arrives from the spec.
+  - **`AddressValue` declared five of the spec's seven parts** — `countryCode` and
+    `formatted` were missing, under a comment already claiming to be "the part
+    names of `AddressSchema`". The widget still renders five inputs; binding the
+    type stops it from asserting the platform cannot store the other two, and makes
+    the `{ ...address }` write-through say so.
+  - **`DATE_RANGE_PRESETS` was `Object.keys(PRESET_RANGES)`,** a third copy of a
+    vocabulary the spec extracted in objectstack#4614 precisely to collapse — its
+    own doc comment names this module as one of the three. It is now the spec's
+    array by reference, and the local date-macro bounds table is pinned complete
+    against it with `satisfies`, so a preset the schema gains without bounds here
+    is a compile error rather than a filter that validates clean and then selects
+    nothing.
+
+  `NavigationMode` was one hop from the spec already (`NavigationConfig['mode']`);
+  it is bound directly, with a both-directions type pin that it stays the same type
+  as the config's own `mode`. `KanbanConfig` / `CalendarConfig` /
+  `BreakpointColumnMap` / `BreakpointOrderMap` were exact hand copies of `$strict`
+  schemas and are now re-exports — "still exact" is the argument for binding them,
+  since a copy with nothing to protect can only drift.
+
+  `GlobalFilterSchema` is the one ALLOW entry. It is the same spread-composition
+  dialect as `SelectOptionSchema` next to it, and it collided only because rc.6's
+  new refinement forced `.extend()` to be respelled as a `.shape` spread — which
+  moved a derivation the guard could see into an object literal it deliberately
+  does not descend into. The dialect is unchanged and its three divergences are
+  pinned; which side moves on the refinement itself is objectui#4165.
+
+  `@objectstack/spec` moves from `devDependencies` to `dependencies` in
+  `@object-ui/layout`: its public type surface now references the spec.
+
+- ab04728: `ViewNavigationConfig` IS the spec's navigation config — the second spelling stops requiring `mode` (objectui#4588)
+
+  `@object-ui/types` published **two** types for one spec object, and they disagreed
+  about whether `mode` may be omitted. `index.ts` re-exports the spec's
+  `NavigationConfig` unchanged, while `objectql.ts` hand-declared a
+  `ViewNavigationConfig` covering the same six keys with `mode` **required** — under
+  a doc comment that itself claimed `@default 'page'`.
+
+  The spec never asked for that. `@objectstack/spec` declares
+  `mode: NavigationModeSchema.default('page')` in `NavigationConfigSchema`, and a
+  `.default()` lands on the **authoring** side as `| undefined`, which is why the
+  spec publishes its own type as the schema's `z.input`. So
+  `navigation: { view: 'summary_view' }` is legal authored metadata that lets the
+  mode default — and the hand copy refused it, at the three schema interfaces that
+  spell `navigation?: ViewNavigationConfig` (`ObjectGridSchema`, `ObjectViewSchema`,
+  `NamedListView`). Authoring one meant inventing a `mode` the renderer was going to
+  default anyway, or writing an assertion.
+
+  `ViewNavigationConfig` is now that spec type, per this file's own standing rule —
+  "Never Redefine Types. ALWAYS import them." Measured against the published spec
+  build, the hand copy had drifted on `mode` and nothing else: the other five keys
+  carried the spec's exact value domains. The per-key documentation now lives with
+  the schema in the spec instead of being restated here, so the `'page'` default no
+  longer has a third place to fall out of sync.
+
+  **No runtime behaviour changes.** A census of every `.mode` read in the repo found
+  all of them to be `=== 'x'` comparisons or `navigation?.mode ?? 'page'` — no reader
+  of this alias reads `mode` unguarded, so nothing observes the difference at run
+  time. This is objectui#4550 / PR objectui#4586 one package over: that one collapsed
+  `@object-ui/react`'s `NavigationConfig` to the same spec input, and this is the
+  remaining half.
+
+  Graded `minor` on the published-position analysis: in the built `.d.ts`
+  `ViewNavigationConfig` occurs **only in input positions** — the three `navigation?:`
+  properties of authored schema interfaces — and in **no** return type, since this
+  package publishes no function that hands one back. For consumers the change is
+  therefore purely permissive: everything that compiled still compiles, and
+  spec-shaped configs that previously needed an invented `mode` now compile without
+  one. That gained input shape is a capability rather than an internal repair, which
+  is more than `patch` describes. The reader-side narrowing (`mode` is now
+  `| undefined`) is real but secondary, and in-repo it has no affected reader.
+
+### Patch Changes
+
+- 92876f0: Doc comments no longer cite `@objectstack/spec` symbols the pinned spec has retired
+
+  Eight exported declarations carried a doc comment claiming alignment with a
+  `@objectstack/spec` symbol that `17.0.0-rc.6` does not export — four locale
+  formatting shapes in `@object-ui/i18n` (`SpecPluralRule`, `SpecDateFormat`,
+  `SpecNumberFormat`, `SpecLocaleConfig`) and four activity-feed shapes in
+  `@object-ui/types` (`FieldChangeEntry`, `Mention`, `Reaction`,
+  `RecordSubscription`). A citation that points at nothing is worse than a stale
+  one: the next reader cannot tell whether the protocol retired the symbol,
+  renamed it, or never had it.
+
+  Measuring all eight against the published registry answered that question, and
+  the answer was not "these names never existed". Every one was a real export the
+  protocol retired on purpose, and every local key set was faithful to the schema
+  it named. The feed four left `@objectstack/spec/data` in the `16.0.0` major,
+  when the feed surface was replaced by the data API over `sys_comment` /
+  `sys_activity`. The i18n four left `@objectstack/spec/ui` in `17.0.0-rc.6`
+  itself — they were still present in `rc.5` — retired under ADR-0049
+  enforce-or-remove because no authorable shape carried them and nothing ever
+  parsed them.
+
+  Each comment now records that provenance, including the version the symbol left
+  and what (if anything) replaced it, so the shapes read as declarations these
+  packages own rather than as a view onto a protocol type. Type shapes, runtime
+  behaviour and exports are unchanged — the published `.d.ts` files differ only in
+  comment text, which is why this is graded `patch`.
+
+- abb0f81: A dashboard date filter's default has one spelling again — the bare preset name — and the `{ preset }` object becomes a documented legacy alias with a retirement window
+
+  `@objectstack/spec` 17.0.0-rc.6 added a cross-field refinement to `GlobalFilterSchema` holding a `type: 'date'` filter's `defaultValue` to three spellings: a preset NAME (`last_7_days`), an ISO date (`2026-01-15`), or a date-macro token (`{today}`). objectui's derived schema had widened `defaultValue` to `z.any()` and did not carry the refinement, so it accepted `{ preset: 'last_7_days' }` — metadata the platform refuses. That is the tolerant-consumer shape where the designer goes green and the save fails server-side, and it is now closed: the refinement is adopted, the widening is retired, and the object form is refused with the spec's own message.
+
+  Per the maintainer ruling on objectui#4165, the spec stays strict and the bare preset name is the single canonical spelling. `{ preset }` is handled as an ADR-0089 legacy alias rather than by a permanently tolerant schema: `liftLegacyGlobalFilterDefault` / `liftLegacyDashboardFilterDefaults` (new exports on `@object-ui/types`) convert it to the bare name, `@object-ui/core`'s `resolveDashboardFilterDefs` applies the lift when it reads a stored dashboard, and the console's dashboard designer applies it as the document enters the editable draft so the next save persists the canonical spelling. The retirement window is recorded at the read site: the alias may be removed in `@object-ui/types` 18.0.0, and every lift warns on the console so a surviving legacy document is visible rather than silently tolerated.
+
+  No stored dashboard has to change for this release. The lift means a document carrying the object form keeps loading and rendering exactly as before — measured, not assumed: a legacy declaration already resolved correctly, because `{ preset }` also happens to be the runtime value shape objectui's own date filters use, and that coincidence is why the object form went unnoticed for so long. What changes is that the declaration is now canonicalized on read and rewritten on save, so the two spellings converge instead of accreting.
+
+  The other two divergences in this schema — the bare-string `options` shorthand and the optional `optionsFrom.labelField` — are unaffected. Carrying the spec's refinement while keeping them needed a new composition: a refined object schema in zod 4 rejects `.extend()` and `.omit()` outright and types every `.safeExtend()` override as `never`, so objectui's schema now spreads the spec's shape and re-attaches the spec's object-level rules by delegating to the spec schema itself. Nothing restates the spec's grammar, and a refinement the spec adds later flows in with no change here.
+
+- 7e4f0e5: fix(dashboard,i18n): KPI cards and dashboard filters resolve authored labels instead of dropping them (#4032)
+
+  A `type: 'metric'` dashboard widget rendered raw English while every other widget
+  type on the same dashboard rendered the translation, and dashboard filter chips
+  rendered `[object Object]` or the raw stored value. Both come from the same
+  cause: authored labels reaching a render site that could not read the
+  vocabulary `@objectstack/spec` actually admits.
+
+  - **KPI cards rejoin the widget translation channel.** The self-contained
+    `metric` branch built its own label from the raw `widget.title`, so the
+    `{ns}.dashboards.{dash}.widgets.{id}.title` value the renderer had already
+    resolved was computed and thrown away. It now reads that channel like every
+    other widget header.
+  - **The three private `resolveLabel` copies** (`DashboardRenderer`,
+    `MetricWidget`, `MetricCard`) are gone. Each read the retired
+    `{ key, defaultValue }` key-reference form and ended `defaultValue || key`, so
+    handed the inline per-locale map the spec admits today they returned nothing —
+    a KPI card with a map title rendered the literal string `metric`. All three
+    now use `pickLocalized`, the resolver already used for this vocabulary
+    elsewhere in the package.
+  - **Dashboard filter labels and static option labels resolve per locale.**
+    `DashboardFilterDef.label` widens to `string | I18nLabel`, the filter bar
+    resolves before rendering (fixing `[object Object]: All` in the trigger, and
+    in `aria-label` / `placeholder`), and the `def.label || def.name` gate now
+    tests the RESOLVED string — an object is always truthy, so it never reached
+    the fallback before.
+  - **Option labels are no longer discarded.** `normalizeFilterOptions` coerced a
+    map label to the raw stored value in every locale, English included, so
+    `{ value: 'domestic', label: { en: 'Domestic', … } }` displayed as `domestic`.
+    The pair shape is still normalized; the label vocabulary is preserved for the
+    render side to resolve.
+  - **`DashboardComponentSchema.globalFilters` is bound to the spec's
+    `GlobalFilter`** instead of restated by hand. The restatement was both too
+    narrow (`label?: string`, which is what made these read sites invisible to
+    `tsc`) and too wide (it declared a bare-string option shorthand the spec
+    rejects at publish).
+
+  Plain-string labels are unaffected and render byte-identically.
+
 ## 17.4.0
 
 ### Minor Changes

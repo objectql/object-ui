@@ -1,5 +1,313 @@
 # @object-ui/plugin-gantt
 
+## 17.5.0
+
+### Patch Changes
+
+- ebb4e0e: The date formatter's last three en-US channels now follow the display locale
+  (objectui#4272).
+
+  objectui#4468 (PR #4512) pointed every date _renderer_ at `useDisplayLocale()`.
+  Three channels were out of its reach because they are properties of the
+  formatter's signature and of its callers rather than of any renderer, so a `zh`
+  console still met English dates in three places:
+
+  - **`formatDate`'s `'short'` branch** hardcoded
+    `toLocaleDateString('en-US', { month: 'short' })`, so it rendered an English
+    month even when the caller had threaded `options.locale` into that very call.
+    Its only consumers are ObjectGrid's two mobile-card date cells, which threaded
+    no locale — fixing either half alone moves nothing, so both land here.
+  - **`formatDateTime` took no options parameter at all**, so no caller could
+    localize it however hard it tried; it always handed `Intl` an `undefined` tag,
+    which means the MACHINE's locale — neither of the repo's two locale channels.
+    The parameter is optional and lands together with its consumers, plugin-gantt's
+    four tooltip call sites.
+  - **The lookup picker's MongoDB `$date` fallback** called a bare
+    `toLocaleDateString()` with no tag.
+
+  One resolver everywhere, as before: `useDisplayLocale()` (tenant regional
+  default → active UI language → `'en'`). `Intl` accepts `'zh'` verbatim, so there
+  is still no mapping table anywhere.
+
+  English output is byte-identical at every touched site — `en` and `en-US` agree
+  on all twelve short month names — and the `'short'` layout itself is unchanged:
+  only the month token is localized, the compact `"Jan 15, '24"` shape around it
+  is a deliberate fixed layout for narrow cards.
+
+  `@object-ui/fields` is `minor` because `formatDateTime`'s new optional parameter
+  is visible in the package's entry `.d.ts`; the plugin packages' own `.d.ts` files
+  are byte-identical, so their change is module-local.
+
+- 828549a: The gantt's conflict dialog shows the number of affected tasks again, not a literal `{2}`
+
+  `gantt.conflict.body` was resolved at the render site with a literal string replace on **single** braces — `t('gantt.conflict.body').replace('{count}', String(n))` — while all ten locale packs spell the placeholder the i18next way, `{{count}}`. `"…{{count}}…".replace("{count}", "2")` consumes the inner seven characters and leaves the outer pair behind, so every user on every loaded pack read "自动重新排程 **{2}** 个受影响的任务？". The dialog now interpolates through i18next (`t('gantt.conflict.body', { count })`), the idiom `gantt.delete.body` already used.
+
+  The two sibling keys three lines away in the same file, `gantt.autoScheduleDlg.body` and `.skipped`, were **not** broken — pack and call site both used single braces, and they rendered correctly. They are converted anyway, because that split is the whole mechanism: two write-confirmation dialogs in one component carried two different interpolation idioms, so `conflict.body` drifting to the i18next spelling in the packs (which is the correct spelling, and matches every other placeholder in the bundle) silently broke the render. Leaving the auto-schedule keys on the literal-replace idiom leaves the same trap armed for the next translator. All ten packs and the plugin's bundled English fallback table now agree on `{{count}}` for all three; only the braces moved, no translation was reworded.
+
+  `gantt.quickFilter.resultSummary` stays deliberately single-brace — its `ObjectGantt` call site really does resolve `{shown}`/`{total}` with a literal replace, and that convention is pinned by its own parity test. It is now the only key in the gantt namespace on that idiom, and the comments at both spellings say so.
+
+  Nothing caught this, and each gate was silent for its own reason: the cross-pack parity check compares en against each pack, and all eleven spellings agreed; the en-drift check compares a pack against its own history, and the packs were born matching. Both are **relative** comparisons, and the defect lived in the **absolute** relationship between a pack's spelling and the syntax the call site resolves. The existing render test asserted the dialog body contains `'1'` — which `{1}` satisfies. The new pin asserts the absolute form directly, under a real loaded pack, for every way a placeholder can survive to the screen.
+
+- e1ade8f: An illegal gantt dependency link now says why it was refused, instead of doing nothing
+
+  Dragging a dependency onto a target the gantt refuses — itself, a locked row, a group row, or one that would close a dependency cycle — produced no feedback of any kind: no toast, no dialog, no cursor change, no target outline, not even a console warning. The guard was right and completely invisible, so a user drawing a legitimate-looking dependency got a dead interaction and no way to learn the constraint. The rejection was silent in both places it could have shown: a refused bar never became the drop target, so it got no hover treatment at all, and the release handler only ran its body when a target _had_ been registered, so the drop itself was a no-op.
+
+  Both halves are now wired, and both read the **same** verdict. `canReceiveLink`'s four-branch boolean became `classifyLinkTarget`, which returns which branch refused (or `null`), with the boolean derived from it. The hover affordance and the drop toast are two consumers of that one classification, so the reason a user is shown cannot drift from the reason the link was actually refused — there is no second classifier to disagree. The branch names are the leaves of the new `gantt.link.rejected.*` keys, so a branch added later without a message surfaces as a missing key rather than as a plausible-but-wrong sentence.
+
+  During the drag, a refused bar under the pointer gets `cursor: not-allowed` and a destructive outline; on release it raises a toast naming the reason. Four messages, one per branch, in all ten packs. Both the cursor and the outline are driven from inline `style` rather than utility classes, matching the bar's existing read-only cursor three lines away and for the same reason recorded there: `cursor-not-allowed` and the ring alpha utilities are not emitted in the prebuilt components CSS, so a class would look correct in a DOM test and render nothing in a browser.
+
+  Deliberately unchanged: a host veto through `onBeforeDependencyCreate` stays silent. That rejection carries a reason only the host knows, and the gantt has none to show — surfacing it means exposing a rejection-reason output on the public component, which is a separate contract rather than a rider on this one. The four built-in reasons are the gantt's own policy and are the only ones it can explain.
+
+  One of the four, `group`, has no end-to-end path today: a `type: 'group'` row renders no bar, so the drag can never target it. The message is kept anyway — without it the branch would render a raw key on screen if it ever did fire — and the test pins the reachability fact, so it goes red the day group rows gain a bar. Filed as objectui#4209.
+
+- db4ad6b: Gantt tooltip currency re-formats when the tenant currency resolves
+  (objectui#4542).
+
+  ObjectGantt's `tasks` memo builds every tooltip string eagerly inside its
+  callback, and the `'currency'` case resolves its code down to the tenant
+  default (`resolveFieldCurrency(def, tenantCurrency)`). `tenantCurrency` was
+  not in the memo's dependency array, so the value was read but never watched.
+
+  That default comes from `GET /api/v1/auth/me/localization`, which is cosmetic
+  and non-blocking and therefore answers AFTER first paint. The context change
+  re-rendered ObjectGantt, but with none of `data` / `ganttConfig` /
+  `objectSchema` / `displayLocale` changed the memo handed back its cached task
+  array — so a tooltip amount kept the pre-resolution rendering (a plain
+  `1,234.50` instead of `€1,234.50`) until something unrelated invalidated the
+  memo.
+
+  This is the currency twin of objectui#4272, which added `displayLocale` to
+  this same array for the same reason, and it is not covered by that dep: the
+  producer writes currency and locale from one response, so a tenant that
+  configures BOTH re-runs the memo through the locale channel — but a tenant
+  that configures a currency and no locale (the common shape, since the tenant
+  locale is frequently unset) leaves `displayLocale` untouched and the currency
+  stale.
+
+  Module-local: the fix is one dependency, the package's `.d.ts` files are
+  byte-identical, and rendering is unchanged whenever the channel resolves
+  before first paint or a field carries its own currency code.
+
+- a908882: Gantt tooltip numbers and currency follow the display locale (objectui#4553).
+
+  `formatFieldValue`, the tooltip value formatter inside ObjectGantt's `tasks`
+  memo, had its four TEMPORAL call sites threaded with `useDisplayLocale()` by
+  objectui#4272. The numeric cases beside them passed no locale, so they reached
+  `new Intl.NumberFormat(undefined, …)` — the MACHINE's locale, which is neither
+  of the repo's two locale channels.
+
+  One tooltip therefore rendered two conventions. A German session read
+  `5. Jan. 2024` on the date row and `1,234.50` on the amount row directly below
+  it, where German groups with `.` and marks the decimal with `,`. Inverted
+  separators do not read as an unstyled number; they read as a different number.
+  The currency row was affected in the symbol's POSITION too — `1.234,50 EUR`
+  rather than `EUR1,234.50` — while the currency CODE itself was already resolved
+  correctly (objectui#4542 made the memo watch it); only the locale rendering that
+  code was missing.
+
+  `number` / `integer` / `float` / `decimal` and `currency` now pass the
+  `displayLocale` already read at component level, using each formatter's existing
+  locale parameter. No formatter signature changed and no memo dependency changed
+  (`displayLocale` has been in that array since objectui#4272), so this is
+  consumer-side threading only: the package's `.d.ts` files are byte-identical and
+  English output is unchanged at every touched site.
+
+  Known gap, tracked on objectui#4553: the `percent` row still does not follow the
+  display locale. `formatPercent(value, precision)` takes no locale parameter —
+  it is `${percentDisplayValue(value).toFixed(precision)}%`, so it builds no
+  `Intl.NumberFormat` at all and renders in NO locale rather than the machine's
+  (ASCII decimal mark, never grouped, identical on every machine). Closing that
+  needs a `@object-ui/fields` signature change, which is outside this change's
+  ruled surface, and is pinned by a test here so the gap cannot drift unnoticed.
+
+- 0ca6096: A gantt task titled `A$&B` no longer prints `{{title}}` back into its own delete dialog — the two hand-rolled provider-less fallback interpolators are literal, like i18next
+
+  objectui#3418 fixed the shared helper's fallback interpolator: `String.prototype.replace` became `split(needle).join(value)`, because `replace` and `replaceAll` both interpret `$&`, `` $` ``, `$'` and `$$` in the **replacement** string and i18next does not. Two hand-rolled copies of that interpolator never got the fix. Both are deliberate non-users of `createSafeTranslation` — each falls back per key so a host dictionary that covers the common keys but lags on newer ones still resolves what it has — so the shared fix had no path to reach them.
+
+  The reachable one is gantt's. `gantt.delete.body` is `'"{{title}}" will be permanently removed. …'` and its call site interpolates the record's own title, which is user data:
+
+  | task title | rendered before                                                       | rendered now                              |
+  | ---------- | --------------------------------------------------------------------- | ----------------------------------------- |
+  | `A$&B`     | `"A{{title}}B" will be permanently removed.`                          | `"A$&B" will be permanently removed.`     |
+  | `` x$`y `` | `"x"y" will be permanently removed.`                                  | `` "x$`y" will be permanently removed. `` |
+  | `p$$q`     | `"p$q" will be permanently removed.`                                  | `"p$$q" will be permanently removed.`     |
+  | `u$'v`     | `"u" will be permanently removed. …v" will be permanently removed. …` | `"u$'v" will be permanently removed.`     |
+
+  The first row is the ugly one: `$&` expands to the matched text, so the placeholder itself is printed back to the user inside the record's own name. Gantt's copy also carried the other half of the same defect — a bare string needle substitutes only the **first** occurrence, where i18next substitutes every one — and `split`/`join` fixes both at once.
+
+  The import wizard's copy used a `g`-flagged `RegExp`, which covered the repeated-placeholder half but could not touch the `$`-pattern half: that harm lives in the replacement string, not the needle. Its values are authored metadata — field labels and type names spliced into `grid.import.missingRequiredHint` and `grid.import.legacyReferenceBlocked` — so a label containing `$&` corrupted the hint the same way. Retiring the `RegExp` also retires an unescaped needle, since the placeholder name went into the pattern uninterpolated; that was inert while every placeholder name is a bare identifier, and is now structurally impossible.
+
+  This is the provider-less path only (standalone embedding, unit tests). With an `I18nProvider` mounted, i18next serves these keys and was already literal on both sides — which is exactly why the divergence was invisible. No pack, key or call site changed; the three `{{count}}` gantt keys take numbers and were never affected, and `gantt.quickFilter.resultSummary`'s deliberate single-brace idiom is resolved by its call site rather than this interpolator and is untouched.
+
+- 36310dc: `formatPercent` groups its output and follows the display locale — the last
+  tooltip/cell channel (objectui#4553).
+
+  PR #4557 threaded the gantt tooltip's number and currency rows and measured that
+  the percent row could not follow: `formatPercent(value, precision)` took no
+  locale parameter, and its whole body was
+  `${percentDisplayValue(value).toFixed(precision)}%`. It built no
+  `Intl.NumberFormat` and never reached `formatDisplayNumber` — so unlike its
+  siblings it did not render in the MACHINE's locale, it rendered in **no** locale:
+  an ASCII decimal mark, never a grouping separator, byte-identical on every
+  machine.
+
+  **English output MOVES, and that is the fix.** Because the function never
+  grouped, `1235%` was wrong in en-US too, not only in German. Grouping and locale
+  therefore land together:
+
+  |            | before  | after          |
+  | ---------- | ------- | -------------- |
+  | en, 1234.5 | `1235%` | `1,235%`       |
+  | de, 1234.5 | `1235%` | `1.235\u00a0%` |
+  | de, 80     | `80%`   | `80\u00a0%`    |
+
+  Values below the grouping threshold are unchanged in English (`80%`, `12.5%`,
+  `33.33%`), so the move is confined to four digits and up. German changes at every
+  magnitude, because the no-break space before the sign is part of the locale's
+  percent convention — which is what routing through `Intl` buys over appending a
+  literal `%`.
+
+  The scaling contract is untouched: `percentDisplayValue` still disambiguates a
+  fraction-stored percent (`0.8` → 80%) from a whole one, so the list cell and the
+  dashboard measure formatter still agree.
+
+  Consumers are threaded in the same change, the parameter never landing
+  speculatively:
+
+  - **fields** — `PercentCellRenderer`, on BOTH of its paths. Its whole-percent
+    branch (`progress` / `completion` fields, which store 0-100 and must skip the
+    fraction scaling) was a second bare `toFixed` call; leaving it behind would
+    have made one grid internally inconsistent, so both branches now share one
+    locale-aware body and differ only in the scaling policy.
+  - **plugin-gantt** — the tooltip percent row, completing objectui#4553's switch.
+  - **plugin-grid** — the mobile card's percent cell, which sits in the same
+    density row as a date cell objectui#4272 had already localized.
+  - **plugin-dashboard** — `renderFieldValue`'s percent branch. It is a plain
+    function rather than a component, so it takes the locale as an optional fourth
+    parameter beside the `tenantCurrency` already threaded that way, and both of
+    its callers pass it and declare it in their memo dependency arrays.
+
+  Bumps follow each package's own `.d.ts` diff, measured in both directions.
+  `@object-ui/fields` and `@object-ui/plugin-dashboard` are `minor` on the
+  objectui#4272 / PR #4544 precedent — quoted from that changeset: "`@object-ui/fields`
+  is `minor` because `formatDateTime`'s new optional parameter is visible in the
+  package's entry `.d.ts`; the plugin packages' own `.d.ts` files are
+  byte-identical, so their change is module-local." Here `formatPercent` and
+  `renderFieldValue` each gain an entry-visible optional parameter, while
+  plugin-gantt's and plugin-grid's `.d.ts` files are byte-identical and stay
+  `patch`.
+
+- Updated dependencies [0e67b53]
+- Updated dependencies [ceccdcf]
+- Updated dependencies [d6e5124]
+- Updated dependencies [debad27]
+- Updated dependencies [dc2aa3e]
+- Updated dependencies [ee66e2e]
+- Updated dependencies [e2e6360]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [932cbcd]
+- Updated dependencies [734d186]
+- Updated dependencies [f650253]
+- Updated dependencies [6d01319]
+- Updated dependencies [3d9769a]
+- Updated dependencies [8f85f8b]
+- Updated dependencies [d0c3b26]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [f7c6430]
+- Updated dependencies [4dadf0d]
+- Updated dependencies [ae10a01]
+- Updated dependencies [0f21348]
+- Updated dependencies [d2e2caf]
+- Updated dependencies [92876f0]
+- Updated dependencies [f279deb]
+- Updated dependencies [4b70d28]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [ebb4e0e]
+- Updated dependencies [3a9021e]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [613b167]
+- Updated dependencies [b4d3c22]
+- Updated dependencies [1f9b905]
+- Updated dependencies [8f60d73]
+- Updated dependencies [cb13400]
+- Updated dependencies [828549a]
+- Updated dependencies [e1ade8f]
+- Updated dependencies [bc64bfe]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [63fe8fd]
+- Updated dependencies [3e19fe7]
+- Updated dependencies [bb58d1d]
+- Updated dependencies [433ff9f]
+- Updated dependencies [5cc847c]
+- Updated dependencies [6314e87]
+- Updated dependencies [5e2e9fa]
+- Updated dependencies [297534b]
+- Updated dependencies [e7663f2]
+- Updated dependencies [fa21254]
+- Updated dependencies [33c32bf]
+- Updated dependencies [66fb4fa]
+- Updated dependencies [b953a97]
+- Updated dependencies [e076fd5]
+- Updated dependencies [d7f3e30]
+- Updated dependencies [6d641c9]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [a84385b]
+- Updated dependencies [45e1949]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [58bebf6]
+- Updated dependencies [36310dc]
+- Updated dependencies [52d878a]
+- Updated dependencies [456aac8]
+- Updated dependencies [405e808]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [a3ae404]
+- Updated dependencies [7d04b0e]
+- Updated dependencies [bfdf3d4]
+- Updated dependencies [bb68488]
+- Updated dependencies [c0f9a4b]
+- Updated dependencies [b1e42d0]
+- Updated dependencies [2459a3e]
+- Updated dependencies [ac853ce]
+- Updated dependencies [fa51109]
+- Updated dependencies [d6aa172]
+- Updated dependencies [c32a8a1]
+- Updated dependencies [fe52a04]
+- Updated dependencies [d46f9b8]
+- Updated dependencies [3f5f87c]
+- Updated dependencies [2fea4d2]
+- Updated dependencies [f5e1143]
+- Updated dependencies [dad805d]
+- Updated dependencies [7f1cb33]
+- Updated dependencies [f148a64]
+- Updated dependencies [bb68488]
+- Updated dependencies [2e3b0c0]
+- Updated dependencies [35997ce]
+- Updated dependencies [9461dd3]
+- Updated dependencies [78fa331]
+- Updated dependencies [47f551b]
+- Updated dependencies [31ab1ac]
+- Updated dependencies [0082db8]
+- Updated dependencies [ab04728]
+- Updated dependencies [b388950]
+- Updated dependencies [5bf09fd]
+- Updated dependencies [06915b0]
+- Updated dependencies [ff84b05]
+  - @object-ui/i18n@17.5.0
+  - @object-ui/react@17.5.0
+  - @object-ui/components@17.5.0
+  - @object-ui/plugin-detail@17.5.0
+  - @object-ui/core@17.5.0
+  - @object-ui/fields@17.5.0
+  - @object-ui/types@17.5.0
+
 ## 17.4.0
 
 ### Patch Changes

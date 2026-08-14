@@ -1,5 +1,368 @@
 # @object-ui/plugin-list
 
+## 17.5.0
+
+### Minor Changes
+
+- 7084f7d: `DashboardRenderer` and `ListView` serve the props they declare — the index signature stops erasing them
+
+  Both components declared a full props interface and neither was enforced. A `[key: string]: any` on `DashboardRendererProps` and `ListViewProps` puts `string` into `keyof Props`, so `'ref' extends keyof Props` is always true and React's `PropsWithoutRef` takes its `Omit` branch — and `Omit` over a type carrying a string index signature keeps only the index signature. Every declared property was dropped from the resolved type, on both sides: the render function received `{ [x: string]: any }` (so even `schema` was `any` inside the component), and every JSX call site was unchecked. Measured on the pre-fix source, `keyof ComponentProps<typeof DashboardRenderer>` was `string | number` and `ComponentProps<typeof DashboardRenderer>['onWidgetClick']` was `any`, while the interface went on declaring `(widgetId: string | null) => void`. `ListView` measured identically for `onRowClick`. This is objectui#4422 / PR #4438's trap in the two packages that issue left unswept.
+
+  Graded **minor, not major**: the interfaces have always DECLARED these props; the index signature erased them from the resolved type. Restoring what the interface documents is a FIX to the published contract, not a contract break — no documented capability is removed, and `any`-typed accidental passthrough was never the documented surface. Nothing in either package's README or docs endorses relying on it.
+
+  The props each component genuinely reads but never declared are now declared by name, at the type each one lands on: `dataSource` on both, plus `onAddRecord` / `onBulkAction` / `onPageSizeChange` / `onEdit` / `onDelete` / `onBulkDelete` on `ListView`. `DashboardRenderer`'s DOM pass-through keys are derived from `toDomProps`' whitelist constant itself, so the declaration and the runtime filter cannot drift — the "declare it and forward it by name" direction `@object-ui/core`'s `dom-props` doctrine asks for, rather than reopening the spread.
+
+  Type-only: the emitted JS for both packages is byte-identical before and after (verified by sha256 on `dist/index.js` and `dist/index.umd.cjs`), and both packages' runtime suites are untouched and green.
+
+  Three latent defects the erasure had been hiding are fixed with it, each surfaced by the repo-wide type-check: `DashboardWithConfig` typed its widget-select handler `(widgetId: string)` while `DashboardRenderer` calls `onWidgetClick(null)` to deselect; `InterfaceListPage` built a list schema whose `viewType` was a bare `string`; and `StudioDesignSurface` forwarded a `refreshKey` prop that no component in the chain declares or reads, so it was silently dropped. Per-package structural guards now pin the shape in both packages, covering the public `forwardRef` that takes its props whole — the spelling objectui#4438's `schema`-destructuring scan could not see.
+
+- fe52a04: `rowHeightToDensityMode` answers only for the five spec row heights — the coerce-to-`comfortable` fallback is gone
+
+  Two surfaces narrow a list view's `rowHeight` onto the renderer's three-step
+  density vocabulary, and since objectui#4352 they answered differently for the
+  same off-spec input: `@object-ui/react`'s spec bridge declined to answer, while
+  `@object-ui/core`'s `rowHeightToDensityMode` rehabilitated anything unknown into
+  `comfortable`. One metadata-driven system, two answers for one input
+  (objectui#4440).
+
+  The strict answer wins, per AGENTS.md #0.1: a renderer-side rehabilitation of
+  off-spec metadata is a second de-facto contract, and one strict contract beats N
+  dialects — a bad `rowHeight` gets fixed at the producer, where the schema already
+  rejects it. The five mappings themselves are untouched (`compact`/`short` →
+  `compact`, `medium` → `comfortable`, `tall`/`extra_tall` → `spacious`), and the
+  table keeps its `Record< RowHeight, … >` typing, so a row height added upstream
+  still fails the build here.
+
+  **Breaking semantics, deliberately graded `minor`** (this repo never publishes
+  `major` — its major tracks `@objectstack`). Two things change:
+
+  - **Published type.** `rowHeightToDensityMode` is exported from
+    `@object-ui/core`, and its return widens from `DensityMode` to
+    `DensityMode | undefined`. A host assigning the result straight into a
+    `DensityMode` now has to say what an off-spec row height should mean to it.
+  - **Rendered output, for input the spec already rejects.** `ListView` — the one
+    in-repo caller — used to render an off-spec `rowHeight` one step looser than an
+    ABSENT one (`comfortable`, 40px rows, vs `compact`, 32px). It now renders it
+    exactly like an absent one, `compact`, which is also `ObjectGrid`'s own default.
+    A sweep of this repo, the `objectstack` example apps and one downstream app
+    found zero authored off-spec values, and the legacy `densityMode` alias cannot
+    produce one (`DENSITY_MODE_TO_ROW_HEIGHT` is typed
+    `Record< DensityMode, RowHeight >`).
+
+  Also closed while retiring the branch: the lookup guarded membership with `in`,
+  which walks the prototype chain, so `rowHeight: 'toString'` returned
+  `Object.prototype.toString` — a function — from something typed `DensityMode`. It
+  is an own-property check now.
+
+### Patch Changes
+
+- ae10a01: Console chrome reaches the bundle — the list switcher, the aggregate footer, the dialog a11y fallbacks and the whole Settings namespace screen stop being English on non-English consoles
+
+  Six strings on the two screens a user looks at most were hardcoded English literals rather than bundle lookups, so they stayed English on every non-English console with nothing an app could author to change them. They are not object, field, view or action labels — no key in `TranslationData` reaches them — while the console's own bundle already ships zh-CN, ja-JP, es-ES, de, fr, pt, ru, ko and ar and translates hundreds of neighbouring strings. Omissions from an otherwise complete bundle, not a missing capability.
+
+  **Two of the six needed no new keys at all, which is the more interesting half.** The list-view mode switcher named its nine visualizations from a private `VIEW_LABELS` table while `console.objectView.viewType*` — the same nine words — had been resolved through the bundle by the create-view picker for months; the switcher now reads those keys, so the picker's 「画廊」 and the switcher's 「画廊」 cannot drift apart in nine languages. The create/edit dialog's close button is the remainder of a fix that already landed: objectstack#5505 routed the `sr-only` close label through `common.close` for the two Shadcn-synced primitives, but `MobileDialogContent` is a hand-written wrapper outside that regeneration zone with its own close button, and it is exactly what `ModalForm` renders — so the dialog the report measured was the one place still announcing "Close" in English.
+
+  The aggregate footer is the one the original report singled out: the **number** was already locale-formatted and the **prefix** was a hardcoded `Avg: ` / `Sum: `. All eleven aggregation kinds now take their prefix from `grid.summary.*`, and the label/value join is its own key rather than a `': '` baked into the renderer — the separator is translatable content, so zh sets a fullwidth colon and fr the French space-before-colon. The numbers are untouched. The form dialog's `sr-only` description fallback joins the packs too; it is clipped, not visible, so the only way an app could displace it was to author a `description` and thereby put a visible subtitle on every dialog.
+
+  **The Settings namespace screen converts as one unit.** `SettingsView` routed zero framing copy through i18n — save/failure toasts, the env-lock and crypto refusals, the load-error card, the empty-route state, the navigation buttons, the unsaved-changes save bar — while its immediate sibling `SettingsHub`, in the same directory, resolved everything through `t('console.settingsHub.*')`. A zh-CN admin read correctly translated field labels sitting inside an English save bar, because `useSettingsLabel` translates a namespace's authored content but reaches none of the chrome around it. All of it now resolves through a `console.settingsView.*` namespace placed beside the hub's, including the crypto-refusal strings that objectui#4579 deliberately left in English rather than leave one translated string among a dozen literals.
+
+  The save-bar counter was an English plural rule executing in every locale (`change` plus an `s` when the count exceeds one). It is now a real i18next plural family — base key plus `_one` and `_other` in all ten packs — not the `(s)` spelling translated nine ways. The base key is the load-bearing part: i18next asks `Intl.PluralRules` for the one suffix a language needs and, finding no such slot, falls back to English, so without it Russian would read English at counts 2-20 and Arabic at 2-99. Russian and Arabic take the "noun: {count}" form their packs already use for this exact reason, and the counter is verified rendering in-language at 1, 2 and 5.
+
+  The Beta badge reuses the hub's existing key rather than minting a twin, and the refusal messages interpolate their subject through the bundle instead of concatenating a translated word onto an English prefix.
+
+- bb58d1d: i18n: the two search placeholders become pack values, and four values the packs served in English get translated
+
+  **objectui#4375** — `ListView` and `LookupField` built their search placeholder as
+  `t(key) + '...'`, so the ellipsis was a literal concatenated in code: it stayed ASCII
+  in all ten locales on screens where objectui#3878 had converged everything else on
+  U+2026, and no pack could opt out of it (sharpest in `ar`, where a left-to-right run
+  was appended to right-to-left text). Both now read `table.search`, which is already
+  the repo's search-input placeholder key — `data-table`, `RecordPickerDialog` and
+  `PeoplePicker` render it too — and is translated with the right ellipsis in all ten
+  packs. No new keys.
+
+  **objectui#4376** — `list.loading` served the English `Loading records…` in eight of
+  the nine translation packs (`zh` alone had translated it); `designer.undo` and
+  `designer.redo` were English in all nine; `appDesigner.snakeCaseHint` in `ko`, `pt`,
+  `ru` and `ar`. All translated, reusing each pack's own established vocabulary. A new
+  pin (`untranslated-identity-4376.test.ts`) fails on any value byte-identical to `en`
+  inside a non-Latin pack unless the key is on an explicit 22-entry allowlist.
+
+- bb68488: An inline per-locale label now renders its locale's string at the thirteen read sites the `@objectstack/spec` 17.0.0-rc.6 bump exposed
+
+  rc.6 widened `I18nLabel` from `string` to `string | Record<string, string>`, so an author may write `label: { en: 'Owner', 'zh-CN': '负责人' }` anywhere the spec accepts a display label. PR #4169 repaired eight such sites; these thirteen were invisible to it because the five packages involved build through vite/rolldown, so `turbo run build` never type-checks their sources — only `turbo run type-check` does. All thirteen are now resolved through a shared resolver against a real locale, and `turbo run type-check` is 78/78 with zero errors.
+
+  | package                       | what an author can now write and see                                                    |
+  | ----------------------------- | --------------------------------------------------------------------------------------- |
+  | `@object-ui/layout`           | `NavigationArea.label` — the sidebar area switcher's button and its tooltip             |
+  | `@object-ui/plugin-list`      | `ViewTab.label` — the inline pill row, and the mobile dropdown's trigger and menu items |
+  | `@object-ui/plugin-dashboard` | `DashboardWidget.title` — the widget card heading and its `title` attribute             |
+  | `@object-ui/plugin-designer`  | `DashboardWidget.title` — the widget card and the preview tile                          |
+  | `@object-ui/app-shell`        | `ActionParam.label` **and** each `ActionParam.options[].label`                          |
+
+  **Patch, not minor, in every case: no public surface changes meaning.** Every entry above is a read site that previously could only be reached with a value the type system rejected, so no caller's working code changes behaviour. `@object-ui/app-shell` is the only package with an exported-type change and it is purely additive on the authoring side — `RawActionParam.label` and `RawActionParam.options[].label` widen to `I18nLabel` (they accept strictly more), `ResolveActionParamsContext` gains an optional `locale`, and the new `RawActionParamOption` names the authoring shape that was previously spelled with the resolved one. What `resolveActionParams` **emits** is unchanged: `ActionParamDef.label` and its options' labels are still plain `string`s.
+
+  Two consequences worth knowing:
+
+  - **The dashboard designer's title input is deliberately read-only for a map-valued title.** Resolving a per-locale map into a single-line input and writing `e.target.value` back would collapse every other locale on the first keystroke, so the write is guarded and an inline map survives an unrelated edit-and-save round trip untouched — the same conservative branch #4169 took for `DashboardWidgetInspector`. What Studio should actually offer for authoring a per-locale label is objectui#4163 part 2, which is unclaimed and pending design.
+  - **`@object-ui/layout` resolves at the spec's `en` default, not the viewer's language.** That package carries no i18n dependency by design (its whole i18n story is injection), and `AppSchemaRendererProps` exposes no locale to thread. The choice and what would change it are documented at the call site.
+
+- 297534b: Align 43 inline `defaultValue` strings with the `en` pack, and make the call-site gate enforce it (objectui#3810)
+
+  `t(key, { defaultValue: 'English text' })` only renders that text when i18next
+  **misses** the key. Where the key exists in `packages/i18n/src/locales/en.ts` the
+  pack value always wins, so the inline string is dead code — and 43 of those dead
+  strings said something different from the sentence users actually read.
+
+  `scripts/check-i18n-call-site-keys.mjs` (objectui#3530) now compares the two
+  whenever a call site carries a literal `defaultValue` for a key `en` defines, and
+  fails on any byte of difference. It is a hard rule with **no baseline**: the
+  repo-wide census measured 43 sites in 19 files out of 851 literal inline defaults,
+  and all 43 are aligned here, so there is no debt for a ratchet to hold. A
+  `defaultValue` on a key that is _not_ yet in `en` stays legal — that transition
+  runs for months (objectui#3546) and belongs to the existing `missing-key` rule,
+  which keeps reporting it alone.
+
+  Every fix moved the CALL SITE to the pack's wording. `en.ts` is untouched: its
+  values are what users read today, and changing one would oblige the same change in
+  the nine other packs (`scripts/check-i18n-en-drift.mjs`, objectui#3650). Six of the
+  43 differed only in an ellipsis (`...` against U+2026) — invisible in review, which
+  is how they survived three i18n gates that are each blind to this class by
+  construction.
+
+  The visible effect is confined to hosts that render these components with **no**
+  `I18nProvider` and no initialised i18next instance. There, react-i18next's
+  not-ready `t` returns the `defaultValue`, so the inline string was the rendered
+  one; it now matches what a provider-backed app has always shown. Inside the
+  console — provider mounted — nothing users see changes. The clearest converging
+  examples: the workspaces screen was written as "Organizations" at nine call sites
+  while every user has been reading "Workspaces"; the forgot-password success line
+  was written as "If an account exists, a reset link has been sent." while the pack
+  asserts "We've sent a password reset link to {{email}}."
+
+- f8595a0: A list emptied by the view's own filter says "no records match", instead of inviting you to create your first record
+
+  `ListView`'s empty state distinguishes "filtered to empty" from "truly empty (first run)", but the view's own declared `filter` did not count toward that decision — only the search term, the user-filter conditions and the toolbar's live filter group did. A view that returns nothing _because it is filtered_ therefore rendered the first-run copy over an object full of records.
+
+  That is a small string, and it cost real triage time. In objectui#4155 a stored overlay filter had emptied a list, and the screen said "no data yet / create your first record" — so the report read as data loss or a permission problem, and the investigation went to the data and permission layers rather than to the view layer where the defect was. The same misread is available without any bug at all: a perfectly healthy view declaring `status not_in [archived, deleted]` over an object whose rows are all archived told the user the object was empty.
+
+  The base `filter` now counts as an active query, in both at-rest shapes (an array of conditions, and the Mongo-style object form). No new copy — this only routes to the `list.noMatches` / `list.noMatchesMessage` strings that already exist in all ten locales, so there are no new keys to translate. An author-supplied `emptyState.title` / `emptyState.message` still wins over both branches, unchanged.
+
+- 33c32bf: List sort: the picker stops borrowing the filter whitelist, and a header click is no longer a one-way door out of the view's declared sort
+
+  `filterableFields` was applied to the single field set both toolbar builders read, so a whitelist authored for _filtering_ silently became the _sort_ whitelist too. A view could declare a two-level default sort — `plan_start_date` then `name` — and get a sort panel that offered neither field and rendered both of its rows blank: the declared sort worked on load and could then be neither reproduced nor modified, and there was no way to express "sortable but not offered as a filter condition" short of widening the filter builder as collateral. The whitelist now narrows the filter builder alone, which is the contract it was written for; the sort picker starts from every field the view can name and applies its own sortability rules.
+
+  Those rules are about what the sort can honestly reach, so a second one joins the existing relational exclusion: a `formula` field is withheld. It has no materialised column, so ordering by one is refused by the server outright (objectstack `UNMATERIALIZED_SORT_TYPES`) — and it matters here precisely because the base set widened, since a formula field previously reached the picker only if someone had whitelisted it. The exclusion is `formula` alone and deliberately not the spec's `COMPUTED_VALUE_TYPES`: `summary` and `autonumber` are computed too, each gets a real maintained column, and both order correctly. Either rule keeps its existing escape hatch — a field the current sort already uses stays listed, which for a formula field is the only way to remove the offending row.
+
+  One consequence worth naming: the hint explaining the relational omission used to be gated by the same whitelist. A view whitelisting only `status` showed a near-empty sort picker and no word about why; the withheld relational field now reaches the rule that withholds it, so the explanation appears with it.
+
+  The second half is the way back. One column-header click replaces the whole sort array, so a view shipping a multi-level default lost it for the rest of the session — the declared `sort` behaved as an initial value only, recoverable just by reloading the page. The sort panel gains a **Reset to view default** control that restores the declared array whole: multi-level, in declared order, not merely cleared. It reads the view's declared sort through the same resolver the initial render already uses, so there is one answer to "what did this view declare". It is disabled while the active sort already matches that default, and absent entirely for a view that declares no sort — there is no default to return to, and clearing the sort under that label would be a second, differently-named way to do what removing the rows already does. The header click's own semantics are unchanged: it still replaces the array, it just no longer does so irreversibly.
+
+- 7ffd616: fix(plugin-list): ListView hands the child grid the query behind the window it passes down
+
+  ListView owns the fetch on the external-pagination path — it holds the filter,
+  the search term and the sort, and it is the side that calls `dataSource.find`.
+  The grid it hands the window to has a cross-page "select all N matching"
+  escalation that RE-ISSUES that query to collect the whole match set, and with
+  nothing handed down it replayed its own never-written params ref and so asked the
+  server for the entire object, feeding unmatched records to bulk delete.
+
+  The params object is now hoisted out of the `find` call — one object, one query,
+  no reconstruction that could drift from what was actually asked — recorded past
+  the stale-request guard so it is always the query that produced the rows on
+  screen, and forwarded as `findParams` in the same handoff block as `rowCount`,
+  `page` and `onPageChange`. No public API of `ListView` changes.
+
+- 37cd8e4: `list-view` now reads its `dataSource` binding through the shared `ElementDataSourceGate` instead of a private copy of the precedence table
+
+  objectstack#5576 landed the per-element `dataSource` binding on `list-view` by
+  writing the precedence table — binding keys override the component's, a `view` is
+  only a baseline, `filter` AND-combines rather than replaces, an authored-but-empty
+  `columns` counts as unauthored, the row cap lands on `pagination.pageSize`, and
+  `viewType` is taken only when the component declared none — inline in
+  `ListViewBlock`. objectstack#6953 then needed the same table for the other eight
+  object-bound blocks and lifted it into `@object-ui/react`
+  (`useElementDataSourceSchema` / `ElementDataSourceGate`), deliberately not
+  touching `ListViewBlock`: refactoring already-merged code inside a wiring PR
+  would have been an out-of-scope regression surface.
+
+  That left one table with two implementations — `list-view` on the private copy,
+  every other block on the shared one. Nothing was wrong for a user today; the risk
+  is the next person to change the rules changing one side, which is how the spec's
+  "_additional_ filter criteria" becomes two dialects and a per-element filter
+  quietly starts replacing a saved view's instead of narrowing it.
+
+  `ListViewBlock` now contributes only what is genuinely its own — the names of the
+  keys `ListView` reads:
+
+  ```ts
+  const LIST_VIEW_DATA_SOURCE: ElementDataSourceMapping = {
+    columns: true,
+    filter: true,
+    sort: true,
+    limit: "pagination.pageSize",
+    viewType: true,
+  };
+  ```
+
+  and the ~45-line `useMemo` mapping block is deleted, along with the block's
+  hand-rolled error and loading panels (the shared
+  `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel` render with the
+  `list-view` testId prefix, so `list-view-datasource-error` and
+  `list-view-resolving-view` are unchanged down to the byte, and the error heading
+  is passed through as `errorTitle`).
+
+  **No behaviour changes in either direction**, and that is the acceptance
+  criterion rather than a hoped-for outcome: objectstack#5576's entire suite passes
+  untouched, with no assertion edited — had any single case needed adapting, the
+  two implementations would have been proven to disagree, which is a defect to
+  re-grade rather than a refactor detail to absorb. New pins cover the mapping
+  table key by key at the block/gate seam, plus the shared loading panel, which
+  neither implementation had ever asserted.
+
+- e076fd5: Inline-edit toggle reads "Edit fields" without an I18nProvider, matching every locale pack
+
+  `DETAIL_DEFAULT_TRANSLATIONS` said `Edit fields inline` where all ten packs say
+  `Edit fields`, so `InlineEditSaveBar`'s toggle announced two different names for one
+  control — the map's on provider-less hosts (standalone embeds, the preview gallery),
+  the pack's in the console. The pack wins; the map row now mirrors it byte for byte.
+
+  The three ungated defaults maps (`plugin-detail`, `plugin-list`, `plugin-designer`) are
+  now compared key-by-key against the `en` pack by a new gate, generalizing the
+  collaboration-only precedent from objectui#3440. `LIST_DEFAULT_TRANSLATIONS` and
+  `DESIGNER_DEFAULT_TRANSLATIONS` are exported for it, as `DETAIL_DEFAULT_TRANSLATIONS`
+  and `COLLAB_DEFAULT_TRANSLATIONS` already were.
+
+- a84385b: `NavigationConfig.mode` is optional — the type now says what the hook does
+
+  `@object-ui/react` published a `NavigationConfig` that required `mode`, in front of a `useNavigationOverlay` that has always defaulted it. The declaration took the spec's authored config, `Omit`ted `mode`, and re-added it as `NonNullable< … >`; 140 lines below, the hook read `navigation?.mode ?? 'page'`. The type was strictly stricter than the implementation it fronted, and `'page'` is meaningful behaviour rather than a placeholder.
+
+  The spec never asked for that. `NavigationConfigSchema` declares `mode: NavigationModeSchema.default('page')`, and a `.default()` lands on the authoring side as `| undefined` — so `navigation: { view: 'summary_view' }` is legal authored metadata that lets the mode default. `@object-ui/types` already re-exported the spec's own `NavigationConfig` unchanged, which meant one monorepo shipped two published types of the same name that disagreed about whether `mode` could be omitted.
+
+  The alias is now the spec's authored config verbatim, with no divergence of its own:
+
+  ```ts
+  export type NavigationConfig = SpecAuthoredInput<
+    typeof NavigationConfigSchema
+  >;
+  ```
+
+  The cost of the old spelling was paid by callers. `ListView` carried `schema.navigation as NavigationConfig | undefined` for no reason except to get a valid spec-shaped value past the declaration; that assertion is deleted here, not replaced. A type in front of an implementation must not be stricter than the implementation — when it is, every caller pays in casts, and a cast is exactly the renderer-side workaround that belongs back at the producer.
+
+  **Nothing changes at runtime.** `navigation?.mode ?? 'page'` is untouched, and the default is now pinned as observable behaviour (`useNavigationOverlay.modeDefault.test.tsx`) rather than only as a comment — the explicit modes, the `preventNavigation` and `none` short-circuits, the `onRowClick` priority, and the Cmd/Ctrl/middle-click and `new_window` branches are all pinned alongside it.
+
+  **Why minor rather than patch**, from the measured `.d.ts`. Optional-izing a property is looser for writers and narrower for readers, so the grade turns on which role the published surface actually plays. In this package `NavigationConfig` occurs only in input positions — `useNavigationOverlay`'s `navigation?:` option and `resolveOverlayWidth`'s parameter — and never in a return type; the package consumes these values and never hands one back. For consumers the change is therefore purely permissive: every call that compiled before still compiles, and spec-shaped configs that previously needed an assertion now compile without one. That gained input shape is a real capability rather than an internal repair, which is more than a patch describes. The reader-side narrowing is real but secondary: code that imports the bare type, annotates its own value with it and reads `.mode` now sees `NavigationMode | undefined`. The in-repo census found exactly one such importer — `ListView` — and it imported the type only to write the assertion this change removes.
+
+- dad805d: Six i18n keys no longer render as raw key strings on hosts with no `I18nProvider` (objectui#4396)
+
+  `detail.saving`, `list.resetSortToDefault`, `appDesigner.widgetProperties`, `appDesigner.addWidget`, `appDesigner.modeEdit` and `common.delete` were read through `createSafeTranslation` without a row in their hook's defaults table and without an inline `defaultValue` at the call site — the only two fallbacks that path has. On a provider-less host (standalone embedding, the preview gallery, host apps that never mount a provider) `fallbackT` therefore returned the key itself, so users saw `detail.saving` in the inline-edit save button, `list.resetSortToDefault` on the sort popover's reset control, `appDesigner.widgetProperties` as the dashboard inspector heading, `appDesigner.addWidget` as its toolbar label, `appDesigner.modeEdit` as a button's accessible name, and `common.delete` on the designer's destructive confirm.
+
+  Each key now has a row in its consumer hook's defaults table, byte-identical to the `en` pack value. No pack was edited, no key added, no call site changed.
+
+- 7f1cb33: List sort: the relational hint stops recommending a formula field, the one type the server refuses to sort by
+
+  The Sort panel withholds columns that link to another record and explains why, and the last sentence of that explanation named the remedy: _add a formula field holding it_. A formula field is exactly what the platform will not order by. The server keeps `UNMATERIALIZED_SORT_TYPES = new Set(['formula'])` and, since objectstack#6994, a sort naming one is a hard `400 INVALID_SORT` — before that it degraded silently, returning every row with `asc` and `desc` byte-identical. So an author who read the hint, followed it, and built a formula field arrived at a refusal; and since #4243 withheld formula fields from this very picker, at a field the panel does not offer either. Two doors, opposite advice, for one problem.
+
+  The remedy sentence now names a **stored, denormalised field — written when the source changes** — and rules the formula field out in as many words: it is virtual, no column is stored for it, and the server refuses to sort by one. That is deliberately the server's own vocabulary rather than a third phrasing of the same fact: objectstack#6924 and objectstack#6994 settled on one wording across the refusal doors so an author refused twice is not sent two different ways, and this is the UI door of that same set. The first half of the hint — why relation columns are withheld at all — is unchanged.
+
+  All ten locale packs move together, as `check:i18n-drift` requires of any `en` edit. The same sentence also lives in `plugin-list`'s provider-less fallback table, which is what renders when the component is used outside an `I18nProvider`; it is updated to match `en` byte for byte, because a pack-only reword would have left the retired advice on exactly the surface this fixes.
+
+- 2e3b0c0: fix(list): an `OBJECT_API_DISABLED` list request renders an honest cannot-work state instead of the empty state
+
+  A list pointed at an object whose `enable` block withholds the API rendered its ordinary
+  empty state, so _"this page cannot work, and never could"_ reached the user as _"you have no
+  records"_ (objectui#4408). The reported instance — `Setup › Advanced › Signing Keys`, whose
+  `sys_jwks` declares `enable.apiEnabled: false` — could not load for any persona and said so
+  to nobody. That is also why the upstream defect objectstack#7544 survived review for its
+  whole life: a merely unpopulated page invites nobody to click through.
+
+  The masking had two halves, in two packages, and neither package could see the other:
+
+  - **`@object-ui/data-objectstack`** (minor — see the grading note below) — `find()` degraded
+    **every** 404 into `{ data: [], total: 0 }` and memoised the resource, so the denial arrived
+    at the surface as a successful empty result, indistinguishable from a genuinely empty
+    object. The two `enable`-block denials are now let through instead: `OBJECT_API_DISABLED`
+    (404) and `OBJECT_API_METHOD_NOT_ALLOWED` (405). The memo skips them too — absorbing one
+    would have pinned the object to "empty" for the rest of the session.
+  - **`@object-ui/plugin-list`** — the load-error panel gained an `api-disabled` kind. The 405
+    half was never swallowed, so it already reached this panel, but classified as `network`:
+    _"check your connection and try again"_ for a condition no retry can change. It now says
+    the object is not exposed through the API, that this is a setting on the object rather than
+    a permission, and it offers **no Retry** button, because every retry re-fetches the
+    identical refusal.
+
+  Both denials are pure functions of the object's metadata — no user, no permission, no
+  context — so neither is transient or per-user, which is exactly the case where a silent empty
+  state is most misleading. Discrimination is on the ADR-0112 `code`, never the status: a
+  missing collection, a missing record and a disabled object are all 404.
+
+  **A genuinely empty object still renders the ordinary empty state**, and a backend without an
+  optional collection still degrades to empty — pinned in both directions, at the adapter, at
+  the view, and once end-to-end over a real adapter and a real `ListView`.
+
+  Also closes a code-propagation gap on the same path: `find()`'s raw `$expand`/`$search`
+  branch bypasses `@objectstack/client` and hand-rolled its own error, stamping only `status`.
+  It now carries the ADR-0112 envelope (`code` + `httpStatus`), so a denial arriving on the
+  branch a list takes whenever it expands a lookup or runs a search is no longer anonymous.
+
+  New strings: `list.loadErrorApiDisabledTitle` / `list.loadErrorApiDisabledMessage`, in the
+  `en` pack and mirrored in the list defaults map.
+
+  ## Grading note — why `@object-ui/data-objectstack` is **minor** and not patch
+
+  Two independent reasons, either of which is sufficient under this repo's precedent
+  (objectui#4403 / #4177, and #4485's grading of `@object-ui/core`'s `toDomProps` lift):
+
+  1. **The emitted `.d.ts` grows two NEW exports.** `isApiAccessDeniedError(error: unknown):
+boolean` and `API_ACCESS_DENIED_CODES` (the readonly tuple
+     `['OBJECT_API_DISABLED', 'OBJECT_API_METHOD_NOT_ALLOWED']`) are added to the package's
+     public surface. Additive surface growth is minor.
+  2. **Observable behaviour on a published API moves.** `ObjectStackDataSource.find()` now
+     **REJECTS** for the two `enable`-block denial codes where it previously **RESOLVED** with
+     `{ data: [], total: 0 }`. No signature changed and nothing was removed, but a caller that
+     relied on those two codes arriving as a successful empty result now receives a rejected
+     promise carrying `code` + `httpStatus`, and must handle it.
+
+  Deliberately unchanged, and still resolving to an empty result exactly as before: a bare 404
+  with no code, `OBJECT_NOT_FOUND` (still memoised) and `RECORD_NOT_FOUND`. The behaviour move
+  is scoped to the two denial codes named above and to nothing else.
+
+  Not major: this follows AGENTS.md's version-alignment rule — objectui's major tracks
+  `@objectstack`'s, so this repo's own breaking semantics are declared as minor with the change
+  described in the body, which is what this note is.
+
+- 31ab1ac: fix(print): `window.print()` produces a usable page, and the Print buttons say what they do
+
+  The list, report and dashboard Print controls were bare `window.print()` calls with no
+  print stylesheet, so the browser printed the whole console — sidebar, top bar, chat rail,
+  toasts — with the data table clipped to a single viewport. With no label to the contrary
+  they were being accepted against "export to PDF" requirements, which they have never been.
+
+  - `@object-ui/app-shell/styles.css` gains a shared `@media print` block: it hides the shell
+    chrome, prints the active content area full-width, releases the viewport-height flex chain
+    so long tables paginate instead of clipping, repeats table headers on every sheet, and
+    neutralises dark mode (which otherwise prints white-on-white). One sheet serves list,
+    report and dashboard.
+  - The list and report Print buttons carry a tooltip and accessible name stating that they
+    open the browser's own print dialog and are not a PDF export (new `common.printDialogHint`,
+    translated in all ten locale packs).
+  - The dashboard's `export_dashboard_pdf` action no longer toasts "Preparing PDF export…" —
+    it names the print dialog it actually opens (`dashboardActions.pdfPreparing` is replaced by
+    `dashboardActions.printDialogOpening`).
+
+  No control was removed and no headless detection was added. A real print/PDF primitive
+  remains out of scope (`objectstack-ai/objectstack#1301`, closed NOT_PLANNED).
+
+- ff84b05: Stop the report config panel being titled "Title", and the view-settings colour section "Color"
+
+  Two call sites asked for a key whose value was written for a different slot, so the rendered copy was wrong (objectui#4118, surfaced by objectui#3810's census).
+
+  `ReportConfigPanel` used `report.editor.title` for both its heading and the accessible name of its `role="complementary"` landmark. That key is the label of the report's Title _field_ — `report.editor.titlePlaceholder` ('e.g. Pipeline by Quarter') sits directly under it in the pack. So the panel was headed "Title", and a screen reader announced a complementary region named "Title", which says nothing about what the region is. A new `report.editor.panelTitle` ('Edit report' — what the call site's own dead fallback said before objectui#3810 aligned it to the pack) now names the panel, in all ten locale packs.
+
+  `ViewSettingsPopover`'s colour section used `list.color`. On the wide toolbar `ListView` already uses both keys correctly for the two slots of this one feature: the compact `Paintbrush` button is `list.color` ('Color') and the panel it opens is headed `list.rowColor` ('Row Color'). This popover is that same panel on the collapsed/`compactToolbar` surface, so it now takes `list.rowColor` — an existing key, no pack change.
+
+  No `en` value of an existing key changed; `scripts/check-i18n-en-drift.mjs` reports 0 en values changed, 1 key added.
+
 ## 17.4.0
 
 ### Minor Changes

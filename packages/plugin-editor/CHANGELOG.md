@@ -1,5 +1,77 @@
 # @object-ui/plugin-editor
 
+## 17.5.0
+
+### Patch Changes
+
+- 8f60d73: `@object-ui/fields` and `@object-ui/plugin-editor` stop publishing their test declarations
+
+  Both packages' build tsconfigs set `include: ["src"]` with no test exclude, so every test file entered the declaration program and its `.d.ts` was written into `dist/`. Both are published (`private` is false, `files` contains `dist`), so those declarations shipped: 85 from `@object-ui/fields` and one from `@object-ui/plugin-editor`. Adding the test exclude the other twenty-odd packages already use removes them.
+
+  Nothing else about either artifact moves. Measured by building each package both ways from a cleared `dist/`, then diffing the file lists: `@object-ui/fields` goes from 163 files to 78 and `@object-ui/plugin-editor` from 6 to 5, every one of the 86 disappearances is a `*.test.d.ts`, no file appears, and all 83 surviving files are byte-identical by sha256 — including each package's entry `dist/index.d.ts`. The entry type surface is therefore unchanged and no import can break; this is the tarball shedding files nothing resolved.
+
+  The type coverage those files were a side effect of did not go with them. Because the build program read the tests, these two packages counted as "tests type-checked" in `scripts/check-type-check-coverage.mjs` — a correct verdict reached through an emit nobody wanted. Excluding the tests alone would have silently dropped 86 test files out of every `tsc` program, so the same change adds a `tsconfig.test.json` per package, chained from each package's `type-check` script, and the coverage gate stays at 41 of 41 packages compiling their tests with zero declared debt on both sides of the change.
+
+- Updated dependencies [ceccdcf]
+- Updated dependencies [d6e5124]
+- Updated dependencies [debad27]
+- Updated dependencies [dc2aa3e]
+- Updated dependencies [ee66e2e]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [f650253]
+- Updated dependencies [3d9769a]
+- Updated dependencies [8f85f8b]
+- Updated dependencies [d0c3b26]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [4dadf0d]
+- Updated dependencies [ae10a01]
+- Updated dependencies [92876f0]
+- Updated dependencies [f279deb]
+- Updated dependencies [4b70d28]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [613b167]
+- Updated dependencies [b4d3c22]
+- Updated dependencies [1f9b905]
+- Updated dependencies [cb13400]
+- Updated dependencies [bc64bfe]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [3e19fe7]
+- Updated dependencies [b953a97]
+- Updated dependencies [d7f3e30]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [a84385b]
+- Updated dependencies [45e1949]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [a3ae404]
+- Updated dependencies [bfdf3d4]
+- Updated dependencies [bb68488]
+- Updated dependencies [b1e42d0]
+- Updated dependencies [2459a3e]
+- Updated dependencies [d6aa172]
+- Updated dependencies [fe52a04]
+- Updated dependencies [3f5f87c]
+- Updated dependencies [f5e1143]
+- Updated dependencies [f148a64]
+- Updated dependencies [bb68488]
+- Updated dependencies [9461dd3]
+- Updated dependencies [47f551b]
+- Updated dependencies [ab04728]
+- Updated dependencies [5bf09fd]
+  - @object-ui/react@17.5.0
+  - @object-ui/components@17.5.0
+  - @object-ui/core@17.5.0
+  - @object-ui/types@17.5.0
+
 ## 17.4.0
 
 ### Patch Changes

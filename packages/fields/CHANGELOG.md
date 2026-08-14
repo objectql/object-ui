@@ -1,5 +1,608 @@
 # @object-ui/fields
 
+## 17.5.0
+
+### Minor Changes
+
+- ebb4e0e: The date formatter's last three en-US channels now follow the display locale
+  (objectui#4272).
+
+  objectui#4468 (PR #4512) pointed every date _renderer_ at `useDisplayLocale()`.
+  Three channels were out of its reach because they are properties of the
+  formatter's signature and of its callers rather than of any renderer, so a `zh`
+  console still met English dates in three places:
+
+  - **`formatDate`'s `'short'` branch** hardcoded
+    `toLocaleDateString('en-US', { month: 'short' })`, so it rendered an English
+    month even when the caller had threaded `options.locale` into that very call.
+    Its only consumers are ObjectGrid's two mobile-card date cells, which threaded
+    no locale — fixing either half alone moves nothing, so both land here.
+  - **`formatDateTime` took no options parameter at all**, so no caller could
+    localize it however hard it tried; it always handed `Intl` an `undefined` tag,
+    which means the MACHINE's locale — neither of the repo's two locale channels.
+    The parameter is optional and lands together with its consumers, plugin-gantt's
+    four tooltip call sites.
+  - **The lookup picker's MongoDB `$date` fallback** called a bare
+    `toLocaleDateString()` with no tag.
+
+  One resolver everywhere, as before: `useDisplayLocale()` (tenant regional
+  default → active UI language → `'en'`). `Intl` accepts `'zh'` verbatim, so there
+  is still no mapping table anywhere.
+
+  English output is byte-identical at every touched site — `en` and `en-US` agree
+  on all twelve short month names — and the `'short'` layout itself is unchanged:
+  only the month token is localized, the compact `"Jan 15, '24"` shape around it
+  is a deliberate fixed layout for narrow cards.
+
+  `@object-ui/fields` is `minor` because `formatDateTime`'s new optional parameter
+  is visible in the package's entry `.d.ts`; the plugin packages' own `.d.ts` files
+  are byte-identical, so their change is module-local.
+
+- 36310dc: `formatPercent` groups its output and follows the display locale — the last
+  tooltip/cell channel (objectui#4553).
+
+  PR #4557 threaded the gantt tooltip's number and currency rows and measured that
+  the percent row could not follow: `formatPercent(value, precision)` took no
+  locale parameter, and its whole body was
+  `${percentDisplayValue(value).toFixed(precision)}%`. It built no
+  `Intl.NumberFormat` and never reached `formatDisplayNumber` — so unlike its
+  siblings it did not render in the MACHINE's locale, it rendered in **no** locale:
+  an ASCII decimal mark, never a grouping separator, byte-identical on every
+  machine.
+
+  **English output MOVES, and that is the fix.** Because the function never
+  grouped, `1235%` was wrong in en-US too, not only in German. Grouping and locale
+  therefore land together:
+
+  |            | before  | after          |
+  | ---------- | ------- | -------------- |
+  | en, 1234.5 | `1235%` | `1,235%`       |
+  | de, 1234.5 | `1235%` | `1.235\u00a0%` |
+  | de, 80     | `80%`   | `80\u00a0%`    |
+
+  Values below the grouping threshold are unchanged in English (`80%`, `12.5%`,
+  `33.33%`), so the move is confined to four digits and up. German changes at every
+  magnitude, because the no-break space before the sign is part of the locale's
+  percent convention — which is what routing through `Intl` buys over appending a
+  literal `%`.
+
+  The scaling contract is untouched: `percentDisplayValue` still disambiguates a
+  fraction-stored percent (`0.8` → 80%) from a whole one, so the list cell and the
+  dashboard measure formatter still agree.
+
+  Consumers are threaded in the same change, the parameter never landing
+  speculatively:
+
+  - **fields** — `PercentCellRenderer`, on BOTH of its paths. Its whole-percent
+    branch (`progress` / `completion` fields, which store 0-100 and must skip the
+    fraction scaling) was a second bare `toFixed` call; leaving it behind would
+    have made one grid internally inconsistent, so both branches now share one
+    locale-aware body and differ only in the scaling policy.
+  - **plugin-gantt** — the tooltip percent row, completing objectui#4553's switch.
+  - **plugin-grid** — the mobile card's percent cell, which sits in the same
+    density row as a date cell objectui#4272 had already localized.
+  - **plugin-dashboard** — `renderFieldValue`'s percent branch. It is a plain
+    function rather than a component, so it takes the locale as an optional fourth
+    parameter beside the `tenantCurrency` already threaded that way, and both of
+    its callers pass it and declare it in their memo dependency arrays.
+
+  Bumps follow each package's own `.d.ts` diff, measured in both directions.
+  `@object-ui/fields` and `@object-ui/plugin-dashboard` are `minor` on the
+  objectui#4272 / PR #4544 precedent — quoted from that changeset: "`@object-ui/fields`
+  is `minor` because `formatDateTime`'s new optional parameter is visible in the
+  package's entry `.d.ts`; the plugin packages' own `.d.ts` files are
+  byte-identical, so their change is module-local." Here `formatPercent` and
+  `renderFieldValue` each gain an entry-visible optional parameter, while
+  plugin-gantt's and plugin-grid's `.d.ts` files are byte-identical and stay
+  `patch`.
+
+- 52d878a: fix(fields): `formatPercent` renders percentage points directly — ties round half-up and extremes keep every digit
+
+  `formatPercent` rendered a value that is already in percentage POINTS through
+  `Intl`'s `style: 'percent'`, which expects a FRACTION, so the body divided by
+  100 for `Intl` to multiply straight back. That round trip is not
+  value-preserving: `Intl` formats from the shortest decimal representation of the
+  double it is handed, and the quotient's is not the authored one. A stored
+  `1.005` at 2 decimals rendered `1.00%` where half-up on the authored decimal is
+  `1.01%`; `1.45` at 1 decimal rendered `1.4%` for `1.5%`. Every case was a
+  last-digit off-by-one — the failure mode least likely to be noticed and most
+  likely to be trusted.
+
+  The body now renders through `style: 'percentPoints'` with no scaling round
+  trip. Measured on this repo's runner (node v22.22.2 / ICU 78.2), 27,577 of
+  1,200,003 ordinary en-US forms move (0.005-step grid to 2,000, precisions
+  0/1/2), and the same artefact at the top of the double range is gone too:
+  `Number.MAX_SAFE_INTEGER` percentage points rendered `9,007,199,254,740,990%`
+  and now render `9,007,199,254,740,991%`.
+
+  The locale percent CONVENTION is unchanged — this is a numeral move only.
+  `'percentPoints'` is `Intl`'s `style: 'unit'` / `unit: 'percent'`, re-measured on
+  this call shape across 720 combinations (10 locales x 18 values x 4 precisions):
+  0 convention differences, 130 numeral differences. The no-break space in
+  de/fr/ru/sv, Turkish's prefixed sign, Arabic's own percent sign and Bengali's
+  digits all render exactly as before. Percent SCALING (a stored fraction below 1
+  scaling by 100) is upstream of the render and untouched.
+
+  A percentage point now reads identically in a list cell and in a dashboard
+  measure, which `formatMeasure` already rendered this way.
+
+- bb68488: Stop declaring 14 symbols under names `@objectstack/spec` owns at `17.0.0-rc.6`
+  (objectui#4167, objectstack#4115).
+
+  The rc.6 bump published nine names this repo already declared locally, on top of
+  four that predate it — `check:spec-symbols` reported all thirteen at once, and a
+  fourteenth (`GlobalFilterSchema`) appeared during the bump itself. Each was
+  triaged on its own rather than blanket-renamed, because the right answer differs
+  per symbol: five bind to the spec, three are renamed because the spec's
+  same-named export means something else, five arrive by derivation, and one is a
+  declared dialect with a written reason.
+
+  **Breaking for importers of `@object-ui/react`, `@object-ui/app-shell` and
+  `@object-ui/types`** — three exported names changed, because the spec exports the
+  same name for a _different_ thing:
+
+  | package               | was                | now                            | what the spec's same-named export actually is                                                                                                          |
+  | :-------------------- | :----------------- | :----------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `react` / `app-shell` | `MetadataState`    | `MetadataCacheState`           | a metadata item's LIFECYCLE state — `'draft' \| 'active' \| 'deprecated' \| 'archived'` (`MetadataStateSchema`, `@objectstack/spec/system`)            |
+  | `react` / `app-shell` | `resolveI18nLabel` | `resolveKeyedI18nLabel`        | a resolver for the INLINE per-locale map (`{ en: 'Owner', 'zh-CN': '负责人' }`) against a BCP-47 locale                                                |
+  | `types`               | `DateRangePreset`  | `FilterBuilderDateRangePreset` | the thirteen HISTORICAL dashboard filter-bar presets; this one is the filter-builder set, which adds eight FUTURE windows the dashboard schema rejects |
+
+  `resolveI18nLabel` is the one where the collision had already started costing
+  something. rc.6 widened `I18nLabel` from `string` to
+  `string | Record< string, string >`, so the same authored value now reaches
+  either resolver — and each answers wrongly, silently, for the other's input: the
+  keyed one returns `undefined` for `{ en: 'Owner' }` (no `key`, no
+  `defaultValue`), and the spec's reads `key` / `defaultValue` / `params` as locale
+  tags. The rc.6 bump PR met this and aliased the spec's import as
+  `resolveInlineI18nLabel` in five files, with hand-written comments at two of
+  them. That is a review convention, which is what objectstack#4115 exists to
+  replace with a rule — so `Keyed` is now the counterpart of that `Inline`, and the
+  name says which vocabulary it resolves at every call site.
+
+  **Eleven keep their names and are now imported or derived from the spec** instead
+  of re-declared: `DATE_RANGE_PRESETS`, `NavigationMode`, `AddressValue`,
+  `BreakpointColumnMap`, `BreakpointOrderMap`, `KanbanConfig`, `CalendarConfig`,
+  `GanttConfig`, plus the three renamed above at their new names.
+
+  **Four of the copies were losing information, not just duplicating it.**
+
+  - **`GanttConfig` declared six keys and called itself canonical; rc.6's
+    `GanttConfigSchema` declares seventeen.** The eleven it never mentioned —
+    `parentField`, `typeField`, `baselineStartField`, `baselineEndField`,
+    `groupByField`, `resourceView`, `assigneeField`, `effortField`, `capacity`,
+    `quickFilters`, `autoZoomToFilter` — are all read by
+    `plugin-gantt/src/ObjectGantt.tsx`, through a local `GanttConfigEx`
+    intersection that existed only because this type did not carry them. It now
+    derives from the spec, with `timeSegments` (shift segmentation) as the one
+    genuinely local extension; the schema is `$loose` upstream, so that key is
+    legal metadata rather than a second dialect.
+  - **`GanttConfig.tooltipFields` carried the comment "not part of the upstream
+    GanttConfigSchema".** It is, as of rc.6, so the key now arrives from the spec.
+  - **`AddressValue` declared five of the spec's seven parts** — `countryCode` and
+    `formatted` were missing, under a comment already claiming to be "the part
+    names of `AddressSchema`". The widget still renders five inputs; binding the
+    type stops it from asserting the platform cannot store the other two, and makes
+    the `{ ...address }` write-through say so.
+  - **`DATE_RANGE_PRESETS` was `Object.keys(PRESET_RANGES)`,** a third copy of a
+    vocabulary the spec extracted in objectstack#4614 precisely to collapse — its
+    own doc comment names this module as one of the three. It is now the spec's
+    array by reference, and the local date-macro bounds table is pinned complete
+    against it with `satisfies`, so a preset the schema gains without bounds here
+    is a compile error rather than a filter that validates clean and then selects
+    nothing.
+
+  `NavigationMode` was one hop from the spec already (`NavigationConfig['mode']`);
+  it is bound directly, with a both-directions type pin that it stays the same type
+  as the config's own `mode`. `KanbanConfig` / `CalendarConfig` /
+  `BreakpointColumnMap` / `BreakpointOrderMap` were exact hand copies of `$strict`
+  schemas and are now re-exports — "still exact" is the argument for binding them,
+  since a copy with nothing to protect can only drift.
+
+  `GlobalFilterSchema` is the one ALLOW entry. It is the same spread-composition
+  dialect as `SelectOptionSchema` next to it, and it collided only because rc.6's
+  new refinement forced `.extend()` to be respelled as a `.shape` spread — which
+  moved a derivation the guard could see into an object literal it deliberately
+  does not descend into. The dialect is unchanged and its three divergences are
+  pinned; which side moves on the refinement itself is objectui#4165.
+
+  `@objectstack/spec` moves from `devDependencies` to `dependencies` in
+  `@object-ui/layout`: its public type surface now references the spec.
+
+### Patch Changes
+
+- e2e6360: A `Field.address` value now reads as a formatted postal address on the record detail page, instead of stringified JSON.
+
+  The display (read) registry mapped `address` straight to `JsonCellRenderer`, so a populated address rendered as `{"street":"中策路 1 号","city":"杭州",…}` — while a `location` field sitting next to it in the same field group rendered formatted, and the create/edit dialog rendered the very same value as proper Street / City / State / ZIP / Country inputs. The gap was display-side only: the input registry has always carried `address`. Both read surfaces the detail page exposes are affected and both are fixed, because they share one `displayValue` path — read mode, and the inline-edit read state (the row carrying the pencil affordance, before a field is actually being edited).
+
+  Layout is not invented for the read side. `AddressField`'s readonly branch already collapsed a stored address to a single line, and that rule — `Street, City, State ZIP, Country`, with `state` and the postal code sharing one comma group — is now the _only_ implementation, moved into a pure `address-format` module that both surfaces call. A readonly form and a detail page therefore cannot spell one stored address two ways; a second copy next to the renderer would have been a rule that drifts. The module is deliberately React-free, so the eagerly-loaded barrel can format a cell without pulling `AddressField` and its inputs out of the lazy widget chunk.
+
+  Partial values degrade the way the readonly line already did: absent, non-string and whitespace-only parts are dropped rather than spaced over, so a street-only address renders as `中策路 1 号` and never as `, , ,` or as the string `undefined`. Legacy records whose postal code was written under `zipCode` (objectstack#5143) still render it, matching what the input widget reads.
+
+  Nothing is silently swallowed by the change: a value the formatter cannot recognize — an object carrying no known part — keeps today's compact-JSON rendering rather than disappearing, and `{}` or a null value shows the usual empty placeholder. A plain string address passes straight through. `location`, `geolocation`, and the genuinely structural `json` / `object` types are untouched.
+
+  The address _input_ is unchanged on every surface, including the create/edit dialog.
+
+- dde7283: `chatbot` and `chatbot-enhanced` now pass only whitelisted DOM props to their host element (objectui#4431)
+
+  Both registrations destructured `schema` and `className` and forwarded everything else. `SchemaRenderer` hands a registered component the authored node's own keys, the contents of its `props` container, the ARIA it resolved and the host's trailing props — so all of it became attributes on the chat root `div`, because React passes unknown lowercase attributes through in silence and stringifies object values. Measured through the real SDUI path with a data-source adapter attached: **14 non-DOM attributes on each widget**, including `datasource="[object Object]"` (the injected adapter, which only appears on a deployment that really loads data) and a camelCase `arialabel` sitting next to the resolved `aria-label`, so the element carried each ARIA value twice under two spellings — one of them meaningless to assistive technology.
+
+  Both are now consume-or-whitelist: configuration is read off `schema` as before, the evaluated `disabled` verdict is consumed by name, and only `toDomProps`' output reaches the element. The resolved `aria-label` / `aria-describedby`, `role`, `id`, `tabIndex` and the `data-*` family still arrive — dropping them would have been an accessibility regression dressed as a leak fix, so the pin asserts the delivered set exactly, not just the absent one. `chatbot-floating` is untouched: its content mounts through a portal and its root never spread.
+
+  `@object-ui/core` gains the shared executor this migration needs (`utils/dom-props.ts`): `toDomProps` for the SDUI widget contract, plus `pickDomProps` — the mechanism — for a package whose own contract declares a different key set. That is the objectui#4409 dependency direction: plugin packages declare `@object-ui/core` and must not grow a dependency on `@object-ui/fields` to reach a whitelist.
+
+  `@object-ui/fields` keeps its own key list and its compile-time bindings, and now executes them through core's mechanism. Its behaviour is unchanged and its exported `DomProps<P>` is the same structural type. The two lists differ for measured reasons and no longer can drift silently: `name` and `disabled` are legal only on form controls, which is what every field widget renders and what `FieldWidgetComponentProps` declares, while `role` is resolved by `SchemaRenderer` for every SDUI node and is not part of the field contract. A new assertion binds every shared key in both directions, with `role` named as the single deliberate exception.
+
+- 0f21348: Currency amounts now follow each currency's own ISO 4217 fraction-digit
+  convention instead of a hardcoded 2 (objectui#4361).
+
+  Both currency formatting paths in `@object-ui/fields` picked a fraction-digit
+  width and handed it to `Intl.NumberFormat`, which OVERRIDES the digit count
+  `Intl` already knows for the currency being rendered. `formatCurrency` derived
+  its width from the VALUE's wholeness alone (`isWhole ? 0 : 2` — a literal 2 for
+  every currency on earth), and `CurrencyField` defaulted an undeclared
+  `precision` to the same literal. So a yen amount was printed with cents the
+  currency does not have and a dinar amount with one digit fewer than it does:
+
+  |              | before         | after       |
+  | ------------ | -------------- | ----------- |
+  | JPY `1234.5` | `¥1,234.50`    | `¥1,235`    |
+  | KWD `1.5`    | `KWD 1.50`     | `KWD 1.500` |
+  | CLP `1234.5` | `CLP 1,234.50` | `CLP 1,235` |
+  | BHD `2.5`    | `BHD 2.50`     | `BHD 2.500` |
+  | USD `1234.5` | `$1,234.50`    | `$1,234.50` |
+  | USD `1234`   | `$1,234`       | `$1,234`    |
+
+  Both call sites now derive the width from the currency itself
+  (`Intl.NumberFormat(undefined, { style: 'currency', currency })
+.resolvedOptions().maximumFractionDigits`, memoized per code) and switch
+  wholeness against THAT.
+
+  **The whole-number convention is extended, not retired.** Simply dropping both
+  bounds and letting `Intl` decide would have fixed the digit count while turning
+  `$1,234` back into `$1,234.00` — the Salesforce convention `formatCurrency`
+  documents and objectui#4033 pinned. A whole amount still drops the fraction, now
+  for every currency: `KWD 1` renders `KWD 1`, not `KWD 1.000`. Two-decimal
+  currencies are byte-identical to before, which is why the objectui#4033 and
+  objectui#4332 pins pass unchanged.
+
+  **On `CurrencyField`, an explicitly authored `precision` still wins** — it is
+  authored metadata and authored metadata keeps priority, so a JPY field declaring
+  `precision: 2` still renders `¥1,234.50`. Only an ABSENT `precision` derives from
+  the currency; because that derivation is the widget's one precision, it also
+  reaches the spinner `step` and the blur rounding, so a JPY field no longer offers
+  a `0.01` step for a currency with no minor unit. Whether a declared `precision`
+  that contradicts the currency's ISO 4217 digits should be REJECTED at publish
+  time is a contract question, filed upstream in `@objectstack/spec` rather than
+  answered here by overriding the author.
+
+  Reachable wherever the resolved currency is not a 2-decimal one — the field's
+  `currency`, `currencyConfig.defaultCurrency`, or the tenant default (ADR-0053).
+
+- d2e2caf: fix(fields): `formatCurrency` keeps both cents digits on a fractional amount
+
+  The symbol branch passed `minimumFractionDigits: 0` against a
+  wholeness-switched `maximumFractionDigits`, which handed `Intl` the range
+  `[0, 2]` — and `Intl` emits the shortest representation in range, so a real
+  cents value of `.50` was printed as `.5`. Any price ending in a zero cent digit
+  rendered one digit short: `$1,234.50` as `$1,234.5`, `$19.90` as `$19.9`,
+  `$0.50` as `$0.5` — money on a record page and in grid cells reading as a data
+  error rather than a formatting one.
+
+  Both bounds now take the same wholeness-switched width, so the function
+  delivers the contract its own doc comment states: a fractional amount shows
+  exactly two digits, a whole amount still drops `.00` (`$1,234`). The
+  no-currency branch and the bad-currency fallback already behaved this way; only
+  the symbol branch disagreed.
+
+  Reaches every consumer of the shared helper: `CurrencyCellRenderer`,
+  `ObjectGrid`, the dashboard `recordFields` and `ObjectGantt`.
+
+- 3a9021e: fields: the currency adornment has one symbol channel
+
+  `CurrencyField` carried the same one-entry fact twice — a dead `CURRENCY_SYMBOLS`
+  map that nothing read, and a live `currency === 'USD' ? '$' : currency` ternary
+  two lines below it. Both were hand copies of knowledge `Intl` already carries,
+  and both are gone: a new `currencySymbol(currency, locale)` beside
+  `currencyFractionDigits()` reads the `currency` part of the very format the
+  widget's readonly branch already renders amounts with.
+
+  USD is unchanged at the display-locale default. Other currencies now show their
+  real symbol instead of the bare ISO code — `€` for EUR, `¥` for JPY, `£` for
+  GBP — which is what the same widget's readonly mode has always displayed; the
+  edit adornment simply stopped disagreeing with it. Currencies CLDR has no symbol
+  for (KWD, BHD, CHF, ISK, CLP) still render their code, exactly as before.
+
+- 8f60d73: `@object-ui/fields` and `@object-ui/plugin-editor` stop publishing their test declarations
+
+  Both packages' build tsconfigs set `include: ["src"]` with no test exclude, so every test file entered the declaration program and its `.d.ts` was written into `dist/`. Both are published (`private` is false, `files` contains `dist`), so those declarations shipped: 85 from `@object-ui/fields` and one from `@object-ui/plugin-editor`. Adding the test exclude the other twenty-odd packages already use removes them.
+
+  Nothing else about either artifact moves. Measured by building each package both ways from a cleared `dist/`, then diffing the file lists: `@object-ui/fields` goes from 163 files to 78 and `@object-ui/plugin-editor` from 6 to 5, every one of the 86 disappearances is a `*.test.d.ts`, no file appears, and all 83 surviving files are byte-identical by sha256 — including each package's entry `dist/index.d.ts`. The entry type surface is therefore unchanged and no import can break; this is the tarball shedding files nothing resolved.
+
+  The type coverage those files were a side effect of did not go with them. Because the build program read the tests, these two packages counted as "tests type-checked" in `scripts/check-type-check-coverage.mjs` — a correct verdict reached through an emit nobody wanted. Excluding the tests alone would have silently dropped 86 test files out of every `tsc` program, so the same change adds a `tsconfig.test.json` per package, chained from each package's `type-check` script, and the coverage gate stays at 41 of 41 packages compiling their tests with zero declared debt on both sides of the change.
+
+- cb13400: One fullscreen long-text editor, hoisted to the package both render paths may import
+
+  The "expand to a full-height dialog" interaction had two independent implementations. `FullscreenTextarea` lived inside the form renderer's built-in (unregistered) `textarea` branch in `@object-ui/components`; `FullscreenFieldEditor` lived in `@object-ui/fields` and served the registered `TextAreaField` / `RichTextField` widgets. They exist because ONE form-level promise — `ObjectFormSchema.mobile.fullscreenLongText`, projected onto every long-text field as `mobile_fullscreen` — is honoured on two render paths, and each path grew its own answer.
+
+  Two copies of a state machine drift, and these did, in both directions: objectui#3400 measured a read-only long-text field that was fully editable through the built-in branch's dialog (and "Done" wrote the edit into form state), objectui#3402 measured the same write-back hole for `disabled` on the registered path, and objectui#3393 (the dialog title needs the field label) and objectui#3272 (the copy needs i18n) each landed on one side before the other. Every repair was correct and none of them scaled.
+
+  `@object-ui/components` now exports `FullscreenEditor`, a single primitive owning the affordance, the dialog, the draft/commit state machine and the copy. The direction follows the measured import graph rather than fighting it: `@object-ui/fields` depends on `@object-ui/components`, and `components` declares no dependency on `fields` in either `dependencies` or `peerDependencies`, so the shared code can only live in `components`. `FullscreenFieldEditor` becomes a thin wrapper over it and keeps its name, its props and its test-id namespaces, so both hosts and their pins are unchanged.
+
+  The load-bearing part of the merge is that the primitive DEFINES `readOnly` and `disabled` instead of inheriting them by accident. Neither copy defined both: the built-in one grew them under objectui#3400, while the fields one declared only `disabled` and was shielded from `readonly` by its hosts' early return — a single implementation cannot be shielded by one caller's control flow. So both are answered once, and both call paths inherit the same answers: `readOnly` renders no affordance at all (it means "shown plainly", so advertising an expand button the user cannot use is worse than showing none), `disabled` leaves an inert one (it means "not interactive, muted"). Neither relies on the toggle alone, because `disabled` also carries the form's `isSubmitting` and can flip to true while the dialog is already open — so opening refuses independently of the attribute, the injected editor is told, "Done" is disabled, and `onCommit` is gated as the single point where a value leaves for host state.
+
+  No copy changed and no locale pack needed an edit: the primitive consumes the same `form.fullscreen.*` / `common.cancel` keys both copies already read, through `createSafeTranslation` with English defaults byte-identical to the literals, so provider-less hosts render exactly what they did. The now-unread `form.fullscreen.*` defaults are dropped from `useFieldTranslation`, where they would have re-created in the defaults map precisely the duplication this change removes from the components.
+
+  `toggleClassName` is not carried into the new primitive. It was declared on `FullscreenFieldEditorProps` and written by nobody — zero producers repo-wide — and `FullscreenFieldEditor` is not exported from the `@object-ui/fields` barrel, so no consumer outside the package could ever have set it. Minting it as part of a NEW public export in `@object-ui/components` would have published a prop with no producer, the shape objectui#3232/#3233 keeps deleting.
+
+- bc64bfe: A dependency-gated option list no longer deletes the field's stored value on mount
+
+  The four fixed-option widgets (`SelectField`, `MultiSelectField`, `CheckboxesField`, `RadioField`) end their cascade resolution with a "drop what is no longer offered" effect, and the form renderer runs an equivalent clear of its own over every option field. Both read `resolveCascadingOptions`, which returns an **empty** offered set whenever the list is _gated_ — a declared `dependsOn` parent is still empty. Nothing the field held could be "still offered" against an empty set, so both paths wrote the field empty **on mount, with no interaction**, while the control rendered "Select Country first" beside it: it told the user it could not offer anything, and deleted what they had.
+
+  Gated means **unknown**, not invalid. The cascade clear exists (ADR-0058) so a user-driven parent change prunes a now-invalid child; a withheld list on mount is missing information — the record simply arrived with its controlling field empty (a later-cleared parent, an import, a partially-migrated row) — and that is not a reason to destroy stored data. Both clears now skip while gated, reading the resolver's own `gated` flag rather than re-deriving it from an empty offered set, which would collide with the distinct never-configured case guarded separately in objectui#4220.
+
+  Convergence stays exactly where it belongs: once the parent **is** chosen and the resolved set genuinely excludes the stored value, the prune applies unchanged — including at the moment the gate lifts, so picking a parent whose list does not contain the old value still clears it on that transition. The three states are pinned apart (never-configured / gated / resolved-and-excludes) across all four widgets and the form host, so a future edit cannot collapse them back into one empty-set test.
+
+  Reachable on every host that mounts these widgets with a live record: the form renderer, the grid's inline cell editor, and the detail page's inline editor — where each `onChange` went straight into the record draft the save bar commits.
+
+- 3e19fe7: i18n copy: one ellipsis glyph across the ten packs, `usted` in the es draft-preview empty state, and a pt sentence that stops contracting `de` onto its own hole
+
+  Three locale-copy defects that no gate could see, because all three are _value_ defects on keys whose names, placeholders and key sets were already correct.
+
+  **One ellipsis (objectui#3878).** `en` ended 33 values with three ASCII full stops (`Loading...`, `Ask anything...`) and 110 with the typographic ellipsis `…`, and the nine translation packs had copied `en` value by value — so a user could read both glyphs on one screen: `common.loading` beside `dashboard.loading`, `console.ai.askAnything` beside its own panel's siblings. All ten packs now spell it `…` (U+2026), per the maintainer-authorized consistency pass registered on objectstack#6015. 312 pack values changed: 34 in `en` (the 33 trailing plus the one mid-sentence `collaboration.commentPlaceholder`) and 278 across the nine. Eleven inline `defaultValue` call sites were re-synchronised with the new `en` text, which `scripts/check-i18n-call-site-keys.mjs` requires byte-for-byte.
+
+  The convention is now pinned so the split cannot regrow: `packages/i18n/src/__tests__/ellipsis-glyph-3878.test.ts` fails, by key name, on any value in any of the ten packs that holds three ASCII full stops. It is deliberately wider than "a trailing `...` in `en`", because the census showed the narrow rule would have shipped with two holes in it — `collaboration.commentPlaceholder` puts the ellipsis mid-sentence, and `list.loading` had the packs wrong while `en` was already right, which no `en`-only rule can see.
+
+  Fifteen module-local **no-provider fallback** entries were moved with the packs, across `useCollaborationTranslation`, `useFieldTranslation`, `useDetailTranslation`, `ObjectGrid`, `KanbanImpl`, `data-table` and `ConnectionStatus`. Those maps exist to render when no `LocalizationProvider` is mounted, and each one's own docblock requires it to stay byte-identical to the `en` pack — a requirement objectui#3440 already enforces mechanically for the collaboration map. Leaving them behind would have made the provider-less path disagree with the provider path on ten keys.
+
+  **es `usted` (objectui#3875).** `preview.empty.notReadyDescription` said `Revisa la conversación` — the tú imperative — in a namespace that is otherwise 23:1 usted, and it renders _underneath the usted draft-preview banner at the same moment_, not before or after it. `Revisa` → `Revise`; nothing else in the sentence carries a register. The neighbouring `approvalsInbox` namespace is legitimately tú and was left alone.
+
+  **pt contraction (objectui#3877).** `ConcurrentUpdateDialog` splits `detail.concurrentUpdateDescription` on `{{field}}` and renders a bolded label in the gap, and pt left a bare `de` in front of that gap. When the multi-field conflict branch passes the record label (`este registro`), Portuguese users read `de este registro` — a contraction error every native speaker sees, and one that no spelling of the leaf value could fix (`deste registro` renders `de deste registro`). The pt sentence is rewritten so the hole is preceded by the verb `afeta` instead of any preposition, which closes the whole class rather than trading `de` for an `em` or `a` that contract just as hard. pt only; `en` is unchanged.
+
+  No behavior, no keys added or removed, no placeholder changed.
+
+- bb58d1d: i18n: the two search placeholders become pack values, and four values the packs served in English get translated
+
+  **objectui#4375** — `ListView` and `LookupField` built their search placeholder as
+  `t(key) + '...'`, so the ellipsis was a literal concatenated in code: it stayed ASCII
+  in all ten locales on screens where objectui#3878 had converged everything else on
+  U+2026, and no pack could opt out of it (sharpest in `ar`, where a left-to-right run
+  was appended to right-to-left text). Both now read `table.search`, which is already
+  the repo's search-input placeholder key — `data-table`, `RecordPickerDialog` and
+  `PeoplePicker` render it too — and is translated with the right ellipsis in all ten
+  packs. No new keys.
+
+  **objectui#4376** — `list.loading` served the English `Loading records…` in eight of
+  the nine translation packs (`zh` alone had translated it); `designer.undo` and
+  `designer.redo` were English in all nine; `appDesigner.snakeCaseHint` in `ko`, `pt`,
+  `ru` and `ar`. All translated, reusing each pack's own established vocabulary. A new
+  pin (`untranslated-identity-4376.test.ts`) fails on any value byte-identical to `en`
+  inside a non-Latin pack unless the key is on an explicit 22-entry allowlist.
+
+- 433ff9f: An image field's declared `maxSize` is enforced before the upload starts, not after it finishes
+
+  `ImageField` received a `maxSize` and ignored it. `paramToField` copies `maxSize` onto the field config for every action param regardless of type, so an image param declared with a 5 MB limit handed the widget its constraint and the widget uploaded anyway: a 6.3 MB PNG fired the full `presigned → PUT → complete` chain and rendered a thumbnail, with no rejection anywhere. The sibling file param, declared the same way, refused the identical pick without a single request. Reported from a QA run driving the two side by side (objectui#4141).
+
+  Both of the widget's upload doors now check the limit first. The native picker rejects oversize picks before any request, keeping FileField's partial-acceptance rule — the in-limit members of a multi-select still upload, and only the oversize ones are reported. The crop dialog is the second door and needed the check in its own right: the cropper re-encodes to PNG, so cropping an in-limit JPEG can produce a blob _over_ the limit, and it is the crop's size that is uploaded. A rejected pick or crop now surfaces the same message the file widget has always shown, in a new error row — this widget had no surface for rejections before, because it never rejected anything.
+
+  The guard itself moved into one shared `maxSizeError` helper that both widgets call, rather than a second copy living in the image widget. The check is the only thing between a declared limit and a real upload, and a per-widget copy is what let these two drift apart unnoticed in the first place. Both widgets also share the existing `fields.file.exceedsMaxSize` message: it names a file and a limit, says nothing file-specific, and is already translated in all built-in locales, so no new key was added and no translation is pending. FileField's own behavior is unchanged — same threshold, same message, same partial acceptance.
+
+  An undeclared `maxSize` still means unrestricted; the falsy check is preserved deliberately, so a missing limit can never be read as a zero-byte one.
+
+- e7663f2: fix(detail): inline edit no longer destroys array values or flattens types on the record page
+
+  `InlineFieldInput`'s type switch ended in a raw text input, and every type it had
+  no branch for landed there: the value was displayed through `coerceToSafeValue`
+  and written back as whatever the user typed — a bare string.
+
+  Two damage classes survived the earlier passes. Array-valued fields (`tags`,
+  `checkboxes`, an options-less multi picklist) were offered for editing as
+  `"a, b"` — `coerceToSafeValue` joins arrays — and saved back as that string, so
+  the array was gone. Type-lossy scalars (`toggle`, `slider`, `progress`,
+  `rating`, `radio`) round-tripped through `String()`, so a boolean column
+  received `"true"`, a numeric one `"42"`, and `radio` accepted any free-typed
+  value its option list never offered.
+
+  Types the switch already routes keep their editors. Everything else that the
+  fields package can edit inline now falls back to `FieldEditWidget` — the same
+  control the form renders, `json` → the code editor included — and only genuinely
+  string-valued types (`text`, `textarea`, `email`, `phone`, `url`) keep the plain
+  input. A drift guard asserts every field type is exactly one of routed /
+  excluded / delegated / benign, so a new type can no longer inherit the
+  value-destroying default in silence.
+
+  `@object-ui/fields`: the four fixed-option widgets no longer clear the stored
+  value when the field declares no `options` at all. An empty offered set had two
+  opposite causes — a list that cascaded to zero (clear) and a list that was never
+  authored (nothing to decide) — and the second deleted the value on mount, which
+  the grid's inline cell editor has always been able to trigger. `FieldEditWidget`
+  also forwards `autoFocus` to the widget it renders.
+
+- b953a97: fix(detail): lookup field values link to the referenced record
+
+  A valued lookup on a record detail page rendered as plain text plus a copy
+  button — the referenced document's name was visible but unreachable, so users
+  copied the number and searched for it from the list page instead. Lookup cells
+  inside a related list that pointed at a third object were dead the same way.
+
+  `LookupCellRenderer` — the one cell renderer both surfaces resolve through —
+  now renders the display value as a link to the referenced record. The display
+  name resolution, the copy affordance and every non-lookup field are unchanged,
+  and a lookup with no value still renders its placeholder rather than an empty
+  link.
+
+  The URL is not assembled in the renderer. `RelatedRecordActionsContext` gains
+  an optional `recordHref` / `openRecord` pair, published by the console's
+  `RelatedRecordActionsBridge` from the SAME builder its related-list row
+  navigation already used, so there is one record-route shape rather than a
+  second one. A host that does not provide it (Studio designer, embedded
+  renderers, standalone grids) renders exactly what it rendered before.
+
+- 45e1949: Numbers render in the user's locale, and a `Field.number` year is no longer `2,026`
+
+  Every numeric field the console rendered went through an `Intl.NumberFormat` built with the locale hardcoded to `en-US` and `useGrouping` never set. Two defects rode in that one construction: a `zh-CN` or `de-DE` console still grouped and pointed decimals the US way, and a four-digit **year** stored as `Field.number({ scale: 0 })` rendered as `2,026` — in every locale, with no field property able to turn it off. Apps had been converting year columns to `Field.text` to escape it, permanently trading numeric comparison, range filters and dataset dimension types for a display detail.
+
+  The construction had been copied into five places — the number cell renderer, the currency cell renderer, the `CurrencyField` widget, the compact `formatNumber` helper, and the dashboard `MetricWidget` — so fixing any one surface never changed the answer. They now share one formatter, `formatDisplayNumber` in `@object-ui/i18n`, which owns the locale and the grouping policy together, plus one locale resolver, `useDisplayLocale`.
+
+  `useDisplayLocale` composes the two locale channels this repo already had rather than adding a third: the tenant's regional default (`useLocalization().locale`, ADR-0053) when an org has configured one, otherwise the active UI language (`useObjectTranslation().language`) so grouping and decimal marks follow a language switch. That second step is what covers the case the report was measured in — a fresh database, where the tenant localization endpoint has no locale to give.
+
+  Grouping is now suppressed when a field declares `scale: 0` and carries no currency, which is what makes years, fiscal periods and other ordinals render plainly. This is an **interim default** with an accepted cost: a large scale-0 _count_ loses its separators too. It holds only until the spec gains an authorable presentation hint, which is being specified separately, contract-first; when that lands it overrides this heuristic.
+
+  Three surfaces deliberately keep their separators, because a zero-decimal display there does not come from a field declaration: the dashboard `MetricWidget` (its decimals are parsed from a numeral.js format pattern, and its own contract calls the separators load-bearing — "`1,930,000` not `1930000`"), the `element:number` aggregate renderer, and every currency path including amounts whose currency code could not be resolved. An **undeclared** `scale` also keeps grouping — absent means "decimals unknown", not "integer".
+
+  `formatCurrency`, `formatCompactCurrency` and `formatNumber` each take a new optional trailing `locale` argument. Existing calls are unaffected; omitting it now follows the runtime default rather than forcing US conventions.
+
+- ac853ce: i18n: retire the reader-less `common.search` key from all ten locale packs
+
+  `common.search` (`Search`, no ellipsis) had exactly one consumer: `LookupField`
+  built its dialog placeholder by concatenating the key with three ASCII full
+  stops. objectui#4375 / PR #4391 retired that concatenation — the placeholder is
+  the reused `table.search` pack value (`Search…`, one U+2026 glyph), which is what
+  brought it under objectui#3878's glyph pin. That left `common.search` with zero
+  readers repo-wide while it still existed in all ten packs.
+
+  Re-verified before deleting, repo-wide: no `t()` call site in any package or app,
+  no MDX or JSON reference, and the one dynamic template-literal reader of the
+  `common` namespace takes a two-member union parameter (`'openChat' |
+'closeChat'`) that cannot resolve to it. No user-visible string changes — this key never rendered.
+
+  The dormant copy in `@object-ui/fields`' no-provider fallback table
+  (`useFieldTranslation.ts`'s `FIELD_DEFAULTS`) goes with it. That table is a
+  module-local `Record<string, string>` read only when no `LocalizationProvider`
+  is mounted; it is not exported, so removing an entry no reader asks for changes
+  no rendered output and narrows no public type. Hence patch for that package,
+  while the pack change is a minor: deleting a key from `en` narrows the exported
+  `TranslationKeys` type (`typeof en`), so code indexing `TranslationKeys` at
+  `common.search` stops type-checking. Same grading, for the same reason, as
+  objectui#4145's `report.editor.*` retirement. No runtime consumer existed to
+  break.
+
+  Retiring a key from `common` was the ruled decision on objectui#4392 rather than
+  keeping it as vocabulary: nothing pins a dormant key's meaning, so its next
+  reader inherits an unreviewed contract, and a dormant key beside a live
+  `table.search` is where a second dialect gets started. The objectui#4328
+  dead-surface family has consistently chosen removal for zero-consumer surfaces.
+
+  The neighbouring `common.select` (minted one commit earlier by objectui#4386 /
+  PR #4397) is a different key and is untouched.
+
+  A negative pin (`packages/i18n/src/__tests__/common-search-retired-4392.test.ts`)
+  fails if the key returns to any pack, if any package reads or re-declares it, or
+  if a dynamic `common.*` reader grows a `search` member — every existing i18n gate
+  runs call site to key, and none of them can see a key with no call site.
+
+- 06915b0: fix(i18n): every date branch threads the active locale, so a `zh` session no longer renders half its dates in English
+
+  Date rendering had two locale channels and only one followed the user's
+  language, so the same row could read `逾期 6 天` in one column and `In 3 days`
+  in the next, with a datetime column showing `8/11/2026 12:00 am`
+  (objectui#4468).
+
+  The overdue phrase resolves through the translate fn (the active UI language),
+  while every `Intl` branch took its tag from the raw tenant locale
+  (`useLocalization().locale`) — which is `undefined` on any workspace that never
+  configured one, and `undefined` makes `Intl` use the _machine's_ locale.
+  `DateTimeCellRenderer` passed no tag at all.
+
+  Every date-formatting site in `@object-ui/fields` now resolves through the one
+  existing channel, `useDisplayLocale()` (tenant regional default → active UI
+  language → `en`): `DateCellRenderer` (relative past, relative future, near-today
+  and the beyond-±7-days absolute fallback), `DateTimeCellRenderer`, the read-only
+  `DateField` / `DateTimeField` / `FormulaField` faces, and the sub-grid's
+  temporal cells. English output is unchanged, and the already-localized overdue
+  wording is untouched.
+
+  No public signature changed. `@object-ui/i18n` carries a documentation
+  correction only: `useDisplayLocale`'s docstring claimed `DateCellRenderer`
+  already formatted from this channel, which was the very thing that was not true.
+
+- Updated dependencies [0e67b53]
+- Updated dependencies [ceccdcf]
+- Updated dependencies [d6e5124]
+- Updated dependencies [debad27]
+- Updated dependencies [dc2aa3e]
+- Updated dependencies [ee66e2e]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [932cbcd]
+- Updated dependencies [734d186]
+- Updated dependencies [f650253]
+- Updated dependencies [3d9769a]
+- Updated dependencies [8f85f8b]
+- Updated dependencies [d0c3b26]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [f7c6430]
+- Updated dependencies [4dadf0d]
+- Updated dependencies [ae10a01]
+- Updated dependencies [92876f0]
+- Updated dependencies [f279deb]
+- Updated dependencies [4b70d28]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [613b167]
+- Updated dependencies [b4d3c22]
+- Updated dependencies [1f9b905]
+- Updated dependencies [cb13400]
+- Updated dependencies [828549a]
+- Updated dependencies [e1ade8f]
+- Updated dependencies [bc64bfe]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [3e19fe7]
+- Updated dependencies [bb58d1d]
+- Updated dependencies [5cc847c]
+- Updated dependencies [fa21254]
+- Updated dependencies [33c32bf]
+- Updated dependencies [66fb4fa]
+- Updated dependencies [b953a97]
+- Updated dependencies [d7f3e30]
+- Updated dependencies [6d641c9]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [a84385b]
+- Updated dependencies [45e1949]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [58bebf6]
+- Updated dependencies [405e808]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [a3ae404]
+- Updated dependencies [bfdf3d4]
+- Updated dependencies [bb68488]
+- Updated dependencies [c0f9a4b]
+- Updated dependencies [b1e42d0]
+- Updated dependencies [2459a3e]
+- Updated dependencies [ac853ce]
+- Updated dependencies [fa51109]
+- Updated dependencies [d6aa172]
+- Updated dependencies [fe52a04]
+- Updated dependencies [d46f9b8]
+- Updated dependencies [3f5f87c]
+- Updated dependencies [2fea4d2]
+- Updated dependencies [f5e1143]
+- Updated dependencies [7f1cb33]
+- Updated dependencies [f148a64]
+- Updated dependencies [bb68488]
+- Updated dependencies [2e3b0c0]
+- Updated dependencies [9461dd3]
+- Updated dependencies [78fa331]
+- Updated dependencies [47f551b]
+- Updated dependencies [31ab1ac]
+- Updated dependencies [0082db8]
+- Updated dependencies [ab04728]
+- Updated dependencies [5bf09fd]
+- Updated dependencies [06915b0]
+- Updated dependencies [ff84b05]
+  - @object-ui/i18n@17.5.0
+  - @object-ui/react@17.5.0
+  - @object-ui/components@17.5.0
+  - @object-ui/core@17.5.0
+  - @object-ui/types@17.5.0
+  - @object-ui/providers@17.5.0
+
 ## 17.4.0
 
 ### Minor Changes

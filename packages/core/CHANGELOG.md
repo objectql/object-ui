@@ -1,5 +1,565 @@
 # @object-ui/core
 
+## 17.5.0
+
+### Minor Changes
+
+- ee66e2e: Close `ActionDef` — delete the `[key: string]: any` index signature and converge `visible` / `disabled` on the spec's unified shape.
+
+  `ActionDef` accepted any key of any type, so a typo (`targt`) and a retired spec
+  key (`execute`) both type-checked and the runner then silently bound no handler
+  — the objectstack#2169 "Mark Done does nothing" shape. Step 1
+  (objectstack#4075) made that audible with a dev-mode warning; step 2 promoted
+  the 18 spec-owned keys to real fields. This is **step 3**, executing the
+  maintainer's 2026-08-06 ruling now that its upstream half shipped in
+  `@objectstack/spec` 17.0.0-rc.6 (objectstack#5970).
+
+  - **`visible` and `disabled` now have ONE shape, derived from the spec** —
+    `boolean | string(CEL) | { dialect, source }`. The ruling was "统一形状,spec
+    采纳": boolean is the degenerate literal verdict, the string is CEL shorthand,
+    the envelope is the full form. `visible` loses its hand-written `| boolean`
+    (the spec adopted that arm, so restating it locally would be a second
+    contract), and `disabled` gains the envelope arm it never had — it was
+    `string | boolean`, which is why the envelope the spec emits could only be
+    read through a cast.
+  - **The index signature is gone.** `tsc` now rejects an unknown or retired key
+    at any site that authors an action literal in code.
+  - **Five keys the deletion surfaced, promoted to real fields.** `to`,
+    `external`, `newTab`, `replace` — the `navigation` alias's own spelling, ruled
+    legitimate by step 1 and listed in `NAVIGATION_ALIAS_KEYS` ever since, but
+    declared only as data; and `description`, which every action renderer forwards
+    (`check:action-forward-parity` requires it) and the param-collection dialog
+    reads for its subtitle (objectui#4192). These were the only two `TS2353`s the
+    deletion produced across the whole workspace.
+  - **`ActionContext` keeps its index signature**, deliberately. It is a runtime
+    data bag whose keys are genuinely open; `ActionDef` is a declared metadata
+    contract. That asymmetry is the point, and it is now pinned in both
+    directions.
+
+  **Breaking edge, deliberate — same class as step 2's, one step further.** An
+  `ActionDef` literal carrying a key this interface does not declare is now a
+  compile error where it previously compiled and did nothing at runtime. That
+  includes the retired `execute` (rename it to `target`; `os migrate meta --from
+16` rewrites it) and plain typos. Values that were only ever absorbed silently
+  are the ones that stop compiling, so the failure moves to where it can be fixed
+  rather than appearing as a button that does nothing.
+
+  **What did NOT retire with the index signature**, contrary to step 1's
+  expectation: the dev-mode `warnOnUnknownActionKeys` shim and `executeScript`'s
+  `execute` rename prescription both stay. `tsc` only ever sees actions authored
+  as TypeScript, while stored `sys_metadata` rows are rehydrated UNPARSED
+  (objectstack#3903) — which is the population `execute: 'markDone'` actually
+  lives in. The two mechanisms cover disjoint populations; retiring the runtime
+  half would have re-opened the gap it was written for.
+
+- 3fc2971: A null-keyed group renders as an explicit bucket instead of silently vanishing from a chart (objectui#4466)
+
+  `buildChartSeries`' single-dimension branch passed rows through verbatim, so a row whose category VALUE is `null` reached recharts with a null category and drew no mark. The visible outcome was not an empty chart but a quietly wrong one: rows `[{user_id: null, event_count: 51}, {user_id: 'Dev Admin', event_count: 2}]` drew exactly ONE bar — the dominant group, 51 of 53 events, dropped while the y-axis scale still accommodated it, so the chart understated its own data and the axis proved the data had been there. With every group null it drew axes, gridlines and an axis title with zero marks and no empty state, which is the shipped first-boot state of the built-in System Overview board's "Events by User" (every seeded `sys_audit_log` row is written with `user_id = NULL`).
+
+  The mapping lives in the shared series layer, so dashboard widgets and standalone `ObjectChart` get one answer rather than a per-chart patch in the recharts wrapper. It resolves the two-answers disagreement the card names as well: an empty result set keeps the designed empty state, a non-empty result always draws bars — the null bucket included.
+
+  `@object-ui/core` gains `NULL_CATEGORY_LABEL` and `ChartSeriesOptions`; `buildChartSeries` and `findChartSeriesRow` each take an optional trailing `options`. Both additive — every existing call site compiles and behaves identically, and a result with no null category is still returned by array identity. The two helpers are a pair on purpose: the caller matches a clicked segment against rows that still carry the raw `null`, so `findChartSeriesRow` reads the bucket label back to that row and the newly-visible bar keeps its drill-through instead of resolving to `-1`.
+
+  The label goes through the i18n channel (`chart.nullCategory`, en `(None)` / zh `(未指定)`, all ten packs), passed down by the renderer: `@object-ui/core` is React-free and cannot read the locale bundle, so it takes the resolved string the same way `dimensionOptionTranslator` takes a resolver. Its English constant is the floor for a provider-less host, not the mechanism.
+
+  `hasNoCategoryKey` (framework#4033) is untouched and now documented against this: a row that does not carry the category key AT ALL is a different defect — a dimension grouped by but never projected — and keeps its explanatory placeholder. The bucket deliberately never ADDS the key to such a row, which is what keeps that guard's signal alive. Key absent → the placeholder; key present with a null value → the bucket.
+
+- dde7283: `chatbot` and `chatbot-enhanced` now pass only whitelisted DOM props to their host element (objectui#4431)
+
+  Both registrations destructured `schema` and `className` and forwarded everything else. `SchemaRenderer` hands a registered component the authored node's own keys, the contents of its `props` container, the ARIA it resolved and the host's trailing props — so all of it became attributes on the chat root `div`, because React passes unknown lowercase attributes through in silence and stringifies object values. Measured through the real SDUI path with a data-source adapter attached: **14 non-DOM attributes on each widget**, including `datasource="[object Object]"` (the injected adapter, which only appears on a deployment that really loads data) and a camelCase `arialabel` sitting next to the resolved `aria-label`, so the element carried each ARIA value twice under two spellings — one of them meaningless to assistive technology.
+
+  Both are now consume-or-whitelist: configuration is read off `schema` as before, the evaluated `disabled` verdict is consumed by name, and only `toDomProps`' output reaches the element. The resolved `aria-label` / `aria-describedby`, `role`, `id`, `tabIndex` and the `data-*` family still arrive — dropping them would have been an accessibility regression dressed as a leak fix, so the pin asserts the delivered set exactly, not just the absent one. `chatbot-floating` is untouched: its content mounts through a portal and its root never spread.
+
+  `@object-ui/core` gains the shared executor this migration needs (`utils/dom-props.ts`): `toDomProps` for the SDUI widget contract, plus `pickDomProps` — the mechanism — for a package whose own contract declares a different key set. That is the objectui#4409 dependency direction: plugin packages declare `@object-ui/core` and must not grow a dependency on `@object-ui/fields` to reach a whitelist.
+
+  `@object-ui/fields` keeps its own key list and its compile-time bindings, and now executes them through core's mechanism. Its behaviour is unchanged and its exported `DomProps<P>` is the same structural type. The two lists differ for measured reasons and no longer can drift silently: `name` and `disabled` are legal only on form controls, which is what every field widget renders and what `FieldWidgetComponentProps` declares, while `role` is resolved by `SchemaRenderer` for every SDUI node and is not part of the field contract. A new assertion binds every shared key in both directions, with `role` named as the single deliberate exception.
+
+- f279deb: fix(core): bare-string filter options — docs/examples stop teaching it, the runtime lift warns (objectui#4356)
+
+  `globalFilters[].options` had two de-facto contracts. `@objectstack/spec`'s `GlobalFilterSchema` accepts only `{ value, label }` pairs, while `normalizeFilterOptions` also lifted a bare-string shorthand (`options: ['EMEA', 'APAC']`) — so a dashboard authored that way rendered correctly in objectui and was refused the moment it reached the platform's validation. That is the "one strict contract beats N dialects" divergence AGENTS.md #0.1 names, with the renderer's tolerance hiding the producer's bug instead of surfacing it.
+
+  Maintainer ruling of 2026-08-12 on objectstack#7917, verbatim 「7917 ②」: **the spec stays strict; the runtime lift retires behind a deprecation window sized by a stored-dashboard survey.** This is Phases 0 and 1 of that window, shipped together. Phase 2 (removing the lift) is scheduled on objectstack#7917 and is deliberately not here.
+
+  **Phase 1 — the lift now says so out loud.** `normalizeFilterOptions` still lifts a bare string, unchanged and mechanically lossless (`'EMEA'` becomes `{ value: 'EMEA', label: 'EMEA' }`), because stored dashboards carry the shorthand and dropping it silently would turn a rendering filter into an empty one. It now also logs a deprecation warning naming the offending filter, quoting the offending values, and printing the canonical replacement. The warning fires **once per offending filter per session** — `resolveDashboardFilterDefs` runs on every dashboard render, and a warning that floods the console is a warning that gets muted — and it is dev-mode only, matching the `warnOnDeprecatedObjectParams` convention in `actions/actionKeys.ts`. It does not fire for canonical object options, and a mixed array names only its bare members, since partial migrations happen. A silent lift can never be retired, because nothing would ever show that the last shorthand document is gone (ADR-0078).
+
+  **Phase 0 — objectui stopped teaching the form.** The stored-dashboard survey on objectstack#7917 found the shorthand's source: objectui's own docs and its schema-catalog corpus — which the catalog's `package.json` declares an AI RAG/few-shot retrieval source — still authored it, so the stored population was still growing. All seven non-test occurrences are corrected to the pair form: `content/docs/guide/dashboard-filters.md` (a code block **and** a prose passage that presented the shorthand as an equal alternative), `content/docs/plugins/plugin-dashboard.mdx`, `packages/plugin-dashboard/README.md`, and the three `examples/schema-catalog` `filtered-dashboard*.json` entries. Warning authors while the docs still taught the form would have been a contradiction users report as a bug.
+
+  **Guardrail.** The schema catalog previously asserted only that its entries were structurally well-formed and rendered without throwing — which is exactly how a spec-invalid example got in. Every `globalFilters[]` entry in every `plugin-dashboard` catalog example is now parsed with the real `@objectstack/spec` `GlobalFilterSchema`, with a non-vacuity control so a broken sweep cannot read as green.
+
+  New export: `resetDashboardFilterWarnings()`, the warn-once memo reset, matching `resetActionKeyWarnings`. Graded `minor` for that additive export — measured, the emitted `.d.ts` gains exactly one declaration and narrows nothing.
+
+- eb7f586: Dashboard dataset measures follow the display locale (objectui#4566).
+
+  `formatMeasure` and `formatDimensionValue` in `@object-ui/core` formatted every
+  value with a bare `undefined` locale tag at all three of their `Intl` sites.
+  `undefined` is not "the user's locale", it is the MACHINE's — neither of the
+  repo's two locale channels. A German session read a dashboard KPI as `1,234.5`
+  next to a grid cell rendering the same number as `1.234,5`, and inverted
+  separators read as a different number, not as an unstyled one.
+
+  Both functions take the display locale as a new OPTIONAL LAST parameter, and
+  `DatasetWidget` threads `useDisplayLocale()` into every site it formats through:
+  the KPI, the grouped table's measure and dimension cells, and the cross-tab's
+  header labels and cells.
+
+  **English output does not move**, and that is the discriminator against the
+  sibling fix. These sites already went through `Intl` with default grouping, so
+  the only thing that changes is WHOSE locale is used:
+
+  |                   | before      | after                 |
+  | ----------------- | ----------- | --------------------- |
+  | en, 1234.5 `0.0`  | `1,234.5`   | `1,234.5` (unchanged) |
+  | de, 1234.5 `0.0`  | `1,234.5`   | `1.234,5`             |
+  | de, 1234.5 EUR    | `€1,234.50` | `1.234,50 €`          |
+  | de, 0.6083 `0.0%` | `60.8%`     | `60,8%`               |
+
+  Contrast objectui#4553, where `formatPercent` had never grouped at all and
+  moving en `1235%` → `1,235%` WAS the fix.
+
+  Omitting the new argument reproduces the previous output byte for byte, so
+  callers that do not thread a locale yet are unaffected.
+
+  Two behaviours are deliberately preserved rather than "improved" alongside the
+  locale fix, both measured:
+
+  - **Integers stay verbatim.** The integer branch renders no separator and no
+    decimal mark, so a locale has nothing to change there — and routing it through
+    `Intl` WOULD change it (a locale with its own numbering system re-digits it,
+    and `1e21` expands to 22 digits).
+  - **The percent sign stays a literal suffix.** `Intl`'s `style: 'percent'`
+    re-scales by 100, and that round trip loses precision at the top of the range
+    (en `100,000,000,000,000,000,000,000%` becomes
+    `99,999,999,999,999,990,000,000%`). The consequence — a German list cell
+    writing `1.234,5 %` with a no-break space where a dashboard measure writes
+    `1.234,5%` — is filed separately rather than smuggled in behind a locale fix.
+
+  `@object-ui/core` is `minor` because two of its ENTRY exports gained an optional
+  parameter (measured in the built `.d.ts`). `@object-ui/plugin-dashboard` is
+  `patch`: its published declarations are unchanged — `buildPivot`'s new optional
+  parameter is internal, as that function is not on the package's `exports`
+  surface.
+
+- e901131: `DatasetResultField` is now `@objectstack/spec`'s `AnalyticsResult.fields[]` element itself, not a hand-written restatement of it
+
+  `packages/core/src/utils/dataset-format.ts` declared its own six-key interface for the analytics result column, under a doc comment describing the server's contract. The key set happened to match the spec today, so nothing was broken — but it was the last surviving member of the derive-don't-restate family (#3613 / #3753 on the parameter side, #3752 on the adapter return side), and it was the member with no compile-time tripwire: three surfaces (`plugin-dashboard`'s `DatasetWidget`, `plugin-report`'s `DatasetReportRenderer`, app-shell's `DatasetPreview`) consume this name AS the real column type, so the next spec column key would simply never appear here and no build would complain. It is now `AnalyticsResult['fields'][number]`, so it cannot lag the contract again.
+
+  **Consumer-visible type tightening (the reason this is a minor, not a patch).** The restatement had relaxed `type` to optional; the contract requires it. Anything that assigned a column literal without `type` — or a bare `{ name, label?, format? }` — to `DatasetResultField` will now fail to compile, and the fix is to supply the `type` the server always sends. Nothing in this repo needed changing: every value of this type originates in `ObjectStackAdapter.queryDataset`, which already declares the spec element, and no consumer reads `.type` at all, so the widening had bought no caller anything while advertising a `string | undefined` the wire never produces. Marked `minor` per the repo's bump policy, which reserves `major` for following `@objectstack/spec` across a major.
+
+  The exported name is unchanged and the `PercentScale` re-export from this module is untouched, so existing import paths keep working. `packages/core/tsconfig.typetests.json` (chained off the package's `type-check`) compiles the new parity test, so the pins are checked by CI rather than merely written down — including a negative pin that goes red if the hand-written interface is ever restored, and the `ChartResultField` superset relationship the module's comment claims.
+
+- d9d3463: Retire four zero-consumer declared surfaces (dead-surface sweep batch 3, #4328). Each was
+  measured as declared-but-never-read at the branch point, and each is removed rather than
+  left as an authoring surface whose values nothing acts on.
+
+  Breaking for anyone who typed against the removed declarations, marked `minor` per this
+  repository's version-alignment convention (the major tracks `@objectstack`, never an
+  API-break count):
+
+  - `@object-ui/core` no longer exports `mergeViewsIntoObjects`. It was a second copy left
+    behind by the move of that step to the provider layer, and it had drifted: it ignored a
+    view container's default `list` and keyed views by the authored bare key instead of the
+    composer's `<object>.<key>` identity. The live implementation — `MetadataProvider`'s, in
+    `@object-ui/app-shell` — is unchanged and remains the only one. (#3775)
+  - `@object-ui/types`' `RoleDefinition` no longer declares `permissions`. A role's grants
+    live in `ObjectPermissionConfig.roles`, keyed by object; that is the only home any
+    consumer reads (`resolveRoles` walks `inherits` and matches on `name`). The removed
+    field was _required_, so five fixtures across three packages had been declaring an empty
+    array for a value nothing would ever look at. Role-attached grants are now a compile
+    error rather than silently ignored data. (#4288)
+  - `@object-ui/react`'s `RecordContextValue` no longer declares `loading` / `error`. Both
+    had zero producers and zero consumers — no host passed them, no `record:*` renderer read
+    them — and only the provider's memo dependency list still named them. Record-level
+    loading and error state stays where it is actually expressed: each renderer's own data
+    source. (#3773)
+
+  No behaviour change, no request-count change:
+
+  - `@object-ui/data-objectstack` drops five `metadataCache.invalidate('views:<object>')`
+    calls across `updateViewConfig` / `createView` / `updateView` / `deleteView`. No read
+    path has ever populated that key — `listViews` fetches directly, uncached — so all five
+    were permanent no-ops. The invalidations of the keys that do have readers
+    (`view:<object>:<viewId>` for `getView`, `view-overrides:<object>` for
+    `listViewOverrides`) are untouched and now pinned. (#3778)
+
+- 38ab505: Retire the `global_nav` Studio designer surfaces, and track the `@objectstack` family at `17.0.0-rc.6` (objectstack#7100 / objectstack#6888).
+
+  ## The retirement
+
+  `global_nav` was an `ACTION_LOCATIONS` member no running-app surface ever rendered. The console's ⌘K palette (`app-shell/src/chrome/CommandPalette.tsx`) builds its groups from nav items, objects, dashboards, pages, reports, recent items, record search and theme; it holds no reference to `global_nav`, to `actionRendersAt`, or to any action-metadata source. An action declaring `locations: ['global_nav']` therefore never reached a user.
+
+  The Studio designer previewed it anyway — a mock frame reading `⌘K · Command palette` with the author's button inside it. That is the sharp edge the maintainer's 2026-08-09 ruling on objectstack#6888 named: an authoring tool promising a surface the product does not have teaches authors, and every AI copying this corpus, to declare dead metadata. `@objectstack/spec` `17.0.0-rc.6` retired the member (7 members → 6) with a named rejection message; this release removes the designer surfaces that outlived it.
+
+  - `metadata-admin/previews/ActionPreview.tsx` — the mock command-palette placement frame is gone. The metadata strip above it still ECHOES whatever `locations` the draft declares, deliberately: reporting what a (possibly stale) draft says is honest, whereas the frame CLAIMED the platform renders it.
+  - `metadata-admin/inspectors/ActionDefaultInspector.tsx` — the `global_nav` entry is gone from `LOCATION_LABELS`. That map is typed `Record< ActionLocation, string >`, so the retirement reached it as a compile error rather than as a silently stale dropdown — the mechanism objectui#3017 installed, firing as designed.
+  - `metadata-admin/previews/block-config.ts` — the `record:quick_actions` location dropdown no longer offers it, and both locale tables drop the now-orphaned `…option.location.global_nav` key.
+  - `@object-ui/components`' `action:bar` doc comment is aligned. The component's published enum is `[...ACTION_LOCATIONS]`, so it followed the retirement on its own; only the prose was stale.
+
+  `@object-ui/core`'s `ActionEngine.getActionsForLocation` is **unchanged and still answers a literal string match**. Narrowing it to the six live members would put a second rejection point beside the schema's — the tolerant-consumer shape the strict-contract rule forbids, inverted. Enforcement stays where it belongs: the parameter type is now six-membered so no type-correct caller can spell the retired value, and `ActionLocationSchema` rejects it by name at authoring and publish time.
+
+  ## The dependency move
+
+  All 37 `@objectstack/*` declarations across 30 `package.json` files move from `^17.0.0-rc.5` to `^17.0.0-rc.6`, and `pnpm-lock.yaml` resolves one copy of each family package at rc.6. The siblings move with `spec` because `client` / `formula` / `lint` pin it **exactly** — leaving them behind would keep two copies of the spec in the tree, the split brain objectui#3560 called out.
+
+  Bumping the pin and repairing the fallout cannot be split: at rc.5 the `Record< ActionLocation, string >` above is missing a key, at rc.6 it has an excess one.
+
+  ## Breaking, in FROM → TO form
+
+  - **`@object-ui/types`' `Theme` now binds the spec's `Theme`, not `ThemeInput`.** rc.6 retired every `…Input` alias and moved the bare name onto the `z.input` side (`X` = `z.input`, `XParsed` = `z.infer`). The runtime shape and this package's exported name are unchanged — `Theme` was, and still is, the AUTHORING shape where `mode` is optional. Re-pointing at `ThemeParsed` would have been the silent swap.
+  - **`SpecReport` / `SpecReportChart` re-point to `ReportParsed` / `ReportChartParsed`, and `SpecReportInput` / `SpecReportChartInput` to `Report` / `ReportChart`.** Same rename, same rule: each local alias keeps the SIDE it had at rc.5.
+  - **`@object-ui/types` no longer re-exports `I18nObject`, `LocaleConfig`, `PluralRule`, `DateFormat` or `NumberFormat`** — all five were retired by rc.6. They were dead re-exports here: nothing in this repo imported them from `@object-ui/types` (`@object-ui/i18n`'s formatter vocabulary in `utils/spec-formatters.ts` is locally declared and never bound the spec symbols). `I18nLabel` survives and is unchanged as a name.
+  - **`I18nLabel` itself widened from `string` to `string | Record< string, string >`** — rc.6 folded the retired `I18nObject`'s per-locale map into it and ships `resolveI18nLabel(label, locale)` as the shared resolver. Every read in this repo that lands in a text slot now goes through that resolver, so an inline map renders its locale instead of `[object Object]`. Reads the compiler cannot see are audited separately in objectui#4163.
+  - **`@object-ui/types`' `GlobalFilterSchema` derives via `.safeExtend`, not `.extend`.** rc.6's `GlobalFilterSchema` carries a refinement and zod 4 refuses `.extend()` on a refined object outright, which threw at module load. `.safeExtend` is zod's prescribed replacement and KEEPS the refinement, so the spec's cross-field rule now also runs on this package's dialect — which is the intended behaviour, since the pinned divergences widen individual fields and were never meant to switch off a whole-object rule.
+
+- 92250d6: One home for the number-display policy — and a percent stops meaning two different things between a list cell and a dashboard measure
+
+  `formatDisplayNumber`, `shouldGroupDisplayNumber` and `DisplayNumberFormatOptions` move from `@object-ui/i18n` into `@object-ui/core`. `@object-ui/i18n` re-exports all three under the same names, so every existing import path keeps working unchanged and both spellings resolve to the same function object; nothing published was removed.
+
+  The move is what fixes the bug. `@object-ui/core`'s `formatMeasure` needed exactly this policy and could not import it — `core` is the React-free engine and is a runtime dependency of React-free consumers (the `object-ui` VS Code extension, `@object-ui/data-objectstack`), while `i18n` depends on `i18next`/`react-i18next` and peer-depends on React. So `formatMeasure` carried a parallel `Intl` implementation, recorded at both ends as deliberate duplication, and the two drifted in the one place a hand-built string and `Intl` disagree. A German session read `1.234,5 %` from a list cell and `1.234,5%` from a dashboard measure showing the same number. The function is pure, so the boundary was never a property of the code — only of where the code sat; moving it down removes the obstacle instead of working around it. `core` imports nothing from `i18n`, so the new edge adds no cycle.
+
+  **Behaviour change — a measure's percent sign now follows the locale.** `formatMeasure` appended a literal `%` in every locale; it now renders the locale's own percent convention, the same one the list-cell `formatPercent` has used since the fix to its own machine-locale defect. Measured to change output in de, fr, es, ru, sv, cs, fi (a no-break space appears before the sign), tr (the sign moves to the FRONT: `%1.234,5`) and ar (its own percent sign plus U+061C). English, Japanese and Chinese are byte-identical — their convention is a bare trailing sign — which is why this was invisible in an English session.
+
+  **No numeral moves, in any locale, at any magnitude.** The obvious route to the locale's convention is `Intl`'s `style: 'percent'`, but that style expects a fraction, so a value already in percentage points would have to be divided by 100 for `Intl` to multiply it straight back — and that round trip is lossy. Measured, it moves 27,581 of 1,200,013 ordinary-magnitude en-US forms at rounding ties (`0.175` at two decimals becomes `0.17%` instead of `0.18%`), plus `MAX_SAFE_INTEGER` and everything from 1e23 up, where `100,000,000,000,000,000,000,000%` becomes `99,999,999,999,999,990,000,000%`. The percentage points are formatted directly instead, through a new `style: 'percentPoints'` on `DisplayNumberFormatOptions`; that route was measured to produce a byte-identical percent affix to `style: 'percent'` across all 171 locale tags tested while moving none of those 1,200,013 forms. Callers holding a fraction keep using `style: 'percent'`, whose behaviour is unchanged — naming the two cases apart is what stops the next caller from reaching for the lossy one.
+
+  `@object-ui/i18n`'s entry declaration is byte-identical, but the declaration it points at now lives in `@object-ui/core` and the package gains that dependency, so it takes the same minor bump rather than a patch.
+
+- c1d939f: One `SchemaNode`, and one label vocabulary — the union wins, and labels resolve where the locale lives
+
+  Two packages published a type called `SchemaNode` and they were not the same type. `@object-ui/core` hand-declared `interface SchemaNode { type: string; … [key: string]: any }`; `@object-ui/types` exported `type SchemaNode = BaseSchema | string | number | boolean | null | undefined`, whose own doc comment names `'Plain string'` a valid node. Both were exported under one name from packages the same consumers import together, so which declaration a call site got depended on which package it happened to import from — #4548's canary measured 19 of 35 errors as exactly that collision. Core's declaration is now a re-export of types', so there is one declaration left to disagree with. Core's entry surface is unchanged: `dist/index.d.ts` is byte-identical across the change.
+
+  Reconciling it exposed a real defect rather than a mechanical narrowing, which is why the first attempt was withdrawn instead of forced. The spec bridges write `spec.label` — the spec's `I18nLabel`, an INLINE locale map like `{ en: 'Owner', 'zh-CN': '负责人' }` — into `node.label`, and `BaseSchema.label` declared `string`. Under core's old index signature that assignment was invisibly `any`; under one honest `SchemaNode` it is a type error. `BaseSchema.label` and `.description` therefore now accept `string | I18nLabel`, and the two bridge assignments compile with their expressions untouched.
+
+  Resolution happens at READ time, in the renderer, against the display locale — not at the bridge. Resolving at the bridge was measured unimplementable: it is a plain class method that cannot call a hook, `BridgeContext` declares no locale, and `updateContext()` has zero callers, so a bridge-resolved label would freeze one audience's language into the node tree with no re-translation channel. React's own invalidation re-translates for free at the read site.
+
+  The widening turned every blind `schema.label`-as-string read into a named compiler error, and that inventory is the audit: it named four sites repo-wide, all one class — the label reaching a React child position, where a map does not render as `[object Object]` but THROWS `Objects are not valid as a React child`, failing the whole subtree. Three are `@object-ui/components` renderers (`filter-builder`, `sidebar-group`, `dropdown-menu`), which now resolve with the spec's own `resolveI18nLabel` against `useDisplayLocale()`. The fourth is `plugin-dashboard`'s `DashboardGridLayout` heading, which resolves with `pickLocalized` against the active UI language — matching the widget-title resolution already in that same component rather than putting two resolvers and two disagreeing locale channels in one render; the two resolvers are limb-for-limb twins with a parity test pinning them.
+
+  One interface now carries both label vocabularies two properties apart — `label`/`description` are the spec's INLINE map, `ariaLabel` is the KEYED bundle reference — and each accepts the other's shape vacuously. That confusability is objectui#4167's known hazard, inherent to the spec's `I18nLabel` design; both shapes are named with cross-referenced doc comments stating which resolver owns which slot, and a pin asserts the two unions do not collapse into each other.
+
+  Finally, the spec bridges declare their return type as `BaseSchema` instead of the union. Both bridges end in a single `return node` on an object literal, so the union described nothing real while forcing a narrowing at every read — 272 mechanical errors across five suites in the first round. That change is a type annotation only; the emitted JavaScript is byte-identical.
+
+- 2459a3e: Retire `ActionEngine`'s event-mapping API (objectui#3368). `ActionEngine.addMapping()`,
+  `ActionEngine.dispatch()`, the private `mappings` registry behind them, and the exported
+  `ActionMapping` interface are removed under enforce-or-remove: all four were public surface
+  of `@object-ui/core` with zero production callers. Nothing in the repo ever registered a
+  mapping, so `dispatch()` had no reachable caller either, and every call site was in the
+  engine's own test file.
+
+  Breaking for anyone who typed against or called the removed declarations, marked `minor`
+  per this repository's version-alignment convention (the major tracks `@objectstack`, never
+  an API-break count). Actions are still entered by name (`executeAction`), by location
+  (`getActionsForLocation`), by shortcut (`handleShortcut`) and in bulk (`executeBulk`) —
+  only the event-keyed entry point is gone, and no runtime behaviour changes because no
+  runtime path reached it.
+
+  The three ways the retired condition gate had drifted from the `visible` contract that
+  `getActionsForLocation` implements die with the path rather than being fixed on it: it
+  entered on a raw truthy check (`condition: false` dispatched anyway), typed `condition` as
+  `string` only (a `{ dialect: 'cel', source }` envelope could not reach the canonical
+  `@objectstack/formula` engine), and evaluated without `throwOnError` (a throwing predicate
+  failed OPEN, the opposite of `visible`'s fail-closed posture). Aligning the contract of an
+  API nobody calls would only have widened behaviour nobody uses.
+
+- fe52a04: `rowHeightToDensityMode` answers only for the five spec row heights — the coerce-to-`comfortable` fallback is gone
+
+  Two surfaces narrow a list view's `rowHeight` onto the renderer's three-step
+  density vocabulary, and since objectui#4352 they answered differently for the
+  same off-spec input: `@object-ui/react`'s spec bridge declined to answer, while
+  `@object-ui/core`'s `rowHeightToDensityMode` rehabilitated anything unknown into
+  `comfortable`. One metadata-driven system, two answers for one input
+  (objectui#4440).
+
+  The strict answer wins, per AGENTS.md #0.1: a renderer-side rehabilitation of
+  off-spec metadata is a second de-facto contract, and one strict contract beats N
+  dialects — a bad `rowHeight` gets fixed at the producer, where the schema already
+  rejects it. The five mappings themselves are untouched (`compact`/`short` →
+  `compact`, `medium` → `comfortable`, `tall`/`extra_tall` → `spacious`), and the
+  table keeps its `Record< RowHeight, … >` typing, so a row height added upstream
+  still fails the build here.
+
+  **Breaking semantics, deliberately graded `minor`** (this repo never publishes
+  `major` — its major tracks `@objectstack`). Two things change:
+
+  - **Published type.** `rowHeightToDensityMode` is exported from
+    `@object-ui/core`, and its return widens from `DensityMode` to
+    `DensityMode | undefined`. A host assigning the result straight into a
+    `DensityMode` now has to say what an off-spec row height should mean to it.
+  - **Rendered output, for input the spec already rejects.** `ListView` — the one
+    in-repo caller — used to render an off-spec `rowHeight` one step looser than an
+    ABSENT one (`comfortable`, 40px rows, vs `compact`, 32px). It now renders it
+    exactly like an absent one, `compact`, which is also `ObjectGrid`'s own default.
+    A sweep of this repo, the `objectstack` example apps and one downstream app
+    found zero authored off-spec values, and the legacy `densityMode` alias cannot
+    produce one (`DENSITY_MODE_TO_ROW_HEIGHT` is typed
+    `Record< DensityMode, RowHeight >`).
+
+  Also closed while retiring the branch: the lookup guarded membership with `in`,
+  which walks the prototype chain, so `rowHeight: 'toString'` returned
+  `Object.prototype.toString` — a function — from something typed `DensityMode`. It
+  is an own-property check now.
+
+- bb68488: Stop declaring 14 symbols under names `@objectstack/spec` owns at `17.0.0-rc.6`
+  (objectui#4167, objectstack#4115).
+
+  The rc.6 bump published nine names this repo already declared locally, on top of
+  four that predate it — `check:spec-symbols` reported all thirteen at once, and a
+  fourteenth (`GlobalFilterSchema`) appeared during the bump itself. Each was
+  triaged on its own rather than blanket-renamed, because the right answer differs
+  per symbol: five bind to the spec, three are renamed because the spec's
+  same-named export means something else, five arrive by derivation, and one is a
+  declared dialect with a written reason.
+
+  **Breaking for importers of `@object-ui/react`, `@object-ui/app-shell` and
+  `@object-ui/types`** — three exported names changed, because the spec exports the
+  same name for a _different_ thing:
+
+  | package               | was                | now                            | what the spec's same-named export actually is                                                                                                          |
+  | :-------------------- | :----------------- | :----------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `react` / `app-shell` | `MetadataState`    | `MetadataCacheState`           | a metadata item's LIFECYCLE state — `'draft' \| 'active' \| 'deprecated' \| 'archived'` (`MetadataStateSchema`, `@objectstack/spec/system`)            |
+  | `react` / `app-shell` | `resolveI18nLabel` | `resolveKeyedI18nLabel`        | a resolver for the INLINE per-locale map (`{ en: 'Owner', 'zh-CN': '负责人' }`) against a BCP-47 locale                                                |
+  | `types`               | `DateRangePreset`  | `FilterBuilderDateRangePreset` | the thirteen HISTORICAL dashboard filter-bar presets; this one is the filter-builder set, which adds eight FUTURE windows the dashboard schema rejects |
+
+  `resolveI18nLabel` is the one where the collision had already started costing
+  something. rc.6 widened `I18nLabel` from `string` to
+  `string | Record< string, string >`, so the same authored value now reaches
+  either resolver — and each answers wrongly, silently, for the other's input: the
+  keyed one returns `undefined` for `{ en: 'Owner' }` (no `key`, no
+  `defaultValue`), and the spec's reads `key` / `defaultValue` / `params` as locale
+  tags. The rc.6 bump PR met this and aliased the spec's import as
+  `resolveInlineI18nLabel` in five files, with hand-written comments at two of
+  them. That is a review convention, which is what objectstack#4115 exists to
+  replace with a rule — so `Keyed` is now the counterpart of that `Inline`, and the
+  name says which vocabulary it resolves at every call site.
+
+  **Eleven keep their names and are now imported or derived from the spec** instead
+  of re-declared: `DATE_RANGE_PRESETS`, `NavigationMode`, `AddressValue`,
+  `BreakpointColumnMap`, `BreakpointOrderMap`, `KanbanConfig`, `CalendarConfig`,
+  `GanttConfig`, plus the three renamed above at their new names.
+
+  **Four of the copies were losing information, not just duplicating it.**
+
+  - **`GanttConfig` declared six keys and called itself canonical; rc.6's
+    `GanttConfigSchema` declares seventeen.** The eleven it never mentioned —
+    `parentField`, `typeField`, `baselineStartField`, `baselineEndField`,
+    `groupByField`, `resourceView`, `assigneeField`, `effortField`, `capacity`,
+    `quickFilters`, `autoZoomToFilter` — are all read by
+    `plugin-gantt/src/ObjectGantt.tsx`, through a local `GanttConfigEx`
+    intersection that existed only because this type did not carry them. It now
+    derives from the spec, with `timeSegments` (shift segmentation) as the one
+    genuinely local extension; the schema is `$loose` upstream, so that key is
+    legal metadata rather than a second dialect.
+  - **`GanttConfig.tooltipFields` carried the comment "not part of the upstream
+    GanttConfigSchema".** It is, as of rc.6, so the key now arrives from the spec.
+  - **`AddressValue` declared five of the spec's seven parts** — `countryCode` and
+    `formatted` were missing, under a comment already claiming to be "the part
+    names of `AddressSchema`". The widget still renders five inputs; binding the
+    type stops it from asserting the platform cannot store the other two, and makes
+    the `{ ...address }` write-through say so.
+  - **`DATE_RANGE_PRESETS` was `Object.keys(PRESET_RANGES)`,** a third copy of a
+    vocabulary the spec extracted in objectstack#4614 precisely to collapse — its
+    own doc comment names this module as one of the three. It is now the spec's
+    array by reference, and the local date-macro bounds table is pinned complete
+    against it with `satisfies`, so a preset the schema gains without bounds here
+    is a compile error rather than a filter that validates clean and then selects
+    nothing.
+
+  `NavigationMode` was one hop from the spec already (`NavigationConfig['mode']`);
+  it is bound directly, with a both-directions type pin that it stays the same type
+  as the config's own `mode`. `KanbanConfig` / `CalendarConfig` /
+  `BreakpointColumnMap` / `BreakpointOrderMap` were exact hand copies of `$strict`
+  schemas and are now re-exports — "still exact" is the argument for binding them,
+  since a copy with nothing to protect can only drift.
+
+  `GlobalFilterSchema` is the one ALLOW entry. It is the same spread-composition
+  dialect as `SelectOptionSchema` next to it, and it collided only because rc.6's
+  new refinement forced `.extend()` to be respelled as a `.shape` spread — which
+  moved a derivation the guard could see into an object literal it deliberately
+  does not descend into. The dialect is unchanged and its three divergences are
+  pinned; which side moves on the refinement itself is objectui#4165.
+
+  `@objectstack/spec` moves from `devDependencies` to `dependencies` in
+  `@object-ui/layout`: its public type surface now references the spec.
+
+### Patch Changes
+
+- ee26e65: Analytics: the dimension label net's fetch-and-memo glue is written once, not once per surface
+
+  PR #4388 (objectui#4330) put the same React glue on two surfaces — the dashboard's `DatasetWidget` and plugin-report's dataset block. The resolution RULES were never duplicated (both call the same `@object-ui/core` helpers), but the wiring around them was: read the object schema through the host's authenticated `apiFetch`, keep the fetched metadata locale-free in state, derive the label maps in a render memo. Two copies meant two statements of the same two bug fixes, which is a drift surface rather than a defect — nothing a user could hit today, filed as objectui#4389 so it was retired deliberately.
+
+  It is now split along the layer that can actually hold each half. `@object-ui/core` gains the React-free parts — `loadDimensionFieldMeta` (the base-object read composed with the dimension walk), `deriveDimensionLabelMaps` (the locale-applying derivation) and `dimensionOptionTranslator` (binding the bundle resolver to the object that OWNS a terminal field, which for a dotted path is the relationship target). `@object-ui/react` gains `useDatasetDimensionLabels` / `useDatasetDimensionMeta`, the React wiring that cannot live in core, beside the `useViewData` / `useElementDataSource` / `useDiscovery` hooks that already read `SchemaRendererContext` the same way. Both plugins consume it; the dashboard keeps its chart-only per-category colour and category-order derivation layered locally, since a table renders no palette.
+
+  The card originally proposed `@object-ui/core` as the whole glue's home. That home was disproven by measurement and retired in the card's PM RULING #2: `SchemaRendererContext` is defined in `@object-ui/react`, which depends on core, so core importing it back is a cycle — and core is React-free by declaration, by content, and by the topology in AGENTS.md. objectui#3367 had already ruled this direction for the same family (core-canonical logic, react re-exports).
+
+  Behaviour is unchanged by construction: same read count, same best-effort fallback, same memoization boundary. The two bug fixes are now stated once and pinned at the shared hook — the read rides the host's authenticated `apiFetch` (objectui#4121, pinned by asserting that a new channel re-issues the read, i.e. that it really is in the effect's deps), and the fetched metadata stays locale-free (objectui#4030 / PR #4324, pinned by switching language at runtime and asserting the labels flip with no second metadata read). All 39 assertions PR #4388 landed across both surfaces pass unchanged, and their files are byte-identical to before.
+
+- 5900ac5: Analytics surfaces now run resolved select-option labels through the locale bundle — the chart legend and the related list on one page stop disagreeing
+
+  A dashboard widget grouped by a `select` field rendered the option's authored English label while the related list beside it rendered the translation. The decisive evidence in objectui#4030 is the stored value `orion`: the chart read `Orion Engineered Carbons`, a string with no resemblance to the value and matching the object's `label` byte for byte. So the analytics path had already RESOLVED the option label — it simply never ran the result through the i18n bundle before display. (`domestic → Domestic` differs from its value by case alone, which is why the first diagnosis, "the report groups by stored value", was wrong.)
+
+  There is exactly one resolution channel and this change reuses it rather than adding a chart-side dialect: `fieldOptionLabel` from `useObjectLabel`, i.e. `{ns}.fieldOptions.<object>.<field>.<value>` — the convention `@objectstack/spec` names objectui as the reader of, and the one list, form, kanban and record-picker surfaces already translate select options through. The bundle is applied ONCE, at the output of the label net that landed in objectui#4053/#4263, on the shared option list every consumer reads: chart axis and legend, the table/pivot cells of a dotted dimension, that table's CSV export, per-category colours and the declared category order. `@object-ui/core` gains `localizeFieldOptions` (the pure mirror of `translateOptions`), an optional translator on `buildDimensionLabelMap`, and `resolveDimensionFieldMeta` — the same single relationship walk `resolveDimensionFieldOptions` performs, now keeping the object that OWNS the terminal field, because for `crm_account.industry` the bundle key is `crm_account`, not the dataset's base object.
+
+  Two properties the fix is shaped around. The rows reach this net keyed either way — by stored value when the server did not resolve the dimension, by the English label when it did (ADR-0021) — and the reported screen is the second case, so the map answers to both keys and lands on the same translated display. And identity is untouched: `relabelDimensions` still rewrites display only, so a drilled chart segment clicked as `欧励隆` filters by `orion`, bucket ids and pivot totals keep their raw keys, and an option with no bundle entry (or an `en` console) renders exactly the authored label it renders today.
+
+  The per-locale work moved from the metadata fetch into the render, so switching language now re-labels in place instead of waiting for a refetch.
+
+  Not covered, and unchanged here: a LOCAL select dimension on a table/pivot, whose label the server resolves and whose client-side net is deliberately off (objectui#4263), and a dashboard global filter's own field label, which has no object name in its metadata to key a bundle lookup with — tracked on objectui#4030.
+
+- aca27fa: The multi-dimension pivot branch buckets a null first-dimension value instead of dropping its bar (objectui#4497)
+
+  `buildChartSeries`' pivot branch (2+ dimensions, single measure) bucketed rows by `String(xRaw ?? '')` but wrote the RAW value into the emitted row, so a null first-dimension value produced `{status: null, Low: 3}` and reached recharts with a null category — which draws no mark. Measured at the DOM: a two-group pivot drew ONE bar, and an all-null pivot drew axes and gridlines with zero bar rectangles and no empty state. That is the same mechanism objectui#4466 fixed one branch below, on the branch that card deliberately left pinned as-is until the pivot's own bucketing had been measured.
+
+  The pivot now maps a null/undefined first-dimension VALUE to the same bucket label the single-dimension branch uses — `ChartSeriesOptions.nullCategoryLabel`, defaulting to `NULL_CATEGORY_LABEL`. One doctrine, one predicate, two call sites; no new export, and every existing call site compiles and behaves identically.
+
+  The bucket KEY is untouched, which is what keeps this a display fix: `String(xRaw ?? '')` still decides which rows share a bar, so every existing grouping is byte-identical and only the label the bucket carries changes. Rows that lack the category key entirely are still not bucketed — that shape is a dimension grouped by but never projected (framework#4033), a different defect with a different answer.
+
+  Drill-through needed no change, which was measured rather than assumed: the pivot's emitted rows are AGGREGATED, so they are not index-aligned with `drillRawRows` and the one production caller (`DatasetWidget.handleChartDrill`) already drills by SEARCHING the raw rows through `findChartSeriesRow`. Those raw rows still carry their null, and objectui#4466's label-matching covers the multi-dimension arm as well as the single-dimension one, so the newly-visible bar resolves to the right record. Pinned at both levels so a regression in either half surfaces as the dead click it would be.
+
+- 613b167: A dataset dimension on a dotted relationship path now renders its option labels instead of the raw stored enum
+
+  A `DatasetDimension` whose `field` is a relationship path (`crm_account.industry`) got no select-option resolution at all: the chart plotted `education`, `finance`, `manufacturing` — the database column, unresolved — while the **same underlying field** reached as a **local** dimension rendered `Education`, `Finance`, `Manufacturing` beside it on the same dashboard. Nothing errored, so the widget just quietly showed database enum values to end users; on a non-English deployment those are words that appear nowhere else in the UI, since every form and list shows the translated label.
+
+  The label lookup read options as `baseObject.fields[<path>]`, which only ever matches the local spelling. For a dotted path the options live on the **related** object, so the lookup missed and the renderer fell through to the stored value.
+
+  The object-resolution step of that one lookup now walks the path: each segment before the last must be a declared relationship (`lookup` / `master_detail`, target read from `reference` / `reference_to` / `referenceTo` / `reference_to_object`), and the terminal field's options are read off the object that actually owns it. This is the same lookup for both spellings rather than a dotted-path variant beside it — a single-segment path never enters the walk and resolves exactly as before, so the local and joined paths cannot drift apart. Multi-hop paths (`crm_account.owner.department`) resolve too, which is the shape the dataset designer already emits.
+
+  Hops ride the caller's existing `GET /meta/object/:name` channel — the same authenticated read that fetched the base object — so no new fetch layer is introduced, and objects are fetched once per resolution even when several dimensions share a prefix. Every failure stays best-effort: a segment that is not a relationship, a target that cannot be loaded, or a terminal field with no options yields no mapping and the raw value survives, exactly as it does today.
+
+  Applies to both surfaces that carried this lookup: dashboard dataset widgets (`DatasetWidget`) and the chart view's dataset path (`ObjectChart`).
+
+  Scope: this ends at "the label is in hand". Whether that label then passes through the i18n bundle is a separate gap tracked upstream as objectstack#5076.
+
+- abb0f81: A dashboard date filter's default has one spelling again — the bare preset name — and the `{ preset }` object becomes a documented legacy alias with a retirement window
+
+  `@objectstack/spec` 17.0.0-rc.6 added a cross-field refinement to `GlobalFilterSchema` holding a `type: 'date'` filter's `defaultValue` to three spellings: a preset NAME (`last_7_days`), an ISO date (`2026-01-15`), or a date-macro token (`{today}`). objectui's derived schema had widened `defaultValue` to `z.any()` and did not carry the refinement, so it accepted `{ preset: 'last_7_days' }` — metadata the platform refuses. That is the tolerant-consumer shape where the designer goes green and the save fails server-side, and it is now closed: the refinement is adopted, the widening is retired, and the object form is refused with the spec's own message.
+
+  Per the maintainer ruling on objectui#4165, the spec stays strict and the bare preset name is the single canonical spelling. `{ preset }` is handled as an ADR-0089 legacy alias rather than by a permanently tolerant schema: `liftLegacyGlobalFilterDefault` / `liftLegacyDashboardFilterDefaults` (new exports on `@object-ui/types`) convert it to the bare name, `@object-ui/core`'s `resolveDashboardFilterDefs` applies the lift when it reads a stored dashboard, and the console's dashboard designer applies it as the document enters the editable draft so the next save persists the canonical spelling. The retirement window is recorded at the read site: the alias may be removed in `@object-ui/types` 18.0.0, and every lift warns on the console so a surviving legacy document is visible rather than silently tolerated.
+
+  No stored dashboard has to change for this release. The lift means a document carrying the object form keeps loading and rendering exactly as before — measured, not assumed: a legacy declaration already resolved correctly, because `{ preset }` also happens to be the runtime value shape objectui's own date filters use, and that coincidence is why the object form went unnoticed for so long. What changes is that the declaration is now canonicalized on read and rewritten on save, so the two spellings converge instead of accreting.
+
+  The other two divergences in this schema — the bare-string `options` shorthand and the optional `optionsFrom.labelField` — are unaffected. Carrying the spec's refinement while keeping them needed a new composition: a refined object schema in zod 4 rejects `.extend()` and `.omit()` outright and types every `.safeExtend()` override as `never`, so objectui's schema now spreads the spec's shape and re-attaches the spec's object-level rules by delegating to the spec schema itself. Nothing restates the spec's grammar, and a refinement the spec adds later flows in with no change here.
+
+- 7e4f0e5: fix(dashboard,i18n): KPI cards and dashboard filters resolve authored labels instead of dropping them (#4032)
+
+  A `type: 'metric'` dashboard widget rendered raw English while every other widget
+  type on the same dashboard rendered the translation, and dashboard filter chips
+  rendered `[object Object]` or the raw stored value. Both come from the same
+  cause: authored labels reaching a render site that could not read the
+  vocabulary `@objectstack/spec` actually admits.
+
+  - **KPI cards rejoin the widget translation channel.** The self-contained
+    `metric` branch built its own label from the raw `widget.title`, so the
+    `{ns}.dashboards.{dash}.widgets.{id}.title` value the renderer had already
+    resolved was computed and thrown away. It now reads that channel like every
+    other widget header.
+  - **The three private `resolveLabel` copies** (`DashboardRenderer`,
+    `MetricWidget`, `MetricCard`) are gone. Each read the retired
+    `{ key, defaultValue }` key-reference form and ended `defaultValue || key`, so
+    handed the inline per-locale map the spec admits today they returned nothing —
+    a KPI card with a map title rendered the literal string `metric`. All three
+    now use `pickLocalized`, the resolver already used for this vocabulary
+    elsewhere in the package.
+  - **Dashboard filter labels and static option labels resolve per locale.**
+    `DashboardFilterDef.label` widens to `string | I18nLabel`, the filter bar
+    resolves before rendering (fixing `[object Object]: All` in the trigger, and
+    in `aria-label` / `placeholder`), and the `def.label || def.name` gate now
+    tests the RESOLVED string — an object is always truthy, so it never reached
+    the fallback before.
+  - **Option labels are no longer discarded.** `normalizeFilterOptions` coerced a
+    map label to the raw stored value in every locale, English included, so
+    `{ value: 'domestic', label: { en: 'Domestic', … } }` displayed as `domestic`.
+    The pair shape is still normalized; the label vocabulary is preserved for the
+    render side to resolve.
+  - **`DashboardComponentSchema.globalFilters` is bound to the spec's
+    `GlobalFilter`** instead of restated by hand. The restatement was both too
+    narrow (`label?: string`, which is what made these read sites invisible to
+    `tsc`) and too wide (it declared a bare-string option shorthand the spec
+    rejects at publish).
+
+  Plain-string labels are unaffected and render byte-identically.
+
+- 49ae9f4: Pivot buckets encode an empty dimension value as JSON `null`, so it no longer collides with a row whose value is literally the placeholder character
+
+  objectstack#5473 / objectstack#5665 replaced the pivot's delimiter-joined ids
+  with `JSON.stringify`, because every delimiter that had been tried — an empty
+  string, a plain space, a control character — assumed the data would not contain
+  it, and each assumption failed on ordinary data. This closes the last place the
+  same assumption survived: the ids were JSON, but the VALUES fed into them were
+  spelled `String(row[d] ?? '∅')`, so an absent dimension value became the
+  ordinary string `"∅"` and shared a bucket with a row whose value literally is
+  that character (U+2205). One bucket, later row overwriting the earlier one — the
+  cell showed a different row's measure, the overwritten row was unreachable, and
+  drill-through followed the same wrong index into the wrong records, all without
+  an error. The trigger requires that character to appear as a dimension value, so
+  this is the assumption being removed rather than a defect users hit today.
+
+  An empty value now encodes as JSON `null`, which `JSON.stringify` renders as a
+  bare `null` that no string can spell. The normalization lives in
+  `@object-ui/core` as `pivotDimensionValue` (absent ⇒ `null`, everything else ⇒
+  its string form) rather than at each call site, because a placeholder spelled by
+  a caller is a placeholder that can collide again — which is exactly how this one
+  survived the previous fix. `pivotBucketId` accepts `Array<string | null>`
+  accordingly; that is a widening, so existing callers passing `string[]` are
+  unaffected.
+
+  Both renderers' bucket keys move together, which the fix requires: a bucket id
+  and the subtotal map keyed by it are built from the same expression, so changing
+  one alone would split the headers while the subtotal map still merged, landing
+  every column subtotal under the wrong header. In `plugin-dashboard`'s
+  `DatasetWidget` that is the row bucket id, the column bucket id, the cell key,
+  and both the `rowTotalById` and `colTotalById` lookups; in `plugin-report`'s
+  `DatasetReportRenderer` the single `bucketId` helper already feeds all five.
+
+  The dashboard's column bucket id also stops being a bare string and becomes a
+  one-element tuple through the same shared encoder. It was the one id in the
+  family still built by hand, on the reasoning that a single value needs no
+  boundary — true of the boundary, false of everything else the encoder does, and
+  it is why the across axis kept carrying this collision after the row ids were
+  fixed.
+
+  No display change: these placeholders only ever entered ids, never labels. An
+  unset dimension still renders through `formatDimensionValue` exactly as before,
+  and data containing neither an absent value nor that character buckets
+  identically — the ids are opaque lookup keys, never parsed back into a value,
+  never shown, never persisted.
+
+- d6aa172: Retire `params.newTab` on a url action — `openIn: 'new-tab'` is the sanctioned spelling
+
+  `ActionRunner`'s navigator read a legacy `params.newTab` escape hatch below `openIn` and above the external-URL heuristic. That read is removed, executing the objectstack#6828 maintainer ruling of 2026-08-10, whose contract half shipped in objectstack PR #7375: the url-side readings of an object-form `params` are retired, not renamed.
+
+  Nothing that ever validated can regress. `params` is declared as `z.array(ActionParamSchema)`, so an object-form `params` has always failed the props parse — the fallback could only fire on a stack the spec refuses. The removal also closes a collision hazard: a params dialog declaring a field named `newTab` had the user's own collected input silently steering navigation.
+
+  `openIn: 'self' | 'new-tab'`, the legacy `navigate.newTab` modifier on the `navigation` shape, and the external/relative default are all unchanged.
+
+- 9461dd3: Form actions no longer carry a record id across an object boundary (#4292).
+
+  `ActionRunner.executeForm` forwarded `/forms/:name?recordId=<id>` unconditionally,
+  and that URL says nothing about which object the id belongs to — so the form route
+  resolved it against the FormView's own target object. When an action fired from a
+  record of a DIFFERENT object and ids collide across objects (per-table integer
+  keys), the form silently prefilled and, since the route learned to honour the param,
+  `PATCH`ed a same-id record of the wrong object.
+
+  - **Producer**: the id is forwarded only when the firing context record's object
+    (`context.objectName`) matches the target view's object; on a mismatch no id is
+    forwarded, preserving create semantics. When it IS forwarded, the object travels
+    with it as `?recordObject=`.
+  - **Consumer**: `/forms/:name` refuses — no record read, no write — when
+    `recordObject` disagrees with the FormView's object. A URL without the param
+    behaves exactly as before, so existing deep links are unaffected.
+
+- Updated dependencies [f650253]
+- Updated dependencies [3d9769a]
+- Updated dependencies [92876f0]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [1f9b905]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [c1d939f]
+- Updated dependencies [bb68488]
+- Updated dependencies [ab04728]
+  - @object-ui/types@17.5.0
+
 ## 17.4.0
 
 ### Minor Changes

@@ -1,5 +1,268 @@
 # @object-ui/plugin-designer
 
+## 17.5.0
+
+### Patch Changes
+
+- d0c3b26: Every plain `<button>` now declares its `type`. HTML defaults an untyped button to
+  `type="submit"`, so any of these buttons would submit the form it was composed into
+  instead of running its own handler — a real risk for renderers (`drawer`, `tree-view`,
+  `navigation-overlay`) whose placement inside a form is a JSON metadata decision. 114
+  sites were converted to `type="button"`; no site was a genuine submit button, and the
+  DOM is otherwise unchanged.
+
+  The defect class is now closed mechanically by a new `object-ui/button-has-type` ESLint
+  rule (error), so the next untyped button fails CI at write time rather than being found
+  by a fourth audit round (objectui#4045, closing the objectui#3344 family).
+
+- abb0f81: A dashboard date filter's default has one spelling again — the bare preset name — and the `{ preset }` object becomes a documented legacy alias with a retirement window
+
+  `@objectstack/spec` 17.0.0-rc.6 added a cross-field refinement to `GlobalFilterSchema` holding a `type: 'date'` filter's `defaultValue` to three spellings: a preset NAME (`last_7_days`), an ISO date (`2026-01-15`), or a date-macro token (`{today}`). objectui's derived schema had widened `defaultValue` to `z.any()` and did not carry the refinement, so it accepted `{ preset: 'last_7_days' }` — metadata the platform refuses. That is the tolerant-consumer shape where the designer goes green and the save fails server-side, and it is now closed: the refinement is adopted, the widening is retired, and the object form is refused with the spec's own message.
+
+  Per the maintainer ruling on objectui#4165, the spec stays strict and the bare preset name is the single canonical spelling. `{ preset }` is handled as an ADR-0089 legacy alias rather than by a permanently tolerant schema: `liftLegacyGlobalFilterDefault` / `liftLegacyDashboardFilterDefaults` (new exports on `@object-ui/types`) convert it to the bare name, `@object-ui/core`'s `resolveDashboardFilterDefs` applies the lift when it reads a stored dashboard, and the console's dashboard designer applies it as the document enters the editable draft so the next save persists the canonical spelling. The retirement window is recorded at the read site: the alias may be removed in `@object-ui/types` 18.0.0, and every lift warns on the console so a surviving legacy document is visible rather than silently tolerated.
+
+  No stored dashboard has to change for this release. The lift means a document carrying the object form keeps loading and rendering exactly as before — measured, not assumed: a legacy declaration already resolved correctly, because `{ preset }` also happens to be the runtime value shape objectui's own date filters use, and that coincidence is why the object form went unnoticed for so long. What changes is that the declaration is now canonicalized on read and rewritten on save, so the two spellings converge instead of accreting.
+
+  The other two divergences in this schema — the bare-string `options` shorthand and the optional `optionsFrom.labelField` — are unaffected. Carrying the spec's refinement while keeping them needed a new composition: a refined object schema in zod 4 rejects `.extend()` and `.omit()` outright and types every `.safeExtend()` override as `never`, so objectui's schema now spreads the spec's shape and re-attaches the spec's object-level rules by delegating to the spec schema itself. Nothing restates the spec's grammar, and a refinement the spec adds later flows in with no change here.
+
+- bb68488: An inline per-locale label now renders its locale's string at the thirteen read sites the `@objectstack/spec` 17.0.0-rc.6 bump exposed
+
+  rc.6 widened `I18nLabel` from `string` to `string | Record<string, string>`, so an author may write `label: { en: 'Owner', 'zh-CN': '负责人' }` anywhere the spec accepts a display label. PR #4169 repaired eight such sites; these thirteen were invisible to it because the five packages involved build through vite/rolldown, so `turbo run build` never type-checks their sources — only `turbo run type-check` does. All thirteen are now resolved through a shared resolver against a real locale, and `turbo run type-check` is 78/78 with zero errors.
+
+  | package                       | what an author can now write and see                                                    |
+  | ----------------------------- | --------------------------------------------------------------------------------------- |
+  | `@object-ui/layout`           | `NavigationArea.label` — the sidebar area switcher's button and its tooltip             |
+  | `@object-ui/plugin-list`      | `ViewTab.label` — the inline pill row, and the mobile dropdown's trigger and menu items |
+  | `@object-ui/plugin-dashboard` | `DashboardWidget.title` — the widget card heading and its `title` attribute             |
+  | `@object-ui/plugin-designer`  | `DashboardWidget.title` — the widget card and the preview tile                          |
+  | `@object-ui/app-shell`        | `ActionParam.label` **and** each `ActionParam.options[].label`                          |
+
+  **Patch, not minor, in every case: no public surface changes meaning.** Every entry above is a read site that previously could only be reached with a value the type system rejected, so no caller's working code changes behaviour. `@object-ui/app-shell` is the only package with an exported-type change and it is purely additive on the authoring side — `RawActionParam.label` and `RawActionParam.options[].label` widen to `I18nLabel` (they accept strictly more), `ResolveActionParamsContext` gains an optional `locale`, and the new `RawActionParamOption` names the authoring shape that was previously spelled with the resolved one. What `resolveActionParams` **emits** is unchanged: `ActionParamDef.label` and its options' labels are still plain `string`s.
+
+  Two consequences worth knowing:
+
+  - **The dashboard designer's title input is deliberately read-only for a map-valued title.** Resolving a per-locale map into a single-line input and writing `e.target.value` back would collapse every other locale on the first keystroke, so the write is guarded and an inline map survives an unrelated edit-and-save round trip untouched — the same conservative branch #4169 took for `DashboardWidgetInspector`. What Studio should actually offer for authoring a per-locale label is objectui#4163 part 2, which is unclaimed and pending design.
+  - **`@object-ui/layout` resolves at the spec's `en` default, not the viewer's language.** That package carries no i18n dependency by design (its whole i18n story is injection), and `AppSchemaRendererProps` exposes no locale to thread. The choice and what would change it are documented at the call site.
+
+- e076fd5: Inline-edit toggle reads "Edit fields" without an I18nProvider, matching every locale pack
+
+  `DETAIL_DEFAULT_TRANSLATIONS` said `Edit fields inline` where all ten packs say
+  `Edit fields`, so `InlineEditSaveBar`'s toggle announced two different names for one
+  control — the map's on provider-less hosts (standalone embeds, the preview gallery),
+  the pack's in the console. The pack wins; the map row now mirrors it byte for byte.
+
+  The three ungated defaults maps (`plugin-detail`, `plugin-list`, `plugin-designer`) are
+  now compared key-by-key against the `en` pack by a new gate, generalizing the
+  collaboration-only precedent from objectui#3440. `LIST_DEFAULT_TRANSLATIONS` and
+  `DESIGNER_DEFAULT_TRANSLATIONS` are exported for it, as `DETAIL_DEFAULT_TRANSLATIONS`
+  and `COLLAB_DEFAULT_TRANSLATIONS` already were.
+
+- dad805d: Six i18n keys no longer render as raw key strings on hosts with no `I18nProvider` (objectui#4396)
+
+  `detail.saving`, `list.resetSortToDefault`, `appDesigner.widgetProperties`, `appDesigner.addWidget`, `appDesigner.modeEdit` and `common.delete` were read through `createSafeTranslation` without a row in their hook's defaults table and without an inline `defaultValue` at the call site — the only two fallbacks that path has. On a provider-less host (standalone embedding, the preview gallery, host apps that never mount a provider) `fallbackT` therefore returned the key itself, so users saw `detail.saving` in the inline-edit save button, `list.resetSortToDefault` on the sort popover's reset control, `appDesigner.widgetProperties` as the dashboard inspector heading, `appDesigner.addWidget` as its toolbar label, `appDesigner.modeEdit` as a button's accessible name, and `common.delete` on the designer's destructive confirm.
+
+  Each key now has a row in its consumer hook's defaults table, byte-identical to the `en` pack value. No pack was edited, no key added, no call site changed.
+
+- bb68488: Stop declaring 14 symbols under names `@objectstack/spec` owns at `17.0.0-rc.6`
+  (objectui#4167, objectstack#4115).
+
+  The rc.6 bump published nine names this repo already declared locally, on top of
+  four that predate it — `check:spec-symbols` reported all thirteen at once, and a
+  fourteenth (`GlobalFilterSchema`) appeared during the bump itself. Each was
+  triaged on its own rather than blanket-renamed, because the right answer differs
+  per symbol: five bind to the spec, three are renamed because the spec's
+  same-named export means something else, five arrive by derivation, and one is a
+  declared dialect with a written reason.
+
+  **Breaking for importers of `@object-ui/react`, `@object-ui/app-shell` and
+  `@object-ui/types`** — three exported names changed, because the spec exports the
+  same name for a _different_ thing:
+
+  | package               | was                | now                            | what the spec's same-named export actually is                                                                                                          |
+  | :-------------------- | :----------------- | :----------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `react` / `app-shell` | `MetadataState`    | `MetadataCacheState`           | a metadata item's LIFECYCLE state — `'draft' \| 'active' \| 'deprecated' \| 'archived'` (`MetadataStateSchema`, `@objectstack/spec/system`)            |
+  | `react` / `app-shell` | `resolveI18nLabel` | `resolveKeyedI18nLabel`        | a resolver for the INLINE per-locale map (`{ en: 'Owner', 'zh-CN': '负责人' }`) against a BCP-47 locale                                                |
+  | `types`               | `DateRangePreset`  | `FilterBuilderDateRangePreset` | the thirteen HISTORICAL dashboard filter-bar presets; this one is the filter-builder set, which adds eight FUTURE windows the dashboard schema rejects |
+
+  `resolveI18nLabel` is the one where the collision had already started costing
+  something. rc.6 widened `I18nLabel` from `string` to
+  `string | Record< string, string >`, so the same authored value now reaches
+  either resolver — and each answers wrongly, silently, for the other's input: the
+  keyed one returns `undefined` for `{ en: 'Owner' }` (no `key`, no
+  `defaultValue`), and the spec's reads `key` / `defaultValue` / `params` as locale
+  tags. The rc.6 bump PR met this and aliased the spec's import as
+  `resolveInlineI18nLabel` in five files, with hand-written comments at two of
+  them. That is a review convention, which is what objectstack#4115 exists to
+  replace with a rule — so `Keyed` is now the counterpart of that `Inline`, and the
+  name says which vocabulary it resolves at every call site.
+
+  **Eleven keep their names and are now imported or derived from the spec** instead
+  of re-declared: `DATE_RANGE_PRESETS`, `NavigationMode`, `AddressValue`,
+  `BreakpointColumnMap`, `BreakpointOrderMap`, `KanbanConfig`, `CalendarConfig`,
+  `GanttConfig`, plus the three renamed above at their new names.
+
+  **Four of the copies were losing information, not just duplicating it.**
+
+  - **`GanttConfig` declared six keys and called itself canonical; rc.6's
+    `GanttConfigSchema` declares seventeen.** The eleven it never mentioned —
+    `parentField`, `typeField`, `baselineStartField`, `baselineEndField`,
+    `groupByField`, `resourceView`, `assigneeField`, `effortField`, `capacity`,
+    `quickFilters`, `autoZoomToFilter` — are all read by
+    `plugin-gantt/src/ObjectGantt.tsx`, through a local `GanttConfigEx`
+    intersection that existed only because this type did not carry them. It now
+    derives from the spec, with `timeSegments` (shift segmentation) as the one
+    genuinely local extension; the schema is `$loose` upstream, so that key is
+    legal metadata rather than a second dialect.
+  - **`GanttConfig.tooltipFields` carried the comment "not part of the upstream
+    GanttConfigSchema".** It is, as of rc.6, so the key now arrives from the spec.
+  - **`AddressValue` declared five of the spec's seven parts** — `countryCode` and
+    `formatted` were missing, under a comment already claiming to be "the part
+    names of `AddressSchema`". The widget still renders five inputs; binding the
+    type stops it from asserting the platform cannot store the other two, and makes
+    the `{ ...address }` write-through say so.
+  - **`DATE_RANGE_PRESETS` was `Object.keys(PRESET_RANGES)`,** a third copy of a
+    vocabulary the spec extracted in objectstack#4614 precisely to collapse — its
+    own doc comment names this module as one of the three. It is now the spec's
+    array by reference, and the local date-macro bounds table is pinned complete
+    against it with `satisfies`, so a preset the schema gains without bounds here
+    is a compile error rather than a filter that validates clean and then selects
+    nothing.
+
+  `NavigationMode` was one hop from the spec already (`NavigationConfig['mode']`);
+  it is bound directly, with a both-directions type pin that it stays the same type
+  as the config's own `mode`. `KanbanConfig` / `CalendarConfig` /
+  `BreakpointColumnMap` / `BreakpointOrderMap` were exact hand copies of `$strict`
+  schemas and are now re-exports — "still exact" is the argument for binding them,
+  since a copy with nothing to protect can only drift.
+
+  `GlobalFilterSchema` is the one ALLOW entry. It is the same spread-composition
+  dialect as `SelectOptionSchema` next to it, and it collided only because rc.6's
+  new refinement forced `.extend()` to be respelled as a `.shape` spread — which
+  moved a derivation the guard could see into an object literal it deliberately
+  does not descend into. The dialect is unchanged and its three divergences are
+  pinned; which side moves on the refinement itself is objectui#4165.
+
+  `@objectstack/spec` moves from `devDependencies` to `dependencies` in
+  `@object-ui/layout`: its public type surface now references the spec.
+
+- Updated dependencies [0e67b53]
+- Updated dependencies [ceccdcf]
+- Updated dependencies [d6e5124]
+- Updated dependencies [debad27]
+- Updated dependencies [dc2aa3e]
+- Updated dependencies [ee66e2e]
+- Updated dependencies [e2e6360]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [932cbcd]
+- Updated dependencies [734d186]
+- Updated dependencies [f650253]
+- Updated dependencies [3d9769a]
+- Updated dependencies [8f85f8b]
+- Updated dependencies [7ffd616]
+- Updated dependencies [d0c3b26]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [f7c6430]
+- Updated dependencies [4dadf0d]
+- Updated dependencies [ae10a01]
+- Updated dependencies [77d6f28]
+- Updated dependencies [0f21348]
+- Updated dependencies [d2e2caf]
+- Updated dependencies [92876f0]
+- Updated dependencies [f279deb]
+- Updated dependencies [4b70d28]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [ebb4e0e]
+- Updated dependencies [3a9021e]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [537a0d1]
+- Updated dependencies [bec3e14]
+- Updated dependencies [613b167]
+- Updated dependencies [b4d3c22]
+- Updated dependencies [1f9b905]
+- Updated dependencies [8f60d73]
+- Updated dependencies [cb13400]
+- Updated dependencies [828549a]
+- Updated dependencies [e1ade8f]
+- Updated dependencies [bc64bfe]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [51ab34e]
+- Updated dependencies [24bb2de]
+- Updated dependencies [0ca6096]
+- Updated dependencies [3e19fe7]
+- Updated dependencies [bb58d1d]
+- Updated dependencies [433ff9f]
+- Updated dependencies [5cc847c]
+- Updated dependencies [e7663f2]
+- Updated dependencies [fa21254]
+- Updated dependencies [f565418]
+- Updated dependencies [33c32bf]
+- Updated dependencies [66fb4fa]
+- Updated dependencies [b953a97]
+- Updated dependencies [d7f3e30]
+- Updated dependencies [6d641c9]
+- Updated dependencies [479cc7b]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [a84385b]
+- Updated dependencies [45e1949]
+- Updated dependencies [51ac39f]
+- Updated dependencies [5e514c4]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [58bebf6]
+- Updated dependencies [36310dc]
+- Updated dependencies [52d878a]
+- Updated dependencies [405e808]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [a3ae404]
+- Updated dependencies [4270c11]
+- Updated dependencies [bfdf3d4]
+- Updated dependencies [bb68488]
+- Updated dependencies [c0f9a4b]
+- Updated dependencies [b1e42d0]
+- Updated dependencies [2459a3e]
+- Updated dependencies [2776b11]
+- Updated dependencies [ac853ce]
+- Updated dependencies [fa51109]
+- Updated dependencies [d6aa172]
+- Updated dependencies [c32a8a1]
+- Updated dependencies [fe52a04]
+- Updated dependencies [d46f9b8]
+- Updated dependencies [3f5f87c]
+- Updated dependencies [605b747]
+- Updated dependencies [2fea4d2]
+- Updated dependencies [f5e1143]
+- Updated dependencies [7f1cb33]
+- Updated dependencies [f148a64]
+- Updated dependencies [bb68488]
+- Updated dependencies [2e3b0c0]
+- Updated dependencies [9461dd3]
+- Updated dependencies [78fa331]
+- Updated dependencies [47f551b]
+- Updated dependencies [31ab1ac]
+- Updated dependencies [0082db8]
+- Updated dependencies [b42558a]
+- Updated dependencies [d2f6e6b]
+- Updated dependencies [ab04728]
+- Updated dependencies [85a3082]
+- Updated dependencies [5bf09fd]
+- Updated dependencies [06915b0]
+- Updated dependencies [ff84b05]
+  - @object-ui/i18n@17.5.0
+  - @object-ui/react@17.5.0
+  - @object-ui/components@17.5.0
+  - @object-ui/core@17.5.0
+  - @object-ui/fields@17.5.0
+  - @object-ui/data-objectstack@17.5.0
+  - @object-ui/types@17.5.0
+  - @object-ui/plugin-grid@17.5.0
+  - @object-ui/plugin-form@17.5.0
+
 ## 17.4.0
 
 ### Patch Changes

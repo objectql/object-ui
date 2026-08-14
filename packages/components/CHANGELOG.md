@@ -1,5 +1,569 @@
 # @object-ui/components
 
+## 17.5.0
+
+### Minor Changes
+
+- dc2aa3e: The action renderers publish the modern `UIActionSchema`, and every `forwardRef` renderer's props parameter is annotated so its declared types survive
+
+  **Breaking semantics (declared `minor` per the repo's version-alignment rule — objectui#4403 precedent — never `major`).** Six exported declarations in `@object-ui/components` change the action type they name, from the `@deprecated` legacy `ActionSchema` (`crud.ts`) to `UIActionSchema` (`ui-action.ts`):
+
+  - `ActionBarSchema.actions`, `ActionBarSchema.systemActions`
+  - `ActionMenuSchema.actions`
+  - `ActionGroupSchema.actions`
+  - `ActionButtonProps.schema`, `ActionIconProps.schema`
+
+  The two types are not interchangeable in either direction. `UIActionSchema` requires `name`, which legacy inherits as optional from `BaseSchema`; legacy pins `type: 'action'` where these renderers serve `'script' | 'url' | 'modal' | 'flow' | 'api'`; and only the modern type declares `locations`, `target`, `endpoint`, `bodyExtra`, `bodyShape` and a `variant` union containing `'primary'` — all of which the implementations already read. objectui#4417 measured four compiler errors proving the VALUES were modern while the DECLARATIONS said legacy; this moves the declarations to match, so the contract and the implementation finally agree.
+
+  No runtime behaviour changes, and no published surface is involved: none of the six declarations is re-exported from the package index, and the sweep found zero type-checked consumers outside each declaration's own file. Metadata that renders today renders identically — the renderers read the same keys through the same paths.
+
+  Separately, all fifteen `schema`-reading `forwardRef` renderers in the package now annotate their render function's first parameter directly, and carry the pass-through index signature on that annotation rather than on the `forwardRef` type argument. `forwardRef` routes its type argument through `PropsWithoutRef`, whose `Omit` collapses a props type carrying `[key: string]: any` down to the bare index signature — every declared property erased, silently, with `noImplicitAny` reporting clean because the `any` is supplied explicitly by the index signature. That is what hid the declaration/implementation drift above for as long as it lasted. Thirteen renderers recover a real declared type for `schema` (the two raw-tag factories keep `any`, which is what they genuinely declare), and a new structural guard, `forwardref-props-annotation.guard.test.ts`, fails on any future `forwardRef` that reintroduces either half of the trap.
+
+- cb13400: One fullscreen long-text editor, hoisted to the package both render paths may import
+
+  The "expand to a full-height dialog" interaction had two independent implementations. `FullscreenTextarea` lived inside the form renderer's built-in (unregistered) `textarea` branch in `@object-ui/components`; `FullscreenFieldEditor` lived in `@object-ui/fields` and served the registered `TextAreaField` / `RichTextField` widgets. They exist because ONE form-level promise — `ObjectFormSchema.mobile.fullscreenLongText`, projected onto every long-text field as `mobile_fullscreen` — is honoured on two render paths, and each path grew its own answer.
+
+  Two copies of a state machine drift, and these did, in both directions: objectui#3400 measured a read-only long-text field that was fully editable through the built-in branch's dialog (and "Done" wrote the edit into form state), objectui#3402 measured the same write-back hole for `disabled` on the registered path, and objectui#3393 (the dialog title needs the field label) and objectui#3272 (the copy needs i18n) each landed on one side before the other. Every repair was correct and none of them scaled.
+
+  `@object-ui/components` now exports `FullscreenEditor`, a single primitive owning the affordance, the dialog, the draft/commit state machine and the copy. The direction follows the measured import graph rather than fighting it: `@object-ui/fields` depends on `@object-ui/components`, and `components` declares no dependency on `fields` in either `dependencies` or `peerDependencies`, so the shared code can only live in `components`. `FullscreenFieldEditor` becomes a thin wrapper over it and keeps its name, its props and its test-id namespaces, so both hosts and their pins are unchanged.
+
+  The load-bearing part of the merge is that the primitive DEFINES `readOnly` and `disabled` instead of inheriting them by accident. Neither copy defined both: the built-in one grew them under objectui#3400, while the fields one declared only `disabled` and was shielded from `readonly` by its hosts' early return — a single implementation cannot be shielded by one caller's control flow. So both are answered once, and both call paths inherit the same answers: `readOnly` renders no affordance at all (it means "shown plainly", so advertising an expand button the user cannot use is worse than showing none), `disabled` leaves an inert one (it means "not interactive, muted"). Neither relies on the toggle alone, because `disabled` also carries the form's `isSubmitting` and can flip to true while the dialog is already open — so opening refuses independently of the attribute, the injected editor is told, "Done" is disabled, and `onCommit` is gated as the single point where a value leaves for host state.
+
+  No copy changed and no locale pack needed an edit: the primitive consumes the same `form.fullscreen.*` / `common.cancel` keys both copies already read, through `createSafeTranslation` with English defaults byte-identical to the literals, so provider-less hosts render exactly what they did. The now-unread `form.fullscreen.*` defaults are dropped from `useFieldTranslation`, where they would have re-created in the defaults map precisely the duplication this change removes from the components.
+
+  `toggleClassName` is not carried into the new primitive. It was declared on `FullscreenFieldEditorProps` and written by nobody — zero producers repo-wide — and `FullscreenFieldEditor` is not exported from the `@object-ui/fields` barrel, so no consumer outside the package could ever have set it. Minting it as part of a NEW public export in `@object-ui/components` would have published a prop with no producer, the shape objectui#3232/#3233 keeps deleting.
+
+- 38ab505: Retire the `global_nav` Studio designer surfaces, and track the `@objectstack` family at `17.0.0-rc.6` (objectstack#7100 / objectstack#6888).
+
+  ## The retirement
+
+  `global_nav` was an `ACTION_LOCATIONS` member no running-app surface ever rendered. The console's ⌘K palette (`app-shell/src/chrome/CommandPalette.tsx`) builds its groups from nav items, objects, dashboards, pages, reports, recent items, record search and theme; it holds no reference to `global_nav`, to `actionRendersAt`, or to any action-metadata source. An action declaring `locations: ['global_nav']` therefore never reached a user.
+
+  The Studio designer previewed it anyway — a mock frame reading `⌘K · Command palette` with the author's button inside it. That is the sharp edge the maintainer's 2026-08-09 ruling on objectstack#6888 named: an authoring tool promising a surface the product does not have teaches authors, and every AI copying this corpus, to declare dead metadata. `@objectstack/spec` `17.0.0-rc.6` retired the member (7 members → 6) with a named rejection message; this release removes the designer surfaces that outlived it.
+
+  - `metadata-admin/previews/ActionPreview.tsx` — the mock command-palette placement frame is gone. The metadata strip above it still ECHOES whatever `locations` the draft declares, deliberately: reporting what a (possibly stale) draft says is honest, whereas the frame CLAIMED the platform renders it.
+  - `metadata-admin/inspectors/ActionDefaultInspector.tsx` — the `global_nav` entry is gone from `LOCATION_LABELS`. That map is typed `Record< ActionLocation, string >`, so the retirement reached it as a compile error rather than as a silently stale dropdown — the mechanism objectui#3017 installed, firing as designed.
+  - `metadata-admin/previews/block-config.ts` — the `record:quick_actions` location dropdown no longer offers it, and both locale tables drop the now-orphaned `…option.location.global_nav` key.
+  - `@object-ui/components`' `action:bar` doc comment is aligned. The component's published enum is `[...ACTION_LOCATIONS]`, so it followed the retirement on its own; only the prose was stale.
+
+  `@object-ui/core`'s `ActionEngine.getActionsForLocation` is **unchanged and still answers a literal string match**. Narrowing it to the six live members would put a second rejection point beside the schema's — the tolerant-consumer shape the strict-contract rule forbids, inverted. Enforcement stays where it belongs: the parameter type is now six-membered so no type-correct caller can spell the retired value, and `ActionLocationSchema` rejects it by name at authoring and publish time.
+
+  ## The dependency move
+
+  All 37 `@objectstack/*` declarations across 30 `package.json` files move from `^17.0.0-rc.5` to `^17.0.0-rc.6`, and `pnpm-lock.yaml` resolves one copy of each family package at rc.6. The siblings move with `spec` because `client` / `formula` / `lint` pin it **exactly** — leaving them behind would keep two copies of the spec in the tree, the split brain objectui#3560 called out.
+
+  Bumping the pin and repairing the fallout cannot be split: at rc.5 the `Record< ActionLocation, string >` above is missing a key, at rc.6 it has an excess one.
+
+  ## Breaking, in FROM → TO form
+
+  - **`@object-ui/types`' `Theme` now binds the spec's `Theme`, not `ThemeInput`.** rc.6 retired every `…Input` alias and moved the bare name onto the `z.input` side (`X` = `z.input`, `XParsed` = `z.infer`). The runtime shape and this package's exported name are unchanged — `Theme` was, and still is, the AUTHORING shape where `mode` is optional. Re-pointing at `ThemeParsed` would have been the silent swap.
+  - **`SpecReport` / `SpecReportChart` re-point to `ReportParsed` / `ReportChartParsed`, and `SpecReportInput` / `SpecReportChartInput` to `Report` / `ReportChart`.** Same rename, same rule: each local alias keeps the SIDE it had at rc.5.
+  - **`@object-ui/types` no longer re-exports `I18nObject`, `LocaleConfig`, `PluralRule`, `DateFormat` or `NumberFormat`** — all five were retired by rc.6. They were dead re-exports here: nothing in this repo imported them from `@object-ui/types` (`@object-ui/i18n`'s formatter vocabulary in `utils/spec-formatters.ts` is locally declared and never bound the spec symbols). `I18nLabel` survives and is unchanged as a name.
+  - **`I18nLabel` itself widened from `string` to `string | Record< string, string >`** — rc.6 folded the retired `I18nObject`'s per-locale map into it and ships `resolveI18nLabel(label, locale)` as the shared resolver. Every read in this repo that lands in a text slot now goes through that resolver, so an inline map renders its locale instead of `[object Object]`. Reads the compiler cannot see are audited separately in objectui#4163.
+  - **`@object-ui/types`' `GlobalFilterSchema` derives via `.safeExtend`, not `.extend`.** rc.6's `GlobalFilterSchema` carries a refinement and zod 4 refuses `.extend()` on a refined object outright, which threw at module load. `.safeExtend` is zod's prescribed replacement and KEEPS the refinement, so the spec's cross-field rule now also runs on this package's dialect — which is the intended behaviour, since the pinned divergences widen individual fields and were never meant to switch off a whole-object rule.
+
+- c1d939f: One `SchemaNode`, and one label vocabulary — the union wins, and labels resolve where the locale lives
+
+  Two packages published a type called `SchemaNode` and they were not the same type. `@object-ui/core` hand-declared `interface SchemaNode { type: string; … [key: string]: any }`; `@object-ui/types` exported `type SchemaNode = BaseSchema | string | number | boolean | null | undefined`, whose own doc comment names `'Plain string'` a valid node. Both were exported under one name from packages the same consumers import together, so which declaration a call site got depended on which package it happened to import from — #4548's canary measured 19 of 35 errors as exactly that collision. Core's declaration is now a re-export of types', so there is one declaration left to disagree with. Core's entry surface is unchanged: `dist/index.d.ts` is byte-identical across the change.
+
+  Reconciling it exposed a real defect rather than a mechanical narrowing, which is why the first attempt was withdrawn instead of forced. The spec bridges write `spec.label` — the spec's `I18nLabel`, an INLINE locale map like `{ en: 'Owner', 'zh-CN': '负责人' }` — into `node.label`, and `BaseSchema.label` declared `string`. Under core's old index signature that assignment was invisibly `any`; under one honest `SchemaNode` it is a type error. `BaseSchema.label` and `.description` therefore now accept `string | I18nLabel`, and the two bridge assignments compile with their expressions untouched.
+
+  Resolution happens at READ time, in the renderer, against the display locale — not at the bridge. Resolving at the bridge was measured unimplementable: it is a plain class method that cannot call a hook, `BridgeContext` declares no locale, and `updateContext()` has zero callers, so a bridge-resolved label would freeze one audience's language into the node tree with no re-translation channel. React's own invalidation re-translates for free at the read site.
+
+  The widening turned every blind `schema.label`-as-string read into a named compiler error, and that inventory is the audit: it named four sites repo-wide, all one class — the label reaching a React child position, where a map does not render as `[object Object]` but THROWS `Objects are not valid as a React child`, failing the whole subtree. Three are `@object-ui/components` renderers (`filter-builder`, `sidebar-group`, `dropdown-menu`), which now resolve with the spec's own `resolveI18nLabel` against `useDisplayLocale()`. The fourth is `plugin-dashboard`'s `DashboardGridLayout` heading, which resolves with `pickLocalized` against the active UI language — matching the widget-title resolution already in that same component rather than putting two resolvers and two disagreeing locale channels in one render; the two resolvers are limb-for-limb twins with a parity test pinning them.
+
+  One interface now carries both label vocabularies two properties apart — `label`/`description` are the spec's INLINE map, `ariaLabel` is the KEYED bundle reference — and each accepts the other's shape vacuously. That confusability is objectui#4167's known hazard, inherent to the spec's `I18nLabel` design; both shapes are named with cross-referenced doc comments stating which resolver owns which slot, and a pin asserts the two unions do not collapse into each other.
+
+  Finally, the spec bridges declare their return type as `BaseSchema` instead of the union. Both bridges end in a single `return node` on an object literal, so the union described nothing real while forcing a narrowing at every read — 272 mechanical errors across five suites in the first round. That change is a type annotation only; the emitted JavaScript is byte-identical.
+
+- bb68488: `element:record_picker` publishes `sort`, `limit` and `emptyText` as authoring
+  inputs (objectui#4167).
+
+  All three were already READ by the renderer and declared by the contract — the
+  renderer has passed `sort` into `$orderby` and `limit` into `$top` since the
+  block existed, and `emptyText` decides the no-rows message — but none of them
+  appeared in `inputs`, so every layer that reads a manifest said they did not
+  exist. `packages/components/src/renderers/layout/page.tsx` builds the JSX-page
+  compiler's prop whitelist from `getKnownTypes()` plus these `inputs`, so writing
+  any of the three on a JSX page drew an `unknown-prop` warning from
+  `sdui-parser/src/validate.ts` on a key the renderer then went on to honour.
+
+  That is objectui#3407's shape — honoured, undiscoverable — and this is the same
+  repair objectui#3808 made for `record:details.hideFields` and objectui#3830 made
+  for `element:record_picker.filter`. `@objectstack/spec` 17.0.0-rc.6 is what made
+  it actionable: objectstack#5775 declared the three upstream, and the reverse
+  direction of the console's registry parity gate went red demanding them the
+  moment the pin moved — a red the previous exemption had predicted in writing and
+  called "correct and wanted".
+
+  Each description documents the renderer's real behaviour rather than restating
+  the schema, because that is the half an author cannot read off the contract:
+
+  - **`sort`** and **`limit`** are both overridden OUTRIGHT by a node-level
+    `dataSource` binding (`dataSource.sort ?? sort`), not merged with it — so a
+    node that carries a `dataSource` silently ignores them.
+  - **`limit`** defaults to 50 in the renderer, not in the schema, and a record
+    outside the limit cannot be picked at all with nothing in the control to say
+    more exist.
+  - **`emptyText`** is published as `string` against a contract of
+    `string | Record< string, string >`: rc.6 widened it to `I18nLabel`, and this
+    renderer passes the value straight into a text node with no locale resolution,
+    so only the plain-string form renders today. The description says so rather
+    than advertising a shape the renderer drops — the narrowed-type treatment
+    objectui#3832 describes, with the render-site gap tracked in objectui#4163.
+
+  The console's `registry-inputs-spec-parity` suite also drops all twelve of its
+  off-spec exemptions, which rc.6 obsoleted at once (objectstack#6776 declared
+  `page:header.recordChrome` / `showStar` / `showCopyId`, `page:accordion.variant`
+  and `page:tabs.tabStyle`; objectstack#5775 declared the `element:record_picker`
+  trio and `children` on the four page containers). The forward direction of that
+  gate now runs with no cover of any kind.
+
+- bb68488: Stop declaring 14 symbols under names `@objectstack/spec` owns at `17.0.0-rc.6`
+  (objectui#4167, objectstack#4115).
+
+  The rc.6 bump published nine names this repo already declared locally, on top of
+  four that predate it — `check:spec-symbols` reported all thirteen at once, and a
+  fourteenth (`GlobalFilterSchema`) appeared during the bump itself. Each was
+  triaged on its own rather than blanket-renamed, because the right answer differs
+  per symbol: five bind to the spec, three are renamed because the spec's
+  same-named export means something else, five arrive by derivation, and one is a
+  declared dialect with a written reason.
+
+  **Breaking for importers of `@object-ui/react`, `@object-ui/app-shell` and
+  `@object-ui/types`** — three exported names changed, because the spec exports the
+  same name for a _different_ thing:
+
+  | package               | was                | now                            | what the spec's same-named export actually is                                                                                                          |
+  | :-------------------- | :----------------- | :----------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `react` / `app-shell` | `MetadataState`    | `MetadataCacheState`           | a metadata item's LIFECYCLE state — `'draft' \| 'active' \| 'deprecated' \| 'archived'` (`MetadataStateSchema`, `@objectstack/spec/system`)            |
+  | `react` / `app-shell` | `resolveI18nLabel` | `resolveKeyedI18nLabel`        | a resolver for the INLINE per-locale map (`{ en: 'Owner', 'zh-CN': '负责人' }`) against a BCP-47 locale                                                |
+  | `types`               | `DateRangePreset`  | `FilterBuilderDateRangePreset` | the thirteen HISTORICAL dashboard filter-bar presets; this one is the filter-builder set, which adds eight FUTURE windows the dashboard schema rejects |
+
+  `resolveI18nLabel` is the one where the collision had already started costing
+  something. rc.6 widened `I18nLabel` from `string` to
+  `string | Record< string, string >`, so the same authored value now reaches
+  either resolver — and each answers wrongly, silently, for the other's input: the
+  keyed one returns `undefined` for `{ en: 'Owner' }` (no `key`, no
+  `defaultValue`), and the spec's reads `key` / `defaultValue` / `params` as locale
+  tags. The rc.6 bump PR met this and aliased the spec's import as
+  `resolveInlineI18nLabel` in five files, with hand-written comments at two of
+  them. That is a review convention, which is what objectstack#4115 exists to
+  replace with a rule — so `Keyed` is now the counterpart of that `Inline`, and the
+  name says which vocabulary it resolves at every call site.
+
+  **Eleven keep their names and are now imported or derived from the spec** instead
+  of re-declared: `DATE_RANGE_PRESETS`, `NavigationMode`, `AddressValue`,
+  `BreakpointColumnMap`, `BreakpointOrderMap`, `KanbanConfig`, `CalendarConfig`,
+  `GanttConfig`, plus the three renamed above at their new names.
+
+  **Four of the copies were losing information, not just duplicating it.**
+
+  - **`GanttConfig` declared six keys and called itself canonical; rc.6's
+    `GanttConfigSchema` declares seventeen.** The eleven it never mentioned —
+    `parentField`, `typeField`, `baselineStartField`, `baselineEndField`,
+    `groupByField`, `resourceView`, `assigneeField`, `effortField`, `capacity`,
+    `quickFilters`, `autoZoomToFilter` — are all read by
+    `plugin-gantt/src/ObjectGantt.tsx`, through a local `GanttConfigEx`
+    intersection that existed only because this type did not carry them. It now
+    derives from the spec, with `timeSegments` (shift segmentation) as the one
+    genuinely local extension; the schema is `$loose` upstream, so that key is
+    legal metadata rather than a second dialect.
+  - **`GanttConfig.tooltipFields` carried the comment "not part of the upstream
+    GanttConfigSchema".** It is, as of rc.6, so the key now arrives from the spec.
+  - **`AddressValue` declared five of the spec's seven parts** — `countryCode` and
+    `formatted` were missing, under a comment already claiming to be "the part
+    names of `AddressSchema`". The widget still renders five inputs; binding the
+    type stops it from asserting the platform cannot store the other two, and makes
+    the `{ ...address }` write-through say so.
+  - **`DATE_RANGE_PRESETS` was `Object.keys(PRESET_RANGES)`,** a third copy of a
+    vocabulary the spec extracted in objectstack#4614 precisely to collapse — its
+    own doc comment names this module as one of the three. It is now the spec's
+    array by reference, and the local date-macro bounds table is pinned complete
+    against it with `satisfies`, so a preset the schema gains without bounds here
+    is a compile error rather than a filter that validates clean and then selects
+    nothing.
+
+  `NavigationMode` was one hop from the spec already (`NavigationConfig['mode']`);
+  it is bound directly, with a both-directions type pin that it stays the same type
+  as the config's own `mode`. `KanbanConfig` / `CalendarConfig` /
+  `BreakpointColumnMap` / `BreakpointOrderMap` were exact hand copies of `$strict`
+  schemas and are now re-exports — "still exact" is the argument for binding them,
+  since a copy with nothing to protect can only drift.
+
+  `GlobalFilterSchema` is the one ALLOW entry. It is the same spread-composition
+  dialect as `SelectOptionSchema` next to it, and it collided only because rc.6's
+  new refinement forced `.extend()` to be respelled as a `.shape` spread — which
+  moved a derivation the guard could see into an object literal it deliberately
+  does not descend into. The dialect is unchanged and its three divergences are
+  pinned; which side moves on the refinement itself is objectui#4165.
+
+  `@objectstack/spec` moves from `devDependencies` to `dependencies` in
+  `@object-ui/layout`: its public type surface now references the spec.
+
+### Patch Changes
+
+- ceccdcf: Action confirm dialogs and success toasts now honour the bundle's translated
+  `confirmText` / `successMessage`, not just `label` (objectui#4265).
+
+  A TranslationBundle entry for an action carries three keys under one
+  `_actions.<name>` node — `label`, `confirmText`, `successMessage` — and
+  `useObjectLabel()` has always exposed a resolver for each. What had drifted was
+  the call sites: `page:header` (authored record pages), `record:quick_actions`
+  and the related-list row menu resolved the button `label` only and dispatched
+  the authored `confirmText` / `successMessage` untouched. One bundle entry met
+  two fates: the button rendered the translation, the confirm dialog rendered the
+  authored English.
+
+  All action-rendering surfaces now go through one resolver,
+  `useActionTextLocalizer()` (new, exported from `@object-ui/react`), which
+  applies the existing `actionLabel` / `actionConfirm` / `actionSuccess`
+  resolvers over the three keys together. Fallback is unchanged: with no bundle
+  entry — or an entry lacking a key — the authored text renders. A bundle cannot
+  introduce a `confirmText` or `successMessage` the metadata never declared.
+
+- d6e5124: An action rendered in the overflow menu, as an icon or inside a group now reaches the runner carrying the same authored keys as the same action rendered inline — `action:menu`, `action:icon` and `action:group` forward `label` and `description`, and the two group/icon surfaces also forward `resultDialog`.
+
+  Every action renderer hands the `ActionRunner` an explicit key WHITELIST rather than the action itself. That is deliberate — a key no renderer honours must not look wired — but the whitelists had drifted, and which renderer a given action gets is decided by `action:bar`'s `maxVisible` split (3 on desktop, 1 on mobile) and by `systemActions`, which are always in the overflow menu. So the same declared action behaved differently depending on the viewport.
+
+  `label` and `description` are what the console's param-collection handler titles its dialog from (`title: action?.label || action?.title`, `description: actionDescription(…, action?.description)`). Dropped, an action with declared `params` opened a dialog titled "Action parameters" while the SAME declaration rendered inline named itself "Create Environment". `resultDialog` is the one-shot reveal spec (a fresh 2FA code, a newly minted OAuth secret): dropped, the runner falls back to the success toast and the value the user was meant to copy is gone — the objectui#3646 defect, still live on two of the four declared surfaces.
+
+  `undoable` and `recordIdField` are deliberately NOT added. Both are read only under a `rowRecord` guard, and `rowRecord` is `params._rowRecord`, written exclusively by the spread-based hosts (`DeclaredActionsBar`, `RelatedRecordActionsBridge`, `ObjectGrid`, `page:header`), none of which dispatch through these renderers. They are unreachable on this path rather than dropped — `action:button` forwards them here inertly — so forwarding them would have added a second inert copy instead of restoring an affordance.
+
+  A new repo gate, `pnpm check:action-forward-parity`, now derives each surface's owed key set (`authorable ∩ runtime-read − retired`) from the spec's own schemas and the consumers' ASTs and fails when a renderer drops one, so the seventh instance of this class fails on the pull request that introduces it rather than shipping green.
+
+- debad27: An `autoTrigger` action that spills past `action:bar`'s `maxVisible` now still runs — `action:menu` consumes the flag instead of dropping it.
+
+  `autoTrigger` is the client-composed "run this action as soon as a renderer receives it" flag behind deep links like the welcome page's "Create your environment" CTA (#844). It was consumed only by `action:button`. `action:bar` splits its post-gate list at `maxVisible` (3 on desktop, 1 on mobile) and hands the tail to `action:menu`, which had no `autoTrigger` handling at all — so an auto-triggered action that happened to sort past that threshold was rendered as an ordinary "More" menu entry and never ran, while the caller had already spent the one-shot signal it stood for. The `?runAction=create_environment` deep link is consumed by stripping it from the URL, so the measured end state was `urlParam=null execute=0`: no dialog, and no URL left to retry from. Which actions lost their auto-trigger was partly a function of viewport width, since `maxVisible` drops to 1 on mobile, and `systemActions` — always in the overflow menu, whatever the viewport — could never fire one at all.
+
+  The flag's contract is now stated and enforced as "execute once on mount by whichever renderer receives the action". `action:menu` consumes it by EXECUTING, through the same path a click on that item takes; it does not open the dropdown, so a transport flag never moves what the user sees. Consumption happens where the action provably arrives — the menu renderer receiving it — not in the menu items, which Radix mounts only once the dropdown opens and which would therefore have waited on the very click the flag exists to avoid.
+
+  Once-ness has one implementation (`renderers/action/auto-trigger.ts`), now shared by both renderers rather than written twice: a guard ref per rendered action, so re-renders never re-fire it and a flag that flips true later still fires exactly once. Container visibility still governs mounting — a hidden `action:bar` or `action:menu` renders no children and auto-triggers nothing — while the action's own `visible` gate does not suppress the trigger, matching `action:button`'s long-standing behaviour so that a deep link cannot depend on where the bar happened to put the action.
+
+  The `action:bar` split, the inline `action:button` path and #4166's arming pins are unchanged.
+
+- f650253: `BaseSchema.ariaLabel` declares the keyed i18n vocabulary the renderer actually
+  resolves, `.disabled` accepts the predicate string it actually evaluates, and the
+  keyed shape finally has a name (objectui#4581)
+
+  Three slots on one base type had drifted from what the renderer does with them.
+  PR #4593 fixed `visible` and measured the rest; these are the rest.
+
+  `ariaLabel` was `string`, but `SchemaRenderer.tsx:111` resolves it with
+  `resolveKeyedI18nLabel`, whose input is the KEYED form
+  `{ key, defaultValue?, params? }` — a reference into a translation bundle. It is
+  now `string | KeyedI18nLabel`, and `KeyedI18nLabel` is a new exported type in
+  `@object-ui/types` rather than a fourth inline copy of one object literal: the
+  three that existed (`@object-ui/react`'s resolver, `@object-ui/layout`'s
+  `resolveLabel`, `@object-ui/app-shell`'s `t`-taking twin) were verified identical
+  in their object half first, and two of them now import the name.
+
+  The vocabulary matters more than the widening. `#4581` originally asked for
+  `string | I18nLabel`, and that spelling was withdrawn as measured-wrong: the
+  spec's `I18nLabel` is the INLINE LOCALE MAP (`string | Record<string, string>`),
+  a different vocabulary resolved against a BCP-47 locale by a different function
+  of a confusingly similar name. Under it the shipped keyed fixture type-checked
+  only vacuously — as a locale map whose "locales" are named `key` and
+  `defaultValue` — the same label carrying `params` was rejected outright, and a
+  genuine `{ en: 'Owner' }` compiled while rendering an EMPTY `aria-label`. Naming
+  the keyed shape is the declaration half of the fix objectui#4167 started on the
+  naming side; `@object-ui/app-shell`'s copy keeps its inline spelling for now
+  because an open PR has a pending change to that file, and the comment there says
+  so.
+
+  `disabled` was `boolean` on a key the renderer never reads as one:
+  `SchemaRenderer.tsx:466` evaluates it through the same `evaluateCondition` as
+  `visible`, and a `disabledOn?: string` sibling exists for the same reason. It is
+  now `boolean | string`. The asymmetry with `visible` was accidental rather than
+  deliberate.
+
+  Both are widenings on authored-input-dominant properties: authors gain a
+  spelling, nothing that type-checked before stops doing so, and readers already
+  coped with `any` through `BaseSchema`'s index signature. Three test fixtures that
+  had been casting past these declarations with `as unknown as BaseSchema` state
+  their values directly now, and the declared unions are pinned invariantly so
+  neither a missing widening nor an overshoot to `any` can pass unnoticed.
+
+  Declaring the vocabulary honestly also surfaced a real one: the `toggle`
+  renderer writes `aria-label` itself instead of going through SchemaRenderer's
+  resolver, and it forwarded the raw value. Invoked directly it emitted
+  `aria-label="[object Object]"` for a keyed label — announced verbatim by a
+  screen reader. It resolves now. Through `SchemaRenderer` the bug was invisible,
+  because SchemaRenderer injects its own resolved `aria-label` afterwards; a
+  downstream type-check sweep found it, not a test.
+
+  `BaseSchema.label` and `.description` are deliberately unchanged and pinned that
+  way. They receive the spec's inline `I18nLabel` from the view bridges, which is a
+  real defect, but resolving it belongs at the spec-to-schema boundary rather than
+  in this declaration — and that work is still blocked on a design question about
+  where the display locale enters, so it is not in this release.
+
+- d0c3b26: Every plain `<button>` now declares its `type`. HTML defaults an untyped button to
+  `type="submit"`, so any of these buttons would submit the form it was composed into
+  instead of running its own handler — a real risk for renderers (`drawer`, `tree-view`,
+  `navigation-overlay`) whose placement inside a form is a JSON metadata decision. 114
+  sites were converted to `type="button"`; no site was a genuine submit button, and the
+  DOM is otherwise unchanged.
+
+  The defect class is now closed mechanically by a new `object-ui/button-has-type` ESLint
+  rule (error), so the next untyped button fails CI at write time rather than being found
+  by a fourth audit round (objectui#4045, closing the objectui#3344 family).
+
+- 4dadf0d: `@object-ui/components` compiles under `noImplicitAny` — the workspace's last strict-relaxing package
+
+  `packages/components/tsconfig.json` carried `"noImplicitAny": false`, the only place in the workspace that relaxed a `strict` sub-flag, under a comment that explained the neighbouring `rootDir` removal rather than the flag itself. `tsconfig.test.json` mirrored the one flag deliberately, so that a test project could not become the compiler of record for a source strictness decision the build config owns. Both now simply inherit `strict: true` from the root config, and the mirror's reasoning is rewritten to record why the mirror is gone rather than deleted silently.
+
+  Turning the flag on reported 26 implicitly-`any` sites in five renderer source files and 2 in the package's own tests, all of which now have real types. Nothing about the runtime changed; every one of the package's 1077 tests passes untouched.
+
+  Two of those signatures were typed by measurement rather than by preference, and both are worth recording:
+
+  The ten `sidebar.tsx` entry points follow the convention the package's other registered renderers already use — an inline `{ schema: <X>Schema; [key: string]: any }` annotation naming the registered component's own schema type (21 occurrences across the renderer tree, against zero uses of `ComponentRendererProps`). Only `'sidebar'` itself has a schema type in the registry map; the other ten registrations are sidebar _parts_ with none of their own, so they take `BaseSchema`, the type every registered node satisfies. Annotating them `SidebarSchema` would have asserted `type: 'sidebar'` on a node whose type is `'sidebar-header'`.
+
+  The action renderers' callbacks are typed from `UIActionSchema`, not the legacy `ActionSchema` those three files import for their declarations. The legacy interface (`crud.ts`, already `@deprecated`) has no `locations`, so the shared `actionRendersAt` placement predicate rejects it outright; its `variant` union has no `'primary'`, the value the objectui#2339 ordering tie-break compares against; and its `type` is the literal `'action'`, while the actions actually flowing through these renderers carry `'form' | 'script' | 'url' | 'flow' | 'api' | 'modal'`. `action:bar`'s own documented example is a `UIActionSchema`. None of this was checkable before, because the props type never reached the callbacks at all: `forwardRef` routes props through `PropsWithoutRef`, whose `Omit` collapses a props type carrying `[key: string]: any` down to the bare index signature, so `schema` arrived as `any` and every callback under it inferred `any` too. The fix annotates each action list once where it enters and lets the `filter`/`some`/`map` chains below infer.
+
+  Graded `patch`: no declaration this package publishes changes shape. The three action schema interfaces and the leaf components whose props moved to `UIActionSchema` are internal — none is re-exported from `src/index.ts`. The `actions?: ActionSchema[]` keys those interfaces still declare remain on the legacy type; reconciling that declaration with the type the implementation actually receives reaches roughly 46 sites across 12 files and is filed separately.
+
+- ae10a01: Console chrome reaches the bundle — the list switcher, the aggregate footer, the dialog a11y fallbacks and the whole Settings namespace screen stop being English on non-English consoles
+
+  Six strings on the two screens a user looks at most were hardcoded English literals rather than bundle lookups, so they stayed English on every non-English console with nothing an app could author to change them. They are not object, field, view or action labels — no key in `TranslationData` reaches them — while the console's own bundle already ships zh-CN, ja-JP, es-ES, de, fr, pt, ru, ko and ar and translates hundreds of neighbouring strings. Omissions from an otherwise complete bundle, not a missing capability.
+
+  **Two of the six needed no new keys at all, which is the more interesting half.** The list-view mode switcher named its nine visualizations from a private `VIEW_LABELS` table while `console.objectView.viewType*` — the same nine words — had been resolved through the bundle by the create-view picker for months; the switcher now reads those keys, so the picker's 「画廊」 and the switcher's 「画廊」 cannot drift apart in nine languages. The create/edit dialog's close button is the remainder of a fix that already landed: objectstack#5505 routed the `sr-only` close label through `common.close` for the two Shadcn-synced primitives, but `MobileDialogContent` is a hand-written wrapper outside that regeneration zone with its own close button, and it is exactly what `ModalForm` renders — so the dialog the report measured was the one place still announcing "Close" in English.
+
+  The aggregate footer is the one the original report singled out: the **number** was already locale-formatted and the **prefix** was a hardcoded `Avg: ` / `Sum: `. All eleven aggregation kinds now take their prefix from `grid.summary.*`, and the label/value join is its own key rather than a `': '` baked into the renderer — the separator is translatable content, so zh sets a fullwidth colon and fr the French space-before-colon. The numbers are untouched. The form dialog's `sr-only` description fallback joins the packs too; it is clipped, not visible, so the only way an app could displace it was to author a `description` and thereby put a visible subtitle on every dialog.
+
+  **The Settings namespace screen converts as one unit.** `SettingsView` routed zero framing copy through i18n — save/failure toasts, the env-lock and crypto refusals, the load-error card, the empty-route state, the navigation buttons, the unsaved-changes save bar — while its immediate sibling `SettingsHub`, in the same directory, resolved everything through `t('console.settingsHub.*')`. A zh-CN admin read correctly translated field labels sitting inside an English save bar, because `useSettingsLabel` translates a namespace's authored content but reaches none of the chrome around it. All of it now resolves through a `console.settingsView.*` namespace placed beside the hub's, including the crypto-refusal strings that objectui#4579 deliberately left in English rather than leave one translated string among a dozen literals.
+
+  The save-bar counter was an English plural rule executing in every locale (`change` plus an `s` when the count exceeds one). It is now a real i18next plural family — base key plus `_one` and `_other` in all ten packs — not the `(s)` spelling translated nine ways. The base key is the load-bearing part: i18next asks `Intl.PluralRules` for the one suffix a language needs and, finding no such slot, falls back to English, so without it Russian would read English at counts 2-20 and Arabic at 2-99. Russian and Arabic take the "noun: {count}" form their packs already use for this exact reason, and the counter is verified rendering in-language at 1, 2 and 5.
+
+  The Beta badge reuses the hub's existing key rather than minting a twin, and the refusal messages interpolate their subject through the bundle instead of concatenating a translated word onto an English prefix.
+
+- 4b70d28: data-table row menu — the built-in Edit/Delete predicate parameters are derived from the authoring type, not hand-restated
+
+  One authoring shape (`DataTableSchema.rowEditPredicates` / `rowDeletePredicates`, objectui#2614) had grown four separate declarations in `renderers/complex/data-table.tsx`: the shared `isBuiltinRowActionVisible` gate and `planDataTableRowMenu` each hand-wrote `{ visibleWhen?: unknown }`, and the row-menu ITEM component hand-wrote the full `{ visibleWhen?: unknown; disabledWhen?: unknown }` pair. Nothing tied any of them to the type whose values they receive, so a rename in `@object-ui/types` would have left all four compiling against a shape that no longer existed — the objectui#3009 hand-copy family, in miniature.
+
+  Each one now derives. The planner keeps its deliberate visibility-only subset, `Pick`ed from the very key its caller passes (`Pick<NonNullable<DataTableSchema['rowEditPredicates']>, 'visibleWhen'>` and the delete twin), so the signature still tells the truth about what the function reads while becoming structurally unable to drift from what it subsets. The two consumers that serve both built-ins share one derived alias taken from the union of the twins, so they may only read keys both schema keys declare. Measured: with `visibleWhen` renamed in `@object-ui/types`, the previous hand-written declarations still type-check clean, the derived ones fail to compile.
+
+  No behavior change — no runtime code was touched, and the package's suite passes unchanged. Alongside it, the "a disabled item still counts toward the menu" rule gains the pin it never had where a user meets it: a row whose only action is `disabledWhen`-gated keeps its "⋮" trigger, and that trigger opens the item, present and `aria-disabled`. The two halves of that rule live in different functions, and each half's own test stayed green while the other regressed.
+
+- b4d3c22: `element:button`'s action forward is excess-property checked again — a misspelled key on that payload is now a compile error, not silence
+
+  The payload `element:button` hands to `execute(…)` closed with `as any`. An assertion asks only for comparability, so it switched TypeScript's excess-property (freshness) check off for the whole literal: all sixteen keys the renderer forwards rode unchecked, and `ActionDef` being a closed type (objectui#4046) bought this surface nothing. A typo added to that list — `refreshAftr`, `confirmTxt` — would have compiled, published, and reached a runner that silently does nothing, which is the objectstack#2169 "Mark Done does nothing" shape the closed type exists to prevent.
+
+  The exemption that recorded this assumed the cast was load-bearing, on the reasoning that `element:button` receives a bare `action?: Record< string, any >` prop rather than a typed action, so removing the cast would be a contract change. Measured on TypeScript 6.0.3, that was wrong on the point that mattered: dropping the cast type-checks clean as-is, because every key the literal writes is already declared on `ActionDef`. The prop's type is a separate question and is deliberately untouched here — the forward literal never needed the cast to compile.
+
+  Two literals needed it, not one. The `execute(…)` argument is contextually typed by `execute(action: ActionDef)`, so dropping the cast is enough for the explicit keys. The `paramsPayload` binding spread into it is the second, easily-missed half: a spread source's own keys are not checked _through_ the spread, so `{ actionParams }` / `{ params }` could still invent a key while the payload around them was checked. That binding is now annotated `ActionDef` too.
+
+  Runtime behaviour is unchanged — the object reaching `execute` is identical, key order included, and the emitted `.d.ts` does not move. What changes is that the compiler now rejects an invented key here, verified in both directions: the same probe key produces `TS2353` after this change and no diagnostic at all before it.
+
+  With this surface fixed, `check:action-forward-parity` has no payloads exempt from its freshness rule: all five action-forwarding renderers write into a literal the compiler checks, and the gate's ratchet removed the exemption entry itself as designed.
+
+- bc64bfe: A dependency-gated option list no longer deletes the field's stored value on mount
+
+  The four fixed-option widgets (`SelectField`, `MultiSelectField`, `CheckboxesField`, `RadioField`) end their cascade resolution with a "drop what is no longer offered" effect, and the form renderer runs an equivalent clear of its own over every option field. Both read `resolveCascadingOptions`, which returns an **empty** offered set whenever the list is _gated_ — a declared `dependsOn` parent is still empty. Nothing the field held could be "still offered" against an empty set, so both paths wrote the field empty **on mount, with no interaction**, while the control rendered "Select Country first" beside it: it told the user it could not offer anything, and deleted what they had.
+
+  Gated means **unknown**, not invalid. The cascade clear exists (ADR-0058) so a user-driven parent change prunes a now-invalid child; a withheld list on mount is missing information — the record simply arrived with its controlling field empty (a later-cleared parent, an import, a partially-migrated row) — and that is not a reason to destroy stored data. Both clears now skip while gated, reading the resolver's own `gated` flag rather than re-deriving it from an empty offered set, which would collide with the distinct never-configured case guarded separately in objectui#4220.
+
+  Convergence stays exactly where it belongs: once the parent **is** chosen and the resolved set genuinely excludes the stored value, the prune applies unchanged — including at the moment the gate lifts, so picking a parent whose list does not contain the old value still clears it on that transition. The three states are pinned apart (never-configured / gated / resolved-and-excludes) across all four widgets and the form host, so a future edit cannot collapse them back into one empty-set test.
+
+  Reachable on every host that mounts these widgets with a live record: the form renderer, the grid's inline cell editor, and the detail page's inline editor — where each `onChange` went straight into the record draft the save bar commits.
+
+- 3e19fe7: i18n copy: one ellipsis glyph across the ten packs, `usted` in the es draft-preview empty state, and a pt sentence that stops contracting `de` onto its own hole
+
+  Three locale-copy defects that no gate could see, because all three are _value_ defects on keys whose names, placeholders and key sets were already correct.
+
+  **One ellipsis (objectui#3878).** `en` ended 33 values with three ASCII full stops (`Loading...`, `Ask anything...`) and 110 with the typographic ellipsis `…`, and the nine translation packs had copied `en` value by value — so a user could read both glyphs on one screen: `common.loading` beside `dashboard.loading`, `console.ai.askAnything` beside its own panel's siblings. All ten packs now spell it `…` (U+2026), per the maintainer-authorized consistency pass registered on objectstack#6015. 312 pack values changed: 34 in `en` (the 33 trailing plus the one mid-sentence `collaboration.commentPlaceholder`) and 278 across the nine. Eleven inline `defaultValue` call sites were re-synchronised with the new `en` text, which `scripts/check-i18n-call-site-keys.mjs` requires byte-for-byte.
+
+  The convention is now pinned so the split cannot regrow: `packages/i18n/src/__tests__/ellipsis-glyph-3878.test.ts` fails, by key name, on any value in any of the ten packs that holds three ASCII full stops. It is deliberately wider than "a trailing `...` in `en`", because the census showed the narrow rule would have shipped with two holes in it — `collaboration.commentPlaceholder` puts the ellipsis mid-sentence, and `list.loading` had the packs wrong while `en` was already right, which no `en`-only rule can see.
+
+  Fifteen module-local **no-provider fallback** entries were moved with the packs, across `useCollaborationTranslation`, `useFieldTranslation`, `useDetailTranslation`, `ObjectGrid`, `KanbanImpl`, `data-table` and `ConnectionStatus`. Those maps exist to render when no `LocalizationProvider` is mounted, and each one's own docblock requires it to stay byte-identical to the `en` pack — a requirement objectui#3440 already enforces mechanically for the collaboration map. Leaving them behind would have made the provider-less path disagree with the provider path on ten keys.
+
+  **es `usted` (objectui#3875).** `preview.empty.notReadyDescription` said `Revisa la conversación` — the tú imperative — in a namespace that is otherwise 23:1 usted, and it renders _underneath the usted draft-preview banner at the same moment_, not before or after it. `Revisa` → `Revise`; nothing else in the sentence carries a register. The neighbouring `approvalsInbox` namespace is legitimately tú and was left alone.
+
+  **pt contraction (objectui#3877).** `ConcurrentUpdateDialog` splits `detail.concurrentUpdateDescription` on `{{field}}` and renders a bolded label in the gap, and pt left a bare `de` in front of that gap. When the multi-field conflict branch passes the record label (`este registro`), Portuguese users read `de este registro` — a contraction error every native speaker sees, and one that no spelling of the leaf value could fix (`deste registro` renders `de deste registro`). The pt sentence is rewritten so the hole is preceded by the verb `afeta` instead of any preposition, which closes the whole class rather than trading `de` for an `em` or `a` that contract just as hard. pt only; `en` is unchanged.
+
+  No behavior, no keys added or removed, no placeholder changed.
+
+- 45e1949: Numbers render in the user's locale, and a `Field.number` year is no longer `2,026`
+
+  Every numeric field the console rendered went through an `Intl.NumberFormat` built with the locale hardcoded to `en-US` and `useGrouping` never set. Two defects rode in that one construction: a `zh-CN` or `de-DE` console still grouped and pointed decimals the US way, and a four-digit **year** stored as `Field.number({ scale: 0 })` rendered as `2,026` — in every locale, with no field property able to turn it off. Apps had been converting year columns to `Field.text` to escape it, permanently trading numeric comparison, range filters and dataset dimension types for a display detail.
+
+  The construction had been copied into five places — the number cell renderer, the currency cell renderer, the `CurrencyField` widget, the compact `formatNumber` helper, and the dashboard `MetricWidget` — so fixing any one surface never changed the answer. They now share one formatter, `formatDisplayNumber` in `@object-ui/i18n`, which owns the locale and the grouping policy together, plus one locale resolver, `useDisplayLocale`.
+
+  `useDisplayLocale` composes the two locale channels this repo already had rather than adding a third: the tenant's regional default (`useLocalization().locale`, ADR-0053) when an org has configured one, otherwise the active UI language (`useObjectTranslation().language`) so grouping and decimal marks follow a language switch. That second step is what covers the case the report was measured in — a fresh database, where the tenant localization endpoint has no locale to give.
+
+  Grouping is now suppressed when a field declares `scale: 0` and carries no currency, which is what makes years, fiscal periods and other ordinals render plainly. This is an **interim default** with an accepted cost: a large scale-0 _count_ loses its separators too. It holds only until the spec gains an authorable presentation hint, which is being specified separately, contract-first; when that lands it overrides this heuristic.
+
+  Three surfaces deliberately keep their separators, because a zero-decimal display there does not come from a field declaration: the dashboard `MetricWidget` (its decimals are parsed from a numeral.js format pattern, and its own contract calls the separators load-bearing — "`1,930,000` not `1930000`"), the `element:number` aggregate renderer, and every currency path including amounts whose currency code could not be resolved. An **undeclared** `scale` also keeps grouping — absent means "decimals unknown", not "integer".
+
+  `formatCurrency`, `formatCompactCurrency` and `formatNumber` each take a new optional trailing `locale` argument. Existing calls are unaffected; omitting it now follows the runtime default rather than forcing US conventions.
+
+- a3ae404: fix(components,plugin-dashboard): a static-data `table` widget renders instead of crashing
+
+  A dashboard widget authored as `{ type: 'table', options: { data: [ … ] } }` fell into the
+  error boundary with "Maximum update depth exceeded" the moment its tile re-rendered, while
+  every chart family on the identical static surface rendered clean.
+
+  - `data-table` no longer re-renders itself to death. Its `columns` / `data` fallbacks are
+    module-scope empties instead of per-render array literals, and the prop→state column sync
+    re-seeds on a value change rather than on a new identity — so a consumer that derives its
+    columns each render (which both dashboard surfaces do) costs the table nothing.
+  - Both dashboard surfaces now give the static table the `columns` key `DataTableSchema`
+    requires, derived from the rows when the author declared none — the same derivation the
+    `provider: 'object'` half of the widget family already performed. Previously such a table
+    drew one empty row per record: no headers, no cells.
+  - `DashboardGridLayout` reads an authored `options.data` ARRAY for its static table, which
+    its `widgetData?.items` expression resolved to `[]`. `DashboardRenderer` had the arm all
+    along.
+
+- bfdf3d4: `element:record_picker.filter` is now discoverable from the published `inputs`
+
+  The fourth A-class gap of objectui#3808's own list, and the one its three-way
+  triage dropped: `filter` appears in that issue's raw key dump for this block and
+  then in none of its A / B / C lists, so the change that added the repo-wide
+  parity gate exempted it by name instead of declaring it. It is the same shape as
+  the four #3808 fixed — `@objectstack/spec` declares
+  `ElementRecordPickerProps.filter`, the renderer has read it all along
+  (`composed?.filter ?? props.filter`, straight into the picker query's `$filter`),
+  and the registry `inputs` never mentioned it.
+
+  `element:record_picker` is not in the public tier ("record picking is a field
+  widget, not a page block"), so the gap was not in `sdui.manifest.json` — it was
+  in the JSX-page compiler's prop whitelist, which `renderers/layout/page.tsx`
+  builds from `getKnownTypes()` plus these same `inputs`. A JSX page writing
+  `filter` therefore got an `unknown-prop` warning from `sdui-parser`'s prop walk
+  on the very key that decided which records the picker offered, and the designer
+  panel gave an author no way to discover the key existed at all.
+
+  The description is derived from what the renderer does, not from restating the
+  spec's one-liner, because the one thing an author cannot read off the spec is
+  which of the two places they may write a filter wins: a node-level `dataSource`
+  filter (itself AND-combined with any saved `view` it names) is taken and this
+  top-level `filter` is DROPPED, not merged — so this key applies only when the
+  node carries no `dataSource` filter.
+
+  `type` is `'object'`, taken from the spec's actual shape on the resolved pin
+  rather than the `'array'` the issue's landing sketch guessed:
+  `FilterConditionSchema` is `z.record(z.string(), z.unknown())` intersected with
+  the `$and` / `$or` / `$not` group, so a rule array is rejected. This is the one
+  key in the family where `ComponentInput`'s coarse typing costs nothing —
+  `sdui-parser`'s `checkType` accepts exactly the values the spec accepts here, so
+  unlike `element:text_input.defaultValue` there is no narrowing to disclose.
+
+  The parity gate's explicit exemption for this key is deleted in the same change
+  (its own `carries no stale unpublished-key exemption` assertion demands it), and
+  the key joins #3808's four in the by-name "declared, not merely not-failing" pin.
+
+- b1e42d0: Conditional required (`requiredWhen`) now decides at SUBMIT time too — the star and the validator can no longer disagree
+
+  A `requiredWhen` predicate that flipped to FALSE after the dialog mounted updated only half the form. The display layer re-evaluated correctly — the asterisk and `aria-required` both disappeared — while submit stayed refused with "<field> is required" and no write was ever issued. The user saw an optional field and a form that would not save, with nothing on screen naming the field it was still waiting on (objectui#4161).
+
+  The cause is not a mount-time snapshot, which is what the symptom looks like. The renderer hands react-hook-form its per-field rules as a `<Controller rules>` prop, and RHF _merges_ that object into the field descriptor it already holds — `_f: { ...previous._f, ...options }`. A rule key that stops being spelled is therefore never removed. Rules could be ADDED live (a predicate flipping TRUE after mount did start enforcing, correctly) but never withdrawn: the `validate.required` entry installed the first time the predicate evaluated TRUE outlived every later FALSE verdict. The validation layer was append-only, latched on the first TRUE the field ever produced.
+
+  The `validate.required` entry is now registered unconditionally and decides required-ness when it _runs_, reading the live verdict the renderer publishes on every render — the same single `resolveFieldRuleState` result that draws the asterisk, not a second evaluation of the predicate with its own copy of the record assembly. Both directions are pinned: a predicate flipping FALSE re-opens submit, a predicate flipping TRUE starts enforcing, and statically required fields are unaffected.
+
+- 3f5f87c: `SchemaRenderer` states its real contract — a typed, required `schema` and a deliberate forwarding surface
+
+  `SchemaRenderer` is the renderer loop: every registered SDUI component is rendered through it. It handed `forwardRef` a props type of `{ schema: SchemaNode } & Record<string, any>`, which puts `string` into `keyof Props`, so `'ref' extends keyof Props` was always true, React's `PropsWithoutRef` took its `Omit` branch, and `Omit` over a type carrying a string index signature keeps only the index signature. Every declared prop was erased. Measured on the pre-fix source: `keyof ComponentProps<typeof SchemaRenderer>` was `string` and `ComponentProps<typeof SchemaRenderer>['schema']` was `any`, while the type argument went on declaring `SchemaNode`. The other half is the same defect seen from the call site — `<SchemaRenderer />` with no schema at all, `<SchemaRenderer schema={12345} />`, and an arbitrary misspelled prop each type-checked in silence. This is objectui#4422 / PR #4438's trap in the most central component in the repo, spelled `Record<string, any>` rather than `[key: string]: any`, which is why every previous sweep's grep and both shipped guards' detector reported the site as clean.
+
+  Graded **minor, not major**, on objectui#4528's reasoning: the type argument has always DECLARED `schema`; the index signature erased it from the resolved type, and restoring what the declaration documents is a fix to the published contract rather than a contract break.
+
+  **The forwarding surface is kept, deliberately.** This component forwards every prop it does not read to the component the schema names, resolved at runtime from a plugin-extensible registry — `packages/react/README.md` documents exactly that, and `@object-ui/components`' form renderer consumes the `onSubmit` it shows being forwarded. Closing that surface would state a false contract and would force every leaf plugin's props into this package. So the two halves are separated: the `forwardRef` type argument is the honest `SchemaRendererProps`, with no index signature for `PropsWithoutRef` to collapse, and the open surface is stated once in an explicit export annotation, which nothing routes through `Omit`. The published `.d.ts` shows the erasure disappearing: `ForwardRefExoticComponent<Omit<{ schema: SchemaNode } & Record<string, any>, "ref"> & RefAttributes<any>>` becomes `ForwardRefExoticComponent<SchemaRendererProps & Record<string, any> & RefAttributes<any>>`.
+
+  `SchemaRendererProps.schema` is declared as `BaseSchema | string | null | undefined` — what this component actually handles. It previously declared `@object-ui/core`'s `SchemaNode` interface, which requires `type: string` and so contradicted the component's own early returns for strings and nullish, while every caller held `@object-ui/types`' wider union. The erasure hid that mismatch completely.
+
+  **One declared behaviour change.** A non-object, non-string primitive schema now renders as its own text. It previously fell through to the shallow copy `{ ...schema }`, which spreads a primitive to an empty object, lost the `type` the renderer then looked up, and surfaced the red "Unknown component type: undefined" box — an accident of the spread rather than a decision. The declared props type excludes `number` / `boolean` so no author is invited to pass them; the runtime handling is defence-in-depth for untyped callers and stored metadata. Strings, `null`, `undefined`, `0` and `false` render exactly as before, and an object naming an unregistered type still gets the error box; all four are pinned.
+
+  Latent defects the erasure had been hiding, each surfaced by the repo-wide type-check and fixed at its call site: `DashboardRenderer` cast its widget schema to `Record<string, any>`, dropping the `type` every branch of `getComponentSchema` sets; `DashboardGridLayout`'s equivalent now states its return type instead of inferring a union that admitted a shape with no `type`; and `ReportViewer` handed a section's `content` array to the renderer whole, so a multi-node section rendered the unknown-component box instead of its content — arrays are mapped rather than widened into the renderer's declared input.
+
+  A repo-wide structural guard replaces the two per-package siblings' blocked direction: it judges every `forwardRef` in `packages/*/src` (219 sites) and its detector resolves `Record<string, …>` and `string`-keyed mapped types in addition to literal index signatures — the spelling the previous detector went blind on. It judges the type argument only, where an index signature is an accidental eraser, and never an export annotation, where one is a stated contract.
+
+- f5e1143: A collapsed sidebar now survives a reload — `SidebarProvider` reads the `sidebar_state` cookie it has always written
+
+  The cookie half of this feature only ever ran in one direction. `setOpen` wrote `sidebar_state` on every toggle with a 7-day max-age, and nothing ever read it back: `SidebarProvider` seeded its state from `defaultOpen` (default `true`), so a sidebar you collapsed came back expanded on the next load with the correct cookie sitting right there, unread. QA measured it at 255px and `data-state=expanded` at +2s, +4s and +8s after load, reproduced three times.
+
+  Upstream Shadcn closes this loop in a **server component** — it reads the cookie there and passes the value down as `defaultOpen`. A pure SPA like the console has no such step, which is why nothing downstream could paper over it: passing a cookie-derived `defaultOpen` from one shell would have fixed that shell and left every other consumer of the primitive broken. The read therefore happens client-side, in the provider, as a lazy `useState` initialiser rather than a mount effect — the state has to be right on the first render, since a post-mount correction would still flash an expanded sidebar at the user.
+
+  Precedence is now pinned, in this order: a controlled `open` prop, then the cookie, then `defaultOpen`, then `true`. The cookie overrides the _default_, never a controlled usage. With no cookie present the behaviour is exactly what it was before, which is what keeps explicit `defaultOpen={false}` call sites — the marketing demos in `apps/site` — rendering unchanged; those cases are controls in the new test file and are green on both sides of the change.
+
+  Only the two values the writer produces are honoured (`"true"` / `"false"`), matched on an exact cookie name; anything else, including an absent or malformed value, falls through to `defaultOpen` rather than inventing a preference the user never expressed. The reader is SSR-safe, which `apps/site` needs: those primitives are `"use client"`, and Next still renders them on the server for the initial HTML, where there is no `document`.
+
+  Because `packages/components/src/ui/**` is regenerated from the Shadcn registry, the primitive itself only gains two anchored one-liners. All of the parsing lives in `packages/components/src/lib/sidebar-cookie.ts`, which the sync never touches, and the two edits are declared in `scripts/shadcn-local-patches.mjs` so `pnpm shadcn:update` re-applies them instead of silently reverting the fix — the same mechanism already used for the translated `Sheet`/`Dialog` close labels.
+
+- 5bf09fd: `ActionParamDialog`'s `select` branch no longer renders a hardcoded English `Select...` placeholder. The fallback used when an action param declares no `placeholder` of its own now reads the existing `common.select` pack key, so it is translated in all ten locales and carries the typographic ellipsis (U+2026) that #3878 converged the packs on. Authored `placeholder` metadata keeps priority, and no locale pack changed — the key was reused from `LookupField`'s identical select-trigger use.
+- Updated dependencies [0e67b53]
+- Updated dependencies [ceccdcf]
+- Updated dependencies [ee66e2e]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [932cbcd]
+- Updated dependencies [734d186]
+- Updated dependencies [f650253]
+- Updated dependencies [3d9769a]
+- Updated dependencies [8f85f8b]
+- Updated dependencies [d0c3b26]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [f7c6430]
+- Updated dependencies [ae10a01]
+- Updated dependencies [92876f0]
+- Updated dependencies [f279deb]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [613b167]
+- Updated dependencies [1f9b905]
+- Updated dependencies [828549a]
+- Updated dependencies [e1ade8f]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [3e19fe7]
+- Updated dependencies [bb58d1d]
+- Updated dependencies [5cc847c]
+- Updated dependencies [fa21254]
+- Updated dependencies [33c32bf]
+- Updated dependencies [66fb4fa]
+- Updated dependencies [b953a97]
+- Updated dependencies [d7f3e30]
+- Updated dependencies [6d641c9]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [a84385b]
+- Updated dependencies [45e1949]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [58bebf6]
+- Updated dependencies [405e808]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [c0f9a4b]
+- Updated dependencies [2459a3e]
+- Updated dependencies [ac853ce]
+- Updated dependencies [fa51109]
+- Updated dependencies [d6aa172]
+- Updated dependencies [fe52a04]
+- Updated dependencies [d46f9b8]
+- Updated dependencies [3f5f87c]
+- Updated dependencies [2fea4d2]
+- Updated dependencies [7f1cb33]
+- Updated dependencies [f148a64]
+- Updated dependencies [bb68488]
+- Updated dependencies [2e3b0c0]
+- Updated dependencies [9461dd3]
+- Updated dependencies [78fa331]
+- Updated dependencies [47f551b]
+- Updated dependencies [31ab1ac]
+- Updated dependencies [0082db8]
+- Updated dependencies [ab04728]
+- Updated dependencies [06915b0]
+- Updated dependencies [ff84b05]
+  - @object-ui/i18n@17.5.0
+  - @object-ui/react@17.5.0
+  - @object-ui/core@17.5.0
+  - @object-ui/types@17.5.0
+  - @object-ui/sdui-parser@17.5.0
+  - @object-ui/react-runtime@17.5.0
+
 ## 17.4.0
 
 ### Minor Changes

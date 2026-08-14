@@ -1,5 +1,277 @@
 # @object-ui/plugin-report
 
+## 17.5.0
+
+### Patch Changes
+
+- ee26e65: Analytics: the dimension label net's fetch-and-memo glue is written once, not once per surface
+
+  PR #4388 (objectui#4330) put the same React glue on two surfaces — the dashboard's `DatasetWidget` and plugin-report's dataset block. The resolution RULES were never duplicated (both call the same `@object-ui/core` helpers), but the wiring around them was: read the object schema through the host's authenticated `apiFetch`, keep the fetched metadata locale-free in state, derive the label maps in a render memo. Two copies meant two statements of the same two bug fixes, which is a drift surface rather than a defect — nothing a user could hit today, filed as objectui#4389 so it was retired deliberately.
+
+  It is now split along the layer that can actually hold each half. `@object-ui/core` gains the React-free parts — `loadDimensionFieldMeta` (the base-object read composed with the dimension walk), `deriveDimensionLabelMaps` (the locale-applying derivation) and `dimensionOptionTranslator` (binding the bundle resolver to the object that OWNS a terminal field, which for a dotted path is the relationship target). `@object-ui/react` gains `useDatasetDimensionLabels` / `useDatasetDimensionMeta`, the React wiring that cannot live in core, beside the `useViewData` / `useElementDataSource` / `useDiscovery` hooks that already read `SchemaRendererContext` the same way. Both plugins consume it; the dashboard keeps its chart-only per-category colour and category-order derivation layered locally, since a table renders no palette.
+
+  The card originally proposed `@object-ui/core` as the whole glue's home. That home was disproven by measurement and retired in the card's PM RULING #2: `SchemaRendererContext` is defined in `@object-ui/react`, which depends on core, so core importing it back is a cycle — and core is React-free by declaration, by content, and by the topology in AGENTS.md. objectui#3367 had already ruled this direction for the same family (core-canonical logic, react re-exports).
+
+  Behaviour is unchanged by construction: same read count, same best-effort fallback, same memoization boundary. The two bug fixes are now stated once and pinned at the shared hook — the read rides the host's authenticated `apiFetch` (objectui#4121, pinned by asserting that a new channel re-issues the read, i.e. that it really is in the effect's deps), and the fetched metadata stays locale-free (objectui#4030 / PR #4324, pinned by switching language at runtime and asserting the labels flip with no second metadata read). All 39 assertions PR #4388 landed across both surfaces pass unchanged, and their files are byte-identical to before.
+
+- 326a70f: Analytics: a LOCAL select dimension on a table / pivot widget — and on a dataset-bound report — now renders its option label through the locale bundle
+
+  A dashboard table grouped by a select field showed `Domestic` on a zh-CN console while the related list on the same screen showed 国内. The value was never untranslated by accident: the server resolves that dimension's display label (ADR-0021) and hands the row over carrying the object's AUTHORED English label. The locale bundle is keyed by the option's stored VALUE (`{ns}.fieldOptions.<object>.<field>.<value>`), so translating one needs the option LIST — and the table path deliberately loaded no object metadata at all, which is why objectui#4030 / PR #4324 fixed charts and dotted dimensions and left this half open.
+
+  Table, pivot and the dataset report block now take the one metadata read that gives the bundle something to translate against, and feed it to the SAME seam #4324 landed (`resolveDimensionFieldMeta` → `localizeFieldOptions` / `buildDimensionLabelMap` → `relabelDimensions`). No second resolution dialect: the map carries both the stored value and the authored label as keys, and the relabel is value-wise and idempotent, so a value the server already resolved lands on the same display it would have from the raw value. Cells, pivot headers on both axes, the server's marginal totals, the CSV export and a report's embedded chart all read the one map, which is what keeps a subtotal's bucket lookup meeting the header it belongs to.
+
+  Untranslated apps are unchanged by construction: with no bundle entry the display equals the authored label, no key is emitted, and the rows come back by identity. Identity keys stay untranslated — a drilled row or cell still filters records by the values the server sent, and measures still export as bare numbers.
+
+  This deliberately amends the acceptance boundary objectui#4263 landed ("a local-only table issues no metadata read"), which was ruled for label RESOLUTION before the read had a second consumer. The pins that stated it are rewritten in place, in the same change, and say so.
+
+- 49ae9f4: Pivot buckets encode an empty dimension value as JSON `null`, so it no longer collides with a row whose value is literally the placeholder character
+
+  objectstack#5473 / objectstack#5665 replaced the pivot's delimiter-joined ids
+  with `JSON.stringify`, because every delimiter that had been tried — an empty
+  string, a plain space, a control character — assumed the data would not contain
+  it, and each assumption failed on ordinary data. This closes the last place the
+  same assumption survived: the ids were JSON, but the VALUES fed into them were
+  spelled `String(row[d] ?? '∅')`, so an absent dimension value became the
+  ordinary string `"∅"` and shared a bucket with a row whose value literally is
+  that character (U+2205). One bucket, later row overwriting the earlier one — the
+  cell showed a different row's measure, the overwritten row was unreachable, and
+  drill-through followed the same wrong index into the wrong records, all without
+  an error. The trigger requires that character to appear as a dimension value, so
+  this is the assumption being removed rather than a defect users hit today.
+
+  An empty value now encodes as JSON `null`, which `JSON.stringify` renders as a
+  bare `null` that no string can spell. The normalization lives in
+  `@object-ui/core` as `pivotDimensionValue` (absent ⇒ `null`, everything else ⇒
+  its string form) rather than at each call site, because a placeholder spelled by
+  a caller is a placeholder that can collide again — which is exactly how this one
+  survived the previous fix. `pivotBucketId` accepts `Array<string | null>`
+  accordingly; that is a widening, so existing callers passing `string[]` are
+  unaffected.
+
+  Both renderers' bucket keys move together, which the fix requires: a bucket id
+  and the subtotal map keyed by it are built from the same expression, so changing
+  one alone would split the headers while the subtotal map still merged, landing
+  every column subtotal under the wrong header. In `plugin-dashboard`'s
+  `DatasetWidget` that is the row bucket id, the column bucket id, the cell key,
+  and both the `rowTotalById` and `colTotalById` lookups; in `plugin-report`'s
+  `DatasetReportRenderer` the single `bucketId` helper already feeds all five.
+
+  The dashboard's column bucket id also stops being a bare string and becomes a
+  one-element tuple through the same shared encoder. It was the one id in the
+  family still built by hand, on the reasoning that a single value needs no
+  boundary — true of the boundary, false of everything else the encoder does, and
+  it is why the across axis kept carrying this collision after the row ids were
+  fixed.
+
+  No display change: these placeholders only ever entered ids, never labels. An
+  unset dimension still renders through `formatDimensionValue` exactly as before,
+  and data containing neither an absent value nor that character buckets
+  identically — the ids are opaque lookup keys, never parsed back into a value,
+  never shown, never persisted.
+
+- cb315f2: Report and dataset-preview measures follow the display locale (objectui#4575)
+
+  objectui#4566 gave `formatMeasure` / `formatDimensionValue` in `@object-ui/core`
+  an optional trailing `locale` and threaded `useDisplayLocale()` through the
+  dashboard's `DatasetWidget`. The parameter is OPTIONAL by design, so the
+  producer could land without dragging every consumer with it — which left the
+  consumers it did not reach still formatting in the MACHINE's locale. A German
+  session read a report measure as `1,234.5` directly beside a dashboard measure
+  that, after #4566, rendered `1.234,5`: one number, two spellings, on the same
+  screen. That is a sharper inconsistency than the one before #4566, when both
+  surfaces were uniformly wrong.
+
+  The remaining thirteen call sites now thread `useDisplayLocale()`:
+
+  - `plugin-report`'s `DatasetReportRenderer` (ten) — the grouped table's measure,
+    dimension and grand-total cells, the embedded single-value chart's metric, and
+    the cross-tab's across-axis header, down-axis cell, measure cell, row total,
+    column total and grand total;
+  - `app-shell`'s metadata-admin `DatasetPreview` (two) — the preview table's
+    measure and dimension cells;
+  - `app-shell`'s `DatasetDefaultInspector` (one) — the measure format-hint
+    sample, which is a preview of authored formatting and so has to be rendered
+    through the channel it previews.
+
+  **English output does not move**, and that is the discriminator against the
+  sibling fix. These sites already went through `Intl` with default grouping, so
+  the only thing that changes is WHOSE locale is used — contrast objectui#4553,
+  where `formatPercent` had never grouped at all and moving en `1235%` to
+  `1,235%` WAS the fix. Every new case pins the same value in de AND in en, so
+  at least one half must fail on any runner: before the change both render in the
+  machine's locale, which is what makes the machine locale stop being a test
+  input.
+
+  Two details worth recording:
+
+  - **The cross-tab's header labels are built inside a `useMemo`**, so the locale
+    joins that dependency array. Threading it into the call alone would leave the
+    headers frozen in whatever locale they were first built with — measured, and
+    pinned by a case that changes only the locale and asserts the header
+    re-labels. Removing just the dependency entry turns exactly that one case red
+    and leaves the other nine green.
+  - **The metadata designer's `locale` prop is deliberately not used.** It carries
+    the designer's own chrome language (`useMetadataLocale()`, which resolves to
+    exactly `en-US` or `zh-CN`), not a number-formatting locale — a German session
+    gets `en-US` from it. The preview's numbers have to match what the report and
+    dashboard render for the same dataset, which is `useDisplayLocale()`.
+
+  Both packages are `patch`: their published declarations are unchanged (measured
+  against the built `.d.ts` with `dist/` cleared between builds). The threading is
+  module-local, and the one signature that gained a parameter — the file-local
+  `bucketLabel` helper — is not exported.
+
+  A side effect of the fallback: these surfaces are now DETERMINISTIC where they
+  previously followed whatever locale the machine happened to run in.
+  `useDisplayLocale` ends at a concrete `'en'` rather than the `undefined` that
+  hands `Intl` the machine's locale.
+
+- 3f5f87c: `SchemaRenderer` states its real contract — a typed, required `schema` and a deliberate forwarding surface
+
+  `SchemaRenderer` is the renderer loop: every registered SDUI component is rendered through it. It handed `forwardRef` a props type of `{ schema: SchemaNode } & Record<string, any>`, which puts `string` into `keyof Props`, so `'ref' extends keyof Props` was always true, React's `PropsWithoutRef` took its `Omit` branch, and `Omit` over a type carrying a string index signature keeps only the index signature. Every declared prop was erased. Measured on the pre-fix source: `keyof ComponentProps<typeof SchemaRenderer>` was `string` and `ComponentProps<typeof SchemaRenderer>['schema']` was `any`, while the type argument went on declaring `SchemaNode`. The other half is the same defect seen from the call site — `<SchemaRenderer />` with no schema at all, `<SchemaRenderer schema={12345} />`, and an arbitrary misspelled prop each type-checked in silence. This is objectui#4422 / PR #4438's trap in the most central component in the repo, spelled `Record<string, any>` rather than `[key: string]: any`, which is why every previous sweep's grep and both shipped guards' detector reported the site as clean.
+
+  Graded **minor, not major**, on objectui#4528's reasoning: the type argument has always DECLARED `schema`; the index signature erased it from the resolved type, and restoring what the declaration documents is a fix to the published contract rather than a contract break.
+
+  **The forwarding surface is kept, deliberately.** This component forwards every prop it does not read to the component the schema names, resolved at runtime from a plugin-extensible registry — `packages/react/README.md` documents exactly that, and `@object-ui/components`' form renderer consumes the `onSubmit` it shows being forwarded. Closing that surface would state a false contract and would force every leaf plugin's props into this package. So the two halves are separated: the `forwardRef` type argument is the honest `SchemaRendererProps`, with no index signature for `PropsWithoutRef` to collapse, and the open surface is stated once in an explicit export annotation, which nothing routes through `Omit`. The published `.d.ts` shows the erasure disappearing: `ForwardRefExoticComponent<Omit<{ schema: SchemaNode } & Record<string, any>, "ref"> & RefAttributes<any>>` becomes `ForwardRefExoticComponent<SchemaRendererProps & Record<string, any> & RefAttributes<any>>`.
+
+  `SchemaRendererProps.schema` is declared as `BaseSchema | string | null | undefined` — what this component actually handles. It previously declared `@object-ui/core`'s `SchemaNode` interface, which requires `type: string` and so contradicted the component's own early returns for strings and nullish, while every caller held `@object-ui/types`' wider union. The erasure hid that mismatch completely.
+
+  **One declared behaviour change.** A non-object, non-string primitive schema now renders as its own text. It previously fell through to the shallow copy `{ ...schema }`, which spreads a primitive to an empty object, lost the `type` the renderer then looked up, and surfaced the red "Unknown component type: undefined" box — an accident of the spread rather than a decision. The declared props type excludes `number` / `boolean` so no author is invited to pass them; the runtime handling is defence-in-depth for untyped callers and stored metadata. Strings, `null`, `undefined`, `0` and `false` render exactly as before, and an object naming an unregistered type still gets the error box; all four are pinned.
+
+  Latent defects the erasure had been hiding, each surfaced by the repo-wide type-check and fixed at its call site: `DashboardRenderer` cast its widget schema to `Record<string, any>`, dropping the `type` every branch of `getComponentSchema` sets; `DashboardGridLayout`'s equivalent now states its return type instead of inferring a union that admitted a shape with no `type`; and `ReportViewer` handed a section's `content` array to the renderer whole, so a multi-node section rendered the unknown-component box instead of its content — arrays are mapped rather than widened into the renderer's declared input.
+
+  A repo-wide structural guard replaces the two per-package siblings' blocked direction: it judges every `forwardRef` in `packages/*/src` (219 sites) and its detector resolves `Record<string, …>` and `string`-keyed mapped types in addition to literal index signatures — the spelling the previous detector went blind on. It judges the type argument only, where an index signature is an accidental eraser, and never an export annotation, where one is a stated contract.
+
+- 31ab1ac: fix(print): `window.print()` produces a usable page, and the Print buttons say what they do
+
+  The list, report and dashboard Print controls were bare `window.print()` calls with no
+  print stylesheet, so the browser printed the whole console — sidebar, top bar, chat rail,
+  toasts — with the data table clipped to a single viewport. With no label to the contrary
+  they were being accepted against "export to PDF" requirements, which they have never been.
+
+  - `@object-ui/app-shell/styles.css` gains a shared `@media print` block: it hides the shell
+    chrome, prints the active content area full-width, releases the viewport-height flex chain
+    so long tables paginate instead of clipping, repeats table headers on every sheet, and
+    neutralises dark mode (which otherwise prints white-on-white). One sheet serves list,
+    report and dashboard.
+  - The list and report Print buttons carry a tooltip and accessible name stating that they
+    open the browser's own print dialog and are not a PDF export (new `common.printDialogHint`,
+    translated in all ten locale packs).
+  - The dashboard's `export_dashboard_pdf` action no longer toasts "Preparing PDF export…" —
+    it names the print dialog it actually opens (`dashboardActions.pdfPreparing` is replaced by
+    `dashboardActions.printDialogOpening`).
+
+  No control was removed and no headless detection was added. A real print/PDF primitive
+  remains out of scope (`objectstack-ai/objectstack#1301`, closed NOT_PLANNED).
+
+- Updated dependencies [0e67b53]
+- Updated dependencies [ceccdcf]
+- Updated dependencies [d6e5124]
+- Updated dependencies [debad27]
+- Updated dependencies [dc2aa3e]
+- Updated dependencies [ee66e2e]
+- Updated dependencies [e2e6360]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [932cbcd]
+- Updated dependencies [734d186]
+- Updated dependencies [f650253]
+- Updated dependencies [3d9769a]
+- Updated dependencies [8f85f8b]
+- Updated dependencies [7ffd616]
+- Updated dependencies [d0c3b26]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [f7c6430]
+- Updated dependencies [4dadf0d]
+- Updated dependencies [ae10a01]
+- Updated dependencies [77d6f28]
+- Updated dependencies [0f21348]
+- Updated dependencies [d2e2caf]
+- Updated dependencies [92876f0]
+- Updated dependencies [f279deb]
+- Updated dependencies [4b70d28]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [ebb4e0e]
+- Updated dependencies [3a9021e]
+- Updated dependencies [d9d3463]
+- Updated dependencies [2a40f69]
+- Updated dependencies [bec3e14]
+- Updated dependencies [613b167]
+- Updated dependencies [b4d3c22]
+- Updated dependencies [1f9b905]
+- Updated dependencies [8f60d73]
+- Updated dependencies [cb13400]
+- Updated dependencies [828549a]
+- Updated dependencies [e1ade8f]
+- Updated dependencies [bc64bfe]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [51ab34e]
+- Updated dependencies [24bb2de]
+- Updated dependencies [0ca6096]
+- Updated dependencies [3e19fe7]
+- Updated dependencies [bb58d1d]
+- Updated dependencies [433ff9f]
+- Updated dependencies [5cc847c]
+- Updated dependencies [e7663f2]
+- Updated dependencies [fa21254]
+- Updated dependencies [f565418]
+- Updated dependencies [33c32bf]
+- Updated dependencies [66fb4fa]
+- Updated dependencies [b953a97]
+- Updated dependencies [d7f3e30]
+- Updated dependencies [6d641c9]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [a84385b]
+- Updated dependencies [45e1949]
+- Updated dependencies [51ac39f]
+- Updated dependencies [5e514c4]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [58bebf6]
+- Updated dependencies [36310dc]
+- Updated dependencies [52d878a]
+- Updated dependencies [405e808]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [a3ae404]
+- Updated dependencies [4270c11]
+- Updated dependencies [bfdf3d4]
+- Updated dependencies [bb68488]
+- Updated dependencies [c0f9a4b]
+- Updated dependencies [b1e42d0]
+- Updated dependencies [2459a3e]
+- Updated dependencies [ac853ce]
+- Updated dependencies [fa51109]
+- Updated dependencies [d6aa172]
+- Updated dependencies [fe52a04]
+- Updated dependencies [d46f9b8]
+- Updated dependencies [3f5f87c]
+- Updated dependencies [2fea4d2]
+- Updated dependencies [f5e1143]
+- Updated dependencies [7f1cb33]
+- Updated dependencies [f148a64]
+- Updated dependencies [bb68488]
+- Updated dependencies [2e3b0c0]
+- Updated dependencies [9461dd3]
+- Updated dependencies [78fa331]
+- Updated dependencies [47f551b]
+- Updated dependencies [31ab1ac]
+- Updated dependencies [0082db8]
+- Updated dependencies [ab04728]
+- Updated dependencies [5bf09fd]
+- Updated dependencies [06915b0]
+- Updated dependencies [ff84b05]
+  - @object-ui/i18n@17.5.0
+  - @object-ui/react@17.5.0
+  - @object-ui/components@17.5.0
+  - @object-ui/core@17.5.0
+  - @object-ui/fields@17.5.0
+  - @object-ui/types@17.5.0
+  - @object-ui/plugin-grid@17.5.0
+
 ## 17.4.0
 
 ### Patch Changes

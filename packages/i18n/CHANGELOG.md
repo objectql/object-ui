@@ -1,5 +1,634 @@
 # @object-ui/i18n
 
+## 17.5.0
+
+### Minor Changes
+
+- 0e67b53: `/accept-invitation/:invitationId` is one route, one component, one namespace — the console now renders the invitation page that actually shows you the invitation
+
+  Two components shipped for this single URL. The console routed its own thin page, which offered nothing but an Accept and a Decline button: it never told the user which organization they had been invited to, in what role, or when the link expires, and accepting left them in whatever organization they were already in. App-shell's page — exported as `DefaultAcceptInvitationPage`, routed by nobody — fetches the invitation, shows the organization, the role and the expiry date, and switches the user into that organization on accept. Console now routes that one. The thin page is deleted.
+
+  Behind them sat two i18n namespaces for one screen: `acceptInvitation.*` (12 keys) for the thin page and `organization.accept.*` (14) for the richer one, both freshly translated into ten languages by different slices of objectui#3546, neither wrong when read on its own. That is 26 keys of duplicated copy with no gate to tell the next author which of the two to edit — the failure mode this repo already has an uncollected precedent for. `acceptInvitation.*` is removed from all ten packs, and its absence is pinned negatively so it cannot drift back: the slice-three test now asserts that no pack defines any of the 12 retired keys (nor an emptied namespace root left by a partial revert), and that neither consuming package asks `t()` for one.
+
+  One behavior needed repairing before the swap was safe rather than after. `?redirect=` is a basename-stripped path by contract in this console — `LoginPage` re-prefixes it with the mount before navigating — and the thin page built it from the route param, correctly. App-shell's page built it from `window.location.pathname`, which already carries the mount, so a console served under a `<base href="/console/">` would have sent the user back to `/console/console/accept-invitation/…` after signing in. It now reads the router (`useLocation`), like every other producer of that parameter in this repo. Under the default `/` mount the two spellings are identical, which is why only a basename case can see the difference; that case is now a test.
+
+  Nothing published was removed: `DefaultAcceptInvitationPage` keeps its export and simply becomes the routed implementation. Downstream apps mounting it get the redirect fix and are otherwise untouched.
+
+- ae10a01: Console chrome reaches the bundle — the list switcher, the aggregate footer, the dialog a11y fallbacks and the whole Settings namespace screen stop being English on non-English consoles
+
+  Six strings on the two screens a user looks at most were hardcoded English literals rather than bundle lookups, so they stayed English on every non-English console with nothing an app could author to change them. They are not object, field, view or action labels — no key in `TranslationData` reaches them — while the console's own bundle already ships zh-CN, ja-JP, es-ES, de, fr, pt, ru, ko and ar and translates hundreds of neighbouring strings. Omissions from an otherwise complete bundle, not a missing capability.
+
+  **Two of the six needed no new keys at all, which is the more interesting half.** The list-view mode switcher named its nine visualizations from a private `VIEW_LABELS` table while `console.objectView.viewType*` — the same nine words — had been resolved through the bundle by the create-view picker for months; the switcher now reads those keys, so the picker's 「画廊」 and the switcher's 「画廊」 cannot drift apart in nine languages. The create/edit dialog's close button is the remainder of a fix that already landed: objectstack#5505 routed the `sr-only` close label through `common.close` for the two Shadcn-synced primitives, but `MobileDialogContent` is a hand-written wrapper outside that regeneration zone with its own close button, and it is exactly what `ModalForm` renders — so the dialog the report measured was the one place still announcing "Close" in English.
+
+  The aggregate footer is the one the original report singled out: the **number** was already locale-formatted and the **prefix** was a hardcoded `Avg: ` / `Sum: `. All eleven aggregation kinds now take their prefix from `grid.summary.*`, and the label/value join is its own key rather than a `': '` baked into the renderer — the separator is translatable content, so zh sets a fullwidth colon and fr the French space-before-colon. The numbers are untouched. The form dialog's `sr-only` description fallback joins the packs too; it is clipped, not visible, so the only way an app could displace it was to author a `description` and thereby put a visible subtitle on every dialog.
+
+  **The Settings namespace screen converts as one unit.** `SettingsView` routed zero framing copy through i18n — save/failure toasts, the env-lock and crypto refusals, the load-error card, the empty-route state, the navigation buttons, the unsaved-changes save bar — while its immediate sibling `SettingsHub`, in the same directory, resolved everything through `t('console.settingsHub.*')`. A zh-CN admin read correctly translated field labels sitting inside an English save bar, because `useSettingsLabel` translates a namespace's authored content but reaches none of the chrome around it. All of it now resolves through a `console.settingsView.*` namespace placed beside the hub's, including the crypto-refusal strings that objectui#4579 deliberately left in English rather than leave one translated string among a dozen literals.
+
+  The save-bar counter was an English plural rule executing in every locale (`change` plus an `s` when the count exceeds one). It is now a real i18next plural family — base key plus `_one` and `_other` in all ten packs — not the `(s)` spelling translated nine ways. The base key is the load-bearing part: i18next asks `Intl.PluralRules` for the one suffix a language needs and, finding no such slot, falls back to English, so without it Russian would read English at counts 2-20 and Arabic at 2-99. Russian and Arabic take the "noun: {count}" form their packs already use for this exact reason, and the counter is verified rendering in-language at 1, 2 and 5.
+
+  The Beta badge reuses the hub's existing key rather than minting a twin, and the refusal messages interpolate their subject through the bundle instead of concatenating a translated word onto an English prefix.
+
+- 66fb4fa: The console's language menu now asks the app which locales it actually ships, instead of always offering the same ten.
+
+  `LocaleSwitcher` built its items from a module-level `LANGUAGES` constant — exactly the ten codes `@object-ui/i18n` ships packs for — and never consulted the app, even though `GET /api/v1/i18n/locales` has been serving that list all along. It failed in both directions at once. An app shipping a locale outside those ten (`th`, a regional `pt-BR`) had no way to be selected from the console: the bundle could be complete and lint clean, and the menu simply had no entry for it. An app shipping only `en` and `zh` still listed all ten, so picking 日本語 handed the user the console's own chrome in Japanese with everything app-authored in the fallback language — a half-translated UI its author never opted into.
+
+  The menu is now the **intersection**: the app's own locale list ∩ what the renderer can actually resolve (built-in packs, `config.resources`, and — for an app that wires a dynamic `loadLanguage` loader, which is how the console gets its packs — the locales that loader can fetch). Both failure directions close in the same change: an app-shipped locale becomes offerable, and locales the app does not ship disappear. The endpoint is reached through a new `loadLocales` prop on `I18nProvider`, wired exactly like the existing `loadLanguage`: the app owns the transport, the provider owns what is done with the answer. An app that does not wire it keeps today's menu unchanged.
+
+  **The restore validation widened in lockstep, because otherwise this fix would have minted the next bug.** A restored language was validated against "the locales this provider can produce" — built-in packs plus `config.resources` — a bound that was correct only for as long as the menu offered exactly the built-in ten. The moment the menu grows to the app's real list, a locale the user can now pick is a locale that bound rejects, so a user-picked app locale would have been purged on the next page load. It now also accepts a locale a wired dynamic loader may be able to fetch, and the bound stays honest rather than absent: only well-formed BCP-47 tags qualify (`constructor`, `__proto__`, `en_US` are still rejected, as is any stored locale in an app with no loader), and the app's own locale list adjudicates the choice for real once it arrives — a locale the app has since dropped is reverted and purged rather than left locking the UI to a language with no translations.
+
+  Labels come from the built-in native names where they exist (`中文`, `日本語`, … are unchanged) and from `Intl.DisplayNames` for everything else, so an app locale is named in its own language rather than by its code. The endpoint's own `label` is deliberately not used for display: the server sets it to the code echoed back, which would have put `th` in the menu where `ไทย` belongs.
+
+  While the app's list is in flight the switcher renders nothing, following the sibling menus in the same folder — the ten never flash past on an app that only ships two. When there is no backend, the endpoint fails, or the app answers with nothing this renderer can produce, the built-in ten remain as the offline fallback, so the menu is never empty and never unusable.
+
+- 92250d6: One home for the number-display policy — and a percent stops meaning two different things between a list cell and a dashboard measure
+
+  `formatDisplayNumber`, `shouldGroupDisplayNumber` and `DisplayNumberFormatOptions` move from `@object-ui/i18n` into `@object-ui/core`. `@object-ui/i18n` re-exports all three under the same names, so every existing import path keeps working unchanged and both spellings resolve to the same function object; nothing published was removed.
+
+  The move is what fixes the bug. `@object-ui/core`'s `formatMeasure` needed exactly this policy and could not import it — `core` is the React-free engine and is a runtime dependency of React-free consumers (the `object-ui` VS Code extension, `@object-ui/data-objectstack`), while `i18n` depends on `i18next`/`react-i18next` and peer-depends on React. So `formatMeasure` carried a parallel `Intl` implementation, recorded at both ends as deliberate duplication, and the two drifted in the one place a hand-built string and `Intl` disagree. A German session read `1.234,5 %` from a list cell and `1.234,5%` from a dashboard measure showing the same number. The function is pure, so the boundary was never a property of the code — only of where the code sat; moving it down removes the obstacle instead of working around it. `core` imports nothing from `i18n`, so the new edge adds no cycle.
+
+  **Behaviour change — a measure's percent sign now follows the locale.** `formatMeasure` appended a literal `%` in every locale; it now renders the locale's own percent convention, the same one the list-cell `formatPercent` has used since the fix to its own machine-locale defect. Measured to change output in de, fr, es, ru, sv, cs, fi (a no-break space appears before the sign), tr (the sign moves to the FRONT: `%1.234,5`) and ar (its own percent sign plus U+061C). English, Japanese and Chinese are byte-identical — their convention is a bare trailing sign — which is why this was invisible in an English session.
+
+  **No numeral moves, in any locale, at any magnitude.** The obvious route to the locale's convention is `Intl`'s `style: 'percent'`, but that style expects a fraction, so a value already in percentage points would have to be divided by 100 for `Intl` to multiply it straight back — and that round trip is lossy. Measured, it moves 27,581 of 1,200,013 ordinary-magnitude en-US forms at rounding ties (`0.175` at two decimals becomes `0.17%` instead of `0.18%`), plus `MAX_SAFE_INTEGER` and everything from 1e23 up, where `100,000,000,000,000,000,000,000%` becomes `99,999,999,999,999,990,000,000%`. The percentage points are formatted directly instead, through a new `style: 'percentPoints'` on `DisplayNumberFormatOptions`; that route was measured to produce a byte-identical percent affix to `style: 'percent'` across all 171 locale tags tested while moving none of those 1,200,013 forms. Callers holding a fraction keep using `style: 'percent'`, whose behaviour is unchanged — naming the two cases apart is what stops the next caller from reaching for the lossy one.
+
+  `@object-ui/i18n`'s entry declaration is byte-identical, but the declaration it points at now lives in `@object-ui/core` and the package gains that dependency, so it takes the same minor bump rather than a patch.
+
+- ac853ce: i18n: retire the reader-less `common.search` key from all ten locale packs
+
+  `common.search` (`Search`, no ellipsis) had exactly one consumer: `LookupField`
+  built its dialog placeholder by concatenating the key with three ASCII full
+  stops. objectui#4375 / PR #4391 retired that concatenation — the placeholder is
+  the reused `table.search` pack value (`Search…`, one U+2026 glyph), which is what
+  brought it under objectui#3878's glyph pin. That left `common.search` with zero
+  readers repo-wide while it still existed in all ten packs.
+
+  Re-verified before deleting, repo-wide: no `t()` call site in any package or app,
+  no MDX or JSON reference, and the one dynamic template-literal reader of the
+  `common` namespace takes a two-member union parameter (`'openChat' |
+'closeChat'`) that cannot resolve to it. No user-visible string changes — this key never rendered.
+
+  The dormant copy in `@object-ui/fields`' no-provider fallback table
+  (`useFieldTranslation.ts`'s `FIELD_DEFAULTS`) goes with it. That table is a
+  module-local `Record<string, string>` read only when no `LocalizationProvider`
+  is mounted; it is not exported, so removing an entry no reader asks for changes
+  no rendered output and narrows no public type. Hence patch for that package,
+  while the pack change is a minor: deleting a key from `en` narrows the exported
+  `TranslationKeys` type (`typeof en`), so code indexing `TranslationKeys` at
+  `common.search` stops type-checking. Same grading, for the same reason, as
+  objectui#4145's `report.editor.*` retirement. No runtime consumer existed to
+  break.
+
+  Retiring a key from `common` was the ruled decision on objectui#4392 rather than
+  keeping it as vocabulary: nothing pins a dormant key's meaning, so its next
+  reader inherits an unreviewed contract, and a dormant key beside a live
+  `table.search` is where a second dialect gets started. The objectui#4328
+  dead-surface family has consistently chosen removal for zero-consumer surfaces.
+
+  The neighbouring `common.select` (minted one commit earlier by objectui#4386 /
+  PR #4397) is a different key and is untouched.
+
+  A negative pin (`packages/i18n/src/__tests__/common-search-retired-4392.test.ts`)
+  fails if the key returns to any pack, if any package reads or re-declares it, or
+  if a dynamic `common.*` reader grows a `search` member — every existing i18n gate
+  runs call site to key, and none of them can see a key with no call site.
+
+- fa51109: i18n: retire the orphaned `report.editor.*` namespace — 105 of its 106 keys, in all ten locale packs (~1050 translated strings)
+
+  The namespace labelled the hand-rolled report editor form. That form no longer
+  exists: `ReportConfigPanel`'s body is `ReportDefaultInspector`, a spec-driven
+  inspector whose labels come from the report spec's own metadata rather than from
+  a pack namespace. Until objectui#4137 the namespace had exactly one live reader,
+  and it was the objectui#4118 defect itself — the panel borrowing
+  `report.editor.title` (the label of the report's Title _field_) to name itself.
+  Moving that slot onto a purpose-built `report.editor.panelTitle` left the other
+  105 keys with no reader anywhere.
+
+  Re-verified before deleting, repo-wide and per key: no `t()` call site, no
+  dynamic `t()` template form, and no JSON or MDX reference reads any of the 105.
+  No user-visible string changes — these keys never rendered.
+
+  `report.editor.panelTitle` survives in all ten packs and is untouched; the
+  deletion sweeps around it. `report.editor` therefore remains a live namespace
+  holding exactly that one key.
+
+  This narrows the exported `TranslationKeys` type (`typeof en`), which is why it
+  is a minor rather than a patch: code indexing `TranslationKeys` at a retired key
+  stops type-checking. No runtime consumer existed to break.
+
+  A negative pin (`packages/i18n/src/__tests__/report-editor-retired-4145.test.ts`)
+  names all 105 retired keys and fails if any returns to any pack, since every
+  existing i18n gate runs call site to key and none of them can see a key with no
+  call site.
+
+- 78fa331: console: seed the UI language from the tenant's server-side locale
+
+  `GET /auth/me/localization` has always been fetched on every boot, but its
+  `locale` only ever fed currency/date formatting — the UI language was decided
+  entirely client-side, so a tenant configured `zh-CN` still handed every new
+  device an English console until each user switched by hand.
+
+  The tenant locale now sits in the language precedence chain, between the user's
+  own choice and the browser's:
+
+  1. the user's explicit choice (`objectui-locale`)
+  2. the tenant's server locale, cached at `objectui-locale-seed`
+  3. the browser language
+  4. `en`
+
+  The server value is cached in a slot of its own and is never written into the
+  explicit-choice slot, so it can never masquerade as a preference the user
+  expressed: only a manual switch promotes a language to an explicit choice. A
+  cached seed applies synchronously at bootstrap, and the in-app fetch refreshes
+  that cache from every successful answer, so a tenant that changes its locale
+  reaches choice-less devices on their next boot without an old seed pinning
+  them. On a device's true first visit the fetch is raced against a ~500ms
+  timeout alongside the console's existing pre-mount round-trips and fails open
+  to the browser language; a seed that arrives after the bound is cached for the
+  next boot rather than re-languaging a live session. A tenant locale this build
+  ships no pack for falls through to the next tier instead of half-rendering.
+
+  No platform additions: no new endpoint, no client read/write API, and
+  `sys_user_preference` is untouched.
+
+- 0082db8: The timeline's gantt bucket labels and its row-label default speak the session language
+
+  objectui#4513 routed every `Intl` call in the timeline renderer through `useDisplayLocale()`, so a Chinese session renders `2026年8月` on the month axis and `2026年8月11日` on item dates. Three sibling strings in the same renderer never went through `Intl` at all and stayed English on that same Chinese axis: the `week` header (`Week 1`), the `quarter` header (`Q3 2026`), and the gantt row-label column default (`Items`). The half-fixed state was the visible one — a Chinese date axis with English bucket labels beside it.
+
+  They are a translation concern rather than a locale-resolver one, and that distinction is the fix: a locale TAG formats a date, only a TRANSLATION spells a word. All three now resolve through the package's existing channel — `useTimelineTranslation` / `TIMELINE_DEFAULT_TRANSLATIONS`, the `createSafeTranslation` factory `ObjectTimeline` already uses for `timeline.bucket.*` — under three new keys carried by all ten locale packs: `timeline.scale.week`, `timeline.scale.quarter`, `timeline.gantt.rowLabel`.
+
+  The week number and the quarter/year ride the channel's own `{{hole}}` parameters rather than being concatenated, because the word order belongs to the translation: Chinese puts the year first (`2026年第3季度`), which no `Q${q} ${year}` template can produce at all. Only the row-label DEFAULT moved — an author who writes `rowLabel` still supplies their own string, and the `year` scale stays a bare `String(getFullYear())` with no vocabulary in it to translate.
+
+  English output is byte-identical to the retired literals: the `en` pack values are the same two templates the code used to interpolate by hand. `generateTimeScaleHeaders` is a pure exported function and cannot host a hook, so the translate fn is threaded in as an optional fifth parameter on the seam #4513 opened for `locale`, defaulting to the package's own defaults table — the same lookup the channel serves with no `I18nProvider` mounted. Existing three- and four-argument call sites are unaffected.
+
+  One consequence is worth stating because it looks like a bug and is not: dates and vocabulary resolve through different channels on purpose. `useDisplayLocale()` puts the tenant's regional default first (how this organization writes dates), while `t` follows the UI language (what this user reads). A tenant configured `en` whose user reads Chinese chrome therefore sees `Aug 2026` beside `第 1 周` — the same split `timeline.bucket.*` has always had.
+
+### Patch Changes
+
+- 932cbcd: An app you are not allowed to open now says so, instead of reporting that it may still be publishing
+
+  `GET /api/v1/meta/apps` is filtered per session server-side (`filterAppForUser`), so an app withheld by its `requiredPermissions` and an app that does not exist were byte-identical to the console: both simply absent from the list. With one fact and two conditions, `AppContent` rendered its only copy for an absent app — "This app is not available yet — it may still be publishing. Try again in a moment." — over a permanent authorization decision, under a Retry button that could never succeed.
+
+  That is not a cosmetic complaint. On a downstream acceptance round one role hit this screen while another opened the same app fine, and because the copy names a transient deployment state the finding was filed as a suspected platform defect and carried through two test batches before a clean-baseline investigation found the account was missing a permission-set binding. The gate had been working exactly as designed; the message is what sent everyone to the wrong place.
+
+  The maintainer ruling (2026-08-12) took the contract half first. objectstack#8013 made the BY-NAME route answer an explicit denial — `403` with the ADR-0112 catalog code `PERMISSION_DENIED` in the declared `{ success: false, error: { code, message } }` envelope — for an app that exists and whose `requiredPermissions` the session lacks, while the LIST route stays filtered exactly as before, with no `authorized: false` flag, so the enumeration surface is not widened past what a direct by-name probe already implies. Absence keeps answering `404 RESOURCE_NOT_FOUND`, and so do the two neighbouring refusals the same ruling deliberately left alone: an unpublished app (ADR-0045 §3 keeps it externally unobservable) and an app gated by an absent optional service (ADR-0057 D10 — nothing was denied to the caller).
+
+  This is the console half. When a requested app is missing from the list and the existing post-publish readiness re-check still cannot find it, the console asks the by-name route which of the two it is, through a new `ObjectStackAdapter.probeAppAccess(name)`. On the measured code it renders a plain authorization message with a way back to the launcher; on anything else — an absent app, an unreachable server, a host that injected a DataSource without the probe — today's publishing copy renders byte for byte, retry button included.
+
+  Two properties of that seam are load-bearing rather than incidental. It branches on the ADR-0112 **code**, never the status (objectui#4408): the two answers under test are both errors one status apart, and a status-reading implementation passes the happy path while going blind exactly where the defect lives. And only `denied` moves the copy: this bug exists because the console asserted a state it had not measured, so a probe that fails, times out or cannot be issued must leave the screen alone rather than guess in the other direction.
+
+  `probeAppAccess` is deliberately separate from `getApp` rather than a flag on it: `getApp` degrades every failure to `null` — the very conflation being undone — and memoises in the adapter's metadata cache, where a verdict about the CALLER would outlive the session it described. New public API on the adapter (`probeAppAccess`, `isAppPermissionDeniedError`, `APP_PERMISSION_DENIED_CODE`, `AppAccessVerdict`), purely additive; nothing existing changed shape. Three new `empty.*` keys ship in all ten locale packs.
+
+- 734d186: The console's Applications page is localized — its own chrome only, never the
+  server's words (objectui#4307).
+
+  `AppManagementPage` was raw English end to end: headings, the search field, the
+  selection and bulk controls, the six per-row actions with their tooltip/ARIA
+  pairs, the status badges, and every toast. It was the last un-i18n'd system page,
+  and #4233 / PR #4300 had just given it four live mutations — so the gap became
+  user-visible on every non-English console at the moment operators started using
+  it. 45 keys land under `appManagement.*` in all ten packs, reached through
+  `useObjectTranslation` with the call site's `defaultValue` inline, which is the
+  convention the neighbouring system pages already follow.
+
+  The split that shapes this change is between the strings the PAGE authors and
+  the strings the SERVER authors. `PUT`/`DELETE /api/v1/meta/app/:name` is gated on
+  `manage_metadata` (ADR-0066 D1), so a refusal like `forbidden: manage_metadata
+required` is the server's diagnosis of one specific request; there is no fixed
+  catalogue of those sentences to key against. Each failure toast is therefore a
+  keyed template with a `{{reason}}` hole, and what fills the hole is passed
+  through byte for byte, untranslated. The one part that IS the page's own — what
+  it says when the server sent no message at all — is keyed as
+  `appManagement.toast.unknownError`.
+
+  Two smaller things follow from doing the conversion properly rather than
+  mechanically. The per-failure entry of a bulk toast and the separator between
+  entries are keys, not literals, because bracket style and list punctuation are
+  locale properties (the same rule, and the same past defect, as
+  `validation.formInvalidJoiner`). And the row's controls now name an app through
+  the resolver the visible heading two lines away already used, with `t` passed:
+  an app carrying objectui's keyed label form previously rendered `Select [object
+Object]` into its checkbox's ARIA label.
+
+- 3fc2971: A null-keyed group renders as an explicit bucket instead of silently vanishing from a chart (objectui#4466)
+
+  `buildChartSeries`' single-dimension branch passed rows through verbatim, so a row whose category VALUE is `null` reached recharts with a null category and drew no mark. The visible outcome was not an empty chart but a quietly wrong one: rows `[{user_id: null, event_count: 51}, {user_id: 'Dev Admin', event_count: 2}]` drew exactly ONE bar — the dominant group, 51 of 53 events, dropped while the y-axis scale still accommodated it, so the chart understated its own data and the axis proved the data had been there. With every group null it drew axes, gridlines and an axis title with zero marks and no empty state, which is the shipped first-boot state of the built-in System Overview board's "Events by User" (every seeded `sys_audit_log` row is written with `user_id = NULL`).
+
+  The mapping lives in the shared series layer, so dashboard widgets and standalone `ObjectChart` get one answer rather than a per-chart patch in the recharts wrapper. It resolves the two-answers disagreement the card names as well: an empty result set keeps the designed empty state, a non-empty result always draws bars — the null bucket included.
+
+  `@object-ui/core` gains `NULL_CATEGORY_LABEL` and `ChartSeriesOptions`; `buildChartSeries` and `findChartSeriesRow` each take an optional trailing `options`. Both additive — every existing call site compiles and behaves identically, and a result with no null category is still returned by array identity. The two helpers are a pair on purpose: the caller matches a clicked segment against rows that still carry the raw `null`, so `findChartSeriesRow` reads the bucket label back to that row and the newly-visible bar keeps its drill-through instead of resolving to `-1`.
+
+  The label goes through the i18n channel (`chart.nullCategory`, en `(None)` / zh `(未指定)`, all ten packs), passed down by the renderer: `@object-ui/core` is React-free and cannot read the locale bundle, so it takes the resolved string the same way `dimensionOptionTranslator` takes a resolver. Its English constant is the floor for a provider-less host, not the mechanism.
+
+  `hasNoCategoryKey` (framework#4033) is untouched and now documented against this: a row that does not carry the category key AT ALL is a different defect — a dimension grouped by but never projected — and keeps its explanatory placeholder. The bucket deliberately never ADDS the key to such a row, which is what keeps that guard's signal alive. Key absent → the placeholder; key present with a null value → the bucket.
+
+- f7c6430: The build-history panel tells an operator a 503 means "the commit store could not be reached — retry", instead of `commits HTTP 503`
+
+  `packages/app-shell/src/preview/commitHistory.ts` flattened every non-OK response to a bare status code (`commits HTTP {status}` for the read, `HTTP {status}` for the revert). Nothing was ever swallowed and no fictional "no history" was ever rendered — those fail-loud properties held, and still hold, which is why objectstack#5980's 503-ification (ADR-0110 D3) needed no follow-up here. What was lost is the meaning the backend already sends, on the one screen where it matters most: this is the rollback surface, read by an operator who is usually mid-incident. A 503 says the read/write did not happen and is worth retrying; a 404 says the store answered "no". They now read differently, and 404, 500 and 503 stay tellable apart.
+
+  Failures now throw a `CommitStoreError` carrying `status`, the ADR-0112 `code`, and a `retryable` flag, and the panel renders a sentence rather than a number. The revert half gets a deliberately different sentence: a write that could not reach the store may still have landed, and re-issuing it appends a _second_ revert commit to an append-only log, so the copy asks the operator to re-read the timeline before retrying rather than simply saying "try again".
+
+  Two details of the report this fixes were checked against the producer and came back different, and both are the reason the copy is authored client-side. The semantic code arrives at **`error.code`**, not `details.code` — `HttpDispatcher.errorFromThrown` parks it in `details` and `buildApiError`/`splitSemanticCode` lift it out and drop `details` (objectstack#3842) — so a consumer reading `details.code` would run a check that can only pass vacuously. And the envelope's own `message` for this class is _withheld_: `declaresServerFault` (objectstack#5811) is true for a 5xx carrying a string code, so the prose on the wire is the generic `Internal server error`. Rendering it would have been strictly worse than the bare status code it replaced. Classification therefore keys on the HTTP status first and treats the code as a second signal, which also means a 503 shed by a proxy with an HTML body still produces the retryable reading.
+
+  Adds `preview.history.loadFailedUnavailable` and `preview.history.revertUnavailable` to all ten locale packs.
+
+- 92876f0: Doc comments no longer cite `@objectstack/spec` symbols the pinned spec has retired
+
+  Eight exported declarations carried a doc comment claiming alignment with a
+  `@objectstack/spec` symbol that `17.0.0-rc.6` does not export — four locale
+  formatting shapes in `@object-ui/i18n` (`SpecPluralRule`, `SpecDateFormat`,
+  `SpecNumberFormat`, `SpecLocaleConfig`) and four activity-feed shapes in
+  `@object-ui/types` (`FieldChangeEntry`, `Mention`, `Reaction`,
+  `RecordSubscription`). A citation that points at nothing is worse than a stale
+  one: the next reader cannot tell whether the protocol retired the symbol,
+  renamed it, or never had it.
+
+  Measuring all eight against the published registry answered that question, and
+  the answer was not "these names never existed". Every one was a real export the
+  protocol retired on purpose, and every local key set was faithful to the schema
+  it named. The feed four left `@objectstack/spec/data` in the `16.0.0` major,
+  when the feed surface was replaced by the data API over `sys_comment` /
+  `sys_activity`. The i18n four left `@objectstack/spec/ui` in `17.0.0-rc.6`
+  itself — they were still present in `rc.5` — retired under ADR-0049
+  enforce-or-remove because no authorable shape carried them and nothing ever
+  parsed them.
+
+  Each comment now records that provenance, including the version the symbol left
+  and what (if anything) replaced it, so the shapes read as declarations these
+  packages own rather than as a view onto a protocol type. Type shapes, runtime
+  behaviour and exports are unchanged — the published `.d.ts` files differ only in
+  comment text, which is why this is graded `patch`.
+
+- 828549a: The gantt's conflict dialog shows the number of affected tasks again, not a literal `{2}`
+
+  `gantt.conflict.body` was resolved at the render site with a literal string replace on **single** braces — `t('gantt.conflict.body').replace('{count}', String(n))` — while all ten locale packs spell the placeholder the i18next way, `{{count}}`. `"…{{count}}…".replace("{count}", "2")` consumes the inner seven characters and leaves the outer pair behind, so every user on every loaded pack read "自动重新排程 **{2}** 个受影响的任务？". The dialog now interpolates through i18next (`t('gantt.conflict.body', { count })`), the idiom `gantt.delete.body` already used.
+
+  The two sibling keys three lines away in the same file, `gantt.autoScheduleDlg.body` and `.skipped`, were **not** broken — pack and call site both used single braces, and they rendered correctly. They are converted anyway, because that split is the whole mechanism: two write-confirmation dialogs in one component carried two different interpolation idioms, so `conflict.body` drifting to the i18next spelling in the packs (which is the correct spelling, and matches every other placeholder in the bundle) silently broke the render. Leaving the auto-schedule keys on the literal-replace idiom leaves the same trap armed for the next translator. All ten packs and the plugin's bundled English fallback table now agree on `{{count}}` for all three; only the braces moved, no translation was reworded.
+
+  `gantt.quickFilter.resultSummary` stays deliberately single-brace — its `ObjectGantt` call site really does resolve `{shown}`/`{total}` with a literal replace, and that convention is pinned by its own parity test. It is now the only key in the gantt namespace on that idiom, and the comments at both spellings say so.
+
+  Nothing caught this, and each gate was silent for its own reason: the cross-pack parity check compares en against each pack, and all eleven spellings agreed; the en-drift check compares a pack against its own history, and the packs were born matching. Both are **relative** comparisons, and the defect lived in the **absolute** relationship between a pack's spelling and the syntax the call site resolves. The existing render test asserted the dialog body contains `'1'` — which `{1}` satisfies. The new pin asserts the absolute form directly, under a real loaded pack, for every way a placeholder can survive to the screen.
+
+- e1ade8f: An illegal gantt dependency link now says why it was refused, instead of doing nothing
+
+  Dragging a dependency onto a target the gantt refuses — itself, a locked row, a group row, or one that would close a dependency cycle — produced no feedback of any kind: no toast, no dialog, no cursor change, no target outline, not even a console warning. The guard was right and completely invisible, so a user drawing a legitimate-looking dependency got a dead interaction and no way to learn the constraint. The rejection was silent in both places it could have shown: a refused bar never became the drop target, so it got no hover treatment at all, and the release handler only ran its body when a target _had_ been registered, so the drop itself was a no-op.
+
+  Both halves are now wired, and both read the **same** verdict. `canReceiveLink`'s four-branch boolean became `classifyLinkTarget`, which returns which branch refused (or `null`), with the boolean derived from it. The hover affordance and the drop toast are two consumers of that one classification, so the reason a user is shown cannot drift from the reason the link was actually refused — there is no second classifier to disagree. The branch names are the leaves of the new `gantt.link.rejected.*` keys, so a branch added later without a message surfaces as a missing key rather than as a plausible-but-wrong sentence.
+
+  During the drag, a refused bar under the pointer gets `cursor: not-allowed` and a destructive outline; on release it raises a toast naming the reason. Four messages, one per branch, in all ten packs. Both the cursor and the outline are driven from inline `style` rather than utility classes, matching the bar's existing read-only cursor three lines away and for the same reason recorded there: `cursor-not-allowed` and the ring alpha utilities are not emitted in the prebuilt components CSS, so a class would look correct in a DOM test and render nothing in a browser.
+
+  Deliberately unchanged: a host veto through `onBeforeDependencyCreate` stays silent. That rejection carries a reason only the host knows, and the gantt has none to show — surfacing it means exposing a rejection-reason output on the public component, which is a separate contract rather than a rider on this one. The four built-in reasons are the gantt's own policy and are the only ones it can explain.
+
+  One of the four, `group`, has no end-to-end path today: a `type: 'group'` row renders no bar, so the drag can never target it. The message is kept anyway — without it the branch would render a raw key on screen if it ever did fire — and the test pins the reachability fact, so it goes red the day group rows gain a bar. Filed as objectui#4209.
+
+- 3e19fe7: i18n copy: one ellipsis glyph across the ten packs, `usted` in the es draft-preview empty state, and a pt sentence that stops contracting `de` onto its own hole
+
+  Three locale-copy defects that no gate could see, because all three are _value_ defects on keys whose names, placeholders and key sets were already correct.
+
+  **One ellipsis (objectui#3878).** `en` ended 33 values with three ASCII full stops (`Loading...`, `Ask anything...`) and 110 with the typographic ellipsis `…`, and the nine translation packs had copied `en` value by value — so a user could read both glyphs on one screen: `common.loading` beside `dashboard.loading`, `console.ai.askAnything` beside its own panel's siblings. All ten packs now spell it `…` (U+2026), per the maintainer-authorized consistency pass registered on objectstack#6015. 312 pack values changed: 34 in `en` (the 33 trailing plus the one mid-sentence `collaboration.commentPlaceholder`) and 278 across the nine. Eleven inline `defaultValue` call sites were re-synchronised with the new `en` text, which `scripts/check-i18n-call-site-keys.mjs` requires byte-for-byte.
+
+  The convention is now pinned so the split cannot regrow: `packages/i18n/src/__tests__/ellipsis-glyph-3878.test.ts` fails, by key name, on any value in any of the ten packs that holds three ASCII full stops. It is deliberately wider than "a trailing `...` in `en`", because the census showed the narrow rule would have shipped with two holes in it — `collaboration.commentPlaceholder` puts the ellipsis mid-sentence, and `list.loading` had the packs wrong while `en` was already right, which no `en`-only rule can see.
+
+  Fifteen module-local **no-provider fallback** entries were moved with the packs, across `useCollaborationTranslation`, `useFieldTranslation`, `useDetailTranslation`, `ObjectGrid`, `KanbanImpl`, `data-table` and `ConnectionStatus`. Those maps exist to render when no `LocalizationProvider` is mounted, and each one's own docblock requires it to stay byte-identical to the `en` pack — a requirement objectui#3440 already enforces mechanically for the collaboration map. Leaving them behind would have made the provider-less path disagree with the provider path on ten keys.
+
+  **es `usted` (objectui#3875).** `preview.empty.notReadyDescription` said `Revisa la conversación` — the tú imperative — in a namespace that is otherwise 23:1 usted, and it renders _underneath the usted draft-preview banner at the same moment_, not before or after it. `Revisa` → `Revise`; nothing else in the sentence carries a register. The neighbouring `approvalsInbox` namespace is legitimately tú and was left alone.
+
+  **pt contraction (objectui#3877).** `ConcurrentUpdateDialog` splits `detail.concurrentUpdateDescription` on `{{field}}` and renders a bolded label in the gap, and pt left a bare `de` in front of that gap. When the multi-field conflict branch passes the record label (`este registro`), Portuguese users read `de este registro` — a contraction error every native speaker sees, and one that no spelling of the leaf value could fix (`deste registro` renders `de deste registro`). The pt sentence is rewritten so the hole is preceded by the verb `afeta` instead of any preposition, which closes the whole class rather than trading `de` for an `em` or `a` that contract just as hard. pt only; `en` is unchanged.
+
+  No behavior, no keys added or removed, no placeholder changed.
+
+- bb58d1d: i18n: the two search placeholders become pack values, and four values the packs served in English get translated
+
+  **objectui#4375** — `ListView` and `LookupField` built their search placeholder as
+  `t(key) + '...'`, so the ellipsis was a literal concatenated in code: it stayed ASCII
+  in all ten locales on screens where objectui#3878 had converged everything else on
+  U+2026, and no pack could opt out of it (sharpest in `ar`, where a left-to-right run
+  was appended to right-to-left text). Both now read `table.search`, which is already
+  the repo's search-input placeholder key — `data-table`, `RecordPickerDialog` and
+  `PeoplePicker` render it too — and is translated with the right ellipsis in all ten
+  packs. No new keys.
+
+  **objectui#4376** — `list.loading` served the English `Loading records…` in eight of
+  the nine translation packs (`zh` alone had translated it); `designer.undo` and
+  `designer.redo` were English in all nine; `appDesigner.snakeCaseHint` in `ko`, `pt`,
+  `ru` and `ar`. All translated, reusing each pack's own established vocabulary. A new
+  pin (`untranslated-identity-4376.test.ts`) fails on any value byte-identical to `en`
+  inside a non-Latin pack unless the key is on an explicit 22-entry allowlist.
+
+- 5cc847c: The console shows a standing impersonation banner, with an exit that fails loudly (#4467).
+
+  While `session.impersonatedBy` is present, `ConsoleShell` renders a banner naming BOTH
+  parties — the impersonated user, whose name every write is recorded under, and the
+  administrator who started it — plus a stop affordance. It derives from the session rather
+  than from client memory of the click, so it survives a full SPA reboot, a new tab and a
+  browser restart, and it cannot disagree with who the server thinks is acting. An ordinary
+  session renders `null` and its chrome is unchanged.
+
+  The exit calls `POST /auth/admin/stop-impersonating` over the same data lane and then
+  awaits a session refresh. The server restores the administrator from the `admin_session`
+  COOKIE, so a deployment that blocks cookies cannot exit this way — the banner says so and
+  stays up instead of appearing to succeed, which would leave the operator doing ordinary
+  work under someone else's identity.
+
+  Ten locale packs carry the banner's copy.
+
+- fa21254: Kanban: a drop that makes fields required now collects them instead of dead-ending
+
+  Dragging a card into a column whose value flips a field's `requiredWhen` predicate to TRUE used to PATCH the column value alone. The engine refused the whole update — correctly, that is what the predicate declares — and the board had no way to finish the move: the only path to closing a won deal was to abandon the board and open the record form. HotCRM's opportunity pipeline is the reported case (`win_reason` is required when `stage == "closed_won"`), but the dead end belonged to every board whose target column carries a conditional requirement.
+
+  The board now evaluates the target column's predicates BEFORE writing anything. If the move would make fields required while they are still empty, it opens a small dialog collecting exactly those fields, then submits the column value and everything collected as ONE PATCH — never two writes, which would leave the record in the refused state if the second one failed. A drop that triggers no predicate is untouched, down to the PATCH body.
+
+  The verdict comes from `@object-ui/core`'s `resolveFieldRuleState` — the same evaluator the record form, the wizard and the line-item grid already resolve `visibleWhen`/`readonlyWhen`/`requiredWhen` with, delegating to `@objectstack/formula`'s CEL engine. The board's prompt and the server's enforcement therefore reach the identical verdict rather than drifting through a second hand-rolled predicate evaluator. Emptiness is core's `isMissingForRequired`, the presence contract the form and the server share, so a `false` boolean and a `0` count as answers and are not re-asked.
+
+  Every control in the dialog is `@object-ui/fields`' `FieldEditWidget`, the same widget the record form renders for that field type — a select edits as a select, a date as a date picker — so this adds no second set of field-rendering decisions.
+
+  Four kinds of field are deliberately NOT collected, and each falls through to the unchanged PATCH where the server's refusal (legible since objectstack#7525) speaks for itself: one that already has a value, one `visibleWhen` hides, one that is readonly, and one whose type has no edit widget at all. A dialog row with no control would be a worse dead end than the one being fixed.
+
+  Cancelling writes nothing and leaves the card in its original column; a combined PATCH that is still refused for some other reason surfaces the refusal and rolls back exactly as a plain rejected move does, rather than looping the dialog on an arbitrary server error.
+
+  `@object-ui/i18n` carries two new `kanban.*` strings for the dialog, translated across all ten packs. Its public type surface is unchanged — the `.d.ts` was measured identical before and after — hence the patch bump.
+
+- 33c32bf: List sort: the picker stops borrowing the filter whitelist, and a header click is no longer a one-way door out of the view's declared sort
+
+  `filterableFields` was applied to the single field set both toolbar builders read, so a whitelist authored for _filtering_ silently became the _sort_ whitelist too. A view could declare a two-level default sort — `plan_start_date` then `name` — and get a sort panel that offered neither field and rendered both of its rows blank: the declared sort worked on load and could then be neither reproduced nor modified, and there was no way to express "sortable but not offered as a filter condition" short of widening the filter builder as collateral. The whitelist now narrows the filter builder alone, which is the contract it was written for; the sort picker starts from every field the view can name and applies its own sortability rules.
+
+  Those rules are about what the sort can honestly reach, so a second one joins the existing relational exclusion: a `formula` field is withheld. It has no materialised column, so ordering by one is refused by the server outright (objectstack `UNMATERIALIZED_SORT_TYPES`) — and it matters here precisely because the base set widened, since a formula field previously reached the picker only if someone had whitelisted it. The exclusion is `formula` alone and deliberately not the spec's `COMPUTED_VALUE_TYPES`: `summary` and `autonumber` are computed too, each gets a real maintained column, and both order correctly. Either rule keeps its existing escape hatch — a field the current sort already uses stays listed, which for a formula field is the only way to remove the offending row.
+
+  One consequence worth naming: the hint explaining the relational omission used to be gated by the same whitelist. A view whitelisting only `status` showed a near-empty sort picker and no word about why; the withheld relational field now reaches the rule that withholds it, so the explanation appears with it.
+
+  The second half is the way back. One column-header click replaces the whole sort array, so a view shipping a multi-level default lost it for the rest of the session — the declared `sort` behaved as an initial value only, recoverable just by reloading the page. The sort panel gains a **Reset to view default** control that restores the declared array whole: multi-level, in declared order, not merely cleared. It reads the view's declared sort through the same resolver the initial render already uses, so there is one answer to "what did this view declare". It is disabled while the active sort already matches that default, and absent entirely for a view that declares no sort — there is no default to return to, and clearing the sort under that label would be a second, differently-named way to do what removing the rows already does. The header click's own semantics are unchanged: it still replaces the array, it just no longer does so irreversibly.
+
+- 6d641c9: Members & invitations tabs gate their affordances by org role instead of letting the server's 403 be the UI (#4475)
+
+  A user whose organization role is `member` opened the workspace members page and
+  was shown an enabled **Invite member** button plus a per-row **Member actions**
+  menu carrying **Remove member** — on every row, the workspace Owner's included.
+  Nothing was hidden or disabled; the action only failed after the user had
+  committed to it. The Settings tab of the same page already gated correctly; the
+  members and invitations tabs never got the same treatment.
+
+  The affordances are now narrowed to the roles that can actually use them, keyed
+  on the active member's role — the same source the role-change menu on this page
+  already reads. Which roles those are is **measured against the routes that
+  enforce them**, not assumed to be "owner":
+
+  | affordance        | route                             | permission              | roles                         |
+  | ----------------- | --------------------------------- | ----------------------- | ----------------------------- |
+  | Invite member     | `/organization/invite-member`     | `invitation:["create"]` | owner, admin, delegated_admin |
+  | Remove member     | `/organization/remove-member`     | `member:["delete"]`     | owner, admin                  |
+  | Cancel invitation | `/organization/cancel-invitation` | `invitation:["cancel"]` | owner, admin                  |
+
+  Three different gates, because `delegated_admin` holds `invitation:["create"]`
+  without `member:["delete"]` and deliberately without `cancel` — so it keeps the
+  invite button and the copy-link action while losing remove and cancel. A single
+  owner check could not express that.
+
+  An actor left with no row action at all gets no menu rather than a trigger that
+  opens onto nothing, and the members page explains the absence where the Invite
+  button used to sit, in the Settings tab's own voice. An unresolved role is
+  treated as the least privileged, so nothing privileged is offered to a viewer
+  whose membership could not be read.
+
+  Reading the pages is unaffected: the member list and the invitation ledger still
+  render in full. Whether `org_member` should be able to read the invitation
+  ledger at all is a separate, server-side question.
+
+- 45e1949: Numbers render in the user's locale, and a `Field.number` year is no longer `2,026`
+
+  Every numeric field the console rendered went through an `Intl.NumberFormat` built with the locale hardcoded to `en-US` and `useGrouping` never set. Two defects rode in that one construction: a `zh-CN` or `de-DE` console still grouped and pointed decimals the US way, and a four-digit **year** stored as `Field.number({ scale: 0 })` rendered as `2,026` — in every locale, with no field property able to turn it off. Apps had been converting year columns to `Field.text` to escape it, permanently trading numeric comparison, range filters and dataset dimension types for a display detail.
+
+  The construction had been copied into five places — the number cell renderer, the currency cell renderer, the `CurrencyField` widget, the compact `formatNumber` helper, and the dashboard `MetricWidget` — so fixing any one surface never changed the answer. They now share one formatter, `formatDisplayNumber` in `@object-ui/i18n`, which owns the locale and the grouping policy together, plus one locale resolver, `useDisplayLocale`.
+
+  `useDisplayLocale` composes the two locale channels this repo already had rather than adding a third: the tenant's regional default (`useLocalization().locale`, ADR-0053) when an org has configured one, otherwise the active UI language (`useObjectTranslation().language`) so grouping and decimal marks follow a language switch. That second step is what covers the case the report was measured in — a fresh database, where the tenant localization endpoint has no locale to give.
+
+  Grouping is now suppressed when a field declares `scale: 0` and carries no currency, which is what makes years, fiscal periods and other ordinals render plainly. This is an **interim default** with an accepted cost: a large scale-0 _count_ loses its separators too. It holds only until the spec gains an authorable presentation hint, which is being specified separately, contract-first; when that lands it overrides this heuristic.
+
+  Three surfaces deliberately keep their separators, because a zero-decimal display there does not come from a field declaration: the dashboard `MetricWidget` (its decimals are parsed from a numeral.js format pattern, and its own contract calls the separators load-bearing — "`1,930,000` not `1930000`"), the `element:number` aggregate renderer, and every currency path including amounts whose currency code could not be resolved. An **undeclared** `scale` also keeps grouping — absent means "decimals unknown", not "integer".
+
+  `formatCurrency`, `formatCompactCurrency` and `formatNumber` each take a new optional trailing `locale` argument. Existing calls are unaffected; omitting it now follows the runtime default rather than forcing US conventions.
+
+- 58bebf6: Organization & invitation console: translate the English holdouts a zh session was left reading (#4474)
+
+  Three families of string, one sweep over `console/organizations/`:
+
+  - **Role names** now come from the single shared `ORG_ROLE_LABELS` map at every
+    site. The role badges on the members and invitations pages were rendering the
+    raw server identifier (`owner`) under a CSS `capitalize` that made it look like
+    a label in English and left it untranslated everywhere else; the accept page
+    did the same in its role row and inside its otherwise-translated sentence. The
+    map's four `organization.roles.*` keys existed in no locale pack, so even the
+    dropdown that did consult it fell through to English — all ten packs now carry
+    them. An unrecognized role renders verbatim rather than blank.
+  - **Server-echoed errors** are mapped by better-auth's stable `code`, never by
+    matching its English text. `createAuthClient` was dropping that code for every
+    `organization.*` call while preserving it for sign-in/sign-up, so the console
+    had nothing to key on; all sixteen organization methods now go through the same
+    `toAuthError` helper. Messages are unchanged — the code simply stops being
+    thrown away. An unmapped code still shows the server's own sentence.
+  - **Icon-only `aria-label`s** (member actions, copy invitation link, cancel
+    invitation, and a fourth on the share-link copy button) are translated — for an
+    icon-only control this is the only name a screen reader gets.
+
+- 405e808: `pickLocalized` reads own properties only, and takes only string values, on every limb
+
+  The resolver read four of its six limbs — the exact tag, the base language, `default` and `en` — with a bare bracket access. Bare access walks the prototype chain, so a locale that happened to name an `Object.prototype` member resolved to that member and the function stringified it into the label: `pickLocalized({ en: 'Pricing' }, 'constructor')` returned `function Object() { [native code] }`, and the same held for `toString`, `valueOf`, `hasOwnProperty`, `isPrototypeOf`, `propertyIsEnumerable` and `toLocaleString`. Those same four limbs also skipped the `typeof === 'string'` filter the regional and last-resort limbs already applied, so a non-string value short-circuited the chain and rendered as `[object Object]`.
+
+  Both guards now apply uniformly. A guarded limb **misses** rather than aborting the resolution, so an unusable entry falls through to the next limb exactly as an absent one does — `pickLocalized({ en: 'Pricing' }, 'constructor')` is now `'Pricing'` (the `en` limb), and only a map with no usable entry at all resolves to `''`. An empty-string value is still a hit, because `''` is a label the author wrote.
+
+  No real language tag can observe this: no BCP-47 tag is an `Object.prototype` member, and the inline locale map is declared `z.record(<tag>, z.string())`, so every in-contract input resolves byte-identically to before. What it changes is agreement with the backend twin `resolveI18nLabel` (objectstack#6765), which shipped with exactly these two narrowings recorded as deliberate departures from this function because on a server the locale can arrive in an `Accept-Language` header. That recorded rule divergence is now zero; the only remaining difference is how each side spells a miss (`''` here for a text node, `undefined` there for a producer's fallback chain), which is pinned as an identity in the cross-resolver parity table.
+
+- c0f9a4b: Studio surfaces the runtime authoring gate's advisory findings instead of discarding them client-side
+
+  The framework's runtime authoring gate produces two kinds of verdict on a metadata write. Errors become a 422 and the author sees them. Advisories ride a **200** — the save succeeded, the row persisted, the version bumped — and until objectstack#7435 the server dropped them into a deduped `console.warn` behind a process-level set. That landing put them on the wire as an optional `advisories[]` on the save response, emitted only when non-empty, and objectui was still throwing them away one layer further out: `MetadataClient.save` parsed the body, returned it as an opaque `T`, and every call site awaited it for its side effect and discarded the value.
+
+  The measured case the fix is built on: a `nightly_purge` flow whose only defect is a `delete_record` node with `multi: true` and no filter yields `errors = 0 / advisories = 1`. The save returns 200, the flow goes live, and nothing anywhere tells the author it deletes every row. That matters most for exactly the authors Studio serves — a Studio tenant or an MCP/AI author has no `os lint` and no CLI config for `sys_metadata` overlay rows, so this gate is not the weakest of four doors, it is the only one.
+
+  `MetadataClient` now carries an `onSaveAdvisory` sink, invoked after a save whose response carried a non-empty `advisories[]`, and the console wires it in `useMetadataClient` — the one hook every app-shell write path takes its client from, so a single wiring covers `ResourceEditPage`, `StudioDesignSurface`, `EmbeddedItemEditor`, `DatasourceResourcePage`, `ObjectHooksPanel` and any future call site rather than a toast copied into twenty of them. The finding shape is re-exported from `@objectstack/spec` (`RuntimeAuthoringIssue`) rather than restated, so it cannot fork from the 422 `issues[]` it deliberately shares a declaration with.
+
+  The affordance is the warning tier and says "Saved" first. A successful save that reads as a failure is the specific defect this surface must not ship, so the toast acknowledges the write, lists `rule` + `message` + `hint` per finding with `where` as secondary context, and renders that text **verbatim** — `message` and `hint` are server prose composed by the gate's rules, not i18n keys. Only the frame around them is translated (`console.saveAdvisoryTitle`, ten packs). The sink is best-effort in both directions: a malformed finding is dropped rather than printed as blanks, and a throwing renderer cannot turn a save the server already committed into an error.
+
+  **What this does not surface yet, and why.** Studio's designer saves as a **draft** on every edit, and drafts are never gated — the framework returns at its D1 early-return (`if (args.state !== 'active') return null`) before running a single rule, so a draft save produces no findings at all rather than producing some that get withheld. The publish step that promotes a draft to active _does_ run the gate, but the publish route returns no `advisories` field until objectstack#7294 lands. So a draft-then-publish flow renders nothing today, at both of its doors, for two different reasons; the active-mode save door renders findings now. That gap is pinned as a test rather than left for a reader to rediscover.
+
+- d46f9b8: i18n: `createSafeTranslation`'s provider-less fallback now honours a call site's inline `defaultValue`
+
+  `fallbackT` looked its key up in the hook's hand-written `defaults` map and, on a miss, rendered the
+  **raw key** to the user — then ran every option, `defaultValue` included, through the interpolation
+  loop as if it were a `{{defaultValue}}` variable. So `t('perm.facet.none', { defaultValue: 'None' })`
+  showed `perm.facet.none` on a host with no `I18nProvider`, which is a supported scenario (standalone
+  embedding and tests are the whole reason this factory exists).
+
+  The lookup order is now `defaults[key]` -> a string `defaultValue` -> the key, matching i18next,
+  which serves the provider path: the defaults map is the pack value's stand-in here, so it keeps the
+  pack's winning position. `defaultValue` is also excluded from the interpolation loop as a reserved
+  name — it selects the string, it does not fill holes in one. Non-string `defaultValue` is ignored.
+  The provider path is untouched.
+
+  Measured over all 26 `createSafeTranslation` hooks in the repo: 27 keys reach a hook whose defaults
+  map lacks them, 21 of those carrying an inline `defaultValue` that used to be dropped (16 keys in
+  `plugin-detail` alone). Those 21 now render their English instead of a raw key on provider-less
+  hosts; the other 6 pass no inline default and still need a map or pack entry.
+
+- 2fea4d2: `detail.showEmptyRelated` renders Russian and Arabic again — the "+N empty" button no longer falls through to English at the counts it takes most often
+
+  This was the repo's only pre-existing i18next plural family, and all ten packs defined exactly two slots: `_one` and `_other`. i18next asks `Intl.PluralRules` for the one suffix a language needs for that number, and when the pack has no such slot it walks `fallbackLng` to `en`. Russian has four plural categories and Arabic six, so `ru` at counts 2-4 (`few`) and 5-20, 25-30, … (`many`), and `ar` at 0, 2, 3-10 and 11-99, resolved nothing locally and rendered the English string. The call site is the collapsed-empties button in the record detail's reference rail, whose count is the number of empty related lists — 2 to 4 are the most common values it ever takes, so a Russian user essentially always read English.
+
+  The fix is a base key (no suffix) beside the two existing slots, in all ten packs. The base key is always in i18next's lookup chain, so every category a pack did not enumerate resolves to it, in that pack's own language — and, unlike adding `_few`/`_many` to `ru` alone, it keeps the ten packs' key sets identical, which full key parity requires. Same shape objectui#3546 slice six established for `perm.facet.*`. Where the base key is genuinely reachable it carries a count-invariant phrasing: `ru` uses the «Существительное: {{count}}» form the pack already writes 22 times, `ar` the «{{count}} مفرد(جمع)» marker it uses throughout. For `en`/`de`/`zh`/`ja`/`ko` the base key cannot be reached at all (their categories are covered by the two existing slots) and repeats `_other` for parity; `fr`/`es`/`pt` reach it only from a million up, where the plural form is already correct. No English copy moves.
+
+  The provider-less path needed the same row for a different reason: `createSafeTranslation`'s fallback resolves `defaults[key]` literally and never appends a plural suffix, so the two suffixed rows in plugin-detail's defaults table were unreachable through it and that path answered with the raw key. It now carries the base key too.
+
+  Parity across packs turned out to be necessary and not sufficient — ten identical key sets were green throughout, because the defect is one level below key names: the slot the language needs is not in the set. So the invariant "a plural family must carry a base key" is now asserted over all ten packs in `all-locales-key-parity.test.ts`, where it is pack-intrinsic and fails at PR time without needing a call site to exist. It went red on all ten packs before this change and names the family that is missing its base.
+
+- 7f1cb33: List sort: the relational hint stops recommending a formula field, the one type the server refuses to sort by
+
+  The Sort panel withholds columns that link to another record and explains why, and the last sentence of that explanation named the remedy: _add a formula field holding it_. A formula field is exactly what the platform will not order by. The server keeps `UNMATERIALIZED_SORT_TYPES = new Set(['formula'])` and, since objectstack#6994, a sort naming one is a hard `400 INVALID_SORT` — before that it degraded silently, returning every row with `asc` and `desc` byte-identical. So an author who read the hint, followed it, and built a formula field arrived at a refusal; and since #4243 withheld formula fields from this very picker, at a field the panel does not offer either. Two doors, opposite advice, for one problem.
+
+  The remedy sentence now names a **stored, denormalised field — written when the source changes** — and rules the formula field out in as many words: it is virtual, no column is stored for it, and the server refuses to sort by one. That is deliberately the server's own vocabulary rather than a third phrasing of the same fact: objectstack#6924 and objectstack#6994 settled on one wording across the refusal doors so an author refused twice is not sent two different ways, and this is the UI door of that same set. The first half of the hint — why relation columns are withheld at all — is unchanged.
+
+  All ten locale packs move together, as `check:i18n-drift` requires of any `en` edit. The same sentence also lives in `plugin-list`'s provider-less fallback table, which is what renders when the component is used outside an `I18nProvider`; it is updated to match `en` byte for byte, because a pack-only reword would have left the retired advice on exactly the surface this fixes.
+
+- 2e3b0c0: fix(list): an `OBJECT_API_DISABLED` list request renders an honest cannot-work state instead of the empty state
+
+  A list pointed at an object whose `enable` block withholds the API rendered its ordinary
+  empty state, so _"this page cannot work, and never could"_ reached the user as _"you have no
+  records"_ (objectui#4408). The reported instance — `Setup › Advanced › Signing Keys`, whose
+  `sys_jwks` declares `enable.apiEnabled: false` — could not load for any persona and said so
+  to nobody. That is also why the upstream defect objectstack#7544 survived review for its
+  whole life: a merely unpopulated page invites nobody to click through.
+
+  The masking had two halves, in two packages, and neither package could see the other:
+
+  - **`@object-ui/data-objectstack`** (minor — see the grading note below) — `find()` degraded
+    **every** 404 into `{ data: [], total: 0 }` and memoised the resource, so the denial arrived
+    at the surface as a successful empty result, indistinguishable from a genuinely empty
+    object. The two `enable`-block denials are now let through instead: `OBJECT_API_DISABLED`
+    (404) and `OBJECT_API_METHOD_NOT_ALLOWED` (405). The memo skips them too — absorbing one
+    would have pinned the object to "empty" for the rest of the session.
+  - **`@object-ui/plugin-list`** — the load-error panel gained an `api-disabled` kind. The 405
+    half was never swallowed, so it already reached this panel, but classified as `network`:
+    _"check your connection and try again"_ for a condition no retry can change. It now says
+    the object is not exposed through the API, that this is a setting on the object rather than
+    a permission, and it offers **no Retry** button, because every retry re-fetches the
+    identical refusal.
+
+  Both denials are pure functions of the object's metadata — no user, no permission, no
+  context — so neither is transient or per-user, which is exactly the case where a silent empty
+  state is most misleading. Discrimination is on the ADR-0112 `code`, never the status: a
+  missing collection, a missing record and a disabled object are all 404.
+
+  **A genuinely empty object still renders the ordinary empty state**, and a backend without an
+  optional collection still degrades to empty — pinned in both directions, at the adapter, at
+  the view, and once end-to-end over a real adapter and a real `ListView`.
+
+  Also closes a code-propagation gap on the same path: `find()`'s raw `$expand`/`$search`
+  branch bypasses `@objectstack/client` and hand-rolled its own error, stamping only `status`.
+  It now carries the ADR-0112 envelope (`code` + `httpStatus`), so a denial arriving on the
+  branch a list takes whenever it expands a lookup or runs a search is no longer anonymous.
+
+  New strings: `list.loadErrorApiDisabledTitle` / `list.loadErrorApiDisabledMessage`, in the
+  `en` pack and mirrored in the list defaults map.
+
+  ## Grading note — why `@object-ui/data-objectstack` is **minor** and not patch
+
+  Two independent reasons, either of which is sufficient under this repo's precedent
+  (objectui#4403 / #4177, and #4485's grading of `@object-ui/core`'s `toDomProps` lift):
+
+  1. **The emitted `.d.ts` grows two NEW exports.** `isApiAccessDeniedError(error: unknown):
+boolean` and `API_ACCESS_DENIED_CODES` (the readonly tuple
+     `['OBJECT_API_DISABLED', 'OBJECT_API_METHOD_NOT_ALLOWED']`) are added to the package's
+     public surface. Additive surface growth is minor.
+  2. **Observable behaviour on a published API moves.** `ObjectStackDataSource.find()` now
+     **REJECTS** for the two `enable`-block denial codes where it previously **RESOLVED** with
+     `{ data: [], total: 0 }`. No signature changed and nothing was removed, but a caller that
+     relied on those two codes arriving as a successful empty result now receives a rejected
+     promise carrying `code` + `httpStatus`, and must handle it.
+
+  Deliberately unchanged, and still resolving to an empty result exactly as before: a bare 404
+  with no code, `OBJECT_NOT_FOUND` (still memoised) and `RECORD_NOT_FOUND`. The behaviour move
+  is scoped to the two denial codes named above and to nothing else.
+
+  Not major: this follows AGENTS.md's version-alignment rule — objectui's major tracks
+  `@objectstack`'s, so this repo's own breaking semantics are declared as minor with the change
+  described in the body, which is what this note is.
+
+- 31ab1ac: fix(print): `window.print()` produces a usable page, and the Print buttons say what they do
+
+  The list, report and dashboard Print controls were bare `window.print()` calls with no
+  print stylesheet, so the browser printed the whole console — sidebar, top bar, chat rail,
+  toasts — with the data table clipped to a single viewport. With no label to the contrary
+  they were being accepted against "export to PDF" requirements, which they have never been.
+
+  - `@object-ui/app-shell/styles.css` gains a shared `@media print` block: it hides the shell
+    chrome, prints the active content area full-width, releases the viewport-height flex chain
+    so long tables paginate instead of clipping, repeats table headers on every sheet, and
+    neutralises dark mode (which otherwise prints white-on-white). One sheet serves list,
+    report and dashboard.
+  - The list and report Print buttons carry a tooltip and accessible name stating that they
+    open the browser's own print dialog and are not a PDF export (new `common.printDialogHint`,
+    translated in all ten locale packs).
+  - The dashboard's `export_dashboard_pdf` action no longer toasts "Preparing PDF export…" —
+    it names the print dialog it actually opens (`dashboardActions.pdfPreparing` is replaced by
+    `dashboardActions.printDialogOpening`).
+
+  No control was removed and no headless detection was added. A real print/PDF primitive
+  remains out of scope (`objectstack-ai/objectstack#1301`, closed NOT_PLANNED).
+
+- 06915b0: fix(i18n): every date branch threads the active locale, so a `zh` session no longer renders half its dates in English
+
+  Date rendering had two locale channels and only one followed the user's
+  language, so the same row could read `逾期 6 天` in one column and `In 3 days`
+  in the next, with a datetime column showing `8/11/2026 12:00 am`
+  (objectui#4468).
+
+  The overdue phrase resolves through the translate fn (the active UI language),
+  while every `Intl` branch took its tag from the raw tenant locale
+  (`useLocalization().locale`) — which is `undefined` on any workspace that never
+  configured one, and `undefined` makes `Intl` use the _machine's_ locale.
+  `DateTimeCellRenderer` passed no tag at all.
+
+  Every date-formatting site in `@object-ui/fields` now resolves through the one
+  existing channel, `useDisplayLocale()` (tenant regional default → active UI
+  language → `en`): `DateCellRenderer` (relative past, relative future, near-today
+  and the beyond-±7-days absolute fallback), `DateTimeCellRenderer`, the read-only
+  `DateField` / `DateTimeField` / `FormulaField` faces, and the sub-grid's
+  temporal cells. English output is unchanged, and the already-localized overdue
+  wording is untouched.
+
+  No public signature changed. `@object-ui/i18n` carries a documentation
+  correction only: `useDisplayLocale`'s docstring claimed `DateCellRenderer`
+  already formatted from this channel, which was the very thing that was not true.
+
+- ff84b05: Stop the report config panel being titled "Title", and the view-settings colour section "Color"
+
+  Two call sites asked for a key whose value was written for a different slot, so the rendered copy was wrong (objectui#4118, surfaced by objectui#3810's census).
+
+  `ReportConfigPanel` used `report.editor.title` for both its heading and the accessible name of its `role="complementary"` landmark. That key is the label of the report's Title _field_ — `report.editor.titlePlaceholder` ('e.g. Pipeline by Quarter') sits directly under it in the pack. So the panel was headed "Title", and a screen reader announced a complementary region named "Title", which says nothing about what the region is. A new `report.editor.panelTitle` ('Edit report' — what the call site's own dead fallback said before objectui#3810 aligned it to the pack) now names the panel, in all ten locale packs.
+
+  `ViewSettingsPopover`'s colour section used `list.color`. On the wide toolbar `ListView` already uses both keys correctly for the two slots of this one feature: the compact `Paintbrush` button is `list.color` ('Color') and the panel it opens is headed `list.rowColor` ('Row Color'). This popover is that same panel on the collapsed/`compactToolbar` surface, so it now takes `list.rowColor` — an existing key, no pack change.
+
+  No `en` value of an existing key changed; `scripts/check-i18n-en-drift.mjs` reports 0 en values changed, 1 key added.
+
+- Updated dependencies [ee66e2e]
+- Updated dependencies [ee26e65]
+- Updated dependencies [5900ac5]
+- Updated dependencies [3fc2971]
+- Updated dependencies [aca27fa]
+- Updated dependencies [dde7283]
+- Updated dependencies [f279deb]
+- Updated dependencies [eb7f586]
+- Updated dependencies [e901131]
+- Updated dependencies [d9d3463]
+- Updated dependencies [613b167]
+- Updated dependencies [abb0f81]
+- Updated dependencies [38ab505]
+- Updated dependencies [7e4f0e5]
+- Updated dependencies [92250d6]
+- Updated dependencies [c1d939f]
+- Updated dependencies [49ae9f4]
+- Updated dependencies [2459a3e]
+- Updated dependencies [d6aa172]
+- Updated dependencies [fe52a04]
+- Updated dependencies [bb68488]
+- Updated dependencies [9461dd3]
+  - @object-ui/core@17.5.0
+
 ## 17.4.0
 
 ### Patch Changes
