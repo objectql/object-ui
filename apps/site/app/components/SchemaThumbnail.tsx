@@ -19,8 +19,14 @@ import React, {
 import { SchemaRenderer, SchemaRendererContext } from '@object-ui/react';
 import { SidebarProvider } from '@object-ui/components';
 import type { SchemaNode } from '@object-ui/core';
-// Registers `page-header` & friends (objectui#3787) plus the dashboard/chart
-// blocks the gallery draws (objectui#4600) — see that module's header.
+// Registers `page-header` & friends — see the module header (objectui#3787).
+// Named directly, not reached through the module below: `scripts/__tests__/
+// site-playground-layout-registration-3904.test.ts` discovers every
+// `SchemaRenderer` host and requires it to import THIS module, and a host that
+// pulled it in transitively would read to that guard as a host that registers
+// nothing (measured — it went red on exactly that).
+import './registerLayoutBlocks';
+// Registers the dashboard + chart blocks the gallery draws (objectui#4600).
 import './registerCatalogBlocks';
 import { galleryDataSource } from './galleryDataSource';
 

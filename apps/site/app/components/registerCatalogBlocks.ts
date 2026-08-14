@@ -4,8 +4,13 @@
  */
 
 /**
- * Registers the blocks the **catalog gallery** renders, on top of the layout
- * blocks every example host needs (`./registerLayoutBlocks`).
+ * Registers the plugin blocks the **catalog gallery** renders. A companion to
+ * `./registerLayoutBlocks`, which every example host imports directly and which
+ * this module deliberately does NOT re-export: `scripts/__tests__/site-
+ * playground-layout-registration-3904.test.ts` discovers each `SchemaRenderer`
+ * host and reads its imports, so a host reaching the layout registrar through
+ * here would read as a host that registers nothing. Two imports, two
+ * responsibilities, one visible in each host.
  *
  * Why this exists (objectui#4600): `ComponentRegistry` only knows a type once
  * the package owning it has been loaded, and `/docs/guide/schema-catalog`
@@ -43,6 +48,5 @@
  * test.tsx`, which mirrors this registration set and fails if this file stops
  * loading either package.
  */
-import './registerLayoutBlocks';
 import '@object-ui/plugin-dashboard';
 import '@object-ui/plugin-charts';
