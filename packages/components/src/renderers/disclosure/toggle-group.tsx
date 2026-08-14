@@ -31,7 +31,7 @@ ComponentRegistry.register('toggle-group',
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
       >
         {schema.items?.map((item, idx) => (
-          <ToggleGroupItem key={idx} value={item.value} aria-label={item.label}>
+          <ToggleGroupItem key={idx} value={item.value} aria-label={item.label} disabled={item.disabled}>
             {item.label}
           </ToggleGroupItem>
         ))}

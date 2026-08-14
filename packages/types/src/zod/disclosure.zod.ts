@@ -63,7 +63,6 @@ export const CollapsibleSchema = BaseSchema.extend({
 export const ToggleGroupItemSchema = z.object({
   value: z.string().describe('Item value'),
   label: z.string().describe('Item label'),
-  icon: z.string().optional().describe('Item icon'),
   disabled: z.boolean().optional().describe('Whether item is disabled'),
 });
 

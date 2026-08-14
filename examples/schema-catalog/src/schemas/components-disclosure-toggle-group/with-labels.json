@@ -4,18 +4,16 @@
   "items": [
     {
       "value": "list",
-      "icon": "list",
       "label": "List"
     },
     {
       "value": "grid",
-      "icon": "grid",
       "label": "Grid"
     },
     {
       "value": "table",
-      "icon": "table",
-      "label": "Table"
+      "label": "Table",
+      "disabled": true
     }
   ]
 }
