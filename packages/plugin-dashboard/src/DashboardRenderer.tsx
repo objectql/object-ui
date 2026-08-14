@@ -39,6 +39,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { isObjectProvider } from './utils';
 import { classifyWidgetType, METRIC_LIKE_TYPES } from './widgetDispatch';
+import { LEGACY_RETIRED_WIDGET_SCHEMA, isLegacyRetiredWidget } from './legacyRetiredWidget';
 import { DatasetWidget } from './DatasetWidget';
 import { DashboardFilterBar } from './DashboardFilterBar';
 
@@ -138,21 +139,16 @@ const FILTERABLE_COMPONENT_TYPES = new Set([
   'object-data-table',
 ]);
 
-/**
- * Placeholder schema for a widget that still carries the retired pre-ADR-0021
- * inline-analytics binding — top-level `object` + `categoryField`/`valueField`/
- * `aggregate` — with no `dataset` and no inline `options.data`. No authoring
- * surface emits this shape anymore (framework#3320); any surviving stored
- * metadata renders this visible error placeholder (not a blank) so an author can
- * rebind the widget to a dataset.
+/*
+ * The retired-widget placeholder and its detector used to be declared right
+ * here, private to this file — and that is the whole reason objectui#4612
+ * existed: the sibling surface `DashboardGridLayout` could not consume what it
+ * could not see, so the graceful fallback covered one of the two surfaces and
+ * the other rendered a silent blank chart for the identical stored metadata.
+ * Both now import the single declaration from `./legacyRetiredWidget`; the
+ * behaviour on this surface is unchanged (pinned by
+ * `__tests__/DashboardRenderer.legacyRetired.test.tsx`).
  */
-const LEGACY_RETIRED_WIDGET_SCHEMA = {
-  type: 'text',
-  value: 'This widget uses a retired data format. Edit it to bind a dataset.',
-  variant: 'caption',
-  align: 'center',
-  className: 'flex h-full w-full items-center justify-center rounded border border-dashed border-destructive/40 bg-destructive/5 p-4 text-center text-destructive',
-} as const;
 
 /**
  * The dashboard renderer's props.
@@ -545,8 +541,10 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
             // the pre-ADR-0021 top-level `object` binding with no `dataset` and no
             // inline `options.data`. No authoring surface emits this anymore, so it
             // is stale stored metadata — render a visible error placeholder (not a
-            // blank) prompting a rebind to a dataset.
-            if (!widgetData && (widget as any).object) {
+            // blank) prompting a rebind to a dataset. The condition itself lives in
+            // `./legacyRetiredWidget` so `DashboardGridLayout` applies the SAME one
+            // (objectui#4612) instead of a hand-copied twin.
+            if (isLegacyRetiredWidget(widget)) {
                 return LEGACY_RETIRED_WIDGET_SCHEMA;
             }
 
@@ -704,6 +702,15 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
             // ObjectPivotTable / PivotTable components remain public SDUI blocks for
             // other surfaces. A non-dataset pivot reaching here is stale metadata —
             // show the retired placeholder rather than a blank grid.
+            //
+            // This arm stays surface-LOCAL and is deliberately not part of the
+            // shared detector (objectui#4612): it is a statement about what THIS
+            // surface can draw — nothing here emits a pivot block — not about the
+            // widget being legacy. `DashboardGridLayout` does still draw pivots from
+            // static data and from the `provider: 'object'` config, so exporting
+            // this family-wide arm would have retired two live branches over there.
+            // The legacy pivot SHAPE is covered on both surfaces by the shared
+            // sentinel above, which its top-level `object` matches.
             if (dispatch.family === 'pivot') {
                 return LEGACY_RETIRED_WIDGET_SCHEMA;
             }

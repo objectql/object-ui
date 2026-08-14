@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, toRenderableSchema } from '@object-ui/react';
 import type { SchemaNode } from '@object-ui/core';
 import dynamic from 'next/dynamic';
 import { ObjectUIProvider } from '@/app/components/ObjectUIProvider';
@@ -1410,7 +1410,7 @@ export default function PlaygroundPage() {
                     viewMode === 'mobile' ? 'min-h-[667px]' : viewMode === 'tablet' ? 'min-h-[600px]' : ''
                   }`}>
                     <div className="p-6">
-                      <SchemaRenderer schema={schema} />
+                      <SchemaRenderer schema={toRenderableSchema(schema)} />
                     </div>
                   </div>
                 </div>

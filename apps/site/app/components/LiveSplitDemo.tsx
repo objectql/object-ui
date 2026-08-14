@@ -17,7 +17,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { SchemaRenderer, SchemaRendererContext } from '@object-ui/react';
+import { SchemaRenderer, SchemaRendererContext, toRenderableSchema } from '@object-ui/react';
 import { SidebarProvider } from '@object-ui/components';
 import type { SchemaNode } from '@object-ui/core';
 import {
@@ -283,7 +283,7 @@ export function LiveSplitDemo({
                   defaultOpen={false}
                 >
                   <div className="w-full">
-                    <SchemaRenderer schema={lastValidSchema} />
+                    <SchemaRenderer schema={toRenderableSchema(lastValidSchema)} />
                   </div>
                 </SidebarProvider>
               </SchemaRendererContext.Provider>
