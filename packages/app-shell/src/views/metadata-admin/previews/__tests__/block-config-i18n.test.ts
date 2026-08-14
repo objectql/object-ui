@@ -265,7 +265,11 @@ describe('en-US labels are unchanged by the key migration (#3913)', () => {
     'engine.inspector.pageBlock.field.object-grid.objectName': 'Object',
     'engine.inspector.pageBlock.field.object-grid.columns': 'Columns',
     'engine.inspector.pageBlock.field.object-grid.pageSize': 'Page size',
-    'engine.inspector.pageBlock.field.object-grid.striped': 'Striped rows',
+    // The `boolean` sample used to be `object-grid.striped`; objectui#4649
+    // removed that field (objectstack#7176 retired the key it wrote, and no
+    // renderer read it). `page:card.bordered` takes the slot — same field kind,
+    // and its prop is one `containers.tsx` actually applies.
+    'engine.inspector.pageBlock.field.page:card.bordered': 'Bordered',
     // the same field NAME in another block, with different text — the case that
     // makes the key positional
     'engine.inspector.pageBlock.field.object-form.columns': 'Columns (grid layout)',

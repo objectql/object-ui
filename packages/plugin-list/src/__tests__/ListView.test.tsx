@@ -1292,32 +1292,13 @@ describe('ListView', () => {
   // Schema prop forwarding to child views
   // ============================
   describe('Schema prop forwarding', () => {
-    it('should pass striped to child view schema', () => {
-      const schema: ListViewSchema = {
-        type: 'list-view',
-        objectName: 'contacts',
-        viewType: 'grid',
-        fields: ['name', 'email'],
-        striped: true,
-      };
-
-      const { container } = renderWithProvider(<ListView schema={schema} />);
-      expect(container).toBeTruthy();
-    });
-
-    it('should pass bordered to child view schema', () => {
-      const schema: ListViewSchema = {
-        type: 'list-view',
-        objectName: 'contacts',
-        viewType: 'grid',
-        fields: ['name', 'email'],
-        bordered: true,
-      };
-
-      const { container } = renderWithProvider(<ListView schema={schema} />);
-      expect(container).toBeTruthy();
-    });
-
+    // `striped` and `bordered` had a case each here until objectui#4649 removed
+    // the forwarding (objectstack#7176 retired the keys). Neither is restored
+    // in another spelling: both only rendered the schema and asserted
+    // `container` was truthy, so they were green whether or not the key was
+    // forwarded — the very reason a pass-through could sit here unread for so
+    // long. `wrapHeaders` below reads the child schema, which is what a
+    // forwarding case has to do.
     it('should pass wrapHeaders to grid view schema', () => {
       const schema: ListViewSchema = {
         type: 'list-view',

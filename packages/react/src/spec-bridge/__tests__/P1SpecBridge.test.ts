@@ -31,16 +31,6 @@ describe('P1 SpecBridge Protocol Alignment', () => {
       expect(node.bulkActions).toEqual(['delete', 'assign']);
     });
 
-    it('should pass through virtualScroll', () => {
-      const bridge = new SpecBridge();
-      const node = bridge.transformListView({
-        name: 'large_dataset',
-        virtualScroll: true,
-      });
-
-      expect(node.virtualScroll).toBe(true);
-    });
-
     it('should pass through conditionalFormatting', () => {
       const bridge = new SpecBridge();
       const node = bridge.transformListView({
@@ -176,18 +166,45 @@ describe('P1 SpecBridge Protocol Alignment', () => {
       expect(node.filterableFields).toEqual(['status', 'priority', 'assignee']);
     });
 
-    it('should pass through resizable, striped, bordered', () => {
+    it('should pass through resizable', () => {
+      const bridge = new SpecBridge();
+      const node = bridge.transformListView({
+        name: 'styled',
+        resizable: true,
+      });
+
+      expect(node.resizable).toBe(true);
+    });
+
+    // objectstack#7176 retired `striped` / `bordered` / `virtualScroll` after
+    // measuring this bridge — and every reader downstream of it — as
+    // pass-through: the value was copied node-ward and no renderer ever applied
+    // it. The three `pass through` cases that stood here asserted exactly that
+    // dead copy. What replaces them is the inverse claim, and it is the one
+    // worth pinning: the bridge must not resurrect the keys.
+    //
+    // The input fixture MUST carry the three keys — asserting their absence on
+    // the output of a fixture that never supplied them would be green whatever
+    // the bridge does. Stored view metadata authored before the retirement is
+    // exactly this shape, so the case is also the realistic one. It compiles on
+    // both pins because `transformListView(spec: any)` types its input as
+    // `any`, so the GA `retiredKey()` tombstones cannot reject the literal.
+    it('should drop the retired striped / bordered / virtualScroll keys', () => {
       const bridge = new SpecBridge();
       const node = bridge.transformListView({
         name: 'styled',
         resizable: true,
         striped: true,
         bordered: true,
+        virtualScroll: true,
       });
 
+      expect(node).not.toHaveProperty('striped');
+      expect(node).not.toHaveProperty('bordered');
+      expect(node).not.toHaveProperty('virtualScroll');
+      // The surviving neighbour proves the fixture reached the bridge at all —
+      // without it an early return would satisfy every assertion above.
       expect(node.resizable).toBe(true);
-      expect(node.striped).toBe(true);
-      expect(node.bordered).toBe(true);
     });
 
     it('should pass through view-type configs (kanban, calendar, gantt, gallery, timeline)', () => {

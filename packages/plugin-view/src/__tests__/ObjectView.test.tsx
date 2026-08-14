@@ -537,9 +537,11 @@ describe('ObjectView', () => {
         <ObjectView schema={schema} dataSource={mockDataSource} views={initialViews} activeViewId="all" />,
       );
 
-      // Update with appearance changes — simulates live preview of rowHeight/striped/bordered
+      // Update with appearance changes — simulates live preview of the view's
+      // appearance knobs. Spelled with `rowHeight` / `color` since objectui#4649:
+      // the fixture used `striped` / `bordered`, which objectstack#7176 retired.
       const updatedViews = [
-        { id: 'all', label: 'All', type: 'grid' as const, columns: ['name'], striped: true, bordered: true },
+        { id: 'all', label: 'All', type: 'grid' as const, columns: ['name'], rowHeight: 'compact' as const, color: 'status' },
       ];
 
       rerender(

@@ -668,8 +668,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       showSearch: activeView?.showSearch ?? schema.showSearch ?? false,
       showSort: activeView?.showSort ?? schema.showSort ?? false,
       showFilters: activeView?.showFilters ?? schema.showFilters ?? false,
-      striped: activeView?.striped ?? false,
-      bordered: activeView?.bordered ?? false,
       color: activeView?.color,
     };
 
@@ -848,8 +846,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     defaultSort: currentNamedViewConfig?.sort || activeView?.sort || schema.table?.defaultSort,
     pageSize: schema.table?.pageSize,
     selectable: schema.table?.selectable,
-    striped: activeView?.striped ?? schema.table?.striped,
-    bordered: activeView?.bordered ?? schema.table?.bordered,
     className: schema.table?.className,
   }), [schema, operations, currentNamedViewConfig, activeView]);
 
@@ -1016,8 +1012,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           compactToolbar: activeView?.compactToolbar ?? (schema as any).compactToolbar,
           allowExport: activeView?.allowExport ?? (schema as any).allowExport,
           // Propagate display properties
-          striped: activeView?.striped ?? (schema as any).striped,
-          bordered: activeView?.bordered ?? (schema as any).bordered,
           color: activeView?.color ?? (schema as any).color,
           // Propagate view-config properties (Bug 4 / items 14-22)
           inlineEdit: activeView?.inlineEdit ?? (schema as any).inlineEdit,
@@ -1050,7 +1044,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           userFilters: activeView?.userFilters ?? (schema as any).userFilters,
           showRecordCount: activeView?.showRecordCount ?? (schema as any).showRecordCount,
           allowPrinting: activeView?.allowPrinting ?? (schema as any).allowPrinting,
-          virtualScroll: activeView?.virtualScroll ?? (schema as any).virtualScroll,
           emptyState: activeView?.emptyState ?? (schema as any).emptyState,
           aria: activeView?.aria ?? (schema as any).aria,
           // Propagate refresh signal so ListView re-fetches after mutations

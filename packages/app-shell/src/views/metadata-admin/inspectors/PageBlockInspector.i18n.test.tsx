@@ -81,15 +81,22 @@ describe('PageBlockInspector PROPERTIES labels follow the locale (#3913)', () =>
   it('renders curated field labels in Chinese under zh-CN', () => {
     renderInspector(pageDraft('object-grid'), 'zh-CN');
 
-    // `object-grid`: object-picker + field-list + number + two booleans, i.e.
-    // four different `renderField` branches in one panel.
+    // `object-grid`: object-picker + field-list + number, i.e. three different
+    // `renderField` branches in one panel.
     expect(screen.getByText('对象')).toBeTruthy();
     expect(screen.getByText('列')).toBeTruthy();
     expect(screen.getByText('每页条数')).toBeTruthy();
-    expect(screen.getByText('斑马纹行')).toBeTruthy();
+    // The `boolean` branch is rendered from `page:card`, not from `object-grid`.
+    // It was covered here by `object-grid`'s `striped` / `bordered` toggles
+    // until objectui#4649 removed them (objectstack#7176 retired the keys they
+    // wrote, and no renderer ever read them). The branch still needs a panel,
+    // and `page:card.bordered` is the better one to spend it on: `containers.tsx`
+    // genuinely applies that prop, so this case can no longer be satisfied by a
+    // field nothing reads.
+    renderInspector(pageDraft('page:card'), 'zh-CN');
     expect(screen.getByText('显示边框')).toBeTruthy();
     // The English literals must be gone, not merely joined by Chinese ones.
-    expect(screen.queryByText('Striped rows')).toBeNull();
+    expect(screen.queryByText('Bordered')).toBeNull();
     expect(screen.queryByText('Page size')).toBeNull();
     expectNoRawKeys();
   });
@@ -100,7 +107,9 @@ describe('PageBlockInspector PROPERTIES labels follow the locale (#3913)', () =>
     expect(screen.getByText('Object')).toBeTruthy();
     expect(screen.getByText('Columns')).toBeTruthy();
     expect(screen.getByText('Page size')).toBeTruthy();
-    expect(screen.getByText('Striped rows')).toBeTruthy();
+    // Same substitution as the zh-CN case above — the `boolean` branch, on the
+    // block whose renderer actually reads the prop.
+    renderInspector(pageDraft('page:card'), 'en-US');
     expect(screen.getByText('Bordered')).toBeTruthy();
     expectNoRawKeys();
   });

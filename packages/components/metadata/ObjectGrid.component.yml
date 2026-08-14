@@ -42,14 +42,9 @@ props:
   - name: filter
     type: array
     description: Filter criteria
-  - name: striped
-    type: boolean
-    default: false
-    description: Alternating row colors
-  - name: bordered
-    type: boolean
-    default: false
-    description: Show cell borders
+  # `striped` / `bordered` were declared here with defaults no renderer ever
+  # read. objectstack#7176 retired the upstream keys they mirrored; removed by
+  # objectui#4649. Re-declaring one needs an implementation card filed first.
   - name: resizable
     type: boolean
     default: true

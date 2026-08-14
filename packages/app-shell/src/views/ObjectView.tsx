@@ -1763,8 +1763,6 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             },
             allowExport: viewDef.allowExport ?? listSchema.allowExport,
             exportOptions: viewDef.allowExport === false ? undefined : (viewDef.exportOptions ?? listSchema.exportOptions),
-            striped: viewDef.striped ?? listSchema.striped,
-            bordered: viewDef.bordered ?? listSchema.bordered,
             color: viewDef.color ?? listSchema.color,
             // Propagate view-config properties (Bug 4 / items 14-22)
             wrapHeaders: viewDef.wrapHeaders ?? listSchema.wrapHeaders,
@@ -1835,7 +1833,6 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             })(),
             showRecordCount: viewDef.showRecordCount ?? listSchema.showRecordCount,
             allowPrinting: viewDef.allowPrinting ?? listSchema.allowPrinting,
-            virtualScroll: viewDef.virtualScroll ?? listSchema.virtualScroll,
             emptyState:
                 viewEmptyState(
                     objectDef.name,

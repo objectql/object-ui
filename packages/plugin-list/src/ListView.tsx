@@ -1836,9 +1836,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       rowHeight: densityRowHeight,
       // Suppress child grid's own row-height toggle since ListView toolbar controls it
       hideRowHeightToggle: true,
-      // Forward display properties to child views
-      ...(schema.striped != null ? { striped: schema.striped } : {}),
-      ...(schema.bordered != null ? { bordered: schema.bordered } : {}),
       // Forward column-state callback (resize/reorder) so a parent can
       // persist user adjustments alongside the view definition.
       ...(onColumnStateChange ? { onColumnStateChange } : {}),
@@ -1859,7 +1856,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...(schema.conditionalFormatting ? { conditionalFormatting: schema.conditionalFormatting } : {}),
           editable: inlineEdit,
           ...(schema.wrapHeaders != null ? { wrapHeaders: schema.wrapHeaders } : {}),
-          ...(schema.virtualScroll != null ? { virtualScroll: schema.virtualScroll } : {}),
           ...(schema.resizable != null ? { resizable: schema.resizable } : {}),
           ...(schema.selection ? { selection: schema.selection } : {}),
           ...(schema.pagination ? { pagination: schema.pagination } : {}),

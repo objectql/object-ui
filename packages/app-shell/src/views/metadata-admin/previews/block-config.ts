@@ -144,8 +144,12 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
     { name: 'columns', label: 'engine.inspector.pageBlock.field.object-grid.columns', kind: 'field-list', objectFrom: 'self', objectProp: 'objectName' },
     // `{ literal: … }` — an example VALUE, not prose: see `PlaceholderSpec`.
     { name: 'pageSize', label: 'engine.inspector.pageBlock.field.object-grid.pageSize', kind: 'number', placeholder: { literal: '20' } },
-    { name: 'striped', label: 'engine.inspector.pageBlock.field.object-grid.striped', kind: 'boolean' },
-    { name: 'bordered', label: 'engine.inspector.pageBlock.field.object-grid.bordered', kind: 'boolean' },
+    // `striped` / `bordered` were curated here until objectui#4649. They failed
+    // the rule at the top of this file — "keep each field `name` aligned with
+    // the property name the corresponding renderer reads" — because ObjectGrid
+    // reads neither, and objectstack#7176 has since retired the upstream keys
+    // they mirrored. An inspector toggle is the loudest way to declare a key
+    // live, so it goes with the rest of the chain.
   ],
   'object-form': [
     { name: 'objectName', label: 'engine.inspector.pageBlock.field.object-form.objectName', kind: 'object-picker' },
