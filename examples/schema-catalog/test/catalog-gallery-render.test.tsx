@@ -37,7 +37,7 @@
  * registerCatalogBlocks.ts` now loads the nine further packages that census
  * resolves to, which takes 31 of those 33 tiles from the panel to a drawn
  * component. What registration cannot reach is named — never skipped silently —
- * in the four tables below, one issue per class:
+ * in the tables below. Four classes are defects in the entries, one issue each:
  *
  *   objectui#4624  1 entry  names root type "single", which nothing registers
  *   objectui#4625  6 entries author the bare `calendar` keyword, which belongs
@@ -47,9 +47,14 @@
  *   objectui#4627  2 entries author 2024 event dates, outside the window
  *                          `calendar-view` paints
  *
- * The last of those is the reason this file asserts three diagnostic strings
- * rather than one: registering a package is not the same as a tile drawing, and
- * a pin that named only OBJUI-001 would have reported #4625's six as fixed.
+ * #4625 is the reason this file asserts three diagnostic strings rather than
+ * one: registering a package is not the same as a tile drawing, and a pin that
+ * named only OBJUI-001 would have reported those six as fixed.
+ *
+ * Two further classes are limits of happy-dom rather than defects in anything
+ * — `plugin-map`'s three entries need WebGL2 and `plugin-editor`'s three need
+ * Monaco's CDN loader. Each table below says which assertions it lifts for them
+ * and why, and each keeps the assertion that objectui#4616 is actually about.
  *
  * ## Why the module-scope package imports
  *
@@ -67,8 +72,8 @@
  * found objectui#4626's two blank tiles, which no red-tile sweep can see. For
  * the categories objectui#4616 newly registered, a stronger positive control on
  * top: the titles the entry itself authors are on screen
- * (`AUTHORED_TEXT_EXEMPT` records the five that cannot be asserted that way,
- * with the reason for each).
+ * (`AUTHORED_TEXT_EXEMPT` records the two that cannot be asserted that way,
+ * with the reason).
  *
  * The diagnostic strings are COPIED as literals rather than imported from the
  * packages' internals, for the reason objectui#4600 gave: they are
@@ -157,6 +162,20 @@ const EXCLUSIONS: Record<string, string> = {
     'Blank tile, not a red one, and not registration: both slots author {"type":"text", ' +
     '"value":…} and the text renderer reads "content", so both render empty. ' +
     'Filed as objectui#4626.',
+  // The three below are an ENVIRONMENT limit, not a defect in the entries.
+  // Rendering `code-editor` mounts `@monaco-editor/react`, which appends its
+  // loader as a `script` tag pointing at a CDN. happy-dom cannot fetch it and
+  // dispatches a resource-load `error` event, which Vitest reports as an
+  // unhandled error and exits non-zero on — while every assertion in the file
+  // passes (measured: 2534/2534 tests green, 4 unhandled errors, exit 1).
+  // `packages/plugin-editor/src/index.test.ts` reached the same place first and
+  // settled it the same way: that suite asserts registration and metadata and
+  // never renders, with a header explaining Monaco's cost. So what is pinned
+  // for this bucket is `ComponentRegistry.get('code-editor')` in the control
+  // case above — which IS what objectui#4616 changed for it.
+  'plugin-editor/javascript-editor': "Monaco's CDN loader cannot run under happy-dom.",
+  'plugin-editor/python-editor': "Monaco's CDN loader cannot run under happy-dom.",
+  'plugin-editor/read-only-json-viewer': "Monaco's CDN loader cannot run under happy-dom.",
 };
 
 /**
@@ -218,31 +237,26 @@ const NEWLY_REGISTERED_CATEGORIES = [
 ];
 
 /**
- * Entries in those categories whose authored strings provably cannot reach the
- * DOM in this environment. Each still carries the full no-red-tile assertion
- * and the DOM-was-produced control above; only the authored-text control is
- * lifted, with the measured reason.
+ * Entries in those categories whose authored titles provably cannot reach the
+ * DOM. Each still carries the full no-red-tile assertion and the
+ * DOM-was-produced control above; only the authored-title control is lifted,
+ * with the measured reason.
+ *
+ * date window: `calendar-view` paints the grid for the CURRENT month/week, and
+ * both entries author events with fixed 2024 dates, so no event title is in
+ * range (measured on a 2026-08-14 run: "August 2026" and "Aug 9 - Aug 15,
+ * 2026"). That is a staleness question about the entries' data, not a render
+ * defect — filed as objectui#4627. Everything else still applies to them: both
+ * draw a real calendar, 163 and 421 elements.
+ *
+ * (`plugin-map`'s three are absent because `UNKNOWN_PANEL_ONLY` already lifts
+ * every assertion but one for them; `plugin-editor`'s three because they are
+ * not rendered here at all.)
  */
 const AUTHORED_TEXT_EXEMPT: Record<string, string> = {
-  'plugin-editor/javascript-editor': 'Monaco',
-  'plugin-editor/python-editor': 'Monaco',
-  'plugin-editor/read-only-json-viewer': 'Monaco',
   'plugin-calendar/month-view-calendar': 'date window',
   'plugin-calendar/week-view-calendar': 'date window',
 };
-/**
- * Why each class above is exempt:
- *  - Monaco: `code-editor` lazy-loads `@monaco-editor/react`, which needs a
- *    real layout engine; under happy-dom it stops at its own "Loading…" state.
- *    The tile is a tile — it just never paints the authored source text.
- *  - date window: `calendar-view` paints the grid for the CURRENT month/week,
- *    and both entries author events with fixed 2024 dates, so no event title
- *    is in range. That is a staleness question about the entries' data, not a
- *    render defect — filed as objectui#4627.
- *
- * (`plugin-map`'s three are absent because `UNKNOWN_PANEL_ONLY` already lifts
- * every assertion but one for them.)
- */
 
 /**
  * The gallery's data source, in the shape `SchemaThumbnail` supplies it. Kept
