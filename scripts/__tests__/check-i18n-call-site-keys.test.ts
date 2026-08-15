@@ -652,19 +652,30 @@ export const A = (name: string, n: number, idx: number) => {
     expect(parityOf(root)).toEqual(['interp.imageAlt: inert=[wrong] unfilled=[index]']);
   });
 
-  it('subtracts reserved names from BOTH sides, which is the only way `count` works', () => {
-    // `count` is an i18next control option AND the value of a `{{count}}` hole.
-    // Dropping it from the call site's names only would report every counted
-    // string in the repo as unfilled; dropping it from the holes only would
-    // report every `count` passed to a plural key as inert.
+  it('the reservation protects `inert`: passing a control option is never flagged, holed key or not', () => {
+    // `count` is an i18next control option, legitimate to PASS even when the
+    // `en` value shows no visible `{{count}}` hole to receive it. The
+    // reservation drops it from the names judged for `inert` — see the RED
+    // case right below for the direction this must NOT also silence.
     const root = repoWith(
       callSite(
-        "[t('interp.counted', { count: n }), t('interp.counted'), t('interp.bare', { ns: 'x', lng: 'en', defaultValue: 'Update' })]",
+        "[t('interp.counted', { count: n }), t('interp.bare', { ns: 'x', lng: 'en', defaultValue: 'Update' })]",
       ),
     );
     expect(parityOf(root)).toEqual([]);
     expect(RESERVED_OPTION_NAMES.has('count')).toBe(true);
     expect(RESERVED_OPTION_NAMES.has('version')).toBe(false);
+  });
+
+  it('RED: the reservation must NOT also protect `unfilled` — a real {{count}} miss is still reported (objectui#4206)', () => {
+    // Before objectui#4206, the reservation was subtracted from the shared
+    // `holes` set BEFORE either direction was derived, so a `{{count}}` hole
+    // was removed from the comparison entirely and `unfilled` could
+    // structurally never contain `count` — this is objectui#4157's exact
+    // shape: a call site passing no options against an `en` value that reads
+    // `Deleted {{count}} rows`.
+    const root = repoWith(callSite("t('interp.counted')"));
+    expect(parityOf(root)).toEqual(['interp.counted: inert=[] unfilled=[count]']);
   });
 
   it('never judges a plural family, where there is no single value to read holes off', () => {
