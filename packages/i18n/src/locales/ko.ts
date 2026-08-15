@@ -3379,6 +3379,7 @@ const ko = {
       equals: "같음",
       notEquals: "같지 않음",
       contains: "포함",
+      containsCaseInsensitive: "포함 (대소문자 무시)",
       notContains: "포함하지 않음",
       isEmpty: "비어 있음",
       isNotEmpty: "비어 있지 않음",

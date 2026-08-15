@@ -3384,6 +3384,7 @@ const es = {
       equals: "Igual a",
       notEquals: "Distinto de",
       contains: "Contiene",
+      containsCaseInsensitive: "Contiene (ignorar mayúsculas)",
       notContains: "No contiene",
       isEmpty: "Está vacío",
       isNotEmpty: "No está vacío",

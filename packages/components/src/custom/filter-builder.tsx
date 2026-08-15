@@ -66,6 +66,17 @@ export interface FilterBuilderProps {
   onChange?: (value: FilterGroup) => void
   className?: string
   showClearAll?: boolean
+  /**
+   * Opt-in operator ids ({@link OPT_IN_OPERATORS}) this instance may offer, on
+   * top of the ones every FilterBuilder draws.
+   *
+   * The dropdown is shared by consumers that persist a filter into DIFFERENT
+   * dialects, and an operator one dialect can carry is not automatically
+   * storable in another — so whether an opt-in operator is offered is the
+   * consumer's answer, not this component's. See {@link OPT_IN_OPERATORS} for
+   * the measurement that made this a prop instead of one global list.
+   */
+  extraOperators?: readonly string[]
 }
 
 // `label` is the English fallback; the actual rendered text comes from
@@ -75,6 +86,9 @@ const defaultOperators = [
   { value: "equals", label: "Equals" },
   { value: "notEquals", label: "Does not equal" },
   { value: "contains", label: "Contains" },
+  // Case-insensitive `contains` — the spec's `$icontains` (objectui#4023).
+  // OPT-IN: see `OPT_IN_OPERATORS` below for why it is not offered everywhere.
+  { value: "containsCaseInsensitive", label: "Contains (ignore case)" },
   { value: "notContains", label: "Does not contain" },
   { value: "isEmpty", label: "Is empty" },
   { value: "isNotEmpty", label: "Is not empty" },
@@ -100,8 +114,49 @@ const defaultOperators = [
 ] as const
 
 /**
+ * Operator ids the dropdown draws ONLY when the consumer names them in
+ * `extraOperators`. Every other id in `defaultOperators` is offered to every
+ * consumer.
+ *
+ * ## Why an operator would ever be opt-in (objectui#4023)
+ *
+ * This one dropdown feeds three different at-rest dialects, and they do not
+ * accept the same operators:
+ *
+ *   - **MongoDB-style `FieldOperatorsSchema` criteria** — what
+ *     `FilterConditionField` writes into a sharing rule's `criteria_json`,
+ *     evaluated by the server's engine. It has `$icontains`, and every driver
+ *     and evaluation face the platform ships executes it
+ *     (objectstack#5702 + objectstack#6520).
+ *   - **`ViewFilterRule[]`** — what `viewFilterFold` persists for a saved view.
+ *     Its vocabulary is the spec's `VIEW_FILTER_OPERATORS`, which has **no**
+ *     case-insensitive contains, so the rule is refused by the schema's enum.
+ *   - **The array/triplet filter AST** — what `ListView` sends for the live
+ *     grid, via `mapOperator`. Its vocabulary is the spec's
+ *     `VALID_AST_OPERATORS`, which also has no case-insensitive contains: an
+ *     unmapped operator is emitted verbatim and the query comes back broken
+ *     (see `packages/data-objectstack/src/filter-operator-ast-parity.test.ts`
+ *     for what "broken" costs — an unfiltered read or a 400, either way not the
+ *     filter the user asked for).
+ *
+ * So offering `containsCaseInsensitive` to every FilterBuilder would put a
+ * filter in users' hands that two of the three consumers cannot execute —
+ * which is the exact hazard objectui#4023 was held blocked over, relocated from
+ * the drivers to this repo's own bridges. Mapping it onto plain `contains`
+ * there is NOT the alternative: that is a different question silently answered
+ * (the same reason `view-operator-builder-parity.test.ts` refuses to map
+ * `is_null` onto `isEmpty`).
+ *
+ * The lasting fix is upstream — the spec's view and AST vocabularies gaining a
+ * case-insensitive contains — at which point the entry below is deleted and the
+ * operator becomes ordinary. Until then the consumer that CAN store it says so.
+ */
+const OPT_IN_OPERATORS = new Set<string>(["containsCaseInsensitive"])
+
+/**
  * The FilterBuilder's own operator vocabulary — every id its dropdown can
- * hold, derived from the operators it actually renders.
+ * hold, derived from the operators it actually renders. Includes the opt-in
+ * ids: they are drawable, just not offered unconditionally.
  *
  * Exported because several translation tables map an external vocabulary
  * (the spec's `VIEW_FILTER_OPERATORS`, Mongo `$`-tokens) *onto* this one, and
@@ -135,6 +190,7 @@ const useSafeFilterTranslation = createSafeTranslation(
     'filterBuilder.operators.equals': 'Equals',
     'filterBuilder.operators.notEquals': 'Does not equal',
     'filterBuilder.operators.contains': 'Contains',
+    'filterBuilder.operators.containsCaseInsensitive': 'Contains (ignore case)',
     'filterBuilder.operators.notContains': 'Does not contain',
     'filterBuilder.operators.isEmpty': 'Is empty',
     'filterBuilder.operators.isNotEmpty': 'Is not empty',
@@ -158,7 +214,7 @@ const useSafeFilterTranslation = createSafeTranslation(
 )
 
 const NULLNESS_OPERATORS = ["isNull", "isNotNull", "exists", "notExists"]
-const textOperators = ["equals", "notEquals", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", ...NULLNESS_OPERATORS]
+const textOperators = ["equals", "notEquals", "contains", "containsCaseInsensitive", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", ...NULLNESS_OPERATORS]
 const numberOperators = ["equals", "notEquals", "greaterThan", "lessThan", "greaterOrEqual", "lessOrEqual", "isEmpty", "isNotEmpty", ...NULLNESS_OPERATORS]
 const booleanOperators = ["equals", "notEquals"]
 const dateOperators = ["equals", "notEquals", "before", "after", "between", "isEmpty", "isNotEmpty", ...NULLNESS_OPERATORS]
@@ -173,6 +229,40 @@ const dateLikeTypes = ["date", "datetime", "time"]
 const selectLikeTypes = ["select", "status"]
 /** Relational/reference field types that use lookup operators (equals/in/notIn) and render dropdown or checkbox list when options provided */
 const lookupLikeTypes = ["lookup", "master_detail", "user", "owner"]
+
+/**
+ * The operators the dropdown offers for a field of `fieldType`, given the
+ * opt-in ids this instance was granted.
+ *
+ * A pure function rather than a closure so the selection rule — and above all
+ * the {@link OPT_IN_OPERATORS} gate, whose whole job is to keep an operator OFF
+ * the surfaces that cannot store it — is assertable without driving a Radix
+ * popover open in jsdom.
+ *
+ * @internal exported for tests
+ */
+export function operatorsForFieldType(
+  fieldType: string | undefined,
+  extraOperators: readonly string[] = [],
+): ReadonlyArray<{ value: string; label: string }> {
+  const type = fieldType || "text"
+  const bucket = numberLikeTypes.includes(type)
+    ? numberOperators
+    : type === "boolean"
+      ? booleanOperators
+      : dateLikeTypes.includes(type)
+        ? dateOperators
+        : selectLikeTypes.includes(type)
+          ? selectOperators
+          : lookupLikeTypes.includes(type)
+            ? lookupOperators
+            : textOperators
+
+  const granted = new Set(extraOperators)
+  return defaultOperators.filter(
+    (op) => bucket.includes(op.value) && (!OPT_IN_OPERATORS.has(op.value) || granted.has(op.value)),
+  )
+}
 
 /** Normalize a filter value into an array for multi-select scenarios */
 function normalizeToArray(value: FilterBuilderCondition["value"]): (string | number | boolean)[] {
@@ -205,6 +295,7 @@ function FilterBuilder({
   onChange,
   className,
   showClearAll = true,
+  extraOperators,
 }: FilterBuilderProps) {
   const { t } = useSafeFilterTranslation()
   const [filterGroup, setFilterGroup] = React.useState<FilterGroup>(
@@ -268,24 +359,7 @@ function FilterBuilder({
 
   const getOperatorsForField = (fieldValue: string) => {
     const field = fields.find((f) => f.value === fieldValue)
-    const fieldType = field?.type || "text"
-
-    if (numberLikeTypes.includes(fieldType)) {
-      return defaultOperators.filter((op) => numberOperators.includes(op.value))
-    }
-    if (fieldType === "boolean") {
-      return defaultOperators.filter((op) => booleanOperators.includes(op.value))
-    }
-    if (dateLikeTypes.includes(fieldType)) {
-      return defaultOperators.filter((op) => dateOperators.includes(op.value))
-    }
-    if (selectLikeTypes.includes(fieldType)) {
-      return defaultOperators.filter((op) => selectOperators.includes(op.value))
-    }
-    if (lookupLikeTypes.includes(fieldType)) {
-      return defaultOperators.filter((op) => lookupOperators.includes(op.value))
-    }
-    return defaultOperators.filter((op) => textOperators.includes(op.value))
+    return operatorsForFieldType(field?.type, extraOperators)
   }
 
   const needsValueInput = (operator: string) => {

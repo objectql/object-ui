@@ -3379,6 +3379,7 @@ const pt = {
       equals: "Igual a",
       notEquals: "Diferente de",
       contains: "Contém",
+      containsCaseInsensitive: "Contém (ignorar maiúsculas)",
       notContains: "Não contém",
       isEmpty: "Está vazio",
       isNotEmpty: "Não está vazio",

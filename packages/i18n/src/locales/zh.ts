@@ -3435,6 +3435,7 @@ const zh = {
       equals: '等于',
       notEquals: '不等于',
       contains: '包含',
+      containsCaseInsensitive: '包含（忽略大小写）',
       notContains: '不包含',
       isEmpty: '为空',
       isNotEmpty: '不为空',

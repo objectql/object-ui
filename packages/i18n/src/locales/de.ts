@@ -3380,6 +3380,7 @@ const de = {
       equals: "Gleich",
       notEquals: "Ungleich",
       contains: "Enthält",
+      containsCaseInsensitive: "Enthält (Groß-/Kleinschreibung ignorieren)",
       notContains: "Enthält nicht",
       isEmpty: "Ist leer",
       isNotEmpty: "Ist nicht leer",

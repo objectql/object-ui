@@ -3606,6 +3606,7 @@ const en = {
       equals: 'Equals',
       notEquals: 'Does not equal',
       contains: 'Contains',
+      containsCaseInsensitive: 'Contains (ignore case)',
       notContains: 'Does not contain',
       isEmpty: 'Is empty',
       isNotEmpty: 'Is not empty',

@@ -3382,6 +3382,7 @@ const fr = {
       equals: "Égal à",
       notEquals: "Différent de",
       contains: "Contient",
+      containsCaseInsensitive: "Contient (ignorer la casse)",
       notContains: "Ne contient pas",
       isEmpty: "Est vide",
       isNotEmpty: "N'est pas vide",

@@ -3387,6 +3387,7 @@ const ar = {
       equals: "يساوي",
       notEquals: "لا يساوي",
       contains: "يحتوي",
+      containsCaseInsensitive: "يحتوي (مع تجاهل حالة الأحرف)",
       notContains: "لا يحتوي",
       isEmpty: "فارغ",
       isNotEmpty: "غير فارغ",

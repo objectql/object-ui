@@ -3380,6 +3380,7 @@ const ja = {
       equals: "等しい",
       notEquals: "等しくない",
       contains: "含む",
+      containsCaseInsensitive: "含む（大文字小文字を区別しない）",
       notContains: "含まない",
       isEmpty: "空である",
       isNotEmpty: "空でない",

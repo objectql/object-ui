@@ -3391,6 +3391,7 @@ const ru = {
       equals: "Равно",
       notEquals: "Не равно",
       contains: "Содержит",
+      containsCaseInsensitive: "Содержит (без учёта регистра)",
       notContains: "Не содержит",
       isEmpty: "Пусто",
       isNotEmpty: "Не пусто",
