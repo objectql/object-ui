@@ -1550,9 +1550,21 @@ ComponentRegistry.register('form',
       // interpolates the controlling fields' LABELS, a standalone widget its
       // raw metadata names — so the gate can never read differently depending
       // on which side produced it.
+      //
+      // That invariant held for the sentence but not for its `{{fields}}`
+      // slot, which each caller filled with a hardcoded separator — `' / '`
+      // here, `', '` in the lookup's own gate — so a field gated on two
+      // parents still read two ways (objectui#4026). The separator is a
+      // property of the locale, so all of them now read
+      // `validation.formInvalidJoiner`: the key objectstack#5407 added for the
+      // invalid-submit toast a few hundred lines up, which is the same class
+      // of truncated-name list, rather than a second gate-only twin that would
+      // reintroduce the divergence.
       const gatedHint = optionGroupGated
         ? t('fields.options.selectFirst', {
-            fields: dependsOnFields.map((fn) => fieldLabelByName[fn] || fn).join(' / '),
+            fields: dependsOnFields
+              .map((fn) => fieldLabelByName[fn] || fn)
+              .join(t('validation.formInvalidJoiner')),
           })
         : undefined;
 

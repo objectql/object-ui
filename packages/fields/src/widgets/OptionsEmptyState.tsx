@@ -79,10 +79,17 @@ export function OptionsEmptyState({
   const { t } = useFieldTranslation();
   // The host's hint when it computed one; otherwise this widget's own copy,
   // translated. Never an English literal — that was the reported defect.
+  // The joiner between the controlling-field names is read from the locale
+  // pack, not hardcoded (objectui#4026). This site and the form renderer's
+  // `gatedHint` are the two callers of the SAME `fields.options.selectFirst`
+  // sentence, so a separator baked into either one is enough to make the
+  // shared sentence read two ways.
   const hint =
     emptyHint ||
     (gated
-      ? t('fields.options.selectFirst', { fields: dependsOnFields.join(' / ') })
+      ? t('fields.options.selectFirst', {
+          fields: dependsOnFields.join(t('validation.formInvalidJoiner')),
+        })
       : t('fields.options.empty'));
   return (
     <div
