@@ -898,6 +898,7 @@ const es = {
     attachmentDownloadDenied: "No tiene acceso para descargar este adjunto.",
     attachmentAuthRequired: "Inicie sesión para descargar este adjunto.",
     attachmentPermissionDenied: "No tiene permiso para hacer eso.",
+    attachmentsAccessDenied: "No tiene acceso a estos adjuntos.",
     unifiedDiff: "Vista unificada",
     sideBySideDiff: "Vista lado a lado",
     noChanges: "Sin cambios",

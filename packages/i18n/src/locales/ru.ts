@@ -913,6 +913,7 @@ const ru = {
     attachmentDownloadDenied: "У вас нет доступа для скачивания этого вложения.",
     attachmentAuthRequired: "Войдите в систему, чтобы скачать это вложение.",
     attachmentPermissionDenied: "У вас нет разрешения на это действие.",
+    attachmentsAccessDenied: "У вас нет доступа к этим вложениям.",
     unifiedDiff: "Единое представление",
     sideBySideDiff: "Параллельное представление",
     noChanges: "Нет изменений",

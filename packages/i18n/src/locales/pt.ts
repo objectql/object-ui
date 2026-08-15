@@ -895,6 +895,7 @@ const pt = {
     attachmentDownloadDenied: "Você não tem acesso para baixar este anexo.",
     attachmentAuthRequired: "Faça login para baixar este anexo.",
     attachmentPermissionDenied: "Você não tem permissão para fazer isso.",
+    attachmentsAccessDenied: "Você não tem acesso a estes anexos.",
     unifiedDiff: "Visualização unificada",
     sideBySideDiff: "Visualização lado a lado",
     noChanges: "Sem alterações",

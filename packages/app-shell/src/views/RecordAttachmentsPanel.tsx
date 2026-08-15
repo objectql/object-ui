@@ -8,10 +8,10 @@
 
 import * as React from 'react';
 import { cn, Button } from '@object-ui/components';
-import { Paperclip, Upload, Trash2, Download, Loader2 } from 'lucide-react';
+import { Paperclip, Upload, Trash2, Download, Loader2, Lock } from 'lucide-react';
 import { createObjectStackUploadAdapter } from '@object-ui/providers';
 import { createAuthenticatedFetch } from '@object-ui/auth';
-import { useObjectTranslation } from '@object-ui/react';
+import { useObjectTranslation, isPermissionError } from '@object-ui/react';
 
 /**
  * RecordAttachmentsPanel — generic record Attachments surface (#2727,
@@ -69,6 +69,17 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
   const [loading, setLoading] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  /**
+   * The list read was refused for AUTHORIZATION reasons (#4269).
+   *
+   * Kept separate from `rows.length === 0` because the two say opposite
+   * things and only one of them is an assertion the panel is entitled to
+   * make. "No attachments yet" claims the record HOLDS nothing; a 403 says
+   * only that this caller may not look. Folding the second into the first
+   * told a denied member that a record with 2095+ attachments was empty —
+   * and offered an Upload the server would refuse.
+   */
+  const [listDenied, setListDenied] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Same base-URL convention as RecordDetailView's raw API fetches: the
@@ -131,10 +142,28 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
       });
       const items: AttachmentRow[] = Array.isArray(res) ? res : res?.data ?? [];
       setRows(items);
-    } catch {
-      // A 404 (table not provisioned on older stacks) is tolerated silently;
-      // the panel just stays empty.
+      setListDenied(false);
+    } catch (err) {
       setRows([]);
+      // An authorization refusal is NOT an empty record (#4269). The house
+      // predicate is the same one the kanban/calendar/form surfaces branch
+      // on — HTTP 403, `PERMISSION_DENIED`/`FORBIDDEN`, or an RLS denial.
+      // The adapter throws it: `find()` degrades only a non-authz 404 to
+      // `{ data: [], total: 0 }` (data-objectstack, objectui#4408), so a 403
+      // reaches this catch as a decorated throw.
+      //
+      // Nothing from the error is rendered — the denied state below shows the
+      // i18n sentence and nothing else. objectui#2532's failure mode (raw
+      // dump / status code / leaked row) must stay absent, and `setError` is
+      // deliberately NOT called here.
+      setListDenied(isPermissionError(err));
+      // Everything else keeps the pre-existing behaviour: a 404 (table not
+      // provisioned on older stacks) and any network/5xx failure are tolerated
+      // silently and the panel stays empty. That swallow is the SAME defect
+      // class one status over — an unreachable server also renders "No
+      // attachments yet" — but the honest unknown-vs-empty split is a separate
+      // change (filed, not fixed here) and this line pins today's behaviour
+      // rather than quietly widening the fix.
     } finally {
       setLoading(false);
     }
@@ -253,28 +282,39 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
             <span className="text-xs text-muted-foreground">({rows.length})</span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => void handleFiles(e.target.files)}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={uploading}
-            onClick={() => inputRef.current?.click()}
-          >
-            {uploading ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <Upload className="h-4 w-4 mr-1" />
-            )}
-            {t('detail.uploadAttachment', { defaultValue: 'Upload' })}
-          </Button>
-        </div>
+        {/*
+          No Upload affordance under a denied list (#4269). The button was
+          previously unconditional — its only gate was `uploading` — so a
+          member the server had just refused was still invited to upload into
+          a record whose parent it cannot read, a click the `beforeInsert`
+          gate answers with 403 ATTACHMENT_PARENT_ACCESS. Hiding it here
+          changes nothing for every other caller: this is the sole condition
+          added to a control that had none.
+        */}
+        {!listDenied && (
+          <div className="flex items-center gap-2">
+            <input
+              ref={inputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => void handleFiles(e.target.files)}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={uploading}
+              onClick={() => inputRef.current?.click()}
+            >
+              {uploading ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-1" />
+              )}
+              {t('detail.uploadAttachment', { defaultValue: 'Upload' })}
+            </Button>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -287,6 +327,18 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
         <div className="px-4 py-6 text-sm text-muted-foreground flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin" />
           {t('detail.loadingAttachments', { defaultValue: 'Loading attachments…' })}
+        </div>
+      ) : listDenied ? (
+        // Checked BEFORE the empty state, and rendering only the i18n
+        // sentence: no status code, no server message, no row (#2532).
+        <div
+          className="px-4 py-6 text-sm text-muted-foreground flex items-center gap-2"
+          data-testid="record-attachments-denied"
+        >
+          <Lock className="h-4 w-4 shrink-0" />
+          {t('detail.attachmentsAccessDenied', {
+            defaultValue: "You don't have access to these attachments.",
+          })}
         </div>
       ) : rows.length === 0 ? (
         <div className="px-4 py-6 text-sm text-muted-foreground">

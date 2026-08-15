@@ -1030,6 +1030,7 @@ const en = {
     attachmentDownloadDenied: "You don't have access to download this attachment.",
     attachmentAuthRequired: 'Please sign in to download this attachment.',
     attachmentPermissionDenied: "You don't have permission to do that.",
+    attachmentsAccessDenied: "You don't have access to these attachments.",
     // Diff
     unifiedDiff: 'Unified diff',
     sideBySideDiff: 'Side-by-side diff',

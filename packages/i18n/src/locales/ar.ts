@@ -900,6 +900,7 @@ const ar = {
     attachmentDownloadDenied: "ليس لديك صلاحية تنزيل هذا المرفق.",
     attachmentAuthRequired: "يرجى تسجيل الدخول لتنزيل هذا المرفق.",
     attachmentPermissionDenied: "ليس لديك إذن للقيام بذلك.",
+    attachmentsAccessDenied: "ليس لديك حق الوصول إلى هذه المرفقات.",
     unifiedDiff: "عرض موحد",
     sideBySideDiff: "عرض جنباً إلى جنب",
     noChanges: "لا توجد تغييرات",

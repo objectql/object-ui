@@ -94,6 +94,125 @@ describe('RecordAttachmentsPanel — server-denial error mapping (#2755)', () =>
   });
 });
 
+/**
+ * A denied list is not an empty list (#4269).
+ *
+ * A member denied the parent opened a record holding 2095+ attachments; the
+ * `sys_attachment` list read answered 403 and the panel rendered "No
+ * attachments yet. Upload a file to get started." — an assertion about the
+ * record's contents that the panel had no standing to make, plus an Upload
+ * the server would refuse.
+ *
+ * The 403 arrives as a THROW: the ObjectStack adapter's `find()` degrades only
+ * a non-authz 404 to `{ data: [], total: 0 }` and rethrows everything else, so
+ * the panel's `catch` is where the two verdicts were being merged.
+ */
+describe('RecordAttachmentsPanel — denied vs empty list (#4269)', () => {
+  /** The decorated shape the adapter rethrows: `httpStatus` + semantic code. */
+  function deniedListSource() {
+    return makeDataSource({
+      find: vi.fn(async () => {
+        throw Object.assign(
+          new Error(
+            "[Security] Access denied: operation 'find' on sys_attachment for user u-42 (2095 rows withheld)",
+          ),
+          { httpStatus: 403, code: 'PERMISSION_DENIED' },
+        );
+      }),
+    });
+  }
+
+  it('THE DEFECT — a 403 list read renders the denied state, never "No attachments yet"', async () => {
+    setup(deniedListSource());
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-denied')).toBeInTheDocument(),
+    );
+    expect(screen.getByText("You don't have access to these attachments.")).toBeInTheDocument();
+    // The empty state is reserved for a genuine 200-with-zero-rows.
+    expect(screen.queryByText(/No attachments yet/)).not.toBeInTheDocument();
+  });
+
+  it('withdraws the Upload affordance under a denied list', async () => {
+    setup(deniedListSource());
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-denied')).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('button', { name: 'Upload' })).not.toBeInTheDocument();
+  });
+
+  // The objectui#2532 failure mode — raw error dump, status code, leaked row
+  // counts — was ABSENT before this change and must stay absent: the denied
+  // state renders the i18n sentence and nothing sourced from the error.
+  it('leaks nothing from the error body — no status code, no server text, no row count', async () => {
+    setup(deniedListSource());
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-denied')).toBeInTheDocument(),
+    );
+    const panel = screen.getByTestId('record-attachments-panel');
+    expect(panel.textContent).not.toMatch(/403/);
+    expect(panel.textContent).not.toMatch(/2095/);
+    expect(panel.textContent).not.toMatch(/u-42/);
+    expect(panel.textContent).not.toMatch(/\[Security\]|Access denied: operation/);
+    // The denial is a state, not an error banner.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('classifies a PERMISSION_DENIED code carrying no numeric status', async () => {
+    const dataSource = makeDataSource({
+      find: vi.fn(async () => {
+        const err: any = new Error('refused');
+        err.code = 'PERMISSION_DENIED';
+        throw err;
+      }),
+    });
+    setup(dataSource);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-denied')).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('button', { name: 'Upload' })).not.toBeInTheDocument();
+  });
+
+  it('a genuine 200-with-zero-rows still renders the empty state AND the Upload button', async () => {
+    setup(makeDataSource({ find: vi.fn(async () => []) }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('No attachments yet. Upload a file to get started.'),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument();
+    expect(screen.queryByTestId('record-attachments-denied')).not.toBeInTheDocument();
+  });
+
+  // PIN, not an endorsement. A non-authz failure keeps the pre-existing
+  // behaviour — swallowed to the empty state, Upload still offered. That is
+  // the same "unknown rendered as empty" defect one status over, but fixing it
+  // needs the loaded/unknown status vocabulary (#4235-style), not this
+  // denied-vs-empty split; filed separately. This test exists so the next
+  // change to that branch is a DELIBERATE one.
+  it('pins today’s behaviour for a NON-authz failure: still the empty state', async () => {
+    setup(
+      makeDataSource({
+        find: vi.fn(async () => {
+          throw new TypeError('Failed to fetch');
+        }),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('No attachments yet. Upload a file to get started.'),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('record-attachments-denied')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument();
+  });
+});
+
 describe('RecordAttachmentsPanel — authenticated signed-URL download (#2970)', () => {
   it('fetches /files/:id/url with auth and opens the signed URL', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
