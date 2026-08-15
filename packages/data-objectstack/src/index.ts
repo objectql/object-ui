@@ -4389,23 +4389,12 @@ export {
 // Export cache types
 export type { MetadataCacheStats } from './cache/MetadataCache';
 
-// v3.0.0 Deep Integration modules
-// (The cloud deployment/hosting/marketplace surface that used to be re-exported
-// here was retired by objectui#4152 — it called into a client namespace that
-// does not exist and fabricated success. `cloud-surface-retired-4152.pin.test.ts`
-// fails if it returns; that file names the retired symbols, this one must not.)
-export { validatePluginContract, generateContractManifest } from './contracts';
-
 // User-scoped persistence adapter (favorites / recent items / …)
 export { createObjectStackUserStateAdapter } from './userState';
 export type {
   ObjectStackUserStateAdapterOptions,
   UserDataAdapter,
 } from './userState';
-export type { PluginContract, PluginExport, PluginAPIContract, ContractValidationResult, ContractValidationError } from './contracts';
-
-export { IntegrationManager } from './integration';
-export type { IntegrationConfig, IntegrationTrigger, IntegrationProvider, SlackIntegrationConfig, EmailIntegrationConfig, WebhookIntegrationConfig } from './integration';
 
 // Metadata API client — read/write protocol metadata via /api/v1/meta/*.
 // Used by plugin-designer to back the Setup-app Object Manager and Field
@@ -4434,9 +4423,3 @@ export type {
   MetadataAuditEntry,
   MetadataAuditResponse,
 } from './metadata-client';
-
-export { SecurityManager } from './security';
-export type { SecurityManagerPolicy, CSPConfig, AuditLogConfig, AuditEventType, DataMaskingConfig, DataMaskingRule, AuditLogEntry } from './security';
-
-export { createDefaultCanvasConfig, snapToGrid, calculateAutoLayout } from './studio';
-export type { StudioCanvasConfig, StudioPropertyEditor, StudioThemeBuilderConfig, StudioColorPalette, StudioTypographyPreset, StudioShadowPreset } from './studio';

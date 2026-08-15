@@ -10,21 +10,24 @@
  * `@object-ui/data-objectstack` ↔ `@objectstack/spec` symbol-collision guards
  * (objectui#3160, objectstack#4115 ledger batch 6).
  *
- * Five symbols here wore names the spec already owns. One really WAS the spec's
- * and now carries its binding (`DroppedFieldsEvent`); the other four model
- * something the spec has never modelled under that name and were renamed:
+ * Four symbols here wore names the spec already owns. One really WAS the
+ * spec's and now carries its binding (`DroppedFieldsEvent`); the other three
+ * model something the spec has never modelled under that name and were
+ * renamed:
  *
  *   CacheStats          → MetadataCacheStats
  *   MetadataSaveOptions → MetadataClientSaveOptions
- *   SecurityPolicy      → SecurityManagerPolicy
  *   ValidationError     → DataApiValidationError
  *
  * The batch's own triage note said "data-objectstack is a direct client of the
  * spec protocol, so `SecurityPolicy` / `DroppedFieldsEvent` are probably hand
  * copies — derive them first". Half of that held: `DroppedFieldsEvent` was
- * exactly a hand copy, and `SecurityPolicy` turned out to share not one key with
- * the spec's. That asymmetry is why every assertion below is per SYMBOL and
- * never per cluster.
+ * exactly a hand copy. The batch's fifth symbol, `SecurityPolicy` →
+ * `SecurityManagerPolicy`, shared not one key with the spec's; its guard is
+ * gone from this file because objectui#4241 retired `SecurityManagerPolicy`
+ * itself along with the rest of `security.ts` (a `v3.0.0 Deep Integration`
+ * module with no consumer outside this package). That asymmetry is why every
+ * assertion below is per SYMBOL and never per cluster.
  *
  * ## Why the spec's names are read through the compiler, not `import * as`
  *
@@ -51,15 +54,11 @@ import ts from 'typescript';
 import { DataApiValidationError } from './errors';
 import type { MetadataCacheStats } from './cache/MetadataCache';
 import type { MetadataClientSaveOptions } from './metadata-client';
-import type { SecurityManagerPolicy } from './security';
 import type { DroppedFieldsEvent } from './index';
 
 import type { DroppedFieldsEvent as SpecDroppedFieldsEvent } from '@objectstack/spec/data';
 import type { CacheStats as SpecCacheStats } from '@objectstack/spec/contracts';
-import type {
-  SecurityPolicy as SpecSecurityPolicy,
-  ValidationError as SpecValidationError,
-} from '@objectstack/spec/kernel';
+import type { ValidationError as SpecValidationError } from '@objectstack/spec/kernel';
 // `MetadataSaveOptions` moved `./kernel` → `./system` in spec 17.0.0-rc.2.
 // The name still belongs to the spec and still means the FILE writer, so the
 // rename this batch recorded stands — only the entry point moved.
@@ -138,11 +137,6 @@ const RENAMES: Array<[local: string, formerly: string, specMeaning: string]> = [
     'MetadataClientSaveOptions',
     'MetadataSaveOptions',
     'options for writing a metadata item to a FILE (format / path / indent / atomic)',
-  ],
-  [
-    'SecurityManagerPolicy',
-    'SecurityPolicy',
-    'the package supply-chain policy (autoScan / licences / codeSigning / sandbox)',
   ],
   [
     'DataApiValidationError',
@@ -268,27 +262,6 @@ describe('MetadataClientSaveOptions is not the spec file-save options', () => {
     // …and the ones that make the spec's the file writer.
     type _SpecHasPath = Assert<HasKey<SpecMetadataSaveOptions, 'path'>>;
     type _SpecHasFormat = Assert<HasKey<SpecMetadataSaveOptions, 'format'>>;
-
-    expect(true).toBe(true);
-  });
-});
-
-describe('SecurityManagerPolicy is not the spec package-security policy', () => {
-  it('is pinned at compile time', () => {
-    type _SpecNotAny = Assert<Equal<IsAny<SpecSecurityPolicy>, false>>;
-
-    // Also fully disjoint. The spec's governs installing a plugin (scan
-    // schedule, licence allowlists, code signing, sandbox limits); this one
-    // governs what the browser adapter emits and hides (CSP header, audit log,
-    // field masking).
-    type _NoOverlap = Assert<Equal<Extract<keyof SecurityManagerPolicy, keyof SpecSecurityPolicy>, never>>;
-    type _SpecIsIdentified = Assert<Equal<SpecSecurityPolicy['id'], string>>;
-    type _LocalIsAllOptional = Assert<
-      Equal<
-        undefined extends SecurityManagerPolicy['csp' | 'auditLog' | 'dataMasking'] ? true : false,
-        true
-      >
-    >;
 
     expect(true).toBe(true);
   });
