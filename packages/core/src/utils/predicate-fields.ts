@@ -31,6 +31,12 @@
  * more column and no extra round trip. (A relation that IS displayed still gets
  * expanded for its label, and `toPredicateRecord` collapses it back for the
  * predicate.)
+ *
+ * Since objectstack#8018 the same reader also carries the non-predicate row keys
+ * a view's actions read — today just `recordIdField`. The name kept the
+ * "predicate" spelling because the mechanism is identical (harvest a name, gate
+ * it against the declared fields, add it to `$select`); see
+ * {@link listViewPredicates} for what is in the set and why.
  */
 
 /**
@@ -81,6 +87,15 @@ export function isProjectableField(
  */
 const RECORD_REF = /\b(?:record|data)\.([A-Za-z_][A-Za-z0-9_]*)/g;
 
+/**
+ * A whole bare identifier — what a field name is, and the only shape that can be
+ * spelled as `record.<name>` without the harvester's regex reading a PREFIX of it
+ * as the name (`record.not a field` would otherwise yield `not`). Used to gate
+ * the non-predicate names folded into {@link listViewPredicates}, so a malformed
+ * declaration contributes nothing instead of contributing a plausible wrong name.
+ */
+const BARE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 /** Pull the CEL source out of any of the shapes a predicate is authored in. */
 function predicateSource(pred: unknown): string | null {
   if (typeof pred === 'string') return pred.trim() || null;
@@ -122,13 +137,32 @@ export function collectPredicateFieldRefs(predicates: readonly unknown[]): strin
 }
 
 /**
- * Every predicate a list-ish view carries, flattened for
+ * Every record-field reference a list-ish view carries, flattened for
  * {@link collectPredicateFieldRefs}.
  *
  * One reader so the projection cannot fall behind the surfaces: each entry here
- * is a place a predicate is actually evaluated against a row — conditional
- * formatting, the row kebab (custom defs AND the built-in Edit/Delete
- * overrides), the selection bar, and the object's declared actions.
+ * is a place a row field is actually READ — conditional formatting, the row
+ * kebab (custom defs AND the built-in Edit/Delete overrides), the selection bar,
+ * and the object's declared actions.
+ *
+ * Most entries are predicates. Two are not, and both are spelled as a synthetic
+ * `record.<name>` so the one harvester handles them: conditional formatting's
+ * native `{ field, operator, value }` shape, and an action's `recordIdField`
+ * (objectstack#8018). The `recordIdField` case is the same *class* of bug the
+ * predicate harvest exists to close, one surface over — the action runtime reads
+ * `rowRecord[action.recordIdField]` to seed `recordIdParam`, so a key outside the
+ * listView columns arrived absent and the injection was silently skipped, which
+ * turns a record-scoped mutation into one that names no record while still
+ * reporting success. The default (`id`) is already projected unconditionally, so
+ * only an explicit declaration adds anything here.
+ *
+ * A `recordIdField` that is not a bare identifier is dropped here, and one naming
+ * a field the object does not declare is dropped by the caller's
+ * `isProjectableField` guard. Both drops are the safe direction: such a name is
+ * not a column anywhere, and an unknown key in `$select` is not ignored by every
+ * backend. The identifier gate is not decoration — without it the harvester's
+ * regex would read a PREFIX of a malformed name (`record.not a field` → `not`)
+ * and contribute a plausible wrong field instead of nothing.
  *
  * `objectActions` is deliberately the object's WHOLE action set rather than
  * only the ones this view promotes. Narrowing it would mean re-running the
@@ -159,6 +193,13 @@ export function listViewPredicates(view: {
       if (!def || typeof def !== 'object') continue;
       const d = def as Record<string, unknown>;
       preds.push(d.visible, d.disabled);
+      // The row key this action identifies its record by — a field the runtime
+      // READS off the row, so the projection owes it exactly as it owes a
+      // predicate's operands. Spelled as a `record.` reference so the one
+      // harvester handles it (see the doc above).
+      if (typeof d.recordIdField === 'string' && BARE_IDENTIFIER.test(d.recordIdField)) {
+        preds.push(`record.${d.recordIdField}`);
+      }
     }
   }
   for (const override of Object.values(view.userActions ?? {})) {

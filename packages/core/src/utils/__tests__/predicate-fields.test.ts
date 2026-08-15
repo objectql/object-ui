@@ -95,6 +95,57 @@ describe('listViewPredicates', () => {
       ),
     ).toEqual([]);
   });
+
+  // objectstack#8018 — `recordIdField` is a row key an action READS, so the
+  // projection owes it just as it owes a predicate's operands. Without this the
+  // action runtime got `undefined` for it and sent a request naming no record.
+  it('harvests `recordIdField` from every action list', () => {
+    expect(
+      collectPredicateFieldRefs(
+        listViewPredicates({
+          rowActionDefs: [{ name: 'a', recordIdField: 'token' }],
+          bulkActionDefs: [{ name: 'b', recordIdField: 'batch_key' }],
+          objectActions: [{ name: 'c', recordIdField: 'external_ref' }],
+        }),
+      ),
+    ).toEqual(['token', 'batch_key', 'external_ref']);
+  });
+
+  it('harvests a `recordIdField` alongside the same action’s predicates', () => {
+    expect(
+      collectPredicateFieldRefs(
+        listViewPredicates({
+          objectActions: [
+            { name: 'revoke', visible: 'record.active', recordIdField: 'token' },
+          ],
+        }),
+      ),
+    ).toEqual(['active', 'token']);
+  });
+
+  it('adds nothing for the default `id` or a non-string declaration', () => {
+    expect(
+      collectPredicateFieldRefs(
+        listViewPredicates({
+          objectActions: [
+            { name: 'a' },
+            { name: 'b', recordIdField: '' },
+            { name: 'c', recordIdField: 42 },
+          ],
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('drops a `recordIdField` that is not a bare identifier', () => {
+    // Not a field name anywhere, and dropping is the safe direction: an unknown
+    // key in `$select` is not ignored by every backend.
+    expect(
+      collectPredicateFieldRefs(
+        listViewPredicates({ objectActions: [{ name: 'a', recordIdField: 'not a field' }] }),
+      ),
+    ).toEqual([]);
+  });
 });
 
 describe('isProjectableField', () => {

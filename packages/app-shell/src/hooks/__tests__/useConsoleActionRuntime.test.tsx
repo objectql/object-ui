@@ -864,6 +864,105 @@ describe('#2958 — a failure reported under HTTP 200 is a failure, not success'
   });
 });
 
+/**
+ * `recordIdParam` seeding refuses rather than under-specifies (objectstack#8018).
+ *
+ * The injection used to be `if (rowValue != null) body[param] = rowValue;` with a
+ * silent `else`: a row that could not supply the key sent the request anyway,
+ * minus the parameter naming the record. A backend reading a missing selector as
+ * "match nothing" then answers success for having changed nothing — measured on a
+ * session-revocation control that reported success and revoked nothing.
+ *
+ * The projection harvest (`listViewPredicates`, covered in plugin-grid and core)
+ * closes the ordinary route to an absent key. This half closes the class: a row
+ * can still lack the key for reasons projection cannot fix — a server-side read
+ * mask that strips the field regardless of `$select` (`internal: true`), a
+ * partial payload, a field the principal cannot read. The assertion that matters
+ * on every case below is `authFetchSpy` never being called: the refusal must
+ * happen BEFORE the request, not be read out of the response.
+ */
+describe('apiHandler — recordIdParam seeding refuses instead of under-specifying (objectstack#8018)', () => {
+  const REVOKE = {
+    type: 'api',
+    name: 'revoke_session',
+    label: 'Revoke Session',
+    target: '/api/v1/auth/revoke-session',
+    recordIdParam: 'token',
+    recordIdField: 'token',
+  };
+
+  const dispatch = async (action: any, rowRecord: unknown) => {
+    const { result } = renderHook(() => useConsoleActionRuntime({ dataSource: {}, objects: [] }));
+    let res: any;
+    await act(async () => {
+      res = await result.current.apiHandler({
+        ...action,
+        params: { _rowRecord: rowRecord },
+      } as any);
+    });
+    return res;
+  };
+
+  it('refuses when the row lacks the recordIdField key entirely', async () => {
+    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ status: true }) });
+    // Exactly what the unharvested projection delivered: every column except
+    // the one the action identifies its record by.
+    const res = await dispatch(REVOKE, { id: 'sess_1', ip_address: '10.0.0.2' });
+
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('Revoke Session');
+    expect(res.error).toContain('token');
+    // The point of the whole card: no request goes out under-specified.
+    expect(authFetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('refuses when the key is present but null — a different repair, said differently', async () => {
+    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ status: true }) });
+    const res = await dispatch(REVOKE, { id: 'sess_1', token: null });
+
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('this record has no value');
+    expect(authFetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('injects the value and dispatches when the row supplies it', async () => {
+    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ status: true }) });
+    const res = await dispatch(REVOKE, { id: 'sess_1', token: 'tok_abc' });
+
+    expect(res.success).toBe(true);
+    expect(authFetchSpy).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(authFetchSpy.mock.calls[0][1].body)).toMatchObject({ token: 'tok_abc' });
+  });
+
+  it('keys off `id` by default, and refuses on a row without one', async () => {
+    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ status: true }) });
+    const byId = { ...REVOKE, recordIdField: undefined, recordIdParam: 'recordId' };
+
+    const ok = await dispatch(byId, { id: 'sess_1' });
+    expect(ok.success).toBe(true);
+    expect(JSON.parse(authFetchSpy.mock.calls[0][1].body)).toMatchObject({ recordId: 'sess_1' });
+
+    authFetchSpy.mockClear();
+    const bad = await dispatch(byId, { ip_address: '10.0.0.2' });
+    expect(bad.success).toBe(false);
+    expect(bad.error).toContain('"id"');
+    expect(authFetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('leaves an action declaring no recordIdParam completely alone', async () => {
+    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ status: true }) });
+    // No `recordIdParam` ⇒ no injection is declared ⇒ the guard has no opinion,
+    // whatever the row does or does not carry.
+    const res = await dispatch(
+      { type: 'api', name: 'revoke_others', target: '/api/v1/auth/revoke-other-sessions' },
+      { id: 'sess_1' },
+    );
+
+    expect(res.success).toBe(true);
+    expect(authFetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('serverActionHandler — list_toolbar selection fallback', () => {
   it('uses the single selected row from the runner context as recordId', async () => {
     authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ success: true, data: {} }) });

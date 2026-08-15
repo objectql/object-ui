@@ -39,7 +39,7 @@ import type {
   ResultDialogHandler,
   ToastHandler,
 } from '@object-ui/core';
-import { actionErrorDetail, isRecordScopedAction } from '@object-ui/core';
+import { actionErrorDetail, isRecordScopedAction, resolveRecordIdParamSeed } from '@object-ui/core';
 import { useActionModal } from './useActionModal';
 import { ActionConfirmDialog, type ConfirmDialogState } from '../views/ActionConfirmDialog';
 import { ActionParamDialog, type ParamDialogState } from '../views/ActionParamDialog';
@@ -319,11 +319,18 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
           }
         }
 
-        if (rowRecord && action.recordIdParam) {
-          const rowField = action.recordIdField || 'id';
-          const rowValue = rowRecord[rowField];
-          if (rowValue != null) body[action.recordIdParam] = rowValue;
-        }
+        // Seed the declared `recordIdParam` from the row — or REFUSE
+        // (objectstack#8018). The read used to be `if (rowValue != null)` with a
+        // silent `else`, so a row that could not supply the key sent the request
+        // anyway, minus the parameter naming the record. A backend that reads a
+        // missing selector as "match nothing" then answers success for having
+        // changed nothing, and the user is told the action worked. Refusing is
+        // the contract-first answer (AGENTS.md #0.1): an under-specified request
+        // is rejected at the producer, not sent and hoped about. `error` here is
+        // what makes the runner toast it (see the entitlement note below).
+        const seed = resolveRecordIdParamSeed(action, rowRecord);
+        if (seed.error) return { success: false, error: seed.error };
+        if (seed.value !== undefined) body[action.recordIdParam!] = seed.value;
 
         const isAuthOrgEndpoint = /\/api\/v1\/auth\//.test(resolvedTarget);
         if (isAuthOrgEndpoint && !body.organizationId && activeOrganization?.id) {

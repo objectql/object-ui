@@ -15,3 +15,4 @@ export * from './bulkFastPath.js';
 export * from './actionErrorDetail.js';
 export * from './actionResponse.js';
 export * from './serverActionHandler.js';
+export * from './recordIdParam.js';
