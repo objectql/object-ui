@@ -114,6 +114,23 @@ describe('updateViewConfig stamps the overlay marker (objectui#4227)', () => {
     const [, , saved] = meta.saveItem.mock.calls[0]!;
     expect(saved._isOverride).toBeUndefined();
   });
+
+  it('opts.isSavedView withholds the marker — a toggle on a SAVED view must not flag its own row (objectui#4227 follow-up, PR #4713)', async () => {
+    const { meta } = makeMetaStore();
+    const ds = makeDS(meta);
+
+    // Exactly what `persistViewPatch` sends for a toggle on the ACTIVE tab
+    // when that tab is already a saved view — `isSavedView: true`.
+    await ds.updateViewConfig('crm_lead', 'crm_lead.my_pipeline', {
+      type: 'kanban', label: 'My Pipeline', rowHeight: 40,
+    }, { isSavedView: true });
+
+    expect(meta.saveItem).toHaveBeenCalledWith(
+      'view',
+      'crm_lead.my_pipeline',
+      expect.not.objectContaining({ _isOverride: true }),
+    );
+  });
 });
 
 describe('end-to-end: a toolbar toggle on a system view never masquerades as saved (objectui#4227)', () => {
@@ -153,5 +170,80 @@ describe('end-to-end: a toolbar toggle on a system view never masquerades as sav
 
     const savedViews = await ds.listViews('crm_lead');
     expect(savedViews.map((v: any) => v.name)).toEqual(['crm_lead.my_pipeline']);
+  });
+
+  // ── objectui#4227 follow-up (PM review on PR #4713): the danger sequence
+  //    createView -> toggle its own toolbar -> listViews() -- that PR's own
+  //    round-trip tests covered createView->listViews (no toggle) and a
+  //    toggle on a SYSTEM view's id, but not a toggle on a SAVED view's own
+  //    id, which is exactly what a user does immediately after creating a
+  //    view and adjusting its density. ──────────────────────────────────────
+  describe('a toggle on a SAVED view must not make it vanish (objectui#4227 follow-up)', () => {
+    /** The real production shape a runtime "Add View" produces (app-shell's
+     *  `viewEnvelope`, via the ADR-0034 seam) -- nested `config`, `viewKind`
+     *  OUTSIDE it. `ObjectStackAdapter.createView`'s own flat `fullSpec` is
+     *  NOT this shape and is not the path the console's UI actually uses
+     *  (`viewEnvelope` + `persistRuntimeMetadata` write through a separate
+     *  `MetadataClient`, bypassing this adapter's `createView` entirely) --
+     *  using the real shape here is what makes this a genuine regression
+     *  pin rather than one that only exercises the adapter's own writer.
+     */
+    const savedViewRow = {
+      name: 'crm_lead.my_pipeline',
+      object: 'crm_lead',
+      viewKind: 'list',
+      label: 'My Pipeline',
+      config: {
+        type: 'kanban',
+        data: { provider: 'object', object: 'crm_lead' },
+        columns: ['name', 'status'],
+      },
+    };
+
+    it('createView -> toggle density on THAT SAME view -> listViews() still returns it (the fix)', async () => {
+      const { meta, rows } = makeMetaStore();
+      rows.set('view::crm_lead.my_pipeline', savedViewRow);
+      const ds = makeDS(meta);
+
+      // Sanity: the saved view is visible before any toggle.
+      expect((await ds.listViews('crm_lead')).map((v: any) => v.name))
+        .toEqual(['crm_lead.my_pipeline']);
+
+      // `persistViewPatch` spreads the ACTIVE TAB (the flattened saved view
+      // `listViews()` just returned) plus the toggle's patch, and — with
+      // this fix — passes `isSavedView: true` because `isSavedViewId`
+      // already found this id in `savedViews`.
+      await ds.updateViewConfig('crm_lead', 'crm_lead.my_pipeline', {
+        type: 'kanban',
+        label: 'My Pipeline',
+        columns: ['name', 'status'],
+        rowHeight: 40, // the toggle itself
+      }, { isSavedView: true });
+
+      const afterToggle = await ds.listViews('crm_lead');
+      expect(afterToggle.map((v: any) => v.name)).toEqual(['crm_lead.my_pipeline']);
+      // The tab stays fully manageable: `isSavedViewId`/`viewRowId` match on
+      // `name`, which the write preserved.
+      expect(afterToggle[0]).toMatchObject({ name: 'crm_lead.my_pipeline', rowHeight: 40 });
+    });
+
+    it('the same sequence WITHOUT the fix (isSavedView omitted) is the regression this pins against', async () => {
+      const { meta, rows } = makeMetaStore();
+      rows.set('view::crm_lead.my_pipeline', savedViewRow);
+      const ds = makeDS(meta);
+
+      // Same toggle, but as `updateViewConfig` behaved before this
+      // follow-up (no `isSavedView` signal) — demonstrates why the signal
+      // is load-bearing, not decorative.
+      await ds.updateViewConfig('crm_lead', 'crm_lead.my_pipeline', {
+        type: 'kanban',
+        label: 'My Pipeline',
+        columns: ['name', 'status'],
+        rowHeight: 40,
+      });
+
+      // The user's own saved view has vanished from the switcher.
+      expect(await ds.listViews('crm_lead')).toEqual([]);
+    });
   });
 });

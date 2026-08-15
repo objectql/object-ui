@@ -545,9 +545,23 @@ export interface DataSource<T = any> {
    * @param objectName - Object name
    * @param viewId - View identifier (e.g., 'all', 'pipeline')
    * @param config - The full view configuration to persist
+   * @param opts.isSavedView - Whether `viewId` already names a saved
+   *   (user-created) view rather than a code-defined one being personalized
+   *   for the first time (objectui#4227 follow-up). A caller that tracks
+   *   which views are saved — the same classification that gates rename/
+   *   delete/pin/set-default affordances — SHOULD pass this so an
+   *   implementation that distinguishes overlay rows from saved-view rows
+   *   (to keep the two from masquerading as each other) does not mistake
+   *   an edit to a saved view's own row for a new overlay on top of it.
+   *   Omit when the distinction does not apply to a given implementation.
    * @returns Promise resolving to the persisted config (or void)
    */
-  updateViewConfig?(objectName: string, viewId: string, config: Record<string, any>): Promise<Record<string, any> | void>;
+  updateViewConfig?(
+    objectName: string,
+    viewId: string,
+    config: Record<string, any>,
+    opts?: { isSavedView?: boolean },
+  ): Promise<Record<string, any> | void>;
 
   /**
    * List user-created overlay views for an object (ADR-0005 metadata

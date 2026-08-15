@@ -1035,17 +1035,25 @@ export function viewItemObjectName(item: any): string | undefined {
 
 /**
  * The explicit discriminant {@link ObjectStackAdapter.updateViewConfig} stamps
- * on every row it writes, and {@link ObjectStackAdapter.listViews} excludes on
- * read (objectui#4227).
+ * on the rows it writes for a **system**-view target, and
+ * {@link ObjectStackAdapter.listViews} excludes on read (objectui#4227).
  *
  * `updateViewConfig` has exactly ONE production caller — `ObjectView`'s
  * `persistViewPatch`, invoked only for the toolbar-driven density / sort /
- * hiddenFields / columnState / inlineEdit toggle. It is never used to create
- * or explicitly save a view — that goes through {@link
- * ObjectStackAdapter.createView} or the ADR-0034 metadata seam
- * (`viewEnvelope` in app-shell). So every row this method writes IS a
- * personalization overlay, unconditionally, and the marker just records that
- * fact rather than asking a reader to re-derive it from shape.
+ * hiddenFields / columnState / inlineEdit toggle. That single call site is
+ * NOT itself the explicit "create/save a view" path (that goes through
+ * {@link ObjectStackAdapter.createView} or the ADR-0034 metadata seam,
+ * `viewEnvelope` in app-shell) — but it fires for a toggle on EITHER kind of
+ * active tab, system or already-saved, so "every row this method writes is a
+ * personalization overlay" is only true for the system-view case. A toggle
+ * on a genuinely saved view targets that view's own row (same `(type='view',
+ * name=viewId)` key its create path used), and stamping the marker there
+ * would make {@link ObjectStackAdapter.listViews} exclude the user's own
+ * view on the next read (objectui#4227 follow-up, PM review on PR #4713) —
+ * so `updateViewConfig`'s `opts.isSavedView` withholds the marker for that
+ * case. The caller passes it from the same `isSavedViewId` classification
+ * the switcher's readonly gate already computes, rather than this layer
+ * re-deriving it from the write's shape.
  *
  * Survives the round trip against a real server: the platform's `view`
  * metadata schema `.strip()`s its flattened-overlay members only for
@@ -3289,31 +3297,56 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   }
 
   /**
-   * Persist a per-view PERSONALIZATION OVERLAY for an object — density,
-   * column widths, sort, hidden columns, inline edit. Symmetric counterpart
-   * to {@link getView}: writes the row to the server metadata store via
+   * Persist a toolbar-driven view config patch — density, column widths,
+   * sort, hidden columns, inline edit. Symmetric counterpart to
+   * {@link getView}: writes the row to the server metadata store via
    * `client.meta.saveItem`, then invalidates the matching cache entry so the
    * next {@link getView} reflects the new payload. Returns the persisted item
    * when the server echoes it, otherwise undefined.
    *
    * Called from exactly ONE production site — `ObjectView`'s
-   * `persistViewPatch`, for the toolbar-driven toggle. It is NOT the explicit
-   * "create/save a view" path (that is {@link createView} / the ADR-0034
-   * metadata seam via app-shell's `viewEnvelope`), and every row landing here
-   * is therefore an overlay, unconditionally — see {@link VIEW_OVERLAY_MARKER}
-   * for why that lets this method stamp the discriminant unconditionally too
-   * (objectui#4227). Per objectstack#7494's ruling, the overlay this writes is
-   * ORG-WIDE shared view settings, not a per-user preference — a true
-   * per-user scope is a parked v18 direction on the platform side.
+   * `persistViewPatch`, for the toolbar toggle — but that ONE call site
+   * fires for BOTH kinds of active tab: a code-defined **system** view (no
+   * row of its own yet) and a genuinely user-created **saved** view (already
+   * has a row — the toggle is editing ITS OWN definition, not laying an
+   * overlay on top of it). Which one a given call means is NOT re-derived
+   * here from the write's shape (objectui#4227's own lesson: shape inference
+   * on this namespace is exactly what let a system view masquerade as
+   * saved) — the caller already knows, via the same `isSavedViewId`
+   * classification that gates the switcher's readonly flag and its five
+   * mutating handlers, and passes it as {@link opts.isSavedView}.
+   *
+   * - `isSavedView` false/omitted (system-view target, the common case and
+   *   the default for backward compatibility): stamps
+   *   {@link VIEW_OVERLAY_MARKER} so {@link listViews} excludes the row —
+   *   the original objectui#4227 fix.
+   * - `isSavedView` true: the marker is withheld. Stamping it here would
+   *   flag the saved view's OWN row as a personalization overlay, and
+   *   `listViews()` would exclude it on the very next read — the user's own
+   *   view would vanish from the switcher the moment they toggled its
+   *   density (objectui#4227 follow-up, PM review on PR #4713, measured:
+   *   `persistViewPatch` has no gate on which kind of tab is active, and
+   *   this method writes to the exact same `(type='view', name=viewId)` key
+   *   {@link createView}/the ADR-0034 `viewEnvelope` seam already used for
+   *   that view, so the write is an upsert onto the saved view's row, not a
+   *   new one).
+   *
+   * Per objectstack#7494's ruling, the overlay this writes (system-view
+   * case) is ORG-WIDE shared view settings, not a per-user preference — a
+   * true per-user scope is a parked v18 direction on the platform side.
    *
    * @param objectName - Object name (e.g. 'lead')
    * @param viewId - View identifier (e.g. 'all_leads')
    * @param config - Full view definition to persist
+   * @param opts.isSavedView - Whether `viewId` already names a saved view
+   *   (vs. a system view being personalized for the first time). Omit /
+   *   `false` for the default overlay-marking behavior.
    */
   async updateViewConfig(
     objectName: string,
     viewId: string,
-    config: Record<string, any>
+    config: Record<string, any>,
+    opts?: { isSavedView?: boolean }
   ): Promise<Record<string, any> | void> {
     await this.connect();
     // ADR-0005 metadata customization overlay: persist views under
@@ -3324,12 +3357,14 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     // stamped LAST, alongside `object`/`name`, so nothing in `config` can
     // shadow it (objectui#4227) — this is what lets `listViews()` exclude
     // the row instead of `savedViews.find` matching it and presenting a
-    // system view as user-created/mutable.
+    // system view as user-created/mutable. Withheld entirely when the
+    // caller says this write targets a saved view's own row (see the
+    // doc comment above).
     const merged = {
       ...(config || {}),
       object: (config as any)?.object || objectName,
       name: viewId,
-      [VIEW_OVERLAY_MARKER]: true,
+      ...(opts?.isSavedView ? {} : { [VIEW_OVERLAY_MARKER]: true }),
     };
     const result: any = await this.client.meta.saveItem(
       'view',

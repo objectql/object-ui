@@ -689,6 +689,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // network write.
     const persistTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
     const persistPending = useRef<Record<string, Record<string, any>>>({});
+    // `persistViewPatch` is defined (and its `useCallback` deps evaluated)
+    // BEFORE `savedViews` state exists below — closing over it directly in
+    // the dependency array would read it in its temporal dead zone. Mirror
+    // it into a ref on every render instead (same pattern as
+    // `identityPolicyRef` above), read only from inside the callback body.
+    const savedViewsRef = useRef<any[]>([]);
     const persistViewPatch = useCallback(
         (viewIdLocal: string, baseViewDef: Record<string, any>, patch: Record<string, any>) => {
             if (!dataSource?.updateViewConfig || !objectName || !viewIdLocal) return;
@@ -702,11 +708,26 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 const merged = persistPending.current[viewIdLocal] || {};
                 delete persistPending.current[viewIdLocal];
                 delete persistTimers.current[viewIdLocal];
+                // A toolbar toggle fires through this ONE path for BOTH a
+                // system view (no overlay row yet) and a genuinely saved
+                // view — `baseViewDef` is the active tab either way, and
+                // nothing upstream of here branches on which. Tell the
+                // adapter which case this is via the SAME classification the
+                // switcher's own readonly gate and its five mutating
+                // handlers already use (`isSavedViewId`), rather than
+                // leaving it to (re-)infer from the write's shape: writing
+                // this as an unconditional personalization-overlay marker
+                // (objectui#4227) would flag the saved view's OWN row and
+                // make `listViews()` exclude it on the very next read — the
+                // user's own view would vanish from the switcher after they
+                // merely toggled its density (objectui#4227 follow-up,
+                // PM review on PR #4713).
+                const targetIsSavedView = isSavedViewId(savedViewsRef.current, viewIdLocal);
                 Promise.resolve(
                     dataSource.updateViewConfig(objectName, viewIdLocal, {
                         ...baseViewDef,
                         ...merged,
-                    })
+                    }, { isSavedView: targetIsSavedView })
                 ).catch((err: any) => {
                     console.error('[ObjectView] Failed to persist view config:', err);
                 });
@@ -951,6 +972,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // into `views` so the ViewTabBar renders them alongside metadata-defined
     // listViews.
     const [savedViews, setSavedViews] = useState<any[]>([]);
+    savedViewsRef.current = savedViews;
     useEffect(() => {
         let cancelled = false;
         if (!objectName) {
