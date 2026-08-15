@@ -135,8 +135,32 @@ function bodySnippet(body, max = 120) {
  *
  * `get` is injectable so the tests can drive a real fixture server over plain
  * `http` — the status/parse logic under test is transport-independent.
+ *
+ * ## No response at all (objectstack#5968 / objectui#4031)
+ *
+ * The two failure modes above are both *response-shaped* — something came
+ * back and was wrong. A black-holed connection (a dropped SYN, or a peer that
+ * completes the TCP handshake and then never writes a byte) produces neither
+ * `error` nor `end`; the request just sits there forever. `--check` fires 46
+ * of these in series, so one hang stalls the whole command until whatever
+ * wraps it (a CI job timeout, a person hitting Ctrl-C) gives up — with
+ * nothing in the log naming which of the 46 URLs was the one that stuck.
+ *
+ * `req.setTimeout` is armed unconditionally and fires on `timeoutMs` of
+ * inactivity on the request's socket. Node arms that idle timer as soon as a
+ * socket is assigned to the request — which happens before the TCP handshake
+ * resolves — so the same callback covers both a connection that never
+ * completes and one that completes and then goes quiet; there is no distinct
+ * "connecting" vs "connected" case to branch on here. On fire it calls
+ * `req.destroy(error)`, which the existing `req.on('error', reject)` below
+ * already catches (`destroy(error)` re-emits `error` on the request) — so the
+ * timeout reuses the same rejection path as a transport failure, rather than
+ * adding a second one. Deliberately no retry: a black hole does not resolve
+ * itself in seconds, so retrying only doubles the worst-case wait while
+ * every caller's error path already degrades gracefully (`--check` marks the
+ * component, `--update` refuses to write).
  */
-async function fetchUrl(url, { get = https.get } = {}) {
+async function fetchUrl(url, { get = https.get, timeoutMs = 10_000 } = {}) {
   return new Promise((resolve, reject) => {
     const req = get(url, (res) => {
       const status = res.statusCode ?? 0;
@@ -162,6 +186,9 @@ async function fetchUrl(url, { get = https.get } = {}) {
       });
     });
     req.on('error', reject);
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`shadcn-sync: registry request timed out after ${timeoutMs}ms: ${url}`));
+    });
   });
 }
 
@@ -223,8 +250,12 @@ function cacheFileFor(url, cacheDir = CACHE_DIR) {
  * option with no default is absent from this function's INFERRED signature, so
  * passing it from a `.ts` caller is a hard error. Declaring the injection point
  * is the fix; suppressing it at the call site would not be.
+ *
+ * `timeoutMs` passes straight through to `fetchUrl` (see its doc comment for
+ * why a black-holed connection is now bounded) — declared here too so tests
+ * can drive it down to milliseconds without waiting out the real 10s default.
  */
-async function fetchRegistry(url, { allowCache = false, cacheDir = CACHE_DIR, get = https.get } = {}) {
+async function fetchRegistry(url, { allowCache = false, cacheDir = CACHE_DIR, get = https.get, timeoutMs = 10_000 } = {}) {
   const cacheFile = cacheFileFor(url, cacheDir);
 
   if (allowCache) {
@@ -257,7 +288,7 @@ async function fetchRegistry(url, { allowCache = false, cacheDir = CACHE_DIR, ge
 
   let data;
   try {
-    data = await fetchUrl(url, { get });
+    data = await fetchUrl(url, { get, timeoutMs });
   } catch (error) {
     // Counted, then rethrown untouched: the caller decides what a failed fetch
     // means (`--check` reports the component, `--update` refuses to write).
