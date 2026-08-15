@@ -42,6 +42,17 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { PageSchema } from '@objectstack/spec/ui';
+
+// objectui#4697 — see PageBlockInspector.i18n.test.tsx for the full mechanism;
+// same stub, short-circuiting useObjectFields/useObjectOptions's mount-time
+// fetch instead of letting it escape to the real network.
+const state = vi.hoisted(() => ({
+  metadataClient: { get: vi.fn(async () => undefined), list: vi.fn(async () => [] as unknown[]) },
+}));
+vi.mock('../useMetadata', () => ({
+  useMetadataClient: () => state.metadataClient,
+}));
+
 import { PageBlockInspector } from './PageBlockInspector';
 
 afterEach(cleanup);

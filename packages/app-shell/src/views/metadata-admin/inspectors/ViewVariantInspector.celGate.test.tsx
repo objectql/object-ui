@@ -29,6 +29,19 @@ import * as React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 
+// objectui#4697 — ViewVariantInspector calls useObjectOptions() (the object
+// picker) unconditionally, and useObjectFields(binding.value, override) skips
+// its fetch only when an override is supplied — the `viaViewInspector` path
+// below reaches ViewInspector, which forwards no override, so that leg still
+// fetches for real. Stub the shared client so neither escapes to the real
+// network; see PageBlockInspector.i18n.test.tsx for the full mechanism.
+const state = vi.hoisted(() => ({
+  metadataClient: { get: vi.fn(async () => undefined), list: vi.fn(async () => [] as unknown[]) },
+}));
+vi.mock('../useMetadata', () => ({
+  useMetadataClient: () => state.metadataClient,
+}));
+
 import { ViewVariantInspector } from './ViewVariantInspector';
 import { ViewInspector } from './ViewInspector';
 import { __setCelFormulaLoader } from '../celAuthoring';

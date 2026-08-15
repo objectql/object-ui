@@ -19,14 +19,35 @@
  * translation exists" but "this panel does not ask for one".
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PageSchema } from '@objectstack/spec/ui';
-import { PageBlockInspector } from './PageBlockInspector';
 import { t } from '../i18n';
+
+/**
+ * objectui#4697 — PageBlockInspector reaches `useObjectFields`/`useObjectOptions`
+ * unconditionally (ObjectPickerField, FieldPickerField, and the ConditionBuilder
+ * it mounts for `visibleWhen`), and both fire a mount-time fetch with no
+ * override. Under happy-dom with no server listening that is a real, failing
+ * network call (ECONNREFUSED noise) — harmless (both hooks degrade to an empty
+ * list on any transport error, the same end state this stub produces) but
+ * loud. A STABLE stub client (never a fresh object per call: the hooks' effects
+ * key off `[client, ...]`, so a new identity every render would re-fire them
+ * forever — see FlowReferenceField.lookup.test.tsx, the in-package precedent)
+ * short-circuits the fetch instead. No assertion in this file reads the
+ * fetched object list/fields.
+ */
+const state = vi.hoisted(() => ({
+  metadataClient: { get: vi.fn(async () => undefined), list: vi.fn(async () => [] as unknown[]) },
+}));
+vi.mock('../useMetadata', () => ({
+  useMetadataClient: () => state.metadataClient,
+}));
+
+import { PageBlockInspector } from './PageBlockInspector';
 
 afterEach(cleanup);
 

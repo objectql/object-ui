@@ -22,9 +22,21 @@ import '@testing-library/jest-dom/vitest';
 import * as React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
+import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
+
+// objectui#4697 — ViewDefaultInspector renders ViewVariantInspector with no
+// `objectFieldsOverride`, so useObjectFields(binding.value) and
+// useObjectOptions() both fetch for real. Stub the shared client so neither
+// escapes to the real network; see PageBlockInspector.i18n.test.tsx for the
+// full mechanism.
+const state = vi.hoisted(() => ({
+  metadataClient: { get: vi.fn(async () => undefined), list: vi.fn(async () => [] as unknown[]) },
+}));
+vi.mock('../useMetadata', () => ({
+  useMetadataClient: () => state.metadataClient,
+}));
 
 import { ViewDefaultInspector } from './ViewInspector';
-import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
 import { __setCelFormulaLoader } from '../celAuthoring';
 
 /**

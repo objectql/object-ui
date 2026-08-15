@@ -25,6 +25,18 @@ import * as React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react';
 
+// objectui#4697 — ActionDefaultInspector calls useObjectOptions() and
+// useObjectFields(objectName) unconditionally (the object/field pickers behind
+// its two ConditionBuilders). Stub the shared client so that mount-time fetch
+// doesn't escape to the real network; see PageBlockInspector.i18n.test.tsx for
+// the full mechanism.
+const state = vi.hoisted(() => ({
+  metadataClient: { get: vi.fn(async () => undefined), list: vi.fn(async () => [] as unknown[]) },
+}));
+vi.mock('../useMetadata', () => ({
+  useMetadataClient: () => state.metadataClient,
+}));
+
 import { ActionDefaultInspector } from './ActionDefaultInspector';
 import { __setCelFormulaLoader } from '../celAuthoring';
 
