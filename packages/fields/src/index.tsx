@@ -231,9 +231,15 @@ function useLookupName(
         if (typeof (dataSource as any).findOne === 'function') {
           record = await (dataSource as any).findOne(referenceTo, value);
         } else {
+          // Top-level `$top`, not `{ options: { $top: 1 } }` (objectui#4025):
+          // `options` is not a `QueryParams` key and no adapter reads it. Here
+          // the nesting was harmless — the filter is primary-key equality, so
+          // the answer is at most one row with or without a cap — but it is the
+          // same spelling that cost `object-kanban` its row cap, and leaving one
+          // live instance in the repo is what makes the next one look precedented.
           const result = await (dataSource as any).find(referenceTo, {
             $filter: { id: value },
-            options: { $top: 1 },
+            $top: 1,
           });
           const records: any[] = Array.isArray(result)
             ? result

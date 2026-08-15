@@ -94,6 +94,7 @@ interface KanbanCard {
 | Property | Type | Description |
 |----------|------|-------------|
 | `columns` | KanbanColumn[] | Array of column definitions |
+| `limit` | number | Rows fetched by an object-driven board (default 100) |
 | `onCardMove` | function | Callback when a card is moved |
 | `className` | string | Additional Tailwind CSS classes |
 
@@ -135,6 +136,31 @@ rendered on each card resolve in priority order:
 
 Defaulting to `highlightFields` keeps a card's contents consistent with the
 object's other views without every kanban view having to re-declare its fields.
+
+### Row cap (object-driven boards)
+
+An object-driven board fetches at most `limit` records, defaulting to **100**. A
+board renders every fetched record into a lane and offers no pagination control,
+so this is the author's window on the object rather than a page size:
+
+```tsx
+{
+  type: 'object-kanban',
+  objectName: 'opportunity',
+  groupBy: 'stage',
+  limit: 250,          // rows fetched; omit for the default 100
+}
+```
+
+The `dataSource` binding sets it too — its own `limit`, or the
+`pagination.pageSize` of the view it names (see
+[Data source](/docs/guide/data-source)).
+
+<Callout type="info">
+  This is the **board's** `limit`, not a column's. `limit` on a *column* is that
+  lane's WIP limit — the card count at which the lane warns — and has no effect
+  on the query.
+</Callout>
 
 ## Examples
 

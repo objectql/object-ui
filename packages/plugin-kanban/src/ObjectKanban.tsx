@@ -51,6 +51,20 @@ const KANBAN_DEFAULT_TRANSLATIONS: Record<string, string> = {
 };
 
 /**
+ * Rows fetched when the author declared no `limit`.
+ *
+ * The number is the one this board has always intended: until objectui#4025 the
+ * fetch passed `{ options: { $top: 100 } }`, and `options` is not a `QueryParams`
+ * key — no adapter in this repo reads `params.options` (`convertQueryParams` in
+ * `@object-ui/data-objectstack` and `ApiDataSource` both read `params.$top`), so
+ * the cap never reached the wire and a board over a large object fetched whatever
+ * the server chose to return, then grouped all of it into lanes client-side. The
+ * window is now real, and authorable — same shape `object-timeline` took in
+ * objectui#4009 for the identical defect.
+ */
+export const DEFAULT_KANBAN_LIMIT = 100;
+
+/**
  * Safe wrapper for useObjectTranslation that falls back to the English defaults
  * above when no `I18nProvider` is mounted (standalone board, tests).
  * Delegates to `@object-ui/i18n`'s `createSafeTranslation`.
@@ -209,9 +223,15 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
         try {
             // Auto-inject $expand for lookup/master_detail fields
             const expand = buildExpandFields(objectDef?.fields);
+            // The row cap is a REAL `$top` (objectui#4025). It used to be
+            // `{ options: { $top: 100 } }` — `$filter` at the top level where the
+            // adapters read it, the cap one level down under a key that is not a
+            // `QueryParams` field and that nothing in this repo reads. The number
+            // is unchanged; it just reaches the wire now, and `limit` (authored,
+            // or a bound view's `pagination.pageSize`) can set it.
             const results = await dataSource.find(schema.objectName, {
-                options: { $top: 100 },
                 $filter: schema.filter,
+                $top: schema.limit ?? DEFAULT_KANBAN_LIMIT,
                 ...(expand.length > 0 ? { $expand: expand } : {}),
             });
             
@@ -234,7 +254,7 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
         fetchData();
     }
     return () => { isMounted = false; };
-  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, hasExternalData, objectDef, refreshKey]);
+  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, schema.limit, hasExternalData, objectDef, refreshKey]);
 
   // Determine which data to use: external -> bound -> inline -> fetched
   const rawData = (hasExternalData ? externalData : undefined) || boundData || schema.data || fetchedData;

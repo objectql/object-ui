@@ -369,19 +369,32 @@ ComponentRegistry.register(
 );
 
 /**
- * What `ObjectKanban` reads for its own query: `objectName` and `filter`
- * (`ObjectKanban.tsx`, the `dataSource.find` call — `$filter: schema.filter`).
+ * What `ObjectKanban` reads for its own query: `objectName`, `filter` and
+ * `limit` (`ObjectKanban.tsx`, the `dataSource.find` call — `$filter:
+ * schema.filter`, `$top: schema.limit ?? DEFAULT_KANBAN_LIMIT`).
  *
- * `columns` is deliberately NOT mapped. A board's `columns` are its SWIMLANES
- * (`{ id, title }` per `groupBy` value), not a field projection — writing a
- * saved view's field list there would render a board with one empty lane per
- * field name. Nor is `sort` or `limit`: the board fetches with a fixed
- * `$top: 100` and no ordering, so there is no key to write them to. Mapping
- * either onto something plausible would re-create the defect this wiring
- * removes — a value accepted and dropped — one layer deeper.
+ * `limit` was unmapped until objectui#4025, on the rationale that the board
+ * "fetches with a fixed `$top: 100`, so there is no key to write it to". That
+ * rationale was false in a way nobody could see from here: the cap was written
+ * `{ options: { $top: 100 } }`, and `options` is not a `QueryParams` key — no
+ * adapter reads it, so the window was not fixed, it did not exist. #4025 moved
+ * the cap to a real top-level `$top` and made it read `schema.limit`, so the
+ * flag comes with the read site (the order `object-timeline` did it in, #4009)
+ * and a bound view's `pagination.pageSize` now actually caps the board.
+ *
+ * Still deliberately NOT mapped:
+ *
+ * - `columns` — a board's `columns` are its SWIMLANES (`{ id, title }` per
+ *   `groupBy` value), not a field projection; a saved view's field list written
+ *   there would render one empty lane per field name.
+ * - `sort` — the board has no `$orderby` read site: cards are grouped into lanes
+ *   by `groupBy`, and the fetch declares no ordering. Mapping it onto something
+ *   plausible would re-create the defect this wiring removes — a value accepted
+ *   and dropped — one layer deeper.
  */
 const OBJECT_KANBAN_DATA_SOURCE: ElementDataSourceMapping = {
   filter: true,
+  limit: 'limit',
 };
 
 // Register object-kanban for ListView integration
