@@ -175,8 +175,18 @@ export const SURFACES = [
 // def arrives as; reads are collected for that identifier only, which is what
 // keeps `objectDef.actions.filter(a => a.locations…)` — a read off the AUTHORED
 // list, in the same files — out of the set.
+//
+// A read that moves BEHIND A HELPER moves out of this extractor's sight — the
+// call site passes the whole def (`resolveRecordIdParamSeed(action, rowRecord)`)
+// and no longer names the key, so the key silently leaves the owed set and the
+// entries excusing it go stale. That is a re-point, not a deletion: the helper is
+// where the forwarded def is read now, so it is listed here (objectstack#8018).
+// The tell that this is the right direction: deleting the stale entries instead
+// would have recorded "no surface owes `recordIdField`" while the runtime still
+// reads it off every forwarded def it is handed.
 export const RUNTIME_CONSUMERS = [
   { file: "packages/core/src/actions/ActionRunner.ts", binding: "action" },
+  { file: "packages/core/src/actions/recordIdParam.ts", binding: "action" },
   { file: "packages/app-shell/src/hooks/useConsoleActionRuntime.tsx", binding: "action" },
   { file: "packages/app-shell/src/views/RecordDetailView.tsx", binding: "action" },
 ];
@@ -211,10 +221,10 @@ export const JUSTIFIED = {
         {
           reason:
             `Unreachable on this surface, not dropped. \`${key}\` is read only under a ` +
-            "`rowRecord` guard — useConsoleActionRuntime.tsx:297 " +
-            "(`if (rowRecord && action.recordIdParam)`), :377 " +
-            "(`rowRecord?.[action.recordIdField || 'id']`) and :398 " +
-            "(`action.undoable && obj && recId && rowRecord && …`) — and `rowRecord` is " +
+            "`rowRecord` guard — useConsoleActionRuntime.tsx seeds `recordIdParam` from the " +
+            "row (`resolveRecordIdParamSeed(action, rowRecord)`, which is where " +
+            "`recordIdField` is read since objectstack#8018), and reads " +
+            "`action.undoable && obj && recId && rowRecord && …` — and `rowRecord` is " +
             "`params._rowRecord`, written only by the spread-based hosts listed above, " +
             "none of which dispatch through this renderer. objectstack#6938 made the same " +
             "reachability call for `recordIdParam`; this gate's own measurement extended it " +
