@@ -52,10 +52,15 @@
  *
  * ## The allowlist is the cost, and it is keyed by KEY, not by key+lang
  *
- * 22 keys below are byte-identical to `en` in at least one non-Latin pack and
+ * The keys below are byte-identical to `en` in at least one non-Latin pack and
  * are RIGHT that way — proper nouns, protocol and format names, example
  * addresses, generated filenames, and pure interpolation. Each carries a
  * one-line reason so the next reader can re-judge it instead of trusting it.
+ * (This sentence used to state the entry count. It said 22 while the list held
+ * 23, because nothing asserts the number and additions did not have to touch it;
+ * the count is deleted rather than corrected so the prose cannot drift again —
+ * the list itself is the count, and `no dead entries` below is what keeps it
+ * honest.)
  *
  * Key-level rather than key+lang is a deliberate trade: it is looser (an entry
  * excuses the identity in all five packs, not just the one that has it today)
@@ -88,8 +93,13 @@ const LATIN_RUN = /[A-Za-z]{4,}/;
 const LEGITIMATE_IDENTITIES: Record<string, string> = {
   // Proper nouns and product/protocol/format names — the same token in every language.
   'layout.metadata.jsonBadge': 'JSON — the format name, not a word.',
-  'workflow.webhook': 'Webhook — the protocol term these packs use untranslated.',
-  'workflow.webhookEvent': 'Webhook — same term, event-typed.',
+  // `workflow.webhook` and `workflow.webhookEvent` sat here until objectui#4742
+  // deleted the whole `workflow.*` namespace as dead. Their entries went with
+  // them rather than being re-pointed at another key: an entry is a fact about
+  // one key's value, so it cannot outlive the key or be transferred to a
+  // different one. Both assertions in `keeps the allowlist honest` would have
+  // failed on a leftover entry — dead (no identity left to excuse) and unknown
+  // (no such key in `en`) — which is that guard doing its job.
   'publicForm.poweredBy': 'Powered by ObjectStack — product attribution; ja keeps the English wordmark line.',
   'connectAgent.apiKey.badge': 'headless — the literal mode name the CLI and API use.',
   'marketplace.pricing.freemium': 'Freemium — the pricing-tier term of art; ru keeps the loanword.',
