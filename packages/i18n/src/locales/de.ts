@@ -1306,7 +1306,6 @@ const de = {
       unique: "Eindeutig",
       readOnly: "Nur lesen",
       hidden: "Ausgeblendet",
-      indexed: "Indiziert",
       externalId: "Externe ID",
       trackHistory: "Verlauf verfolgen",
       defaultValue: "Standardwert",

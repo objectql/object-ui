@@ -1308,7 +1308,6 @@ const fr = {
       unique: "Unique",
       readOnly: "Lecture seule",
       hidden: "Masqué",
-      indexed: "Indexé",
       externalId: "ID externe",
       trackHistory: "Suivre l'historique",
       defaultValue: "Valeur par défaut",

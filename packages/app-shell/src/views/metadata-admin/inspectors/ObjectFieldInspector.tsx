@@ -9,11 +9,18 @@
  *   • Basic     — name (rename), label, type, required, unique, description
  *   • Specific  — picklist options / lookup target / formula / numeric
  *                 precision / max length, conditional on type
- *   • Advanced  — readonly, hidden, indexed, externalId, group
+ *   • Advanced  — readonly, hidden, externalId, group
  *
  * All edits are applied as immutable splices of `draft.fields` via
  * the object-fields-io helpers, preserving the original array-vs-record
- * shape AND any unknown keys on the field definition.
+ * shape AND any unknown keys on the field definition — except the
+ * spec-rejected keys `object-fields-io` strips on read
+ * (`RETIRED_FIELD_KEYS`).
+ *
+ * There is deliberately no `Indexed` control here (objectui#4644): the
+ * spec has no field-level index flag, `FieldSchema.safeParse` rejects
+ * `indexed` by name, and offering it only ever produced a 422 that blocked
+ * the save. Object-level `indexes[]` is the real surface.
  *
  * Rename: changing the `name` rewrites the field's key in-place and
  * re-issues the selection so the inspector stays bound to the same
@@ -650,12 +657,6 @@ export function ObjectFieldInspector({
             label={tr('designer.field.hidden')}
             value={!!def.hidden}
             onCommit={(v) => patchDef({ hidden: v || undefined })}
-            disabled={readOnly}
-          />
-          <InspectorCheckboxField
-            label={tr('designer.field.indexed')}
-            value={!!def.indexed}
-            onCommit={(v) => patchDef({ indexed: v || undefined })}
             disabled={readOnly}
           />
           <InspectorCheckboxField

@@ -1306,7 +1306,6 @@ const ja = {
       unique: "ユニーク",
       readOnly: "読み取り専用",
       hidden: "非表示",
-      indexed: "インデックス",
       externalId: "外部ID",
       trackHistory: "履歴追跡",
       defaultValue: "デフォルト値",

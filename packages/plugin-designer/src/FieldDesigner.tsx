@@ -214,7 +214,6 @@ export function FieldDesigner({
         unique: data.unique === true,
         readonly: data.readonly === true,
         hidden: data.hidden === true,
-        indexed: data.indexed === true,
         externalId: data.externalId === true,
         trackHistory: data.trackHistory === true,
         defaultValue: data.defaultValue ? String(data.defaultValue) : undefined,
@@ -236,7 +235,6 @@ export function FieldDesigner({
         unique: data.unique === true,
         readonly: data.readonly === true,
         hidden: data.hidden === true,
-        indexed: data.indexed === true,
         externalId: data.externalId === true,
         trackHistory: data.trackHistory === true,
         defaultValue: data.defaultValue ? String(data.defaultValue) : undefined,
@@ -323,7 +321,10 @@ export function FieldDesigner({
         collapsible: true,
         collapsed: true,
         fields: [
-          { name: 'indexed', label: t('appDesigner.fieldDesigner.indexed'), type: 'boolean', disabled: readOnly },
+          // No `indexed` control (objectui#4644): the spec has no field-level
+          // index flag — `FieldSchema.safeParse` rejects `indexed` by name, so
+          // ticking it only ever produced a 422 on save. Object-level
+          // `indexes[]` is the real surface.
           { name: 'externalId', label: t('appDesigner.fieldDesigner.externalId'), type: 'boolean', disabled: readOnly },
           { name: 'trackHistory', label: t('appDesigner.fieldDesigner.trackHistory'), type: 'boolean', disabled: readOnly },
           { name: 'readonly', label: t('appDesigner.fieldDesigner.readOnly'), type: 'boolean', disabled: readOnly },
@@ -342,7 +343,6 @@ export function FieldDesigner({
           unique: editingField.unique || false,
           readonly: editingField.readonly || false,
           hidden: editingField.hidden || false,
-          indexed: editingField.indexed || false,
           externalId: editingField.externalId || false,
           trackHistory: editingField.trackHistory || false,
           defaultValue: editingField.defaultValue != null ? String(editingField.defaultValue) : '',

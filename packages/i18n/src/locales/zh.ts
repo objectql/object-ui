@@ -1368,7 +1368,6 @@ const zh = {
       unique: '唯一',
       readOnly: '只读',
       hidden: '隐藏',
-      indexed: '索引',
       externalId: '外部 ID',
       trackHistory: '追踪历史',
       defaultValue: '默认值',

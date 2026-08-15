@@ -1313,7 +1313,6 @@ const ar = {
       unique: "فريد",
       readOnly: "للقراءة فقط",
       hidden: "مخفي",
-      indexed: "مفهرس",
       externalId: "معرف خارجي",
       trackHistory: "تتبع السجل",
       defaultValue: "القيمة الافتراضية",

@@ -1316,7 +1316,6 @@ const ru = {
       unique: "Уникальное",
       readOnly: "Только чтение",
       hidden: "Скрытое",
-      indexed: "Индексированное",
       externalId: "Внешний ID",
       trackHistory: "Отслеживать историю",
       defaultValue: "Значение по умолчанию",

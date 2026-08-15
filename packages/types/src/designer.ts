@@ -789,8 +789,13 @@ export interface DesignerFieldDefinition {
   externalId?: boolean;
   /** Track field history */
   trackHistory?: boolean;
-  /** Whether field is indexed */
-  indexed?: boolean;
+  /*
+   * There is deliberately no `indexed` here (objectui#4644). The ObjectStack
+   * spec has no field-level index flag: it built no index (objectstack#2377
+   * removed it) and `FieldSchema.safeParse` now rejects the key by name, so
+   * any designer that authored it produced a save-blocking 422. Declare the
+   * index on the object instead — `indexes: [{ name, fields, unique }]`.
+   */
   /** Lookup reference object (for lookup type) */
   referenceTo?: string;
   /** Formula expression (for formula type) */

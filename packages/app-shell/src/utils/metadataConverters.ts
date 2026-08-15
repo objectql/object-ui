@@ -56,7 +56,9 @@ export interface MetadataField {
   externalId?: boolean;
   trackHistory?: boolean;
   track_history?: boolean;
-  indexed?: boolean;
+  // No `indexed` (objectui#4644): never a `FieldSchema` key, so the server
+  // never serves one — `FieldSchema.safeParse` rejects it by name. Reading it
+  // here only fed it back to a writer that then got a 422 on save.
   reference_to?: string;
   /** ObjectStack-convention key for the relational target (what the server serves). */
   reference?: string;
@@ -125,7 +127,6 @@ export function toFieldDefinition(field: MetadataField, index: number): Designer
     isSystem: field.readonly === true && (field.name === 'id' || field.name === 'createdAt' || field.name === 'updatedAt'),
     externalId: field.externalId || false,
     trackHistory: field.trackHistory || field.track_history || false,
-    indexed: field.indexed || false,
     referenceTo: field.reference_to || field.reference || field.referenceTo || undefined,
     formula: field.formula || undefined,
   };

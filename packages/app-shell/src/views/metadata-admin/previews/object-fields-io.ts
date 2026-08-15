@@ -12,11 +12,58 @@
  * Field reorders / inserts / removes are performed on a normalized
  * ordered list and serialized back to the input shape, so round-trips
  * are non-destructive.
+ *
+ * The one exception to "preserve unknown properties" is
+ * {@link RETIRED_FIELD_KEYS} — see the note on that constant.
  */
 
 import type { FieldTypeId } from './field-types';
 
 export type Shape = 'array' | 'record';
+
+/**
+ * Field keys the ObjectStack spec REJECTS by name, stripped on read.
+ *
+ * `indexed` was never a `FieldSchema` key. The field-level flag built no
+ * index (objectstack#2377 removed it), and since objectstack#4001 closed the
+ * silent-drop shape, `FieldSchema.safeParse` refuses it outright:
+ *
+ *   Unrecognized key(s) on this field: `indexed`.
+ *     • never a FieldSchema key; a field-level index flag built no index
+ *       (#2377). Declare the index in the object's `indexes[]`.
+ *
+ * The real surface is object-level `indexes: [{ name, fields, unique }]`,
+ * materialised by `SqlDriver.syncDeclaredIndexes` — nothing in this repo
+ * reads a field-level `indexed`, so there is no behaviour to preserve.
+ *
+ * Until objectui#4644 the field inspector offered an `Indexed` checkbox that
+ * wrote the key, so drafts authored in Studio can still carry it — and every
+ * write path here spreads the def it read (`{ ...def, ...patch }`), which
+ * would carry the key straight back out to
+ * `PUT /api/v1/meta/object/:name`, where it is a hard 422
+ * (`INVALID_METADATA`) that blocks EVERY subsequent save of the object until
+ * the author finds and clears it.
+ *
+ * Stripping on load — not a data migration — is what makes an
+ * edit-and-save round-trip of such a draft come out parseable. `readFields`
+ * is the single read door for `draft.fields` across the whole object
+ * designer (inspector, form designer, design surface, settings / validations
+ * / API panels), so one strip here covers every writer.
+ *
+ * Same shape as `PermissionAdvancedFacets`' `RETIRED_RLS_KEYS`
+ * (objectstack#7130). Keyed to the tombstone, never a blanket unknown-key
+ * purge: every other key the designer does not render still survives.
+ */
+export const RETIRED_FIELD_KEYS = ['indexed'] as const;
+
+/** Drop {@link RETIRED_FIELD_KEYS} from one field definition. */
+function stripRetiredFieldKeys(def: Record<string, unknown>): Record<string, unknown> {
+  const present = RETIRED_FIELD_KEYS.filter((k) => k in def);
+  if (present.length === 0) return def;
+  const next = { ...def };
+  for (const k of present) delete next[k];
+  return next;
+}
 
 export interface FieldEntry {
   /** Canonical snake_case key. */
@@ -39,7 +86,7 @@ export function readFields(fieldsInput: unknown): FieldsView {
         const { name, ...rest } = raw ?? {};
         return {
           name: typeof name === 'string' && name ? name : `field_${i + 1}`,
-          def: rest as Record<string, unknown>,
+          def: stripRetiredFieldKeys(rest as Record<string, unknown>),
         };
       }),
     };
@@ -48,7 +95,7 @@ export function readFields(fieldsInput: unknown): FieldsView {
     return {
       shape: 'record',
       entries: Object.entries(fieldsInput as Record<string, Record<string, unknown>>).map(
-        ([name, def]) => ({ name, def: { ...(def ?? {}) } }),
+        ([name, def]) => ({ name, def: stripRetiredFieldKeys({ ...(def ?? {}) }) }),
       ),
     };
   }

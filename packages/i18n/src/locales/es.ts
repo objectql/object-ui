@@ -1310,7 +1310,6 @@ const es = {
       unique: "Único",
       readOnly: "Solo lectura",
       hidden: "Oculto",
-      indexed: "Indexado",
       externalId: "ID externo",
       trackHistory: "Rastrear historial",
       defaultValue: "Valor predeterminado",

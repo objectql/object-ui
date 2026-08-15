@@ -1305,7 +1305,6 @@ const pt = {
       unique: "Único",
       readOnly: "Somente leitura",
       hidden: "Oculto",
-      indexed: "Indexado",
       externalId: "ID externo",
       trackHistory: "Rastrear histórico",
       defaultValue: "Valor padrão",
