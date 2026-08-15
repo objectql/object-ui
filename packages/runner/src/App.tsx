@@ -91,12 +91,10 @@ export default function RunnerApp() {
     
     // IF ?api=... is present, use Network Loader
     if (apiUrl) {
-      console.log('🔌 Using Network Loader:', apiUrl);
       return new NetworkLoader(apiUrl);
     }
-    
+
     // ELSE use bundled files (Local Development)
-    console.log('📦 Using Local Bundle Loader');
     return new LocalBundleLoader();
   }, []);
 

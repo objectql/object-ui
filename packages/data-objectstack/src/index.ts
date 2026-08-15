@@ -827,15 +827,23 @@ export function createQuietHttpLogger(): any {
     }
     return false;
   };
+  // objectui#4029 — this object IS the console binding for the spec Logger
+  // interface, not leaked debug residue: every method here deliberately
+  // forwards to the matching console.* method by design, so no-console's
+  // blanket ban is disabled line-by-line for the methods outside its
+  // warn/error allowlist.
   const logger: any = {
     debug: (message: string, meta?: Record<string, any>) =>
+      // eslint-disable-next-line no-console -- objectui#4029, see comment above
       console.debug(message, meta ?? ''),
     info: (message: string, meta?: Record<string, any>) =>
+      // eslint-disable-next-line no-console -- objectui#4029, see comment above
       console.info(message, meta ?? ''),
     warn: (message: string, meta?: Record<string, any>) =>
       console.warn(message, meta ?? ''),
     error: (message: string, error?: Error, meta?: Record<string, any>) => {
       if (isExpected404(meta)) {
+        // eslint-disable-next-line no-console -- objectui#4029, see comment above
         console.debug(
           `[ObjectStack] ${formatHttpFailureMessage(message, meta) ?? message} (suppressed expected 404)`,
           meta,
@@ -846,6 +854,7 @@ export function createQuietHttpLogger(): any {
     },
     fatal: (message: string, error?: Error, meta?: Record<string, any>) =>
       console.error(formatHttpFailureMessage(message, meta) ?? message, error ?? '', meta ?? ''),
+    // eslint-disable-next-line no-console -- objectui#4029, see comment above
     log: (message: string, ...args: any[]) => console.log(message, ...args),
     child: () => logger,
     withTrace: () => logger,

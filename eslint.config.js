@@ -43,6 +43,18 @@ export default tseslint.config({
     ],
     '@typescript-eslint/no-explicit-any': 'warn',
     '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    // objectui#4029 — importing a package must not write noise to the
+    // consumer's console. House convention (measured, not invented): the
+    // one known leak used `console.log`, while every deliberate diagnostic
+    // already used `warn`/`error` (packages/plugin-map/src/ObjectMap.tsx,
+    // packages/core/src/registry/Registry.ts). Error so a new module/
+    // function-scope `console.log`/`info`/`debug` fails CI instead of
+    // waiting for a human read; `warn`/`error` stay allowed for intentional
+    // diagnostics. See the override block below for the carve-outs a blanket
+    // rule needs (CLI stdout, per-package examples, deliberate debug/logger
+    // infrastructure) and eslint.config.js's own PR history for the full
+    // hit-census accounting behind each one.
+    'no-console': ['error', { allow: ['warn', 'error'] }],
     // Downgrade new React Compiler rules to warnings (codebase predates these rules)
     'react-hooks/refs': 'warn',
     'react-hooks/immutability': 'warn',
@@ -78,6 +90,35 @@ export default tseslint.config({
           '`normalizeSectionField` (@object-ui/plugin-form). See objectui#3090.',
       }],
     }],
+  },
+}, {
+  // objectui#4029 — no-console exemption zones. None of these are "a
+  // package's console" from a consumer's perspective:
+  //  - root scripts/** is repo tooling that runs standalone, never as part
+  //    of a published package's import graph.
+  //  - examples/** at ANY depth (root AND per-package, hence **/ prefix —
+  //    measured objectui#4029: packages/types/examples/*.ts alone carried 18
+  //    hits the root-anchored examples/** glob never reached) is
+  //    documentation code, not a runtime import surface.
+  //  - test files assert against console output themselves (spying on it)
+  //    rather than leaking it to a real consumer.
+  //  - packages/cli and packages/create-plugin are CLI tools whose entire
+  //    job is terminal stdout/stderr — running a bin is not "importing a
+  //    package and getting noise you didn't ask for". @object-ui/cli's
+  //    index.ts does re-export a couple of commands for programmatic use,
+  //    but their console output is the documented behavior of calling them,
+  //    not an accidental module-scope leak — the #7139 bug class this rule
+  //    exists to net.
+  files: [
+    'scripts/**/*.{ts,tsx}',
+    '**/examples/**/*.{ts,tsx}',
+    '**/*.test.{ts,tsx}',
+    '**/__tests__/**/*.{ts,tsx}',
+    'packages/cli/src/**/*.{ts,tsx}',
+    'packages/create-plugin/src/**/*.{ts,tsx}',
+  ],
+  rules: {
+    'no-console': 'off',
   },
 }, {
   // objectui#3010/#3021 ratchet — a module loaded inside beforeAll/beforeEach

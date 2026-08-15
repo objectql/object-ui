@@ -596,9 +596,9 @@ function App() {
           // 制造排班示例: 启用班次分段 (白班/夜班), 排班日 08:00 起算。
           shiftSegments={mfg ? shifts : undefined}
           persistLayoutKey={mfg ? undefined : "demo-project"}
-          onLayoutChange={(l) => console.log('[gantt-demo] layout saved', l)}
+          onLayoutChange={() => {}}
           inlineEdit
-          onTaskClick={(t) => console.log('[gantt-demo] click', t.id)}
+          onTaskClick={() => {}}
           onTaskUpdate={(t, changes) => patch(t.id, changes)}
           onTaskDelete={(t) => setTasks((prev) => prev.filter((x) => x.id !== t.id))}
           onDependencyCreate={(source, target, type) =>

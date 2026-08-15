@@ -128,20 +128,23 @@ describe('Save as view folds URL drill triples to spec rules (objectui#3419)', (
   it('drops a triple with no canonical operator instead of persisting it off-spec', () => {
     // Defence in depth: `parseUrlFilterTriples` cannot emit `~=` today. If the
     // URL contract ever grows an operator the spec has no word for, the saved
-    // view loses that one condition (with a debug note) rather than becoming a
-    // body the record gate rejects whole.
-    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    // view loses that one condition (with a warning) rather than becoming a
+    // body the record gate rejects whole. objectui#4029 promoted this from
+    // `console.debug` to `console.warn` — it is a real diagnostic (data
+    // silently dropped), not debug noise, so it must survive the repo's
+    // `no-console` allowlist.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { spec, gate } = saveAsView([
       ['stage', '=', 'open'],
       ['score', '~=', '10'],
     ]);
     expect(spec.filter).toEqual([{ field: 'stage', operator: 'equals', value: 'open' }]);
     expect(gate.success).toBe(true);
-    expect(debug).toHaveBeenCalledWith(expect.stringContaining('score'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('score'));
   });
 
   it('omits `filter` entirely when every triple was dropped', () => {
-    vi.spyOn(console, 'debug').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { spec, gate } = saveAsView([['score', '~=', '10']]);
     expect('filter' in spec).toBe(false);
     expect(gate.success).toBe(true);

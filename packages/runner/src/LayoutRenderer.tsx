@@ -306,7 +306,6 @@ export const LayoutRenderer = ({ app, children, currentPath, onNavigate }: Layou
                                     <DropdownMenuItem key={idx} onSelect={() => {
                                         if ((item as any).onClick) {
                                             // Handle click logic
-                                            console.log('Clicked', item.label);
                                         }
                                     }}>
                                         {item.label}

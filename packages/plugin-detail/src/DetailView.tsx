@@ -687,12 +687,13 @@ export const DetailView: React.FC<DetailViewProps> = ({
         title: schema.title || t('detail.details'),
         text: `${schema.objectName} #${schema.resourceId}`,
         url: window.location.href,
-      }).catch((err) => console.log('Share failed:', err));
+      }).catch((err) => {
+        // objectui#4029 — a real failure of the Share API, not debug noise.
+        console.error('Share failed:', err);
+      });
     } else {
       // Fallback: copy link to clipboard
-      navigator.clipboard.writeText(window.location.href).then(() => {
-        console.log('Link copied to clipboard');
-      });
+      navigator.clipboard.writeText(window.location.href);
     }
   }, [schema]);
 
