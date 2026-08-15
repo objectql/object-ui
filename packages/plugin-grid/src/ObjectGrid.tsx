@@ -43,7 +43,8 @@ import { useRowColor } from './useRowColor';
 import { useGroupedData } from './useGroupedData';
 import { GroupRow } from './GroupRow';
 import { useColumnSummary } from './useColumnSummary';
-import { resolveRowCrudAffordances } from './rowCrudAffordances';
+import { resolveRowCrudAffordances, resolveRowRecordCrudAffordance } from './rowCrudAffordances';
+import { useRecordCrudVerdicts } from './hooks/useRecordCrudVerdicts';
 import { resolveLegacyRowActions } from './resolveLegacyRowActions';
 import { resolveBulkActions } from './resolveBulkActions';
 import { partitionBulkRows } from './bulkEligibility';
@@ -728,6 +729,87 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // data source), which leaves the affordance verdict untouched.
   const permissionUpdate = objectName ? perms.can(objectName, 'update') : undefined;
   const permissionDelete = objectName ? perms.can(objectName, 'delete') : undefined;
+
+  // When the consumer wired onEdit/onDelete callbacks but the view schema
+  // omits an explicit `operations` block, default to allowing those actions.
+  // This gives every main list a Row actions kebab out of the box without
+  // forcing every view JSON to declare operations: { update: true, delete: true }.
+  const explicitOperations = 'operations' in schema ? schema.operations : undefined;
+  const operations = explicitOperations ?? {
+    update: !!onEdit,
+    delete: !!onDelete,
+  };
+  // Row actions can declare 'edit' / 'delete' as canonical strings — treat
+  // them as equivalent to operations.update / operations.delete so the
+  // dropdown surfaces native Edit/Delete entries (with proper icons) and
+  // routes them to onEdit / onDelete instead of the generic action runner
+  // (which has no 'edit' handler and a parameter-shape mismatch for 'delete').
+  const rowActionsList: string[] = Array.isArray(schema.rowActions) ? schema.rowActions : [];
+  const rowActionDefsList: any[] = Array.isArray((schema as any).rowActionDefs) ? (schema as any).rowActionDefs : [];
+  const wantEditAction = rowActionsList.includes('edit');
+  const wantDeleteAction = rowActionsList.includes('delete');
+  // Legacy `rowActions` carry a bare action NAME, which the runner cannot
+  // execute on its own — resolve each against the object's declared actions so
+  // it dispatches as a real def (and so a name that duplicates an existing
+  // `list_item` def stops rendering a dead twin of it). See
+  // `resolveLegacyRowActions` for the full rationale (objectui#2960).
+  const { defs: resolvedRowActionDefs, unresolved: customRowActions } = resolveLegacyRowActions({
+    rowActions: rowActionsList.filter(a => a !== 'edit' && a !== 'delete'),
+    rowActionDefs: rowActionDefsList,
+    objectActions: (objectSchema as any)?.actions,
+  });
+  // Honor the object's resolved CRUD affordance: the ADR-0103 lifecycle bucket
+  // (`managedBy`), the `userActions.edit`/`delete` override — explicit `false`
+  // opts out of the generic row Edit/Delete (e.g. sys_environment ships a
+  // dedicated Rename + cascade-Delete instead, and the generic entries would
+  // duplicate them) — and [#3720] the server's effective API operation set, so
+  // the row kebab never offers an update/delete the server would reject.
+  // `operations` above only says whether the CONSUMER wired the affordance; it
+  // is not a permission grant, which is why the object verdict is ANDed here
+  // rather than assumed to have been applied upstream.
+  // [#4096] …and neither is `apiOperations`, which describes the OBJECT, not
+  // the caller — so the principal's own `allowEdit` / `allowDelete` is ANDed on
+  // top, matching the toolbar and the record header on the very same screen.
+  //
+  // Resolved HERE, above the error / loading early returns, rather than beside
+  // the row-actions column it feeds: the record-level layer below is a hook and
+  // may not sit behind a conditional return.
+  const { canEdit, canDelete, objectCanDelete, editPredicates, deletePredicates } = resolveRowCrudAffordances({
+    operationsUpdate: operations?.update,
+    operationsDelete: operations?.delete,
+    wantEditAction,
+    wantDeleteAction,
+    hasOnEdit: !!onEdit,
+    hasOnDelete: !!onDelete,
+    managedBy: (objectSchema as any)?.managedBy,
+    userActions: (objectSchema as any)?.userActions,
+    effectiveApiOperations: effectiveApiOps,
+    permissionUpdate,
+    permissionDelete,
+  });
+  // [#4296] …and neither of those describes the ROW. `allowEdit` is the
+  // principal's verdict on the OBJECT; `writeScope`, the sharing model and RLS
+  // narrow it per record, so everything above fails OPEN for every row the
+  // principal does not own — the kebab offered Edit/Delete on rows the server
+  // answers 403 for, while the record detail header (which has ANDed the
+  // record-grained verdict since objectstack#3821) correctly hid both on the
+  // very same record. One batched explain call per (object, operation) for the
+  // rows on screen answers it for the whole page; rows with no answer keep the
+  // object-level verdict (see `useRecordCrudVerdicts` — fail open, never
+  // over-hide).
+  const pageRecordIds = useMemo(
+    () => Array.from(new Set(
+      data.map(rowRecordId).filter((id) => id != null).map((id) => String(id)),
+    )),
+    [data],
+  );
+  const recordVerdict = useRecordCrudVerdicts({
+    objectName,
+    recordIds: pageRecordIds,
+    update: canEdit,
+    delete: canDelete,
+  });
+
   const schemaFields = schema.fields;
   const schemaColumns = schema.columns;
   // The view's declared filter, lowered ONCE through the repo's single filter
@@ -1935,59 +2017,11 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     });
   }
 
-  // When the consumer wired onEdit/onDelete callbacks but the view schema
-  // omits an explicit `operations` block, default to allowing those actions.
-  // This gives every main list a Row actions kebab out of the box without
-  // forcing every view JSON to declare operations: { update: true, delete: true }.
-  const explicitOperations = 'operations' in schema ? schema.operations : undefined;
-  const operations = explicitOperations ?? {
-    update: !!onEdit,
-    delete: !!onDelete,
-  };
-  // Row actions can declare 'edit' / 'delete' as canonical strings — treat
-  // them as equivalent to operations.update / operations.delete so the
-  // dropdown surfaces native Edit/Delete entries (with proper icons) and
-  // routes them to onEdit / onDelete instead of the generic action runner
-  // (which has no 'edit' handler and a parameter-shape mismatch for 'delete').
-  const rowActionsList: string[] = Array.isArray(schema.rowActions) ? schema.rowActions : [];
-  const rowActionDefsList: any[] = Array.isArray((schema as any).rowActionDefs) ? (schema as any).rowActionDefs : [];
-  const wantEditAction = rowActionsList.includes('edit');
-  const wantDeleteAction = rowActionsList.includes('delete');
-  // Legacy `rowActions` carry a bare action NAME, which the runner cannot
-  // execute on its own — resolve each against the object's declared actions so
-  // it dispatches as a real def (and so a name that duplicates an existing
-  // `list_item` def stops rendering a dead twin of it). See
-  // `resolveLegacyRowActions` for the full rationale (objectui#2960).
-  const { defs: resolvedRowActionDefs, unresolved: customRowActions } = resolveLegacyRowActions({
-    rowActions: rowActionsList.filter(a => a !== 'edit' && a !== 'delete'),
-    rowActionDefs: rowActionDefsList,
-    objectActions: (objectSchema as any)?.actions,
-  });
-  // Honor the object's resolved CRUD affordance: the ADR-0103 lifecycle bucket
-  // (`managedBy`), the `userActions.edit`/`delete` override — explicit `false`
-  // opts out of the generic row Edit/Delete (e.g. sys_environment ships a
-  // dedicated Rename + cascade-Delete instead, and the generic entries would
-  // duplicate them) — and [#3720] the server's effective API operation set, so
-  // the row kebab never offers an update/delete the server would reject.
-  // `operations` above only says whether the CONSUMER wired the affordance; it
-  // is not a permission grant, which is why the object verdict is ANDed here
-  // rather than assumed to have been applied upstream.
-  // [#4096] …and neither is `apiOperations`, which describes the OBJECT, not
-  // the caller — so the principal's own `allowEdit` / `allowDelete` is ANDed on
-  // top, matching the toolbar and the record header on the very same screen.
-  const { canEdit, canDelete, objectCanDelete, editPredicates, deletePredicates } = resolveRowCrudAffordances({
-    operationsUpdate: operations?.update,
-    operationsDelete: operations?.delete,
-    wantEditAction,
-    wantDeleteAction,
-    hasOnEdit: !!onEdit,
-    hasOnDelete: !!onDelete,
-    managedBy: (objectSchema as any)?.managedBy,
-    userActions: (objectSchema as any)?.userActions,
-    effectiveApiOperations: effectiveApiOps,
-    permissionUpdate,
-    permissionDelete,
-  });
+  // `operations`, the row-action lists and the row CRUD affordance verdict are
+  // resolved further up, next to the permission reads they AND with — this
+  // render path sits BELOW the error / loading early returns, and [#4296] the
+  // record-level verdict they feed is fetched by a hook, which may not sit
+  // behind a conditional return.
   const hasActions = !!(operations && (operations.update || operations.delete));
   const hasRowActions = customRowActions.length > 0 || resolvedRowActionDefs.length > 0 || wantEditAction || wantDeleteAction;
 
@@ -2013,8 +2047,14 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
           rowActionDefs={resolvedRowActionDefs as any[]}
           objectFields={objectSchema?.fields}
           maxInlineActions={(schema as any).maxInlineRowActions ?? 1}
-          canEdit={canEdit}
-          canDelete={canDelete}
+          // [#4296] The object verdict ANDed with THIS row's record-level one.
+          // It rides the same per-row channel the #2614 predicates ride —
+          // `planRowActionMenu` conjoins `canEdit`/`canDelete` with
+          // `visibleWhen` in one expression, so the item and the "⋮" guard read
+          // one decision (#3562) and a hidden row grows no empty trigger. An
+          // unanswered row keeps the object verdict, i.e. today's rendering.
+          canEdit={resolveRowRecordCrudAffordance(canEdit, recordVerdict(rowRecordId(row), 'update'))}
+          canDelete={resolveRowRecordCrudAffordance(canDelete, recordVerdict(rowRecordId(row), 'delete'))}
           editPredicates={editPredicates}
           deletePredicates={deletePredicates}
           onEdit={onEdit}
