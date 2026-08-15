@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation, useFilterScope, ElementDataSourceGate, type ElementDataSourceMapping } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField } from '@object-ui/core';
+import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField, type ChartSegmentClickEvent } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -249,7 +249,7 @@ export const ObjectChart = (props: any) => {
   // Optional host-owned segment click. When provided (e.g. a dataset widget
   // that owns precise drill-through), it takes over the chart click and the
   // widget's own object-drill drawer is suppressed.
-  const onSegmentClick: ((ev: { category?: string; series?: string; value?: number }) => void) | undefined = props.onSegmentClick;
+  const onSegmentClick: ((ev: ChartSegmentClickEvent) => void) | undefined = props.onSegmentClick;
   const context = useContext(SchemaRendererContext);
   const dataSource = props.dataSource || context?.dataSource;
   // Host-authenticated fetch for the metadata probes below (#4114). Read from
@@ -908,7 +908,7 @@ export const ObjectChart = (props: any) => {
   }
 
   const internalChartClick = isDrillEnabled(drillDown)
-    ? (ev: { category?: string; series?: string; value?: number }) => {
+    ? (ev: ChartSegmentClickEvent) => {
         const labelCategory = ev.category;
         const rawCategory = labelCategory != null && labelToRaw.has(String(labelCategory))
           ? labelToRaw.get(String(labelCategory))

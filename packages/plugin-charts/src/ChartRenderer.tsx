@@ -2,6 +2,7 @@
 import React, { Suspense } from 'react';
 import { Skeleton } from '@object-ui/components';
 import type { ChartContainerConfig } from './ChartContainerImpl';
+import type { ChartSegmentClickEvent } from '@object-ui/core';
 import { normalizeChartSchema } from './normalizeChartSchema';
 
 // 🚀 Lazy load the implementation files
@@ -95,7 +96,7 @@ export interface ChartRendererProps {
     isAnimationActive?: boolean;
   };
   /** Drill-down click handler — wired by ObjectChart when drillDown is enabled. */
-  onChartClick?: (event: { category?: string; series?: string; value?: number }) => void;
+  onChartClick?: (event: ChartSegmentClickEvent) => void;
 }
 
 /**

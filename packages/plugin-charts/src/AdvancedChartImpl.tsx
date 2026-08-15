@@ -49,7 +49,7 @@ import {
 } from './ChartContainerImpl';
 import { mapScatterClick, mapTreemapClick, mapSankeyClick } from './chartDrillEvents';
 import { formatterFor, domainFor, ticksFor, RENDERABLE, SINGLE_VALUE_CHART_TYPES, TABULAR_CHART_TYPES, effectiveChartFamily, comboBaseFamily, type NormalizedAxis, type NormalizedSeries } from './normalizeChartSchema';
-import { buildCategoryRank } from '@object-ui/core';
+import { buildCategoryRank, chartRowBucketId, type ChartSegmentClickEvent } from '@object-ui/core';
 
 // Default color fallback for chart series
 const DEFAULT_CHART_COLOR = 'hsl(var(--primary))';
@@ -140,10 +140,11 @@ export interface AdvancedChartImplProps {
   categoryOrder?: string[];
   /**
    * Optional drill-down click handler. Fires when a chart segment is clicked
-   * with `{ category, series, value }`. Wired for bar/horizontal-bar/line/
-   * area/pie/donut. Other chart types are no-ops in L1.
+   * with `{ category, categoryId, series, value }`. Wired for
+   * bar/horizontal-bar/line/area/pie/donut/funnel. Other chart types are
+   * no-ops in L1.
    */
-  onChartClick?: (event: { category?: string; series?: string; value?: number }) => void;
+  onChartClick?: (event: ChartSegmentClickEvent) => void;
   /**
    * Spec `ChartAxis` presentation for the category axis — `format` (tick
    * formatter), `title`, `showGridLines`. Its `field` already arrived as
@@ -300,23 +301,35 @@ function AdvancedChartImplInner({
   };
   const [isMobile, setIsMobile] = React.useState(false);
 
-  // Recharts' top-level onClick payload: { activeLabel, activePayload, ... }
+  // Recharts' top-level onClick payload: { activeLabel, activeTooltipIndex, … }
+  // — `MouseHandlerDataParam`, which carries an INDEX into this chart's `data`
+  // and no row of its own. So the clicked bucket's row (and with it the
+  // objectui#4508 identity) is read out of OUR OWN array rather than out of the
+  // event: nothing in the payload can be stale or copied, because none of it
+  // came from recharts.
   const handleCartesianClick = React.useCallback((payload: any) => {
     if (!onChartClick || !payload) return;
     const ap = Array.isArray(payload.activePayload) ? payload.activePayload[0] : undefined;
+    const idx = Number(payload.activeTooltipIndex ?? payload.activeIndex);
+    const row = Number.isInteger(idx) && idx >= 0 ? data[idx] : undefined;
     onChartClick({
       category: payload.activeLabel != null ? String(payload.activeLabel) : undefined,
+      categoryId: chartRowBucketId(row),
       series: ap?.dataKey ? String(ap.dataKey) : undefined,
       value: typeof ap?.value === 'number' ? ap.value : undefined,
     });
-  }, [onChartClick]);
+  }, [onChartClick, data]);
 
+  // A pie sector's `payload` is a SPREAD COPY of the data row (recharts builds
+  // it as `{...entry, ...cellProps}`), which is precisely why the bucket
+  // identity is an ordinary enumerable property — see `CHART_BUCKET_ID_KEY`.
   const handlePieClick = React.useCallback((entry: any) => {
     if (!onChartClick || !entry) return;
     const cat = entry.payload?.[xAxisKey];
     const dk = series[0]?.dataKey || 'value';
     onChartClick({
       category: cat != null ? String(cat) : undefined,
+      categoryId: chartRowBucketId(entry.payload),
       series: dk,
       value: typeof entry.payload?.[dk] === 'number' ? entry.payload[dk] : undefined,
     });
@@ -710,6 +723,7 @@ function AdvancedChartImplInner({
           if (!entry) return;
           onChartClick({
             category: entry?.payload?.[xAxisKey] ?? entry?.[xAxisKey],
+            categoryId: chartRowBucketId(entry?.payload) ?? chartRowBucketId(entry),
             value: entry?.payload?.[dataKey] ?? entry?.[dataKey],
           });
         }

@@ -58,6 +58,7 @@ import {
   pivotDimensionValue,
   pivotCellKey,
   compareToTrendLabelKey,
+  type ChartSegmentClickEvent,
   type ChartSeriesBinding,
   type CompareToConfig,
   type DatasetResultField,
@@ -1433,8 +1434,16 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
 
   // Map a clicked chart segment back to its dataset row, then drill through to
   // the underlying records — same governed path the table/pivot rows use.
-  const handleChartDrill = (ev: { category?: string; series?: string; value?: number }) => {
-    const idx = findChartSeriesRow(chartRows, dimensions, values, ev?.category, ev?.series, { nullCategoryLabel });
+  const handleChartDrill = (ev: ChartSegmentClickEvent) => {
+    // `categoryId` is the clicked bucket's IDENTITY (objectui#4508) and is
+    // forwarded whenever the renderer could read one: it is what separates two
+    // bars painting the same axis text — a stored `'(None)'` beside the null
+    // bucket — so each drills to the rows its own bar was drawn from. Absent,
+    // the category text identified the bucket on its own and the lookup says so.
+    const idx = findChartSeriesRow(chartRows, dimensions, values, ev?.category, ev?.series, {
+      nullCategoryLabel,
+      bucketId: ev?.categoryId,
+    });
     if (idx < 0) return;
     // `series` is a real (second) dimension value only when pivoted; otherwise
     // it's the measure name — omit it from the drawer title.
