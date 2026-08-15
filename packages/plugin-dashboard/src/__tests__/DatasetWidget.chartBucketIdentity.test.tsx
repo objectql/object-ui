@@ -148,7 +148,17 @@ describe('DatasetWidget — a bucket drills to ITS OWN rows (objectui#4508)', ()
     expect(chartRows().map((r) => r.owner_name)).toEqual([NULL_CATEGORY_LABEL, NULL_CATEGORY_LABEL]);
 
     clickBar(0);
-    await waitFor(() => expect(drillFilters.length).toBe(1));
+    // Bound to the drill having opened AT LEAST once (objectui#4706/#4718), not
+    // to an exact cumulative render count: `drillFilters` only ever grows, and
+    // a late, unrelated `setMeta` from the dimension-metadata fetch (issued by
+    // `useDatasetDimensionMeta`, resolving independently of the click) can land
+    // a SECOND identical render after this one click — an overshoot `waitFor`
+    // can never recover from once it happens, since the array never shrinks.
+    // The case is about WHICH records the drawer filters on, not how many
+    // times React chose to render it, so `lastFilter()` — the content check
+    // below — is what carries the assertion; the count only needs to confirm
+    // the drawer opened at all.
+    await waitFor(() => expect(drillFilters.length).toBeGreaterThan(0));
     expect(lastFilter()).toEqual({ owner_id: 'user-literal' });
 
     clickBar(1);
