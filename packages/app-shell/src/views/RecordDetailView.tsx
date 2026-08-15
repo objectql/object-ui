@@ -15,7 +15,7 @@ import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
 import { ActionProvider, useObjectTranslation, useObjectLabel, useActionTextLocalizer, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, InlineEditProvider, useGlobalUndo, useDataInvalidation, notifyDataChanged, useRowPredicate } from '@object-ui/react';
-import { buildExpandFields, userActionPredicates } from '@object-ui/core';
+import { buildExpandFields, resolveRecordIdParamSeed, userActionPredicates } from '@object-ui/core';
 import { toast } from 'sonner';
 import { useRecordPresence, PresenceAvatars } from '@object-ui/collaboration';
 import { Database, ChevronLeft } from 'lucide-react';
@@ -615,10 +615,31 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         const body: Record<string, any> = wrap ? { [wrap]: params } : { ...params };
 
         if (action.recordIdParam) {
-          const rowField = (action as any).recordIdField || 'id';
-          const rowValue = rowRecord?.[rowField] ?? (action as any).recordId
-            ?? (!action.objectName || action.objectName === objectName ? (pageRecord as any)?.[rowField] : undefined);
-          if (rowValue != null) body[action.recordIdParam] = rowValue;
+          const rowField = action.recordIdField || 'id';
+          // This site has two sources resolveRecordIdParamSeed doesn't know
+          // about — a literal `recordId` override (not a declared ActionDef
+          // field; nothing in this repo's metadata sets it today, hence the
+          // cast) and the same page-record fallback `interpolationRecord`
+          // above uses for `record_header` actions dispatched with no
+          // `rowRecord`. Preserve that priority (row -> override ->
+          // page record) and let the helper decide — and word — the
+          // refusal only once every source has been tried, instead of the
+          // silent drop this call site used to fall back to
+          // (objectstack#8018, objectui#4669).
+          const recordIdOverride = (action as { recordId?: unknown }).recordId;
+          const rowHasValue = !!rowRecord && rowRecord[rowField] != null;
+          if (!rowHasValue && recordIdOverride != null) {
+            body[action.recordIdParam] = recordIdOverride;
+          } else {
+            const seedRecord: Record<string, any> | undefined = rowHasValue
+              ? rowRecord
+              : ((!action.objectName || action.objectName === objectName
+                  ? (pageRecord as Record<string, any> | undefined)
+                  : undefined) ?? rowRecord);
+            const seed = resolveRecordIdParamSeed(action, seedRecord);
+            if (seed.error) return { success: false, error: seed.error };
+            if (seed.value !== undefined) body[action.recordIdParam] = seed.value;
+          }
         }
 
         // better-auth org endpoints resolve the session's active org; pass it
