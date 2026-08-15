@@ -911,7 +911,8 @@ function staticHead(argument) {
 // ── the analysis ─────────────────────────────────────────────────────────────
 
 /**
- * @returns {{ findings: Array, counters: Record<string, number>, enKeyCount: number }}
+ * @returns {{ findings: Array, counters: Record<string, number>, enKeyCount: number,
+ *   referencedKeys: Set<string>, referencedBranches: Set<string>, dynamicHeads: Set<string> }}
  */
 export function analyze(root) {
   const { leaves, branches, values } = collectEnKeys(root);
@@ -927,6 +928,21 @@ export function analyze(root) {
   const externallyFilled = new Map(
     EXTERNALLY_INTERPOLATED_HOLES.map((entry) => [entry.key, new Set(entry.holes)]),
   );
+
+  // Reverse-sweep bookkeeping (objectui#4658): every literal key a PACK call
+  // site asks for (`referencedKeys` — plural suffixes included, so a base key
+  // that resolves through `_one`/`_other` marks the suffixed leaf as live
+  // too), every branch consumed wholesale via `returnObjects: true`
+  // (`referencedBranches` — every leaf under it is live), and the static head
+  // of every dynamic/template key (`dynamicHeads` — any leaf sharing that
+  // prefix is a possible runtime target, so it counts as live). Populated by
+  // this SAME walk, not a second parse, so the two directions of "does this
+  // key have a call site" can never drift apart from each other. Unused by
+  // this gate's own findings/counters; `scripts/check-i18n-dead-keys.mjs` is
+  // the consumer.
+  const referencedKeys = new Set();
+  const referencedBranches = new Set();
+  const dynamicHeads = new Set();
 
   const findings = [];
   const counters = {
@@ -1069,6 +1085,13 @@ export function analyze(root) {
             counters.literalKeys += 1;
             if (resolvesLeaf(key) || (returnsObjects && branches.has(key))) counters.resolvedKeys += 1;
             else findings.push({ reason: 'missing-key', ...at, detail: key });
+            // Reverse-sweep bookkeeping — see the comment where these Sets are
+            // declared. Recorded for every literal key regardless of whether it
+            // resolves: a typo'd key referencing nothing in `en` cannot mark any
+            // pack leaf live anyway, so there is nothing to guard here.
+            referencedKeys.add(key);
+            for (const suffix of PLURAL_SUFFIXES) referencedKeys.add(key + suffix);
+            if (returnsObjects && branches.has(key)) referencedBranches.add(key);
           }
 
           // objectui#3810 — the inline default is dead code the moment the key
@@ -1170,6 +1193,11 @@ export function analyze(root) {
             if (head && !headMatches(head)) {
               findings.push({ reason: 'missing-prefix', ...at, detail: head });
             }
+            // Reverse-sweep bookkeeping: a leaf sharing this prefix is a
+            // possible runtime target of the substitution, so it is live —
+            // recorded even when `head` matches nothing today, which is
+            // harmless (nothing in `en` starts with it either).
+            if (head) dynamicHeads.add(head);
           }
         }
       }
@@ -1178,7 +1206,7 @@ export function analyze(root) {
     visit(source);
   }
 
-  return { findings, counters, enKeyCount: leaves.size };
+  return { findings, counters, enKeyCount: leaves.size, referencedKeys, referencedBranches, dynamicHeads };
 }
 
 // ── baseline ─────────────────────────────────────────────────────────────────
