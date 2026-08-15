@@ -266,6 +266,11 @@ describe('DatasetWidget dotted-path dimension label resolution (objectui#4053)',
 
     await waitFor(() => expect(categoriesOf('bogus')).toEqual(['education']));
     // Only the base object was ever asked for.
-    expect(requested).toEqual(['crm_opportunity']);
+    //
+    // Bare (objectui#4487): `bogus` never resolves — the raw value renders BY
+    // IDENTITY regardless of whether the base-object read has even been
+    // issued yet, so the category wait above is only incidentally ordered
+    // before the read. Wait on `requested` itself, not on the category.
+    await waitFor(() => expect(requested).toEqual(['crm_opportunity']));
   });
 });

@@ -204,7 +204,11 @@ describe('DatasetWidget dotted-dimension labels on table / pivot (objectui#4263,
     );
 
     await waitFor(() => expect(firstRowCells()[0]).toBe('Education'));
-    expect(requested).toEqual(['crm_opportunity']);
+    // Bare (objectui#4487): the LOCAL cell renders BY IDENTITY — it does not
+    // depend on the metadata read having resolved, or even having been issued
+    // yet — so the two are only incidentally ordered. Wait on `requested`
+    // itself, not on the cell that happens to precede it.
+    await waitFor(() => expect(requested).toEqual(['crm_opportunity']));
   });
 
   it('resolves BOTH the row and the column dimension of a dotted pivot, keeping server totals aligned', async () => {
