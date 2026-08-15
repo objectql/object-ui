@@ -27,7 +27,6 @@ export const AccordionItemSchema = z.object({
   title: z.string().describe('Accordion item title'),
   content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).describe('Accordion item content'),
   disabled: z.boolean().optional().describe('Whether item is disabled'),
-  icon: z.string().optional().describe('Item icon'),
 });
 
 /**
