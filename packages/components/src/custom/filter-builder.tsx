@@ -211,6 +211,48 @@ export const FILTER_BUILDER_OPERATORS = defaultOperators.map(o => o.value)
 /** An operator id the FilterBuilder can render. */
 export type FilterBuilderOperator = (typeof defaultOperators)[number]['value']
 
+/**
+ * Operator ids for which this builder renders NO value input — so "no value"
+ * is the row's FINISHED state, not an unfinished one (objectui#4744).
+ *
+ * This is the source of truth for that distinction, and it lives here because
+ * this component is the thing that decides it: `needsValueInput` below is
+ * defined as the complement of this set, so the two cannot say different
+ * things. Every consumer that has to tell a complete value-less row from a
+ * half-filled one reads it FROM here rather than restating it:
+ *
+ *   - `plugin-list`'s `convertFilterGroupToAST` — what the live grid QUERIES;
+ *   - `app-shell`'s `foldFilterGroupToSpecRules` — what a saved view PERSISTS
+ *     (its `VALUELESS_FILTER_OPERATORS` is this set plus the canonical spec
+ *     spellings, which only that layer sees).
+ *
+ * Placement is forced by the dependency graph — `app-shell` depends on
+ * `plugin-list` depends on this package, so this is the only module all three
+ * can reach — and it is also where the set belongs on the merits: the fact it
+ * states is a fact about what this dropdown draws.
+ *
+ * Why it exists at all: each consumer used to keep its own copy, and the
+ * live-grid copy listed only `isEmpty`/`isNotEmpty`. A fresh row is seeded
+ * `{ operator: 'equals', value: '' }` and the operator dropdown preserves
+ * `value`, so picking **Is null** as the first action left `value: ''` — the
+ * grid read that as an unfinished row, dropped it, and applied NO filter at
+ * all while the panel showed one. Silent, and every record came back.
+ *
+ * `exists` / `notExists` stay listed even though `OPT_IN_OPERATORS` withholds
+ * them from most consumers (objectui#4736): the builder still draws them
+ * value-less for `FilterConditionField`, which is exactly what this set
+ * describes. Whether a consumer can EXPRESS an operator is a separate
+ * question, answered by `OPT_IN_OPERATORS` and by each consumer's parity test.
+ */
+export const VALUELESS_FILTER_BUILDER_OPERATORS: ReadonlySet<string> = new Set([
+  "isEmpty",
+  "isNotEmpty",
+  "isNull",
+  "isNotNull",
+  "exists",
+  "notExists",
+])
+
 const useSafeFilterTranslation = createSafeTranslation(
   {
     'filterBuilder.where': 'Where',
@@ -403,8 +445,11 @@ function FilterBuilder({
     return operatorsForFieldType(field?.type, extraOperators)
   }
 
+  // The complement of the exported set, never a second literal beside it:
+  // that set's whole job is to let other layers know which rows this builder
+  // leaves value-less, and a hand-kept copy here is how they drifted apart.
   const needsValueInput = (operator: string) => {
-    return !["isEmpty", "isNotEmpty", "isNull", "isNotNull", "exists", "notExists"].includes(operator)
+    return !VALUELESS_FILTER_BUILDER_OPERATORS.has(operator)
   }
 
   const getInputType = (fieldValue: string) => {

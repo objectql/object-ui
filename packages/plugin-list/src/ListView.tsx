@@ -11,6 +11,7 @@ import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuild
 import type { SortItem } from '@object-ui/components';
 import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, ShieldAlert, RotateCw, Loader2, icons, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
+import { VALUELESS_FILTER_BUILDER_OPERATORS } from '@object-ui/components';
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
 import { ViewSettingsPopover } from './components/ViewSettingsPopover';
 import { UserFilters } from './UserFilters';
@@ -411,8 +412,15 @@ export function convertFilterGroupToAST(group: FilterGroup): any[] {
 
   const conditions = group.conditions
     .filter(c => {
-      // isEmpty/isNotEmpty carry no value input — always keep them.
-      if (c.operator === 'isEmpty' || c.operator === 'isNotEmpty') return true;
+      // A value-less OPERATOR is complete without a value — the builder draws
+      // no value input for it, so "no value" is the row's finished state
+      // (objectui#4744). Read from `@object-ui/components`, which is the thing
+      // that decides it; the two-operator literal that used to stand here
+      // listed `isEmpty`/`isNotEmpty` only, so a fresh `Is null` row — seeded
+      // `value: ''` by `addCondition`, and left that way because the operator
+      // dropdown preserves `value` — was dropped as unfinished. The grid then
+      // applied NO filter while the panel showed one.
+      if (VALUELESS_FILTER_BUILDER_OPERATORS.has(c.operator)) return true;
       // Skip incomplete rows (no value entered yet). Emitting `[field, op, '']`
       // would be a silently-wrong filter (matches only empty) rather than
       // "no filter", excluding all rows. Matches groupToCondition in
@@ -423,6 +431,17 @@ export function convertFilterGroupToAST(group: FilterGroup): any[] {
     .map(c => {
       if (c.operator === 'isEmpty') return [c.field, '=', null];
       if (c.operator === 'isNotEmpty') return [c.field, '!=', null];
+      // A value-less row's third slot is emitted as `null` rather than as
+      // whatever `c.value` still holds: the operator dropdown PRESERVES the
+      // previous operator's value, so an `Is null` row can carry a leftover
+      // `'abc'` the user can no longer see or edit. The spec's own lowering
+      // (`convertComparison`, `@objectstack/spec/data`) ignores the third slot
+      // for `isnull`/`isnotnull` — it emits `{ [field]: { $null: true|false } }`
+      // — so `null` is inert on the wire and keeps the emission a function of
+      // the operator alone. Same shape the `isEmpty` arms above already use.
+      if (VALUELESS_FILTER_BUILDER_OPERATORS.has(c.operator)) {
+        return [c.field, mapOperator(c.operator), null];
+      }
       return [c.field, mapOperator(c.operator), c.value];
     });
 

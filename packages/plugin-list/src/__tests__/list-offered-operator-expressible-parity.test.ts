@@ -61,7 +61,11 @@ import {
   ViewFilterRuleSchema,
   normalizeFilterOperator,
 } from '@objectstack/spec/ui';
-import { FILTER_BUILDER_OPERATORS, operatorsForFieldType } from '@object-ui/components';
+import {
+  FILTER_BUILDER_OPERATORS,
+  VALUELESS_FILTER_BUILDER_OPERATORS,
+  operatorsForFieldType,
+} from '@object-ui/components';
 import {
   LIST_VIEW_EXTRA_OPERATORS,
   convertFilterGroupToAST,
@@ -153,8 +157,14 @@ function liveGridResult(operator: string): { ok: boolean; emitted: unknown } {
  * the spec's own map, then hand the rule to the schema the server validates
  * with. `value` is included exactly when the operator takes one, matching the
  * fold's `VALUELESS_FILTER_OPERATORS` treatment.
+ *
+ * That "which operators take a value" used to be a fourth hand-written copy of
+ * the same list, sitting one import away from the component that decides it.
+ * It reads the shared set now (objectui#4744) — a mirror of the fold that
+ * disagreed with the fold about which rows are complete would be measuring the
+ * wrong thing while looking right.
  */
-const VALUELESS = new Set(['isEmpty', 'isNotEmpty', 'isNull', 'isNotNull', 'exists', 'notExists']);
+const VALUELESS = VALUELESS_FILTER_BUILDER_OPERATORS;
 
 function savedViewResult(operator: string): { ok: boolean; canonical: string } {
   const canonical = String(normalizeFilterOperator(operator));
