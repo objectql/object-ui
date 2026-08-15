@@ -44,7 +44,7 @@ export function ForgotPasswordPage() {
             defaultValue: 'Check your email',
           }),
           successDescription: t('auth.forgotPassword.successDescription', {
-            defaultValue: "We've sent a password reset link to {{email}}. Please check your inbox.",
+            defaultValue: "We've sent a password reset link to {email}. Please check your inbox.",
           }),
           backToSignInText: t('auth.forgotPassword.backToSignInText', {
             defaultValue: 'Back to sign in',

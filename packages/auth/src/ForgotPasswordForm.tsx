@@ -178,7 +178,7 @@ export function ForgotPasswordForm({
     successTitle: labels.successTitle ?? 'Check your email',
     successDescription:
       labels.successDescription ??
-      "We've sent a password reset link to {{email}}. Please check your inbox.",
+      "We've sent a password reset link to {email}. Please check your inbox.",
     backToSignInText: labels.backToSignInText ?? 'Back to sign in',
     rememberPasswordText: labels.rememberPasswordText ?? 'Remember your password?',
     signInText: labels.signInText ?? 'Sign in',
@@ -283,8 +283,8 @@ export function ForgotPasswordForm({
   }
 
   if (submitted) {
-    const successMsg = l.successDescription.includes('{{email}}')
-      ? l.successDescription.replace('{{email}}', email)
+    const successMsg = l.successDescription.includes('{email}')
+      ? l.successDescription.replace('{email}', email)
       : `${l.successDescription} ${email}`;
     return (
       <div className="mx-auto flex w-full flex-col justify-center space-y-7 sm:w-[400px]">

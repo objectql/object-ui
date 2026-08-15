@@ -368,34 +368,24 @@ export const RESERVED_OPTION_NAMES = new Set([
  *
  * i18next leaves an unmatched `{{name}}` in the output verbatim, which is what
  * makes a second substitution stage possible at all: the string travels through
- * `t()` with its hole intact and the component fills it afterwards. That is a
- * deliberate design here, not an oversight — the sister label three lines away
- * in `apps/console/src/pages/auth/ForgotPasswordPage.tsx` spells the same
- * pattern with SINGLE braces (`Resend in {seconds}s`) precisely to stay out of
- * i18next's way, and the inconsistency between the two spellings is filed as
- * objectui#4135.
+ * `t()` with its hole intact and the component fills it afterwards. That used
+ * to require this registry, because a call-site-filled `{{hole}}` is otherwise
+ * indistinguishable from an i18next hole somebody forgot to pass an argument
+ * for — `auth.forgotPassword.successDescription` was the one entry, exempted
+ * from the `unfilled` check while `ForgotPasswordForm.tsx` filled it downstream.
  *
- * The listed hole names are removed from the hole set, so the `unfilled`
- * direction stays silent — and the `inert` direction keeps judging them, which
- * is the direction that matters here: passing `email` to `t()` would let
- * i18next consume the hole, `ForgotPasswordForm`'s `includes('{{email}}')`
- * guard would then miss, and its fallback branch would append the address a
- * SECOND time. So for these keys the argument must not be passed, and the gate
- * still says so.
+ * objectui#4135's 2026-08-11 maintainer ruling retired that entry by fixing the
+ * ambiguity at its source instead of fencing it: a hole filled downstream of
+ * `t()` is now ALWAYS spelled with SINGLE braces (`{x}`), which sits outside
+ * i18next's `{{…}}` syntax and is therefore invisible to `holesOf()` — safe by
+ * construction, no exemption needed. `resendOtpCountdownText`'s `{seconds}`
+ * (`apps/console/src/pages/auth/ForgotPasswordPage.tsx`) was already this
+ * shape; `successDescription` now matches it. The registry mechanism stays in
+ * place, empty, for the day a future case genuinely cannot avoid a
+ * double-brace hole filled outside i18next — the self-test below still checks
+ * every entry it holds, whatever that count is.
  */
-export const EXTERNALLY_INTERPOLATED_HOLES = [
-  {
-    key: 'auth.forgotPassword.successDescription',
-    holes: ['email'],
-    filledBy: 'packages/auth/src/ForgotPasswordForm.tsx',
-    marker: "successDescription.replace('{{email}}', email)",
-    reason:
-      'the label is a PROP of `ForgotPasswordForm`, which substitutes the address itself ' +
-      'once the form knows it — the call site cannot, because it renders before the user ' +
-      'has typed anything. All ten packs carry the hole, so this is the shape in every ' +
-      'language, not an en-only quirk.',
-  },
-];
+export const EXTERNALLY_INTERPOLATED_HOLES = [];
 
 /**
  * The interpolation names an `en` value has holes for (objectui#3845).
