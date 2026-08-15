@@ -1034,6 +1034,96 @@ export function viewItemObjectName(item: any): string | undefined {
 }
 
 /**
+ * The explicit discriminant {@link ObjectStackAdapter.updateViewConfig} stamps
+ * on every row it writes, and {@link ObjectStackAdapter.listViews} excludes on
+ * read (objectui#4227).
+ *
+ * `updateViewConfig` has exactly ONE production caller — `ObjectView`'s
+ * `persistViewPatch`, invoked only for the toolbar-driven density / sort /
+ * hiddenFields / columnState / inlineEdit toggle. It is never used to create
+ * or explicitly save a view — that goes through {@link
+ * ObjectStackAdapter.createView} or the ADR-0034 metadata seam
+ * (`viewEnvelope` in app-shell). So every row this method writes IS a
+ * personalization overlay, unconditionally, and the marker just records that
+ * fact rather than asking a reader to re-derive it from shape.
+ *
+ * Survives the round trip against a real server: the platform's `view`
+ * metadata schema `.strip()`s its flattened-overlay members only for
+ * VALIDATION (an unrecognised top-level key does not fail the parse), and
+ * `saveMetaItem` persists the AUTHORED body verbatim — never the stripped
+ * `parsed.data` — specifically so "Studio-only auxiliary fields" (its own
+ * words for `isPinned`/`isDefault`/`sortOrder`) ride along on the stored
+ * document. This marker rides through the same door.
+ *
+ * The value itself is org-wide, not per-user (objectstack#7494's ruling: the
+ * overlay this row belongs to is shared view SETTINGS, not a personal
+ * preference) — the marker's job is only to say WHAT KIND of row this is
+ * (a settings overlay, not an independently addressable view), never WHO it
+ * applies to.
+ */
+const VIEW_OVERLAY_MARKER = '_isOverride' as const;
+
+/**
+ * Best-effort classification of a `view` row {@link ObjectStackAdapter.listViews}
+ * reads back from BEFORE {@link VIEW_OVERLAY_MARKER} existed (objectui#4227) —
+ * a legacy personalization row written by an older `updateViewConfig` carries
+ * no discriminant at all.
+ *
+ * Measured against the actual write paths, not guessed:
+ *
+ * - A genuine saved view is always created with a NESTED `config` — the
+ *   ViewItem-record shape `{name, object, viewKind, config}` (app-shell's
+ *   `viewEnvelope`, and this adapter's own {@link ObjectStackAdapter.createView}
+ *   `fullSpec`). `viewKind` lives OUTSIDE `config` on that shape.
+ * - A personalization overlay (`updateViewConfig`) is always FLAT — its
+ *   fields sit at the top level, never wrapped in `config`.
+ *
+ * `viewKind` on a FLAT row is therefore never something objectui itself
+ * authors: the only way it gets there is the platform's own server-side
+ * identity inheritance (`viewIdentityPatch`, `@objectstack/metadata-protocol`
+ * #2555 / #7741), which fires ONLY when the write's `name` resolves against a
+ * REGISTRY-backed (i.e. system, code-defined) view. A runtime-created saved
+ * view has no registry entry to inherit from, so its row — even flattened by
+ * a later toolbar toggle — never gains a `viewKind`. So "flat body + a
+ * `viewKind`" is a reliable signature of "override on a system view", while a
+ * flat row with NO `viewKind` is left alone — exactly the shape the existing
+ * legacy-bare-spec pin relies on staying a saved view (`listViews.test.ts` —
+ * "keeps legacy bare specs without a viewKind (saved/list views)").
+ *
+ * Deliberately does NOT try to catch every legacy override: a row the
+ * CURRENT `persistViewPatch` writes (pre-marker) also copies the system
+ * view's full body — `type`/`columns`/`data` — into the override, and *that*
+ * shape is structurally indistinguishable from an untouched saved view's own
+ * body without this `viewKind` signal or the new marker above. Those rows
+ * self-heal on their NEXT write (which carries the marker); until then this
+ * predicate is a best-effort net over the realistic current-state case, not a
+ * guarantee for every possible legacy row. See the PR description for the
+ * measured readings this was decided against.
+ */
+function isLegacyOverlayRow(item: any, spec: any): boolean {
+  // A ViewItem record (nested `config`) is never an overlay row, regardless
+  // of what else it carries.
+  if (spec && spec.config && typeof spec.config === 'object') return false;
+  const viewKind = item?.viewKind ?? spec?.viewKind;
+  // 'form' rows are already dropped upstream by the FORM_FAMILY filter before
+  // this runs; a bare 'list' here is what a system-view override looks like.
+  return viewKind === 'list';
+}
+
+/**
+ * Whether a `view` row {@link ObjectStackAdapter.listViews} enumerated is a
+ * personalization overlay rather than a saved view — the marker (new writes)
+ * or the best-effort legacy shape (pre-marker writes). Both layers are
+ * needed: excluding only the marker would leave every row written before
+ * this fix still masquerading as a saved view (objectui#4227).
+ */
+function isPersonalizationOverlayRow(item: any, spec: any): boolean {
+  if (item?.[VIEW_OVERLAY_MARKER] === true) return true;
+  if (spec?.[VIEW_OVERLAY_MARKER] === true) return true;
+  return isLegacyOverlayRow(item, spec);
+}
+
+/**
  * Unwrap a `?state=draft` view read into its bare body, or `null` when there
  * is nothing pending (#4139).
  *
@@ -3199,17 +3289,22 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   }
 
   /**
-   * Persist a view definition for an object.
+   * Persist a per-view PERSONALIZATION OVERLAY for an object — density,
+   * column widths, sort, hidden columns, inline edit. Symmetric counterpart
+   * to {@link getView}: writes the row to the server metadata store via
+   * `client.meta.saveItem`, then invalidates the matching cache entry so the
+   * next {@link getView} reflects the new payload. Returns the persisted item
+   * when the server echoes it, otherwise undefined.
    *
-   * Symmetric counterpart to {@link getView}: writes the view to the
-   * server metadata store via `client.meta.saveItem`, then invalidates
-   * the matching cache entry so the next {@link getView} reflects the
-   * new payload. Returns the persisted item when the server echoes it,
-   * otherwise undefined.
-   *
-   * Used by ObjectView for "live" toolbar persistence (density,
-   * column widths, sort, etc.) and by the View Config Panel for
-   * explicit saves.
+   * Called from exactly ONE production site — `ObjectView`'s
+   * `persistViewPatch`, for the toolbar-driven toggle. It is NOT the explicit
+   * "create/save a view" path (that is {@link createView} / the ADR-0034
+   * metadata seam via app-shell's `viewEnvelope`), and every row landing here
+   * is therefore an overlay, unconditionally — see {@link VIEW_OVERLAY_MARKER}
+   * for why that lets this method stamp the discriminant unconditionally too
+   * (objectui#4227). Per objectstack#7494's ruling, the overlay this writes is
+   * ORG-WIDE shared view settings, not a per-user preference — a true
+   * per-user scope is a parked v18 direction on the platform side.
    *
    * @param objectName - Object name (e.g. 'lead')
    * @param viewId - View identifier (e.g. 'all_leads')
@@ -3225,8 +3320,17 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     // `type='view'` (NOT `type=<objectName>` — that was a pre-overlay
     // misuse that hit `/api/v1/meta/<objectName>/<viewId>`, which the
     // server never wired). The view's `data.object` field is what
-    // associates it back to the object on read.
-    const merged = { ...(config || {}), object: (config as any)?.object || objectName, name: viewId };
+    // associates it back to the object on read. `VIEW_OVERLAY_MARKER` is
+    // stamped LAST, alongside `object`/`name`, so nothing in `config` can
+    // shadow it (objectui#4227) — this is what lets `listViews()` exclude
+    // the row instead of `savedViews.find` matching it and presenting a
+    // system view as user-created/mutable.
+    const merged = {
+      ...(config || {}),
+      object: (config as any)?.object || objectName,
+      name: viewId,
+      [VIEW_OVERLAY_MARKER]: true,
+    };
     const result: any = await this.client.meta.saveItem(
       'view',
       viewId,
@@ -3289,7 +3393,15 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         const spec = v.list ?? v;
         if (viewItemObjectName(v) !== objectName) return false;
         const viewKind = v.viewKind ?? spec?.viewKind;
-        return !(viewKind && FORM_FAMILY.has(viewKind));
+        if (viewKind && FORM_FAMILY.has(viewKind)) return false;
+        // Personalization overlays (density/sort/hiddenFields/columnState/
+        // inlineEdit — written by `updateViewConfig`) are NOT saved views:
+        // returning one here is what let a system view's override row read
+        // back as user-created and gain Rename/Delete/Set-default/Pin
+        // (objectui#4227). Marked rows and the best-effort legacy shape are
+        // both excluded — see {@link isPersonalizationOverlayRow}.
+        if (isPersonalizationOverlayRow(v, spec)) return false;
+        return true;
       }).map((v: any) => {
         const spec = v.list ?? v;
         // Preserve the draft provenance flag so the switcher can badge an

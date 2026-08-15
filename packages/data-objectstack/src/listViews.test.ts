@@ -103,6 +103,68 @@ describe('ObjectStackDataSource.listViews', () => {
     expect(views.map((v: any) => v.name).sort()).toEqual(['saved_grid', 'wrapped_grid']);
   });
 
+  // ── objectui#4227 — a personalization override must never read back as a
+  //    saved view (which is what let a system view gain Rename/Delete/
+  //    Set-default/Pin just because someone toggled its density). ──────────
+  describe('excludes personalization overlays (objectui#4227)', () => {
+    it('excludes a row carrying the explicit write-side marker', async () => {
+      // Exactly what `updateViewConfig` writes today: the marker plus a full
+      // copy of the system view's body (`persistViewPatch` spreads the whole
+      // active tab into the write).
+      const override = {
+        name: 'crm_lead.default', object: 'crm_lead', type: 'grid',
+        data: { provider: 'object', object: 'crm_lead' }, columns: ['name'],
+        rowHeight: 40, _isOverride: true,
+      };
+      const ds = makeDS([override]);
+      const views = await ds.listViews('crm_lead');
+      expect(views).toEqual([]);
+    });
+
+    it('excludes a legacy (unmarked) override whose viewKind was backfilled server-side', async () => {
+      // #7741/#2555: the platform inherits `viewKind`/`object`/`label` from
+      // the REGISTRY baseline for a personalization PUT against a real
+      // system view — so a pre-marker row targeting `crm_lead.default`
+      // still carries `viewKind: 'list'` even though objectui never sent it.
+      const legacyOverride = {
+        name: 'crm_lead.default', object: 'crm_lead', viewKind: 'list',
+        label: 'All', type: 'grid', rowHeight: 40,
+      };
+      const ds = makeDS([legacyOverride]);
+      const views = await ds.listViews('crm_lead');
+      expect(views).toEqual([]);
+    });
+
+    it('a marked row is excluded even without the legacy viewKind signal', async () => {
+      const minimal = { name: 'crm_lead.default', object: 'crm_lead', rowHeight: 40, _isOverride: true };
+      const ds = makeDS([minimal]);
+      expect(await ds.listViews('crm_lead')).toEqual([]);
+    });
+
+    it('does NOT exclude a genuine ViewItem-record saved view, even one named like a system view', async () => {
+      // The nested `config` wrapper is only ever produced by an explicit
+      // create/save path (createView / the ADR-0034 seam) — never by
+      // `updateViewConfig`, marker or no marker.
+      const savedRecord = {
+        name: 'crm_lead.default', object: 'crm_lead', viewKind: 'list', label: 'My Rebuild',
+        config: { type: 'grid', data: { provider: 'object', object: 'crm_lead' }, columns: ['name'] },
+      };
+      const ds = makeDS([savedRecord]);
+      const views = await ds.listViews('crm_lead');
+      expect(views.map((v: any) => v.name)).toEqual(['crm_lead.default']);
+    });
+
+    it('does NOT exclude a flat legacy saved view with no viewKind at all', async () => {
+      // Same fixture family as "keeps legacy bare specs without a viewKind"
+      // above, restated here to pin the boundary this predicate must respect:
+      // no `viewKind` ⇒ never treated as an override, regardless of flatness.
+      const flatSaved = { name: 'crm_lead.my_view', object: 'crm_lead', type: 'grid', columns: ['name'] };
+      const ds = makeDS([flatSaved]);
+      const views = await ds.listViews('crm_lead');
+      expect(views.map((v: any) => v.name)).toEqual(['crm_lead.my_view']);
+    });
+  });
+
   // ── #2767 draft-preview branch ───────────────────────────────────────────
   describe('previewDrafts (#2767 P2/P3)', () => {
     it('reads the draft-overlaid list in a SINGLE preview=draft request', async () => {

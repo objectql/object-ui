@@ -449,9 +449,11 @@ export function buildViewTabs({
 }): Array<Record<string, any> & { id: string }> {
     const viewList = Object.entries(definedViews || {}).map(([key, value]: [string, any]) => {
         const override = viewOverrides[key];
-        // Override wins per-key — saved overrides represent user preferences
-        // (density, column widths, etc.) that should shadow the embedded
-        // definition — but NOT over the tab's identity.
+        // Override wins per-key — saved overrides represent org-wide shared
+        // view settings (density, column widths, etc. — objectstack#7494's
+        // ruling: this store has no per-user scope, so "personal" is not an
+        // accurate description of what it persists) that should shadow the
+        // embedded definition — but NOT over the tab's identity.
         return viewEntry(key, value, override, {
             type: (override?.type) || value?.type || 'grid',
         });
@@ -992,8 +994,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
 
     // Persisted per-view config overrides (e.g. density toggle). Saved
     // separately from `objectDef.listViews` (the embedded definition) via
-    // `dataSource.updateViewConfig` and read back here so toggle preferences
-    // survive a hard reload. Keyed by viewId → partial view config to merge.
+    // `dataSource.updateViewConfig` and read back here so the toggle state
+    // survives a hard reload. Org-wide shared settings (objectstack#7494's
+    // ruling), not a per-user preference. Keyed by viewId → partial view
+    // config to merge.
     //
     // Reading strategy (batch first, per-view fallback) lives in the exported
     // `loadViewOverrides` above so it can be pinned directly — see its doc for
@@ -1697,10 +1701,13 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             // Propagate appearance/view-config properties for live preview
             rowHeight: viewDef.rowHeight ?? listSchema.rowHeight,
             densityMode: viewDef.densityMode ?? listSchema.densityMode,
-            // Hydrate persisted user preferences so they survive reload
-            // (Airtable-style per-view personal config). All four below go
-            // through the same persistViewPatch helper which debounces and
-            // batches concurrent toggles.
+            // Hydrate the persisted view settings so they survive reload
+            // (Airtable-style toolbar config — objectstack#7494's ruling:
+            // ORG-WIDE shared, not a per-user preference; a true per-user
+            // scope is a parked v18 direction, not something to fake
+            // client-side). All four below go through the same
+            // persistViewPatch helper which debounces and batches concurrent
+            // toggles.
             sort: (viewDef as any).sort ?? listSchema.sort,
             // The ONE place this view's effective filter is computed (#2890).
             // It used to be computed twice — once here as `filter` for the child
