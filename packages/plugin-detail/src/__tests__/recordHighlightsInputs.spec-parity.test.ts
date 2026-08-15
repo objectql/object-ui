@@ -66,6 +66,27 @@ const config = () => ComponentRegistry.getConfig('record:highlights');
 const inputs = () => config()?.inputs ?? [];
 const fieldsInput = () => inputs().find((i) => i.name === 'fields');
 
+/**
+ * Does the installed spec REFUSE an undeclared top-level key, or drop it in
+ * silence? (objectui#4648, measured on a GA-installed tree.)
+ *
+ * `@objectstack/spec` 17.0.0 GA closed `RecordHighlightsProps` under
+ * objectstack#4001 batch A, so an undeclared key now raises `unrecognized_keys`
+ * with a named message; the pinned `17.0.0-rc.6` still strips it silently. The
+ * VERDICT under test is identical either way — a top-level `readonly` is not an
+ * authoring surface and must not be published — but the evidence differs, and
+ * asserting the wrong one turns this file red for a reason that has nothing to
+ * do with what it guards.
+ *
+ * Probed behaviourally rather than off a version string: the strictness IS the
+ * fact this file cares about, a probe cannot go stale against a pin it never
+ * reads, and the probe key is a name no spec would ever declare.
+ */
+const specRefusesUnknownTopLevelKeys = !RecordHighlightsProps.safeParse({
+  fields: ['amount'],
+  __objectui_4648_probe__: true,
+}).success;
+
 describe('record:highlights — registry inputs vs @objectstack/spec', () => {
   it('is registered with a non-empty `inputs` surface', () => {
     expect(config()).toBeDefined();
@@ -81,11 +102,31 @@ describe('record:highlights — registry inputs vs @objectstack/spec', () => {
     expect(specTopLevelKeys()).not.toContain('readonly');
   });
 
-  it('a top-level `readonly` is silently stripped by the spec, so it must not be published', () => {
-    // The concrete harm: no throw, no diagnostic, key gone.
-    const parsed = RecordHighlightsProps.parse({ fields: ['amount'], readonly: true });
-    expect(parsed).not.toHaveProperty('readonly');
-    // …while the per-entry spelling survives, which is the one authors need.
+  it('the spec does not carry a top-level `readonly`, so it must not be published', () => {
+    // A KEY-reachability verdict: the question is whether a top-level
+    // `readonly` is an authoring surface at all, and the answer is no on both
+    // pins — the contract just says it two different ways (see
+    // `specRefusesUnknownTopLevelKeys`).
+    const parsed = RecordHighlightsProps.safeParse({ fields: ['amount'], readonly: true });
+
+    if (specRefusesUnknownTopLevelKeys) {
+      // 17.0.0 GA: a loud refusal. Asserted as an envelope — the code AND the
+      // key it names — because a bare "it failed" would also be satisfied by a
+      // rejection of `fields`, which is the half that must stay valid.
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues.map((i) => i.code)).toContain('unrecognized_keys');
+      expect(
+        parsed.error?.issues.flatMap((i) => (i as unknown as { keys?: string[] }).keys ?? []),
+      ).toContain('readonly');
+    } else {
+      // The pinned rc.6, and the concrete harm objectui#3407 was filed over:
+      // no throw, no diagnostic, key gone, author told nothing.
+      expect(parsed.success).toBe(true);
+      expect(parsed.data).not.toHaveProperty('readonly');
+    }
+
+    // …while the per-entry spelling survives on both pins, which is the one
+    // authors need and the one the `fields` description teaches.
     const perEntry = RecordHighlightsProps.parse({ fields: [{ name: 'amount', readonly: true }] });
     expect(perEntry.fields[0]).toMatchObject({ name: 'amount', readonly: true });
   });

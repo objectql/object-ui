@@ -124,6 +124,23 @@ const specSectionKeys = (): string[] =>
  */
 const RENDERER_ONLY_SECTION_KEYS = ['title', 'showBorder', 'hideEmpty'];
 
+/**
+ * Does the installed spec REFUSE an undeclared key inside a `sections[]` entry,
+ * or drop it in silence? (objectui#4648, measured on a GA-installed tree.)
+ *
+ * `@objectstack/spec` 17.0.0 GA closed the section object under
+ * objectstack#4001 batch A; the pinned `17.0.0-rc.6` strips. The verdict this
+ * file asserts is the same on both — those keys are not an authoring surface,
+ * so the `sections` description may not teach them — but the evidence differs.
+ *
+ * Probed behaviourally, on the section object specifically: strictness is per
+ * schema, so the top-level probe in the sibling `record:highlights` file says
+ * nothing about this one.
+ */
+const specRefusesUnknownSectionKeys = !RecordDetailsProps.safeParse({
+  sections: [{ label: 'Contact', fields: ['phone'], __objectui_4648_probe__: true }],
+}).success;
+
 const config = () => ComponentRegistry.getConfig('record:details');
 const inputs = () => config()?.inputs ?? [];
 const input = (name: string) => inputs().find((i) => i.name === name);
@@ -193,12 +210,12 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     expect(description).toMatch(/string/i);
   });
 
-  it('publishes no section member key the spec strips on parse', () => {
+  it('publishes no section member key the spec refuses to carry', () => {
     // The renderer honours `title` / `showBorder` / `hideEmpty` per section,
-    // but the spec's section object does not declare them, so they are dropped
-    // with no error. Documenting them here would tell authors to write keys the
-    // contract discards — the member-level twin of publishing a top-level input
-    // the props schema rejects.
+    // but the spec's section object does not declare them, so an author who
+    // writes them gets nothing back from the contract. Documenting them here
+    // would teach keys the contract does not carry — the member-level twin of
+    // publishing a top-level input the props schema rejects.
     const stripped = RENDERER_ONLY_SECTION_KEYS.filter(
       (key) => !specSectionKeys().includes(key),
     );
@@ -207,8 +224,26 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     const parsed = RecordDetailsProps.safeParse({
       sections: [{ label: 'Contact', fields: ['phone'], title: 'T', showBorder: true, hideEmpty: false }],
     });
-    expect(parsed.success).toBe(true);
-    expect(Object.keys(parsed.data?.sections?.[0] ?? {}).sort()).toEqual(['fields', 'label']);
+
+    if (specRefusesUnknownSectionKeys) {
+      // 17.0.0 GA closed the section object too (objectstack#4001 batch A), so
+      // the three arrive as a named refusal instead of vanishing. Envelope, not
+      // a bare failure: the code, and the keys it names — `label` / `fields`
+      // must NOT be among them, which a plain `success === false` cannot tell.
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues.map((i) => i.code)).toContain('unrecognized_keys');
+      const refused = parsed.error?.issues.flatMap(
+        (i) => (i as unknown as { keys?: string[] }).keys ?? [],
+      );
+      expect(refused).toEqual(expect.arrayContaining(stripped));
+      expect(refused).not.toContain('label');
+      expect(refused).not.toContain('fields');
+    } else {
+      // The pinned rc.6: dropped in silence, which is the harm this file was
+      // filed over — success receipt, section renders without them.
+      expect(parsed.success).toBe(true);
+      expect(Object.keys(parsed.data?.sections?.[0] ?? {}).sort()).toEqual(['fields', 'label']);
+    }
 
     // Word-boundary, not substring: this direction asks "does the text teach
     // this KEY", and prose legitimately contains words that merely embed one
