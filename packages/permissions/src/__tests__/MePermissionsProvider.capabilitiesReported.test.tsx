@@ -180,4 +180,54 @@ describe('objectui#4656 — absent-vs-empty systemPermissions truth table', () =
       expect(screen.getByTestId('has').textContent).toBe('true');
     });
   });
+
+  describe('the sidebar nav OR-fallback pattern needs no call-site change (objectui#4656)', () => {
+    // `UnifiedSidebar`/`AppSidebar` gate a bare `requiredPermissions` name with
+    // `hasCapabilities([perm]) || can(perm, 'read')` — not a heuristic that
+    // reads `systemPermissions` itself, so there is nothing there to migrate.
+    // This reproduces that exact expression against the real provider to show
+    // it is fixed for free: on an unreported backend `hasCapabilities` alone
+    // now opens the gate, where before this fix it fell through to the
+    // `can(perm, 'read')` object-permission check — which reads a bare
+    // capability name as an OBJECT name and denies for an authenticated
+    // session with no matching object entry (#2926 ④), stripping every
+    // bare-capability nav item on exactly the deployments this doctrine
+    // exists to protect.
+    function NavProbe({ perm }: { perm: string }) {
+      const { hasCapabilities, can } = usePermissions();
+      return <span data-testid="nav-shows">{String(hasCapabilities([perm]) || can(perm, 'read'))}</span>;
+    }
+
+    it('shows a bare-capability nav item on an UNREPORTED backend (fails open via hasCapabilities alone)', () => {
+      render(
+        <MePermissionsProvider
+          initialPermissions={{
+            authenticated: true, userId: 'u1', tenantId: 't1',
+            roles: ['org_owner'], permissionSets: ['organization_admin'],
+            // `systemPermissions` omitted — pre-ADR-0066 shape.
+            objects: {}, fields: {},
+          }}
+        >
+          <NavProbe perm="manage_metadata" />
+        </MePermissionsProvider>,
+      );
+      expect(screen.getByTestId('nav-shows').textContent).toBe('true');
+    });
+
+    it('hides a bare-capability nav item on a REPORTED-empty backend lacking it and no matching object', () => {
+      render(
+        <MePermissionsProvider
+          initialPermissions={{
+            authenticated: true, userId: 'u1', tenantId: 't1',
+            roles: ['org_owner'], permissionSets: ['organization_admin'],
+            systemPermissions: [], // real answer: holds nothing
+            objects: {}, fields: {},
+          }}
+        >
+          <NavProbe perm="manage_metadata" />
+        </MePermissionsProvider>,
+      );
+      expect(screen.getByTestId('nav-shows').textContent).toBe('false');
+    });
+  });
 });
