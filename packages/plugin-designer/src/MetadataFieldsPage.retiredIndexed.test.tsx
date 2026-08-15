@@ -114,9 +114,16 @@ async function renderPage() {
   await waitFor(() => expect(designerProps).not.toBeNull());
 }
 
+/** The body of the last PUT, exactly as it went over the wire. */
+function lastPut(): Record<string, unknown> {
+  // Indexed rather than `.at(-1)`: this package's tsconfig `lib` predates
+  // ES2022, so `Array.prototype.at` does not type-check here.
+  return puts[puts.length - 1];
+}
+
 /** The fields map exactly as it went over the wire on the last PUT. */
 function savedFields(): Record<string, Record<string, unknown>> {
-  return puts.at(-1)!.fields as Record<string, Record<string, unknown>>;
+  return lastPut().fields as Record<string, Record<string, unknown>>;
 }
 
 beforeEach(() => {
@@ -159,7 +166,7 @@ describe('objectui#4644 · the Field Designer never saves a field-level `indexed
     // surface — the thing that actually builds an index — is untouched.
     expect(fields.owner_id.label).toBe('Record owner');
     expect(fields.owner_id.helpText).toBe('Record owner.');
-    expect(puts.at(-1)!.indexes).toEqual([{ name: 'by_owner', fields: ['owner_id'] }]);
+    expect(lastPut().indexes).toEqual([{ name: 'by_owner', fields: ['owner_id'] }]);
   });
 
   it('a field the designer newly emits carries no `indexed` either', async () => {
