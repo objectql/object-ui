@@ -1,7 +1,7 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import * as React from 'react';
-import { describe, it, expect, afterEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi, type Mock } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { FlowCanvas } from './FlowCanvas';
 import { extractRegions, NODE_H } from './flow-canvas-layout';
@@ -9,6 +9,36 @@ import { predictExpandedNodeHeight } from './flow-region-metrics';
 import type { FlowProblem } from './flow-problems';
 
 afterEach(cleanup);
+
+/**
+ * objectui#4699 — every `<FlowCanvas>` mount pulls in `useFlowNodePalette` →
+ * `useActionDescriptors`, which fires a real `GET ${apiBase()}/automation/
+ * actions` on mount and aborts it (AbortController) on unmount — the engine's
+ * server-published node-palette overlay, source-controlled offline fallback
+ * `NODE_PALETTE`. This vitest `dom` project's happy-dom environment answers
+ * `fetch` with its OWN polyfill (backed by Node's `http`/`https` core client,
+ * not undici — see `happy-dom/lib/fetch/Fetch.js`'s `import HTTP from
+ * 'http'`), so with nothing listening the abort races a REAL socket and Node
+ * prints an unhandled `Error: socket hang up` / `ECONNRESET` per mount (19
+ * lines isolating this file — a different transport than the plain-fetch
+ * `ECONNREFUSED` family in #4688/#4697, which goes through undici's global
+ * fetch instead). None of the assertions below exercise the server overlay,
+ * so answer the endpoint with "engine absent" (404) — the exact degrade the
+ * hook already falls back from — instead of letting a real connection open.
+ */
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      expect(String(url)).toBe('/api/v1/automation/actions');
+      return new Response('not found', { status: 404 });
+    }),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 /**
  * ADR-0044: an un-declared cycle is surfaced INLINE on the canvas — the
