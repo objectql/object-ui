@@ -61,6 +61,7 @@ import {
   chartRowBucketId,
   CHART_BUCKET_ID_KEY,
   NULL_CATEGORY_LABEL,
+  type ChartSegmentClickEvent,
 } from './chart-series';
 import { pivotBucketId, pivotDimensionValue } from './dataset-pivot';
 
@@ -1002,5 +1003,66 @@ describe('findChartSeriesRow — the null second-dimension segment keeps its dri
         bucketId: chartRowBucketId(emitted.data[1]),
       }),
     ).toBe(1);
+  });
+});
+
+/**
+ * objectui#4682 — the click event carries the group's LABEL beside its key.
+ *
+ * `ChartSegmentClickEvent.series` is a `dataKey` {@link buildChartSeries}
+ * assigned, and {@link findChartSeriesRow} resolves it back through that same
+ * assignment. A consumer that TITLES itself from that key is reading an
+ * internal id: for every ordinary group the key is the label, but the groups
+ * whose label cannot name them key by identity, and the drawer then announced
+ * `[null]` over a segment the user saw labelled `(None)`.
+ *
+ * `seriesLabel` is a second field rather than a change to the first, and this
+ * block is why: the two strings answer different questions, and neither can do
+ * the other's job. The label is not resolvable — it is precisely what the
+ * colliding groups SHARE — and the key is not showable.
+ */
+describe('ChartSegmentClickEvent — the series key and its label (objectui#4682)', () => {
+  const RAW = [
+    { status: 'Backlog', priority: NULL_CATEGORY_LABEL, est_hours: 1 },
+    { status: 'Backlog', priority: null, est_hours: 2 },
+  ];
+  const DIMS = ['status', 'priority'];
+  const VALS = ['est_hours'];
+
+  it('the LABEL cannot do the lookup’s job — which is why the key stays the key', () => {
+    const { series } = buildChartSeries(RAW, DIMS, VALS);
+    // One label over two groups: resolving by it is not merely lossy, it is
+    // undefined — there is no row it names.
+    expect(series.map((s) => s.label)).toEqual([NULL_CATEGORY_LABEL, NULL_CATEGORY_LABEL]);
+    expect(findChartSeriesRow(RAW, DIMS, VALS, 'Backlog', NULL_CATEGORY_LABEL)).toBe(-1);
+    // The keys resolve, each to its own row.
+    expect(findChartSeriesRow(RAW, DIMS, VALS, 'Backlog', series[0].dataKey)).toBe(0);
+    expect(findChartSeriesRow(RAW, DIMS, VALS, 'Backlog', series[1].dataKey)).toBe(1);
+  });
+
+  it('carries a label a consumer may show, alongside the key it must not', () => {
+    const { series } = buildChartSeries(RAW, DIMS, VALS);
+    // The shape a renderer composes: `series` for `findChartSeriesRow`,
+    // `seriesLabel` for the title. Typed here so the field cannot be dropped
+    // from the interface without this file going red.
+    const ev: ChartSegmentClickEvent = {
+      category: 'Backlog',
+      series: series[1].dataKey,
+      seriesLabel: series[1].label,
+    };
+    expect(ev.series).toBe('[null]');
+    expect(ev.seriesLabel).toBe(NULL_CATEGORY_LABEL);
+    expect(findChartSeriesRow(RAW, DIMS, VALS, ev.category, ev.series)).toBe(1);
+    // The title's read, as the consumer performs it.
+    expect(ev.seriesLabel ?? ev.series).toBe(NULL_CATEGORY_LABEL);
+  });
+
+  it('is OPTIONAL — an event without one still titles from the key', () => {
+    // Renderers that resolve a series they have no label for (the scatter /
+    // treemap / sankey mappers) omit it, and their titles must not lose the
+    // series half.
+    const ev: ChartSegmentClickEvent = { category: 'Backlog', series: 'High' };
+    expect(ev.seriesLabel).toBeUndefined();
+    expect(ev.seriesLabel ?? ev.series).toBe('High');
   });
 });

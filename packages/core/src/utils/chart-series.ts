@@ -197,6 +197,29 @@ export interface ChartSegmentClickEvent {
   categoryId?: string;
   /** The clicked series' key — a measure, or a pivoted second-dimension value. */
   series?: string;
+  /**
+   * The clicked series' DISPLAY LABEL, when the renderer knew one
+   * (objectui#4682) — `series[].label` as {@link buildChartSeries} assigned it.
+   *
+   * {@link ChartSegmentClickEvent.series} stays the LOOKUP key and this never
+   * substitutes for it: {@link findChartSeriesRow} resolves a key through the
+   * same assignment `buildChartSeries` made, and a label cannot be resolved
+   * that way — it is not unique (that is precisely why the colliding groups key
+   * by identity instead). This field exists for what a key cannot do: be SHOWN.
+   *
+   * The two strings are equal for every ordinary group, which is why reading
+   * the key as a title went unnoticed. They part company when a group's label
+   * cannot name it — objectui#4508's collision on the series axis — and the key
+   * becomes an opaque `chartBucketId`. A drawer titled `Backlog / [null]` over
+   * a segment the user saw labelled `(None)` reads as broken DATA rather than
+   * as a broken title, which is why the label travels with the click rather
+   * than being re-derived by the consumer.
+   *
+   * Absent when the renderer resolved no series, or when the series carries no
+   * label distinct from its key; a consumer titles itself from
+   * `seriesLabel ?? series` and so is unchanged wherever it is absent.
+   */
+  seriesLabel?: string;
   /** The measure value at the click point. */
   value?: number;
 }

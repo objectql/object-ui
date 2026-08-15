@@ -203,13 +203,35 @@ describe('AdvancedChartImpl — the cartesian handler over the recharts 3 payloa
     expect(clicks[0].value).toBe(11);
   });
 
-  it('leaves the series unresolved when the shared cursor names none — it does not guess one', () => {
+  /**
+   * RESTATED, not relaxed, by objectui#4672's ruled half.
+   *
+   * This assertion was written when NO cartesian click could resolve a series
+   * under the shared cursor, and it pinned the non-guessing contract for all of
+   * them. The mark-level handler has since answered the case it was standing in
+   * for: a click that lands ON a segment now resolves its series exactly
+   * (`AdvancedChartImpl.itemSeriesClick.test.tsx`).
+   *
+   * What it pins is therefore NARROWER now, and still load-bearing — it is
+   * objectui#4672's sub-decision 3 verbatim. Re-measured rather than assumed:
+   * this case drives the chart-level handler DIRECTLY, which is precisely the
+   * shape of a click that reached no mark (empty plot area, an axis label, a
+   * gap between bars), so the assertion holds unchanged and now says the thing
+   * the ruling requires — such a click stays category-only, and "drill the
+   * whole category" was rejected as a different product question.
+   *
+   * The end-to-end form of the same contract, through a real DOM click on the
+   * plot surface, is in the sibling file; both are kept because they fail for
+   * different reasons — that one if a mark handler ever fires for a non-mark
+   * target, this one if the handler itself starts guessing.
+   */
+  it('leaves the series unresolved when a click reached no mark — it does not guess one', () => {
     const clicks: ChartSegmentClickEvent[] = [];
     renderPivoted((ev) => clicks.push(ev));
 
-    // The same click under the DEFAULT (shared/axis) cursor these charts
-    // render: recharts dispatches axis interactions with `activeDataKey`
-    // hard-coded `undefined`, so the payload names no series at all.
+    // The DEFAULT (shared/axis) cursor these charts render: recharts dispatches
+    // axis interactions with `activeDataKey` hard-coded `undefined`, so the
+    // payload names no series at all — and no mark claimed this gesture.
     seam.onClick!({
       activeCoordinate: { x: 372.5, y: 200 },
       activeDataKey: undefined,
@@ -224,9 +246,9 @@ describe('AdvancedChartImpl — the cartesian handler over the recharts 3 payloa
     expect(clicks[0].category).toBe('Done');
     // ...and the series is left open rather than filled with series[0], which
     // would drill to another group's records — a WRONG drill, worse than the
-    // dead one. Resolving this needs the clicked mark, not this payload:
-    // objectui#4672's open half.
+    // dead one.
     expect(clicks[0].series).toBeUndefined();
+    expect(clicks[0].seriesLabel).toBeUndefined();
     expect(clicks[0].value).toBeUndefined();
   });
 
@@ -287,6 +309,13 @@ describe('AdvancedChartImpl — the cartesian handler over the recharts 3 payloa
  * label but NO `activeDataKey`. That is why the pivoted drill cannot be
  * resolved from this payload, and it is the premise to re-measure when recharts
  * is upgraded.
+ *
+ * Still true and still the reason the mark-level handler exists
+ * (objectui#4672's ruled Option A): the series is resolved from the mark that
+ * was clicked, never from this payload. If a future recharts starts populating
+ * `activeDataKey` for axis interactions, this test goes red and the fallback
+ * arm above becomes reachable again — which is the outcome to notice, not to
+ * paper over.
  */
 describe('recharts 3 — what a shared-cursor cartesian click actually reports', () => {
   it('reports an index and a label, and no series key', async () => {

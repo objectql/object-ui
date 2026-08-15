@@ -133,6 +133,75 @@ const resolveClickedSeriesKey = (
   return undefined;
 };
 
+/**
+ * The DOM event behind a React synthetic one — the IDENTITY of a single user
+ * gesture (objectui#4672).
+ *
+ * Load-bearing rather than incidental: a click on a mark reaches the item-level
+ * handler and the chart-level handler as two separate callbacks, and the only
+ * thing that says they are ONE click is that both were handed the same
+ * `nativeEvent` object. Measured on recharts 3.10.1 for bar, line and area
+ * alike: identical object, item first, chart second. Matching on that object
+ * rather than on a flag-and-timeout means a stale record can never be adopted
+ * by a later click — a different gesture is a different object, always.
+ */
+const gestureIdOf = (value: unknown): unknown => {
+  if (value && typeof value === 'object' && 'nativeEvent' in value) {
+    return (value as { nativeEvent: unknown }).nativeEvent;
+  }
+  return undefined;
+};
+
+/**
+ * The gesture identity out of an ITEM handler's arguments, whose shape differs
+ * per mark family — measured, because recharts does not type two of the three.
+ *
+ *  - `Bar`:  `(item: BarRectangleItem, index: number, event)` — three args, and
+ *    the item carries the row and the value.
+ *  - `Line` / `Area`: `(curveProps, event)` — TWO args, and the first is the
+ *    rendered curve's props, not a datum. A line/area mark click therefore
+ *    knows WHICH SERIES it is (this component rendered it) and nothing about
+ *    which category, which is exactly why the series is recorded here and the
+ *    event is still composed by the chart-level handler, which does know.
+ *
+ * Scanning from the end takes the event in both shapes without branching on the
+ * mark family, and returns `undefined` for any shape carrying no event at all —
+ * an argument list this code has never seen cannot be mistaken for a gesture.
+ */
+const gestureIdOfArgs = (args: unknown[]): unknown => {
+  for (let i = args.length - 1; i >= 0; i -= 1) {
+    const id = gestureIdOf(args[i]);
+    if (id !== undefined) return id;
+  }
+  return undefined;
+};
+
+/**
+ * The DISPLAY LABEL of a plotted series, given the key a click resolved to
+ * (objectui#4682).
+ *
+ * A series key is a `dataKey` — what the renderer binds and what the drill
+ * lookup resolves back to a group. Its label is what the legend paints. For
+ * every ordinary group those are the same string, which is why reading the key
+ * as a title has passed unnoticed; they part company exactly when a group keys
+ * by its IDENTITY because its label cannot name it (objectui#4673's
+ * `pivotSeriesBuckets`, over objectui#4508's collision) — and then the drawer
+ * title reads `[null]` at a segment the user saw labelled `(None)`.
+ *
+ * Keys are unique within a chart's series (`buildChartSeries` assigns them
+ * injectively; the measure branch keys by measure name), so this lookup is
+ * unambiguous and both arms — the clicked mark and the axis fallback — resolve
+ * their label through this one path.
+ */
+const seriesLabelForKey = (
+  key: string | undefined,
+  plotted: NormalizedSeries[],
+): string | undefined => {
+  if (key == null) return undefined;
+  const found = plotted.find((s) => String(s.dataKey) === key);
+  return typeof found?.label === 'string' ? found.label : undefined;
+};
+
 export interface AdvancedChartImplProps {
   /**
    * Chart family. `combo` is renderer-local and rarely needs to be passed:
@@ -352,8 +421,55 @@ function AdvancedChartImplInner({
   // its series and its value.)
   //
   // WHICH SERIES was clicked is the one thing the payload cannot always answer
-  // — see the resolver below.
-  const handleCartesianClick = React.useCallback((payload: any) => {
+  // — see `resolveClickedSeriesKey`, and the mark handler below it.
+  //
+  // ── The clicked mark (objectui#4672's ruled Option A) ──────────────────────
+  // A chart-level cartesian click is an AXIS interaction, and recharts names no
+  // series in one: several series sit under one shared cursor at a tick, so the
+  // payload cannot say which of them the pointer was over. That left every
+  // PIVOTED drill dead, because its lookup matches on the second dimension.
+  //
+  // The mark itself knows. This component renders the series, so a `Bar` /
+  // `Line` / `Area` item handler closes over the very `dataKey` it was rendered
+  // with — the answer is statically known, not inferred from tooltip state.
+  //
+  // Both handlers fire for one click (item first, chart second — measured), so
+  // the item handler does NOT emit: it RECORDS its series, stamped with the
+  // gesture, and the chart-level handler below emits the single event. That is
+  // the double-fire answer and the additive property at once —
+  //
+  //  - exactly one `onChartClick` per gesture, because there is exactly one
+  //    emit site, rather than a second event suppressed after the fact;
+  //  - a click that lands on NO mark records nothing, so it falls through to
+  //    the axis answer this handler already gave (category + identity, series
+  //    when unambiguous) with not one byte changed. Nothing that resolved
+  //    before stops resolving; a line's `dot={false}` stroke simply gains the
+  //    exact series where the stroke itself is hit.
+  //
+  // It also has to be this way round for line and area, whose item handlers are
+  // handed the curve's props and no datum: the mark knows its series and only
+  // the chart-level payload knows the category. Each contributes what it has.
+  const clickedMark = React.useRef<{ gesture: unknown; dataKey: string } | null>(null);
+
+  const handleMarkClick = React.useCallback(
+    (s: NormalizedSeries) => (...args: unknown[]) => {
+      const gesture = gestureIdOfArgs(args);
+      if (gesture === undefined) return;
+      // Recorded EXACTLY as rendered, `''` included. The empty string is a real
+      // second-dimension group as of objectui#4673 — it draws its own bar and
+      // its key is its own label — and `''` is falsy, so any truthiness test on
+      // the way out would send `series: undefined` and hand that bar's click to
+      // whichever group an absent key happens to coerce to.
+      clickedMark.current = { gesture, dataKey: String(s.dataKey) };
+    },
+    [],
+  );
+
+  const markClickProps = onChartClick
+    ? (s: NormalizedSeries) => ({ onClick: handleMarkClick(s) })
+    : () => ({});
+
+  const handleCartesianClick = React.useCallback((payload: any, event?: any) => {
     if (!onChartClick || !payload) return;
     // A click with no active tick (the plot margins, an axis label) reports a
     // NULL index, not an absent one — and `Number(null)` is 0, which would
@@ -362,12 +478,24 @@ function AdvancedChartImplInner({
     const rawIdx = payload.activeTooltipIndex ?? payload.activeIndex;
     const idx = rawIdx == null ? Number.NaN : Number(rawIdx);
     const row = Number.isInteger(idx) && idx >= 0 ? data[idx] : undefined;
-    const clickedKey = resolveClickedSeriesKey(payload.activeDataKey, series);
+    // The mark handler runs first and only for THIS gesture; anything left over
+    // from a click that never reached here belongs to a different DOM event and
+    // can never be adopted by this one.
+    const mark = clickedMark.current;
+    clickedMark.current = null;
+    const gesture = gestureIdOf(event);
+    const onMark = mark != null && gesture !== undefined && mark.gesture === gesture;
+    const clickedKey = onMark
+      ? mark!.dataKey
+      : resolveClickedSeriesKey(payload.activeDataKey, series);
     const cell = clickedKey != null && row ? (row as Record<string, any>)[clickedKey] : undefined;
     onChartClick({
       category: payload.activeLabel != null ? String(payload.activeLabel) : undefined,
       categoryId: chartRowBucketId(row),
       series: clickedKey,
+      // The KEY stays the lookup's answer; the LABEL rides alongside it so the
+      // drill title can read what the segment actually said (objectui#4682).
+      seriesLabel: seriesLabelForKey(clickedKey, series),
       value: typeof cell === 'number' ? cell : undefined,
     });
   }, [onChartClick, data, series]);
@@ -383,6 +511,10 @@ function AdvancedChartImplInner({
       category: cat != null ? String(cat) : undefined,
       categoryId: chartRowBucketId(entry.payload),
       series: dk,
+      // Measured for objectui#4682: this path sends only the KEY, so a pie over
+      // a pivot whose first group keys by identity titles its drawer with that
+      // identity. The funnel path is untouched — it sends no series at all.
+      seriesLabel: seriesLabelForKey(dk, series),
       value: typeof entry.payload?.[dk] === 'number' ? entry.payload[dk] : undefined,
     });
   }, [onChartClick, xAxisKey, series]);
@@ -1145,7 +1277,7 @@ function AdvancedChartImplInner({
             const colorPerCategory = primaryCount === 1 && !isComparison && series.length === 1 && data.length > 1;
             const cmp = comparisonStyle(s, 'bar');
             return (
-              <Bar key={s.dataKey} dataKey={s.dataKey} fill={`url(#bg-${gslug(seriesColor)})`} radius={4} fillOpacity={cmp?.fillOpacity} {...stackProps} {...axisProps} {...animProps}>
+              <Bar key={s.dataKey} dataKey={s.dataKey} fill={`url(#bg-${gslug(seriesColor)})`} radius={4} fillOpacity={cmp?.fillOpacity} {...stackProps} {...axisProps} {...animProps} {...markClickProps(s)}>
                 {colorPerCategory && data.map((entry, idx) => (
                   <Cell key={`cell-${idx}`} fill={`url(#bg-${gslug(resolveColor(colorForCategory(entry?.[xAxisKey], idx, palette)))})`} />
                 ))}
@@ -1156,7 +1288,7 @@ function AdvancedChartImplInner({
           if (chartType === 'line') {
             const cmp = comparisonStyle(s, 'line');
             return (
-              <Line key={s.dataKey} type="monotone" dataKey={s.dataKey} stroke={seriesColor} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...axisProps} {...animProps}>
+              <Line key={s.dataKey} type="monotone" dataKey={s.dataKey} stroke={seriesColor} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...axisProps} {...animProps} {...markClickProps(s)}>
                 {dataLabel(valueFormatter)}
               </Line>
             );
@@ -1164,7 +1296,7 @@ function AdvancedChartImplInner({
           if (chartType === 'area') {
             const cmp = comparisonStyle(s, 'area');
             return (
-              <Area key={s.dataKey} type="monotone" dataKey={s.dataKey} fill={`url(#ag-${gslug(seriesColor)})`} stroke={seriesColor} strokeWidth={2} fillOpacity={cmp?.fillOpacity ?? 1} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...stackProps} {...axisProps} {...animProps}>
+              <Area key={s.dataKey} type="monotone" dataKey={s.dataKey} fill={`url(#ag-${gslug(seriesColor)})`} stroke={seriesColor} strokeWidth={2} fillOpacity={cmp?.fillOpacity ?? 1} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...stackProps} {...axisProps} {...animProps} {...markClickProps(s)}>
                 {dataLabel(valueFormatter)}
               </Area>
             );
