@@ -13,6 +13,13 @@
  * `visible: 'features.phoneNumber == true'`, so it's hidden unless the opt-in
  * phoneNumber auth plugin is loaded.
  *
+ * Since objectui#4640 the gate evaluates on the canonical `evalRowPredicate`
+ * entry: one dialect answer, faults fail-OPEN and are reported once with the
+ * action and param named. The four blocks below the render tests carry that
+ * contract — including the one outcome the change knowingly traded (an ABSENT
+ * feature key faults on CEL, so it now shows the param instead of hiding it,
+ * and `has()` is the portable spelling that keeps the old outcome).
+ *
  * ActionParamDialog render tests — the dialog routes every param through the
  * shared form field-widget renderer (ADR-0059), so these pin the behavior
  * contract across the swap: each type renders its real widget (lazy, behind
@@ -33,6 +40,22 @@ const p = (name: string, visible?: string): ActionParamDef => ({
   ...(visible ? { visible } : {}),
 });
 
+/**
+ * Capture the `console.warn` lines one call emits. Every case below uses its
+ * OWN predicate text: the fault report is warn-once per (label, predicate) in
+ * `evalRowPredicate`, so cases sharing a predicate string would silence each
+ * other and the suite would pass or fail by file order.
+ */
+function withWarnings<T>(run: () => T): { result: T; warnings: string[] } {
+  const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    const result = run();
+    return { result, warnings: spy.mock.calls.map((c) => String(c[0])) };
+  } finally {
+    spy.mockRestore();
+  }
+}
+
 describe('filterVisibleParams', () => {
   it('keeps params that have no visible predicate', () => {
     const params = [p('email'), p('name')];
@@ -51,16 +74,6 @@ describe('filterVisibleParams', () => {
     expect(out.map((x) => x.name)).toEqual(['email', 'phoneNumber', 'name']);
   });
 
-  it('hides a feature-gated param when the flag is absent (conservative)', () => {
-    const params = [p('phoneNumber', 'features.phoneNumber == true')];
-    expect(filterVisibleParams(params, { features: {} })).toEqual([]);
-  });
-
-  it('defaults to visible when the predicate is malformed (fail-open)', () => {
-    const params = [p('x', 'this is ((( not valid')];
-    expect(filterVisibleParams(params, {}).map((x) => x.name)).toEqual(['x']);
-  });
-
   it('handles the normalized {dialect, source} form the spec serializes to', () => {
     // The framework's ExpressionInputSchema normalizes the authored string to
     // `{ dialect: 'cel', source: '...' }`, so the served param carries the object
@@ -70,6 +83,249 @@ describe('filterVisibleParams', () => {
     ];
     expect(filterVisibleParams(params, { features: { phoneNumber: false } })).toEqual([]);
     expect(filterVisibleParams(params, { features: { phoneNumber: true } }).map((x) => x.name)).toEqual(['phoneNumber']);
+  });
+});
+
+/**
+ * objectui#4640 — a `visible` that cannot be evaluated resolves FAIL-OPEN and
+ * says so, once, naming the action and the param and quoting the predicate.
+ *
+ * Both halves are ruled, not chosen in this file:
+ *  - LOUD is the standing 2026-08-06 ruling (objectui#4051 / objectstack#5149):
+ *    fail-open or fail-closed may be chosen, *silent may not*. Three of the four
+ *    fault shapes measured on this function were silent.
+ *  - OPEN is the direction ruled for this surface (2026-08-15): a silently
+ *    dropped param is undiagnosable — the action fails at submit with nothing
+ *    pointing at the predicate — while an extra offered field is rejected by the
+ *    server with a message.
+ *
+ * These cases assert SUBSTANCE, not just the verdict: a fail-open that lost its
+ * warning would pass a verdict-only assertion while being exactly the bug.
+ */
+describe('filterVisibleParams — faults are fail-open and LOUD (objectui#4640)', () => {
+  it('shows a param whose predicate cannot be PARSED, and names it in one warning', () => {
+    // Previously: shown, in total silence (the bare `catch { return true }`).
+    const params = [p('nickname', 'this is ((( not parseable')];
+    const { result, warnings } = withWarnings(() =>
+      filterVisibleParams(params, {}, 'Create user'),
+    );
+    expect(result.map((x) => x.name)).toEqual(['nickname']);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('param "nickname" of action "Create user"');
+    expect(warnings[0]).toContain('this is ((( not parseable');
+  });
+
+  it('shows a param whose predicate names an UNBOUND identifier, loudly', () => {
+    // Previously: shown, silently — indistinguishable from having no gate.
+    const params = [p('quota', 'nope_undeclared_4640 == 1')];
+    const { result, warnings } = withWarnings(() =>
+      filterVisibleParams(params, { os: { user: { id: 'u1' } } }, 'Create user'),
+    );
+    expect(result.map((x) => x.name)).toEqual(['quota']);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('param "quota"');
+    expect(warnings[0]).toContain('nope_undeclared_4640');
+  });
+
+  it('quotes the predicate of a faulting ENVELOPE too, and warns per predicate', () => {
+    // The envelope is the shape `@objectstack/spec` normalizes every authored
+    // predicate into, so it is the likeliest real spelling — and it was the
+    // least diagnosable: `evalRowPredicate` reported it as the literal
+    // "(expression)" and keyed its warn-once on that, so the FIRST faulting
+    // envelope under a label silenced every other one.
+    const a: ActionParamDef = { name: 'alpha', label: 'Alpha', type: 'text', visible: { dialect: 'cel', source: 'alpha_4640 ] (' } as any };
+    const b: ActionParamDef = { name: 'beta', label: 'Beta', type: 'text', visible: { dialect: 'cel', source: 'beta_4640 ] (' } as any };
+    const { result, warnings } = withWarnings(() => filterVisibleParams([a, b], {}, 'Create user'));
+    expect(result.map((x) => x.name)).toEqual(['alpha', 'beta']);
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain('alpha_4640 ] (');
+    expect(warnings[1]).toContain('beta_4640 ] (');
+    expect(warnings.some((w) => w.includes('(expression)'))).toBe(false);
+  });
+
+  it('warns ONCE for the same param + predicate, however often it is filtered', () => {
+    const params = [p('repeat', 'once_only_4640 == 1')];
+    const { warnings } = withWarnings(() => {
+      filterVisibleParams(params, {}, 'Create user');
+      filterVisibleParams(params, {}, 'Create user');
+      filterVisibleParams(params, {}, 'Create user');
+    });
+    expect(warnings).toHaveLength(1);
+  });
+
+  it('a blank or absent predicate is NOT a fault — kept, and silent', () => {
+    // `''`, whitespace, and the empty `{ dialect, source: '' }` envelope a
+    // spec-normalized empty predicate compiles to all mean "no gate declared"
+    // (objectui#3850 / #3960) — they must never reach the evaluator to be
+    // reported as broken.
+    const params: ActionParamDef[] = [
+      p('a', ''),
+      p('b', '   '),
+      { name: 'c', label: 'C', type: 'text', visible: { dialect: 'cel', source: '' } as any },
+      { name: 'd', label: 'D', type: 'text', visible: { dialect: 'cel', source: '  ' } as any },
+    ];
+    const { result, warnings } = withWarnings(() => filterVisibleParams(params, {}, 'Create user'));
+    expect(result.map((x) => x.name)).toEqual(['a', 'b', 'c', 'd']);
+    expect(warnings).toEqual([]);
+  });
+
+  it('a BOOLEAN visible is a verdict, not an expression (objectui#3492)', () => {
+    // Short-circuited before the evaluator: handing a boolean to the engine
+    // yields `{ dialect: 'cel', source: undefined }`, which faults — and on
+    // this surface's fail-open that would turn `visible: false`, the most
+    // explicit "never offer this" an author can write, into a shown param.
+    const params: ActionParamDef[] = [
+      { name: 'never', label: 'Never', type: 'text', visible: false as any },
+      { name: 'always', label: 'Always', type: 'text', visible: true as any },
+    ];
+    const { result, warnings } = withWarnings(() => filterVisibleParams(params, {}, 'Create user'));
+    expect(result.map((x) => x.name)).toEqual(['always']);
+    expect(warnings).toEqual([]);
+  });
+});
+
+/**
+ * objectui#4640 — the fail direction no longer depends on the predicate's
+ * DIALECT. Before this change a bare string ran the legacy JS evaluator (lenient
+ * → falsy → param silently DROPPED) while a `{ dialect, source }` envelope ran
+ * CEL (fault → param silently KEPT): one `visible` key, two opposite outcomes,
+ * decided by whether the authored text happened to contain `${…}` / `===`
+ * (the objectui#3314 shape). Both spellings now reach one entry, one direction
+ * and one warning.
+ */
+describe('filterVisibleParams — one value, one answer (objectui#3314)', () => {
+  it('a broken bare string and a broken envelope resolve the SAME way, both loudly', () => {
+    const bare = p('bare', 'dialect_fork_4640 ] (');
+    const env: ActionParamDef = {
+      name: 'envelope',
+      label: 'Envelope',
+      type: 'text',
+      visible: { dialect: 'cel', source: 'dialect_fork_env_4640 ] (' } as any,
+    };
+    const { result, warnings } = withWarnings(() => filterVisibleParams([bare, env], {}, 'Create user'));
+    // Same verdict for both spellings — fail-open.
+    expect(result.map((x) => x.name)).toEqual(['bare', 'envelope']);
+    // …and neither is silent.
+    expect(warnings).toHaveLength(2);
+  });
+
+  it('a legacy-dialect string that faults fails OPEN as well, and is reported', () => {
+    // `${…}` routes to the legacy engine for back-compat, but its faults now
+    // land on the same fallback as the CEL path instead of the opposite one.
+    const params = [p('legacy', '${legacy_fault_4640(((}')];
+    const { result, warnings } = withWarnings(() => filterVisibleParams(params, {}, 'Create user'));
+    expect(result.map((x) => x.name)).toEqual(['legacy']);
+    // The deprecation notice plus the fault report — the predicate is named by
+    // both, and by neither was it named before.
+    expect(warnings.some((w) => w.includes('legacy expression dialect'))).toBe(true);
+    expect(warnings.some((w) => w.includes('failed to evaluate'))).toBe(true);
+  });
+});
+
+/**
+ * objectui#4640 — this surface has NO ROW, so the host predicate scope keeps its
+ * own `record` / `data`.
+ *
+ * `evalRowPredicate`'s subject is a row and it pins `record` / `data` over the
+ * scope (objectui#3796). Routing this function through it without saying "no row
+ * here" would write an EMPTY record over the host's real one, and every
+ * `record.*` / `data.*` param predicate would fault ("No such key") and — under
+ * fail-open — silently start showing params it was written to hide. The
+ * `rowless` option is what keeps that from happening; these cases are its proof
+ * at this surface.
+ */
+describe('filterVisibleParams — the host scope keeps its own data/record', () => {
+  it('resolves a data.* predicate against the host scope, with no fault', () => {
+    const params = [p('advanced', 'data.mode == "advanced"')];
+    const { result, warnings } = withWarnings(() =>
+      filterVisibleParams(params, { data: { mode: 'advanced' } }, 'Create user'),
+    );
+    expect(result.map((x) => x.name)).toEqual(['advanced']);
+    expect(warnings).toEqual([]);
+    // …and reaches the opposite verdict when the host data says otherwise —
+    // proving it read the value, not a fail-open default.
+    const { result: hidden, warnings: quiet } = withWarnings(() =>
+      filterVisibleParams(params, { data: { mode: 'basic' } }, 'Create user'),
+    );
+    expect(hidden).toEqual([]);
+    expect(quiet).toEqual([]);
+  });
+
+  it('resolves a record.* predicate against the host scope, with no fault', () => {
+    const params = [p('reassign', 'record.manager == os.user.id')];
+    const scope = { os: { user: { id: 'u1' } }, record: { manager: 'u1' } };
+    const { result, warnings } = withWarnings(() => filterVisibleParams(params, scope, 'Reassign'));
+    expect(result.map((x) => x.name)).toEqual(['reassign']);
+    expect(warnings).toEqual([]);
+    const { result: hidden } = withWarnings(() =>
+      filterVisibleParams(params, { os: { user: { id: 'u2' } }, record: { manager: 'u1' } }, 'Reassign'),
+    );
+    expect(hidden).toEqual([]);
+  });
+});
+
+/**
+ * objectui#4640 — the honest counter-pull, recorded rather than lost.
+ *
+ * The pin this block replaces was *"hides a feature-gated param when the flag is
+ * absent (conservative)"*: `features.phoneNumber == true` against `features: {}`
+ * returned false on the legacy evaluator, so the param stayed hidden. On the
+ * canonical CEL engine an absent key is NOT a falsy read — it is a runtime fault
+ * (`[runtime] No such key: phoneNumber`), so it takes the ruled fail-open branch
+ * and the param is now SHOWN, with a warning naming it.
+ *
+ * That was measured, not assumed, and it is the one outcome this card's ruling
+ * knowingly traded: the delegated ruling of 2026-08-15 requires the fault to be
+ * fail-open and loud, and requires this case to be documented in code rather
+ * than quietly re-spelled. The degradation is bounded and self-announcing — the
+ * server rejects the unsupported param with a message, and the console names the
+ * predicate — whereas the fail-closed alternative hides a REQUIRED param with
+ * nothing pointing at the predicate.
+ *
+ * The conservative outcome remains available, and in the spelling that is
+ * portable to the server's own CEL engine: guard the key with `has()`. That is
+ * the migration this file documents for anyone who was relying on the old
+ * behavior.
+ */
+describe('filterVisibleParams — the feature-flag case, after the flip (objectui#4640)', () => {
+  const gated = (source: string): ActionParamDef[] => [
+    { name: 'phoneNumber', label: 'Phone', type: 'text', visible: source } as ActionParamDef,
+  ];
+
+  it('an ABSENT feature key now SHOWS the param and says why (was: silently hidden)', () => {
+    const { result, warnings } = withWarnings(() =>
+      filterVisibleParams(gated('features.phoneNumber == true'), { features: {} }, 'Create user'),
+    );
+    expect(result.map((x) => x.name)).toEqual(['phoneNumber']);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('param "phoneNumber" of action "Create user"');
+    expect(warnings[0]).toContain('features.phoneNumber == true');
+    // The engine's own reason is the line that sends the author to the fix.
+    expect(warnings[0]).toContain('No such key');
+  });
+
+  it('has() keeps the conservative outcome — hidden, and with no fault at all', () => {
+    const { result, warnings } = withWarnings(() =>
+      filterVisibleParams(
+        gated('has(features.phoneNumber) && features.phoneNumber == true'),
+        { features: {} },
+        'Create user',
+      ),
+    );
+    expect(result).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('a DECLARED flag is unaffected by the flip, either way', () => {
+    // The common deployment shape — the scope carries the key — reaches a
+    // genuine verdict on both engines and did not move.
+    expect(
+      filterVisibleParams(gated('features.phoneNumber == true'), { features: { phoneNumber: false } }),
+    ).toEqual([]);
+    expect(
+      filterVisibleParams(gated('features.phoneNumber == true'), { features: { phoneNumber: true } })
+        .map((x) => x.name),
+    ).toEqual(['phoneNumber']);
   });
 });
 

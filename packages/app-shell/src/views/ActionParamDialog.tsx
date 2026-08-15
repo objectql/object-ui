@@ -30,7 +30,7 @@ import {
 } from '@object-ui/components';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ActionParamDef } from '@object-ui/core';
-import { ExpressionEvaluator } from '@object-ui/core';
+import { evalRowPredicate, hasDeclaredPredicate } from '@object-ui/core';
 import { usePredicateScope } from '@object-ui/react';
 import { getLazyFieldWidget, fileIdOf } from '@object-ui/fields';
 import { paramToField } from '../utils/paramToField';
@@ -52,24 +52,86 @@ interface ActionParamDialogProps {
 }
 
 /**
- * Filter action params by their optional `visible` CEL predicate, evaluated
- * against the expression scope (features / user / app / data). A param with no
- * predicate is always kept; a predicate that throws defaults to visible (mirrors
- * the ExpressionProvider "auth config not loaded yet → visible" contract). Pure
- * + exported so the gating is unit-testable without the dialog render tree.
+ * Filter action params by their optional `visible` predicate, evaluated on the
+ * canonical entry (`evalRowPredicate`) against the host predicate scope
+ * (features / user / app / data). Pure + exported so the gating is unit-testable
+ * without the dialog render tree.
+ *
+ * ## Fail-open, and LOUD (objectui#4640)
+ *
+ * A param whose `visible` cannot be evaluated — unparseable source, unbound
+ * identifier, a key the scope does not carry — is SHOWN, and says so once, with
+ * the action and param named and the predicate quoted. Both halves are ruled,
+ * not chosen here:
+ *
+ *  - **Loud** is the standing 2026-08-06 ruling on objectui#4051 /
+ *    objectstack#5149: fail-open or fail-closed may be chosen, *silent may not*.
+ *    This function used to be silent in three of the four fault shapes — the
+ *    bare `catch { return true }` below the old `evaluateCondition` call swallowed
+ *    parse errors and unbound identifiers without a word, so a broken predicate
+ *    was indistinguishable from an absent one.
+ *  - **Open** is the direction ruled for THIS surface: a silently dropped param
+ *    is the undiagnosable failure — the dialog never collects a value the server
+ *    requires, and the action then fails at submit with nothing pointing at the
+ *    predicate. An extra offered field fails the other way, with a server
+ *    rejection that carries a message. Two harms; the self-diagnosing one wins.
+ *    (Row surfaces rule the opposite way — a faulting row-action `visible` stays
+ *    hidden — because there the harm is acting on records the predicate excluded.)
+ *
+ * ## One value, one answer (objectui#3314)
+ *
+ * The old implementation's fail DIRECTION was decided by the predicate's
+ * DIALECT, not by this surface: a bare string ran the legacy JS evaluator
+ * (lenient → falsy → param silently DROPPED) while a `{ dialect, source }`
+ * envelope ran CEL (fault → param silently KEPT). One `visible` key, two
+ * opposite outcomes, chosen by whether the authored text happened to contain
+ * `${…}` / `===`. That fork is deleted, not braced: every spelling now reaches
+ * one entry, one fail direction and one warning. (`evalRowPredicate` still
+ * routes a legacy-dialect STRING to the old engine for back-compat — with its
+ * own deprecation warning naming the predicate — but the fault direction is the
+ * same on both of its paths, so the surface no longer has two answers.)
+ *
+ * ## No row here — the scope keeps its own `data` / `record`
+ *
+ * `evalRowPredicate`'s subject is a row, and it pins `record` / `data` to it
+ * over the host scope (objectui#3796). This surface has no row: its scope IS the
+ * host predicate scope, `data` and all. So it passes `rowless: true`, which
+ * binds nothing over the scope — an author's `data.*` / `record.*` param
+ * predicate keeps reading the host's values instead of faulting on an empty
+ * object written over them.
+ *
+ * @param actionLabel The action's own label, so the fault warning names the
+ *                    action as well as the param. Optional — the param name
+ *                    alone is still a locator.
  */
 export function filterVisibleParams(
   params: ActionParamDef[],
   scope: Record<string, any>,
+  actionLabel?: string,
 ): ActionParamDef[] {
-  const evaluator = new ExpressionEvaluator(scope);
   return params.filter((p) => {
-    if (!p.visible) return true;
-    try {
-      return evaluator.evaluateCondition(p.visible);
-    } catch {
-      return true;
-    }
+    const raw: unknown = p.visible;
+    // "Is a gate declared?" is asked once, by the canonical definition —
+    // absent, `''`, whitespace-only, an empty `{ dialect, source: '' }` envelope
+    // (what a spec-normalized empty predicate compiles to) and junk all mean
+    // "no gate", and must not reach the evaluator to be reported as a fault.
+    if (!hasDeclaredPredicate(raw)) return true;
+    // A BOOLEAN `visible` is a verdict, not an expression — short-circuited the
+    // same way `useRowPredicate` / the row kebab / `bulkEligibility` do
+    // (objectui#3492). Handing it to the engine yields
+    // `{ dialect: 'cel', source: undefined }`, which faults; on this surface's
+    // fail-open that would turn `visible: false` — the most explicit "never
+    // offer this" an author can write — into a shown param plus a bogus warning.
+    if (typeof raw === 'boolean') return raw;
+    return evalRowPredicate(raw as never, null, {
+      fallback: true,
+      scope,
+      rowless: true,
+      warnOnError: true,
+      label: actionLabel
+        ? `param "${p.name}" of action "${actionLabel}"`
+        : `param "${p.name}"`,
+    });
   });
 }
 
@@ -150,10 +212,15 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
   // A param may carry a `visible` predicate (CEL) gating it on the same scope as
   // action visibility (features / user / app / data) — e.g. `create_user`'s
   // phoneNumber param is `features.phoneNumber == true`, so the form never offers
-  // a field the backend rejects. Absent = visible; a predicate that errors
-  // defaults to visible (mirrors the ExpressionProvider "config not loaded" note).
+  // a field the backend rejects. Absent = visible; a predicate that cannot be
+  // evaluated is shown AND reported once, naming this action and the param
+  // (objectui#4640) — `state.title` is the action's own label, so the console
+  // line points at the dialog the user is looking at.
   const scope = usePredicateScope();
-  const visibleParams = useMemo(() => filterVisibleParams(state.params, scope), [state.params, scope]);
+  const visibleParams = useMemo(
+    () => filterVisibleParams(state.params, scope, state.title),
+    [state.params, scope, state.title],
+  );
 
   // Reset values when params change
   useEffect(() => {

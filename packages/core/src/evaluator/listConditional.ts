@@ -69,7 +69,14 @@ function warnLegacyDialect(source: string): void {
 
 const warnedError = new Set<string>();
 /**
- * One-time fail-closed report for a predicate that could not be evaluated.
+ * One-time report for a predicate that could not be evaluated.
+ *
+ * The message names the caller's `fallback` as "its safe default" without
+ * asserting a direction, because the direction is the caller's: row surfaces
+ * fail CLOSED (a faulting `visible` hides the action), while a param-collection
+ * dialog fails OPEN (objectui#4640 — a silently hidden required param is the
+ * undiagnosable failure). Both are loud; only silence was ever ruled out
+ * (2026-08-06 on objectui#4051 / objectstack#5149).
  *
  * `reason` is the engine's own description of the failure (`"[runtime] No such
  * key: owner_id"`) — the single most useful line for the author, and precisely
@@ -162,6 +169,30 @@ export interface RowPredicateOptions {
   /** Label used in warning messages (e.g. an action name or rule index). */
   label?: string;
   /**
+   * This surface has **no row of its own** — bind NOTHING for the row instead
+   * of binding an empty one, so a `record` / `data` the HOST SCOPE carries
+   * survives to the predicate (objectui#4640).
+   *
+   * The default (`false`) is this function's whole subject rule: the row is
+   * pinned over the scope, on both dialect paths, so `record` / `data` always
+   * name THIS row even when the host scope carries keys of those names
+   * (objectui#3796). That is right for every row surface — and exactly wrong
+   * for a surface that has no row, because the pin then writes an EMPTY
+   * `record` / `data` over the host's real ones and every `record.*` predicate
+   * faults with "No such key". "This surface has no row of its own" and "this
+   * surface's row is empty" are different facts; only the latter is entitled to
+   * shadow the scope. Same distinction, same words, as `usePredicateRecordContext`
+   * in `@object-ui/react` (objectui#4075) — which is the BINDING half of this
+   * rule for the `useCondition` tier; this is the evaluation-entry half.
+   *
+   * Set it where the predicate is scoped to a *dialog / shell / page* rather
+   * than to a record — `ActionParamDialog`'s param `visible` gates are the
+   * first caller (objectui#4640): their scope IS the host predicate scope,
+   * `data` and all. `opts.fields` is meaningless here (there is no row to
+   * collapse relations on) and is ignored.
+   */
+  rowless?: boolean;
+  /**
    * The object's field definitions (`objectSchema.fields`). Supplying them lets
    * a relation field be bound as the FOREIGN KEY the server stores, rather than
    * as whatever `$expand` happened to substitute for it on this surface — see
@@ -180,6 +211,10 @@ export interface RowPredicateOptions {
  * alongside so `features.*` / `user.*` predicates keep working — but the row is
  * the subject: `record` and `data` always name THIS row, on both dialect paths,
  * even when the host scope carries keys of those names (objectui#3796).
+ *
+ * A caller with no row at all passes {@link RowPredicateOptions.rowless}, and
+ * then nothing is bound over the scope — see that option for why an absent row
+ * must not be spelled as an empty one.
  */
 export function evalRowPredicate(
   pred: FieldRulePredicate | undefined | null,
@@ -194,7 +229,10 @@ export function evalRowPredicate(
   // Relations collapse to the foreign key the server stores, so `record.owner`
   // means one thing whether or not this surface expanded the column
   // (objectui#3501). Returned by reference when there is nothing to collapse.
-  const rowObj = toPredicateRecord(row && typeof row === 'object' ? row : {}, opts.fields);
+  // A `rowless` caller has no row to collapse, so `opts.fields` is moot there.
+  const rowObj = opts.rowless
+    ? {}
+    : toPredicateRecord(row && typeof row === 'object' ? row : {}, opts.fields);
   // Bare fields + `data.*` + `record.*` + the host scope, all top-level.
   //
   // `data` AND `record` are pinned AFTER the spread, so a host scope that
@@ -207,7 +245,30 @@ export function evalRowPredicate(
   // string happens to contain `===`/`${…}`, which no author is choosing
   // deliberately (objectui#3796). Pinning here fixes both paths at the merge,
   // independently of either engine's precedence.
-  const scope = { ...(opts.scope ?? {}), ...rowObj, data: rowObj, record: rowObj };
+  //
+  // …UNLESS the caller has no row (`rowless`), in which case there is nothing
+  // to pin and the host scope keeps its own `record` / `data` — see the option.
+  const scope = opts.rowless
+    ? { ...(opts.scope ?? {}) }
+    : { ...(opts.scope ?? {}), ...rowObj, data: rowObj, record: rowObj };
+
+  // The predicate TEXT for diagnostics: a bare string is itself, an envelope is
+  // its `source`. Reported separately from `source` above, which is `undefined`
+  // for an envelope *by design* (it drives the dialect routing, and an envelope
+  // is never routed to the legacy engine). Reusing it for the warning is what
+  // made every faulting envelope report as the literal `"(expression)"` — no
+  // predicate text for the author, and, because the one-time key is
+  // (label, source), the FIRST faulting envelope on a given label silenced every
+  // other one under it (objectui#4640: measured on `evalRowPredicate` — a second
+  // envelope with a different, also-broken source warned zero times). The
+  // envelope is not an exotic spelling: `@objectstack/spec`'s
+  // `ExpressionInputSchema` normalizes every authored predicate into one, so it
+  // is the likeliest shape in served metadata and was the least diagnosable.
+  const predicateText =
+    source ??
+    (pred && typeof pred === 'object' && typeof (pred as { source?: unknown }).source === 'string'
+      ? (pred as { source: string }).source
+      : '(expression)');
 
   // Legacy-dialect *strings* route to the legacy engine (back-compat). The
   // `{ dialect: 'cel', source }` envelope is never routed here — it is CEL.
@@ -237,7 +298,7 @@ export function evalRowPredicate(
   }
   const verdict = evalCel(pred, rowObj, scope);
   if (!verdict.ok) {
-    warnEvalError(source ?? '(expression)', opts.label, verdict.reason);
+    warnEvalError(predicateText, opts.label, verdict.reason);
     return fallback;
   }
   return verdict.value;
