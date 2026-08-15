@@ -915,6 +915,7 @@ const ru = {
     attachmentPermissionDenied: "У вас нет разрешения на это действие.",
     attachmentsAccessDenied: "У вас нет доступа к этим вложениям.",
     attachmentsLoadFailed: "Не удалось загрузить вложения этой записи.",
+    attachmentsApiUnavailable: "Список вложений недоступен для этого объекта.",
     retryLoadAttachments: "Повторить",
     unifiedDiff: "Единое представление",
     sideBySideDiff: "Параллельное представление",

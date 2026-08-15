@@ -902,6 +902,7 @@ const ar = {
     attachmentPermissionDenied: "ليس لديك إذن للقيام بذلك.",
     attachmentsAccessDenied: "ليس لديك حق الوصول إلى هذه المرفقات.",
     attachmentsLoadFailed: "تعذر تحميل مرفقات هذا السجل.",
+    attachmentsApiUnavailable: "قائمة المرفقات غير متاحة على هذا الكائن.",
     retryLoadAttachments: "إعادة المحاولة",
     unifiedDiff: "عرض موحد",
     sideBySideDiff: "عرض جنباً إلى جنب",

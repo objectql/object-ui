@@ -7,7 +7,8 @@
  */
 
 /**
- * Helpers for turning a failed data-source write into user-facing feedback.
+ * Helpers for turning a failed data-source read or write into user-facing
+ * feedback.
  *
  * Different DataSource adapters throw differently shaped errors:
  *   - the ObjectStack adapter (`@object-ui/data-objectstack`) decorates the
@@ -19,6 +20,8 @@
  * These helpers normalise across both so a caller's `catch` can surface the
  * real reason (e.g. a row-level-security denial) instead of swallowing it.
  */
+
+import { isApiAccessDeniedError } from '@object-ui/data-objectstack';
 
 function firstString(...vals: unknown[]): string | null {
   for (const v of vals) {
@@ -149,4 +152,69 @@ export function isPermissionError(err: unknown): boolean {
   return /row-level security|access denied|permission denied|not permitted/i.test(
     text,
   );
+}
+
+/** 400-class error codes the data API returns for a request it will never accept. */
+const REJECTED_REQUEST_CODES = new Set([
+  'INVALID_FILTER',
+  'UNSUPPORTED_QUERY_PARAM',
+  'INVALID_QUERY',
+]);
+
+/** What {@link classifyLoadError} answers. */
+export type LoadErrorKind = 'api-disabled' | 'forbidden' | 'unauthorized' | 'rejected' | 'network';
+
+/**
+ * Classify a failed data FETCH (as opposed to a failed write, above) by HTTP
+ * status / error code, so an error panel can say what actually happened. A
+ * 403 rendered as "check your connection" is indistinguishable from a real
+ * outage — users were told to debug their network when the server had
+ * (correctly) denied them access.
+ *
+ * Originally `ListView`'s module-local `classifyLoadError`
+ * (`packages/plugin-list/src/ListView.tsx`); lifted here (objectui#4693) so
+ * `RecordAttachmentsPanel` can reuse the same "is this retry-invariant"
+ * verdict for the `sys_attachment` list read instead of re-deriving it. Both
+ * `@object-ui/plugin-list` and `@object-ui/app-shell` already depend on this
+ * package, so the lift adds no new dependency edge to either.
+ *
+ * Purely a classifier — it returns a KIND, never rendered text. Each caller
+ * owns its own copy for what a kind means on its surface (`ListView` shows a
+ * title + message per kind and a Retry for every kind but `api-disabled`;
+ * `RecordAttachmentsPanel` only distinguishes `api-disabled` from everything
+ * else, folding `forbidden`/`unauthorized`/`rejected`/`network` into its own
+ * coarser `denied`/`unavailable` split via {@link isPermissionError}) — so
+ * lifting this function does not couple the two surfaces' i18n or copy.
+ */
+export function classifyLoadError(err: unknown): LoadErrorKind {
+  const e = err as any;
+  // The ObjectStack client decorates errors with `httpStatus`; raw fetch
+  // wrappers surface `status` / `statusCode`; some adapters only embed the
+  // status in the message ("HTTP 403 Forbidden — …").
+  let status = [e?.httpStatus, e?.status, e?.statusCode]
+    .find((s: unknown): s is number => typeof s === 'number');
+  if (status === undefined) {
+    const m = /HTTP (\d{3})\b/.exec(String(e?.message ?? ''));
+    if (m) status = Number(m[1]);
+  }
+  const code = typeof e?.code === 'string' ? e.code.toUpperCase() : '';
+  // The object's `enable` block withholds this operation — checked FIRST, on
+  // the CODE alone (delegated to the shared predicate so this file and
+  // `@object-ui/data-objectstack` cannot drift on which codes count). Status
+  // cannot carry this verdict: the denial is a 404, the same status a missing
+  // collection and a missing record answer with, and its 405 sibling is the
+  // same status any other method rejection uses. Unlike every kind below it
+  // this one is not about the request, the session or the network — it is a
+  // permanent property of the object, identical for every persona and every
+  // retry (objectui#4408).
+  if (isApiAccessDeniedError(err)) return 'api-disabled';
+  if (status === 403 || code === 'PERMISSION_DENIED' || code === 'FORBIDDEN') return 'forbidden';
+  if (status === 401 || code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED') return 'unauthorized';
+  // The server understood the request and refused it as malformed. Retrying
+  // sends the identical bad request, so "check your connection and try again"
+  // is the same wrong advice this function exists to stop giving — one status
+  // code over. The server now rejects a `$filter` that is not a filter AST
+  // (objectstack#4121) and an unsupported `$`-parameter, both as 400.
+  if (status === 400 || REJECTED_REQUEST_CODES.has(code)) return 'rejected';
+  return 'network';
 }

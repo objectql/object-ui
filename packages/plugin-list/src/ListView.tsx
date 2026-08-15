@@ -14,7 +14,8 @@ import type { FilterGroup } from '@object-ui/components';
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
 import { ViewSettingsPopover } from './components/ViewSettingsPopover';
 import { UserFilters } from './UserFilters';
-import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
+import { SchemaRenderer, useNavigationOverlay, classifyLoadError } from '@object-ui/react';
+import type { LoadErrorKind } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
@@ -438,71 +439,6 @@ export function evaluateConditionalFormatting(
   return resolveConditionalFormatting(record, rules as any, scope, fields as never) as React.CSSProperties;
 }
 
-/**
- * Classify a failed data fetch by HTTP status / error code so the error panel
- * can say what actually happened. A 403 rendered as "check your connection"
- * is indistinguishable from a real outage — users were told to debug their
- * network when the server had (correctly) denied them access.
- */
-function classifyLoadError(
-  err: unknown,
-): 'api-disabled' | 'forbidden' | 'unauthorized' | 'rejected' | 'network' {
-  const e = err as any;
-  // The ObjectStack client decorates errors with `httpStatus`; raw fetch
-  // wrappers surface `status` / `statusCode`; some adapters only embed the
-  // status in the message ("HTTP 403 Forbidden — …").
-  let status = [e?.httpStatus, e?.status, e?.statusCode]
-    .find((s: unknown): s is number => typeof s === 'number');
-  if (status === undefined) {
-    const m = /HTTP (\d{3})\b/.exec(String(e?.message ?? ''));
-    if (m) status = Number(m[1]);
-  }
-  const code = typeof e?.code === 'string' ? e.code.toUpperCase() : '';
-  // The object's `enable` block withholds this operation — checked FIRST, and
-  // on the CODE alone. Status cannot carry this verdict: the denial is a 404,
-  // the same status a missing collection and a missing record answer with, and
-  // its 405 sibling is the same status any other method rejection uses. Unlike
-  // every kind below it this one is not about the request, the session or the
-  // network — it is a permanent property of the object, identical for every
-  // persona and every retry (objectui#4408).
-  if (API_ACCESS_DENIED_CODES.has(code)) return 'api-disabled';
-  if (status === 403 || code === 'PERMISSION_DENIED' || code === 'FORBIDDEN') return 'forbidden';
-  if (status === 401 || code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED') return 'unauthorized';
-  // The server understood the request and refused it as malformed. Retrying
-  // sends the identical bad request, so "check your connection and try again"
-  // is the same wrong advice this function exists to stop giving — one status
-  // code over. The server now rejects a `$filter` that is not a filter AST
-  // (objectstack#4121) and an unsupported `$`-parameter, both as 400.
-  if (status === 400 || REJECTED_REQUEST_CODES.has(code)) return 'rejected';
-  return 'network';
-}
-
-/** 400-class error codes the data API returns for a request it will never accept. */
-const REJECTED_REQUEST_CODES = new Set([
-  'INVALID_FILTER',
-  'UNSUPPORTED_QUERY_PARAM',
-  'INVALID_QUERY',
-]);
-
-/**
- * The denials the server derives from the object's `enable` block —
- * `apiAccessDenialFromEnable` in objectstack's REST server.
- *
- *   - `OBJECT_API_DISABLED` (404) — `enable.apiEnabled: false`; the object is
- *     not exposed over the data API at all.
- *   - `OBJECT_API_METHOD_NOT_ALLOWED` (405) — the operation is absent from the
- *     `enable.apiMethods` whitelist.
- *
- * Both are pure functions of the object's metadata: no user, no permission, no
- * request body. So the honest copy for them is neither "try again" (nothing
- * will change) nor "ask your administrator for access" (this is not a
- * permission grant — the object is not published to the API at all).
- */
-const API_ACCESS_DENIED_CODES = new Set([
-  'OBJECT_API_DISABLED',
-  'OBJECT_API_METHOD_NOT_ALLOWED',
-]);
-
 // Default English translations for fallback when I18nProvider is not available.
 //
 // Every row whose key the `en` pack also defines must stay byte-identical to it,
@@ -850,7 +786,10 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // failed. Captured here so the render can show a retryable error panel.
   const [loadError, setLoadError] = React.useState<string | null>(null);
   // What KIND of failure `loadError` is — drives which error panel copy shows.
-  const [loadErrorKind, setLoadErrorKind] = React.useState<'api-disabled' | 'forbidden' | 'unauthorized' | 'rejected' | 'network'>('network');
+  // Classified by the shared `classifyLoadError` (`@object-ui/react`,
+  // objectui#4693 — lifted from this file so `RecordAttachmentsPanel` can
+  // reuse the same "api-disabled is retry-invariant" verdict).
+  const [loadErrorKind, setLoadErrorKind] = React.useState<LoadErrorKind>('network');
   // Start in loading state when we will fetch from a dataSource so the empty
   // state doesn't flash before the first effect runs. Inline data (schema.data
   // as an array or a `value` provider) starts as not-loading.

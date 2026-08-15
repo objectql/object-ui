@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { extractFieldErrors } from './error-message';
+import { extractFieldErrors, classifyLoadError } from './error-message';
 
 describe('extractFieldErrors', () => {
   // The wire shape the server actually sends: `@objectstack/rest` serves a
@@ -85,5 +85,81 @@ describe('extractFieldErrors', () => {
     expect(extractFieldErrors(undefined)).toBeNull();
     expect(extractFieldErrors('a string')).toBeNull();
     expect(extractFieldErrors(new Error('plain'))).toBeNull();
+  });
+});
+
+/**
+ * `classifyLoadError` — lifted from `ListView`'s module scope (objectui#4693)
+ * so `RecordAttachmentsPanel` can reuse the same "is this retry-invariant"
+ * verdict. This is the unit-level pin at the shared home; `ListView` and
+ * `RecordAttachmentsPanel` each pin their own consumption of it end-to-end in
+ * their own test suites (`ListView.loadErrorKind.test.tsx`,
+ * `RecordAttachmentsPanel.test.tsx`).
+ */
+describe('classifyLoadError', () => {
+  it('classifies the enable-block denials as api-disabled, on the code alone', () => {
+    expect(
+      classifyLoadError(
+        Object.assign(new Error('disabled'), { httpStatus: 404, code: 'OBJECT_API_DISABLED' }),
+      ),
+    ).toBe('api-disabled');
+    expect(
+      classifyLoadError(
+        Object.assign(new Error('not allowed'), {
+          httpStatus: 405,
+          code: 'OBJECT_API_METHOD_NOT_ALLOWED',
+        }),
+      ),
+    ).toBe('api-disabled');
+    // No numeric status at all — the code alone must carry the verdict.
+    expect(classifyLoadError(Object.assign(new Error('x'), { code: 'OBJECT_API_DISABLED' }))).toBe(
+      'api-disabled',
+    );
+  });
+
+  it('classifies 403 / PERMISSION_DENIED / FORBIDDEN as forbidden', () => {
+    expect(classifyLoadError(Object.assign(new Error('x'), { httpStatus: 403 }))).toBe('forbidden');
+    expect(classifyLoadError(Object.assign(new Error('x'), { code: 'PERMISSION_DENIED' }))).toBe(
+      'forbidden',
+    );
+    expect(classifyLoadError(Object.assign(new Error('x'), { code: 'FORBIDDEN' }))).toBe('forbidden');
+  });
+
+  it('classifies 401 / UNAUTHORIZED / UNAUTHENTICATED as unauthorized', () => {
+    expect(classifyLoadError(Object.assign(new Error('x'), { httpStatus: 401 }))).toBe(
+      'unauthorized',
+    );
+    expect(classifyLoadError(Object.assign(new Error('x'), { code: 'UNAUTHENTICATED' }))).toBe(
+      'unauthorized',
+    );
+  });
+
+  it('classifies 400 and the known malformed-request codes as rejected', () => {
+    expect(classifyLoadError(Object.assign(new Error('x'), { httpStatus: 400 }))).toBe('rejected');
+    expect(classifyLoadError(Object.assign(new Error('x'), { code: 'INVALID_FILTER' }))).toBe(
+      'rejected',
+    );
+    expect(
+      classifyLoadError(Object.assign(new Error('x'), { code: 'UNSUPPORTED_QUERY_PARAM' })),
+    ).toBe('rejected');
+  });
+
+  it('falls back to network for a bare failure or an unrecognized 404', () => {
+    expect(classifyLoadError(new TypeError('Failed to fetch'))).toBe('network');
+    // A bare 404 (missing record / unprovisioned collection) is NOT an
+    // enable-block denial — status alone must never reach `api-disabled`.
+    expect(classifyLoadError(Object.assign(new Error('x'), { httpStatus: 404 }))).toBe('network');
+  });
+
+  it('reads a status embedded in the message text ("HTTP 403 …")', () => {
+    expect(classifyLoadError(new Error('ApiDataSource: HTTP 403 Forbidden — {}'))).toBe(
+      'forbidden',
+    );
+  });
+
+  it('prefers 403/401 over the 400 branch', () => {
+    expect(
+      classifyLoadError(Object.assign(new Error('x'), { httpStatus: 403, code: 'INVALID_FILTER' })),
+    ).toBe('forbidden');
   });
 });

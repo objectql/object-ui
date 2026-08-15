@@ -896,6 +896,7 @@ const ko = {
     attachmentPermissionDenied: "이 작업을 수행할 권한이 없습니다.",
     attachmentsAccessDenied: "이 첨부파일에 접근할 권한이 없습니다.",
     attachmentsLoadFailed: "이 레코드의 첨부파일을 불러오지 못했습니다.",
+    attachmentsApiUnavailable: "이 객체에서는 첨부 파일 목록을 사용할 수 없습니다.",
     retryLoadAttachments: "다시 시도",
     unifiedDiff: "통합 보기",
     sideBySideDiff: "나란히 보기",

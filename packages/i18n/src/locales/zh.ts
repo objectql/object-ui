@@ -976,6 +976,7 @@ const zh = {
     attachmentPermissionDenied: '您没有执行此操作的权限。',
     attachmentsAccessDenied: '您没有访问这些附件的权限。',
     attachmentsLoadFailed: '无法加载此记录的附件。',
+    attachmentsApiUnavailable: '此对象上的附件列表不可用。',
     retryLoadAttachments: '重试',
     // Diff
     unifiedDiff: '统一视图',

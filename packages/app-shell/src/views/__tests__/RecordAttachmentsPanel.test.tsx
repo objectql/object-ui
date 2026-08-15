@@ -422,6 +422,159 @@ describe('RecordAttachmentsPanel — unavailable vs empty list (#4684)', () => {
   });
 });
 
+/**
+ * An api-disabled object is not an outage (#4693).
+ *
+ * `OBJECT_API_DISABLED` (404, `enable.apiEnabled: false`) and its sibling
+ * `OBJECT_API_METHOD_NOT_ALLOWED` (405, the operation is absent from
+ * `enable.apiMethods`) are pure functions of the object's metadata — no user,
+ * no session, no request body — so every retry of every persona re-fetches
+ * the identical refusal. Before this card both landed in `unavailable` and
+ * offered a Retry that was guaranteed to change nothing: the same wrong
+ * advice ("try again") `ListView`'s error panel already stopped giving for
+ * list reads, one surface over. Classified with the shared `classifyLoadError`
+ * (`@object-ui/react`, lifted out of `ListView.tsx`'s module scope for this
+ * reuse), checked BEFORE the `denied`/`unavailable` split so it cannot be
+ * shadowed by either.
+ */
+describe('RecordAttachmentsPanel — api-unavailable vs denied vs unavailable (#4693)', () => {
+  it('renders api-unavailable for a 404 OBJECT_API_DISABLED, with no Retry', async () => {
+    setup(
+      makeDataSource({
+        find: vi.fn(async () => {
+          throw Object.assign(new Error('Object API is disabled'), {
+            httpStatus: 404,
+            code: 'OBJECT_API_DISABLED',
+          });
+        }),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-api-unavailable')).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText('The attachments list is not available on this object.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('record-attachments-denied')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('record-attachments-unavailable')).not.toBeInTheDocument();
+  });
+
+  it('renders the same state for the 405 sibling OBJECT_API_METHOD_NOT_ALLOWED', async () => {
+    setup(
+      makeDataSource({
+        find: vi.fn(async () => {
+          throw Object.assign(new Error('Method not allowed'), {
+            httpStatus: 405,
+            code: 'OBJECT_API_METHOD_NOT_ALLOWED',
+          });
+        }),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-api-unavailable')).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+  });
+
+  it('classifies on the code alone, with no numeric status', async () => {
+    setup(
+      makeDataSource({
+        find: vi.fn(async () => {
+          const err: any = new Error('disabled');
+          err.code = 'OBJECT_API_DISABLED';
+          throw err;
+        }),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-api-unavailable')).toBeInTheDocument(),
+    );
+  });
+
+  it('withdraws the Upload affordance under api-unavailable', async () => {
+    setup(
+      makeDataSource({
+        find: vi.fn(async () => {
+          throw Object.assign(new Error('disabled'), {
+            httpStatus: 404,
+            code: 'OBJECT_API_DISABLED',
+          });
+        }),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-api-unavailable')).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('button', { name: 'Upload' })).not.toBeInTheDocument();
+  });
+
+  // Same no-leak bar as the other two failure states (#2532).
+  it('leaks nothing from the error — no status code, no server text', async () => {
+    setup(
+      makeDataSource({
+        find: vi.fn(async () => {
+          throw Object.assign(new Error('Object API is disabled for att_case'), {
+            httpStatus: 404,
+            code: 'OBJECT_API_DISABLED',
+          });
+        }),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-api-unavailable')).toBeInTheDocument(),
+    );
+    const panel = screen.getByTestId('record-attachments-panel');
+    expect(panel.textContent).not.toMatch(/404/);
+    expect(panel.textContent).not.toMatch(/OBJECT_API_DISABLED/);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  // POSITIVE CONTROL: the sibling `unavailable` state (5xx / network) must
+  // keep its Retry — this card narrows exactly one code pair, not the general
+  // "read failed" case.
+  it('CONTROL: a 500 still renders unavailable WITH a Retry, not api-unavailable', async () => {
+    setup(
+      makeDataSource({
+        find: vi.fn(async () => {
+          throw Object.assign(new Error('Internal Server Error'), { httpStatus: 500 });
+        }),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-unavailable')).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(screen.queryByTestId('record-attachments-api-unavailable')).not.toBeInTheDocument();
+  });
+
+  // POSITIVE CONTROL: a genuine 403 still reaches `denied`, unaffected by the
+  // new fork checked ahead of it.
+  it('CONTROL: a 403 still renders denied, not api-unavailable', async () => {
+    setup(
+      makeDataSource({
+        find: vi.fn(async () => {
+          throw Object.assign(new Error('refused'), {
+            httpStatus: 403,
+            code: 'PERMISSION_DENIED',
+          });
+        }),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-denied')).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('record-attachments-api-unavailable')).not.toBeInTheDocument();
+  });
+});
+
 describe('RecordAttachmentsPanel — authenticated signed-URL download (#2970)', () => {
   it('fetches /files/:id/url with auth and opens the signed URL', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);

@@ -896,6 +896,7 @@ const de = {
     attachmentPermissionDenied: "Sie haben keine Berechtigung für diese Aktion.",
     attachmentsAccessDenied: "Sie haben keinen Zugriff auf diese Anhänge.",
     attachmentsLoadFailed: "Die Anhänge dieses Datensatzes konnten nicht geladen werden.",
+    attachmentsApiUnavailable: "Die Anhangsliste ist für dieses Objekt nicht verfügbar.",
     retryLoadAttachments: "Erneut versuchen",
     unifiedDiff: "Einheitliche Ansicht",
     sideBySideDiff: "Nebeneinander-Ansicht",

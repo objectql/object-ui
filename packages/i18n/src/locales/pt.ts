@@ -897,6 +897,7 @@ const pt = {
     attachmentPermissionDenied: "Você não tem permissão para fazer isso.",
     attachmentsAccessDenied: "Você não tem acesso a estes anexos.",
     attachmentsLoadFailed: "Não foi possível carregar os anexos deste registro.",
+    attachmentsApiUnavailable: "A lista de anexos não está disponível neste objeto.",
     retryLoadAttachments: "Tentar novamente",
     unifiedDiff: "Visualização unificada",
     sideBySideDiff: "Visualização lado a lado",

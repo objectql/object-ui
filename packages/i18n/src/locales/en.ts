@@ -1032,6 +1032,7 @@ const en = {
     attachmentPermissionDenied: "You don't have permission to do that.",
     attachmentsAccessDenied: "You don't have access to these attachments.",
     attachmentsLoadFailed: "We couldn't load the attachments for this record.",
+    attachmentsApiUnavailable: 'The attachments list is not available on this object.',
     retryLoadAttachments: 'Retry',
     // Diff
     unifiedDiff: 'Unified diff',

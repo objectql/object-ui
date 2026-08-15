@@ -900,6 +900,7 @@ const es = {
     attachmentPermissionDenied: "No tiene permiso para hacer eso.",
     attachmentsAccessDenied: "No tiene acceso a estos adjuntos.",
     attachmentsLoadFailed: "No se pudieron cargar los adjuntos de este registro.",
+    attachmentsApiUnavailable: "La lista de adjuntos no está disponible en este objeto.",
     retryLoadAttachments: "Reintentar",
     unifiedDiff: "Vista unificada",
     sideBySideDiff: "Vista lado a lado",

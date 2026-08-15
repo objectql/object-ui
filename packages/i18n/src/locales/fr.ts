@@ -898,6 +898,7 @@ const fr = {
     attachmentPermissionDenied: "Vous n'avez pas la permission de faire cela.",
     attachmentsAccessDenied: "Vous n'avez pas accès à ces pièces jointes.",
     attachmentsLoadFailed: "Impossible de charger les pièces jointes de cet enregistrement.",
+    attachmentsApiUnavailable: "La liste des pièces jointes n'est pas disponible sur cet objet.",
     retryLoadAttachments: "Réessayer",
     unifiedDiff: "Vue unifiée",
     sideBySideDiff: "Vue côte à côte",
