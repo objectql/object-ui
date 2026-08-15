@@ -805,7 +805,23 @@ const PageAccordionRenderer: React.FC<any> = ({ schema, className, ...props }) =
   const commonChildren = itemsWithValue.map((item) => (
     <AccordionItem key={item.value} value={item.value} className={itemClass}>
       <AccordionTrigger className="text-sm font-semibold tracking-tight hover:no-underline">
-        {item.labelStr}
+        {/* One wrapping element, not two siblings — AccordionTrigger's
+            underlying primitive (`ui/accordion.tsx`, no-touch zone) lays its
+            children out with `justify-between` against the auto-appended
+            ChevronDown, so an icon + label passed as separate flex children
+            would be spread apart instead of grouped (same pattern as the
+            `page:tabs` trigger below, minus this wrapper — that trigger's
+            own class list uses `justify-center`, not `justify-between`). */}
+        <span className="flex items-center gap-1.5">
+          {item.icon && (
+            <LazyIcon
+              name={item.icon}
+              className="h-3.5 w-3.5 shrink-0 opacity-70"
+              aria-hidden
+            />
+          )}
+          <span>{item.labelStr}</span>
+        </span>
       </AccordionTrigger>
       <AccordionContent>{renderChildren(item.children)}</AccordionContent>
     </AccordionItem>
@@ -844,7 +860,7 @@ ComponentRegistry.register('accordion', PageAccordionRenderer, {
   category: 'layout',
   isContainer: true,
   inputs: [
-    { name: 'items', type: 'array', label: 'Panels', required: true, description: 'Panel definitions [{ label, collapsed?, children }] — collapsed: false opens a panel by default' },
+    { name: 'items', type: 'array', label: 'Panels', required: true, description: 'Panel definitions [{ label, icon?, collapsed?, children }] — collapsed: false opens a panel by default' },
     { name: 'allowMultiple', type: 'boolean', label: 'Allow Multiple Open', defaultValue: false },
     { name: 'variant', type: 'enum', label: 'Variant', enum: ['flush', 'card'], defaultValue: 'flush' },
   ],
