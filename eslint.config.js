@@ -71,6 +71,19 @@ export default tseslint.config({
     // Error so a tenth copy fails CI; all known sites were converted first, so
     // this lints clean today.
     'object-ui/no-try-catch-around-hook': 'error',
+    // objectui#4734 ratchet — `find(obj, { options: { $top: 100 } })`. The
+    // paging/filter keys are declared at the TOP level of `QueryParams`, no
+    // adapter reads `params.options`, and `QueryParams`'s deliberate
+    // `[key: string]: any` means the misplaced spelling type-checks exactly as
+    // well as the correct one — so nothing rejected it. Two blocks shipped it
+    // (object-timeline, objectui#4009/objectstack#7137; object-kanban,
+    // objectui#4025) and each fetched every row the server would return, a
+    // symptom that reads as a data problem rather than a code problem. Error so
+    // the next one fails at write time; the repo is at zero live instances, so
+    // this lints clean today with no allowlist. Unscoped on purpose: the
+    // signature needs no exemptions — 47 legitimate `options` objects exist
+    // repo-wide and not one carries a `$`-prefixed key.
+    'object-ui/no-query-params-under-options': 'error',
     // objectui#3090 tripwire — the spec's FormField/FormFieldSchema are the
     // form-VIEW vocabulary (`field` = object-field reference), a DIFFERENT
     // layer from objectui's runtime form-field contract (`name` = data path);
