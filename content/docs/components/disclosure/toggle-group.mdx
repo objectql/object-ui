@@ -31,7 +31,7 @@ interface ToggleGroupItem {
 
 interface ToggleGroupSchema {
   type: 'toggle-group';
-  type: 'single' | 'multiple';    // Selection mode
+  selectionType?: 'single' | 'multiple';  // Selection mode
   items: ToggleGroupItem[];       // Toggle items
   value?: string | string[];      // Selected value(s)
   variant?: 'default' | 'outline';
