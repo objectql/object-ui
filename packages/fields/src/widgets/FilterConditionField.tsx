@@ -48,22 +48,36 @@ interface BuilderGroup {
 const EMPTY_GROUP: BuilderGroup = { id: 'root', logic: 'and', conditions: [] };
 
 /**
- * Opt-in FilterBuilder operators this widget offers (objectui#4023).
+ * Opt-in FilterBuilder operators this widget offers (objectui#4023,
+ * objectui#4736).
  *
  * The shared dropdown withholds these because two of its three consumers
  * persist into dialects that cannot carry them (see `OPT_IN_OPERATORS` in
  * `@object-ui/components`'s `filter-builder.tsx`). THIS widget can: its value
  * is a MongoDB-style `FieldOperatorsSchema` criteria that the server's engine
- * evaluates directly — never lowered through the array/triplet AST — and
- * `$icontains` is executable on every driver and evaluation face the platform
- * ships (objectstack#5702 + objectstack#6520).
+ * evaluates directly — never lowered through the array/triplet AST and never
+ * folded into a `ViewFilterRule` — so the spec's `FILTER_OPERATORS` is the only
+ * vocabulary it has to satisfy.
+ *
+ *   - `containsCaseInsensitive` authors `$icontains`, executable on every
+ *     driver and evaluation face the platform ships (objectstack#5702 +
+ *     objectstack#6520).
+ *   - `exists` / `notExists` author `$exists`, which `condToMongo` has emitted
+ *     and `kvToCondition` has read back since objectui#2942. Naming them here
+ *     is what KEEPS them reachable now that the shared dropdown no longer
+ *     offers them to the list and view surfaces, whose dialects have no
+ *     existence operator at all (objectui#4736).
  *
  * Module scope, not an inline literal: a fresh array each render would reset
  * `FilterBuilder`'s memo inputs on every keystroke.
  *
  * @internal exported for tests
  */
-export const FILTER_CONDITION_EXTRA_OPERATORS: readonly string[] = ['containsCaseInsensitive'];
+export const FILTER_CONDITION_EXTRA_OPERATORS: readonly string[] = [
+  'containsCaseInsensitive',
+  'exists',
+  'notExists',
+];
 
 /** Field types that are not meaningfully filterable in a simple builder. */
 const NON_FILTERABLE = new Set([

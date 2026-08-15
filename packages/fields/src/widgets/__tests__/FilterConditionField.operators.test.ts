@@ -166,6 +166,37 @@ describe('every spec field operator is reachable from the builder (#2942)', () =
     expect(offered).toContain('containsCaseInsensitive');
     expect(offered).toContain('contains');
   });
+
+  /**
+   * The same half for `$exists` (objectui#4736). The pair became opt-in when the
+   * list and view surfaces — whose dialects have no existence operator — were
+   * found offering it, so THIS widget naming it is now the only thing keeping
+   * `$exists` authorable at all.
+   *
+   * The sweep above cannot notice if that opt-in is dropped: it feeds
+   * `FILTER_BUILDER_OPERATORS` (every DRAWABLE id) straight to `condToMongo`,
+   * which answers to any string it is handed, so `$exists` would still count as
+   * emitted while no admin could click a row that emits it — exactly the state
+   * objectui#4023 found for `$icontains`.
+   */
+  it('the $exists operator is one this widget still offers, post-withdrawal', () => {
+    expect(SPEC_OPERATORS.has('$exists'), '$exists is no longer a spec operator').toBe(true);
+    expect(FILTER_BUILDER_OPERATORS).toContain('exists');
+    expect(FILTER_BUILDER_OPERATORS).toContain('notExists');
+    expect(FILTER_CONDITION_EXTRA_OPERATORS).toContain('exists');
+    expect(FILTER_CONDITION_EXTRA_OPERATORS).toContain('notExists');
+
+    for (const type of ['text', 'number', 'date', 'select', 'lookup']) {
+      const offered = operatorsForFieldType(type, FILTER_CONDITION_EXTRA_OPERATORS)
+        .map((o) => o.value);
+      expect(offered, `${type} lost the existence pair`).toContain('exists');
+      expect(offered, `${type} lost the existence pair`).toContain('notExists');
+      // Distinct rows from the null predicates, which author `$null`. The two
+      // are different spec operators and `condToMongo` keeps them apart.
+      expect(offered, type).toContain('isNull');
+      expect(offered, type).toContain('isNotNull');
+    }
+  });
 });
 
 describe('kvToCondition round-trips what condToMongo writes', () => {

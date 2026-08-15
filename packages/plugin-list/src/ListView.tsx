@@ -157,6 +157,29 @@ export function mapOperator(op: string) {
   }
 }
 
+/**
+ * Opt-in `FilterBuilder` operators the list toolbar offers — deliberately NONE
+ * (objectui#4736).
+ *
+ * `OPT_IN_OPERATORS` in `@object-ui/components` withholds the operator ids that
+ * only the MongoDB-style criteria dialect can carry. This toolbar persists into
+ * the other two, and into BOTH of them at once:
+ *
+ *   - the array/triplet filter AST, via `mapOperator` above, for the live grid;
+ *   - `ViewFilterRule[]`, via app-shell's `foldFilterGroupToSpecRules`, when the
+ *     user saves the panel's group as a view.
+ *
+ * Neither vocabulary has a case-insensitive contains or an existence operator,
+ * so this surface opts into nothing. Named and passed explicitly rather than
+ * omitted at the call site: this constant is the handle
+ * `list-offered-operator-expressible-parity.test.ts` reads to compute what the
+ * toolbar actually offers, and an inline `extraOperators` added later would
+ * otherwise widen the dropdown without the parity test noticing.
+ *
+ * @internal exported for that test
+ */
+export const LIST_VIEW_EXTRA_OPERATORS: readonly string[] = [];
+
 /** Every not-in spelling this normalizer expands. See the note at the call site. */
 const NOT_IN_SPELLINGS = new Set(['nin', 'not_in', 'notIn', 'notin', 'not in']);
 
@@ -2529,6 +2552,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                 <FilterBuilder
                   fields={filterFields}
                   value={currentFilters}
+                  extraOperators={LIST_VIEW_EXTRA_OPERATORS}
                   onChange={(newFilters) => {
                     setCurrentFilters(newFilters);
                     if (onFilterChange) onFilterChange(newFilters);

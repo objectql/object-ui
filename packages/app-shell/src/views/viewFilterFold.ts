@@ -56,11 +56,20 @@ interface FilterGroupLike {
  *
  * The builder renders no value input for these (`needsValueInput` in
  * `@object-ui/components`'s `filter-builder.tsx`), so "no value" is the row's
- * finished state, not an unfinished one. `exists` / `notExists` have no
- * canonical spec spelling and pass through verbatim for the server's enum to
- * reject loudly (see the operator note above) — they are listed so that
- * rejection stays the reason they fail, rather than being silently dropped here
- * as incomplete.
+ * finished state, not an unfinished one.
+ *
+ * `exists` / `notExists` are still listed, and no longer for the reason they
+ * used to be. They have no canonical spec spelling — `VIEW_FILTER_OPERATORS`
+ * has no existence operator — so a rule carrying one is refused by
+ * `ViewFilterRuleSchema`. That used to be their whole story here: they reached
+ * this fold from the shared dropdown, and listing them kept the server's loud
+ * rejection as the reason they failed rather than a silent drop as incomplete.
+ * Since objectui#4736 the dropdown no longer OFFERS them to any consumer that
+ * folds through here (they moved behind `OPT_IN_OPERATORS`, and only
+ * `FilterConditionField` — which writes MongoDB-style criteria, never a view
+ * rule — opts in), so the live path stopped producing them. They stay because
+ * `needsValueInput` still draws them value-less for that widget, and because
+ * stored metadata may carry one; the parity test below is what forces that.
  *
  * `viewFilterFold.emptyValue.test.ts` pins this set against the builder's own
  * list so the two cannot drift apart unnoticed.

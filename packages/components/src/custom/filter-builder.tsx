@@ -118,40 +118,81 @@ const defaultOperators = [
  * `extraOperators`. Every other id in `defaultOperators` is offered to every
  * consumer.
  *
- * ## Why an operator would ever be opt-in (objectui#4023)
+ * ## Why an operator would ever be opt-in (objectui#4023, objectui#4736)
  *
  * This one dropdown feeds three different at-rest dialects, and they do not
  * accept the same operators:
  *
  *   - **MongoDB-style `FieldOperatorsSchema` criteria** — what
  *     `FilterConditionField` writes into a sharing rule's `criteria_json`,
- *     evaluated by the server's engine. It has `$icontains`, and every driver
- *     and evaluation face the platform ships executes it
- *     (objectstack#5702 + objectstack#6520).
- *   - **`ViewFilterRule[]`** — what `viewFilterFold` persists for a saved view.
- *     Its vocabulary is the spec's `VIEW_FILTER_OPERATORS`, which has **no**
- *     case-insensitive contains, so the rule is refused by the schema's enum.
+ *     evaluated by the server's engine. Its vocabulary is the spec's
+ *     `FILTER_OPERATORS`, the widest of the three.
+ *   - **`ViewFilterRule[]`** — what `viewFilterFold` persists for a saved view,
+ *     and what the Studio inspector's `FilterBuilderField` writes. Its
+ *     vocabulary is the spec's `VIEW_FILTER_OPERATORS`; a rule outside that
+ *     enum is refused by `ViewFilterRuleSchema`.
  *   - **The array/triplet filter AST** — what `ListView` sends for the live
  *     grid, via `mapOperator`. Its vocabulary is the spec's
- *     `VALID_AST_OPERATORS`, which also has no case-insensitive contains: an
- *     unmapped operator is emitted verbatim and the query comes back broken
- *     (see `packages/data-objectstack/src/filter-operator-ast-parity.test.ts`
- *     for what "broken" costs — an unfiltered read or a 400, either way not the
+ *     `VALID_AST_OPERATORS`; an unmapped operator is emitted verbatim and the
+ *     query comes back broken (see
+ *     `packages/data-objectstack/src/filter-operator-ast-parity.test.ts` for
+ *     what "broken" costs — an unfiltered read or a 400, either way not the
  *     filter the user asked for).
  *
- * So offering `containsCaseInsensitive` to every FilterBuilder would put a
- * filter in users' hands that two of the three consumers cannot execute —
- * which is the exact hazard objectui#4023 was held blocked over, relocated from
- * the drivers to this repo's own bridges. Mapping it onto plain `contains`
- * there is NOT the alternative: that is a different question silently answered
- * (the same reason `view-operator-builder-parity.test.ts` refuses to map
- * `is_null` onto `isEmpty`).
+ * So an operator only one dialect can carry is offered only by the consumer
+ * that speaks that dialect. Mapping it onto a near-equivalent in the others is
+ * NOT the alternative: that is a different question silently answered — the
+ * same reason `view-operator-builder-parity.test.ts` refuses to map `is_null`
+ * onto `isEmpty`.
  *
- * The lasting fix is upstream — the spec's view and AST vocabularies gaining a
- * case-insensitive contains — at which point the entry below is deleted and the
- * operator becomes ordinary. Until then the consumer that CAN store it says so.
+ * Which side of the line an id falls on is not left to this comment.
+ * `plugin-list`'s `list-offered-operator-expressible-parity.test.ts` forces the
+ * set the list toolbar offers to EQUAL the set its two dialects can express, in
+ * both directions: an unexpressible id that stays offered fails, and an id that
+ * becomes expressible while still withheld fails too.
+ *
+ * ### `containsCaseInsensitive` — the spec's `$icontains` (objectui#4023)
+ *
+ * Carried by the Mongo criteria dialect, where every driver and evaluation face
+ * the platform ships executes it (objectstack#5702 + objectstack#6520). The
+ * other two vocabularies have no case-insensitive contains at all, so offering
+ * it everywhere is the exact hazard objectui#4023 was held blocked over,
+ * relocated from the drivers to this repo's own bridges.
+ *
+ * ### `exists` / `notExists` — the spec's `$exists` (objectui#4736)
+ *
+ * Added by objectui#2942 to make `$exists` reachable from
+ * `FilterConditionField`, but offered to every consumer, including the two that
+ * cannot store them. Measured on `@objectstack/spec` 17.0.0-rc.6: neither
+ * `VIEW_FILTER_OPERATORS` nor `VALID_AST_OPERATORS` contains an existence
+ * operator — not under this spelling, not under any other; both sets have ZERO
+ * members matching `/exist/`. So there was nothing to map onto and the id went
+ * out verbatim.
+ *
+ * Collapsing them onto `isNotNull` / `isNull` would be a semantic claim, not a
+ * bridge, and it is refused on three counts:
+ *
+ *   1. The builder already offers `isNull` / `isNotNull` as their own rows, so
+ *      the collapse would draw two labels for one wire predicate.
+ *   2. The round trip is lossy: a saved `exists` reads back through
+ *      `specToBuilderOperator('is_not_null')` as `isNotNull`, silently
+ *      rewriting the author's choice on reopen.
+ *   3. The equivalence is not this repo's to declare. `@objectstack/spec`'s own
+ *      `data/index.d.ts` records `$exists` = has-value (`!= null`) as settled
+ *      and shipped on `formula` and `driver-memory`'s reference matcher, while
+ *      `driver-memory`'s live mingo path and `driver-mongodb` still read
+ *      KEY-PRESENCE, both frozen by objectstack#5499 — which is why upstream
+ *      cannot enrol a `$exists` conformance row yet either.
+ *
+ * The lasting fix for both families is upstream — the view and AST vocabularies
+ * gaining the operator — at which point the entry below is deleted, the parity
+ * test flips it back on by itself, and the operator becomes ordinary.
  */
-const OPT_IN_OPERATORS = new Set<string>(["containsCaseInsensitive"])
+const OPT_IN_OPERATORS = new Set<string>([
+  "containsCaseInsensitive",
+  "exists",
+  "notExists",
+])
 
 /**
  * The FilterBuilder's own operator vocabulary — every id its dropdown can
