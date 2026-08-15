@@ -1,8 +1,10 @@
 import React, { useId } from 'react';
 import { Input, Label, EmptyValue } from '@object-ui/components';
+import { useDisplayLocale } from '@object-ui/i18n';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
 import { toHostGroupProps } from './toHostGroupProps';
+import { useFieldTranslation } from './useFieldTranslation';
 // The value shape and the single-line formatting rule now live in a pure module
 // so the display (read) cell renderer formats a stored address exactly the way
 // this widget's readonly branch does — one rule, not two copies that drift
@@ -66,6 +68,16 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
   const groupId = useId();
   const subId = (name: keyof AddressValue) => `${groupId}-${name}`;
 
+  // Sub-labels and the readonly line's part order are the two halves of
+  // objectui#4028 — the five boxes were English string literals with no key at
+  // all, so a fully translated form showed five English words in the middle of
+  // it, and an app had nothing to key a translation bundle on (the parts are
+  // not fields on the object). Both hooks are called unconditionally, ABOVE the
+  // readonly early return: the readonly branch reads the locale, and a hook
+  // that ran only on one branch would desync hook order between the two.
+  const { t } = useFieldTranslation();
+  const displayLocale = useDisplayLocale();
+
   // Read through the legacy key, write only the canonical one (objectstack#5143).
   const postalCode = readPostalCode(address);
 
@@ -91,7 +103,12 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
     // placeholder's own `aria-label` ("No value") is outranked by
     // `aria-labelledby` per accname, and on its `generic` role an author name was
     // never exposed anyway.
-    const formatted = formatAddress(address);
+    // Part order follows the reader's display locale (objectui#4028): the line
+    // used to be US-ordered for everyone, so a Chinese address on a Chinese
+    // console read backwards. `formatAddress` owns the rule and the display
+    // cell renderer passes the same locale, so the two surfaces cannot drift
+    // (the very thing objectui#4037 unified them for).
+    const formatted = formatAddress(address, displayLocale);
     return formatted ? (
       <span {...hostGroupProps} className="text-sm">{formatted}</span>
     ) : (
@@ -106,72 +123,89 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
     // byte-identical to what it was before. That condition now lives in
     // `toHostGroupProps` so this container and the readonly line above cannot
     // answer differently (objectui#3990).
+    // The five sub-inputs carry NO placeholder any more (objectui#4028). They
+    // used to hold `123 Main St` / `San Francisco` / `CA` / `94102` / `United
+    // States` — untranslated AND US-specific, so a zh/ja/ar user was shown an
+    // American address as the example of what to type.
+    //
+    // Dropped rather than keyed, measured against the packs' own precedent:
+    //
+    //  1. Every example-data placeholder the packs DO carry teaches a FORMAT
+    //     its label cannot — `name@example.com` (local@domain), `+1 555 000
+    //     0000` (dial prefix), `Icon name (e.g. Users)` (which identifier).
+    //     Each box here already has a visible label naming exactly what it
+    //     wants, so its example added nothing but a country — and a US postal
+    //     code's SHAPE actively misinforms anyone whose own is a different one.
+    //  2. The right example is a function of the address's COUNTRY, not the
+    //     reader's language. Nothing in the stored value can pick one (this
+    //     widget writes no `countryCode`), and keying by UI language would be
+    //     wrong for every cross-border address — precisely the CRM case this
+    //     was reported from.
+    //  3. Keying costs 50 pack entries of invented fictional address fragments,
+    //     bound from then on by `check:i18n-drift`, and each Latin-script one
+    //     inside zh/ja/ko/ru/ar would need an `untranslated-identity-4376`
+    //     allowlist entry — an explicit admission the "translation" is not one.
     <div className="space-y-3" {...hostGroupProps}>
       <div>
-        <Label htmlFor={subId('street')} className="text-xs">Street Address</Label>
+        <Label htmlFor={subId('street')} className="text-xs">{t('fields.address.street')}</Label>
         <Input
           {...domProps}
           id={subId('street')}
           type="text"
           value={address.street || ''}
           onChange={(e) => handleFieldChange('street', e.target.value)}
-          placeholder="123 Main St"
           disabled={readonly || props.disabled}
           className={props.className}
           aria-invalid={!!error}
         />
       </div>
-      
+
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label htmlFor={subId('city')} className="text-xs">City</Label>
+          <Label htmlFor={subId('city')} className="text-xs">{t('fields.address.city')}</Label>
           <Input
             id={subId('city')}
             type="text"
             value={address.city || ''}
             onChange={(e) => handleFieldChange('city', e.target.value)}
-            placeholder="San Francisco"
             disabled={readonly || props.disabled}
             aria-invalid={!!error}
           />
         </div>
-        
+
         <div>
-          <Label htmlFor={subId('state')} className="text-xs">State / Province</Label>
+          <Label htmlFor={subId('state')} className="text-xs">{t('fields.address.state')}</Label>
           <Input
             id={subId('state')}
             type="text"
             value={address.state || ''}
             onChange={(e) => handleFieldChange('state', e.target.value)}
-            placeholder="CA"
             disabled={readonly || props.disabled}
             aria-invalid={!!error}
           />
         </div>
       </div>
-      
+
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label htmlFor={subId('postalCode')} className="text-xs">ZIP / Postal Code</Label>
+          <Label htmlFor={subId('postalCode')} className="text-xs">{t('fields.address.postalCode')}</Label>
           <Input
             id={subId('postalCode')}
             type="text"
             value={postalCode || ''}
             onChange={(e) => handleFieldChange('postalCode', e.target.value)}
-            placeholder="94102"
             disabled={readonly || props.disabled}
             aria-invalid={!!error}
           />
         </div>
-        
+
         <div>
-          <Label htmlFor={subId('country')} className="text-xs">Country</Label>
+          <Label htmlFor={subId('country')} className="text-xs">{t('fields.address.country')}</Label>
           <Input
             id={subId('country')}
             type="text"
             value={address.country || ''}
             onChange={(e) => handleFieldChange('country', e.target.value)}
-            placeholder="United States"
             disabled={readonly || props.disabled}
             aria-invalid={!!error}
           />

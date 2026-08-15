@@ -261,6 +261,14 @@ const ko = {
     tags: {
       placeholder: "입력 후 Enter 키로 추가…",
     },
+    // objectui#4028 — `AddressField`'s five sub-labels.
+    address: {
+      street: "도로명 주소",
+      city: "시/군/구",
+      state: "시/도",
+      postalCode: "우편번호",
+      country: "국가",
+    },
     textarea: {
       characterCount: "글자 수: {{max}}자 중 {{count}}자",
       charactersRemaining: "{{count}}자 남음",

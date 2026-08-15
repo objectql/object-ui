@@ -261,6 +261,14 @@ const de = {
     tags: {
       placeholder: "Tippen und mit der Eingabetaste hinzufügen…",
     },
+    // objectui#4028 — `AddressField`'s five sub-labels.
+    address: {
+      street: "Straße und Hausnummer",
+      city: "Stadt",
+      state: "Bundesland / Provinz",
+      postalCode: "Postleitzahl",
+      country: "Land",
+    },
     textarea: {
       characterCount: "Zeichenanzahl: {{count}} von {{max}}",
       charactersRemaining: "Verbleibende Zeichen: {{count}}",

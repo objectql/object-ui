@@ -268,6 +268,17 @@ const zh = {
     tags: {
       placeholder: '输入后回车添加…',
     },
+    // objectui#4028 — `AddressField`'s five sub-labels. These were English
+    // string literals with no key, and this pack is the one the issue was
+    // reported against: a zh-CN console showed five English words in the
+    // middle of an otherwise fully translated address form.
+    address: {
+      street: '街道地址',
+      city: '城市',
+      state: '省 / 州',
+      postalCode: '邮政编码',
+      country: '国家 / 地区',
+    },
     textarea: {
       characterCount: '已输入 {{count}} 个字符，最多 {{max}} 个',
       charactersRemaining: '还可输入 {{count}} 个字符',

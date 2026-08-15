@@ -95,26 +95,86 @@ function part(value: unknown): string {
 }
 
 /**
- * Formats a stored address as a single line: `Street, City, State ZIP, Country`.
+ * Language subtags whose addresses are conventionally written LARGEST-FIRST —
+ * country, then region, then city, then street (objectui#4028).
  *
- * Ordering and separators are NOT invented here — they are the rule
- * `AddressField` already applied in its readonly branch, and the sub-field set
- * its inputs expose (street / city / state / postalCode / country). Missing
- * parts are dropped rather than spaced over, so a street-only address is
- * `"中策路 1 号"` and never `", , ,"`.
+ * Deliberately a language-subtag set and not a country table. The two candidate
+ * channels were compared before picking this one:
+ *
+ *   - The ADDRESS's own country (`countryCode`) would be the more correct
+ *     channel — an address format is a property of where the mail goes, not of
+ *     who is reading — but `AddressField` exposes no `countryCode` input and
+ *     never writes one, so on data this widget produces that channel is empty.
+ *     A `country` free-text match ("中国" / "China" / "PRC") would be a
+ *     name-guessing table, invented here rather than derived from anything.
+ *   - The reader's DISPLAY LOCALE is the channel this repo already resolves
+ *     once, for every display formatter, through `useDisplayLocale()` (tenant
+ *     regional default -> active UI language -> `'en'`; objectui#4033/#4468).
+ *     Both callers pass that, so a stored address reads the same way in a
+ *     readonly form and in a grid cell.
+ *
+ * The limit is stated rather than hidden: a `zh` reader looking at a US address
+ * gets it largest-first. That is the reading order their own locale writes
+ * addresses in, and it is the trade the empty `countryCode` channel forces
+ * today; the refinement is a follow-up, not a silent assumption.
+ *
+ * Region subtags are ignored (`zh-CN`, `zh-Hant-TW` and `zh` all match) — the
+ * convention here follows the language, and `useDisplayLocale()` can serve any
+ * of those spellings.
+ */
+const LARGE_TO_SMALL_LANGUAGES = new Set(['zh', 'ja', 'ko']);
+
+/** Primary language subtag of a BCP-47 tag, lowercased (`'zh-CN'` -> `'zh'`). */
+function languageOf(locale: string | undefined): string {
+  return (locale || '').split(/[-_]/)[0].toLowerCase();
+}
+
+/**
+ * Formats a stored address as a single line, in the part order the reader's
+ * locale writes addresses in.
+ *
+ * Two orders, and the second is exactly the first reversed:
+ *
+ *   - **small-to-large** (default; `en` and every Latin/Cyrillic/Arabic locale
+ *     this repo ships) — `Street, City, State ZIP, Country`. Unchanged from
+ *     what `AddressField`'s readonly branch has always produced, so English and
+ *     provider-less rendering are byte-identical to before.
+ *   - **large-to-small** ({@link LARGE_TO_SMALL_LANGUAGES}) — `Country, ZIP
+ *     State, City, Street`. A `zh` console rendering a Chinese address
+ *     largest-first is the whole point of objectui#4028: `中国, 310000 浙江,
+ *     杭州, 中策路 1 号` rather than the US-ordered line it produced before.
+ *
+ * Only the ORDER varies. The separator stays `', '` in both, because that is
+ * not what the issue reports and because these lines carry mixed-script data —
+ * a US address read on a `zh` console would look stranger under fullwidth
+ * punctuation than under the comma it already has.
+ *
+ * The state/postal-code pair keeps its one comma-delimited group in both
+ * orders, space-separated inside it ("CA 94102" / "310000 浙江"); either part
+ * alone occupies the group by itself. Missing parts are dropped rather than
+ * spaced over, so a street-only address is `"中策路 1 号"` and never `", , ,"`.
  *
  * Returns `''` when no part is usable — callers decide what an empty address
  * looks like (an `EmptyValue` placeholder for the cell renderer), and a value
  * carrying no recognized part at all is NOT silently blanked: see
  * `AddressCellRenderer`, which falls back to JSON so unknown data stays visible.
+ *
+ * @param locale - BCP-47 tag from `useDisplayLocale()`. Omitted (tests, and any
+ *   caller with no React context) means the small-to-large default, which is
+ *   what this function did unconditionally before objectui#4028.
  */
-export function formatAddress(addr: AddressValue): string {
-  // State and postal code share one comma-delimited group, space-separated
-  // inside it ("CA 94102"); either one alone occupies the group by itself.
-  const stateAndPostal = [part(addr.state), part(readPostalCode(addr))]
-    .filter(Boolean)
-    .join(' ');
-  return [part(addr.street), part(addr.city), stateAndPostal, part(addr.country)]
-    .filter(Boolean)
-    .join(', ');
+export function formatAddress(addr: AddressValue, locale?: string): string {
+  const street = part(addr.street);
+  const city = part(addr.city);
+  const state = part(addr.state);
+  const postalCode = part(readPostalCode(addr));
+  const country = part(addr.country);
+
+  if (LARGE_TO_SMALL_LANGUAGES.has(languageOf(locale))) {
+    const postalAndState = [postalCode, state].filter(Boolean).join(' ');
+    return [country, postalAndState, city, street].filter(Boolean).join(', ');
+  }
+
+  const stateAndPostal = [state, postalCode].filter(Boolean).join(' ');
+  return [street, city, stateAndPostal, country].filter(Boolean).join(', ');
 }

@@ -267,6 +267,14 @@ const ru = {
     tags: {
       placeholder: "Введите и нажмите Enter, чтобы добавить…",
     },
+    // objectui#4028 — `AddressField`'s five sub-labels.
+    address: {
+      street: "Улица и дом",
+      city: "Город",
+      state: "Область / штат",
+      postalCode: "Почтовый индекс",
+      country: "Страна",
+    },
     textarea: {
       characterCount: "Количество символов: {{count}} из {{max}}",
       charactersRemaining: "Осталось символов: {{count}}",

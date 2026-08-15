@@ -265,6 +265,14 @@ const ar = {
     tags: {
       placeholder: "اكتب واضغط Enter للإضافة…",
     },
+    // objectui#4028 — `AddressField`'s five sub-labels.
+    address: {
+      street: "عنوان الشارع",
+      city: "المدينة",
+      state: "الولاية / المحافظة",
+      postalCode: "الرمز البريدي",
+      country: "الدولة",
+    },
     textarea: {
       characterCount: "عدد الأحرف: {{count}} من {{max}}",
       charactersRemaining: "الأحرف المتبقية: {{count}}",

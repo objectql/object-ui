@@ -261,6 +261,14 @@ const ja = {
     tags: {
       placeholder: "入力してEnterキーで追加…",
     },
+    // objectui#4028 — `AddressField`'s five sub-labels.
+    address: {
+      street: "番地・建物名",
+      city: "市区町村",
+      state: "都道府県",
+      postalCode: "郵便番号",
+      country: "国",
+    },
     textarea: {
       characterCount: "文字数: {{max}} 文字中 {{count}} 文字",
       charactersRemaining: "残り {{count}} 文字",

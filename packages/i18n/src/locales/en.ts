@@ -291,6 +291,30 @@ const en = {
     tags: {
       placeholder: 'Type and press Enter to add…',
     },
+    // objectui#4028 — `AddressField`'s five sub-labels, previously English
+    // string literals with no key at all: on a Chinese console every address
+    // field showed five English words in the middle of an otherwise fully
+    // translated form, and an app had NO way to reach them. The parts are not
+    // fields on the object (`billing_address` is a single `address` column),
+    // so there was nothing for a translation bundle to key on and no
+    // `subLabels` property to declare — the only workaround left was to stop
+    // using `Field.address()` and author five text fields, losing the
+    // structured value, geocoding and map view.
+    //
+    // Values are byte-identical to the literals they replace, so English and
+    // provider-less rendering are unchanged (`FIELD_DEFAULTS` in
+    // `packages/fields/src/widgets/useFieldTranslation.ts` carries the same
+    // five, which is what a host with no `I18nProvider` renders).
+    //
+    // The five INPUT PLACEHOLDERS that sat next to these labels are gone
+    // rather than keyed — see the widget for that measurement.
+    address: {
+      street: 'Street Address',
+      city: 'City',
+      state: 'State / Province',
+      postalCode: 'ZIP / Postal Code',
+      country: 'Country',
+    },
     // objectui#3406 — the accessible sentence of the textarea character
     // counter, rendered only when the field declares `maxLength`. The visible
     // text is `{count}/{max}` digits and needs no locale. ONE interpolated key

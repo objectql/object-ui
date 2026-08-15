@@ -150,8 +150,15 @@ describe('InlineFieldInput — structured composite values (objectui#4216)', () 
       );
       // The composite is still the editor when there is nothing stored yet —
       // that is how an address gets authored inline in the first place.
-      expect(screen.getByPlaceholderText('123 Main St')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('San Francisco')).toBeInTheDocument();
+      //
+      // Located by LABEL, not by placeholder (objectui#4028). The sub-inputs
+      // used to be reachable as `getByPlaceholderText('123 Main St')`, but
+      // those placeholders were hardcoded US example text shown to every
+      // locale and are gone. The labels are the durable handle and the better
+      // one: they are what names each empty box for a user, and this suite is
+      // provider-free, so they resolve through `FIELD_DEFAULTS`' English.
+      expect(screen.getByLabelText('Street Address')).toBeInTheDocument();
+      expect(screen.getByLabelText('City')).toBeInTheDocument();
     });
   });
 

@@ -77,6 +77,16 @@ const FIELD_DEFAULTS: Record<string, string> = {
   // objectui#3342 — the tags widget's input hint. Used only when the field
   // author declared no `placeholder` of their own (author declaration wins).
   'fields.tags.placeholder': 'Type and press Enter to add…',
+  // objectui#4028 — `AddressField`'s five sub-labels. The parts of an address
+  // are NOT fields on the object (`billing_address` is one column), so no
+  // translation bundle could ever key them and an app had no workaround short
+  // of abandoning `Field.address()`. Byte-identical to the literals they
+  // replace, so English and provider-less rendering are unchanged.
+  'fields.address.street': 'Street Address',
+  'fields.address.city': 'City',
+  'fields.address.state': 'State / Province',
+  'fields.address.postalCode': 'ZIP / Postal Code',
+  'fields.address.country': 'Country',
   // objectui#3406 — the accessible name of `TextAreaField`'s character
   // counter, rendered only when the field declares `maxLength`. The visible
   // `{n}/{max}` is digits; this sentence is what a screen reader speaks, and

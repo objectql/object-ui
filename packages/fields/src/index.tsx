@@ -2072,11 +2072,23 @@ export function LocationCellRenderer({ value }: CellRendererProps): React.ReactE
  * is never silently swallowed by the fix.
  */
 export function AddressCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  // Part order follows the reader's display locale (objectui#4028). This is
+  // the SAME `formatAddress` the input widget's readonly branch calls, and
+  // that shared definition is the whole point of objectui#4037 — so passing
+  // the locale on only one of the two callers would re-open exactly the drift
+  // that change closed: one stored address, largest-first in a readonly form
+  // and US-ordered in the grid cell next to it. Measured on this branch, not
+  // assumed: `formatAddress` has these two callers and no others.
+  //
+  // `useDisplayLocale()` is the same resolver every other locale-aware cell
+  // renderer in this file already uses, and it is provider-safe (it resolves
+  // to `'en'` — the unchanged small-to-large order — with nothing mounted).
+  const locale = useDisplayLocale();
   if (value == null || value === '') return <EmptyValue />;
   // A plain string address (some apps store one) is already display-ready.
   if (typeof value === 'string') return <TruncatedText text={value} className="text-sm" />;
   if (typeof value === 'object' && !Array.isArray(value)) {
-    const formatted = formatAddress(value as AddressValue);
+    const formatted = formatAddress(value as AddressValue, locale);
     if (formatted) return <TruncatedText text={formatted} className="text-sm" />;
     // An object carrying no recognized part: `{}` reads as empty, while
     // `{ foo: 1 }` keeps its JSON so real data is never hidden.
