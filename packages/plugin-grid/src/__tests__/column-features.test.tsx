@@ -5,7 +5,7 @@
  *         link column rendering, action column rendering,
  *         and the useColumnSummary hook.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -13,10 +13,22 @@ import React from 'react';
 
 import { ObjectGrid } from '../ObjectGrid';
 import { useColumnSummary } from '../useColumnSummary';
+import { __clearRecordCrudVerdictCache } from '../hooks/useRecordCrudVerdicts';
+import { installExplainDouble } from './explainDouble';
 import { registerAllFields } from '@object-ui/fields';
 import { ActionProvider } from '@object-ui/react';
 
 registerAllFields();
+
+// [#4296] The action-column grids here carry an objectName and rows with ids,
+// so each render batches a record-level explain probe. Answer it from a double
+// instead of the network (objectui#3339 / PR #4105); `visible: true` for every
+// row keeps the column assertions below measuring what they always measured.
+beforeEach(() => {
+  __clearRecordCrudVerdictCache();
+  installExplainDouble();
+});
+afterEach(() => { vi.unstubAllGlobals(); });
 
 // ---------------------------------------------------------------------------
 // Test data
