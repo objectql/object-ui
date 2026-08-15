@@ -65,13 +65,17 @@ const PARENT_LABELS = { [PARENT_A.name]: PARENT_A.label, [PARENT_B.name]: PARENT
 
 /**
  * Surfaces the `emptyHint` the FORM computed, verbatim. The gate hint reaches a
- * registered option widget as that prop (objectui#3231), so reading it is
- * reading `gatedHint`'s output with no DOM formatting in between.
+ * registered option widget as that prop (objectui#3231), so this is
+ * `gatedHint`'s own output with no other widget's formatting in between.
+ *
+ * The value is RENDERED rather than captured into a module variable: writing to
+ * one during render is a side effect (`react-hooks/globals`), and a probe that
+ * renders what it received needs no such write. `String(...)` so a hint that
+ * failed to compute reads as `"undefined"` and fails the comparison loudly
+ * instead of comparing empty to empty.
  */
-let formHint: string | undefined;
 function EmptyHintProbe(props: any) {
-  formHint = props.emptyHint;
-  return <div data-testid="form-gate-probe" />;
+  return <div data-testid="form-gate-probe">{String(props.emptyHint)}</div>;
 }
 
 const dataSource = { find: vi.fn(async () => ({ data: [], total: 0 })) } as any;
@@ -83,7 +87,6 @@ beforeAll(() => {
 }, 30000);
 
 beforeEach(() => {
-  formHint = undefined;
   Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1280 });
   window.matchMedia = ((query: string) => ({
     matches: false,
@@ -169,10 +172,9 @@ function formGateHint(language: string): string {
       />,
     ),
   );
-  screen.getByTestId('form-gate-probe');
-  const hint = formHint;
+  const hint = screen.getByTestId('form-gate-probe').textContent ?? '';
   cleanup();
-  return String(hint);
+  return hint;
 }
 
 /** `packages/fields` — the standalone option widget's own gate copy. */
