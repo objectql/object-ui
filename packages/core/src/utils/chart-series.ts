@@ -27,6 +27,11 @@
  * objectui#4466 for the single-dimension branch, objectui#4497 for the pivot.
  * One doctrine, one predicate (`isNullCategory`), two call sites.
  *
+ * The pivot's SECOND dimension gets the same answer as of objectui#4673, where
+ * it needed one more thing than an axis bucket does: a series bucket's key is a
+ * renderer `dataKey` AND a column in the emitted row, so it has to be
+ * collision-safe as well as drawable. See {@link pivotSeriesBuckets}.
+ *
  * A bucket's IDENTITY is separate from that display label (objectui#4508). The
  * label used to serve as its own key, which conflated two pairs of genuinely
  * different groups; see {@link chartBucketId} for the identity, and
@@ -213,12 +218,22 @@ export interface ChartSegmentClickEvent {
  * sentence and a false one.
  */
 function isNullCategory(row: unknown, key: string): boolean {
-  return (
-    !!row &&
-    typeof row === 'object' &&
-    key in row &&
-    (row as Record<string, unknown>)[key] == null
-  );
+  return carriesKey(row, key) && (row as Record<string, unknown>)[key] == null;
+}
+
+/**
+ * Does this row carry `key` AT ALL — the precondition {@link isNullCategory}
+ * and every bucketing call site share.
+ *
+ * Stated once because the two halves of the doctrine hang off it and the
+ * difference is invisible at a glance: `row[key] == null` is TRUE for a row
+ * that simply has no such column, so reading the raw value alone silently
+ * relabels "this dimension was never projected" as "these records have no
+ * value" (framework#4033's signal, erased). Every place that decides whether a
+ * row has a bucket asks THIS, never the raw value.
+ */
+function carriesKey(row: unknown, key: string): boolean {
+  return !!row && typeof row === 'object' && key in (row as Record<string, unknown>);
 }
 
 /**
@@ -276,21 +291,19 @@ function bucketNullCategories(
   key: string,
   label: string,
 ): Array<Record<string, unknown>> {
-  const carriesKey = (row: unknown): boolean =>
-    !!row && typeof row === 'object' && key in (row as Record<string, unknown>);
   // The value this row's bar will PAINT — the label when its category is null,
   // its own value otherwise. Ambiguity is a question about that string.
   const displayOf = (row: Record<string, unknown>): unknown =>
     isNullCategory(row, key) ? label : row[key];
   const ambiguous = ambiguousDisplays(
-    rows.filter(carriesKey).map((row) => ({
+    rows.filter((row) => carriesKey(row, key)).map((row) => ({
       id: chartBucketId(row[key]),
       display: bucketDisplayKey(displayOf(row)),
     })),
   );
   let changed = false;
   const next = rows.map((row) => {
-    if (!carriesKey(row)) return row;
+    if (!carriesKey(row, key)) return row;
     const isNull = isNullCategory(row, key);
     const shared = ambiguous.has(bucketDisplayKey(displayOf(row)));
     if (!isNull && !shared) return row;
@@ -302,6 +315,87 @@ function bucketNullCategories(
     };
   });
   return changed ? next : rows;
+}
+
+/**
+ * One pivoted SECOND-dimension group: what it is, what it says, and which
+ * column of the emitted row carries its measure.
+ */
+interface PivotSeriesBucket {
+  /** The group's {@link chartBucketId} — what two groups are told apart by. */
+  id: string;
+  /** The text the legend paints: the null bucket's label, or the value itself. */
+  label: string;
+  /** The emitted row's column for this group, and the renderer's `dataKey`. */
+  dataKey: string;
+}
+
+/**
+ * The pivot's series buckets, in first-seen order — objectui#4673.
+ *
+ * The second dimension used to be bucketed by `String(row[groupKey] ?? '')`
+ * behind a `gId !== ''` gate, which is the PRE-objectui#4466 answer one
+ * dimension over: a null (or empty-string) group never joined the series list,
+ * while the line below the gate still wrote its measure into the bucket. The
+ * number was in the emitted row and bound to no mark — the chart understated
+ * its own data without saying so, which is #4466's harm verbatim.
+ *
+ * A series bucket needs one thing an axis bucket does not, and that is the
+ * whole reason this is a function rather than two more lines inline: its key is
+ * a **row column and a renderer `dataKey`**, so it must be UNIQUE within the
+ * emitted row, where an axis bucket's key is a private map key. Hence the
+ * assignment below, which is injective by construction:
+ *
+ *  - a bucket keys its column by its own LABEL — so an ordinary pivot's rows
+ *    and series are byte-identical to what they have always been, and the
+ *    legend, the tooltip and the drill title read the group's own text;
+ *  - unless that label cannot NAME it: shared with another bucket (the null
+ *    bucket beside a stored value spelling its label — objectui#4508's second
+ *    collision, on the series axis), reserved by the row itself (`xKey`, whose
+ *    column IS the axis value, and {@link CHART_BUCKET_ID_KEY}), or equal to
+ *    some bucket's identity;
+ *  - in which case it keys by its own IDENTITY, which no other bucket has.
+ *
+ * The third exclusion is what makes the first two safe rather than merely
+ * likely: identities are pairwise distinct, and no surviving label is one of
+ * them, so the two key spaces cannot meet. That is the card's "collision-safe"
+ * requirement discharged, not approximated — a record whose stored group value
+ * literally spells `[null]` is a real value with a real bar, and it keeps it.
+ *
+ * The empty-string group keys by its own label, `''`, exactly as it paints a
+ * blank legend entry (and a blank tick on the x-axis — objectui#4508 ruled `''`
+ * and `null` two different groups, and this is that ruling on the series axis).
+ * Measured, not assumed: recharts binds `dataKey=""` through the same
+ * `getValueByDataKey` path as any other key and draws the bar at its true
+ * height. That measurement is pinned at the DOM in plugin-charts.
+ *
+ * A row that does not carry `groupKey` at all gets NO bucket and contributes no
+ * column — the other half of the doctrine, unchanged: "known to be empty" draws
+ * and "cannot know" refuses (framework#4033). Inventing a group for it would
+ * merge unprojected rows into the empty-string group and call it data.
+ */
+function pivotSeriesBuckets(
+  rows: Array<Record<string, unknown>>,
+  groupKey: string,
+  nullLabel: string,
+  xKey: string,
+): PivotSeriesBucket[] {
+  const byId = new Map<string, { id: string; label: string }>();
+  for (const row of rows) {
+    if (!carriesKey(row, groupKey)) continue;
+    const id = chartBucketId(row[groupKey]);
+    if (byId.has(id)) continue;
+    byId.set(id, { id, label: isNullCategory(row, groupKey) ? nullLabel : String(row[groupKey]) });
+  }
+  const buckets = Array.from(byId.values());
+  const shared = ambiguousDisplays(buckets.map(({ id, label }) => ({ id, display: label })));
+  const reserved = new Set([xKey, CHART_BUCKET_ID_KEY]);
+  const identities = new Set(buckets.map(({ id }) => id));
+  return buckets.map(({ id, label }) => ({
+    id,
+    label,
+    dataKey: shared.has(label) || reserved.has(label) || identities.has(label) ? id : label,
+  }));
 }
 
 export function buildChartSeries(
@@ -323,7 +417,11 @@ export function buildChartSeries(
     const groupKey = dims[1];
     const measure = vals[0];
     const nullLabel = options?.nullCategoryLabel ?? NULL_CATEGORY_LABEL;
-    const seriesKeys: string[] = [];
+    // Every second-dimension group, INCLUDING the null and empty-string ones
+    // the `gId !== ''` gate used to drop on the floor (objectui#4673), each
+    // already carrying the column its measure lands in.
+    const groups = pivotSeriesBuckets(safeRows, groupKey, nullLabel, xKey);
+    const columnById = new Map(groups.map(({ id, dataKey }) => [id, dataKey]));
     const byX = new Map<string, Record<string, unknown>>();
 
     for (const row of safeRows) {
@@ -348,9 +446,15 @@ export function buildChartSeries(
       if (!byX.has(xId)) {
         byX.set(xId, { [xKey]: isNullCategory(row, xKey) ? nullLabel : xRaw });
       }
-      const gId = String(row[groupKey] ?? '');
-      if (gId !== '' && !seriesKeys.includes(gId)) seriesKeys.push(gId);
-      byX.get(xId)![gId] = row[measure];
+      // The group's own column, or nothing at all when the row carries no
+      // second dimension to be grouped BY. Nothing at all is the point: the
+      // old code wrote such a row's measure under `''` — a column no series
+      // bound to, and after objectui#4673 the empty-string GROUP's column,
+      // which would hand an unprojected row's number to a real group's bar.
+      const column = carriesKey(row, groupKey)
+        ? columnById.get(chartBucketId(row[groupKey]))
+        : undefined;
+      if (column !== undefined) byX.get(xId)![column] = row[measure];
     }
 
     // Two DISTINCT buckets can still render the same axis text — the null
@@ -371,8 +475,10 @@ export function buildChartSeries(
       ),
       xAxisKey: xKey,
       // Series labels are the second-dimension values themselves (already
-      // server-resolved to display labels by queryDataset).
-      series: seriesKeys.map((k) => ({ dataKey: k, label: k })),
+      // server-resolved to display labels by queryDataset), except the null
+      // group, which says so with the bucket label the renderer supplied. The
+      // key is a separate question from the text — see `pivotSeriesBuckets`.
+      series: groups.map(({ dataKey, label }) => ({ dataKey, label })),
     };
   }
 
@@ -459,11 +565,20 @@ export function relabelDimensions(
  *    BOTH the x-axis dimension (`category`) and the series dimension (`seriesKey`).
  *  - **otherwise** → match the x-axis (first) dimension only.
  *
- * Comparison is string-wise on the rows' display values (which is what the chart
- * surfaces as `category` / series key), unless the click carried a bucket
+ * The x-axis comparison is string-wise on the rows' display values (which is
+ * what the chart surfaces as `category`), unless the click carried a bucket
  * IDENTITY — {@link ChartDrillLookupOptions.bucketId} — in which case that is
  * authoritative and the display string is not consulted at all. Returns `-1`
  * when nothing matches.
+ *
+ * The SERIES comparison is not string-wise at all as of objectui#4673: a series
+ * key is a `dataKey` {@link buildChartSeries} assigned, so it is resolved back
+ * through the same {@link pivotSeriesBuckets} assignment (same rows, same
+ * `nullCategoryLabel`) to the group IDENTITY it names, and rows are matched on
+ * that. A null-valued second dimension had no series at all before, so its
+ * segment could not be clicked; now it can, and `String(r[gDim] ?? '')` would
+ * have answered that click with an empty-string group's rows — the same
+ * conflation objectui#4508 removed on the x-axis.
  *
  * The NULL-category bucket {@link buildChartSeries} renders (objectui#4466) is
  * matched back to its row here, and it has to be: the caller passes the rows it
@@ -521,8 +636,23 @@ export function findChartSeriesRow(
       : (r: Record<string, unknown>): boolean => (r[xDim] == null ? nullLabel : String(r[xDim])) === c;
   if (dims.length >= 2 && vals.length === 1) {
     const gDim = dims[1];
-    const s = String(seriesKey ?? '');
-    return safeRows.findIndex((r) => matchesX(r) && String(r[gDim] ?? '') === s);
+    // The clicked series key is a `dataKey` `buildChartSeries` ASSIGNED, so it
+    // is resolved the way it was assigned — through the same buckets, rebuilt
+    // from the same raw rows (`DatasetWidget.handleChartDrill`, the one
+    // production caller, hands both helpers the same array and the same
+    // `nullCategoryLabel`). Matching then compares IDENTITIES, which is
+    // objectui#4508's answer extended to the series axis: `String(r[gDim] ?? '')`
+    // was display-string matching, and it spelled a null group and an
+    // empty-string group alike — the tolerance #4508 removed one dimension over.
+    const groups = pivotSeriesBuckets(safeRows, gDim, nullLabel, xDim);
+    const gId = groups.find(({ dataKey }) => dataKey === String(seriesKey ?? ''))?.id;
+    // No bucket answers to that key: these rows have no such group, so no row
+    // can belong to it. `-1` is the documented "nothing matched" — widening to
+    // a string comparison here would put back exactly what #4508 measured out.
+    if (gId === undefined) return -1;
+    return safeRows.findIndex(
+      (r) => matchesX(r) && carriesKey(r, gDim) && chartBucketId(r[gDim]) === gId,
+    );
   }
   return safeRows.findIndex((r) => matchesX(r));
 }
