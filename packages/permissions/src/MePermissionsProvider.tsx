@@ -290,9 +290,18 @@ export function MePermissionsProvider({
       getRowFilter,
       getObjectApiOperations,
       roles: data?.roles ?? [],
-      systemPermissions: data?.systemPermissions ?? [],
+      // [objectui#4656] Forward the raw signal — do NOT `?? []` this. A
+      // backend predating ADR-0066 omits `systemPermissions` from the
+      // response entirely, and defaulting that to `[]` here made it
+      // indistinguishable from a genuinely empty grant to every consumer
+      // downstream (this provider's own `hasCapabilities` included).
+      systemPermissions: data?.systemPermissions,
       hasCapabilities: (required: string[]) => {
-        const held = new Set(data?.systemPermissions ?? []);
+        const perms = data?.systemPermissions;
+        // Unknown (backend never reported systemPermissions) fails OPEN — see
+        // the doctrine on `PermissionContextValue.hasCapabilities`.
+        if (!Array.isArray(perms)) return true;
+        const held = new Set(perms);
         return required.every((p) => held.has(p));
       },
       isLoaded: !loading && !error && data !== null,

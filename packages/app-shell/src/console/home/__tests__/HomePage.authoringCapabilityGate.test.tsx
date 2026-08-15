@@ -203,17 +203,36 @@ describe('HomePage authoring-CTA capability gate (objectstack#8270)', () => {
 
   describe('unknown capabilities fail OPEN', () => {
     it('keeps the CTAs live when the backend reports no capabilities at all', () => {
-      // A deployment predating ADR-0066 sends no `systemPermissions`, and
-      // `MePermissionsProvider` collapses that absence into `[]` — the same
-      // value a genuinely capability-less user produces. Reading it as "denied"
-      // would strip the product's front door from every admin on such a
-      // deployment; the server still refuses the write either way, so unknown
-      // opens (the doctrine `useCapabilityGate` states for ADR-0066 gates).
+      // A deployment predating ADR-0066 sends no `systemPermissions` at all —
+      // the key is OMITTED from the response. `MePermissionsProvider` now
+      // preserves that as `undefined`, distinct from a genuinely empty grant,
+      // and `hasCapabilities` fails OPEN on it. Reading it as "denied" would
+      // strip the product's front door from every admin on such a deployment;
+      // the server still refuses the write either way, so unknown opens (the
+      // doctrine `useCapabilityGate` states for ADR-0066 gates).
       renderHome(eePayload(undefined));
 
       expect(screen.getByTestId('home-build-app')).toBeEnabled();
       expect(screen.getByTestId('home-start-template')).toBeEnabled();
       expect(screen.queryByTestId('home-authoring-gate-reason')).toBeNull();
+    });
+  });
+
+  describe('a REPORTED empty systemPermissions is not confused with absent (objectui#4656)', () => {
+    it('disables the CTAs when the backend explicitly reports zero capabilities', () => {
+      // Distinct from the case above: `systemPermissions` is PRESENT here —
+      // literally `[]` — meaning the server gave a real answer: this session
+      // holds no system capabilities at all. Before objectui#4656 this was
+      // indistinguishable from the omitted-field case (both collapsed to `[]`
+      // upstream) and so incorrectly fell open too; a real empty grant must
+      // gate exactly like any other reported set that lacks the capability.
+      renderHome(eePayload([]));
+
+      expect(screen.getByTestId('home-build-app')).toBeDisabled();
+      expect(screen.getByTestId('home-start-template')).toBeDisabled();
+      expect(screen.getByTestId('home-authoring-gate-reason')).toHaveTextContent(
+        '«home.build.noCapability»',
+      );
     });
   });
 

@@ -17,10 +17,20 @@
  * `record_header` / `record_more` action's `requiredPermissions` was silently
  * unenforced on the one surface those locations exist on.
  *
- * Two properties are pinned here, and they pull in opposite directions:
+ * Three properties are pinned here, and they pull in different directions:
  *   • loaded permissions MUST reach the engine (otherwise: no gate at all);
  *   • unloaded permissions MUST NOT be forwarded as `[]` (otherwise: every gated
- *     action hides in a standalone embed that never mounts a PermissionProvider).
+ *     action hides in a standalone embed that never mounts a PermissionProvider);
+ *   • [objectui#4656] a LOADED-but-`undefined` answer MUST NOT be forwarded as
+ *     `[]` either — `undefined` here means the backend never reported
+ *     `systemPermissions` at all (a deployment predating ADR-0066), which
+ *     `MePermissionsProvider` now preserves rather than collapsing to `[]`.
+ *     Re-collapsing it at this call site would silently re-introduce the
+ *     exact bug this ADR-0066 D4 seeding exists to prevent, just gated closed
+ *     instead of open: every `requiredPermissions` action on the record
+ *     surface would hide on such a deployment instead of showing (the server
+ *     still 403s regardless — the UI-only failure is hiding a button a
+ *     permitted user could have clicked).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -51,8 +61,18 @@ describe('resolveActionUser — ADR-0066 D4 capability gate seeding (#3923)', ()
     expect('systemPermissions' in resolved).toBe(false);
   });
 
-  it('treats a loaded-but-undefined set as "holds nothing", not as unknown', () => {
-    expect(resolveActionUser(user, true, undefined).systemPermissions).toEqual([]);
+  it('forwards a loaded-but-undefined set AS unknown, not as "holds nothing" (objectui#4656)', () => {
+    // Superseded assertion (pre-#4656): this used to collapse to `[]`, on the
+    // premise that `usePermissions().systemPermissions` was NEVER undefined
+    // while loaded — `MePermissionsProvider` always defaulted it via `?? []`.
+    // That premise is gone: the provider now preserves `undefined` for "this
+    // backend never reported systemPermissions", and `resolveActionUser` must
+    // forward it unchanged so `ActionEngine`'s own `Array.isArray(held)` check
+    // reads it as unknown and fails OPEN — collapsing it here would silently
+    // flip that to fail-CLOSED for every record_header/record_more action.
+    const resolved = resolveActionUser(user, true, undefined);
+    expect(resolved.systemPermissions).toBeUndefined();
+    expect(Array.isArray(resolved.systemPermissions)).toBe(false);
   });
 
   it('keeps the anonymous fallback identity and still carries the gate', () => {

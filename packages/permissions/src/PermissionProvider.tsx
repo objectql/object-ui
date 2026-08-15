@@ -123,11 +123,14 @@ export function PermissionProvider({
       // operation set — return undefined so consumers keep current behavior.
       getObjectApiOperations: () => undefined,
       roles: userRoles,
-      // This role-based provider does not model ADR-0066 system capabilities;
-      // expose an empty set + a fail-open capability check to satisfy the
-      // contract. The console uses MePermissionsProvider, which wires the real
-      // systemPermissions from /me/permissions.
-      systemPermissions: [],
+      // This role-based provider has no backend answer to give — it never
+      // fetches /me/permissions — so ADR-0066 system capabilities are simply
+      // unreported here: `undefined`, not `[]` (objectui#4656; a literal `[]`
+      // would claim "reported, holds nothing", which this provider cannot
+      // back up). `hasCapabilities` stays fail-open to match. The console
+      // uses MePermissionsProvider, which wires the real systemPermissions
+      // from /me/permissions.
+      systemPermissions: undefined,
       hasCapabilities: () => true,
       isLoaded: true,
     }),

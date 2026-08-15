@@ -127,8 +127,15 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   const { dataSource, objects, objectName, onRefresh } = opts;
   const navigate = useNavigate();
   const { user, activeOrganization } = useAuth();
-  // [ADR-0066 D4] System capabilities for the action capability gate (fail-open
-  // when no PermissionProvider is mounted — usePermissions returns []).
+  // [ADR-0066 D4] System capabilities for the action capability gate. Forwarded
+  // AS-IS below (no `?? []`) — `undefined` here means either no
+  // PermissionProvider is mounted, or the backend never reported
+  // `systemPermissions` at all (a deployment predating ADR-0066), and
+  // `ActionEngine`'s own `Array.isArray(held)` check already fails OPEN on
+  // that (framework#3923). Defaulting it to `[]` here used to silently
+  // collapse "unknown" into "holds nothing" and gate every
+  // `requiredPermissions` action closed on exactly the deployments this
+  // doctrine exists to protect (objectui#4656).
   const { systemPermissions } = usePermissions();
   const { fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel, actionDescription, actionResultDialog } = useObjectLabel();
   // Entitlement 403s render as a dialog, not a toast — its copy is localized
@@ -235,8 +242,8 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel]);
 
   const currentUser = user
-    ? { id: user.id, name: user.name, avatar: user.image, isPlatformAdmin: (user as any)?.isPlatformAdmin ?? false, systemPermissions: systemPermissions ?? [] }
-    : { ...FALLBACK_USER, systemPermissions: systemPermissions ?? [] };
+    ? { id: user.id, name: user.name, avatar: user.image, isPlatformAdmin: (user as any)?.isPlatformAdmin ?? false, systemPermissions }
+    : { ...FALLBACK_USER, systemPermissions };
 
   const toastHandler = useCallback<ToastHandler>((message, options) => {
     if (options?.type === 'error') { toast.error(message); return; }

@@ -103,11 +103,22 @@ const FALLBACK_USER = { id: 'current-user', name: 'Demo User' };
  * `requiredPermissions` — the button rendered, and only the server's 403 stopped
  * it (and only for platform action routes at that).
  *
- * The `permissionsLoaded` gate keeps the two states apart: `usePermissions()`
- * returns `[]` both for "holds no capabilities" and for "no PermissionProvider /
- * still resolving". Forwarding the latter as `[]` would flip the gate fail-CLOSED
- * and hide gated actions in a standalone embed, so it stays `undefined` until the
- * answer is real.
+ * The `permissionsLoaded` gate keeps "no answer yet" apart from "an answer,
+ * whatever it is": while `!permissionsLoaded` (no PermissionProvider mounted,
+ * or still resolving), `systemPermissions` is omitted entirely so the engine's
+ * own fail-open applies. Forwarding `[]` in that window would flip the gate
+ * fail-CLOSED and hide gated actions in a standalone embed.
+ *
+ * [objectui#4656] Once loaded, `systemPermissions` is forwarded AS-IS,
+ * `undefined` included — it is NOT collapsed to `[]`. `MePermissionsProvider`
+ * now preserves the distinction the engine already keys off: `undefined`
+ * means the backend never reported `systemPermissions` at all (a deployment
+ * predating ADR-0066), which is exactly the "unknown" case the engine's own
+ * `Array.isArray(held)` check fails OPEN on — not "holds nothing". Defaulting
+ * it to `[]` here would silently re-introduce the same collapse at this one
+ * call site and gate every `record_header` / `record_more` action closed on
+ * such a deployment. A REPORTED empty array still forwards as `[]` and gates
+ * strictly, unchanged.
  */
 export function resolveActionUser(
   user: { id: string; name: string; image?: string } | null | undefined,
@@ -118,7 +129,7 @@ export function resolveActionUser(
     ? { id: user.id, name: user.name, avatar: user.image }
     : FALLBACK_USER;
   return permissionsLoaded
-    ? { ...identity, systemPermissions: systemPermissions ?? [] }
+    ? { ...identity, systemPermissions }
     : identity;
 }
 

@@ -84,19 +84,18 @@ const AUTHORING_CAPABILITY = 'manage_metadata';
  * **Unknown → fail OPEN**, the same doctrine `useCapabilityGate` states for
  * ADR-0066 gates (framework#3923): the server enforces regardless, and hiding a
  * permitted user's primary CTA on missing client data is the worse failure.
- * `hasCapabilities` alone cannot express that here — `MePermissionsProvider`
- * collapses an ABSENT `systemPermissions` (a backend predating ADR-0066) and a
- * genuinely empty one into the same `[]`, so gating on it bare would strip the
- * product's front door from every admin on such a deployment. An empty set is
- * therefore read as "this backend does not report capabilities" and opens the
- * gate. The ruled case is unaffected: the EE owner's set is non-empty
- * (`manage_org_users`, `setup.access`, `setup.write`), so it gates closed.
- * Hosts with no permission provider at all already fail open inside
- * `usePermissions`.
+ * `MePermissionsProvider` now preserves the absent-vs-empty distinction
+ * natively (objectui#4656) — `hasCapabilities` itself returns `true` when the
+ * backend never reported `systemPermissions` at all (a deployment predating
+ * ADR-0066), and gates normally on a real answer, including a genuinely
+ * EMPTY one. This hook no longer re-derives that heuristic locally; it just
+ * asks the centralized signal. The ruled case is unaffected: the EE owner's
+ * set is non-empty (`manage_org_users`, `setup.access`, `setup.write`), so it
+ * gates closed. Hosts with no permission provider at all already fail open
+ * inside `usePermissions`.
  */
 function useCanAuthorMetadata(): boolean {
-  const { hasCapabilities, systemPermissions } = usePermissions();
-  if (!Array.isArray(systemPermissions) || systemPermissions.length === 0) return true;
+  const { hasCapabilities } = usePermissions();
   return hasCapabilities([AUTHORING_CAPABILITY]);
 }
 

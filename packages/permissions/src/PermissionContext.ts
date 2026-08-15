@@ -28,9 +28,36 @@ export interface PermissionContextValue {
   getObjectApiOperations: (object: string) => string[] | undefined;
   /** Current user roles */
   roles: string[];
-  /** [ADR-0066] System capabilities held by the user (union of permission-set systemPermissions). */
-  systemPermissions: string[];
-  /** [ADR-0066] True when the user holds ALL of `required` capabilities (subset check). */
+  /**
+   * [ADR-0066] System capabilities held by the user (union of permission-set
+   * `systemPermissions`), when the backend actually reports them.
+   *
+   * [objectui#4656] `undefined` means no answer was ever reported — a backend
+   * predating ADR-0066 (the `/me/permissions` response omits the field
+   * entirely), or no permission provider mounted at all — and is NOT the same
+   * as a genuinely empty grant (`[]`, "reported, holds nothing"). A provider
+   * that cannot tell the two apart must not collapse them into the same
+   * value: doing so is exactly what silently stripped capability-gated UI
+   * from every admin on a non-reporting deployment. Callers that need the raw
+   * signal (rather than a specific capability check) read this directly;
+   * `hasCapabilities` below already resolves the right verdict for either
+   * case, so most callers never need to.
+   */
+  systemPermissions: string[] | undefined;
+  /**
+   * [ADR-0066] True when the user holds ALL of `required` capabilities.
+   *
+   * [objectui#4656] Fails OPEN (`true`) when `systemPermissions` is
+   * `undefined` — an unreported answer is not a denial, the server still
+   * enforces the capability regardless of what the UI shows, and hiding a
+   * permitted user's UI on missing client data is the worse failure. This is
+   * the same doctrine `useCapabilityGate` (`@object-ui/react`) already states
+   * for the ADR-0066 D4 action gate (framework#3923), centralized here so
+   * every `hasCapabilities` call site gets it for free instead of
+   * re-deriving a "treat an empty set as unreported" heuristic locally. A
+   * REPORTED empty array gates strictly: "holds nothing" is a real,
+   * enforceable answer and must not be read as "unknown".
+   */
   hasCapabilities: (required: string[]) => boolean;
   /** Whether permissions are loaded */
   isLoaded: boolean;
