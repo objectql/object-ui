@@ -129,11 +129,14 @@ export interface BaseFieldMetadata {
    */
   depends_on?: string[];
   
-  /**
-   * Field index for database optimization
+  /*
+   * There is deliberately no `indexed` here (objectui#4679). The ObjectStack
+   * spec has no field-level index flag: it built no index (objectstack#2377
+   * removed it) and `FieldSchema.safeParse` now rejects the key by name, so
+   * any producer that authored it produced a save-blocking 422. Declare the
+   * index on the object instead — `indexes: [{ name, fields, unique }]`.
    */
-  indexed?: boolean;
-  
+
   /**
    * Field is unique constraint
    */
