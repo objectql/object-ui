@@ -80,4 +80,30 @@ describe('HistoryTimeline', () => {
     render(<HistoryTimeline entries={[]} emptyText="Nothing here yet" />);
     expect(screen.getByText('Nothing here yet')).toBeTruthy();
   });
+
+  // objectui#4476: ACTION_VARIANT no longer has a 'restore' entry (the value
+  // was retired — no writer anywhere ever produces it). Before removal it
+  // mapped to 'outline', which is also the `?? 'outline'` fallback used for
+  // any unrecognized action — so dropping the key is a pure no-op for
+  // rendering. This test locks that reading in: the badge for a (now
+  // unrecognized) 'restore' action must render with exactly the classes the
+  // 'outline' variant contributes (see packages/components/src/ui/badge.tsx),
+  // and none of the classes unique to the other named variants.
+  it('renders the retired "restore" action badge identically to the outline fallback (confirms removing the key changed no rendering)', () => {
+    const entries: HistoryEntry[] = [
+      {
+        id: 6,
+        action: 'restore',
+        user_name: 'Jane Doe',
+        created_at: new Date().toISOString(),
+      },
+    ];
+    render(<HistoryTimeline entries={entries} />);
+    const badge = screen.getByText('restore');
+    expect(badge.className).toContain('text-foreground');
+    expect(badge.className).not.toContain('bg-secondary');
+    expect(badge.className).not.toContain('bg-primary');
+    expect(badge.className).not.toContain('bg-destructive');
+    expect(badge.className).not.toContain('border-transparent');
+  });
 });

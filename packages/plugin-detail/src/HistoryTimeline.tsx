@@ -61,16 +61,20 @@ export interface HistoryTimelineProps {
   locale?: string;
 }
 
+// Kept keys mirror the server-declared `sys_audit_log.action` enum
+// (packages/plugins/plugin-audit/src/objects/sys-audit-log.object.ts in
+// objectstack): 'permission_change', 'export', and 'restore' were retired
+// because no writer anywhere in the platform ever produces them (audit
+// surface principle: narrow-but-honest over broad-but-lying — objectui#4476).
+// 'import' stays: it has a real writer (plugin-auth's admin-import-users.ts)
+// and the server enum + the config_changes list view both still use it.
 const ACTION_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   create: 'default',
   update: 'secondary',
   delete: 'destructive',
-  restore: 'outline',
   login: 'outline',
   logout: 'outline',
-  permission_change: 'secondary',
   config_change: 'secondary',
-  export: 'outline',
   import: 'outline',
 };
 
