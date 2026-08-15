@@ -188,13 +188,14 @@ describe('RecordAttachmentsPanel — denied vs empty list (#4269)', () => {
     expect(screen.queryByTestId('record-attachments-denied')).not.toBeInTheDocument();
   });
 
-  // PIN, not an endorsement. A non-authz failure keeps the pre-existing
-  // behaviour — swallowed to the empty state, Upload still offered. That is
-  // the same "unknown rendered as empty" defect one status over, but fixing it
-  // needs the loaded/unknown status vocabulary (#4235-style), not this
-  // denied-vs-empty split; filed separately. This test exists so the next
-  // change to that branch is a DELIBERATE one.
-  it('pins today’s behaviour for a NON-authz failure: still the empty state', async () => {
+  // The PIN this file carried for a NON-authz failure ("still the empty
+  // state") existed so that changing it would be a DELIBERATE act rather than
+  // an accident. #4684 is that deliberate act: the assertion is rewritten
+  // below, in `— unavailable vs empty list (#4684)`, where the same
+  // `TypeError('Failed to fetch')` now has to reach the unavailable state.
+  // What the pin protected — that no one widens this branch silently — is
+  // preserved by replacing it with the stricter assertion, not by deleting it.
+  it('a NON-authz failure no longer reaches the DENIED state (that split is authz-only)', async () => {
     setup(
       makeDataSource({
         find: vi.fn(async () => {
@@ -204,12 +205,220 @@ describe('RecordAttachmentsPanel — denied vs empty list (#4269)', () => {
     );
 
     await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-unavailable')).toBeInTheDocument(),
+    );
+    // #4685's denied state is authorization-only and must not creep outward:
+    // an outage is not a refusal, and "You don't have access" is the wrong
+    // sentence for a user whose network dropped.
+    expect(screen.queryByTestId('record-attachments-denied')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("You don't have access to these attachments."),
+    ).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * An UNLOADED list is not an empty one (#4684).
+ *
+ * The panel's `catch` split authorization out in #4685 and folded everything
+ * else back into `setRows([])`, so a network failure, a 5xx and a 401 all
+ * rendered "No attachments yet. Upload a file to get started." — an
+ * affirmative claim about the record's contents from a panel that never got an
+ * answer, over a record that may hold thousands of files. Same defect class as
+ * #4269, one status over.
+ *
+ * The house rule these tests enforce landed twice before as a bug fix:
+ * `HomeActionCenter` (#4235) may only say "You're all caught up" once the inbox
+ * has ANSWERED, and an unloadable app list (#4300) is UNKNOWN rather than "no
+ * default app".
+ */
+describe('RecordAttachmentsPanel — unavailable vs empty list (#4684)', () => {
+  /** A dead connection: `fetch` rejects before any HTTP status exists. */
+  function networkFailureSource() {
+    return makeDataSource({
+      find: vi.fn(async () => {
+        throw new TypeError('Failed to fetch');
+      }),
+    });
+  }
+
+  it('THE DEFECT — a network failure renders the unavailable state, never "No attachments yet"', async () => {
+    setup(networkFailureSource());
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-unavailable')).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText("We couldn't load the attachments for this record."),
+    ).toBeInTheDocument();
+    // The empty state is reserved for a genuine 200-with-zero-rows.
+    expect(screen.queryByText(/No attachments yet/)).not.toBeInTheDocument();
+  });
+
+  it('a 5xx renders the unavailable state', async () => {
+    setup(
+      makeDataSource({
+        find: vi.fn(async () => {
+          throw Object.assign(new Error('Internal Server Error'), { httpStatus: 500 });
+        }),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-unavailable')).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/No attachments yet/)).not.toBeInTheDocument();
+  });
+
+  // A 401 is AUTHENTICATION, not authorization: the session expired, the user
+  // is not forbidden. `isPermissionError` deliberately does not claim it (it
+  // matches 403 / PERMISSION_DENIED / FORBIDDEN / an RLS denial), so it must
+  // land in `unavailable` — where a Retry, after the session refreshes, is
+  // exactly the right affordance — and never in the denied state, whose
+  // sentence ("You don't have access") would be plainly wrong here.
+  it('a 401 / AUTH_REQUIRED renders UNAVAILABLE, not the denied state', async () => {
+    setup(
+      makeDataSource({
+        find: vi.fn(async () => {
+          throw Object.assign(new Error('Authentication required'), {
+            httpStatus: 401,
+            code: 'AUTH_REQUIRED',
+          });
+        }),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-unavailable')).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('record-attachments-denied')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No attachments yet/)).not.toBeInTheDocument();
+  });
+
+  it('withdraws the Upload affordance under an unloaded list', async () => {
+    setup(networkFailureSource());
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-unavailable')).toBeInTheDocument(),
+    );
+    // Offering an upload against a list the panel could not reach is the same
+    // over-assertion as the empty state it replaces.
+    expect(screen.queryByRole('button', { name: 'Upload' })).not.toBeInTheDocument();
+  });
+
+  // Same no-leak bar as the denied state (#2532 / #4685): the unavailable
+  // state renders the i18n sentence and NOTHING sourced from the error.
+  it('leaks nothing from the error — no status code, no server text, no host', async () => {
+    setup(
+      makeDataSource({
+        find: vi.fn(async () => {
+          throw Object.assign(
+            new Error(
+              'FetchError: request to https://internal-db.corp.example/api/v1/data/sys_attachment failed (ECONNREFUSED 10.4.7.19:5432)',
+            ),
+            { httpStatus: 503, code: 'UPSTREAM_UNAVAILABLE' },
+          );
+        }),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-unavailable')).toBeInTheDocument(),
+    );
+    const panel = screen.getByTestId('record-attachments-panel');
+    expect(panel.textContent).not.toMatch(/503/);
+    expect(panel.textContent).not.toMatch(/ECONNREFUSED|10\.4\.7\.19/);
+    expect(panel.textContent).not.toMatch(/internal-db\.corp\.example/);
+    expect(panel.textContent).not.toMatch(/UPSTREAM_UNAVAILABLE|FetchError/);
+    // A failed LIST is a state of the panel, not an error banner about
+    // something the user did.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  // The affordance that separates `unavailable` from `denied`: an outage and a
+  // lapsed session are both things a second attempt can genuinely fix, whereas
+  // retrying a 403 just re-earns the same 403.
+  it('offers a retry that re-reads the list and renders it once the read succeeds', async () => {
+    const find = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce([ROW]);
+    setup(makeDataSource({ find }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-unavailable')).toBeInTheDocument(),
+    );
+    expect(find).toHaveBeenCalledTimes(1);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+
+    await waitFor(() => expect(screen.getByText('report.pdf')).toBeInTheDocument());
+    expect(find).toHaveBeenCalledTimes(2);
+    // Recovery is complete: the unavailable state is gone and the Upload
+    // affordance is back, because the panel now has an answer.
+    expect(screen.queryByTestId('record-attachments-unavailable')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument();
+  });
+
+  it('a retry that fails again stays on the unavailable state', async () => {
+    const find = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    setup(makeDataSource({ find }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-unavailable')).toBeInTheDocument(),
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+
+    await waitFor(() => expect(find).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId('record-attachments-unavailable')).toBeInTheDocument();
+    expect(screen.queryByText(/No attachments yet/)).not.toBeInTheDocument();
+  });
+
+  // The other three states must keep their own meaning — this card only
+  // reassigns the branch that was lying.
+  it('a 403 still renders the DENIED state, unchanged by this card', async () => {
+    setup(
+      makeDataSource({
+        find: vi.fn(async () => {
+          throw Object.assign(new Error('refused'), {
+            httpStatus: 403,
+            code: 'PERMISSION_DENIED',
+          });
+        }),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('record-attachments-denied')).toBeInTheDocument(),
+    );
+    expect(screen.getByText("You don't have access to these attachments.")).toBeInTheDocument();
+    expect(screen.queryByTestId('record-attachments-unavailable')).not.toBeInTheDocument();
+    // A denial is permanent for this caller: no Retry, unlike `unavailable`.
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+  });
+
+  it('a genuine 200-with-zero-rows still renders the empty state AND the Upload button', async () => {
+    setup(makeDataSource({ find: vi.fn(async () => []) }));
+
+    await waitFor(() =>
       expect(
         screen.getByText('No attachments yet. Upload a file to get started.'),
       ).toBeInTheDocument(),
     );
-    expect(screen.queryByTestId('record-attachments-denied')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument();
+    expect(screen.queryByTestId('record-attachments-unavailable')).not.toBeInTheDocument();
+  });
+
+  it('a successful read still renders the rows', async () => {
+    setup(makeDataSource());
+
+    await waitFor(() => expect(screen.getByText('report.pdf')).toBeInTheDocument());
+    expect(screen.queryByTestId('record-attachments-unavailable')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No attachments yet/)).not.toBeInTheDocument();
   });
 });
 

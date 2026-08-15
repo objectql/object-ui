@@ -914,6 +914,8 @@ const ru = {
     attachmentAuthRequired: "Войдите в систему, чтобы скачать это вложение.",
     attachmentPermissionDenied: "У вас нет разрешения на это действие.",
     attachmentsAccessDenied: "У вас нет доступа к этим вложениям.",
+    attachmentsLoadFailed: "Не удалось загрузить вложения этой записи.",
+    retryLoadAttachments: "Повторить",
     unifiedDiff: "Единое представление",
     sideBySideDiff: "Параллельное представление",
     noChanges: "Нет изменений",

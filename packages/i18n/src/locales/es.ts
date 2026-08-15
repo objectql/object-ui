@@ -899,6 +899,8 @@ const es = {
     attachmentAuthRequired: "Inicie sesión para descargar este adjunto.",
     attachmentPermissionDenied: "No tiene permiso para hacer eso.",
     attachmentsAccessDenied: "No tiene acceso a estos adjuntos.",
+    attachmentsLoadFailed: "No se pudieron cargar los adjuntos de este registro.",
+    retryLoadAttachments: "Reintentar",
     unifiedDiff: "Vista unificada",
     sideBySideDiff: "Vista lado a lado",
     noChanges: "Sin cambios",

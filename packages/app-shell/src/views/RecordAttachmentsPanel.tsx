@@ -8,7 +8,16 @@
 
 import * as React from 'react';
 import { cn, Button } from '@object-ui/components';
-import { Paperclip, Upload, Trash2, Download, Loader2, Lock } from 'lucide-react';
+import {
+  Paperclip,
+  Upload,
+  Trash2,
+  Download,
+  Loader2,
+  Lock,
+  AlertTriangle,
+  RefreshCw,
+} from 'lucide-react';
 import { createObjectStackUploadAdapter } from '@object-ui/providers';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import { useObjectTranslation, isPermissionError } from '@object-ui/react';
@@ -50,6 +59,43 @@ export interface RecordAttachmentsPanelProps {
   className?: string;
 }
 
+/**
+ * What the panel actually KNOWS about this record's `sys_attachment` list
+ * (#4684) — the same four-way vocabulary the sibling surfaces settled on.
+ *
+ *   - `loading`     — the read is in flight (or has not been issued yet). The
+ *                     panel knows nothing and asserts nothing.
+ *   - `loaded`      — the read ANSWERED. Only in this state is `rows.length`
+ *                     a fact about the record, and only here may the panel say
+ *                     "No attachments yet".
+ *   - `denied`      — refused for AUTHORIZATION reasons (#4269 / PR #4685):
+ *                     403 / `PERMISSION_DENIED` / `FORBIDDEN` / an RLS denial.
+ *                     The caller may not look; the record's contents are
+ *                     unknown.
+ *   - `unavailable` — the read FAILED for any other reason: a network failure
+ *                     (server unreachable, DNS, aborted request), a 5xx, or a
+ *                     401 / `AUTH_REQUIRED` (an expired session is
+ *                     authentication, not authorization, so the `denied`
+ *                     predicate deliberately does not claim it). Also unknown.
+ *
+ * The split that matters is assert-vs-don't-assert. Before #4684 the last two
+ * both collapsed into `rows = []`, so a panel that never got an answer told the
+ * user "No attachments yet. Upload a file to get started." — an affirmative
+ * claim about the record's contents, made from no evidence, over a record that
+ * may hold thousands. The house rule this restores landed twice already as a
+ * bug fix: `HomeActionCenter` (#4235) may only say "You're all caught up" once
+ * the inbox has answered, and an unloadable app list (#4300) is UNKNOWN rather
+ * than "no default app".
+ *
+ * `denied` and `unavailable` are kept apart rather than merged into one
+ * "couldn't read" because they need different copy and different affordances:
+ * a denial is permanent for this caller and retrying it just re-earns the same
+ * 403, while an outage or an expired session is exactly the case a Retry is
+ * for. `unavailable` therefore keeps a retry; `denied` (unchanged from #4685)
+ * does not.
+ */
+type AttachmentListStatus = 'loading' | 'loaded' | 'denied' | 'unavailable';
+
 function formatSize(bytes?: number | null): string {
   if (bytes == null || !Number.isFinite(bytes)) return '';
   if (bytes < 1024) return `${bytes} B`;
@@ -66,20 +112,21 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
 }) => {
   const { t } = useObjectTranslation();
   const [rows, setRows] = React.useState<AttachmentRow[]>([]);
-  const [loading, setLoading] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   /**
-   * The list read was refused for AUTHORIZATION reasons (#4269).
+   * See {@link AttachmentListStatus}. Kept separate from `rows.length === 0`
+   * because the two say different things and only one of them is an assertion
+   * the panel is entitled to make: "No attachments yet" claims the record
+   * HOLDS nothing, while a refused or failed read says only that the panel
+   * does not know.
    *
-   * Kept separate from `rows.length === 0` because the two say opposite
-   * things and only one of them is an assertion the panel is entitled to
-   * make. "No attachments yet" claims the record HOLDS nothing; a 403 says
-   * only that this caller may not look. Folding the second into the first
-   * told a denied member that a record with 2095+ attachments was empty —
-   * and offered an Upload the server would refuse.
+   * Opens at `loading`, not `loaded`: before the effect below has run, the
+   * panel has issued no read at all, and a surface that has not read is not
+   * entitled to the empty state either (#4684). The guard in `refresh()`
+   * leaves it here on purpose — see the comment there.
    */
-  const [listDenied, setListDenied] = React.useState(false);
+  const [status, setStatus] = React.useState<AttachmentListStatus>('loading');
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Same base-URL convention as RecordDetailView's raw API fetches: the
@@ -132,8 +179,15 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
   );
 
   const refresh = React.useCallback(async () => {
+    // No data source / no record yet: no read is ISSUED, so `status` stays at
+    // whatever it was — `loading` on first mount. Deliberately not forced to
+    // `loaded` (that would assert an empty record from zero evidence) and not
+    // to `unavailable` (nothing failed; there is no error to report and a
+    // Retry would have nothing to retry). Every dep here is in the callback's
+    // dependency list, so if one of them arrives later this effect re-runs on
+    // its own and the read happens then.
     if (!dataSource || !objectName || !recordId) return;
-    setLoading(true);
+    setStatus('loading');
     try {
       const res: any = await dataSource.find('sys_attachment', {
         $filter: { parent_object: objectName, parent_id: recordId },
@@ -142,30 +196,38 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
       });
       const items: AttachmentRow[] = Array.isArray(res) ? res : res?.data ?? [];
       setRows(items);
-      setListDenied(false);
+      // The read ANSWERED — only now is `rows.length === 0` a fact about the
+      // record rather than an absence of information, and only now may the
+      // empty state below speak.
+      setStatus('loaded');
     } catch (err) {
       setRows([]);
-      // An authorization refusal is NOT an empty record (#4269). The house
-      // predicate is the same one the kanban/calendar/form surfaces branch
-      // on — HTTP 403, `PERMISSION_DENIED`/`FORBIDDEN`, or an RLS denial.
-      // The adapter throws it: `find()` degrades only a non-authz 404 to
-      // `{ data: [], total: 0 }` (data-objectstack, objectui#4408), so a 403
-      // reaches this catch as a decorated throw.
+      // The read did NOT answer. Which of the two unknown states applies turns
+      // on one question — is this caller forbidden, or did the request simply
+      // not get through?
       //
-      // Nothing from the error is rendered — the denied state below shows the
+      // `denied` (#4269 / PR #4685) uses the same house predicate the
+      // kanban/calendar/form surfaces branch on: HTTP 403,
+      // `PERMISSION_DENIED`/`FORBIDDEN`, or an RLS denial. It deliberately
+      // does NOT claim a 401 — an expired session is authentication, not
+      // authorization, and "you don't have access" is the wrong sentence for a
+      // user who only needs to sign in again.
+      //
+      // `unavailable` (#4684) takes everything else that reaches this catch:
+      // a network failure, a 5xx, a 401/`AUTH_REQUIRED`. Note what does NOT
+      // arrive here — the ObjectStack adapter's `find()` degrades a bare 404
+      // (collection absent on an older stack) to `{ data: [], total: 0 }`
+      // (data-objectstack `is404Error`, objectui#4408), so the "table not yet
+      // provisioned" case still resolves through the success path above and
+      // still renders the empty state. It never depended on this catch
+      // swallowing it.
+      //
+      // Nothing from the error is rendered in either state — both show their
       // i18n sentence and nothing else. objectui#2532's failure mode (raw
-      // dump / status code / leaked row) must stay absent, and `setError` is
-      // deliberately NOT called here.
-      setListDenied(isPermissionError(err));
-      // Everything else keeps the pre-existing behaviour: a 404 (table not
-      // provisioned on older stacks) and any network/5xx failure are tolerated
-      // silently and the panel stays empty. That swallow is the SAME defect
-      // class one status over — an unreachable server also renders "No
-      // attachments yet" — but the honest unknown-vs-empty split is a separate
-      // change (filed, not fixed here) and this line pins today's behaviour
-      // rather than quietly widening the fix.
-    } finally {
-      setLoading(false);
+      // dump / status code / leaked row count) must stay absent, and
+      // `setError` is deliberately NOT called here: a failed LIST is a state
+      // of the panel, not an error banner about an action the user took.
+      setStatus(isPermissionError(err) ? 'denied' : 'unavailable');
     }
   }, [dataSource, objectName, recordId]);
 
@@ -287,11 +349,19 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
           previously unconditional — its only gate was `uploading` — so a
           member the server had just refused was still invited to upload into
           a record whose parent it cannot read, a click the `beforeInsert`
-          gate answers with 403 ATTACHMENT_PARENT_ACCESS. Hiding it here
-          changes nothing for every other caller: this is the sole condition
-          added to a control that had none.
+          gate answers with 403 ATTACHMENT_PARENT_ACCESS.
+
+          `unavailable` withdraws it for the same reason one status over
+          (#4684): offering an upload against a list the panel could not even
+          reach is the same over-assertion as the empty state it replaces —
+          the panel is claiming an attach will work when it has no evidence
+          the server is reachable at all, and the upload's own three-step
+          presigned flow would fail on the same outage. Retry first; the
+          Upload returns with the answer.
+
+          Still shown while `loading` and while `loaded`, exactly as before.
         */}
-        {!listDenied && (
+        {status !== 'denied' && status !== 'unavailable' && (
           <div className="flex items-center gap-2">
             <input
               ref={inputRef}
@@ -323,12 +393,25 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
         </div>
       )}
 
-      {loading && rows.length === 0 ? (
+      {/*
+        The order of this chain IS the assertion discipline (#4235, #4300,
+        #4269, #4684): every state that means "the panel does not know" is
+        answered before `rows.length === 0` is allowed to mean "the record
+        holds nothing". `rows` is emptied on every failure, so any unknown
+        state reaching the empty branch would render the exact lie these
+        cards exist to remove.
+
+        `status === 'loading' && rows.length === 0` (not `status === 'loading'`
+        alone) is unchanged from the pre-#4684 shape: a refresh over an
+        already-populated list keeps showing that list instead of blanking it
+        to a spinner.
+      */}
+      {status === 'loading' && rows.length === 0 ? (
         <div className="px-4 py-6 text-sm text-muted-foreground flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin" />
           {t('detail.loadingAttachments', { defaultValue: 'Loading attachments…' })}
         </div>
-      ) : listDenied ? (
+      ) : status === 'denied' ? (
         // Checked BEFORE the empty state, and rendering only the i18n
         // sentence: no status code, no server message, no row (#2532).
         <div
@@ -340,7 +423,38 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
             defaultValue: "You don't have access to these attachments.",
           })}
         </div>
+      ) : status === 'unavailable' ? (
+        // The read never answered (#4684): network failure, 5xx, or an expired
+        // session. Like the denied state above this renders ONLY the i18n
+        // sentence — no status code, no server message, no row count (#2532) —
+        // and, unlike it, offers a Retry: an outage and a lapsed session are
+        // both things a second attempt can genuinely fix.
+        //
+        // The Retry cannot double-fetch. `refresh()` sets `status` to
+        // `loading` synchronously and `rows` is already empty here, so the
+        // branch above wins on the very next render and this button — with the
+        // only handler that calls `refresh()` — unmounts for the duration of
+        // the read.
+        <div
+          className="px-4 py-6 text-sm text-muted-foreground flex flex-col items-start gap-3"
+          data-testid="record-attachments-unavailable"
+        >
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {t('detail.attachmentsLoadFailed', {
+              defaultValue: "We couldn't load the attachments for this record.",
+            })}
+          </div>
+          <Button variant="outline" size="sm" onClick={() => void refresh()}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            {t('detail.retryLoadAttachments', { defaultValue: 'Retry' })}
+          </Button>
+        </div>
       ) : rows.length === 0 ? (
+        // Reached only with `status === 'loaded'`: every other status is
+        // answered above. This is the one branch entitled to assert that the
+        // record holds nothing, because it is the only one standing on a read
+        // that came back — a genuine 200-with-zero-rows.
         <div className="px-4 py-6 text-sm text-muted-foreground">
           {t('detail.noAttachments', { defaultValue: 'No attachments yet. Upload a file to get started.' })}
         </div>

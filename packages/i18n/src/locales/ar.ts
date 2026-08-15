@@ -901,6 +901,8 @@ const ar = {
     attachmentAuthRequired: "يرجى تسجيل الدخول لتنزيل هذا المرفق.",
     attachmentPermissionDenied: "ليس لديك إذن للقيام بذلك.",
     attachmentsAccessDenied: "ليس لديك حق الوصول إلى هذه المرفقات.",
+    attachmentsLoadFailed: "تعذر تحميل مرفقات هذا السجل.",
+    retryLoadAttachments: "إعادة المحاولة",
     unifiedDiff: "عرض موحد",
     sideBySideDiff: "عرض جنباً إلى جنب",
     noChanges: "لا توجد تغييرات",

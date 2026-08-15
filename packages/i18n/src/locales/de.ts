@@ -895,6 +895,8 @@ const de = {
     attachmentAuthRequired: "Bitte melden Sie sich an, um diesen Anhang herunterzuladen.",
     attachmentPermissionDenied: "Sie haben keine Berechtigung für diese Aktion.",
     attachmentsAccessDenied: "Sie haben keinen Zugriff auf diese Anhänge.",
+    attachmentsLoadFailed: "Die Anhänge dieses Datensatzes konnten nicht geladen werden.",
+    retryLoadAttachments: "Erneut versuchen",
     unifiedDiff: "Einheitliche Ansicht",
     sideBySideDiff: "Nebeneinander-Ansicht",
     noChanges: "Keine Änderungen",

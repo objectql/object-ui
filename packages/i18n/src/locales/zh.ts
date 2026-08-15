@@ -975,6 +975,8 @@ const zh = {
     attachmentAuthRequired: '请登录后再下载此附件。',
     attachmentPermissionDenied: '您没有执行此操作的权限。',
     attachmentsAccessDenied: '您没有访问这些附件的权限。',
+    attachmentsLoadFailed: '无法加载此记录的附件。',
+    retryLoadAttachments: '重试',
     // Diff
     unifiedDiff: '统一视图',
     sideBySideDiff: '并排视图',
