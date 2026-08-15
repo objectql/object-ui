@@ -96,6 +96,43 @@ const comparisonStyle = (s: any, kind: 'line' | 'area' | 'bar' | 'scatter') => {
   return { strokeOpacity, fillOpacity, strokeDasharray };
 };
 
+/**
+ * Which series did a CARTESIAN click land on? (objectui#4672)
+ *
+ * recharts 3 answers with `activeDataKey` on the chart-level click payload —
+ * but only when the interaction was dispatched by a graphical ITEM, which is
+ * the per-series cursor (`Tooltip shared={false}`). Under the SHARED (axis)
+ * cursor these charts render, the click is an AXIS interaction, and recharts
+ * dispatches those with `activeDataKey: undefined` hard-coded
+ * (`recharts/lib/state/mouseEventsMiddleware.js`) — the cursor spans every
+ * series at that tick, so the payload names no single one. Measured against
+ * the installed recharts 3.10.1 for bar, line and area, clicking a mark and
+ * empty plot area alike: the key is absent in every shared-cursor case.
+ *
+ * So take the payload's answer when it has one; failing that, the only click
+ * with an unambiguous answer is on a chart plotting exactly ONE series, where
+ * the clicked column can belong to nothing else. A multi-series chart under
+ * the shared cursor is left UNRESOLVED rather than guessed: naming a series
+ * the user did not click drills to the wrong records, which is worse than the
+ * dead click. Resolving that half needs a different mechanism (an item-level
+ * handler, which changes what a cartesian drill means) — it is the open half
+ * of objectui#4672, deliberately not answered here.
+ */
+const resolveClickedSeriesKey = (
+  activeDataKey: unknown,
+  plotted: NormalizedSeries[],
+): string | undefined => {
+  if (typeof activeDataKey === 'string' || typeof activeDataKey === 'number') {
+    const fromPayload = String(activeDataKey);
+    if (fromPayload !== '') return fromPayload;
+  }
+  if (plotted.length === 1) {
+    const only = plotted[0]?.dataKey;
+    if (only != null && String(only) !== '') return String(only);
+  }
+  return undefined;
+};
+
 export interface AdvancedChartImplProps {
   /**
    * Chart family. `combo` is renderer-local and rarely needs to be passed:
@@ -307,18 +344,33 @@ function AdvancedChartImplInner({
   // objectui#4508 identity) is read out of OUR OWN array rather than out of the
   // event: nothing in the payload can be stale or copied, because none of it
   // came from recharts.
+  //
+  // The measure VALUE is read the same way, off that row — for the same reason,
+  // and because the payload has no value either. (recharts 2 carried both in an
+  // `activePayload` array; recharts 3 dropped the field, so the objectui#4672
+  // read of it was `undefined` on every click and every cartesian drill lost
+  // its series and its value.)
+  //
+  // WHICH SERIES was clicked is the one thing the payload cannot always answer
+  // — see the resolver below.
   const handleCartesianClick = React.useCallback((payload: any) => {
     if (!onChartClick || !payload) return;
-    const ap = Array.isArray(payload.activePayload) ? payload.activePayload[0] : undefined;
-    const idx = Number(payload.activeTooltipIndex ?? payload.activeIndex);
+    // A click with no active tick (the plot margins, an axis label) reports a
+    // NULL index, not an absent one — and `Number(null)` is 0, which would
+    // resolve to bucket ZERO and drill the wrong bucket. Only a real index
+    // selects a row.
+    const rawIdx = payload.activeTooltipIndex ?? payload.activeIndex;
+    const idx = rawIdx == null ? Number.NaN : Number(rawIdx);
     const row = Number.isInteger(idx) && idx >= 0 ? data[idx] : undefined;
+    const clickedKey = resolveClickedSeriesKey(payload.activeDataKey, series);
+    const cell = clickedKey != null && row ? (row as Record<string, any>)[clickedKey] : undefined;
     onChartClick({
       category: payload.activeLabel != null ? String(payload.activeLabel) : undefined,
       categoryId: chartRowBucketId(row),
-      series: ap?.dataKey ? String(ap.dataKey) : undefined,
-      value: typeof ap?.value === 'number' ? ap.value : undefined,
+      series: clickedKey,
+      value: typeof cell === 'number' ? cell : undefined,
     });
-  }, [onChartClick, data]);
+  }, [onChartClick, data, series]);
 
   // A pie sector's `payload` is a SPREAD COPY of the data row (recharts builds
   // it as `{...entry, ...cellProps}`), which is precisely why the bucket
