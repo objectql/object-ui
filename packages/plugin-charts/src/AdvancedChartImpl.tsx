@@ -247,8 +247,19 @@ export interface AdvancedChartImplProps {
   /**
    * Optional drill-down click handler. Fires when a chart segment is clicked
    * with `{ category, categoryId, series, value }`. Wired for
-   * bar/horizontal-bar/line/area/pie/donut/funnel. Other chart types are
-   * no-ops in L1.
+   * bar/horizontal-bar/line/area/pie/donut/funnel/scatter/treemap/sankey —
+   * each has its own click handler attached to its mark(s) below. Radar and
+   * combo are no-ops in L1: neither branch attaches a click handler anywhere,
+   * even though combo renders the same `Bar`/`Line`/`Area` marks the wired
+   * cartesian branch does — its `ComposedChart` element (see the
+   * `chartType === 'combo'` branch) is built and returned before
+   * `cartesianClickProps` is applied to anything.
+   *
+   * The combo branch is reachable without authoring `chartType: 'combo'`:
+   * `effectiveChartFamily` derives it whenever a series' own family disagrees
+   * with the chart's own (see its doc comment), so giving one series of an
+   * otherwise-drillable chart a different `type` silently turns that chart's
+   * drill off too — nothing in the authored spec says drill was touched.
    */
   onChartClick?: (event: ChartSegmentClickEvent) => void;
   /**
