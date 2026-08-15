@@ -44,13 +44,41 @@
  */
 
 import * as React from 'react';
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import * as Automation from '@objectstack/spec/automation';
 import { FlowCanvas } from './FlowCanvas';
 import { NODE_PALETTE, defaultNodeExtras, defaultNodeLabel } from './flow-canvas-parts';
 
 afterEach(cleanup);
+
+/**
+ * objectui#4701 — same escape as objectui#4699 (`FlowCanvas.test.tsx`),
+ * different file: the single `render(<FlowCanvas />)` below (in the
+ * revision-loop describe block) pulls in `useFlowNodePalette` →
+ * `useActionDescriptors`, which fires a real `GET ${apiBase()}/automation/
+ * actions` on mount and aborts it on unmount. This vitest `dom` project's
+ * happy-dom answers `fetch` with its own `http`-core-backed polyfill (not
+ * undici), so with nothing listening the abort races a real socket and Node
+ * prints an unhandled `Error: socket hang up` / `ECONNRESET`. None of the
+ * assertions in this file exercise the server overlay, so answer the
+ * endpoint with "engine absent" (404) — the same degrade
+ * `useActionDescriptors` already falls back from — instead of letting a
+ * real connection open.
+ */
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      expect(String(url)).toBe('/api/v1/automation/actions');
+      return new Response('not found', { status: 404 });
+    }),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 interface ZodIssue {
   path: PropertyKey[];
