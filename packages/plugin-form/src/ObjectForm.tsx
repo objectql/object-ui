@@ -80,7 +80,6 @@ export interface ObjectFormComponentProps {
 }
 
 /**
-/**
  * Fold the structured, spec-aligned `buttons`/`defaults` surface
  * (`@objectstack/spec` FormViewSchema; framework#1894 / #2998) down onto the
  * flat renderer props ObjectForm and its variants read
