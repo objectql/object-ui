@@ -1,6 +1,7 @@
 {
   "type": "calendar-view",
   "view": "month",
+  "currentDate": "2026-05-15T12:00:00.000Z",
   "data": [
     {
       "id": 1,
