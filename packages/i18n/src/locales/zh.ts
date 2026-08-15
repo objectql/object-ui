@@ -974,6 +974,7 @@ const zh = {
     attachmentDownloadDenied: '您无权下载此附件。',
     attachmentAuthRequired: '请登录后再下载此附件。',
     attachmentPermissionDenied: '您没有执行此操作的权限。',
+    attachmentsAccessDenied: '您没有访问这些附件的权限。',
     // Diff
     unifiedDiff: '统一视图',
     sideBySideDiff: '并排视图',

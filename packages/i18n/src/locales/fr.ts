@@ -896,6 +896,7 @@ const fr = {
     attachmentDownloadDenied: "Vous n'avez pas accès pour télécharger cette pièce jointe.",
     attachmentAuthRequired: "Veuillez vous connecter pour télécharger cette pièce jointe.",
     attachmentPermissionDenied: "Vous n'avez pas la permission de faire cela.",
+    attachmentsAccessDenied: "Vous n'avez pas accès à ces pièces jointes.",
     unifiedDiff: "Vue unifiée",
     sideBySideDiff: "Vue côte à côte",
     noChanges: "Aucune modification",

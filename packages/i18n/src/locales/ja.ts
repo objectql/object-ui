@@ -905,6 +905,7 @@ const ja = {
     attachmentDownloadDenied: "この添付ファイルをダウンロードする権限がありません。",
     attachmentAuthRequired: "この添付ファイルをダウンロードするにはサインインしてください。",
     attachmentPermissionDenied: "この操作を行う権限がありません。",
+    attachmentsAccessDenied: "これらの添付ファイルにアクセスする権限がありません。",
     unifiedDiff: "統合差分",
     sideBySideDiff: "横並び差分",
     noChanges: "変更なし",
