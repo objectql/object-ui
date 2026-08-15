@@ -180,7 +180,17 @@ describe('DatasetWidget — the drill title reads the series LABEL (objectui#468
     const ev = clickSegment(1, 0);
     expect(ev.series).toBe('[null]');
 
-    await waitFor(() => expect(drawerProps.length).toBe(1));
+    // Bound to the drawer having opened AT LEAST once (objectui#4706), not to
+    // an exact cumulative render count: `drawerProps` only ever grows, and a
+    // late, unrelated `setMeta` from the dimension-metadata fetch (issued by
+    // `useDatasetDimensionMeta`, resolving independently of the click) can
+    // land a SECOND identical render after this one click — an overshoot
+    // `waitFor` can never recover from once it happens, since the array never
+    // shrinks. The case is about WHICH title the drawer shows, not how many
+    // times React chose to render it, so `lastDrawer()` — the content check
+    // below — is what carries the assertion; the count only needs to confirm
+    // the drawer opened at all.
+    await waitFor(() => expect(drawerProps.length).toBeGreaterThan(0));
     // The KEY did the lookup — the right records, which is what objectui#4673
     // already guaranteed and what must not move…
     expect(lastDrawer().filter).toEqual({ status_id: 'st-backlog', priority_id: null });
@@ -208,7 +218,9 @@ describe('DatasetWidget — the drill title reads the series LABEL (objectui#468
     await waitFor(() => expect(chartSeries().length).toBe(2));
 
     clickSegment(0, 0);
-    await waitFor(() => expect(drawerProps.length).toBe(1));
+    // At-least-once, not exact-once (objectui#4706) — see the first case in
+    // this file for why a cumulative count overshoots.
+    await waitFor(() => expect(drawerProps.length).toBeGreaterThan(0));
     expect(lastDrawer().title).toBe(`Backlog / ${NULL_CATEGORY_LABEL}`);
     expect(lastDrawer().filter).toEqual({ status_id: 'st-backlog', priority_id: 'pri-literal' });
   });
@@ -236,7 +248,9 @@ describe('DatasetWidget — the drill title reads the series LABEL (objectui#468
     ]);
 
     clickSegment(1, 0);
-    await waitFor(() => expect(drawerProps.length).toBe(1));
+    // At-least-once, not exact-once (objectui#4706) — see the first case in
+    // this file for why a cumulative count overshoots.
+    await waitFor(() => expect(drawerProps.length).toBeGreaterThan(0));
     expect(lastDrawer().title).toBe('Backlog / Low');
     expect(lastDrawer().filter).toEqual({ status_id: 'st-backlog', priority_id: 'pri-low' });
   });
@@ -261,7 +275,9 @@ describe('DatasetWidget — the drill title reads the series LABEL (objectui#468
       series: 'High',
     });
 
-    await waitFor(() => expect(drawerProps.length).toBe(1));
+    // At-least-once, not exact-once (objectui#4706) — see the first case in
+    // this file for why a cumulative count overshoots.
+    await waitFor(() => expect(drawerProps.length).toBeGreaterThan(0));
     expect(lastDrawer().title).toBe('Backlog / High');
   });
 
@@ -303,7 +319,9 @@ describe('DatasetWidget — the drill title reads the series LABEL (objectui#468
       seriesLabel: 'Hours',
     });
 
-    await waitFor(() => expect(drawerProps.length).toBe(1));
+    // At-least-once, not exact-once (objectui#4706) — see the first case in
+    // this file for why a cumulative count overshoots.
+    await waitFor(() => expect(drawerProps.length).toBeGreaterThan(0));
     expect(lastDrawer().title).toBe('Backlog');
   });
 });
