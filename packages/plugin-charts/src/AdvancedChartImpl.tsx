@@ -1344,6 +1344,116 @@ function hasNoCategoryKey(props: AdvancedChartImplProps): boolean {
 }
 
 /**
+ * Chart families whose marks come from `series` AND NOTHING ELSE — the set the
+ * series-axis guard below is allowed to refuse for.
+ *
+ * MEASURED in this file, not assumed, and deliberately NARROWER than
+ * {@link CATEGORY_AXIS_CHART_TYPES}: `bar` / `horizontal-bar` / `line` / `area`
+ * share one cartesian tail that renders `series.map(…)` and nothing else, and
+ * `combo`'s `ComposedChart` does the same. Every other family reads
+ * `series[0]?.dataKey || 'value'` — pie, donut, funnel, radar, scatter,
+ * treemap, sankey all fall back to a `value` column and draw a perfectly good
+ * chart with no series declared at all, so a refusal there would blank a
+ * WORKING chart rather than explain a broken one.
+ */
+const SERIES_ONLY_CHART_TYPES: ReadonlySet<string> = new Set([
+  'bar', 'horizontal-bar', 'line', 'area', 'combo',
+]);
+
+/**
+ * The series-axis half of the same doctrine — objectui#4683.
+ *
+ * `hasNoCategoryKey` above answers "cannot know refuses loudly" for the FIRST
+ * dimension. A pivoted chart has a second one, and it had no answer at all: a
+ * pivot whose SECOND dimension was never projected produces
+ * `series: []` with one bucket row per category, so the renderer drew axes,
+ * grid, tooltip and legend around ZERO marks and said nothing. To the author
+ * that reads as "no data matched", when what happened is that a dimension they
+ * grouped BY never arrived.
+ *
+ * ## What this reads, and what it deliberately does NOT read
+ *
+ * The signal is `series: []` — {@link buildChartSeries}' own output — plus rows
+ * to draw it against. NOT `groupKey in row`, which is the objectui#4507 trap
+ * INVERTED: this component is handed the PIVOTED bucket rows, whose columns are
+ * the group's VALUES, so the second dimension's own key is a column of no pivot
+ * ever, ordinary ones included. A `key in row` test here would refuse every
+ * grouped chart in the product.
+ *
+ * That keeps the three-way distinction intact, and each arm is pinned by a test:
+ *
+ *   - **null / `''` group values DRAW** (objectui#4673) — they are real groups,
+ *     they get real buckets, so `series` is non-empty and this never fires;
+ *   - **an unprojected group key REFUSES** — no row carries it, so no bucket
+ *     exists, so `series` is `[]`: this fires;
+ *   - **an ordinary pivot renders unchanged**, and so does a PARTIALLY
+ *     projected one. That last is the mirror of `hasNoCategoryKey`'s own
+ *     `!rows.some(…)`: the first dimension refuses only when NOT ONE row
+ *     carries the key, and draws what projects otherwise. A pivot where some
+ *     rows carry the group key yields those groups' series, so this stays
+ *     silent and the chart draws what projected.
+ *
+ * ## Why the message cannot name the group key, and why that is honest
+ *
+ * `hasNoCategoryKey` names the key it could not find. This cannot, because the
+ * renderer is not told which dimension the pivot grouped by — and the two
+ * upstream shapes that reach it are byte-identical. Measured:
+ * `buildChartSeries(rows, ['status','priority'], ['est_hours'])` with `priority`
+ * unprojected and `buildChartSeries(rows, ['status'], [])` with no measure
+ * selected BOTH return `{data:[{status:'Backlog'},…], xAxisKey:'status',
+ * series:[]}`. Naming one cause would be a sentence that is false half the time,
+ * which is worse than the silence this replaces — so the copy names the failure
+ * and BOTH authoring causes, and the console warning carries the diagnostic pair
+ * (`xAxisKey` + the keys the rows actually carry) exactly as the model does.
+ *
+ * ## Why `[]` and not "no series at all"
+ *
+ * `Array.isArray(series) && series.length === 0` — a binding that was COMPUTED
+ * and came out empty, which is what both `buildChartSeries` call paths hand
+ * over. `series === undefined` means no binding was ever computed (a caller that
+ * never went through the helper); those charts are left byte-for-byte as they
+ * were.
+ */
+function hasNoPlottableSeries(props: AdvancedChartImplProps): boolean {
+  const chartType = props.chartType === 'column' ? 'bar' : (props.chartType ?? 'bar');
+  const rows = Array.isArray(props.data) ? props.data : [];
+  return (
+    SERIES_ONLY_CHART_TYPES.has(chartType) &&
+    rows.length > 0 &&
+    Array.isArray(props.series) &&
+    props.series.length === 0
+  );
+}
+
+/**
+ * The shell both refusals render — one placeholder, two diagnoses.
+ *
+ * Stated once so the series-axis guard cannot drift from the framework#4033 one
+ * it mirrors: same box, same `role="status"` (a refusal is a state, not an
+ * alert), same muted centred type, and a `data-chart-error` code naming WHICH
+ * refusal fired.
+ */
+function ChartRefusal({
+  code,
+  className,
+  children,
+}: {
+  code: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`flex h-full min-h-[120px] w-full items-center justify-center p-4 text-center text-sm text-muted-foreground ${className ?? ''}`}
+      role="status"
+      data-chart-error={code}
+    >
+      <span>{children}</span>
+    </div>
+  );
+}
+
+/**
  * Public entry point. A THIN wrapper purely so the unreadable-data guard can
  * short-circuit without breaking the rules of hooks: the condition depends on
  * `data`, which arrives asynchronously, so an early return inside the renderer
@@ -1352,6 +1462,11 @@ function hasNoCategoryKey(props: AdvancedChartImplProps): boolean {
  */
 export default function AdvancedChartImpl(props: AdvancedChartImplProps) {
   const missingCategoryKey = hasNoCategoryKey(props);
+  // The x-axis refusal WINS when both apply: a chart whose rows carry no
+  // category key at all cannot plot an axis, which is the more fundamental
+  // failure and the more specific message. Without this gate such a chart would
+  // also warn about its series, printing two diagnoses for one cause.
+  const noPlottableSeries = !missingCategoryKey && hasNoPlottableSeries(props);
   const xAxisKey = props.xAxisKey ?? 'name';
   const firstRowKeys = React.useMemo(
     () => Object.keys((Array.isArray(props.data) ? props.data[0] : undefined) ?? {}),
@@ -1371,18 +1486,35 @@ export default function AdvancedChartImpl(props: AdvancedChartImplProps) {
     );
   }, [missingCategoryKey, xAxisKey, firstRowKeys]);
 
+  React.useEffect(() => {
+    if (!noPlottableSeries) return;
+    // The same diagnostic PAIR the guard above prints, for the same reason: the
+    // axis the chart did plot, and the keys its rows actually carry. In the
+    // objectui#4683 shape that second half is the tell — bucket rows carrying
+    // the category and NOTHING else say the group column was never written.
+    console.warn(
+      `[chart] no series to plot against the category axis "${xAxisKey}" — rendering an ` +
+      `explanatory placeholder instead of an empty frame. Row keys: ${JSON.stringify(firstRowKeys)}. ` +
+      `A grouped chart's SECOND dimension must be PROJECTED by the dataset query, and a ` +
+      `chart with no measure selected has nothing to draw either (objectui#4683, framework#4033).`,
+    );
+  }, [noPlottableSeries, xAxisKey, firstRowKeys]);
+
   if (missingCategoryKey) {
     return (
-      <div
-        className={`flex h-full min-h-[120px] w-full items-center justify-center p-4 text-center text-sm text-muted-foreground ${props.className ?? ''}`}
-        role="status"
-        data-chart-error="missing-category-key"
-      >
-        <span>
-          This chart cannot plot its category axis: no row has a{' '}
-          <code className="font-mono">{xAxisKey}</code> field.
-        </span>
-      </div>
+      <ChartRefusal code="missing-category-key" className={props.className}>
+        This chart cannot plot its category axis: no row has a{' '}
+        <code className="font-mono">{xAxisKey}</code> field.
+      </ChartRefusal>
+    );
+  }
+
+  if (noPlottableSeries) {
+    return (
+      <ChartRefusal code="no-plottable-series" className={props.className}>
+        This chart cannot plot any series: no measure or group reached its{' '}
+        <code className="font-mono">{xAxisKey}</code> axis.
+      </ChartRefusal>
     );
   }
 
