@@ -19,8 +19,12 @@
  * on a THIRD surface — and this one went one level further than either. Those
  * two misspelled the keys of a real React component. This page taught a JSON
  * NODE TYPE that does not exist: `registerLayout()` registers `page-header`,
- * `page:card`, `app-shell`, `responsive-grid`, `navigation-renderer` and
+ * `page:card`, `responsive-grid`, `navigation-renderer` and
  * `app-schema-renderer`, and nothing in the repo registers `sidebar-nav`.
+ * (`app-shell` was a sixth key until objectui#4841 deregistered it — for the
+ * same reason, one step less far along: it resolved to a component that a JSON
+ * document could never fill. `sidebar-nav` never resolved at all, which is why
+ * this page's defect was the LOUDER of the two.)
  *
  * Measured on this tree, a `{ "type": "sidebar-nav", "items": [...] }` node
  * renders the renderer's red panel and no sidebar at all:
@@ -28,9 +32,11 @@
  *     Unknown component type: sidebar-nav
  *     (OBJUI-001)
  *
- * So this defect is LOUDER than objectui#4827's `app-shell` one, which at least
+ * So this defect was LOUDER than objectui#4827's `app-shell` one, which at least
  * resolved to a component and dropped keys quietly. Here nothing is parsed as
- * props, because nothing resolves.
+ * props, because nothing resolves. objectui#4841 has since given `app-shell` the
+ * same treatment — deregistered, so it too now renders `Unknown component type`
+ * rather than an empty shell.
  *
  * The page's `### Schema API` block also got the component's own shape wrong in
  * seven ways at once — `label` for `title`, `icon` as a string rather than a
@@ -325,6 +331,27 @@ function registeredKeys(): string[] {
   );
 }
 
+/**
+ * The count words the intro sentence can spell its key list with.
+ *
+ * The number used to be hardcoded as `6` in the assertions below, which made a
+ * pin that reads its key list out of source carry one fact that did not:
+ * objectui#4841 deregistered `app-shell` and the count went to five, so the
+ * literal was the only thing standing between an accurate page and a red test
+ * for the wrong reason. The page's own word is read instead — the sentence and
+ * the source still have to agree, but agreeing at any number is allowed.
+ */
+const NUMBER_WORDS: Record<string, number> = {
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+};
+
 describe("the guide's SidebarNav tables name exactly the real keys (objectui#4840)", () => {
   it.each([
     ['### Props', 'SidebarNavProps'],
@@ -477,14 +504,26 @@ describe('the guide authors no `sidebar-nav` JSON node (objectui#4840)', () => {
 
   it('and the page names exactly the keys that ARE registered', () => {
     const keys = registeredKeys();
-    // The sentence reads: "registers six keys — `a`, `b` … and `f` — and nothing …".
-    const sentence = /registers six keys — ([\s\S]*?) — and nothing/.exec(GUIDE);
+    // The sentence reads: "registers five keys — `a`, `b` … and `e` — and nothing …".
+    //
+    // Whitespace is matched as `\s+` rather than a literal space throughout: the
+    // sentence is markdown prose that gets re-wrapped whenever the key list
+    // changes length, and with literal spaces this pin failed on a line break
+    // landing between "and" and "nothing" — a rewrap, not a drift. Where the
+    // lines break is not a fact this file should have an opinion about.
+    const sentence = /registers (\w+) keys\s+—\s+([\s\S]*?)\s+—\s+and\s+nothing/.exec(GUIDE);
     if (!sentence) {
       throw new Error(
-        'The `## SidebarNav Component` intro no longer carries its "registers six keys — … — and nothing" list',
+        'The `## SidebarNav Component` intro no longer carries its "registers <count> keys — … — and nothing" list',
       );
     }
-    const named = [...sentence[1].matchAll(/`([^`]+)`/g)].map((match) => match[1]);
+    const spelled = NUMBER_WORDS[sentence[1].toLowerCase()];
+    if (spelled === undefined) {
+      throw new Error(
+        `The \`## SidebarNav Component\` intro spells its key count "${sentence[1]}", which is not a number word this test can read. Spell it in words (e.g. "five"), or add the word to NUMBER_WORDS.`,
+      );
+    }
+    const named = [...sentence[2].matchAll(/`([^`]+)`/g)].map((match) => match[1]);
 
     expect(
       named.slice().sort(),
@@ -496,8 +535,14 @@ describe('the guide authors no `sidebar-nav` JSON node (objectui#4840)', () => {
         `Registered: ${keys.join(', ')}`,
       ].join('\n'),
     ).toEqual(keys.slice().sort());
-    expect(named.length, 'the page says "six keys" but names a different number').toBe(6);
-    expect(keys.length, 'the page says "six keys" but the source registers a different number').toBe(6);
+    expect(
+      named.length,
+      `the page says "${sentence[1]} keys" but names a different number`,
+    ).toBe(spelled);
+    expect(
+      keys.length,
+      `the page says "${sentence[1]} keys" but the source registers a different number`,
+    ).toBe(spelled);
   });
 
   it('no fence on the page contains a `{ "type": "sidebar-nav" }` node', () => {

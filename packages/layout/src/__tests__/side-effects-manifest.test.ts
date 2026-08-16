@@ -11,9 +11,10 @@
  * manifest has to say so (objectui#3899).
  *
  * `src/index.ts` ends with a bare `try { registerLayout(); } catch {}`, which is
- * the only thing that puts `page-header`, `page:card`, `app-shell`,
- * `responsive-grid`, `navigation-renderer` and `app-schema-renderer` into the
- * `ComponentRegistry`. The manifest used to declare `"sideEffects": false` —
+ * the only thing that puts `page-header`, `page:card`, `responsive-grid`,
+ * `navigation-renderer` and `app-schema-renderer` into the `ComponentRegistry`.
+ * (There was a sixth, `app-shell`, until objectui#4841 deregistered it.) The
+ * manifest used to declare `"sideEffects": false` —
  * a promise to bundlers that no module here does anything on evaluation, so any
  * module whose exports go unused may be dropped whole.
  *
@@ -22,7 +23,7 @@
  * documented "import it to register" pattern) with the repo's own bundler:
  *
  *   sideEffects: false  ->  bundle is 0 bytes, zero registrations
- *   this array          ->  bundle keeps all six `ComponentRegistry.register` calls
+ *   this array          ->  bundle keeps every `ComponentRegistry.register` call
  *
  * Zero bytes, exit code 0, no warning. The failure surfaces far away as a red
  * `Unknown component type` panel (OBJUI-001) on a green build. Nobody was bitten
@@ -301,10 +302,17 @@ describe('@object-ui/layout declares its load-time registration (objectui#3899)'
       /ComponentRegistry\.register\(\s*'([^']+)'/g,
     )].map((match) => match[1]);
 
+    // A floor, not a census: it exists so a regex that stops matching cannot
+    // turn the loop below into a no-op. It read `6` until objectui#4841
+    // deregistered `app-shell` (ADR-0049 remove side), which is the one way this
+    // number is allowed to move — DOWN, with a register call deleted in the same
+    // commit. It is not a licence to delete registrations: the keys themselves
+    // are pinned by name in `guide-layout-sidebar-nav-doc.test.ts`, against the
+    // list the guide publishes.
     expect(
       registeredKeys.length,
       'No `ComponentRegistry.register` call found in src/index.ts — the loop below would assert nothing.',
-    ).toBeGreaterThanOrEqual(6);
+    ).toBeGreaterThanOrEqual(5);
 
     for (const key of registeredKeys) {
       expect(code, `the \`${key}\` registration must survive a side-effect-only import`).toContain(key);

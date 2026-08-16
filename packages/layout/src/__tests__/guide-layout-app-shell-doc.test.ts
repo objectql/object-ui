@@ -22,17 +22,24 @@
  * `headerClassName`, `sidebarClassName` and `contentClassName` do not exist,
  * and four of them were demonstrated a second time in the `### Custom Classes`
  * example. On the React surfaces a copied phantom prop at least reaches a
- * TypeScript consumer as an error; in a JSON document nothing checks it —
- * `app-shell` is registered with no `inputs` (`packages/layout/src/index.ts`),
- * so `sdui-parser`'s unknown-prop check has nothing to compare a node against
- * and reports nothing at all.
+ * TypeScript consumer as an error; in a JSON document nothing checked it —
+ * `app-shell` was registered with no `inputs` (`packages/layout/src/index.ts`),
+ * so `sdui-parser`'s unknown-prop check had nothing to compare a node against
+ * and reported nothing at all.
+ *
+ * That registration is GONE (objectui#4841, ADR-0049 enforce-or-remove, remove
+ * side). The key resolves to nothing now, so the node is refused by name instead
+ * of silently under-rendering — `app-shell-not-a-component-key.test.tsx` owns
+ * that fact and measures the diagnostic. This file is unchanged in what it
+ * judges: the page's React material, and that no fence on it authors the node.
  *
  * ## What the page says now, and what the halves below hold to it
  *
  * The page was rewritten to teach `AppShell` as what it is — a React component
  * whose four node slots (`sidebar` / `navbar` / `children` / `rightRail`) a JSON
  * document cannot fill. Those claims were measured against this tree, not
- * inferred:
+ * inferred, and they are what objectui#4841 then acted on — the three bullets
+ * below describe the registration as it behaved BEFORE it was removed:
  *
  *   - `className`, `defaultOpen` and `branding` DO survive the JSON path. They
  *     are plain data, `SchemaRenderer` spreads them onto the component, and a
@@ -402,16 +409,19 @@ describe('the guide authors no `app-shell` JSON node (objectui#4827)', () => {
       offenders.map((fence) => `content/docs/guide/layout.md:${fence.line}`),
       [
         'A fence in content/docs/guide/layout.md authors an `app-shell` node again',
-        '(objectui#4827). Four of the seven props are `React.ReactNode` slots and a JSON',
-        'document can fill none of them: `children` is stripped by SchemaRenderer before a',
-        "node's keys are spread as props, so `<main>` renders EMPTY with nothing logged, and a",
-        'schema in `sidebar` / `navbar` / `rightRail` reaches the component as a plain object,',
-        'which React refuses to render. The registration declares no `inputs`, so nothing',
-        'diagnoses either case. Teach the React composition instead.',
+        '(objectui#4827). The key is not registered at all any more (objectui#4841), so the',
+        'node resolves to nothing: the renderer replaces it with the red "Unknown component',
+        'type: app-shell" panel (OBJUI-001) and sdui-parser reports `unknown-component`. It was',
+        'deregistered because four of the seven props are `React.ReactNode` slots a JSON',
+        'document can fill none of — `children` was stripped by SchemaRenderer before a node\'s',
+        'keys were spread as props, so `<main>` rendered EMPTY with nothing logged, and a schema',
+        'in `sidebar` / `navbar` / `rightRail` reached the component as a plain object, which',
+        'React refuses to render. Teach the React composition instead, or `app-schema-renderer`',
+        'when the whole shell has to come from metadata.',
         '',
-        'If `app-shell` is ever made authorable — inputs declared AND the slots fed from the',
-        'schema — this assertion is the right place to record that, but it must be a change to',
-        'the component, not to the page.',
+        'If `app-shell` is ever made authorable — registered again WITH inputs AND the slots fed',
+        'from the schema — this assertion is the right place to record that, but it must be a',
+        'change to the component, not to the page.',
       ].join('\n'),
     ).toEqual([]);
   });

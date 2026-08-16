@@ -34,8 +34,9 @@ a main content area.
 **`AppShell` is a React component, not an authorable JSON node.** Four of its seven props
 are `React.ReactNode` slots — `sidebar`, `navbar`, `children` and `rightRail` — and a JSON
 document has no way to put a node into any of them. Compose the shell in React, and render
-your JSON pages *inside* it. What a `{ "type": "app-shell" }` node does with each key is
-spelled out under [In a JSON node](#in-a-json-node) below.
+your JSON pages *inside* it. `app-shell` is not a component key either — what a
+`{ "type": "app-shell" }` node does now is measured under
+[There is no `app-shell` node](#there-is-no-app-shell-node) below.
 
 ### Basic Usage
 
@@ -68,39 +69,50 @@ the component's `children`; there is no `body` prop either.
 component destructures that fixed key list with **no rest element**, so anything else you
 pass is built and then dropped on the floor.
 
-| Prop | Type | Required | In a JSON node | Description |
-| --- | --- | --- | --- | --- |
-| `sidebar` | `React.ReactNode` | no | no | Left sidebar node, a flex sibling of the content. Pass `SidebarNav`, or your own node. |
-| `navbar` | `React.ReactNode` | no | no | Top-bar content. `AppShell` supplies the sticky `<header>` around it, so pass only what goes inside. |
-| `children` | `React.ReactNode` | yes | no | Main content, rendered inside the `<main>` element. |
-| `className` | `string` | no | yes | Tailwind overrides for the `<main>` content element — **not** for the outer container. |
-| `defaultOpen` | `boolean` | no | yes | Initial open state of the underlying Shadcn `SidebarProvider`. Defaults to `true`. |
-| `branding` | `AppShellBranding` | no | yes | App branding, applied by `useAppShellBranding`: `primaryColor` / `accentColor` become CSS custom properties on the document root, `favicon` sets the icon link's `href`, and `title` sets `document.title`. |
-| `rightRail` | `React.ReactNode` | no | no | Optional right-side rail. It reflows the content beside it rather than overlaying it; absent → unchanged single-pane layout. |
+These are React props, passed in JSX. None of them is authorable in JSON — there is no
+`app-shell` node to write them on.
 
-### In a JSON node
+| Prop | Type | Required | Description |
+| --- | --- | --- | --- |
+| `sidebar` | `React.ReactNode` | no | Left sidebar node, a flex sibling of the content. Pass `SidebarNav`, or your own node. |
+| `navbar` | `React.ReactNode` | no | Top-bar content. `AppShell` supplies the sticky `<header>` around it, so pass only what goes inside. |
+| `children` | `React.ReactNode` | yes | Main content, rendered inside the `<main>` element. |
+| `className` | `string` | no | Tailwind overrides for the `<main>` content element — **not** for the outer container. |
+| `defaultOpen` | `boolean` | no | Initial open state of the underlying Shadcn `SidebarProvider`. Defaults to `true`. |
+| `branding` | `AppShellBranding` | no | App branding, applied by `useAppShellBranding`: `primaryColor` / `accentColor` become CSS custom properties on the document root, `favicon` sets the icon link's `href`, and `title` sets `document.title`. |
+| `rightRail` | `React.ReactNode` | no | Optional right-side rail. It reflows the content beside it rather than overlaying it; absent → unchanged single-pane layout. |
 
-`app-shell` is registered on the `ComponentRegistry` (`packages/layout/src/index.ts`), so
-`{ "type": "app-shell" }` does resolve to this component. The registration declares no
-`inputs`, which is why `sdui-parser`'s unknown-prop check has nothing to compare a node
-against and stays silent whatever you write. Measured, key by key:
+### There is no `app-shell` node
 
-- **The three plain-data props work.** `className`, `defaultOpen` and `branding` are
-  spread onto the component unchanged. `className` lands on the `<main>` element, and
-  `branding`'s fields are applied by `useAppShellBranding` exactly as in React.
-- **`children` is dropped, silently.** `SchemaRenderer` strips `children` (and `body`) out
-  of a node before spreading the remaining keys as props, and `AppShell` reads its
-  `children` **prop**, not `schema.children`. The `<main>` element renders empty and
-  nothing is logged.
-- **`sidebar` / `navbar` / `rightRail` cannot hold a schema.** They are `React.ReactNode`;
-  a JSON value reaches the component as a plain object, and React refuses to render one.
-  The node is replaced by the renderer's error box: `Component "app-shell" failed to
-  render — Objects are not valid as a React child`.
+`app-shell` is not a component key. `registerLayout()` (`packages/layout/src/index.ts`)
+does not register it, and nothing else in this repo does either, so a
+`{ "type": "app-shell" }` node resolves to nothing and says so. Measured on this tree:
 
-So do not author an `app-shell` node in JSON. Build the shell in React as above — or, when
-the whole shell should come from metadata, use `AppSchemaRenderer` (registered as
-`app-schema-renderer`), which builds branding and sidebar navigation from an `AppSchema`
-JSON document and takes the page content as its `children`.
+- `SchemaRenderer` replaces the node with its error panel —
+  `Unknown component type: app-shell`, error code `OBJUI-001`.
+- `sdui-parser` reports it before render, as an `error`-severity diagnostic with code
+  `unknown-component`: `` `<app-shell> is not a known component` ``.
+
+It **was** registered until objectui#4841, and the registration could never produce a
+shell. Four of the seven props are `React.ReactNode` slots that a JSON document cannot
+fill, so a node had exactly two outcomes: `children` was stripped by `SchemaRenderer`
+before a node's keys were spread as props — `AppShell` reads its `children` prop, never
+`schema.children` — so the `<main>` element rendered **empty with nothing logged**; and a
+schema written into `sidebar` / `navbar` / `rightRail` arrived as a plain object, which
+React refuses to render, replacing the node with an error box. Only `className`,
+`defaultOpen` and `branding` ever survived the JSON path, i.e. the best result JSON could
+reach was a shell with no navigation, no top bar and an empty content area. The key was
+retired under ADR-0049 (enforce-or-remove) so that this comes out as a named refusal
+rather than a page that renders nothing.
+
+Two doors remain, one per capability:
+
+- **Compose in React** — `<AppShell>` as shown above, with your JSON pages rendered
+  *inside* it through `SchemaRenderer`.
+- **The whole shell from metadata** — `AppSchemaRenderer`, registered as
+  `app-schema-renderer` and declaring its `inputs`, which builds branding and sidebar
+  navigation from an `AppSchema` JSON document and takes the page content as its
+  `children`.
 
 ### Features
 
@@ -280,9 +292,9 @@ renders nothing here.
 The `SidebarNav` provides a collapsible navigation sidebar with menu items.
 
 **`SidebarNav` is a React component, and `sidebar-nav` is not a component key at all.**
-`registerLayout()` (`packages/layout/src/index.ts`) registers six keys — `page-header`,
-`page:card`, `app-shell`, `responsive-grid`, `navigation-renderer` and
-`app-schema-renderer` — and nothing in this repo registers `sidebar-nav`. What a
+`registerLayout()` (`packages/layout/src/index.ts`) registers five keys — `page-header`,
+`page:card`, `responsive-grid`, `navigation-renderer` and `app-schema-renderer` — and
+nothing in this repo registers `sidebar-nav`. What a
 `{ "type": "sidebar-nav" }` node actually does is measured under
 [There is no `sidebar-nav` node](#there-is-no-sidebar-nav-node) below. Compose the nav in
 React, or use `navigation-renderer` when the tree has to come from metadata.
