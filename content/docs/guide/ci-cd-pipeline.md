@@ -41,6 +41,7 @@ one has its own section below.
 | `stale.yml` | Stale Issues & PRs | Daily cron `0 0 * * *`; manual | n/a |
 | `shadcn-check.yml` | Check Shadcn Components | Weekly cron `0 9 * * 1`; manual | n/a |
 | `check-links.yml` | Check Links | Weekly cron `17 4 * * 0`; manual | n/a — reports, never gates |
+| `published-dist-gate.yml` | Published Dist Tooling Scan | Nightly cron `41 3 * * *`; push to `main` touching the gate; manual | No — the blocking copy runs on the publish path, not here |
 
 The path filters explain most "why did nothing run on my PR?" questions:
 
@@ -593,6 +594,39 @@ Uses [Changesets](https://github.com/changesets/changesets) for automated versio
 2. Bumps package versions.
 3. Publishes to npm.
 4. Configures a pnpm-lock.yaml merge driver to prevent lock file conflicts.
+
+Step 3 runs `pnpm changeset:publish`, and that script is
+`node scripts/check-published-dist-tooling.mjs && changeset publish` — the **blocking** copy of
+the Published Dist Gate above. A published package whose `dist/` carries tooling material stops
+the publish before a single tarball reaches npm, which is where that defect actually costs
+anything ([#4846](https://github.com/objectstack-ai/objectui/issues/4846)).
+
+### Published Dist Gate (`published-dist-gate.yml`)
+
+**Trigger:** Nightly cron `41 3 * * *`; push to `main` that touches the gate script or this
+workflow; manual. **It carries no `pull_request` trigger, on purpose.**
+
+No published package's build output may contain tooling material — `__tests__/`, `__mocks__/`,
+`__benchmarks__/`, `*.test.*`, `*.spec.*`, `*.bench.*`, `*.stories.*`. The gate is
+`scripts/check-published-dist-tooling.mjs` (`pnpm check:published-dist`); it builds every
+published package itself, then reads each one's tarball file list from `npm pack --dry-run`.
+
+Three things about it are easy to get wrong and are written down in the script's own header
+([#4846](https://github.com/objectstack-ai/objectui/issues/4846)):
+
+- **The criterion has to be artifact-level.** The cheap static version — "no build tsconfig
+  program may contain a tooling file" — was measured and reds five packages that emit nothing
+  wrong, because a tooling file in a *checking* program is correct and only a tooling file in an
+  *emitting* program is a defect. Acting on it would mean moving tests out of type programs,
+  which is the mirror of what
+  [#4006](https://github.com/objectstack-ai/objectui/issues/4006) taught.
+- **It must never pass vacuously.** A published package that contributes no build output is a
+  finding (`no-build-output`), not a skip, and a failed build is a failure rather than a green
+  run with nothing to look at.
+- **It is deliberately not a PR gate.** The criterion needs a full-repo build and this repository
+  has none per PR: `ci.yml`'s **Build & E2E** builds only `@object-ui/console`, and **Type
+  Check** gets only the dependency closure from turbo's `dependsOn: ["^build"]`, so leaf packages
+  are never built there. The blocking copy runs on the publish path instead — see below.
 
 ### Changeset Guard (`changeset-guard.yml`)
 
