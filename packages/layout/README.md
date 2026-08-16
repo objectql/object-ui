@@ -43,18 +43,37 @@ prefer to register explicitly.
 
 ### AppShell
 
-Complete application shell with header, sidebar, and main content area.
+Complete application shell with a top navbar, a sidebar, and a main content area.
 
 ```typescript
 import { AppShell } from '@object-ui/layout';
 
 <AppShell
-  header={<div>Header Content</div>}
+  navbar={<div>Navbar Content</div>}
   sidebar={<div>Sidebar Content</div>}
 >
   <div>Main Content</div>
 </AppShell>
 ```
+
+The top bar's content goes in `navbar`. `AppShell` renders the `<header>`
+element itself (`src/AppShell.tsx:248`) and `{navbar}` is the only thing that
+fills it (`:249`) — there is no `header` prop. This example used to pass one
+(objectui#4817), and because the component destructures a fixed key list with
+**no rest element** (`:233-241`), the node was built and then dropped on the
+floor: copied verbatim, the snippet rendered an empty top bar and said nothing.
+
+#### `AppShellProps`
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `children` | `React.ReactNode` | — (required) | Main content, rendered inside the `<main>` element. |
+| `navbar` | `React.ReactNode` | — | Top bar content. `AppShell` supplies the sticky `<header>` around it, so pass only what goes inside. |
+| `sidebar` | `React.ReactNode` | — | Left sidebar node, rendered as a flex sibling of the content. Pass `SidebarNav`, or your own node. |
+| `rightRail` | `React.ReactNode` | — | Optional right-side rail. It reflows the content beside it rather than overlaying it (ADR-0057 P3a); absent → unchanged single-pane layout. |
+| `className` | `string` | — | Tailwind overrides for the `<main>` content element — **not** for the outer container. |
+| `defaultOpen` | `boolean` | `true` | Initial open state of the underlying Shadcn `SidebarProvider`. |
+| `branding` | `AppShellBranding` | — | Brand colors, favicon, logo and document title, applied as CSS custom properties on the document root. |
 
 ### PageHeader
 
@@ -182,7 +201,7 @@ function App() {
   return (
     <BrowserRouter>
       <AppShell
-        header={<div className="p-4">My App</div>}
+        navbar={<div className="p-4">My App</div>}
         sidebar={
           <SidebarNav
             items={[
@@ -204,15 +223,18 @@ function App() {
 
 ## Customization
 
-All components accept `className` prop for Tailwind customization:
+`AppShell` takes a single `className`, and it lands on the `<main>` content
+element (`src/AppShell.tsx:256`) rather than on the outer container. There is no
+per-slot `headerClassName` / `sidebarClassName` — the navbar and the sidebar are
+nodes **you** build, so style them where you build them:
 
 ```typescript
 <AppShell
   className="bg-gray-50"
-  headerClassName="border-b"
-  sidebarClassName="bg-white shadow-lg"
+  navbar={<div className="border-b px-4">My App</div>}
+  sidebar={<div className="bg-white shadow-lg">Sidebar Content</div>}
 >
-  {children}
+  <div>Main Content</div>
 </AppShell>
 ```
 
