@@ -327,7 +327,14 @@ describe('every readonly registered widget is named and described by its host (o
     // The host wraps, it does not replace: whatever the widget rendered is still
     // there, and it is there INSIDE the named group rather than beside it.
     expect(host.firstElementChild).not.toBeNull();
-    expect(host.textContent).not.toBe('');
+    // And because the group names ITSELF as well as the label, that rendered
+    // content is part of the accessible name — which is the assertion that
+    // actually holds for every face. `textContent` does not: `image` and
+    // `signature` render an `img` whose value is its `alt`, so their text is
+    // empty while their name reads `Label image a.png` / `Label signature
+    // Signature`. Measured, then corrected — the first spelling of this
+    // assertion was red on exactly those two.
+    expect(host).toHaveAccessibleName(new RegExp(`^${fieldLabel(type)} .+`));
     // And the group is the only one in the item — no nested second claim.
     expect(item(name).querySelectorAll('[role="group"]')).toHaveLength(1);
   });
