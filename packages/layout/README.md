@@ -73,7 +73,7 @@ floor: copied verbatim, the snippet rendered an empty top bar and said nothing.
 | `rightRail` | `React.ReactNode` | — | Optional right-side rail. It reflows the content beside it rather than overlaying it (ADR-0057 P3a); absent → unchanged single-pane layout. |
 | `className` | `string` | — | Tailwind overrides for the `<main>` content element — **not** for the outer container. |
 | `defaultOpen` | `boolean` | `true` | Initial open state of the underlying Shadcn `SidebarProvider`. |
-| `branding` | `AppShellBranding` | — | Brand colors, favicon, logo and document title, applied as CSS custom properties on the document root. |
+| `branding` | `AppShellBranding` | — | App branding, applied by `useAppShellBranding`: `primaryColor` / `accentColor` become CSS custom properties on the document root (re-derived for dark mode), `favicon` sets the icon link's `href`, and `title` sets `document.title`. |
 
 ### PageHeader
 
