@@ -142,8 +142,10 @@ describe('a JSON `app-shell` node is refused by name (objectui#4841)', () => {
         'unregistered, this panel is what an author must see.',
       ].join('\n'),
     ).not.toBeNull();
-    expect(panel?.textContent).toContain('Unknown component type');
-    expect(panel?.textContent).toContain('app-shell');
+    // Asserted as the composed line rather than two loose substrings, so this
+    // is the diagnostic an author actually reads — and so the PR/changeset can
+    // quote it as measured rather than reconstructed from the JSX.
+    expect(panel?.textContent).toContain('Unknown component type: app-shell');
     // The suggestion line carries the error code; it is dev-only, and the test
     // environment is not production.
     expect(panel?.textContent).toContain('OBJUI-001');

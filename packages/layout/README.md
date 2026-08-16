@@ -24,9 +24,9 @@ pnpm add @object-ui/layout
 ## Registration
 
 Importing this package registers its component keys (`page-header`, `page:card`,
-`app-shell`, `responsive-grid`, `navigation-renderer`, `app-schema-renderer`) on
-the `ComponentRegistry` as a module load side effect, so the side-effect-only
-import is enough:
+`responsive-grid`, `navigation-renderer`, `app-schema-renderer`) on the
+`ComponentRegistry` as a module load side effect, so the side-effect-only import
+is enough:
 
 ```typescript
 import '@object-ui/layout';
@@ -62,6 +62,12 @@ fills it (`:249`) — there is no `header` prop. This example used to pass one
 (objectui#4817), and because the component destructures a fixed key list with
 **no rest element** (`:233-241`), the node was built and then dropped on the
 floor: copied verbatim, the snippet rendered an empty top bar and said nothing.
+
+Like `SidebarNav` below, `AppShell` is composed in JSX and is **not** on the
+`ComponentRegistry`: four of its seven props are `React.ReactNode` slots that no
+JSON document can fill, so the `app-shell` key was retired in objectui#4841 and
+`{ "type": "app-shell" }` now reports `Unknown component type`. When the whole
+shell has to come from metadata, the key for that is `app-schema-renderer`.
 
 #### `AppShellProps`
 

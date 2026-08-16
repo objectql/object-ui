@@ -161,6 +161,7 @@ export function registerLayout() {
   // `ComponentRegistry` + `.register(`, and a verbatim copy in a comment reads
   // to them as a live registration. Same reason the file's other notes name
   // keys in prose.)
+  //
   // Four of `AppShellProps`' seven keys are `React.ReactNode` slots (`sidebar`,
   // `navbar`, `children`, `rightRail`) and a JSON document can fill none of
   // them. Measured on `378dc920b`, a node had exactly two outcomes, neither of

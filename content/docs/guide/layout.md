@@ -91,7 +91,7 @@ does not register it, and nothing else in this repo does either, so a
 - `SchemaRenderer` replaces the node with its error panel —
   `Unknown component type: app-shell`, error code `OBJUI-001`.
 - `sdui-parser` reports it before render, as an `error`-severity diagnostic with code
-  `unknown-component`: `` `<app-shell> is not a known component` ``.
+  `unknown-component` and the message `<app-shell> is not a known component`.
 
 It **was** registered until objectui#4841, and the registration could never produce a
 shell. Four of the seven props are `React.ReactNode` slots that a JSON document cannot
