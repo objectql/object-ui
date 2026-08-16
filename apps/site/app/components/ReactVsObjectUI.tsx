@@ -53,7 +53,7 @@ export function StatsCards() {
 
 const OBJECTUI_CODE = `{
   "type": "grid",
-  "props": { "cols": { "md": 2, "lg": 4 }, "gap": 4 },
+  "columns": { "xs": 1, "md": 2, "lg": 4 }, "gap": 4,
   "children": [
     { "type": "stats-card", "props": { "title": "Total Revenue",
       "value": "$45,231.89", "change": "+20.1% from last month",

@@ -153,16 +153,29 @@ param support ⊇ form support).
 
 ## Rule: Layout Responsiveness
 
-Layout components must support responsive properties:
+`grid` declares its column count as `columns` — either a number, or a
+breakpoint object keyed `xs` / `sm` / `md` / `lg` / `xl` (`GridSchema` in
+`packages/types/src/layout.ts`):
 
 ```json
 {
   "type": "grid",
-  "props": {
-    "cols": { "sm": 1, "md": 2, "lg": 4 }  // ✅ Responsive config
-  }
+  "columns": { "xs": 1, "md": 2, "lg": 4 },
+  "gap": 4
 }
 ```
+
+`xs` is the base breakpoint; omit it and the base falls back to one column.
+A bare `"columns": 4` already gets a mobile-first ramp (1 column, 2 at `sm`,
+4 at `md`), so reach for the object form only when you need the breakpoints
+spelled out.
+
+**❌ DO NOT** spell it `cols` — no schema, renderer or registry declares that
+key, so the value is dropped on the floor and the grid renders a flat two
+columns at *every* breakpoint (objectui#4001).
+**❌ DO NOT** wrap layout keys in a `props` envelope. `columns` / `gap` /
+`className` are read off the node itself; under `props` they are never read
+and the same silent two-column fallback appears.
 
 ## Rule: Expression Security
 
