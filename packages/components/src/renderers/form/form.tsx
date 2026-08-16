@@ -402,6 +402,146 @@ function resolveFieldLabelling(type: string): 'control' | 'group' {
     : 'control';
 }
 
+/**
+ * Does this type render a REGISTERED FIELD WIDGET (objectui#4788)?
+ *
+ * Mirrors `renderFieldComponent`'s resolution the same way
+ * `resolveFieldLabelling` mirrors it, and for the same reason: the answer
+ * decides whether the host wraps the output, so producer and consumer must not
+ * be able to disagree about which component actually renders.
+ *
+ *  - a builtin name is decided on the RAW type and never consults the registry;
+ *  - a bare name resolves through the `field:` namespace;
+ *  - a colon-qualified type resolves directly, and is a FIELD widget only when
+ *    it names the `field` namespace — the bare-name fallback (`alert`, `badge`,
+ *    the display `text` widget) implements the universal `schema` contract, not
+ *    `FieldWidgetComponentProps`, and is deliberately left alone.
+ */
+function resolvesToRegisteredFieldWidget(type: string): boolean {
+  if (BUILTIN_FIELD_TYPES.has(type)) return false;
+  if (type.includes(':')) {
+    return type.startsWith('field:') && !!ComponentRegistry.get(type);
+  }
+  return !!ComponentRegistry.get(`field:${type}`);
+}
+
+/**
+ * The container a READONLY registered field widget's output is wrapped in, so
+ * the field's visible label NAMES and its visible help text DESCRIBES the
+ * surface that replaced the control (objectui#4788, maintainer ruling of
+ * 2026-08-16 — option E of the measured option set).
+ *
+ * ## What was broken
+ *
+ * A widget's readonly branch renders a REPLACEMENT DISPLAY — a `mailto:` anchor,
+ * a formatted span, a chip row, a preview table — and returns before its
+ * `toDomProps` spread, so not one prop the host handed down reaches an element.
+ * Measured on `origin/main` at `1ef236e18`, a real form + bare registration, one
+ * field per row, `description` set, counting the elements whose
+ * `aria-describedby` names the rendered `<FormDescription>`:
+ *
+ * ```
+ *                       readonly                                      editable
+ * text      for=DANGLING hostIdEl=NONE consumers=0    for=RESOLVES-LABELABLE hostIdEl=input  consumers=1
+ * boolean   for=DANGLING hostIdEl=NONE consumers=0    for=RESOLVES-LABELABLE hostIdEl=switch consumers=1
+ * email     for=DANGLING hostIdEl=NONE consumers=0    for=RESOLVES-LABELABLE hostIdEl=input  consumers=1
+ * formula   for=DANGLING hostIdEl=NONE consumers=0    for=DANGLING           hostIdEl=NONE   consumers=0
+ * …(33 registered non-group-labelled types, every readonly row identical)
+ * ```
+ *
+ * `hostIdEl=NONE` is the load-bearing reading: in the readonly state the
+ * `…-form-item` id is on NO element in the document, so the visible label's
+ * `for` pointed at nothing and the readonly surface had no accessible name at
+ * all. That is a whole step worse than objectui#3990's family, where the label
+ * at least published an id nobody consumed.
+ *
+ * ## Why the host, and not the 33 widgets
+ *
+ * Every widget-side variant needs each author to remember one more spread, and
+ * the measurement showed exactly how such a fix goes silently wrong: an
+ * `aria-labelledby` on a role-less `span` / `div` names NOTHING (`generic`
+ * prohibits an author name), while `toHaveAccessibleName()` in jsdom answers
+ * PASS for it — a ghost fix that ships green tests. Landing the mechanism once,
+ * here, makes the 33 current widgets and any future third-party one correct by
+ * construction: there is no "remember to spread" entry point left.
+ *
+ * ## The shape
+ *
+ * `<FormControl>` is a Radix `Slot`, so it injects the field's `id` /
+ * `aria-describedby` / `aria-invalid` into THIS element instead of the widget's
+ * root, and the widget below renders exactly the markup it rendered before.
+ *
+ *  - `role="group"` — the same semantic claim objectui#3990 established for the
+ *    seven composite surfaces. It is what makes the name and the description
+ *    land at all, and it does not promise the interactivity `textbox` would.
+ *  - `aria-labelledby="<labelId> <hostId>"` — the label's id AND this element's
+ *    own. `group` is not a name-from-content role, so the self-reference is what
+ *    keeps the VALUE in the accessible name: an `email` field reads
+ *    `"Email user@example.com"` rather than dropping the address that is the
+ *    only thing on screen. (accname §2F: a node reached through
+ *    `aria-labelledby` is named from its contents whatever its role.)
+ *  - `aria-describedby` — forwarded as the Slot handed it down. A group is a
+ *    description carrier under ARIA 1.2 with no focusable control required,
+ *    which is the objectui#4005 reasoning applied to a second surface.
+ *  - `aria-invalid` — DROPPED. It is control-channel state: it reports what a
+ *    user's own editing may do wrong, to the element they would edit. A
+ *    readonly display cannot be edited and cannot be made invalid by the person
+ *    reading it. Same boundary objectui#3291 / objectui#3318 / objectui#4005
+ *    drew, pinned from both sides in the tests.
+ *
+ * `aria-required` never reaches here at all — it rides the widget props, exactly
+ * as before, for the same reason.
+ */
+type ReadonlyFieldGroupProps = {
+  /** The id `<FormLabel>` published in place of its `for`. */
+  labelId: string;
+  children: React.ReactNode;
+  /** Injected by `<FormControl>`'s Slot: the host control id (`…-form-item`). */
+  id?: string;
+  /** Injected by `<FormControl>`'s Slot: `<FormDescription>` (+ `<FormMessage>`). */
+  'aria-describedby'?: string;
+  /** Injected by `<FormControl>`'s Slot, and deliberately consumed here — see above. */
+  'aria-invalid'?: boolean | 'true' | 'false';
+};
+
+const ReadonlyFieldGroup = React.forwardRef<HTMLDivElement, ReadonlyFieldGroupProps>(
+  function ReadonlyFieldGroup(
+    { labelId, children, id, 'aria-describedby': describedBy, 'aria-invalid': _ariaInvalid },
+    ref,
+  ) {
+    return (
+      <div
+        ref={ref}
+        id={id}
+        role="group"
+        // The host id is appended to the label IDREF, not substituted for it:
+        // the field's name comes first and the rendered value follows. Falls
+        // back to the label alone if the Slot ever stops handing down an id,
+        // because half a name beats a reference to `"<labelId> undefined"`.
+        aria-labelledby={id ? `${labelId} ${id}` : labelId}
+        aria-describedby={describedBy}
+        // Stable locator for this DOM layer (ADR-0054 C4) so end-to-end specs
+        // and CSS have something to select that is not an a11y attribute.
+        data-slot="readonly-field-group"
+      >
+        {children}
+      </div>
+    );
+  },
+);
+ReadonlyFieldGroup.displayName = 'ReadonlyFieldGroup';
+
+/**
+ * Wrap `node` in {@link ReadonlyFieldGroup} when the host resolved a label id
+ * for it, and hand it back untouched otherwise — so every field that is NOT a
+ * readonly registered widget keeps the exact element tree it had, with
+ * `<FormControl>`'s Slot injecting straight into the widget as before.
+ */
+function withReadonlyHostGroup(labelId: string | undefined, node: React.ReactNode): React.ReactNode {
+  if (!labelId) return node;
+  return <ReadonlyFieldGroup labelId={labelId}>{node}</ReadonlyFieldGroup>;
+}
+
 function stripRegisteredFieldProps(type: string, props: RenderFieldProps): RenderFieldProps {
   const {
     dataSource,
@@ -1726,21 +1866,53 @@ ComponentRegistry.register('form',
       // the form schema has no owning object.
       const fieldTestId = `field:${schema.objectName ? `${schema.objectName}.` : ''}${name}`;
 
-      // Group-labelled widget (objectui#3961)? Then the visible label is
-      // associated by IDREF instead of `for`: it gets an `id`, the widget gets
-      // `aria-labelledby`. `undefined` on the single-control path, and every use
-      // below is a conditional spread, so that path emits not one changed
-      // attribute — no second naming channel for the widgets that never needed
-      // one (the #3290 / #3222 / #3952 rule: one fact, one author).
+      const groupLabelled = resolveFieldLabelling(resolvedType) === 'group';
+
+      // A READONLY registered field widget renders a replacement display in
+      // place of its control, and drops every prop the host handed down with it
+      // (objectui#4788). The host therefore wraps that output in a named group
+      // of its own — see {@link ReadonlyFieldGroup} for the measurement and the
+      // shape. Three gates, each carrying its own reason:
+      //
+      //  - `label`: with no visible label there is no naming channel to repair,
+      //    and a `role="group"` that nothing names is the inert pair this issue
+      //    exists to avoid. Standalone / label-less rendering therefore stays
+      //    byte-identical, exactly as `toHostGroupProps` keeps it;
+      //  - `!groupLabelled`: the seven group-labelled widgets already consume
+      //    the host's id / name / description themselves (objectui#3961 →
+      //    #3990 → #4005). Wrapping them too would nest a second group with the
+      //    same name and take the id off the surface those PRs put it on;
+      //  - a registered FIELD widget: the builtin branch renders a real control
+      //    inside `<FormControl>` in the readonly state too, so its label keeps
+      //    a `for` that resolves to a labelable element — measured, and left
+      //    alone.
+      const readonlyHostGroup =
+        readonly === true && !!label && !groupLabelled && resolvesToRegisteredFieldWidget(resolvedType);
+
+      // The visible label is associated by IDREF instead of `for` — it gets an
+      // `id`, and the surface that answers to it gets `aria-labelledby`. Two
+      // paths reach this shape: a group-labelled widget (objectui#3961), where
+      // the WIDGET answers, and a readonly registered widget (objectui#4788),
+      // where the host's own wrapper does. `undefined` everywhere else, and
+      // every use below is a conditional spread, so the single-control path
+      // emits not one changed attribute — no second naming channel for the
+      // fields that never needed one (the #3290 / #3222 / #3952 rule: one fact,
+      // one author).
       //
       // Whitespace is squeezed out of the field name because this id is consumed
       // as an `aria-labelledby` IDREF, and that attribute is a SPACE-SEPARATED
       // list: an id containing a space would silently resolve to two ids,
       // neither of which exists.
-      const groupLabelId =
-        label && resolveFieldLabelling(resolvedType) === 'group'
+      const hostLabelId =
+        label && (groupLabelled || readonlyHostGroup)
           ? `${labelIdPrefix}${String(name).replace(/\s+/g, '_')}-group-label`
           : undefined;
+
+      // The widget-facing half. Only the group-labelled path hands the IDREF
+      // DOWN to the widget: on the readonly path the wrapper is the named
+      // surface, and passing the same id to the widget as well would give one
+      // label two consumers — the double channel #3978 removed.
+      const groupLabelId = groupLabelled ? hostLabelId : undefined;
 
       return (
         <FormField
@@ -1765,7 +1937,12 @@ ComponentRegistry.register('form',
                   // `div` (or nothing at all) is inert HTML, and leaving it
                   // beside the `aria-labelledby` would give one label two
                   // association channels, one of which is broken.
-                  {...(groupLabelId ? { id: groupLabelId, htmlFor: undefined } : null)}
+                  //
+                  // A readonly registered widget (objectui#4788) reaches the
+                  // same shape through the host's own wrapper, and needs the
+                  // `for` gone for the same reason — it was measurably DANGLING
+                  // there, pointing at an id no element in the document carried.
+                  {...(hostLabelId ? { id: hostLabelId, htmlFor: undefined } : null)}
                 >
                   {label}
                   {required && (
@@ -1794,8 +1971,11 @@ ComponentRegistry.register('form',
                 </FormLabel>
               )}
               <FormControl>
-                {/* Render the actual field component based on resolved type */}
-                {renderFieldComponent(resolvedType, {
+                {/* Render the actual field component based on resolved type.
+                    A readonly registered widget's output goes inside the host's
+                    own named group (objectui#4788) — every other field is handed
+                    to `<FormControl>`'s Slot exactly as before. */}
+                {withReadonlyHostGroup(readonlyHostGroup ? hostLabelId : undefined, renderFieldComponent(resolvedType, {
                   ...fieldProps,
                   // Specialized fields need the raw metadata object. `.field`
                   // is the declared metadata slot (#3090 — never the spec
@@ -1906,7 +2086,7 @@ ComponentRegistry.register('form',
                   // Spread conditionally so the single-control path receives no
                   // such key at all: absent, not `undefined`.
                   ...(groupLabelId ? { 'aria-labelledby': groupLabelId } : null),
-                })}
+                }))}
               </FormControl>
               {description && (
                 <FormDescription>{description}</FormDescription>
