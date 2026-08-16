@@ -30,9 +30,12 @@ SchemaRenderer evaluates these fields before passing props to the resolved compo
 
 ### Automatically evaluated fields
 
+Evaluation and *readback* are two different gates. A value is only visible if
+`SchemaRenderer` evaluates it **and** the renderer reads the key it sits on —
+see "The `props` envelope is evaluated but not read" below.
+
 | Schema field | Evaluation type | Return type | Example |
 |---|---|---|---|
-| `props.*` | Template (`${}`) | Preserves original type | `"props": { "count": "${items.length}" }` → number |
 | `content` | Template (`${}`) | string | `"content": "Total: ${data.total}"` |
 | `hidden` | Condition | boolean | `"hidden": "${data.role !== 'admin'}"` |
 | `hiddenOn` | Condition | boolean | `"hiddenOn": "data.status === 'draft'"` |
@@ -47,14 +50,41 @@ SchemaRenderer evaluates these fields before passing props to the resolved compo
 
 These top-level schema fields are **not** processed by ExpressionEvaluator:
 
-- `value` — use `props.value` instead
-- `label` — use `props.label` instead
-- `description` — use `props.description` instead
-- `title` — use `props.title` instead
+- `value`, `label`, `description`, `title` — read by the renderers, but never
+  template-evaluated. Resolve them in the host before rendering, or carry the
+  bound text on a `text` node's `content`.
 - `className` — always a static Tailwind class string
 - `id` — always a static string
 - `type` — component type identifier
 - `bind` — data scope path (resolved by `useDataScope`, not by expressions)
+
+### The `props` envelope is evaluated but not read
+
+`SchemaRenderer` **does** run every value inside `props` through the evaluator —
+and then spreads the object as React props rather than merging it into the node.
+Every `ui:*` / `page:*` renderer reads `schema.title` / `schema.content` /
+`schema.columns` off the node itself, so the evaluated value is discarded: the
+component paints an empty frame and the envelope lands in the DOM as the invalid
+attribute `props="[object Object]"`.
+
+So `props` is not an escape hatch for the unevaluated keys above — it trades a
+literal `${...}` on screen for nothing on screen. Put keys on the node.
+
+```json
+// ❌ Evaluated, then dropped — renders an empty card
+{ "type": "card", "props": { "title": "${data.customer.name}" } }
+
+// ❌ Read, but never evaluated — renders the literal "${data.customer.name}"
+{ "type": "card", "title": "${data.customer.name}" }
+
+// ✅ `content` is the one text key that is both evaluated and read
+{ "type": "card", "title": "Customer", "children": [
+  { "type": "text", "content": "${data.customer.name}" }
+] }
+```
+
+The `element:*` namespace is the deliberate exception: those components read
+their config out of `properties` / `props`, so the envelope is required there.
 
 ## Template expression syntax (`${}`)
 
@@ -342,12 +372,10 @@ The `bind` field is NOT expression-evaluated. It's a path string resolved by `us
 {
   "type": "data-table",
   "bind": "customers",
-  "props": {
-    "columns": [
-      { "name": "name", "label": "Name" },
-      { "name": "email", "label": "Email" }
-    ]
-  }
+  "columns": [
+    { "name": "name", "label": "Name" },
+    { "name": "email", "label": "Email" }
+  ]
 }
 ```
 
@@ -394,21 +422,22 @@ Expressions are compiled once per unique `(expression, variableNames)` pair and 
 **Avoid:**
 - Heavy array operations (`filter`, `map`, `reduce`) on large datasets inside expressions — move to derived state or the data layer
 - Deeply nested optional chaining in hot paths
-- Multiple complex expressions in a single `props` object in frequently re-rendered components
+- Multiple complex expressions on a single node in frequently re-rendered components
 
 ## Common mistakes and how to fix them
 
 ### Expression shows as literal text (`${data.x}` visible in UI)
 
-**Cause:** The field isn't expression-evaluated. Move to `props`.
+**Cause:** The field isn't expression-evaluated. Use `content`.
 
 ```json
-// ❌ Won't evaluate
+// ❌ Won't evaluate — `value` is read but never templated
 { "type": "text", "value": "${data.total}" }
 
-// ✅ Evaluated
+// ❌ Worse — evaluated inside the envelope, then discarded: renders nothing
 { "type": "text", "props": { "value": "${data.total}" } }
-// or
+
+// ✅ Evaluated and read
 { "type": "text", "content": "Total: ${data.total}" }
 ```
 
@@ -431,20 +460,20 @@ Expressions are compiled once per unique `(expression, variableNames)` pair and 
 
 ```json
 // ❌ Blocked
-{ "props": { "date": "${new Date(data.timestamp)}" } }
+{ "type": "text", "content": "${new Date(data.timestamp)}" }
 
 // ✅ Use formula functions
-{ "props": { "date": "${DATEFORMAT(data.timestamp, 'YYYY-MM-DD')}" } }
+{ "type": "text", "content": "${DATEFORMAT(data.timestamp, 'YYYY-MM-DD')}" }
 ```
 
 ### Object literal in expression
 
 ```json
 // ❌ Object literals not supported
-{ "props": { "style": "${{ color: 'red' }}" } }
+{ "type": "text", "style": "${{ color: 'red' }}" }
 
-// ✅ Use individual props or className
-{ "className": "text-red-500" }
+// ✅ Use className
+{ "type": "text", "className": "text-red-500" }
 ```
 
 ### Missing variable returns undefined silently
@@ -452,14 +481,14 @@ Expressions are compiled once per unique `(expression, variableNames)` pair and 
 Expressions don't throw on missing variables — they return `undefined`. Use fallback patterns:
 
 ```json
-{ "props": { "name": "${data.user?.name || 'Unknown'}" } }
+{ "type": "text", "content": "${data.user?.name || 'Unknown'}" }
 ```
 
 ## Debugging checklist
 
 When an expression isn't working:
 
-1. Is the field in `props.*` or `content`? If not, it won't be evaluated.
+1. Is it `content` (or a predicate key)? Those are the fields that are both evaluated and read. A `${...}` on `title` / `label` / `value` / `description` is never evaluated, and one inside a `props` envelope is evaluated and then discarded.
 2. Is the `${}` syntax correct? Check for unmatched braces.
 3. Is the data actually available in scope? Check `SchemaRendererProvider dataSource`.
 4. For conditions: are you using `On` suffix correctly? (`hiddenOn` takes raw expression, `hidden` needs `${}` if it's a string).

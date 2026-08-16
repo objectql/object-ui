@@ -175,16 +175,15 @@ For advanced grid features, use the grid plugin (`@object-ui/plugin-grid`):
 { type: 'grid', name: 'items', columns: [...] }
 
 // Advanced grid with full features (requires plugin)
+// Keys sit on the node — a `props` envelope is never read by the renderer
 {
   type: 'plugin:grid',
   bind: 'items',
-  props: {
-    columns: [...],
-    editable: true,      // Plugin feature: inline editing
-    sortable: true,      // Plugin feature: column sorting
-    filterable: true,    // Plugin feature: filtering
-    pagination: { pageSize: 20 }  // Plugin feature: pagination
-  }
+  columns: [...],
+  editable: true,      // Plugin feature: inline editing
+  sortable: true,      // Plugin feature: column sorting
+  filterable: true,    // Plugin feature: filtering
+  pagination: { pageSize: 20 }  // Plugin feature: pagination
 }
 ```
 

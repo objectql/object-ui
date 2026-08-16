@@ -85,14 +85,13 @@ import { LocationField } from '@object-ui/fields';
 <LocationField {...props} />
 
 // With map visualization (using map plugin)
+// Keys sit on the node — a `props` envelope is never read by the renderer
 {
   type: 'plugin:map',
   bind: 'location',
-  props: {
-    center: location,
-    zoom: 12,
-    markers: [location]
-  }
+  center: location,
+  zoom: 12,
+  markers: [location]
 }
 ```
 

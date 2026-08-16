@@ -73,22 +73,28 @@ Use a strict component schema shape similar to:
   "type": "card",
   "id": "customer_summary",
   "className": "col-span-12 lg:col-span-4",
-  "props": {
-    "title": "Customer Summary"
-  },
+  "title": "Customer Summary",
   "hidden": "${data.userRole !== 'admin'}",
   "children": [
     {
       "type": "text",
-      "props": {
-        "content": "Active users: ${data.metrics.activeUsers}"
-      }
+      "content": "Active users: ${data.metrics.activeUsers}"
     }
   ]
 }
 ```
 
-Prefer expression-based behavior (`hidden`, `disabled`, computed props) over imperative branching in component code.
+**Every key belongs on the node itself — never in a `props` envelope.** The
+renderers read `schema.title` / `schema.content` / `schema.columns` directly;
+`SchemaRenderer` spreads `schema.props` as React props instead of merging it
+into the node, so a key parked under `props` is never read and the component
+paints an empty frame (the envelope itself also lands in the DOM as
+`props="[object Object]"`). Namespaced `element:*` components are the one
+deliberate exception — they read their config out of `properties` / `props`
+by design (`readProps` in `packages/components/src/renderers/basic/elements.tsx`).
+
+Prefer expression-based behavior (`hidden`, `disabled`) over imperative
+branching in component code.
 
 ### 4. Wire renderer and registry cleanly
 
@@ -161,39 +167,64 @@ When users ask for a "console-like" experience, prefer:
 
 Understanding what gets evaluated and what does not is critical for correct schemas.
 
+A key must clear **two independent gates** to reach the screen: the renderer
+has to *read* it, and `SchemaRenderer` has to *evaluate* it. Keys on the node
+clear the first gate; only the short list below clears the second.
+
 **Evaluated by SchemaRenderer automatically:**
 
 | Field | What happens |
 |-------|-------------|
-| `props.*` | All values in the `props` object are expression-evaluated. Use `props.label`, `props.value`, etc. |
-| `content` | Evaluated for text components. `"content": "Hello ${user.name}"` works. |
+| `content` | Template-evaluated **and** read by the text renderers. `"content": "Hello ${user.name}"` works end to end. |
 | `hidden` / `hiddenOn` | Boolean expression. Component removed from DOM when true. |
 | `visible` / `visibleOn` | Boolean expression. `visible` takes priority over `hidden`. |
 | `disabled` / `disabledOn` | Boolean expression. Passed as prop to component. |
+| `props.*` | Template-evaluated, but handed to the component as React props — a `ui:*` / `page:*` renderer never reads the result back, so the evaluated value is discarded. Only `element:*` components consume it. Do not use it as an expression carrier. |
 
 **NOT evaluated (raw strings passed through):**
 
-| Field | Workaround |
+| Field | What to do instead |
 |-------|-----------|
-| `value` (top-level) | Move to `props.value` |
-| `label` (top-level) | Move to `props.label` |
-| `description` (top-level) | Move to `props.description` |
+| `title` / `label` / `value` / `description` | Read by the renderer, but never template-evaluated — an inline `${...}` reaches the screen as literal text. Moving it under `props` does not help: it gets evaluated there and then dropped. Resolve the value in the host **before** handing the schema to `SchemaRenderer` (the same pattern the i18n guide uses for `t(...)`), or carry it on a `text` node's `content`. |
 | `className` | Not expression-evaluated. Use static Tailwind classes only. |
 | `id` | Static string. No expressions. |
 
-**Correct pattern:**
+**Correct pattern** — a `statistic`'s text keys sit on the node and carry
+values the host already resolved:
+```json
+{
+  "type": "statistic",
+  "label": "Active Users",
+  "value": "42",
+  "description": "+5% from last month",
+  "trend": "up"
+}
+```
+
+**Correct pattern for a live-bound number** — `content` is the one text key
+that is both evaluated and read:
+```json
+{
+  "type": "card",
+  "title": "Active Users",
+  "children": [
+    { "type": "text", "content": "${data.metrics.activeUsers} active, +${data.metrics.growth}% this month" }
+  ]
+}
+```
+
+**Wrong pattern (renders an empty card — the envelope is never read):**
 ```json
 {
   "type": "statistic",
   "props": {
     "label": "Active Users",
-    "value": "${data.metrics.activeUsers}",
-    "description": "+${data.metrics.growth}% from last month"
+    "value": "${data.metrics.activeUsers}"
   }
 }
 ```
 
-**Wrong pattern (value will show as raw `${...}` text):**
+**Also wrong (value shows as raw `${...}` text — read, but not evaluated):**
 ```json
 {
   "type": "statistic",
@@ -270,20 +301,21 @@ Adjust `@source` paths based on your project's location relative to `node_module
 
 ## Plugin integration in page schemas
 
-When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin package and ensure its components are registered before rendering.
+When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin package and ensure its components are registered before rendering. Plugin
+widgets read their configuration off the node exactly like the built-in
+renderers do (`schema.objectName`, `schema.columns`, `schema.fields`,
+`schema.gantt`) — the `props` envelope is not read here either.
 
 **Grid plugin example:**
 ```json
 {
   "type": "object-grid",
-  "props": {
-    "objectName": "products",
-    "columns": [
-      { "name": "name", "label": "Name", "type": "text" },
-      { "name": "price", "label": "Price", "type": "currency" },
-      { "name": "status", "label": "Status", "type": "select" }
-    ]
-  },
+  "objectName": "products",
+  "columns": [
+    { "name": "name", "label": "Name", "type": "text" },
+    { "name": "price", "label": "Price", "type": "currency" },
+    { "name": "status", "label": "Status", "type": "select" }
+  ],
   "bind": "products"
 }
 ```
@@ -292,14 +324,12 @@ When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin
 ```json
 {
   "type": "object-form",
-  "props": {
-    "objectName": "customer",
-    "mode": "edit",
-    "fields": [
-      { "name": "name", "label": "Name", "type": "text", "required": true },
-      { "name": "email", "label": "Email", "type": "text" }
-    ]
-  }
+  "objectName": "customer",
+  "mode": "edit",
+  "fields": [
+    { "name": "name", "label": "Name", "type": "text", "required": true },
+    { "name": "email", "label": "Email", "type": "text" }
+  ]
 }
 ```
 
@@ -307,10 +337,8 @@ When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin
 ```json
 {
   "type": "kanban",
-  "props": {
-    "objectName": "tasks",
-    "groupBy": "status"
-  },
+  "objectName": "tasks",
+  "groupBy": "status",
   "bind": "tasks"
 }
 ```
@@ -319,37 +347,35 @@ When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin
 ```json
 {
   "type": "gantt",
-  "props": {
-    "objectName": "project_task",
-    "gantt": {
-      "titleField": "name",
-      "startDateField": "start_date",
-      "endDateField": "end_date",
-      "progressField": "progress",
-      "parentField": "parent_id",
-      "dependenciesField": "depends_on",
-      "typeField": "item_type",
-      "lockField": "is_locked",
-      "defaultCollapsedDepth": 2,
-      "colorField": "status",
-      "baselineStartField": "planned_start",
-      "baselineEndField": "planned_end",
-      "tooltipFields": [{ "field": "owner", "label": "Owner" }, "status", "effort"],
-      "groupByField": "owner",
-      "assigneeField": "owner",
-      "effortField": "effort"
-    },
-    "criticalPath": true,
-    "skipWeekends": true,
-    "holidays": ["2026-01-01", "2026-12-25"],
-    "quickFilters": [
-      { "field": "status", "label": "状态" },
-      { "field": "project", "label": "项目" },
-      { "field": "priority", "label": "优先级", "options": ["high", "medium", "low"] }
-    ],
-    "autoZoomToFilter": true,
-    "readOnly": false
+  "objectName": "project_task",
+  "gantt": {
+    "titleField": "name",
+    "startDateField": "start_date",
+    "endDateField": "end_date",
+    "progressField": "progress",
+    "parentField": "parent_id",
+    "dependenciesField": "depends_on",
+    "typeField": "item_type",
+    "lockField": "is_locked",
+    "defaultCollapsedDepth": 2,
+    "colorField": "status",
+    "baselineStartField": "planned_start",
+    "baselineEndField": "planned_end",
+    "tooltipFields": [{ "field": "owner", "label": "Owner" }, "status", "effort"],
+    "groupByField": "owner",
+    "assigneeField": "owner",
+    "effortField": "effort"
   },
+  "criticalPath": true,
+  "skipWeekends": true,
+  "holidays": ["2026-01-01", "2026-12-25"],
+  "quickFilters": [
+    { "field": "status", "label": "状态" },
+    { "field": "project", "label": "项目" },
+    { "field": "priority", "label": "优先级", "options": ["high", "medium", "low"] }
+  ],
+  "autoZoomToFilter": true,
+  "readOnly": false,
   "bind": "project_task"
 }
 ```

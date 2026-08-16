@@ -85,17 +85,15 @@ const buttonVariants = cva(
 );
 ```
 
-## Rule: Expose `className` in Schema Props
+## Rule: Expose `className` on the Schema Node
 
-**Every component must accept `className` in its schema props** to allow JSON-level style overrides:
+**Every component must accept `className` on its schema node** to allow JSON-level style overrides. Like every other key, it is read off the node itself — not out of a `props` envelope, which the renderers never read:
 
 ```json
 {
   "type": "card",
   "className": "bg-red-500",  // ✅ User can override styles
-  "props": {
-    "title": "Alert"
-  }
+  "title": "Alert"
 }
 ```
 

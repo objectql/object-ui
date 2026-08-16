@@ -351,12 +351,15 @@ All ObjectUI plugins follow the same usage pattern:
 ```json
 {
   "type": "plugin-component-name",
-  "className": "tailwind-classes",
-  "props": {
-    // Plugin-specific properties
-  }
+  "className": "tailwind-classes"
+  // Plugin-specific properties go here, on the node itself
 }
 ```
+
+Plugin renderers read their configuration off the node (`schema.objectName`,
+`schema.columns`, …), exactly like the built-in ones. Do not wrap those keys in
+a `props` envelope: `SchemaRenderer` spreads `schema.props` as React props
+rather than merging it into the node, so anything parked there is never read.
 
 ### Example: Code Editor
 

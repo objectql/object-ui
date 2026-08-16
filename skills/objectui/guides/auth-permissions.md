@@ -227,7 +227,7 @@ Combine permissions with expression-based visibility:
 ```json
 {
   "type": "button",
-  "props": { "label": "Delete Selected" },
+  "label": "Delete Selected",
   "hidden": "${data.userRole !== 'admin'}"
 }
 ```
@@ -251,7 +251,7 @@ Then in schema:
 ```json
 {
   "type": "button",
-  "props": { "label": "Delete" },
+  "label": "Delete",
   "hidden": "${!canDeleteContacts}"
 }
 ```

@@ -243,10 +243,9 @@ import '@object-ui/plugin-yourplugin'
 
 ```json
 {
-  "type": "your-component",
-  "props": {
-    // Your component props
-  }
+  "type": "your-component"
+  // Your component's keys go here, on the node itself — renderers read
+  // `schema.<key>`, not a `props` envelope
 }
 ```
 

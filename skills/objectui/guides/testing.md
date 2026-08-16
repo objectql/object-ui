@@ -122,7 +122,7 @@ describe('schema validation', () => {
       type: 'card',
       children: [
         { type: 'text', content: 'Hello' },
-        { type: 'button', props: { label: 'Click' } },
+        { type: 'button', label: 'Click' },
       ],
     };
     expect(isValidSchema(schema)).toBe(true);
