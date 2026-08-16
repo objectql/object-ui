@@ -239,11 +239,16 @@ function documentedProps(): DeclaredProp[] {
   return props;
 }
 
-/** Every fenced code block on the page, with its info string. */
-function fences(): { lang: string; body: string }[] {
+/**
+ * Every fenced code block on the page, with its info string and the 1-based
+ * line its opening fence sits on — a JSON fence's first line is `{`, which
+ * identifies nothing, so failures quote the line number instead.
+ */
+function fences(): { lang: string; body: string; line: number }[] {
   return [...GUIDE.matchAll(/```([a-z]*)\n([\s\S]*?)```/g)].map((match) => ({
     lang: match[1],
     body: match[2],
+    line: GUIDE.slice(0, match.index).split('\n').length,
   }));
 }
 
@@ -394,7 +399,7 @@ describe('the guide authors no `app-shell` JSON node (objectui#4827)', () => {
     const offenders = fences().filter((fence) => /["']type["']\s*:\s*["']app-shell["']/.test(fence.body));
 
     expect(
-      offenders.map((fence) => fence.body.split('\n')[0]),
+      offenders.map((fence) => `content/docs/guide/layout.md:${fence.line}`),
       [
         'A fence in content/docs/guide/layout.md authors an `app-shell` node again',
         '(objectui#4827). Four of the seven props are `React.ReactNode` slots and a JSON',
