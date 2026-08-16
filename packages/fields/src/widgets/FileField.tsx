@@ -186,12 +186,14 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
   if (readonly) {
     // Readonly there is no dropzone: the field's whole rendered surface is the
     // list of file names, so THAT is what the host's group label names
-    // (objectui#3990). The role is therefore `group` here and `button` (the
-    // dropzone) while editable — the same widget, two different surfaces. See
-    // `toHostGroupProps`; `EmptyValue`'s own `aria-label` ("No value") is
+    // (objectui#3990) and what its help text describes (objectui#4005) — the
+    // dropzone that took the description while editable is exactly what this
+    // branch does not render. The role is therefore `group` here and `button`
+    // (the dropzone) while editable — the same widget, two different surfaces.
+    // See `toHostGroupProps`; `EmptyValue`'s own `aria-label` ("No value") is
     // outranked by `aria-labelledby` per accname, and on the `generic` role that
     // placeholder span carries it was never exposed as a name anyway.
-    const hostGroupProps = toHostGroupProps(props);
+    const hostGroupProps = toHostGroupProps(props, 'instead-of-the-inputs');
     if (!value) return <EmptyValue {...hostGroupProps} />;
 
     return (

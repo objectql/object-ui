@@ -56,11 +56,20 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
     'aria-labelledby': _hostLabelledBy,
     ...domProps
   } = toDomProps(props);
-  // The pair held back above, in the one spelling every group-labelled widget
-  // uses for it — and computed HERE, before the readonly early return below,
-  // because that return used to drop both keys on the floor: a published label
-  // id with no consumer in the document (objectui#3990). See `toHostGroupProps`.
-  const hostGroupProps = toHostGroupProps(props);
+  // The keys held back above, in the one spelling every group-labelled widget
+  // uses for them — and computed HERE, before the readonly early return below,
+  // because that return used to drop them on the floor: a published label id
+  // with no consumer in the document (objectui#3990). See `toHostGroupProps`.
+  //
+  // TWO surfaces, so two answers, and the difference is only the description
+  // (objectui#4005). Readonly this widget collapses to ONE formatted line with
+  // no sub-input in it, so that line is the only thing that can carry the help
+  // text. The editable container below is a different case: its five sub-inputs
+  // each take `aria-describedby` in the `domProps` spread, and the container
+  // must NOT take it a second time — objectui#3318's split, pinned in
+  // `composite-group-label-e2e.test.tsx`.
+  const readonlyHostGroupProps = toHostGroupProps(props, 'instead-of-the-inputs');
+  const hostGroupProps = toHostGroupProps(props, 'above-the-inputs');
   // Sub-input ids (objectui#3343): `useId()` prefix + sub-field name — the
   // `groupId` paradigm of RadioField / CheckboxesField. Hardcoded literals
   // ("street", "city", …) collide as soon as a form renders two address
@@ -98,7 +107,9 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
 
   if (readonly) {
     // Readonly the composite collapses to ONE formatted line — no sub-inputs and
-    // no sub-labels — so that line is the surface the host label names, and
+    // no sub-labels — so that line is the surface the host label names, the
+    // surface its help text describes (objectui#4005: with the sub-inputs gone,
+    // the description's IDREF had no consumer left in the document), and
     // `EmptyValue` is the same surface with nothing in it (objectui#3990). The
     // placeholder's own `aria-label` ("No value") is outranked by
     // `aria-labelledby` per accname, and on its `generic` role an author name was
@@ -110,9 +121,9 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
     // (the very thing objectui#4037 unified them for).
     const formatted = formatAddress(address, displayLocale);
     return formatted ? (
-      <span {...hostGroupProps} className="text-sm">{formatted}</span>
+      <span {...readonlyHostGroupProps} className="text-sm">{formatted}</span>
     ) : (
-      <EmptyValue {...hostGroupProps} />
+      <EmptyValue {...readonlyHostGroupProps} />
     );
   }
 
@@ -122,7 +133,10 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
     // standalone rendering — the inline grid editor, a bare SDUI node — must stay
     // byte-identical to what it was before. That condition now lives in
     // `toHostGroupProps` so this container and the readonly line above cannot
-    // answer differently (objectui#3990).
+    // answer differently about the NAME (objectui#3990). They answer differently
+    // about exactly one key, by declaration rather than by drift: this container
+    // asks for `'above-the-inputs'` and gets no `aria-describedby`, because the
+    // sub-inputs below already carry it (objectui#3318 / objectui#4005).
     // The five sub-inputs carry NO placeholder any more (objectui#4028). They
     // used to hold `123 Main St` / `San Francisco` / `CA` / `94102` / `United
     // States` — untranslated AND US-specific, so a zh/ja/ar user was shown an

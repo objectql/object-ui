@@ -63,14 +63,16 @@ export function RadioField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options, gated]);
 
-  // The host's group label has to be consumed on EVERY surface this widget can
-  // render, not only the `RadioGroup` (objectui#3990): both branches below return
-  // before that spread, which is how a field-level `readonly: true` and a
-  // zero-option list ended up with a published label id and no consumer at all.
+  // The host's group label — and its help text (objectui#4005) — have to be
+  // consumed on EVERY surface this widget can render, not only the `RadioGroup`
+  // (objectui#3990): both branches below return before that spread, which is how
+  // a field-level `readonly: true` and a zero-option list ended up with a
+  // published label id and a published description id and no consumer at all.
   // See `toHostGroupProps` — note the role it emits is `group`, not the
   // `radiogroup` the editable branch keeps: there is not one radio left in
-  // either of these surfaces.
-  const hostGroupProps = toHostGroupProps(props);
+  // either of these surfaces, which is also why the description has nowhere
+  // else to go here.
+  const hostGroupProps = toHostGroupProps(props, 'instead-of-the-inputs');
 
   if (readonly) {
     // `EmptyValue`'s own `aria-label` ("No value") is outranked by

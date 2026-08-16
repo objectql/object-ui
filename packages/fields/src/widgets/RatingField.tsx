@@ -22,9 +22,14 @@ export function RatingField({ value, onChange, field, readonly, className, error
   if (readonly) {
     // The readonly star row is the field's whole rendered surface, so it — not
     // only the editable row below — consumes the host's group label
-    // (objectui#3990). See `toHostGroupProps`.
+    // (objectui#3990) and its help text (objectui#4005). There is no star
+    // BUTTON left in this row to announce the description on. See
+    // `toHostGroupProps`.
     return (
-      <div {...toHostGroupProps(props)} className={cn("flex items-center gap-1", className)}>
+      <div
+        {...toHostGroupProps(props, 'instead-of-the-inputs')}
+        className={cn("flex items-center gap-1", className)}
+      >
         {Array.from({ length: max }, (_, i) => (
           <Star
             key={i}
