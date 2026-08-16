@@ -27,7 +27,15 @@
  */
 import { describe, it, expect } from 'vitest';
 import { CASCADE_OPTION_WIDGET_TYPES as fromCore } from '@object-ui/core';
-import { CASCADE_OPTION_WIDGET_TYPES as fromFields, resolveFormWidgetType } from '@object-ui/fields';
+// This package's own entry is imported RELATIVELY, not as `@object-ui/fields`.
+// A package self-import resolves through the published `exports` map to
+// `dist/*.d.ts`, and `fields:type-check` has no dependency edge on this
+// package's own build — so on a cold CI cache the declarations do not exist yet
+// and the self-import fails with TS2307 (it passes locally only because a
+// previous build left `dist/` behind). The relative specifier reads the SOURCE
+// entry, which is also what the vitest alias resolves `@object-ui/fields` to,
+// so the identity assertion below is over the same module either way.
+import { CASCADE_OPTION_WIDGET_TYPES as fromFields, resolveFormWidgetType } from './index';
 
 describe('CASCADE_OPTION_WIDGET_TYPES re-export (objectui#4770)', () => {
   it('is the SAME object as the core definition, not a copy', () => {
