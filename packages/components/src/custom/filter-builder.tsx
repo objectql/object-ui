@@ -341,6 +341,50 @@ export function reshapeFilterValue(
   }
 }
 
+/**
+ * The operator a row keeps after its FIELD is changed, given the operators the
+ * NEW field offers (objectui#4768).
+ *
+ * Each field type has its own operator bucket, and the buckets are not nested:
+ * a `select` column offers `in` / `notIn`, a `text` column does not. Changing
+ * the field used to write `{ field }` alone, so the row's operator survived
+ * into a bucket that no longer contains it — `in` on a text column. The Radix
+ * trigger then had nothing to render (its `SelectValue` matches against the
+ * `SelectItem`s actually mounted) and went BLANK, while the row went on
+ * filtering by an operator the user could no longer see or reach.
+ *
+ * So the two edits are one edit, exactly as `changeOperator` made the operator
+ * and its value shape one edit: an operator the new bucket still offers is the
+ * user's choice and is KEPT; one it does not is replaced by the bucket's first
+ * entry (`equals` for every bucket this builder draws), and the caller then
+ * re-shapes the value for that operator's family.
+ *
+ * Membership is decided CANONICALLY, through the spec's own
+ * `normalizeFilterOperator` — the same fold `filterValueArity` uses. A stored
+ * rule can reach this builder spelled `not_in` while the dropdown lists the
+ * alias `notIn`; those are one operator, so a select→lookup switch must not
+ * silently rewrite the author's operator to `equals` just because the two
+ * spellings differ. The fold is safe to compare through because it is
+ * INJECTIVE over this builder's vocabulary — all 22 ids in `defaultOperators`
+ * normalize to 22 distinct canonical operators, pinned in
+ * `filter-builder-field-switch-operator.test.tsx` — so no two OFFERED
+ * operators can ever collapse onto one another.
+ *
+ * @internal exported for tests
+ */
+export function reconcileOperatorForField(
+  operator: string,
+  offeredOperators: ReadonlyArray<{ value: string }>,
+): string {
+  const canonical = normalizeFilterOperator(operator)
+  const stillOffered = offeredOperators.some(
+    (op) => normalizeFilterOperator(op.value) === canonical,
+  )
+  // Kept in the row's OWN spelling: a field switch is not a spelling migration.
+  if (stillOffered) return operator
+  return offeredOperators[0]?.value ?? operator
+}
+
 /** The two bounds a `pair` row edits, with the gaps filled in for rendering. */
 function toPairBounds(
   value: FilterBuilderCondition["value"],
@@ -564,6 +608,41 @@ function FilterBuilder({
   const getOperatorsForField = (fieldValue: string) => {
     const field = fields.find((f) => f.value === fieldValue)
     return operatorsForFieldType(field?.type, extraOperators)
+  }
+
+  /**
+   * Change a row's field AND, when the new field's bucket no longer offers the
+   * row's operator, reset that operator — re-shaping the value for the family
+   * it lands in (objectui#4768).
+   *
+   * Deliberately not `updateCondition(id, { field })`: the operator buckets are
+   * per field type and do not nest, so that update could leave `in` on a text
+   * column — an operator the dropdown no longer lists, which rendered as a
+   * BLANK trigger. The same shape as `changeOperator` above and for the same
+   * reason: a row's field, its operator and its value shape are not
+   * independently settable, so they are settled together here rather than left
+   * for each caller to remember.
+   *
+   * An operator the new bucket DOES offer is left alone — resetting it would
+   * throw away a choice that is still valid (switching `contains` from one text
+   * column to another must not silently become `equals`).
+   */
+  const changeField = (conditionId: string, nextField: string) => {
+    const offered = getOperatorsForField(nextField)
+    handleChange({
+      ...filterGroup,
+      conditions: filterGroup.conditions.map((c) => {
+        if (c.id !== conditionId) return c
+        const nextOperator = reconcileOperatorForField(c.operator, offered)
+        if (nextOperator === c.operator) return { ...c, field: nextField }
+        return {
+          ...c,
+          field: nextField,
+          operator: nextOperator,
+          value: reshapeFilterValue(c.value, nextOperator),
+        }
+      }),
+    })
   }
 
   // The complement of the exported set, never a second literal beside it:
@@ -813,9 +892,7 @@ function FilterBuilder({
               <div className="col-span-4">
                 <Select
                   value={condition.field}
-                  onValueChange={(value) =>
-                    updateCondition(condition.id, { field: value })
-                  }
+                  onValueChange={(value) => changeField(condition.id, value)}
                 >
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue placeholder={t('filterBuilder.selectField')} />
