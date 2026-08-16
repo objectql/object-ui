@@ -285,9 +285,18 @@ describe('@object-ui/layout declares its load-time registration (objectui#3899)'
     // Every key the barrel registers, so losing all but one cannot pass on the
     // strength of that one. Read out of the source rather than listed here:
     // objectui#3899's own prose named a `sidebar-nav` key that this package has
-    // never registered (the SidebarNav component reaches the registry under
-    // `navigation-renderer`), and a hardcoded list is how that kind of mistake
-    // becomes a test asserting a component that does not exist.
+    // never registered, and a hardcoded list is how that kind of mistake becomes
+    // a test asserting a component that does not exist.
+    //
+    // The parenthetical that used to sit in that sentence — "the SidebarNav
+    // component reaches the registry under `navigation-renderer`" — was the same
+    // mistake one step further on, and is corrected here (objectui#3999):
+    // `SidebarNav` reaches the registry under NO key at all. `navigation-renderer`
+    // is a DIFFERENT component in a different file (`NavigationRenderer.tsx`,
+    // which never mentions `SidebarNav`); `src/index.ts` imports `SidebarNav`
+    // only to re-export it. It is consumed as a plain React component in JSX,
+    // which is why nothing below asserts a key for it and why the README
+    // documents it as JSX rather than as a JSON node type.
     const registeredKeys = [...readFileSync(join(SRC_DIR, 'index.ts'), 'utf8').matchAll(
       /ComponentRegistry\.register\(\s*'([^']+)'/g,
     )].map((match) => match[1]);
