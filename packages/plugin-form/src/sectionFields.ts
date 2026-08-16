@@ -99,8 +99,15 @@ function warnOnMixedVocabulary(fd: Record<string, any>, objectName: string): voi
   );
 }
 
-/** Build a runtime FormField from object-schema metadata for `fieldName`. */
-function fromObjectSchema(fieldName: string, ctx: SectionFieldsContext): FormField {
+/**
+ * Build a runtime FormField from object-schema metadata for `fieldName`.
+ *
+ * The ONE object-field-to-FormField mapping in this package. Exported because
+ * the flat (no-sections) containers need the identical mapping — see
+ * `flatFields.ts`, and objectui#4755 for what a second hand-copied version
+ * costs.
+ */
+export function fromObjectSchema(fieldName: string, ctx: SectionFieldsContext): FormField {
   const field = ctx.objectSchema?.fields?.[fieldName];
   if (!field) {
     return { name: fieldName, label: fieldName, type: 'input' } as FormField;
