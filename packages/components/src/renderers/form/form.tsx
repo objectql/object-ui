@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveCascadingOptions, CASCADE_OPTION_WIDGET_TYPES, isValueStillOffered, isMissingForRequired, isServerOwnedValue } from '@object-ui/core';
+import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveCascadingOptions, CASCADE_OPTION_WIDGET_TYPES, EXPANDABLE_FIELD_TYPES, isValueStillOffered, isMissingForRequired, isServerOwnedValue } from '@object-ui/core';
 import type { FormSchema, FormField as FormFieldConfig, FormFieldTab, FormFieldPane, FieldValidationRules, FieldCondition, SelectOption } from '@object-ui/types';
 import { useForm } from 'react-hook-form';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '../../ui/form';
@@ -233,16 +233,61 @@ const BOOLEAN_WIDGET_TYPES = new Set([
 const resolveWidgetType = (f: any): string => f?.widget || f?.field?.widget || f?.type;
 
 const BUILTIN_FIELD_TYPES = new Set(['input', 'textarea', 'checkbox', 'switch', 'select']);
-const DATA_SOURCE_FIELD_TYPES = new Set([
-  // `capability-multiselect` was listed here until objectui#3308 retired the
-  // widget name (ADR-0049 enforce-or-remove): no producer stamped the hint and
-  // `field:capability-multiselect` was never registered on the live path, so the
-  // entry could never match a resolvable widget.
-  'lookup', 'master_detail', 'tree',
-  // Widget-hint pickers that resolve records / object catalogs and read sibling
-  // field values — they need both `dataSource` and `dependentValues` threaded.
+/**
+ * Widget-hint pickers that resolve records / object catalogs and read sibling
+ * field values — they need `dataSource` and `dependentValues` threaded exactly
+ * like a lookup does, but they are NOT declarable field types: they are reached
+ * only through a `widget:` hint (`widgetHintOnly: true` in
+ * `app-shell/src/utils/paramValueShape.ts`), so no object schema can produce a
+ * field whose `type` is one of them.
+ *
+ * This is the ONLY form-specific half of the data-source rule; the other half
+ * is the shared reference-bearing family — see {@link needsDataSourceWiring}.
+ *
+ * `capability-multiselect` was listed here until objectui#3308 retired the
+ * widget name (ADR-0049 enforce-or-remove): no producer stamped the hint and
+ * `field:capability-multiselect` was never registered on the live path, so the
+ * entry could never match a resolvable widget.
+ */
+const DATA_SOURCE_ONLY_WIDGET_TYPES = new Set([
   'object-ref', 'filter-condition', 'recipient-picker',
 ]);
+
+/**
+ * Whether this widget key receives `dataSource` / `dependentValues` /
+ * `dependsOnLabels` — i.e. whether the control it renders has to QUERY records
+ * to do its job.
+ *
+ * The reference-bearing half is not restated here: it is
+ * `EXPANDABLE_FIELD_TYPES`, the one relational-field family in
+ * `@object-ui/core` that the `$expand` builder and predicate-record projection
+ * already read. This renderer held a private copy of it
+ * (`DATA_SOURCE_FIELD_TYPES`) until objectui#4790, whose TSDoc on the core side
+ * claimed the two "mirror" each other; by then they had drifted apart in both
+ * directions — `user` only in core, the three picker names only here — and the
+ * gap was live, not theoretical: a `user` field got NONE of the three props.
+ * `dataSource` and `dependentValues` each have a `SchemaRendererContext`
+ * fallback inside the widget so the picker limped along, but `dependsOnLabels`
+ * has none, so a dependent user picker interpolated raw API names into its
+ * "select … first" hint — the very leak objectstack#5407 fixed for lookups.
+ * The widget contract has always named `user` among the types this renderer
+ * injects `dataSource` for (`fields/src/widgets/types.ts`).
+ *
+ * Members are WIDGET keys — `normalizeFieldType` output, the `field:` prefix
+ * stripped — and they coincide with the core set's schema-type spellings
+ * because `mapFieldTypeToFormType` maps each reference type onto a same-named
+ * widget id (`lookup` → `field:lookup`, `user` → `field:user`, …). The one
+ * exception is `tree`, which maps to `field:lookup` and so reaches this test as
+ * `lookup`; the `tree` member is therefore inert on the object-schema path and
+ * matches only a hand-authored `type: 'tree'`. It stays because the core set is
+ * defined over SCHEMA types, where `tree` is a real reference type.
+ */
+function needsDataSourceWiring(widgetType: string): boolean {
+  return (
+    EXPANDABLE_FIELD_TYPES.has(widgetType) ||
+    DATA_SOURCE_ONLY_WIDGET_TYPES.has(widgetType)
+  );
+}
 
 // Option fields (`select`/`radio`/`multiselect`/`checkboxes`) support per-option
 // `visibleWhen` cascading + `dependsOn` gating (#2284/#1583): the widget re-filters
@@ -395,7 +440,7 @@ function stripRegisteredFieldProps(type: string, props: RenderFieldProps): Rende
     // in the gate hint (objectstack#5407). Stripped for everything else for the
     // same reason `emptyHint` is — an unknown object prop reaching a DOM node
     // through a widget's `...props` spread is a React warning.
-    ...(DATA_SOURCE_FIELD_TYPES.has(normalizedType) ? { dataSource, dependentValues, dependsOnLabels } : {}),
+    ...(needsDataSourceWiring(normalizedType) ? { dataSource, dependentValues, dependsOnLabels } : {}),
     // The cascade option widgets own the gate hint's presentation, so they get
     // the computed `emptyHint` alongside the live record (objectui#3231). It is
     // stripped by default because every OTHER registered widget spreads its
