@@ -39,10 +39,35 @@ import { fileURLToPath } from 'node:url';
  * naming that entry, while the two coverage cases stay green (a well-formed
  * entry is still parsed).
  *
- * Deliberately NOT in scope: `tsconfig.json`'s `paths` carries dead entries of
- * the same shape for three of the four names. That file is outside this issue's
- * surface and belongs to whoever triages it; this guard reads the alias table
- * only, and says so rather than half-covering a second file.
+ * ---------------------------------------------------------------------------
+ * objectui#4804 — this guard now reads TWO tables.
+ *
+ * The paragraph that used to sit here said `tsconfig.json`'s `paths` carried
+ * dead entries of the same shape for three of the four names, and left them to
+ * whoever triaged it. #4804 is that triage: it deleted the six lines
+ * (`@object-ui/engine`, `@object-ui/ui`, `@object-ui/renderer`, each in bare
+ * and `/*`-suffixed form) and folded the table in here instead of starting a
+ * second guard file — one guard watching both tables, as PR #4802 suggested.
+ * The file name keeps its `3944` provenance; each `describe` names its table.
+ *
+ * Note the two dead sets are NOT the same: `@object-ui/plugin-aggrid` was in
+ * the alias table and never in `paths`, so the pins below differ on purpose.
+ *
+ * Why `tsconfig.json` is read as TEXT too, when it looks like plain JSON: it is
+ * JSONC. Two block comments sit in `compilerOptions` (at :9 and :16 on the
+ * post-#4804 file), and `JSON.parse` throws on them — measured: `Expected
+ * double-quoted property name in JSON at position 187`. The alternative is to
+ * strip comments first, i.e. hand-roll a second parser that has to respect
+ * string literals to avoid mangling a target that contains comment-like
+ * characters. One brace-balanced text read, shared by both tables, is less
+ * surface than that, and keeps the two halves of this file the same shape.
+ *
+ * Reverse verification for the `paths` half (direction predicted before
+ * running — plain RED again, and for the same reason: the table is the sole
+ * input, so an added bad entry can only add a finding): add
+ * `"@object-ui/ghost-4804": ["packages/ghost-4804/src"]` and the
+ * "maps to a path that exists" case fails naming that entry, while the two
+ * coverage cases and both pins stay green.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -57,31 +82,46 @@ interface AliasEntry {
 }
 
 /**
- * The text of the `resolve.alias` object literal, brace-balanced from its
- * opening `{` so a nested object in a future entry cannot truncate it.
+ * The text of an object literal, brace-balanced from its opening `{` so a
+ * nested object in a future entry cannot truncate it. Shared by both tables.
  */
-function aliasBlock(): string {
-  const header = /alias:\s*\{/.exec(configSource);
-  if (!header) throw new Error('vitest.config.mts has no resolve.alias object');
+function balancedObjectLiteral(source: string, header: RegExp, what: string): string {
+  const match = header.exec(source);
+  if (!match) throw new Error(`${what}: object literal not found`);
 
-  const open = header.index + header[0].length - 1;
+  const open = match.index + match[0].length - 1;
   let depth = 0;
-  for (let i = open; i < configSource.length; i += 1) {
-    const ch = configSource[i];
+  for (let i = open; i < source.length; i += 1) {
+    const ch = source[i];
     if (ch === '{') depth += 1;
     else if (ch === '}') {
       depth -= 1;
-      if (depth === 0) return configSource.slice(open + 1, i);
+      if (depth === 0) return source.slice(open + 1, i);
     }
   }
-  throw new Error('vitest.config.mts: resolve.alias object is never closed');
+  throw new Error(`${what}: object literal is never closed`);
 }
 
-/** `//` line comments stripped, so they cannot be miscounted as entries. */
-const block = aliasBlock()
-  .split('\n')
-  .filter((line) => !/^\s*\/\//.test(line))
-  .join('\n');
+/**
+ * Comment LINES stripped, so they cannot be miscounted as entries — both the
+ * `//` form and a block comment occupying a whole line.
+ *
+ * Only whole lines: an entry hidden inside a multi-line block comment is still
+ * read as live and then fails the existence check. That is the safe direction
+ * for a guard (fail loud, never silently drop a key), and the fix is the one
+ * this file argues for anyway — delete a dead entry rather than commenting it
+ * out.
+ */
+function withoutCommentLines(source: string): string {
+  return source
+    .split('\n')
+    .filter((line) => !/^\s*\/\//.test(line) && !/^\s*\/\*.*\*\/\s*$/.test(line))
+    .join('\n');
+}
+
+const block = withoutCommentLines(
+  balancedObjectLiteral(configSource, /alias:\s*\{/, 'vitest.config.mts: resolve.alias')
+);
 
 const ENTRY = /(['"])([^'"]+)\1\s*:\s*path\.resolve\(\s*__dirname\s*,\s*(['"])([^'"]+)\3\s*\)/g;
 
@@ -149,5 +189,172 @@ describe('objectui#3944 — root vitest.config.mts alias table', () => {
     expect(specifiers).not.toContain('@object-ui/renderer');
     expect(specifiers).not.toContain('@object-ui/plugin-aggrid');
     expect(specifiers).not.toContain('@object-ui/ui');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// objectui#4804 — the second table: root `tsconfig.json`'s `compilerOptions.paths`.
+// ---------------------------------------------------------------------------
+
+const TSCONFIG_PATH = path.join(repoRoot, 'tsconfig.json');
+const tsconfigSource = fs.readFileSync(TSCONFIG_PATH, 'utf8');
+
+const pathsBlock = withoutCommentLines(
+  balancedObjectLiteral(tsconfigSource, /"paths"\s*:\s*\{/, 'tsconfig.json: compilerOptions.paths')
+);
+
+/** `"<specifier>": ["<target>", ...]` — a `paths` value is always an array. */
+const PATHS_ENTRY = /(['"])([^'"]+)\1\s*:\s*\[([^\]]*)\]/g;
+const QUOTED = /(['"])([^'"]+)\1/g;
+
+/**
+ * Flattened to one row per target: `paths` allows several fallback targets per
+ * specifier, and every one of them is a claim that has to hold. Reuses
+ * `AliasEntry` — a `paths` mapping is the same (specifier, target) pair.
+ */
+const pathEntries: AliasEntry[] = [...pathsBlock.matchAll(PATHS_ENTRY)].flatMap((entry) =>
+  [...entry[3].matchAll(QUOTED)].map((target) => ({
+    specifier: entry[2],
+    target: target[2],
+  }))
+);
+
+/**
+ * A `paths` target may carry TypeScript's `*` substitution token
+ * (`packages/core/src/*`), which is a pattern, not a path — `existsSync` on it
+ * is always false. What has to exist is the prefix it substitutes into, and
+ * that prefix has to be a directory for the substitution to mean anything.
+ */
+function resolveTarget(target: string): { abs: string; isPattern: boolean } {
+  const star = target.indexOf('*');
+  if (star === -1) return { abs: path.resolve(repoRoot, target), isPattern: false };
+
+  return {
+    abs: path.resolve(repoRoot, target.slice(0, star).replace(/\/$/, '')),
+    isPattern: true,
+  };
+}
+
+/**
+ * objectui#4820 — two entries whose targets do not exist and which #4804
+ * deliberately did NOT delete. They are dead for a different reason: they point
+ * into `node_modules` for packages that are not dependencies of this workspace
+ * at all (`node_modules/@objectstack/` holds only `spec`; neither name appears
+ * in any package.json), so no install can ever produce them. Whether the fix is
+ * to drop the lines or to add the dependencies AGENTS.md section 7 prescribes
+ * is a maintainer call, not a rider on #4804's six-line deletion.
+ *
+ * A shrink-only ratchet, not an exemption. The list may not grow — a NEW dead
+ * target is still red — and the pin below asserts each listed entry is still
+ * declared AND still missing, so resolving #4820 either way turns this file red
+ * until the list is emptied with it.
+ */
+const KNOWN_MISSING_TARGETS: readonly string[] = [
+  '@objectstack/plugin-msw',
+  '@objectstack/objectql',
+];
+
+/** The six lines #4804 removed, in both spellings. */
+const REMOVED_BY_4804 = [
+  '@object-ui/engine',
+  '@object-ui/engine/*',
+  '@object-ui/ui',
+  '@object-ui/ui/*',
+  '@object-ui/renderer',
+  '@object-ui/renderer/*',
+];
+
+describe('objectui#4804 — root tsconfig.json compilerOptions.paths table', () => {
+  it('parses a plausible table (a zero-hit parse would make every case below vacuous)', () => {
+    // Same empty-fixture trap as the alias half: if the file is reformatted and
+    // the regex stops matching, `pathEntries` becomes [] and every case below
+    // passes while checking nothing.
+    expect(pathEntries.length).toBeGreaterThanOrEqual(10);
+    expect(pathEntries.map((e) => e.specifier)).toContain('@object-ui/core');
+  });
+
+  it('parses EVERY key in the block, so no entry can dodge the existence check', () => {
+    // Coverage, not style. A key whose value is written in some other form — a
+    // bare string instead of an array, or an empty array — would be skipped by
+    // PATHS_ENTRY and silently escape.
+    const keys = [...pathsBlock.matchAll(/^\s*(['"])([^'"]+)\1\s*:/gm)].map((m) => m[2]);
+
+    expect(
+      keys.filter((key) => !pathEntries.some((e) => e.specifier === key)),
+      'These `paths` keys are not written as an array of at least one quoted repo-relative ' +
+        'target, so the target-exists check below never sees them. Use that form, or teach this ' +
+        'test the new one.'
+    ).toEqual([]);
+    expect(new Set(pathEntries.map((e) => e.specifier)).size).toBe(keys.length);
+  });
+
+  it.each(pathEntries.filter((e) => !KNOWN_MISSING_TARGETS.includes(e.specifier)))(
+    '$specifier maps to a path that exists ($target)',
+    ({ specifier, target }) => {
+      const { abs, isPattern } = resolveTarget(target);
+
+      expect(
+        fs.existsSync(abs),
+        `paths['${specifier}'] maps to ${target}, which does not exist in the workspace. A dead ` +
+          'mapping never fails a build — nothing resolves through it — it just reads as if the ' +
+          'package were wired up (objectui#4804). Drop the entry, or add the package.'
+      ).toBe(true);
+
+      if (isPattern) {
+        expect(
+          fs.statSync(abs).isDirectory(),
+          `paths['${specifier}'] substitutes '*' into ${target.replace(/\*$/, '')}, which exists ` +
+            'but is not a directory, so no deep import can resolve through it.'
+        ).toBe(true);
+      }
+    }
+  );
+
+  it('maps an extension-less target to a directory, not a stray file', () => {
+    // `@object-ui/console` legitimately targets a single `.ts` file; every
+    // other non-pattern entry is a package `src/` root. Existence alone would
+    // accept a file where a directory is meant.
+    const wrongKind = pathEntries.filter(({ specifier, target }) => {
+      if (KNOWN_MISSING_TARGETS.includes(specifier)) return false;
+      const { abs, isPattern } = resolveTarget(target);
+      if (isPattern || path.extname(target) !== '') return false;
+      return fs.existsSync(abs) && !fs.statSync(abs).isDirectory();
+    });
+
+    expect(wrongKind.map((e) => e.specifier)).toEqual([]);
+  });
+
+  it('no longer carries the six dead engine/ui/renderer entries', () => {
+    // Named explicitly, for the same reason as the alias half: the generic
+    // check above would also go green if someone "fixed" these by creating
+    // empty `packages/<name>/src` directories. Note `@object-ui/plugin-aggrid`
+    // is absent here on purpose — it was in the alias table, never in `paths`.
+    const specifiers = pathEntries.map((e) => e.specifier);
+
+    for (const dead of REMOVED_BY_4804) {
+      expect(
+        specifiers,
+        `objectui#4804 removed paths['${dead}'] because its target never existed. Re-adding it ` +
+          'needs the package to exist first.'
+      ).not.toContain(dead);
+    }
+  });
+
+  it('the objectui#4820 carve-out still describes exactly the entries it was written for', () => {
+    const declared = pathEntries.filter((e) => KNOWN_MISSING_TARGETS.includes(e.specifier));
+
+    expect(
+      [...new Set(declared.map((e) => e.specifier))].sort(),
+      'KNOWN_MISSING_TARGETS names an entry that is no longer in tsconfig.json. If objectui#4820 ' +
+        'was resolved by deleting the line, delete it from the carve-out too.'
+    ).toEqual([...KNOWN_MISSING_TARGETS].sort());
+
+    const nowResolving = declared.filter((e) => fs.existsSync(resolveTarget(e.target).abs));
+
+    expect(
+      nowResolving.map((e) => e.specifier),
+      'A carved-out target now exists, so the objectui#4820 carve-out is obsolete for it — drop ' +
+        'it from KNOWN_MISSING_TARGETS so the entry is guarded like every other one.'
+    ).toEqual([]);
   });
 });
