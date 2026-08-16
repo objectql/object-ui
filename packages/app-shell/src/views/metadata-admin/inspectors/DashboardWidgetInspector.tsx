@@ -425,10 +425,10 @@ export function DashboardWidgetInspector({
 
       <Field id="widget-color" labelling="group" label={t('engine.inspector.widget.color', locale)}>
         <ColorVariantPicker
-          // The visible "Color" label names the swatch group by IDREF. It is
-          // the only naming channel: the group carries no `id` for a `for` to
-          // aim at, because `role="radiogroup"` cannot be labelled that way
-          // (objectui#4010).
+          // The visible label above ("Color Variant") names the swatch group by
+          // IDREF, and is the only naming channel: the group carries no `id`
+          // for a `for` to aim at, because `role="radiogroup"` cannot be
+          // labelled that way (objectui#4010).
           ariaLabelledBy={groupLabelId('widget-color')}
           value={widget.colorVariant ?? 'default'}
           onChange={(v) => patchWidget({ colorVariant: v as DashboardWidgetSchema['colorVariant'] })}
