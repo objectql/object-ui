@@ -11,25 +11,28 @@ describe('normalizeModalSchema', () => {
     expect(normalizeModalSchema('contact')).toEqual({ targetName: 'contact' });
   });
 
-  it('carries a create_/new_/add_ prefix guess ALONGSIDE the raw target', () => {
-    expect(normalizeModalSchema('create_opportunity')).toEqual({
-      targetName: 'create_opportunity', objectName: 'opportunity', mode: 'create',
-    });
-    expect(normalizeModalSchema('new_task')).toEqual({
-      targetName: 'new_task', objectName: 'task', mode: 'create',
-    });
-    expect(normalizeModalSchema('add_note')).toEqual({
-      targetName: 'add_note', objectName: 'note', mode: 'create',
-    });
+  // objectstack#6739 — the `create_`/`new_`/`add_`/`edit_`/`update_` prefix
+  // convention RETIRED with the object fallback. These used to assert the
+  // opposite (a verb+object guess riding alongside `targetName`); they are
+  // rewritten rather than deleted so the retirement is pinned, not merely
+  // un-covered. A prefixed name is now an ordinary page name — nothing about
+  // its spelling is special.
+  it('does NOT parse a create_/new_/add_ prefix into an object guess', () => {
+    expect(normalizeModalSchema('create_opportunity')).toEqual({ targetName: 'create_opportunity' });
+    expect(normalizeModalSchema('new_task')).toEqual({ targetName: 'new_task' });
+    expect(normalizeModalSchema('add_note')).toEqual({ targetName: 'add_note' });
   });
 
-  it('carries an edit_/update_ prefix guess as an edit form', () => {
-    expect(normalizeModalSchema('edit_account')).toEqual({
-      targetName: 'edit_account', objectName: 'account', mode: 'edit',
-    });
-    expect(normalizeModalSchema('update_lead')).toEqual({
-      targetName: 'update_lead', objectName: 'lead', mode: 'edit',
-    });
+  it('does NOT parse an edit_/update_ prefix into an edit-mode object guess', () => {
+    expect(normalizeModalSchema('edit_account')).toEqual({ targetName: 'edit_account' });
+    expect(normalizeModalSchema('update_lead')).toEqual({ targetName: 'update_lead' });
+  });
+
+  it('treats a prefixed name and a bare name identically — no shape depends on spelling', () => {
+    // The ruling declined the middle shape (keep the prefix, reject bare object
+    // names), so the two spellings must be indistinguishable at this step.
+    expect(normalizeModalSchema('create_opportunity')).toEqual({ targetName: 'create_opportunity' });
+    expect(normalizeModalSchema('opportunity')).toEqual({ targetName: 'opportunity' });
   });
 
   it('treats a bare SchemaNode (has type, no descriptor keys) as content', () => {
