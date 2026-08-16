@@ -83,11 +83,8 @@ const authorable = listMetadataResources().filter(
 describe('create-roundtrip conformance: default create output passes spec validation', () => {
   it('surfaces excluded canvas-create types + types without a client schema (no silent cap)', () => {
     const noSchema = authorable.filter((c) => !hasClientValidator(c.type)).map((c) => c.type);
-    // eslint-disable-next-line no-console
     console.log(`[conformance] canvas-create (interactive, excluded): ${[...CANVAS_CREATE_TYPES].join(', ')}`);
-    // eslint-disable-next-line no-console
     console.log(`[conformance] name-first types covered: ${authorable.map((c) => c.type).join(', ')}`);
-    // eslint-disable-next-line no-console
     if (noSchema.length) console.log(`[conformance] shape-only (no client schema): ${noSchema.join(', ')}`);
     expect(authorable.length).toBeGreaterThan(4);
   });

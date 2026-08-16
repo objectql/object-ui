@@ -891,7 +891,6 @@ function MetadataResourceEditPageImpl({
     if (Number.isFinite(v) && v >= 22 && v <= 80) {
       lastInspectorSizeRef.current = v;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inspectorPanelRef = React.useRef<any>(null);

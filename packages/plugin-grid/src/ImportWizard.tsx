@@ -1479,7 +1479,6 @@ const ImportHistoryPanel: React.FC<{
   // "reverted" and its Undo button disappears.
   const handleUndo = useCallback(async (jobId: string) => {
     if (typeof ds?.undoImportJob !== 'function') return;
-    // eslint-disable-next-line no-alert
     if (typeof window !== 'undefined' && !window.confirm(t('grid.import.undoConfirm'))) return;
     setUndoingId(jobId); setError(null);
     try {

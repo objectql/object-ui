@@ -708,7 +708,6 @@ ComponentRegistry.register('form',
         if (previousValues[k] !== undefined) out[k] = previousValues[k];
       }
       return out;
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fields, previousValues]);
 
     // Is this an INSERT? Same signal the memo above documents and the read-only

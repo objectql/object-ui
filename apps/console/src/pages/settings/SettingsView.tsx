@@ -36,7 +36,6 @@ function evalVisibility(expr: string | undefined, data: Record<string, unknown>)
   const m = trimmed.match(/^\$\{(.+)\}$/);
   if (!m) return true;
   try {
-    // eslint-disable-next-line no-new-func
     const fn = new Function('data', `with (data) { return (${m[1]}); }`);
     return Boolean(fn(data));
   } catch {

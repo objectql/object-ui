@@ -216,7 +216,6 @@ const MasterDetailLines: React.FC<MasterDetailLinesProps> = ({
       host.removeEventListener('change', onEvt);
       timers.forEach(clearTimeout);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formHostRef, formKey, details.length]);
 
   // Document totals: Subtotal (Σ line amounts) → Tax (header rate %) → Total.

@@ -75,7 +75,6 @@ function createMissingKeyHandler(): (
     if (seen.has(dedupeKey)) return;
     seen.add(dedupeKey);
     const fb = fallbackValue ? `"${fallbackValue}"` : 'the key itself';
-    // eslint-disable-next-line no-console
     console.warn(
       `[object-ui i18n] Missing translation for "${key}" (language "${lng}") — falling back to ${fb}.`,
     );

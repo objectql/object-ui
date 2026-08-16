@@ -77,7 +77,6 @@ function validateSchemaOnce(schema: any): _ValidationCacheEntry {
       entry = { valid: false, messages: msgs };
       if (!_warnedSchemas.has(schema)) {
         _warnedSchemas.add(schema);
-        // eslint-disable-next-line no-console
         console.warn(
           '[ObjectUI] Invalid schema detected:\n' + msgs.join('\n'),
           schema
@@ -88,7 +87,6 @@ function validateSchemaOnce(schema: any): _ValidationCacheEntry {
     // Validator itself failed — surface but don't crash render.
     if (!_warnedSchemas.has(schema)) {
       _warnedSchemas.add(schema);
-      // eslint-disable-next-line no-console
       console.warn('[ObjectUI] Schema validator threw:', err);
     }
   }
@@ -235,8 +233,6 @@ export interface SchemaRendererProps {
  * and `packages/react/README.md` documents callers relying on it. The `any` is
  * the point: this is a pass-through channel, not a typed prop.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- see above: the
-// forwarded value is opaque to this component by construction.
 type ForwardedProps = Record<string, any>;
 
 /**

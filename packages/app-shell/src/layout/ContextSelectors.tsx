@@ -351,7 +351,6 @@ export function useAppContextSelectors(
       const key = contextSelectorQueryKey(sel.id);
       const owner = owners.get(key);
       if (owner) {
-        // eslint-disable-next-line no-console
         console.warn(
           `[ObjectUI] contextSelectors "${owner}" and "${sel.id}" both map to the URL `
           + `scope key "?${key}=" — their values will mirror each other. Rename one id.`,

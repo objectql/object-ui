@@ -703,7 +703,6 @@ function AdvancedChartImplInner({
       }
     }
     return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, series, hasDualAxis]);
 
   /** Recharts props derived from one spec y-axis (domain / scale / ticks / label). */

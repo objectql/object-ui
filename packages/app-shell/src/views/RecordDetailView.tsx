@@ -1965,7 +1965,6 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         },
       }),
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   // `approvals.requests` / `approvals.pendingRequest` are in the deps for the
   // Approvals tab payload (#3461) — the tab's node carries the live rows, and
   // the panel's headline is the pending one. (The decision actions no longer

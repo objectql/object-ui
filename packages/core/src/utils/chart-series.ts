@@ -1032,7 +1032,6 @@ export async function resolveDimensionFieldMeta(
     for (let i = 0; i < segments.length - 1; i += 1) {
       const target = resolveRelationshipTarget(fieldDefsOf(schema)?.[segments[i]]);
       if (!target) { walked = false; break; }
-      // eslint-disable-next-line no-await-in-loop
       schema = await load(target);
       if (!schema) { walked = false; break; }
       // Prefer the loaded doc's own `name` over the reference's spelling, so a

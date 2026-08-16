@@ -134,7 +134,6 @@ function warnOnConflictingIdentity(
     const memo = `${identity}:${key}:${String(entry[key])}`;
     if (warnedConflicts.has(memo)) continue;
     warnedConflicts.add(memo);
-    // eslint-disable-next-line no-console
     console.warn(
       `[ObjectUI] Column carries two identities: \`${CANONICAL_COLUMN_IDENTITY_KEY}: ` +
         `'${identity}'\` and \`${key}: '${String(entry[key])}'\`. ` +

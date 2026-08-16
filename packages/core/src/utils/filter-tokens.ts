@@ -141,7 +141,6 @@ export function resolveContextTokens<T = any>(filter: T, scope: FilterTokenScope
       ? () => {}
       : scope.onUnresolved ??
         ((message: string) => {
-          // eslint-disable-next-line no-console
           console.warn(`[object-ui] ${message}`);
         });
 

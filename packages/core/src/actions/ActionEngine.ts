@@ -72,7 +72,6 @@ function warnHiddenPredicate(name: unknown, raw: unknown, err: unknown): void {
   if (_warnedPredicates.has(key)) return;
   _warnedPredicates.add(key);
   const msg = err instanceof Error ? err.message : String(err);
-  // eslint-disable-next-line no-console
   console.warn(
     `[ActionEngine] action "${String(name)}" hidden: its \`visible\` predicate threw — ${msg}. ` +
     `Predicate: ${src}. Action predicates evaluate against { record, recordId, objectName, user, os.user, … }; ` +

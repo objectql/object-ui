@@ -406,7 +406,6 @@ describe('ActionBar (action:bar)', () => {
   describe('requiredPermissions capability gate', () => {
     const Bar = ({ actions, systemActions }: { actions?: any[]; systemActions?: any[] }) => {
       const Component = ComponentRegistry.get('action:bar')!;
-      // eslint-disable-next-line react-hooks/static-components -- registry component is stable
       return <Component schema={{ type: 'action:bar', location: 'list_toolbar', actions, systemActions }} />;
     };
     const withUser = (user: unknown, props: { actions?: any[]; systemActions?: any[] }) =>

@@ -450,7 +450,6 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     } catch (err) {
       // Roll back optimistic state
       setData(prevData);
-      // eslint-disable-next-line no-console
       console.error('[ObjectCalendar] Failed to persist drag-and-drop reschedule:', err);
       // Surface the failure — never silently snap the event back. A row-level
       // security denial (403) is the common case: the user lacks permission to
@@ -545,7 +544,6 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     } catch (err: any) {
       const msg = err?.message || String(err);
       setQuickCreate(qc => qc ? { ...qc, submitting: false, error: msg } : qc);
-      // eslint-disable-next-line no-console
       console.error('[ObjectCalendar] Quick-create failed:', err);
     }
   }, [quickCreate, calendarConfig, schema.objectName, dataSource, objectSchema]);

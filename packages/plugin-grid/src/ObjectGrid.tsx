@@ -1122,7 +1122,6 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // become 2, and "page 5" of that is nothing at all.
   React.useEffect(() => {
     setServerPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objectName, schemaFilter, schemaSort, headerSort, searchTerm]);
 
   // --- NavigationConfig support ---

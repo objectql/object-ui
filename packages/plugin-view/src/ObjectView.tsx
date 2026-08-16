@@ -709,7 +709,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           (Array.isArray(kanbanCfg.columns) && kanbanCfg.columns.length > 0
             ? kanbanCfg.columns
             : baseProps.fields) || [];
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { columns: _kanbanColumns, groupByField: _gbf, groupField: _gf, titleField: _tf, conditionalFormatting: _kanbanCf, ...restKanban } = kanbanCfg;
         // Forward conditional formatting to kanban (issue #1584): nested
         // `options.kanban.conditionalFormatting` wins, then the view-level, then
