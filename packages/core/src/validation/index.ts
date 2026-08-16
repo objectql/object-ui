@@ -14,6 +14,7 @@
  */
 
 export * from './required-presence.js';
+export * from './server-owned-value.js';
 export * from './validation-engine.js';
 export * from './schema-validator.js';
 export * from './validators/index.js';

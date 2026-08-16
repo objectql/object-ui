@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveCascadingOptions, isValueStillOffered, isMissingForRequired } from '@object-ui/core';
+import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveCascadingOptions, isValueStillOffered, isMissingForRequired, isServerOwnedValue } from '@object-ui/core';
 import type { FormSchema, FormField as FormFieldConfig, FormFieldTab, FormFieldPane, FieldValidationRules, FieldCondition, SelectOption } from '@object-ui/types';
 import { useForm } from 'react-hook-form';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '../../ui/form';
@@ -664,6 +664,13 @@ ComponentRegistry.register('form',
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fields, previousValues]);
 
+    // Is this an INSERT? Same signal the memo above documents and the read-only
+    // strip already gates on: `FormSchema.previousValues` is set by an
+    // edit-mode host only, and its ABSENCE is the declared "this is an insert"
+    // (objectui#3484). Read once here so the three rule-state call sites below
+    // cannot each answer the mode differently.
+    const isCreateForm = previousRecord === undefined;
+
     const ruleRecord = React.useMemo(() => {
       // Seed every declared field to `null` so a predicate referencing a field
       // that's absent / not-yet-registered evaluates against a present-null
@@ -716,7 +723,11 @@ ComponentRegistry.register('form',
             requiredWhen: (f as any).requiredWhen,
           },
           ruleRecord,
-          { required: !!f.required, readonly: (f as any).readonly === true },
+          {
+            required: !!f.required,
+            readonly: (f as any).readonly === true,
+            serverOwnedValue: isServerOwnedValue(f, isCreateForm),
+          },
           previousRecord,
           undefined,
           // Same locator as the render path (#5149). A failure here reports the
@@ -728,7 +739,7 @@ ComponentRegistry.register('form',
         if (st.readonly) locked.add(name);
       }
       return locked;
-    }, [fields, ruleRecord, previousRecord]);
+    }, [fields, ruleRecord, previousRecord, isCreateForm]);
 
     // When a field's CEL rule relaxes — it becomes hidden (visibleWhen FALSE) or
     // no longer required (requiredWhen FALSE) — clear any stale validation error
@@ -748,7 +759,11 @@ ComponentRegistry.register('form',
             requiredWhen: (f as any).requiredWhen,
           },
           ruleRecord,
-          { required: !!f.required, readonly: (f as any).readonly === true },
+          {
+            required: !!f.required,
+            readonly: (f as any).readonly === true,
+            serverOwnedValue: isServerOwnedValue(f, isCreateForm),
+          },
           previousRecord,
           undefined,
           `field '${name}'`,
@@ -1360,7 +1375,18 @@ ComponentRegistry.register('form',
       const ruleState = resolveFieldRuleState(
         { visibleWhen, readonlyWhen, requiredWhen },
         ruleRecord,
-        { required: staticRequired, readonly: staticReadonly === true },
+        {
+          required: staticRequired,
+          readonly: staticReadonly === true,
+          // A CREATE form leaves a producer-owned control empty on purpose and
+          // omits the key so the server resolves the declared runtime default
+          // (#4069). Nothing may then declare the field required — neither the
+          // static flag (which `@object-ui/plugin-form` already lowers at the
+          // producer) nor a `requiredWhen` predicate resolving TRUE against the
+          // live record, which used to re-require it here with nothing the user
+          // could type to unblock the submit (#4085).
+          serverOwnedValue: isServerOwnedValue(field, isCreateForm),
+        },
         previousRecord,
         undefined,
         `field '${name}'`,

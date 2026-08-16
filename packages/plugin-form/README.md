@@ -115,7 +115,7 @@ it; folding a default in over a column the record leaves unset would arm a
 silent write of a value the user never chose, on the next save of any other
 field.
 
-#### `required` + a runtime default
+#### `required` (or `requiredWhen`) + a runtime default
 
 A field may declare both, and it is coherent authoring — storage-level required,
 with the value guaranteed by the producer:
@@ -131,22 +131,36 @@ rule, and the field is **omitted from the payload** — omitted, not sent empty,
 because `applyFieldDefaults` resolves the declaration only for a field that
 arrives absent or null, and a blank string is neither.
 
+The **conditional** spelling reaches the same verdict. A `requiredWhen`
+predicate says "required in this state", but `NOW()` / `current_user` resolve
+at insert regardless of state, so the producer's guarantee covers the
+conditional claim exactly as it covers the unconditional one:
+
+```ts
+remind_at: Field.datetime({ requiredWhen: 'status == "scheduled"', defaultValue: 'NOW()' }),
+```
+
 | Mode | Declared | Left empty | Effect |
 |---|---|---|---|
-| create | `required` + a runtime default | yes | submits; the key is absent, and the server resolves it |
-| create | `required` + a runtime default | no (user typed) | submits the typed value — it outranks the default |
-| create | `required` + a static literal | user cleared the seeded control | refused: they removed a value that was really there |
-| edit | `required`, anything | user blanked it | refused: the token was resolved at insert, so this is a real removal |
+| create | `required` / `requiredWhen` TRUE + a runtime default | yes | submits; the key is absent, and the server resolves it |
+| create | `required` / `requiredWhen` TRUE + a runtime default | no (user typed) | submits the typed value — it outranks the default |
+| create | `required` / `requiredWhen` TRUE + a static literal | user cleared the seeded control | refused: they removed a value that was really there |
+| create | `requiredWhen` TRUE, no default | yes | refused: nobody else supplies this value |
+| edit | `required` / `requiredWhen` TRUE, anything | user blanked it | refused: the token was resolved at insert, so this is a real removal |
 
 The required marker and `aria-required` go with the rule in the create case,
-since one boolean drives all three — in that mode the user genuinely is not
+since one verdict drives all three — in that mode the user genuinely is not
 required to provide the value. Showing what the server *will* supply, as a
 non-authoritative preview, is a separate follow-up.
 
-Both halves read one predicate (`isRuntimeDefault` in `schemaDefaults`), which
-is what keeps a form from seeding a field it also refuses to submit. Not
-extended to `requiredWhen`, the conditional-required CEL rule, which the form
-renderer resolves against the live record.
+Every consumer reads one predicate, `isRuntimeDefault` in `@object-ui/core`
+(re-exported here) — which is what keeps a form from seeding a field it also
+refuses to submit. The static half is decided at the producer, in
+`isRequiredInForm`; the conditional half cannot be, because `requiredWhen` is
+resolved downstream against the live record, so it is suppressed inside the one
+evaluator that resolves it — `resolveFieldRuleState`, reading
+`isServerOwnedValue`. Display and validation share that single verdict, so a
+field can never lose its asterisk while still refusing the submit.
 
 ### Column width of a sectioned form
 

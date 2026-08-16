@@ -17,12 +17,12 @@ import React, { useState, useCallback, useMemo } from 'react';
 import type { FormField, DataSource } from '@object-ui/types';
 import { Button, cn, toast } from '@object-ui/components';
 import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { resolveFieldRuleState, evalFieldPredicate, isMissingForRequired } from '@object-ui/core';
+import { resolveFieldRuleState, evalFieldPredicate, isMissingForRequired, isServerOwnedValue } from '@object-ui/core';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { FormSectionContainer } from './FormSection';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
-import { seedCreateValues, omitServerResolvedDefaults } from './schemaDefaults';
+import { seedCreateValues, omitServerResolvedDefaults, isCreateFormMode } from './schemaDefaults';
 import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
 import { resolveSuccessNavigate, isSameOriginUrl, type SubmitBehavior } from './successBehavior';
 import { useOccSave } from './occSave';
@@ -329,6 +329,11 @@ export const WizardForm: React.FC<WizardFormProps> = ({
     [objectSchema, schema.readOnly, schema.mode, schema.recordId, schema.objectName, fieldLabel],
   );
 
+  // The same "no persisted record" test the seeding and the create-mode
+  // `required` suppression use, so this wizard cannot be seeded as a create
+  // form and gated as an edit one.
+  const isCreateWizard = isCreateFormMode(schema);
+
   // Current section fields
   const currentSectionFields = useMemo(() => {
     if (currentStep >= 0 && currentStep < totalSteps) {
@@ -368,7 +373,19 @@ export const WizardForm: React.FC<WizardFormProps> = ({
               requiredWhen: (field as any).requiredWhen,
             },
             record,
-            { required: !!field.required, readonly: (field as any).readonly === true },
+            {
+              required: !!field.required,
+              readonly: (field as any).readonly === true,
+              // Same suppression the form renderer applies (#4069 / #4085): on
+              // a CREATE wizard a producer-owned control is left empty and its
+              // key omitted, so neither the static flag nor a `requiredWhen`
+              // resolving TRUE may hold the final submit. The mode is read from
+              // the schema rather than from the absent `previous` argument
+              // above — this gate passes no `previous` in EITHER mode, so
+              // inferring create-ness from it would drop a `requiredWhen` an
+              // EDIT wizard is supposed to enforce.
+              serverOwnedValue: isServerOwnedValue(field, isCreateWizard),
+            },
             undefined,
             undefined,
             `field '${name}'`,
@@ -391,7 +408,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
       });
       return out;
     },
-    [schema.sections, buildSectionFields],
+    [schema.sections, buildSectionFields, isCreateWizard],
   );
 
   // Handle step data collection (merge partial data into formData)
