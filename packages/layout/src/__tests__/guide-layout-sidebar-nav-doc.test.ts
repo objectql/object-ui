@@ -501,8 +501,12 @@ describe('the guide authors no `sidebar-nav` JSON node (objectui#4840)', () => {
   });
 
   it('no fence on the page contains a `{ "type": "sidebar-nav" }` node', () => {
+    // The key is matched with OPTIONAL quotes on purpose. The block this issue
+    // removed was fenced as `typescript` and spelled the node `type:
+    // 'sidebar-nav'` with a bare key, so a JSON-only pattern would have walked
+    // straight past the very block that declared the phantom shape.
     const offenders = fences().filter((fence) =>
-      /["']type["']\s*:\s*["']sidebar-nav["']/.test(fence.body),
+      /["']?\btype["']?\s*:\s*["']sidebar-nav["']/.test(fence.body),
     );
 
     expect(
