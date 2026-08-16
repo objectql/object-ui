@@ -49,6 +49,20 @@
  *    prop scan reads its expected key list OUT OF `SidebarNav.tsx`, so it can
  *    never rot into "update the test".
  *
+ * ## The page's `AppShellProps` block (objectui#4808)
+ *
+ * Same page, same failure mode, opposite direction: the `## Component Props`
+ * block reprints `AppShellProps` by hand and had gone stale by OMISSION — it
+ * listed 5 props while `AppShell.tsx` declared 7, so `branding` (the whole
+ * theme-customization entry point, `AppSchema.branding` landing in the
+ * renderer) and `rightRail` (ADR-0057 P3a) were shipped, exported, commented
+ * capabilities that a reader could only find by opening the source. Nothing
+ * asserted false, so no scan built for wrong keys could see it; only a
+ * both-directions comparison against the interface can. The block is therefore
+ * parsed and compared to `AppShellProps` — props, order, optionality and type
+ * text — with the expectation read OUT OF `AppShell.tsx` on every run, the same
+ * never-"update the test" construction the `SidebarNavProps` scan above uses.
+ *
  * Scope: this file scans `content/docs/layout/app-shell.mdx` and nothing else.
  * The `icon:`-as-string rejection in particular must NOT be widened to the docs
  * tree — `page-header` really does declare `icon` as a string (an icon NAME),
@@ -68,6 +82,16 @@ const MDX_PATH = join(REPO_ROOT, 'content', 'docs', 'layout', 'app-shell.mdx');
 const MDX = readFileSync(MDX_PATH, 'utf8');
 const SIDEBAR_NAV_SRC = readFileSync(
   join(REPO_ROOT, 'packages', 'layout', 'src', 'SidebarNav.tsx'),
+  'utf8',
+);
+/**
+ * The page documents `@object-ui/layout`'s AppShell — every example on it
+ * imports from `@object-ui/layout` — so this is the source of truth for its
+ * props. `packages/app-shell` exports a same-named `AppShellProps` for a
+ * different component; that one is not what this page teaches.
+ */
+const APP_SHELL_SRC = readFileSync(
+  join(REPO_ROOT, 'packages', 'layout', 'src', 'AppShell.tsx'),
   'utf8',
 );
 const THIS_FILE = readFileSync(join(__dirname, 'app-shell-docs-nav-example.test.ts'), 'utf8');
@@ -183,13 +207,44 @@ function sidebarNavTagProps(body: string): string[] {
   return props;
 }
 
+/** One prop of an interface: its name, whether it is optional, and its type. */
+interface DeclaredProp {
+  key: string;
+  optional: boolean;
+  type: string;
+}
+
+/** Drop block and line comments, so a trailing `// …` never lands in a type. */
+function stripComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+}
+
+/**
+ * The props `interface <name>` declares in `src`, in declaration order.
+ *
+ * `export` is optional so the same parser reads both a `.tsx` source and the
+ * hand-written copy inside an MDX fence. Each prop is matched anchored at line
+ * start and terminated by the line's last `;`, so nested keys inside a type
+ * (the `className?` in `icon?: React.ComponentType<{ className?: string }>`)
+ * are never collected as props of their own.
+ */
+function interfaceProps(src: string, name: string): DeclaredProp[] {
+  const body = new RegExp(`(?:export )?interface ${name} \\{\\n([\\s\\S]*?)\\n\\}`).exec(src);
+  if (!body) throw new Error(`\`interface ${name}\` is gone from the source this test reads`);
+  return [...stripComments(body[1]).matchAll(/^[ \t]*(\w+)(\??)\s*:\s*(.+?);[ \t]*$/gm)].map(
+    (match) => ({ key: match[1], optional: match[2] === '?', type: match[3].trim() }),
+  );
+}
+
 /** Keys declared by an interface in `SidebarNav.tsx`, read off the source. */
 function interfaceKeys(name: string): string[] {
-  const body = new RegExp(`export interface ${name} \\{\\n([\\s\\S]*?)\\n\\}`).exec(SIDEBAR_NAV_SRC);
-  if (!body) throw new Error(`\`export interface ${name}\` is gone from SidebarNav.tsx`);
-  // Anchored at line start, so nested keys inside a type (the `className?` in
-  // `icon?: React.ComponentType<{ className?: string }>`) are not collected.
-  return [...body[1].matchAll(/^\s*(\w+)\??\s*:/gm)].map((match) => match[1]);
+  return interfaceProps(SIDEBAR_NAV_SRC, name).map((prop) => prop.key);
+}
+
+/** Fenced code blocks on the page that reprint `AppShellProps`. */
+function appShellPropsFences(): string[] {
+  const fences = [...MDX.matchAll(/```[a-z]*\n([\s\S]*?)```/g)].map((match) => match[1]);
+  return fences.filter((body) => body.includes('interface AppShellProps'));
 }
 
 describe("app-shell.mdx's SidebarNav examples are this file's type-checked code (objectui#4793)", () => {
@@ -315,5 +370,48 @@ describe("app-shell.mdx's SidebarNav examples spell only real keys (objectui#479
         `Declared: ${declared.join(', ')}`,
       ].join('\n'),
     ).toEqual([]);
+  });
+});
+
+describe("app-shell.mdx's `AppShellProps` block reprints the real interface (objectui#4808)", () => {
+  /** `sidebar?: React.ReactNode` — how one prop reads in a failure message. */
+  const format = (prop: DeclaredProp): string =>
+    `${prop.key}${prop.optional ? '?' : ''}: ${prop.type}`;
+
+  it('is the one block on the page, inside a fence', () => {
+    expect(
+      appShellPropsFences().length,
+      [
+        'content/docs/layout/app-shell.mdx should reprint `AppShellProps` in exactly one',
+        'fenced block (the `## Component Props` section). Zero means the block was renamed',
+        'or unfenced and the parity assertion below is comparing against nothing; more than',
+        'one means two copies that can now disagree with each other as well as with source.',
+      ].join('\n'),
+    ).toBe(1);
+  });
+
+  it('lists every prop the component declares — same order, optionality and types', () => {
+    const declared = interfaceProps(APP_SHELL_SRC, 'AppShellProps');
+    expect(declared.length, 'no props parsed out of `AppShellProps`').toBeGreaterThan(1);
+
+    const documented = interfaceProps(appShellPropsFences()[0], 'AppShellProps');
+
+    expect(
+      documented.map(format),
+      [
+        "The `AppShellProps` block on content/docs/layout/app-shell.mdx no longer matches the",
+        'component. That block is a hand-written copy of the interface, and the way it rots is',
+        'by OMISSION: it listed 5 of 7 props, so `branding` (the theming entry point) and',
+        '`rightRail` (ADR-0057 P3a) were shipped, exported and documented in source while the',
+        'page said they did not exist (objectui#4808). Nothing on the page was false, which is',
+        'why only a both-directions comparison catches it.',
+        '',
+        'The expected list is READ OUT OF packages/layout/src/AppShell.tsx on every run, so',
+        'this is never "update the test": add the prop to the page, or take it off the',
+        'component. Prose about a prop is free — only the declaration lines are compared.',
+        '',
+        `Declared by the component: ${declared.map(format).join('; ')}`,
+      ].join('\n'),
+    ).toEqual(declared.map(format));
   });
 });

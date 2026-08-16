@@ -39,6 +39,9 @@ interface AppShellProps {
   children: React.ReactNode;     // Main content area
   className?: string;            // Additional CSS classes for content area
   defaultOpen?: boolean;         // Sidebar default state (default: true)
+  branding?: AppShellBranding;   // App branding — see AppShellBranding
+  rightRail?: React.ReactNode;   // Optional right rail beside the content, not
+                                 // over it (ADR-0057 P3a)
 }
 ```
 
