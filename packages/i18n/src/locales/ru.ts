@@ -88,6 +88,7 @@ const ru = {
     removeFromFavorites: "Удалить из избранного",
     loading: "Загрузка…",
     save: "Сохранить",
+    discard: "Отменить",
     cancel: "Отмена",
     delete: "Удалить",
     edit: "Редактировать",

@@ -82,6 +82,7 @@ const de = {
     removeFromFavorites: "Aus Favoriten entfernen",
     loading: "Wird geladen…",
     save: "Speichern",
+    discard: "Verwerfen",
     cancel: "Abbrechen",
     delete: "Löschen",
     edit: "Bearbeiten",

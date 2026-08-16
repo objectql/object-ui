@@ -81,6 +81,7 @@ const pt = {
     removeFromFavorites: "Remover dos favoritos",
     loading: "Carregando…",
     save: "Salvar",
+    discard: "Descartar",
     cancel: "Cancelar",
     delete: "Excluir",
     edit: "Editar",

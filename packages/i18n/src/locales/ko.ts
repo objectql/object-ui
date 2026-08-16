@@ -82,6 +82,7 @@ const ko = {
     removeFromFavorites: "즐겨찾기에서 제거",
     loading: "로딩 중…",
     save: "저장",
+    discard: "버리기",
     cancel: "취소",
     delete: "삭제",
     edit: "편집",

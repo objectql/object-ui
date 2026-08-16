@@ -82,6 +82,7 @@ const fr = {
     removeFromFavorites: "Retirer des favoris",
     loading: "Chargement…",
     save: "Enregistrer",
+    discard: "Abandonner",
     cancel: "Annuler",
     delete: "Supprimer",
     edit: "Modifier",

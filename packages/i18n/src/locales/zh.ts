@@ -87,6 +87,7 @@ const zh = {
   common: {
     loading: '加载中…',
     save: '保存',
+    discard: '放弃',
     cancel: '取消',
     delete: '删除',
     edit: '编辑',

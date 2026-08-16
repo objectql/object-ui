@@ -94,6 +94,15 @@ const en = {
   common: {
     loading: 'Loading…',
     save: 'Save',
+    // The SHARED "throw away the unsaved draft" verb, read by
+    // `@object-ui/components`' `ConfigPanelRenderer` footer (objectui#4750).
+    // The three older spellings stay where they are because each belongs to one
+    // surface's wording: `form.discard` is the confirm button of plugin-form's
+    // "Discard changes?" alert dialog, `console.settingsView.discard` and
+    // `console.objectView.discard` are two console view footers — and the last
+    // of those already disagrees with the other two in zh/ko/fr. This one is
+    // the shared component's, and its ten values are the majority spelling.
+    discard: 'Discard',
     cancel: 'Cancel',
     delete: 'Delete',
     edit: 'Edit',

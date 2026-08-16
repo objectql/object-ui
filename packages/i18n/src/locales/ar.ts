@@ -86,6 +86,7 @@ const ar = {
     removeFromFavorites: "إزالة من المفضلة",
     loading: "جاري التحميل…",
     save: "حفظ",
+    discard: "تجاهل",
     cancel: "إلغاء",
     delete: "حذف",
     edit: "تعديل",

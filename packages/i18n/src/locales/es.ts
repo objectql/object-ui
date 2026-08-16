@@ -81,6 +81,7 @@ const es = {
     removeFromFavorites: "Quitar de favoritos",
     loading: "Cargando…",
     save: "Guardar",
+    discard: "Descartar",
     cancel: "Cancelar",
     delete: "Eliminar",
     edit: "Editar",
