@@ -247,14 +247,39 @@ const dataSource = {
 </SchemaRendererProvider>
 ```
 
-Then in schema:
+Then in schema — note the `data.` root:
 ```json
 {
   "type": "button",
   "label": "Delete",
-  "hidden": "${!canDeleteContacts}"
+  "hidden": "${!data.canDeleteContacts}"
 }
 ```
+
+### Expression scope: which roots resolve
+
+`SchemaRenderer` evaluates every schema expression against a fixed scope:
+
+| Root | Comes from | Example |
+|---|---|---|
+| `data` | the `dataSource` passed to `SchemaRendererProvider` | `${data.canDeleteContacts}` |
+| `user` / `current_user` | the ambient host scope (app-shell's `ExpressionProvider`) | `${user.id}` |
+| `app`, `features` | the ambient host scope | `${features.multiOrgEnabled}` |
+| `page` | `PageSchema.variables`, inside a Page | `${page.selectedId}` |
+
+The ambient roots exist only while a host scope is mounted — `ExpressionProvider`
+supplies them (it also aliases the signed-in user as `ctx.user` and `os.user`).
+With no host scope mounted, `data` and `page` are all you get.
+
+**Keys of the `dataSource` object are reachable only under the `data.` root —
+they are not also spread as bare names.** Writing `${!canDeleteContacts}`
+instead of `${!data.canDeleteContacts}` does not fail loudly: the bare name
+resolves to `undefined`, `!undefined` is always `true`, and the `hidden`
+expression is therefore permanently true — the button disappears for *every*
+user, including the ones who do have the permission. Because the result no
+longer depends on the flag, flipping the user's permission to test it produces
+no change at all, so the most natural way to debug it gives no signal. The same
+trap applies to `visible`, `disabled` and any other expression-valued key.
 
 ## Multi-tenancy
 
