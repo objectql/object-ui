@@ -623,6 +623,7 @@ function FullscreenTextarea({
   label,
   readOnly,
   disabled,
+  error,
   ...rest
 }: {
   value?: string;
@@ -632,6 +633,18 @@ function FullscreenTextarea({
   label?: string;
   readOnly?: boolean;
   disabled?: boolean;
+  /**
+   * The field's validation message (objectui#4824). DECLARED, so it is not a
+   * passenger on `rest` — it must not reach the inline `<Textarea>` as a stray
+   * `error="…"` attribute, and the primitive needs it by name.
+   *
+   * Like `label` and `mobile_fullscreen`, it is read off the PRE-strip props at
+   * the call site: `stripRendererOnlyProps` discards `error` for the DOM,
+   * correctly, because the INLINE control gets its `aria-invalid` from
+   * `<FormControl>`'s Slot. The DIALOG's control is built from scratch and gets
+   * nothing from that Slot, which is the whole of objectui#4824.
+   */
+  error?: string;
   [key: string]: any;
 }) {
   // The inline control's own gate. `readOnly`/`disabled` are real attributes on
@@ -667,8 +680,9 @@ function FullscreenTextarea({
         testIdPrefix="form-textarea"
         readOnly={readOnly}
         disabled={disabled}
+        error={error}
       >
-        {(draft, setDraft, editorDisabled) => (
+        {(draft, setDraft, editorDisabled, editorAria) => (
           <Textarea
             autoFocus
             value={draft}
@@ -677,6 +691,16 @@ function FullscreenTextarea({
             className="h-full min-h-full resize-none text-base"
             disabled={editorDisabled}
             data-testid="form-textarea-fullscreen-input"
+            /*
+              Name + validation state, computed by the primitive and spread whole
+              (objectui#4824 / #4832). This control used to carry neither: no
+              `aria-invalid` at all, and an empty accessible name, while the
+              inline `<Textarea>` above announced both off `<FormControl>`'s
+              Slot. Spread rather than unpacked — this branch is not told which
+              ids it names, so it cannot point at the host's `<FormMessage>`,
+              which Radix `aria-hidden`s for as long as the dialog is open.
+            */
+            {...editorAria}
           />
         )}
       </FullscreenEditor>
@@ -2687,13 +2711,23 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       // the call site never forwarded a `label`, so the guard was defending
       // against something that never arrived, while every OTHER built-in
       // branch had no guard at all. Now the strip owns it for all branches.
-      const { mobile_fullscreen, label } = fieldProps as any;
+      //
+      // `error` rides the same way, and for the same reason (objectui#4824):
+      // `stripRendererOnlyProps` discards it because the INLINE control takes
+      // its `aria-invalid` from `<FormControl>`'s Slot and would only gain a
+      // stray `error="…"` attribute. The fullscreen DIALOG's control is built
+      // from scratch inside this branch, reaches no Slot, and so had no way to
+      // say the field had failed — measured announcing nothing at all while the
+      // inline control announced `aria-invalid="true"` for the same field. The
+      // primitive, not this branch, decides what to do with it.
+      const { mobile_fullscreen, label, error } = fieldProps as any;
       const rest = stripRendererOnlyProps(fieldProps);
       if (mobile_fullscreen) {
         return (
           <FullscreenTextarea
             placeholder={placeholder}
             label={label}
+            error={error}
             // `readonly` is destructured off `props` at the top of this
             // function, so — exactly like `label` and `mobile_fullscreen` — it
             // is NOT in `rest` and has to be forwarded by name (objectui#3400).
