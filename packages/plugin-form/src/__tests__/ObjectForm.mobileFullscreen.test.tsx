@@ -87,6 +87,25 @@ const mixedObjectSchema = {
   },
 };
 
+/**
+ * The spec's OWN spelling of the same widget (objectui#4831).
+ *
+ * `richtext` is what `@objectstack/spec`'s `FieldType` calls this type;
+ * `mapFieldTypeToFormType` maps it to `field:richtext`, and the widget map
+ * resolves `richtext` to `RichTextField` — the same component `markdown` and
+ * `html` resolve to, i.e. three registry keys on ONE widget. The producer side
+ * listed only two of the three, so a field authored exactly as the spec
+ * prescribes rendered `RichTextField` with no expand affordance while its two
+ * siblings got one.
+ */
+const specRichTextObjectSchema = {
+  name: 'spec_note',
+  label: 'Spec Note',
+  fields: {
+    body: { type: 'richtext', label: 'Body' },
+  },
+};
+
 function makeDataSource(schema: object = objectSchema) {
   return {
     getObjectSchema: vi.fn().mockResolvedValue(schema),
@@ -233,6 +252,35 @@ describe('ObjectForm mobile.fullscreenLongText → RichTextField (objectui#3301)
     });
     await waitFor(() => {
       expect(inlineControl('summary')).toHaveValue('## Shipped');
+    });
+  });
+
+  it('reaches the widget for a field the SPEC spells `richtext` (objectui#4831)', async () => {
+    // The regression this case exists for. `richtext` is the spec's own name
+    // for this type and resolves to the very same `RichTextField` that
+    // `markdown` / `html` above resolve to — with the same reader, live since
+    // #3301. Only the producer-side list was short, so this was the one
+    // spelling of the three that never got the affordance.
+    //
+    // Deliberately NOT an assertion that the stamp list contains the literal
+    // `'field:richtext'`: that shape is green whenever the string is present,
+    // whether or not anything downstream can act on it (objectui#4250). This
+    // goes through the real alias mapping, the real registry and the real
+    // widget, so it can only be green when the button actually renders.
+    renderForm({ mobile: { fullscreenLongText: true } }, specRichTextObjectSchema);
+
+    expect(await screen.findByTestId('richtext-fullscreen-toggle')).toBeInTheDocument();
+  });
+
+  it('does NOT render the affordance for a `richtext` field when the form did not opt in', async () => {
+    // Negative control for the case above: the new list member must not become
+    // an unconditional stamp. Without the form-level opt-in there is no
+    // producer, so `richtext` stays as bare as it was before #4831.
+    renderForm({}, specRichTextObjectSchema);
+
+    await waitFor(() => expect(inlineControl('body')).toBeInTheDocument());
+    await waitFor(() => {
+      expect(screen.queryByTestId('richtext-fullscreen-toggle')).not.toBeInTheDocument();
     });
   });
 

@@ -1118,9 +1118,37 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
   //    Every type below has a READER, which is what makes the stamp mean
   //    something (objectui#3301): `textarea` is the form renderer's built-in
   //    branch, `field:textarea` is `TextAreaField`, and `field:markdown` /
-  //    `field:html` both resolve to `RichTextField` — which now reads the flag
-  //    too, so `ObjectFormSchema.mobile`'s documented "textarea/rich-text get
-  //    an expand button" is finally true of rich text as well.
+  //    `field:html` / `field:richtext` ALL resolve to `RichTextField` — which
+  //    reads the flag since #3301, so `ObjectFormSchema.mobile`'s documented
+  //    "textarea/rich-text get an expand button" is true of rich text as well.
+  //
+  //    `field:richtext` was missing from this list until objectui#4831, and it
+  //    is the ONE spelling `@objectstack/spec` itself uses: `FieldType` spells
+  //    the type `richtext` (`markdown` / `html` are the other two), the alias
+  //    table maps `richtext → field:richtext` (`field-type-alias.ts`), and the
+  //    widget map resolves `richtext` to `RichTextField` right beside the other
+  //    two (`fields/src/index.tsx`). So the reader had been there all along and
+  //    two of that widget's THREE registry keys were stamped — a field authored
+  //    exactly as the spec prescribes was the only one that got nothing. Same
+  //    shape as objectui#4250, which found the same hole in the twin set below
+  //    (`WIDE_FIELD_TYPES` in `./autoLayout`) and closed it the same way.
+  //
+  //    Why this stays a hand-written list rather than becoming "whatever
+  //    resolves to a long-text widget" (measured for #4831, both candidates):
+  //    `fieldWidgetMap` is module-private and its entries are distinct arrow
+  //    closures over distinct `import()`s, so widget IDENTITY is observable
+  //    only by awaiting a dynamic import — this stamp is a synchronous `.map()`
+  //    during render, so deriving from it means eagerly loading every widget
+  //    module, the exact cost the lazy registry exists to avoid.
+  //    `mapFieldTypeToFormType` records no "these three are one widget" fact
+  //    either: it maps each spelling to its own value. And NEITHER source can
+  //    account for `'textarea'`, which is not a registry key at all but the
+  //    form renderer's built-in branch (`BUILTIN_FIELD_TYPES`). There is no
+  //    single source to derive from; inventing one would put a second
+  //    definition of "long text" in the repo, so the list stays explicit and
+  //    the behavioural pin in `__tests__/ObjectForm.mobileFullscreen.test.tsx`
+  //    is what keeps it honest (never an assertion that a literal is present —
+  //    that is the fake-green shape objectui#4250 named).
   //
   //    A sixth type, `'string-multiline'`, was stamped here until #3301 and is
   //    gone: `grep -rn "string-multiline"` across BOTH this repo and
@@ -1134,7 +1162,8 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
     ? autoLayoutResult.fields.map((f) => {
         const t = f.type as string | undefined;
         const isTextarea = t === 'textarea' || t === 'field:textarea' ||
-          t === 'field:markdown' || t === 'field:html';
+          t === 'field:markdown' || t === 'field:html' ||
+          t === 'field:richtext';
         if (!isTextarea) return f;
         return f.field
           ? { ...f, field: { ...f.field, mobile_fullscreen: true } }
