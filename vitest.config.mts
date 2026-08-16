@@ -251,8 +251,6 @@ export default defineConfig({
       '@object-ui/types': path.resolve(__dirname, './packages/types/src'),
       '@object-ui/react': path.resolve(__dirname, './packages/react/src'),
       '@object-ui/protocol': path.resolve(__dirname, './packages/core/src'),
-      '@object-ui/engine': path.resolve(__dirname, './packages/engine/src'),
-      '@object-ui/renderer': path.resolve(__dirname, './packages/renderer/src'),
       '@object-ui/components': path.resolve(__dirname, './packages/components/src'),
       '@object-ui/providers': path.resolve(__dirname, './packages/providers/src'),
       '@object-ui/fields': path.resolve(__dirname, './packages/fields/src'),
@@ -263,7 +261,6 @@ export default defineConfig({
       '@object-ui/plugin-list': path.resolve(__dirname, './packages/plugin-list/src'),
       '@object-ui/data-objectstack': path.resolve(__dirname, './packages/data-objectstack/src'),
       '@object-ui/layout': path.resolve(__dirname, './packages/layout/src'),
-      '@object-ui/plugin-aggrid': path.resolve(__dirname, './packages/plugin-aggrid/src'),
       '@object-ui/plugin-calendar': path.resolve(__dirname, './packages/plugin-calendar/src'),
       '@object-ui/plugin-chatbot': path.resolve(__dirname, './packages/plugin-chatbot/src'),
       '@object-ui/plugin-detail': path.resolve(__dirname, './packages/plugin-detail/src'),
@@ -289,7 +286,6 @@ export default defineConfig({
       // rather than depending on how Vite treats a symlinked dependency.
       '@object-ui/test-support': path.resolve(__dirname, './packages/test-support/src'),
       '@': path.resolve(__dirname, './packages/components/src'),
-      '@object-ui/ui': path.resolve(__dirname, './packages/ui/src'),
     },
   },
 });
