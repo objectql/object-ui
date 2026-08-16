@@ -5,7 +5,6 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import { PageHeader } from './PageHeader';
-import { AppShell } from './AppShell';
 import { PageCard } from './PageCard';
 import { SidebarNav } from './SidebarNav';
 import { ResponsiveGrid } from './ResponsiveGrid';
@@ -150,11 +149,60 @@ export function registerLayout() {
     isContainer: true
   });
 
-  ComponentRegistry.register('app-shell', AppShell, {
-    namespace: 'layout',
-    label: 'App Shell',
-    category: 'Layout',
-  });
+  // NOTE: `app-shell` is deliberately NOT a component key (objectui#4841,
+  // ADR-0049 enforce-or-remove, remove side; maintainer ruling 2026-08-16).
+  //
+  // It used to be registered here — key `app-shell`, component `AppShell`,
+  // `namespace: 'layout'`, `label: 'App Shell'`, `category: 'Layout'`, and no
+  // `inputs` — and that registration could never produce an app shell.
+  //
+  // (The call is described rather than quoted on purpose: the pins that read
+  // this file ask it for the registered key list with a regex over
+  // `ComponentRegistry` + `.register(`, and a verbatim copy in a comment reads
+  // to them as a live registration. Same reason the file's other notes name
+  // keys in prose.)
+  //
+  // Four of `AppShellProps`' seven keys are `React.ReactNode` slots (`sidebar`,
+  // `navbar`, `children`, `rightRail`) and a JSON document can fill none of
+  // them. Measured on `378dc920b`, a node had exactly two outcomes, neither of
+  // them a shell:
+  //
+  //   - `children` is dropped in SILENCE. `SchemaRenderer` strips `children`
+  //     (and `body`) out of a node before spreading the remaining keys as
+  //     props, and `AppShell` reads its `children` PROP, never
+  //     `schema.children`. The `<main>` element rendered empty, console.error
+  //     count 0.
+  //   - a schema in `sidebar` / `navbar` / `rightRail` reaches the component as
+  //     a plain object and React refuses to render it, so the node became the
+  //     renderer's error box ("Objects are not valid as a React child").
+  //
+  // Only `className` / `defaultOpen` / `branding` — the three plain-data keys —
+  // ever survived the JSON path, i.e. the best result JSON could reach was a
+  // shell with no navigation, no top bar and an empty content area. With no
+  // `inputs` declared, `sdui-parser`'s unknown-prop check had nothing to compare
+  // a node against either, so neither outcome was diagnosed (same family as
+  // objectui#3972).
+  //
+  // Removing the key does not remove a capability — it replaces a
+  // parse-succeeds-renders-nothing middle state with a NAMED refusal:
+  // `{ "type": "app-shell" }` now resolves to nothing, so `SchemaRenderer`
+  // renders its OBJUI-001 panel ("Unknown component type: app-shell") and
+  // `sdui-parser` reports `unknown-component`. Loud beats silent.
+  //
+  // The two survivors carry the two real capabilities, and this is the whole
+  // point of the split:
+  //   - `AppShell` stays EXPORTED (above) as a React composition primitive —
+  //     compose the shell in React and render JSON pages inside it.
+  //   - `app-schema-renderer` (below) stays the ONE JSON door for "render a
+  //     whole shell from a schema": it declares `inputs` and builds branding and
+  //     sidebar navigation out of an `AppSchema` document.
+  //
+  // Re-registering `app-shell` is not a one-line revert: it needs `inputs` AND a
+  // rendering adapter that turns the schema values in `sidebar`/`navbar`/
+  // `rightRail` into nodes and wires `schema.children` to `children` (option B
+  // on objectui#4841), plus an answer to how it then differs from
+  // `app-schema-renderer`. `__tests__/app-shell-not-a-component-key.test.tsx`
+  // pins the current state and says the same thing where it fails.
 
   ComponentRegistry.register('responsive-grid', ResponsiveGrid, {
     namespace: 'layout',
