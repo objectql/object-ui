@@ -7,7 +7,7 @@
  */
 
 /**
- * QuickFilterBar (快速筛选栏) — a presentational, fully-controlled row of
+ * QuickFilterBar — a presentational, fully-controlled row of quick-filter
  * multi-select dropdowns rendered above the Gantt grid. Each dropdown narrows
  * the visible task bars by one dimension (project / product / status / …); the
  * owning ObjectGantt resolves the option lists (from select options, lookups,
@@ -37,14 +37,26 @@ export interface QuickFilterField {
   options: QuickFilterOption[];
 }
 
+/**
+ * Display strings for the bar. Every member is optional: `all`, `clear` and
+ * `empty` fall back to English defaults and an omitted `resultSummary` simply
+ * hides the summary, so a label is only ever *supplied* by the owner.
+ * The owning `ObjectGantt` passes translated values resolved from the
+ * `gantt.quickFilter.*` bundle namespace (objectstack#5427); the `Host:` key
+ * noted on each member is where that value comes from.
+ */
 export interface QuickFilterLabels {
-  /** "全部" / "All" — the select-all toggle and empty-selection trigger text. */
+  /** Select-all toggle and empty-selection trigger text. Host: `gantt.quickFilter.all`. */
   all?: string;
-  /** "清除筛选" / "Clear" — clears every dimension. */
+  /** Clears every dimension. Host: `gantt.quickFilter.clear`. */
   clear?: string;
-  /** Builds the "showing N / M" summary; omit to hide the summary. */
+  /**
+   * Builds the "showing N / M" summary; omit to hide the summary.
+   * Host: `gantt.quickFilter.resultSummary` (single-brace `{shown}` / `{total}`
+   * placeholders, resolved at the call site by a literal `.replace`).
+   */
   resultSummary?: (shown: number, total: number) => string;
-  /** Placeholder shown when a dimension resolved zero options. */
+  /** Placeholder shown when a dimension resolved zero options. Host: `gantt.quickFilter.empty`. */
   empty?: string;
 }
 
