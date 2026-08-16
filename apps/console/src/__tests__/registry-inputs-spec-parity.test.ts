@@ -398,24 +398,53 @@ const OFF_SPEC_EXEMPTIONS: Record<string, string> = {};
  *     and its own issue owns it.
  *
  * Every reason cites an issue, which `references a tracking issue` asserts.
- * Verified against renderer read sites at objectui `origin/main` @ `c85268256`
- * with `@objectstack/spec@17.0.0-rc.5` — not assumed from the spec's wording.
+ * Verified against renderer read sites at objectui `origin/main` @ `c25222758`
+ * with `@objectstack/spec@17.0.0-rc.6` — not assumed from the spec's wording.
+ * (The four `…-rc.5` mentions left in the entries below are the stale-pin
+ * entries' own prose and belong to their issues, not to this header.)
  */
 const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
-  // ── B class — spec declares it, NO renderer read point at all (2 keys) ─────
-  // The instinct here is to add an input, and it is wrong: that publishes a key
-  // the platform drops on the floor, which is exactly the defect objectui#3797
-  // spent a repo-wide gate closing. The other instinct — wire it — is a visual
-  // decision (where an icon sits next to RecordTitleChip; whether a card grows
-  // an actions area, which reaches into `renderers/action/**`). The third option
-  // is the `record:activity.showSubscriptionToggle` precedent: declare it and
-  // say NOT IMPLEMENTED in the description, so both directions are in parity and
-  // the author is told. Three viable shapes, one public contract — filed as
-  // objectui#3829 rather than guessed at here.
+  // ── page:header.icon / page:card.actions — retired upstream (2 keys) ───────
+  // These two used to be a MENU: objectui#3829 filed them as a three-way fork
+  // (wire them; declare them with a KNOWN GAP per the
+  // `record:activity.showSubscriptionToggle` precedent; retire them upstream)
+  // and this entry listed all three so no implementing agent would guess. The
+  // fork is closed. The maintainer ruled route (c) on 2026-08-09 —
+  // zero producers, zero consumers, zero demand — and objectstack#6946 /
+  // PR objectstack#7115 executed it: both keys are ADR-0087 D2 tombstones in
+  // `@objectstack/spec` 17.0.0, live on the rc.6 this repo installs. So the
+  // class here is no longer B (undecided) but the same one as
+  // `record:details.layout` below: the spec rejects the key BY NAME, and the
+  // reverse direction demands it anyway because the tombstone is still a member
+  // of the shape.
+  //
+  // Read the upstream prescriptions before touching either key — they say what
+  // replaces it, which is why neither is coming back. A header's identity is
+  // drawn by the record chrome (`recordChrome`, on by default) plus each
+  // action's own `icon`; a card's buttons are authored as components in
+  // `children` or `footer` (`element:button`, `record:quick_actions`).
+  //
+  // DO NOT DELETE THESE TWO ENTRIES YET, and the reason is the one this file
+  // already writes out twice above: D2 retirement REPLACES the member with
+  // `z.never()` rather than deleting it, so `Object.keys(shape)` still reports
+  // both keys as declared and `carries no stale unpublished-key exemption`
+  // still needs the cover. They resolve when objectui#3809's tombstone
+  // recognition narrows `specTopLevelKeys` — not on a pin bump, and not by
+  // declaring the inputs.
+  //
+  // The objectui half of route (c) is otherwise complete (objectui#3829).
+  // `page:card.actions` had no producer at all; `page:header.icon` had exactly
+  // one — the metadata-admin designer's BLOCK_CONFIG field for the CANONICAL
+  // `page:header`, which kept offering authors an icon box whose value rc.6
+  // rejects by name — and it was removed with its two i18n keys in the same
+  // change that rewrote these entries. The `layout:page-header` ALIAS keeps its
+  // `icon` input deliberately: that is a different renderer with a real read
+  // point (`packages/layout/src/PageHeader.tsx`), so the two are opposite facts,
+  // not an inconsistency.
   'page:header.icon':
-    'Spec declares it; PageHeaderRenderer has NO read point — `icon` in containers.tsx:822-1570 is only ever per-action (`action.icon`, :1321/:1365) or a nav item (:604). Wire it, or declare it with a KNOWN GAP per the showSubscriptionToggle precedent: objectui#3829.',
+    'Retired upstream by objectstack#6946 / PR objectstack#7115 (ADR-0087 D2 tombstone) — PageHeaderRenderer never had a read point: `icon` inside containers.tsx:973-1677 is only ever per-action (`action.icon`, :1428/:1472) or a nav item (:641/:816), and the spec now rejects the key by name, prescribing the record chrome plus per-action icons instead. Unlike the stale-pin entries below this one is LIVE at @objectstack/spec@17.0.0-rc.6: the tombstone stays in `Object.keys(shape)`, so the reverse direction demands a key the contract refuses. Resolves via objectui#3809 tombstone recognition, not by declaring the input — objectui#3829.',
   'page:card.actions':
-    'Spec declares it; PageCardRenderer (containers.tsx:666-695) renders title/body/footer only and never reads `actions`. Wire it, or declare it with a KNOWN GAP per the showSubscriptionToggle precedent: objectui#3829.',
+    'Retired upstream by objectstack#6946 / PR objectstack#7115 (ADR-0087 D2 tombstone) — PageCardRenderer (containers.tsx:703-745) builds its card from title/body/children/footer and never had an actions area, and the spec now rejects the key by name, prescribing buttons authored as components in `children` or `footer` (`element:button`, `record:quick_actions`). Unlike the stale-pin entries below this one is LIVE at @objectstack/spec@17.0.0-rc.6: the tombstone stays in `Object.keys(shape)`, so the reverse direction demands a key the contract refuses. Resolves via objectui#3809 tombstone recognition, not by declaring the input — objectui#3829.',
 
   // ── page:tabs.type — the carrier collision, from the other side ────────────
   // The mirror image of the `page:tabs.tabStyle` exemption in

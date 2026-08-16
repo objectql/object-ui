@@ -319,7 +319,7 @@ describe("PageBlockInspector's own chrome follows the locale (#3963)", () => {
  * straight to the input.
  *
  * What makes this column different from the two before it is that translating
- * ALL of it would be wrong. Ten of the eighteen placeholders are example VALUES,
+ * ALL of it would be wrong. Ten of the seventeen placeholders are example VALUES,
  * and the assertions come in matching pairs: the prose ones must change with the
  * locale, the value ones must NOT. Both halves are pinned here because both are
  * regressions a reader could introduce while believing they were finishing the
@@ -329,7 +329,17 @@ describe("PageBlockInspector's own chrome follows the locale (#3963)", () => {
 describe('PageBlockInspector placeholders follow the locale — but only the prose ones (#3979)', () => {
   it('translates the text-field hint under an already-Chinese label', () => {
     // The issue's headline symptom: 「图标」 over a box hinting `lucide icon name`.
-    renderInspector(pageDraft('page:header'), 'zh-CN');
+    //
+    // Rendered from `record:alert`, not `page:header`. This pair used to use the
+    // header's own icon box until objectui#3829 removed it: @objectstack/spec
+    // 17.0.0 retired `PageHeaderProps.icon` (objectstack#6946 / PR
+    // objectstack#7115) because the canonical renderer never read it, so the
+    // field was offering authors a key the platform now rejects by name. Same
+    // move, same reason, as objectui#4649's re-point a few tests above —
+    // `record:alert.icon` reproduces the symptom exactly (a `text` field with a
+    // prose placeholder under a translated label) on a key the renderer really
+    // reads, so the case cannot be satisfied by a surface that should not exist.
+    renderInspector(pageDraft('record:alert'), 'zh-CN');
 
     expect(screen.getByText('图标')).toBeTruthy(); // #3913's half, still working
     expect(screen.getByPlaceholderText('lucide 图标名')).toBeTruthy();
@@ -341,7 +351,7 @@ describe('PageBlockInspector placeholders follow the locale — but only the pro
   it('renders the same panel in English under en-US, unchanged', () => {
     // en-US is the baseline: the new keys carry the exact literals the table
     // used to hold, so nothing an English admin sees may have moved.
-    renderInspector(pageDraft('page:header'), 'en-US');
+    renderInspector(pageDraft('record:alert'), 'en-US');
 
     expect(screen.getByPlaceholderText('lucide icon name')).toBeTruthy();
     expectNoRawKeyPlaceholders();

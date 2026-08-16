@@ -37,9 +37,24 @@ interface PageHeaderComponentProps extends React.HTMLAttributes<HTMLDivElement> 
 ```
 
 `subtitle` is the canonical key: `@objectstack/spec/ui`'s `PageHeaderProps` — the contract
-for the authored `page:header` node — declares `title / subtitle / icon / breadcrumb /
-actions / aria` and has no `description`. Both `title` and `subtitle` interpolate
-`{field.path}` tokens against the surrounding record context.
+for the authored `page:header` node — declares `title / subtitle / breadcrumb / actions /
+recordChrome / showStar / showCopyId / aria` and has no `description`. Both `title` and
+`subtitle` interpolate `{field.path}` tokens against the surrounding record context.
+
+`icon` is deliberately **not** in that list, and the distinction matters because this page
+documents a React component while the spec governs an authored node. `PageHeaderProps.icon`
+was retired in `@objectstack/spec` 17.0.0 (objectstack#6946, ADR-0087 D2): the canonical
+`page:header` renderer never read it, so an authored value used to be accepted and dropped,
+and the contract now rejects the key by name. On a canonical `page:header` node the
+header's identity comes from the record chrome (`recordChrome`, on by default) plus each
+action's own `icon`; `os migrate meta --from 16` rewrites stored sources.
+
+The `icon` prop listed above is this component's **own** capability, not that spec key.
+`PageHeader` from `@object-ui/layout` — registered as `page-header` and
+`layout:page-header` — really does draw it (a string resolves through `LazyIcon`, a React
+node renders as-is), which is why it stays on that registration's `inputs` and why the demo
+on this page writes `"icon": "users"` (objectui#3829). Do not carry the key over to a
+canonical `page:header` node: the same JSON renders here and fails to parse there.
 
 `description` used to be a **legacy alias** of `subtitle` that this component read as
 well. It is **retired** (objectui#3789): the prop is gone and the renderer draws a

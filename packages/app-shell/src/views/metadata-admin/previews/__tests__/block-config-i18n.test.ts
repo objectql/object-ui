@@ -50,7 +50,7 @@
  *
  * #3913 stopped at labels, so the hints under them stayed English: 「图标」 over
  * a box reading `lucide icon name`. The column joins the walk above as a fifth
- * family, with the SAME positional derivation — but only for the 8 placeholders
+ * family, with the SAME positional derivation — but only for the 7 placeholders
  * that are prose. The other 10 are example VALUES (`20`, `https://…`, a JSON
  * sample) and are `{ literal: … }` in `block-config.ts`, never keys: translating
  * them would corrupt the thing the author is being told to type.
@@ -178,12 +178,13 @@ describe('block-config labels are translation keys (#3913)', () => {
     expect(families.field).toBeGreaterThan(80);
     expect(families.add).toBe(5);
     expect(families.option).toBeGreaterThan(50);
-    // Exact, like `add`: the keyed half of the placeholder column is 8 of 18
-    // (#3979). A 9th prose placeholder should fail here and be translated; a
-    // 9th VALUE placeholder does not reach this family at all and is caught by
-    // the literal inventory instead. Either way the new one gets classified
-    // rather than defaulting to English-on-screen.
-    expect(families.placeholder).toBe(8);
+    // Exact, like `add`: the keyed half of the placeholder column is 7 of 17
+    // (#3979; 8 of 18 until objectui#3829 retired the canonical
+    // `page:header.icon` field). An 8th prose placeholder should fail here and
+    // be translated; an 8th VALUE placeholder does not reach this family at all
+    // and is caught by the literal inventory instead. Either way the new one
+    // gets classified rather than defaulting to English-on-screen.
+    expect(families.placeholder).toBe(7);
   });
 
   it('stores exactly the key its position implies', () => {
@@ -297,16 +298,24 @@ describe('en-US labels are unchanged by the key migration (#3913)', () => {
     'engine.inspector.pageBlock.option.location.record_more': 'Record more menu',
     'engine.inspector.pageBlock.option.severity.warning': 'Warning',
     // ── the placeholder family (#3979) ───────────────────────────────────────
-    // ALL EIGHT, not a sample: this column was migrated by hand rather than
+    // ALL SEVEN, not a sample: this column was migrated by hand rather than
     // mechanically, and the en side is the only thing standing between "the key
     // resolves" and "the key resolves to what the box used to say". Each value
     // below is byte-identical to the literal `block-config.ts` held at
     // `origin/main` 6bd6a4d76 — including the U+2026 ellipsis in `Text…`, which
     // a re-typed `...` would silently replace.
+    //
+    // It was EIGHT until objectui#3829: `…placeholder.page:header.icon` went
+    // with the canonical `page:header` icon field, retired upstream by
+    // objectstack#6946 / PR objectstack#7115. Dropping the sample row is the
+    // right move rather than keeping it as a "still translated" check — the key
+    // is gone from both locale tables, so `t()` now returns it unchanged and an
+    // assertion here would be pinning the passthrough against itself. The
+    // deliberate absence is pinned in `block-config.test.ts` instead, where the
+    // field's absence is pinned beside it.
     'engine.inspector.pageBlock.placeholder.object-metric.icon': 'lucide icon name',
     'engine.inspector.pageBlock.placeholder.element:text.content': 'Text…',
     'engine.inspector.pageBlock.placeholder.element:button.icon': 'lucide icon name',
-    'engine.inspector.pageBlock.placeholder.page:header.icon': 'lucide icon name',
     'engine.inspector.pageBlock.placeholder.record:details.sections.name': 'snake_case, e.g. contact_info',
     'engine.inspector.pageBlock.placeholder.record:alert.icon': 'lucide icon name',
     'engine.inspector.pageBlock.placeholder.record:quick_actions.actionNames': 'action name',
@@ -363,11 +372,16 @@ describe('placeholders that must NOT be translated (#3979)', () => {
     'record:details.sections.columns': { literal: '2', because: 'a column count' },
   };
 
-  it('collects all 18 placeholders — 8 keyed, 10 literal', () => {
+  it('collects all 17 placeholders — 7 keyed, 10 literal', () => {
     // Guards the walk: if placeholder collection silently found nothing, every
     // assertion here would pass over an empty list.
-    expect(PLACEHOLDERS.length).toBe(18);
-    expect(PLACEHOLDERS.filter((p) => p.spec.key !== undefined).length).toBe(8);
+    //
+    // 18 / 8 / 10 until objectui#3829: the canonical `page:header` icon box was
+    // a KEYED placeholder, and it went with the field when objectstack#6946 /
+    // PR objectstack#7115 retired `PageHeaderProps.icon`. The literal half is
+    // untouched, which is what this split says.
+    expect(PLACEHOLDERS.length).toBe(17);
+    expect(PLACEHOLDERS.filter((p) => p.spec.key !== undefined).length).toBe(7);
     expect(PLACEHOLDERS.filter((p) => p.spec.literal !== undefined).length).toBe(10);
   });
 

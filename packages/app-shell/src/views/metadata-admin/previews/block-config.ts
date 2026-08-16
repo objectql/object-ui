@@ -357,7 +357,16 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
   'page:header': [
     { name: 'title', label: 'engine.inspector.pageBlock.field.page:header.title', kind: 'text' },
     { name: 'subtitle', label: 'engine.inspector.pageBlock.field.page:header.subtitle', kind: 'text' },
-    { name: 'icon', label: 'engine.inspector.pageBlock.field.page:header.icon', kind: 'text', placeholder: { key: 'engine.inspector.pageBlock.placeholder.page:header.icon' } },
+    // No `icon` field: `PageHeaderProps.icon` was retired from the spec in
+    // @objectstack/spec 17.0.0-rc.6 (objectstack#6946 / PR objectstack#7115,
+    // ADR-0087 D2, maintainer ruling 2026-08-09 route (c)). The canonical
+    // `page:header` renderer never read it — the header's identity is drawn by
+    // the record chrome (`recordChrome`) and each action carries its own `icon`
+    // — so before the retirement an authored value was silently dropped, and
+    // after it the platform rejects the key BY NAME. Offering the box here
+    // would let the designer author metadata that fails to parse, which is
+    // strictly worse than the silent drop it replaced. Pinned negatively in
+    // `__tests__/block-config.test.ts`. objectui#3829.
     { name: 'breadcrumb', label: 'engine.inspector.pageBlock.field.page:header.breadcrumb', kind: 'boolean' },
   ],
   'page:card': [

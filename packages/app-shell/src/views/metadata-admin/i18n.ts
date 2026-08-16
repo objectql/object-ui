@@ -626,8 +626,11 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.field.element:button.action': 'Action',
   'engine.inspector.pageBlock.field.page:header.title': 'Title',
   'engine.inspector.pageBlock.field.page:header.subtitle': 'Subtitle',
-  'engine.inspector.pageBlock.field.page:header.icon': 'Icon',
-  'engine.inspector.pageBlock.placeholder.page:header.icon': 'lucide icon name',
+  // `…field.page:header.icon` and its placeholder retired with the spec key
+  // itself (objectstack#6946 / PR objectstack#7115, @objectstack/spec
+  // 17.0.0-rc.6). Their only reader was the canonical `page:header` icon field
+  // removed from `previews/block-config.ts`; a key kept past its field is dead
+  // vocabulary that the next author reads as a live surface. objectui#3829.
   'engine.inspector.pageBlock.field.page:header.breadcrumb': 'Show breadcrumb',
   'engine.inspector.pageBlock.field.page:card.title': 'Title',
   'engine.inspector.pageBlock.field.page:card.bordered': 'Bordered',
@@ -2380,8 +2383,9 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.field.element:button.action': '动作',
   'engine.inspector.pageBlock.field.page:header.title': '标题',
   'engine.inspector.pageBlock.field.page:header.subtitle': '副标题',
-  'engine.inspector.pageBlock.field.page:header.icon': '图标',
-  'engine.inspector.pageBlock.placeholder.page:header.icon': 'lucide 图标名',
+  // `…field.page:header.icon` and its placeholder retired with the spec key —
+  // see the matching note in the `en` table above. Removed from BOTH tables in
+  // the same edit so the two key sets stay identical.
   'engine.inspector.pageBlock.field.page:header.breadcrumb': '显示面包屑',
   'engine.inspector.pageBlock.field.page:card.title': '标题',
   'engine.inspector.pageBlock.field.page:card.bordered': '显示边框',

@@ -72,32 +72,46 @@ export function registerLayout() {
   //
   // `icon` and `actions` are the same lie on two more keys, found by auditing
   // this list against the renderer's actual read points (objectui#3972). Each
-  // declared key below is aligned on the three faces that have to agree, and the
+  // declared key below is aligned on the faces that have to agree, and the
   // audit's negative results are as load-bearing as its positive ones:
   //
-  //   RENDERER READS IT × SPEC DECLARES IT × `ManifestInputType` CAN SPELL IT
-  //   - `title` / `subtitle`  — read at `PageHeader.tsx:113/115`, spec keys.
-  //   - `icon`      — read at `:117`, rendered at `:224-226` (a string goes
-  //     through `LazyIcon`, a node renders as-is); `PageHeaderProps.icon` is the
-  //     spec's icon NAME, hence `type: 'string'`. `content/docs/layout/
-  //     page-header.mdx` documents it AND its only live demo
-  //     (`layout-page-header/pageheader-with-actions`) writes `"icon": "users"`
-  //     — so omitting it made the manifest gate report `unknown-prop` on the
-  //     repo's own documented example.
-  //   - `actions`   — read at `:119`, resolved at `:192-196` and delegated to
-  //     `record:quick_actions`; `PageHeaderProps.actions` is an array of action
-  //     ids, and the canonical `page:header` already publishes it as
-  //     `type: 'array'` (`components/.../containers.tsx:1585`). Spelled
+  //   RENDERER READS IT × A `ManifestInputType` CAN SPELL IT
+  //   - `title` / `subtitle`  — read at `PageHeader.tsx:121/122`; both are live
+  //     spec keys of `PageHeaderProps`, which is the objectui#3226 narrowing
+  //     above.
+  //   - `icon`      — read at `PageHeader.tsx:123`, rendered at `:231-233` (a
+  //     string goes through `LazyIcon`, a node renders as-is). This one stands
+  //     on the RENDERER-READ fact ALONE, and the change of footing is
+  //     deliberate rather than an oversight: `PageHeaderProps.icon` was retired
+  //     upstream as an ADR-0087 D2 tombstone in @objectstack/spec 17.0.0
+  //     (objectstack#6946 / PR objectstack#7115) because the CANONICAL
+  //     `page:header` renderer never read it. THIS renderer does — it draws the
+  //     icon beside the title — `content/docs/layout/page-header.mdx` publishes
+  //     the prop, and the docs page's only live demo
+  //     (`layout-page-header/pageheader-with-actions`) writes `"icon": "users"`,
+  //     so withdrawing the input would delete a working capability and make the
+  //     manifest gate report `unknown-prop` on the repo's own documented
+  //     example. `type: 'string'` because the AUTHORABLE spelling is an icon
+  //     name; the `React.ReactNode` form is a programmatic prop, not JSON.
+  //     objectui#3829 ruled it stays on exactly this footing. What keeps the
+  //     claim honest — and stops the retired spec key from reading as parity —
+  //     is `__tests__/page-header-authorable-keys.test.tsx`, which skips
+  //     tombstones when it derives the spec's key set.
+  //   - `actions`   — read at `:125`, resolved at `:199-203` and delegated to
+  //     `record:quick_actions`; `PageHeaderProps.actions` is a LIVE spec key (an
+  //     array of action ids), and the canonical `page:header` already publishes
+  //     it as `type: 'array'` (`components/.../containers.tsx:1692`). Spelled
   //     identically here on purpose — one concept, one key, one type.
   //
   // NOT declared, deliberately, and each for its own reason:
   //   - `breadcrumb` — spec declares it, this renderer has NO read point (the
   //     word appears only in a comment and an `aria-label`). Declaring it would
   //     be objectui#3829's defect in reverse: an authoring surface the platform
-  //     silently drops. (`page:header.icon` is that same case on the CANONICAL
-  //     renderer, which is why it sits in `UNPUBLISHED_EXEMPTIONS` in
-  //     `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts` while
-  //     `icon` gets declared HERE — different renderers, opposite read facts.)
+  //     silently drops. (`page:header.icon` WAS that same case on the CANONICAL
+  //     renderer — which is why it sits in `UNPUBLISHED_EXEMPTIONS` in
+  //     `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts`, and
+  //     why the spec retired the key there while `icon` stays declared HERE:
+  //     different renderers, opposite read facts.)
   //   - `showBack` / `action` — this renderer reads them, the spec has no such
   //     keys. Declaring one would publish a second dialect, which is the whole
   //     point of the objectui#3226 narrowing above. (`description` used to sit
