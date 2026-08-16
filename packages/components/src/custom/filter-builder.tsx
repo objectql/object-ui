@@ -412,9 +412,11 @@ function valueFamilyForFieldType(fieldType: string | undefined): FilterValueFami
 /**
  * The `<input type>` each family is edited with.
  *
- * @internal exported for tests
+ * Module-private on purpose: what a column DRAWS is observable from the
+ * rendered input, and that is where the tests pin it, so publishing this table
+ * would widen the package's API for nothing.
  */
-export const FILTER_INPUT_TYPE_BY_FAMILY: Readonly<Record<FilterValueFamily, string>> = {
+const FILTER_INPUT_TYPE_BY_FAMILY: Readonly<Record<FilterValueFamily, string>> = {
   text: "text",
   number: "number",
   date: "date",
