@@ -46,7 +46,8 @@ Every UI component node MUST follow this shape:
 interface UIComponent {
   type: string;              // Required: component type identifier
   id?: string;               // Optional: unique identifier
-  props?: Record<string, any>; // Optional: component properties
+  props?: Record<string, any>; // Optional: element:* config envelope — NOT a
+                               // general bag. See "Rule: Keys Live on the Node".
   bind?: string;             // Optional: data binding path
   className?: string;        // Optional: Tailwind CSS classes
   hidden?: string;           // Optional: visibility expression
