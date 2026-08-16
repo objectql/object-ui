@@ -34,6 +34,7 @@ import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync';
 import { RECORD_DETAIL_TAB_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
 import { resolveActionParams } from '../utils/resolveActionParams';
 import { createConsoleServerActionHandler } from '../utils/consoleServerAction';
+import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics';
 import { interpretFlowResponse } from '../utils/flowResponse';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
 // Audit provenance renders as the one-line <RecordMetaFooter>; the other
@@ -856,8 +857,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   /**
    * `type: 'modal'` dispatch — same rule as the shared console runtime (see
    * `useConsoleActionRuntime.modalActionHandler`): CLIENT-SIDE ONLY. The
-   * action's `target` names the page (or object form) to open; rendering it is
-   * the whole of what a modal action does.
+   * action's `target` names the PAGE to open — only a page, since the object
+   * fallback retired (maintainer ruling on objectstack#6739, PR #4764);
+   * rendering it is the whole of what a modal action does.
    *
    * [objectstack#3959 / objectui#3320] This used to fall through to
    * `serverActionHandler` when the target resolved to neither a page nor an
@@ -871,6 +873,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
    * reported as what it is. To collect input and then run server-side, declare
    * `type: 'script'` with `params`: the runner collects the same dialog and
    * the handler runs with those values.
+   *
+   * The refusal WORDING is built by `utils/modalTargetDiagnostics`, shared with
+   * `useConsoleActionRuntime.modalActionHandler` and
+   * `useActionModal.modalHandler` — see that module for why three hand-written
+   * copies of one contract did not survive contact with PR #4764
+   * (objectui#4767). Change the contract there, not here.
    */
   const modalActionHandler = useCallback(async (action: ActionDef) => {
     const schema = (action as any).modal ?? action.target ?? (action as any).params?.schema;
@@ -878,10 +886,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     if (descriptor) return modalHandler(descriptor);
     return {
       success: false,
-      error:
-        `Action "${action.name}" is type:'modal' but its target ` +
-        `${schema != null ? `"${String(schema)}" ` : ''}names no page or object to open. ` +
-        `Point it at a page, or use type:'script' with params to collect input and run a handler.`,
+      error: modalTargetRefusalMessage({
+        actionName: action.name,
+        target: schema,
+        serverHandlerHint: true,
+      }),
     };
   }, [resolveModalTarget, modalHandler]);
 

@@ -51,6 +51,7 @@ import { entitlementDialogFromError, type EntitlementDialogSpec } from '../envir
 import { resolvePageVarTokens } from '../utils/resolvePageVarTokens';
 import { interpretFlowResponse } from '../utils/flowResponse';
 import { createConsoleServerActionHandler } from '../utils/consoleServerAction';
+import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics';
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User', isPlatformAdmin: false };
 
@@ -588,6 +589,15 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
    * An unresolvable target is now reported as what it is. To collect input and
    * then run server-side, declare `type: 'script'` with `params`: the runner
    * collects the same dialog and the handler runs with those values.
+   *
+   * The refusal WORDING is built by `utils/modalTargetDiagnostics`, shared with
+   * `RecordDetailView.modalActionHandler` and `useActionModal.modalHandler`.
+   * All three used to spell it here, and drifted: PR #4764 retired the object
+   * fallback and rewrote only `useActionModal`'s copy, leaving this one — the
+   * one console users actually read — saying the target names "no page or
+   * object" and never mentioning `type: 'form'`, the replacement the
+   * retirement handed authors (objectui#4767). Change the contract there, not
+   * here.
    */
   const modalActionHandler = useCallback(async (action: ActionDef, _context?: ActionContext): Promise<ActionResult> => {
     const schema = (action as any).modal ?? action.target ?? (action as any).params?.schema;
@@ -595,10 +605,11 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     if (descriptor) return modalHandler(descriptor);
     return {
       success: false,
-      error:
-        `Action "${action.name}" is type:'modal' but its target ` +
-        `${schema != null ? `"${String(schema)}" ` : ''}names no page or object to open. ` +
-        `Point it at a page, or use type:'script' with params to collect input and run a handler.`,
+      error: modalTargetRefusalMessage({
+        actionName: action.name,
+        target: schema,
+        serverHandlerHint: true,
+      }),
     };
   }, [resolveModalTarget, modalHandler]);
 

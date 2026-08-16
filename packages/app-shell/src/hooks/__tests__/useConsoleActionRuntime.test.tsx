@@ -81,6 +81,7 @@ vi.mock('sonner', () => {
 
 import { toast } from 'sonner';
 import { useConsoleActionRuntime, ConsoleActionRuntimeProvider } from '../useConsoleActionRuntime';
+import { modalTargetRefusalMessage } from '../../utils/modalTargetDiagnostics';
 import { useAction, usePageVariables, PageVariablesProvider, PageVariableActionBridge } from '@object-ui/react';
 
 beforeEach(() => {
@@ -509,8 +510,10 @@ describe('useConsoleActionRuntime — authenticated handlers', () => {
  * framework#3530 — `type: 'modal'` used to be wired straight to
  * `serverActionHandler` here, while RecordDetailView opened modals client-side.
  * The same button therefore did two different things depending on which surface
- * mounted it. Both now run this rule: render `target` when it names a page (or
- * object), else complete the action server-side.
+ * mounted it. Both now run this rule: render `target` when it names a page —
+ * only a page, since PR #4764 retired the object fallback — else report the
+ * authoring error (objectstack#3959 removed the server-side fallthrough this
+ * comment used to describe; the wording is shared as of objectui#4767).
  */
 describe('modalActionHandler — a modal action is CLIENT-SIDE ONLY (objectstack#3959)', () => {
   it('opens the resolved target client-side and never POSTs to /actions', async () => {
@@ -552,7 +555,18 @@ describe('modalActionHandler — a modal action is CLIENT-SIDE ONLY (objectstack
     expect(r.success).toBe(false);
     // The message must name the action, the dud target, and the way out.
     expect(String(r.error)).toContain('log_call');
-    expect(String(r.error)).toMatch(/type:'script' with params/);
+    expect(String(r.error)).toMatch(/`type: 'script'` with `params`/);
+    // objectui#4767 — and it must say the SAME thing the other two surfaces
+    // say. This copy was hand-written and went stale when PR #4764 retired the
+    // object fallback: it kept offering "no page or object" and never named
+    // `type: 'form'`, the capability the retirement handed authors instead.
+    expect(String(r.error)).toContain("type: 'form'");
+    expect(String(r.error)).not.toMatch(/or object/);
+    // Byte-equality with the shared constructor, so re-inlining the string
+    // here (the exact mistake #4767 records) fails rather than drifts.
+    expect(String(r.error)).toBe(
+      modalTargetRefusalMessage({ actionName: 'log_call', target: 'log_call', serverHandlerHint: true }),
+    );
   });
 
   it('prefers an inline `modal` descriptor over `target`', async () => {

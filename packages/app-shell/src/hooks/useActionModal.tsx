@@ -51,6 +51,7 @@ import {
 import { SchemaRenderer, useMetadata } from '@object-ui/react';
 import { ModalForm } from '@object-ui/plugin-form';
 import { resolveFormViewLayout } from '../utils/recordFormNavigation';
+import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics';
 
 type Placement = 'center' | 'side' | 'bottom' | 'fullscreen';
 type ModalSize = 'sm' | 'default' | 'lg' | 'xl' | 'full';
@@ -217,13 +218,13 @@ export function useActionModal(dataSource?: any) {
       const d = await resolveModalTarget(schema);
       if (!d) {
         const name = normalizeModalSchema(schema).targetName;
-        return {
-          success: false,
-          error: name
-            ? `Modal target "${name}" names no page — a modal action's \`target\` names a PAGE, only. ` +
-              `To open an object's form, use \`type: 'form'\` with an \`<object>.<view>\` target.`
-            : 'Modal action has no target to open.',
-        };
+        // Wording lives in `utils/modalTargetDiagnostics` — the SAME source the
+        // console runtimes' `modalActionHandler` reads. This message was
+        // rewritten by PR #4764 while the two copies a console user actually
+        // reaches kept the pre-retirement text; objectui#4767 collapsed all
+        // three onto one constructor so the next contract change lands
+        // everywhere at once. Byte-identical to what #4764 settled on.
+        return { success: false, error: modalTargetRefusalMessage({ target: name }) };
       }
       return new Promise<ActionResult>((resolve) => {
         setState({ d, resolve });
