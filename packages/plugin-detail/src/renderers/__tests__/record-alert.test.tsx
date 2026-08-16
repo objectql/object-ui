@@ -311,9 +311,9 @@ describe('RecordAlertRenderer', () => {
  *   1. "Is a gate declared" is asked of the NORMALIZED value, not of the
  *      authored one, so `visible: false` is a declared gate (a boolean survives
  *      normalization) while `visible: ''` is not (it normalizes to `undefined`).
- *      This is the objectui#3492 / #3850 / #3862 口径, and asking it of the
- *      normalized value is what keeps `false` from being read as "no gate" the
- *      way a truthiness test would.
+ *      This is the reading the objectui#3492 / #3850 / #3862 family settled on,
+ *      and asking it of the normalized value is what keeps `false` from being
+ *      read as "no gate" the way a truthiness test would.
  *   2. This surface is fail-SOFT — no `throwOnError` — so a predicate that
  *      cannot be evaluated resolves to SHOWN, not hidden. That sets the
  *      direction of the objectui#3871 case below, and it is the opposite of
@@ -326,9 +326,9 @@ describe('RecordAlertRenderer', () => {
  * "should be hidden" assertion on its own, and "always shown" satisfies every
  * "should be shown" one. Where a hidden verdict is asserted, the SAME record
  * and the SAME schema are also mounted in the shown direction — the renderer
- * has three other `return null` paths (dismissed, empty record, and the
- * predicate gate itself), so "nothing rendered" needs the paired mount to mean
- * "the gate said no".
+ * has two other `return null` paths besides this gate (dismissed, and an empty
+ * record), so "nothing rendered" needs the paired mount to mean "the gate said
+ * no".
  */
 const UNVERIFIED = { id: 'rec_1', name: 'Acme', email_verified: false };
 const VERIFIED = { id: 'rec_1', name: 'Acme', email_verified: true };
