@@ -125,37 +125,48 @@ const dataSource = new ObjectStackAdapter({
 
 ```typescript
 import { PermissionProvider } from '@object-ui/permissions';
+import type { ObjectPermissionConfig, RoleDefinition } from '@object-ui/types';
 
-const roles = [
-  {
-    name: 'admin',
-    label: 'Administrator',
-    permissions: {
-      contacts: { actions: ['create', 'read', 'update', 'delete', 'export'] },
-      orders: { actions: ['create', 'read', 'update', 'delete'] },
-    },
-  },
-  {
-    name: 'viewer',
-    label: 'Viewer',
-    inherits: ['base'],  // Role inheritance
-    permissions: {
-      contacts: { actions: ['read'] },
-      orders: { actions: ['read'] },
-    },
-  },
+// A role definition carries identity and inheritance only. Its grants live in
+// `ObjectPermissionConfig.roles` below, keyed by object — that is the single
+// wired home for "what may this role do".
+const roles: RoleDefinition[] = [
+  { name: 'admin', label: 'Administrator' },
+  { name: 'viewer', label: 'Viewer', inherits: ['base'] },  // Role inheritance
 ];
 
-const permissions = [
+const permissions: ObjectPermissionConfig[] = [
   {
     object: 'contacts',
     publicAccess: ['read'],  // Public actions (no auth needed)
-    fieldPermissions: [
-      { field: 'salary', roles: ['admin'] },  // Only admin sees salary
-    ],
-    rowPermissions: [
-      { roles: ['owner'], filter: { ownerId: '${user.id}' }, actions: ['update', 'delete'] },
-    ],
+    // `roles` is required, and it is the level that decides *who* a rule
+    // applies to. Field and row rules nest under the role name; they carry
+    // no `roles` member of their own.
+    roles: {
+      admin: {
+        actions: ['create', 'read', 'update', 'delete', 'export'],
+      },
+      viewer: {
+        actions: ['read'],
+        // Only admin sees salary: the restriction is declared on the role
+        // it restricts, and admin simply has no entry for the field.
+        fieldPermissions: [{ field: 'salary', read: false, mask: '****' }],
+      },
+      owner: {
+        actions: ['read', 'update', 'delete'],
+        // `filter` is a string, and it is handed back to you verbatim.
+        rowPermissions: [
+          { filter: 'ownerId = ${user.id}', actions: ['update', 'delete'] },
+        ],
+      },
+    },
+  },
+  {
+    object: 'orders',
+    roles: {
+      admin: { actions: ['create', 'read', 'update', 'delete'] },
+      viewer: { actions: ['read'] },
+    },
   },
 ];
 
@@ -173,6 +184,25 @@ function App() {
   );
 }
 ```
+
+The keys under `roles` are matched against the `userRoles` you pass to the
+provider (after inheritance is expanded through the `roles` array), so a grant
+key such as `owner` above works whether or not it also has a `RoleDefinition`
+entry — the definitions array is read only to expand `inherits`.
+
+### Row filters are returned verbatim — nothing interpolates them
+
+`RowLevelPermission.filter` is a **string**, not a filter object, and
+`@object-ui/permissions` performs no interpolation on it anywhere. `check()`
+returns it as `rowFilter` and `getRowFilter()` returns it unchanged; the
+package has no substitution step at all.
+
+So a placeholder like `${user.id}` is **not** resolved for you. It arrives at
+your code exactly as written, and it is the caller's job either to substitute
+it — using whatever user scope that caller has — or to forward the string to a
+backend that understands the placeholder itself. This is also not a
+`SchemaRenderer` expression, so the expression scope described later in this
+guide does not govern it; the two look alike and are unrelated.
 
 ### usePermissions hook
 

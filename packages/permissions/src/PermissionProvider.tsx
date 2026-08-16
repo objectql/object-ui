@@ -57,8 +57,12 @@ export function PermissionProvider({
       const objectConfig = permissions.find((p) => p.object === object);
       if (!objectConfig) return true; // No config means no restrictions
 
+      // Same guard as `evaluator.ts` (objectui#4812): a config that omits the
+      // required `roles` must deny or fall through, never throw. Here the
+      // fall-through lands on this function's own documented default (allow),
+      // which is unchanged — the guard removes the crash, not the semantics.
       for (const role of userRoles) {
-        const roleConfig = objectConfig.roles[role];
+        const roleConfig = objectConfig.roles?.[role];
         if (roleConfig?.fieldPermissions) {
           const fieldPerm = roleConfig.fieldPermissions.find((fp) => fp.field === field);
           if (fieldPerm) {
@@ -87,7 +91,9 @@ export function PermissionProvider({
 
       const fieldPerms: FieldLevelPermission[] = [];
       for (const role of userRoles) {
-        const roleConfig = objectConfig.roles[role];
+        // Missing `roles` reports no restrictions rather than throwing
+        // (objectui#4812).
+        const roleConfig = objectConfig.roles?.[role];
         if (roleConfig?.fieldPermissions) {
           fieldPerms.push(...roleConfig.fieldPermissions);
         }
@@ -103,7 +109,9 @@ export function PermissionProvider({
       if (!objectConfig) return undefined;
 
       for (const role of userRoles) {
-        const roleConfig = objectConfig.roles[role];
+        // Missing `roles` reports no row filter rather than throwing
+        // (objectui#4812).
+        const roleConfig = objectConfig.roles?.[role];
         if (roleConfig?.rowPermissions?.length) {
           return roleConfig.rowPermissions[0].filter;
         }
