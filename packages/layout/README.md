@@ -58,14 +58,20 @@ import { AppShell } from '@object-ui/layout';
 
 ### PageHeader
 
-Page title block with an optional description, used at the top of a page's
+Page title block with an optional subtitle, used at the top of a page's
 content area.
 
 ```typescript
 import { PageHeader } from '@object-ui/layout';
 
-<PageHeader title="Dashboard" description="View your metrics" />
+<PageHeader title="Dashboard" subtitle="View your metrics" />
 ```
+
+`subtitle` is the only spelling for the secondary line — it is the key
+`@objectstack/spec/ui`'s `PageHeaderProps` declares. The legacy `description`
+alias this component used to read as well was retired in objectui#3789; stored
+metadata still carrying it is rewritten to `subtitle` at load time by the
+ADR-0087 D2 conversion `page-header-subtitle-alias`.
 
 > **Rendering a whole `page` node?** That belongs to `PageRenderer` in
 > `@object-ui/components`, which is what the `page` component key resolves to —

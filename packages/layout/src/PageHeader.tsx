@@ -28,12 +28,19 @@ import { useRecordContext, SchemaRenderer } from '@object-ui/react';
 export interface PageHeaderComponentProps extends React.HTMLAttributes<HTMLDivElement> {
     title: string;
     /**
-     * Optional secondary line under the title. Spec schemas use `subtitle`,
-     * the legacy console pages use `description` — both are supported and
-     * resolve {field.path} tokens against the current record context.
+     * Optional secondary line under the title. `subtitle` is the only spelling:
+     * it is the key `@objectstack/spec/ui`'s `PageHeaderProps` declares, and it
+     * resolves {field.path} tokens against the current record context.
+     *
+     * The legacy `description` alias this component used to read alongside it
+     * was retired in objectui#3789, once the ADR-0087 D2 conversion
+     * `page-header-subtitle-alias` was measured to reach EVERY spec-valid header
+     * position on the load path (regions, slots, and containers nested to any
+     * depth — objectstack#6775 / #6776 / PR #7034). Stored metadata authored with
+     * `description` is rewritten to `subtitle` before it ever reaches a renderer,
+     * so the second line survives without this side holding a second dialect open.
      */
     subtitle?: string;
-    description?: string;
     /**
      * Optional icon for the header chip. Accepts either a string Lucide icon
      * name (resolved via `LazyIcon`, the standard ObjectUI helper) or a
@@ -113,7 +120,6 @@ const interpolateTitle = (template: string | undefined, data: unknown): string =
 export function PageHeader({
     title,
     subtitle,
-    description,
     icon,
     action,
     actions,
@@ -138,9 +144,10 @@ export function PageHeader({
         : titleHadPlaceholder
             ? ''
             : title;
-    // `subtitle` wins over `description` when both are present so spec schemas
-    // (which use subtitle) override the legacy alias cleanly.
-    const secondaryRaw = subtitle ?? description;
+    // One spelling only (objectui#3789): the `description` alias retired once
+    // the load-path conversion was measured to rewrite it at every spec-valid
+    // header position, so there is no second key left to fall back to.
+    const secondaryRaw = subtitle;
     const secondaryHadPlaceholder =
         typeof secondaryRaw === 'string' && /\{[a-zA-Z0-9_.]+\}/.test(secondaryRaw);
     const interpolatedSecondary = interpolateTitle(secondaryRaw, ctx?.data);

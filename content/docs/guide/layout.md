@@ -226,8 +226,6 @@ Unresolvable tokens collapse to an empty string rather than leaking the raw temp
   showBack?: boolean,                // back arrow; inferred from record context when omitted
   children?: ComponentSchema[],      // rendered into the right-aligned slot; `actions` takes precedence
   className?: string,
-
-  description?: string               // legacy alias of `subtitle` — do not author, see below
 }
 ```
 
@@ -241,16 +239,17 @@ own `actions` metadata, which keeps the definitions in one place — or inline `
 objects. They are **not** `ComponentSchema` nodes: a `{ "type": "button", … }` entry
 renders nothing here.
 
-> **Write `subtitle`, not `description`.** `@objectstack/spec/ui`'s `PageHeaderProps` —
-> the contract for the canonical `page:header` node — declares
+> **Write `subtitle`. `description` is retired.** `@objectstack/spec/ui`'s
+> `PageHeaderProps` — the contract for the canonical `page:header` node — declares
 > `title / subtitle / icon / breadcrumb / actions / aria` and has **no** `description`,
 > and `page-header`'s registration declares only `title` and `subtitle` as authorable
-> inputs. `description` is still accepted in two places: protocol 17's ADR-0087 D2
-> conversion `page-header-subtitle-alias` rewrites it to `subtitle` on header nodes as the
-> stack loads, and this renderer reads it directly as a legacy alias (`subtitle` wins when
-> both are set) for nodes that reach it without passing through that loader. `subtitle` is
-> the only spelling that renders on **every** path, and the alias is on its way out
-> (objectui#3789) — see the [PageHeader reference](/docs/layout/page-header).
+> inputs. The renderer used to read `description` as well, as a legacy alias; objectui#3789
+> removed that read, so `subtitle` is now the only spelling this component draws. Stored
+> metadata written the old way is not stranded: protocol 17's ADR-0087 D2 conversion
+> `page-header-subtitle-alias` rewrites `description` to `subtitle` on header nodes as the
+> stack loads — at every position a header can occupy, regions and slots and containers
+> nested to any depth (objectstack#6775 / #6776) — and `os migrate meta` rewrites it at
+> rest. See the [PageHeader reference](/docs/layout/page-header).
 
 > **There is no `breadcrumbs` array.** The component reads no breadcrumb property of any
 > kind, in either spelling. The spec's `breadcrumb` is singular and a **boolean** — a

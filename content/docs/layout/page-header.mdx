@@ -33,9 +33,6 @@ interface PageHeaderComponentProps extends React.HTMLAttributes<HTMLDivElement> 
   schema?: { children?: unknown[]; actions?: unknown[]; properties?: { actions?: unknown[] } };
   children?: React.ReactNode;         // Additional content (right-aligned slot)
   className?: string;                 // Additional CSS classes
-
-  // DEPRECATED: legacy alias of `subtitle`. Still read, but do not author it.
-  description?: string;
 }
 ```
 
@@ -44,20 +41,28 @@ for the authored `page:header` node — declares `title / subtitle / icon / brea
 actions / aria` and has no `description`. Both `title` and `subtitle` interpolate
 `{field.path}` tokens against the surrounding record context.
 
-`description` is a **legacy alias** of `subtitle`, kept only for pages authored before
-`subtitle` existed; `subtitle` wins when both are set.
+`description` used to be a **legacy alias** of `subtitle` that this component read as
+well. It is **retired** (objectui#3789): the prop is gone and the renderer draws a
+secondary line only for `subtitle`.
 
-Upstream has already closed its half of this. The ADR-0087 D2 conversion entry
-`page-header-subtitle-alias` is **live** in protocol 17: the loader rewrites a header
-node's `properties.description` to `properties.subtitle` as the stack is loaded. An
-already-canonical `subtitle` still wins, and a `description` it shadows is left exactly
-as authored rather than the loader choosing between two different second lines.
+Nothing is lost by that, because the normalization moved upstream where it belongs. The
+ADR-0087 D2 conversion entry `page-header-subtitle-alias` is **live** in protocol 17: the
+loader rewrites a header node's `properties.description` to `properties.subtitle` as the
+stack is loaded, so a page stored with the old key still renders its second line. An
+already-canonical `subtitle` wins, and a `description` it shadows is left exactly as
+authored rather than the loader choosing between two different second lines.
 
-Retiring the prop on this side is tracked separately, in objectui#3789. The gate there is
-a measurement rather than a date: every path by which a `page-header` node reaches this
-renderer has to be shown to go through a loader that actually performs that rewrite. Until
-objectui#3789 lands, the prop stays and this renderer keeps reading it — and new pages
-write `subtitle`.
+The retirement waited on a measurement rather than a date: every position a `page-header`
+node can occupy had to be shown to pass through that rewrite. It did not, at first — the
+conversion walk reached only `regions[].components[]`, leaving `slots.header` and
+container-nested headers unconverted (objectstack#6775). With that walk widened
+(objectstack#6776 for slots, PR #7034 for containers nested to any depth), all seven
+positions convert; `packages/layout/src/__tests__/page-header-subtitle-conversion-coverage.test.ts`
+re-measures them on every run against the spec build this repo consumes.
+
+If you are hand-feeding schema JSON to the renderer without going through an ObjectStack
+loader, write `subtitle` — that is the only spelling that renders on every path. Stored
+metadata is migrated in place by `os migrate meta`.
 
 `actions` is delegated to the `record:quick_actions` widget with
 `location: 'record_header'`, so authors get the standard toolbar (icons, overflow menu,
@@ -215,8 +220,9 @@ The Page component includes built-in PageHeader support:
 
 Note that `description` here is **the Page component's own prop**, not the header's — it
 renders the page's prose under the page title and is a declared input of the `page`
-renderer. It is unrelated to the legacy `description` alias above; do not rename it to
-`subtitle`.
+renderer. It is unrelated to the `description` alias retired above: that one was a second
+spelling of the header's `subtitle`, this one is the `page` node's own live key. Do not
+rename it to `subtitle`, and do not assume objectui#3789 touched it.
 
 ## Complete Example
 

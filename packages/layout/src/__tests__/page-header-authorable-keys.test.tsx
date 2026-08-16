@@ -28,18 +28,23 @@
  * does not declare fails for the same reason `description` did, without anyone
  * having to remember this issue.
  *
- * SEQUENCING — read before "finishing the job". `PageHeader.tsx` still READS
- * `subtitle ?? description` at runtime, and the last test in this file pins
- * that on purpose. The alias exists precisely for out-of-repo consumer schemas,
- * so "no in-repo author writes `description`" (true, verified) says nothing
- * about whether anyone does; dropping the read today would delete an external
- * page's second line while its title kept rendering — the least reportable
- * failure there is. The read goes away together with the ADR-0087 D2 conversion
- * entry `page-header-subtitle-alias` (`description` → `subtitle` rewritten at
- * load time), which lives in the framework repo. Narrowing the DECLARATION did
- * not need to wait on it and changes no runtime behaviour; deleting the READ
- * does. When that conversion lands, delete the fallback AND the last test here
- * in one change.
+ * SEQUENCING — SETTLED (objectui#3789). This file used to end with two tests
+ * pinning the runtime `subtitle ?? description` read, because the alias existed
+ * precisely for out-of-repo consumer schemas: "no in-repo author writes
+ * `description`" (true, verified) said nothing about whether anyone does, and
+ * dropping the read while metadata still carried the key would have deleted an
+ * external page's second line while its title kept rendering — the least
+ * reportable failure there is. The gate was a measurement, not a date: every
+ * spec-valid position a `page-header` node can occupy had to be shown to pass
+ * through a loader that performs the ADR-0087 D2 rewrite
+ * `page-header-subtitle-alias` (`description` → `subtitle`). It did not, twice:
+ * the conversion walker reached only `regions[].components[]`
+ * (objectstack#6775). After objectstack#6776 (slots) and PR #7034 (containers
+ * nested to any depth), all seven positions convert — re-measured against the
+ * spec build this repo consumes — so the read and its two pins were deleted in
+ * the same change. The measurement itself did not go away with them: it is a
+ * standing pin in `page-header-subtitle-conversion-coverage.test.ts`, which goes
+ * red if that reach ever narrows again.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -160,7 +165,12 @@ describe('the `page-header` registration declares the keys the renderer reads (o
     expect(declaredInputNames('page-header')).not.toContain('breadcrumb');
   });
 
-  it.each(['showBack', 'action', 'description'])(
+  // `description` used to ride in this list, on the same "read by the renderer,
+  // not a spec key" footing. objectui#3789 removed the read, so it no longer
+  // belongs here — and nothing is lost by dropping it, because the assertion
+  // that the DECLARATION never re-advertises it is stated outright above
+  // ("does not advertise `description` on %s"), which is the guard that matters.
+  it.each(['showBack', 'action'])(
     'does not declare `%s` — read by the renderer, but no spec key exists',
     (name) => {
       expect(specKeys.has(name)).toBe(false);
@@ -169,19 +179,27 @@ describe('the `page-header` registration declares the keys the renderer reads (o
   );
 });
 
-describe('the runtime `description` fallback stays until the conversion entry lands', () => {
-  // NOT an endorsement of the alias — a guard on the ORDER. Removing this read
-  // before `page-header-subtitle-alias` exists is the deletion route that was
-  // considered and rejected: external schemas authored with `description` would
-  // lose their subtitle silently. Delete this test in the same change that
-  // deletes the fallback, once the conversion rewrites the key upstream.
-  it('still renders a legacy `description` as the secondary line', () => {
-    render(<PageHeader title="Customer Details" description="View and edit customer information" />);
-    expect(screen.getByText('View and edit customer information')).toBeTruthy();
+describe('the retired `description` alias is not read at runtime (objectui#3789)', () => {
+  // The other half of the retirement, asserted on the RENDERED output rather
+  // than the declaration surface: `description` is now an ordinary unknown
+  // prop. `PageHeaderComponentProps` extends `HTMLAttributes<HTMLDivElement>`,
+  // so passing it does not fail `tsc` — it is spread onto the wrapper div —
+  // which is exactly why the assertion has to be "the text does not render"
+  // rather than "the type rejects it".
+  it('renders no secondary line for a lone `description`', () => {
+    render(
+      // @ts-expect-error — the retired alias is not a prop of this component.
+      <PageHeader title="Customer Details" description="View and edit customer information" />,
+    );
+    expect(screen.getByText('Customer Details')).toBeTruthy();
+    expect(screen.queryByText('View and edit customer information')).toBeNull();
   });
 
-  it('lets the spec key win when both are present', () => {
-    render(<PageHeader title="Customer Details" subtitle="From the spec" description="From the alias" />);
+  it('renders `subtitle` and only `subtitle` when both are present', () => {
+    render(
+      // @ts-expect-error — the retired alias is not a prop of this component.
+      <PageHeader title="Customer Details" subtitle="From the spec" description="From the alias" />,
+    );
     expect(screen.getByText('From the spec')).toBeTruthy();
     expect(screen.queryByText('From the alias')).toBeNull();
   });

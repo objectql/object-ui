@@ -38,15 +38,18 @@ export function registerLayout() {
   // `page:header` calls `subtitle`, and metadata authored against it renders
   // a subtitle here and nothing at all under the canonical key.
   //
-  // The runtime `subtitle ?? description` fallback in `PageHeader.tsx` stays
-  // for now ON PURPOSE: this alias exists for out-of-repo consumer schemas, so
-  // "no in-repo author writes `description`" is not evidence that nobody does,
-  // and dropping the read would silently delete their second line. That read
-  // is retired together with an ADR-0087 D2 conversion entry
-  // (`page-header-subtitle-alias`, `description` → `subtitle` at load time),
-  // which lives in the framework repo. Narrowing the DECLARATION is
-  // unconditional and independent of that: it breaks no consumer, and it stops
-  // the registry from teaching the wrong key in the meantime.
+  // The runtime `subtitle ?? description` fallback in `PageHeader.tsx` is gone
+  // too (objectui#3789). It was kept for out-of-repo consumer schemas — "no
+  // in-repo author writes `description`" was never evidence that nobody does —
+  // and it retired only once the ADR-0087 D2 conversion entry
+  // `page-header-subtitle-alias` (`description` → `subtitle` at load time, in
+  // the framework repo) was MEASURED to reach every spec-valid header position:
+  // regions, `slots.*` (objectstack#6776) and containers nested to any depth,
+  // `properties.children` / `items[].children` / `body` / `footer`
+  // (objectstack#6775, PR #7034). That measurement is now a standing pin —
+  // `__tests__/page-header-subtitle-conversion-coverage.test.ts` — so a spec
+  // build whose conversion reach narrows again goes red HERE, where the missing
+  // fallback would otherwise turn into a silently dropped second line.
   //
   // `isContainer: true` is the other half of the same principle, and it is NOT
   // an extension of the spec's authoring surface (objectui#3900). `children` is
@@ -95,9 +98,11 @@ export function registerLayout() {
   //     renderer, which is why it sits in `UNPUBLISHED_EXEMPTIONS` in
   //     `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts` while
   //     `icon` gets declared HERE — different renderers, opposite read facts.)
-  //   - `showBack` / `action` / `description` — this renderer reads them, the
-  //     spec has no such keys. Declaring one would publish a second dialect,
-  //     which is the whole point of the objectui#3226 narrowing above.
+  //   - `showBack` / `action` — this renderer reads them, the spec has no such
+  //     keys. Declaring one would publish a second dialect, which is the whole
+  //     point of the objectui#3226 narrowing above. (`description` used to sit
+  //     in this line for the same reason; objectui#3789 removed the read, so it
+  //     is no longer a key this renderer honours in any spelling.)
   //   - `aria` — spec declares it; omitted for the reason every block omits it
   //     (accessibility escape hatch, not a layout choice).
   ComponentRegistry.register('page-header', PageHeader, {
