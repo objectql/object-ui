@@ -1788,6 +1788,26 @@ function ColorPickerWidget({ value, onChange, readOnly, schema, fieldSpec }: Wid
   if (enumOpts && enumOpts.length) {
     return (
       <ColorVariantPicker
+        // Self-owned name, not the host label's IDREF (objectui#4010).
+        //
+        // `MetadataField` renders `<Label htmlFor={id}>` above this widget and
+        // hands it the same `id`. That works for a labelable control — the free
+        // colour branch below is one — but this branch renders a
+        // `div[role="radiogroup"]`, which no `<label for>` can name. The host
+        // cannot publish an `id` for us to reference instead, because WHICH of
+        // these two branches renders is decided HERE, from `schema`/`fieldSpec`,
+        // after that label is already written; teaching the host to decide it
+        // needs a `labelling` declaration per widget (the shape
+        // `packages/components`' form renderer already has, objectui#3961) and
+        // is filed as objectui#4871 rather than guessed at here.
+        //
+        // So the group carries its own name, exactly as this file's other
+        // unassociated groups do (`FilterElementWidget`'s radiogroup, and the
+        // free-colour `<input type="color">` below). The text is the host's own
+        // first-precedence label source so the two agree wherever it is set —
+        // WCAG 2.5.3 (Label in Name) is about the visible text, not a generic
+        // stand-in — falling back to this file's existing constant.
+        ariaLabel={fieldSpec?.label ?? (typeof schema?.title === 'string' ? schema.title : undefined) ?? 'Color'}
         value={value == null ? undefined : String(value)}
         onChange={(v) => onChange(v)}
         disabled={readOnly}

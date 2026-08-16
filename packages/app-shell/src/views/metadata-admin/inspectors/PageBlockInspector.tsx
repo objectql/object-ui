@@ -194,6 +194,47 @@ function GenericPropField({ name, value, onCommit, disabled, locale }: {
   return <InspectorJsonField label={name} value={value} onCommit={onCommit} disabled={disabled} locale={locale} />;
 }
 
+/**
+ * A `color` block property: the swatch row plus the visible label that names it
+ * (objectui#4010).
+ *
+ * Its own component, and not three lines inside `renderField`, for the id:
+ * `role="radiogroup"` is not a labelable element, so the label has to name the
+ * group by IDREF (`aria-labelledby`) rather than by `for`, and that id is minted
+ * with `React.useId()` HERE because `renderField` runs in a LOOP over array
+ * items (`keyPrefix`). A caller-derived id — the field name, the `keyPrefix`ed
+ * key — is exactly what repeats across two array rows carrying the same
+ * property, and a duplicated id resolves silently to the FIRST group
+ * (objectui#3994's reasoning for minting inside the atoms, and hooks cannot be
+ * called from `renderField` itself: it is a function run in a loop, not a
+ * component).
+ *
+ * Unlike `DashboardWidgetInspector`'s `widget-color` this label never carried a
+ * `for` at all, so nothing dangled here — the group was simply anonymous, with
+ * the visible text beside it owned by no one.
+ */
+function ColorPropField({ label, value, onChange, disabled, options }: {
+  label: string;
+  value: string | undefined;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  options?: Array<{ value: string; label?: string }>;
+}) {
+  const labelId = React.useId();
+  return (
+    <div className="space-y-1">
+      <Label id={labelId} className="text-xs text-muted-foreground">{label}</Label>
+      <ColorVariantPicker
+        ariaLabelledBy={labelId}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        options={options}
+      />
+    </div>
+  );
+}
+
 /** Block `properties` keys whose values are nested block trees — these are
  *  edited visually on the canvas, so they are excluded from the generic
  *  property editor to avoid two conflicting editors for the same data. */
@@ -471,15 +512,14 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
         );
       case 'color':
         return (
-          <div key={k} className="space-y-1">
-            <Label className="text-xs text-muted-foreground">{fieldLabel(f.label)}</Label>
-            <ColorVariantPicker
-              value={read(f.name) != null ? String(read(f.name)) : undefined}
-              onChange={(v) => write(f.name, v)}
-              disabled={readOnly}
-              options={f.options ? optionLabels(f.options) : undefined}
-            />
-          </div>
+          <ColorPropField
+            key={k}
+            label={fieldLabel(f.label)}
+            value={read(f.name) != null ? String(read(f.name)) : undefined}
+            onChange={(v) => write(f.name, v)}
+            disabled={readOnly}
+            options={f.options ? optionLabels(f.options) : undefined}
+          />
         );
       case 'select':
         return (

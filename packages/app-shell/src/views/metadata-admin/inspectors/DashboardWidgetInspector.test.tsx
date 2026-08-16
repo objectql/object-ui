@@ -117,10 +117,10 @@ describe('DashboardWidgetInspector — dataset binding', () => {
     // Exactly one element answers that id — the trigger, not a wrapper.
     expect(document.querySelectorAll(`[id="${forId}"]`)).toHaveLength(1);
 
-    // Scoped to this `Field` deliberately: a panel-wide "no dangling for" sweep
-    // would also catch `widget-color`, whose `ColorVariantPicker` accepts no id
-    // either. That is a different component and out of this issue's scope — it
-    // is filed separately rather than fixed here or asserted broken here.
+    // This assertion stays scoped to the Dataset `Field`; the panel-wide
+    // "no dangling for" sweep it deliberately did not perform — because
+    // `widget-color` would have failed it — now lives in the describe block
+    // below, with `widget-color` fixed (objectui#4010).
   });
 
   it('disables every picker when readOnly', () => {
@@ -128,6 +128,72 @@ describe('DashboardWidgetInspector — dataset binding', () => {
     const combos = screen.getAllByRole('combobox');
     expect(combos.length).toBeGreaterThan(0);
     combos.forEach((c) => expect(c).toBeDisabled());
+  });
+});
+
+/**
+ * objectui#4010 — the Color field, the last `Field` in this panel whose child
+ * could not answer to the wrapper's `id`.
+ *
+ * `Field` renders one of two shapes now. Five fields keep `<Label htmlFor={id}>`
+ * over a labelable control carrying that id. `widget-color` wraps a
+ * `div[role="radiogroup"]`, which no `for` can name, so its label publishes
+ * `widget-color-label` and the group answers `aria-labelledby`. Before the fix
+ * it published `htmlFor="widget-color"` at a control that accepted no id: an
+ * IDREF resolving to nothing, which reads to tooling as an association that is
+ * closed.
+ */
+describe('DashboardWidgetInspector — the Color group is named (objectui#4010)', () => {
+  /** Every `label[for]` in the panel, with whether its IDREF resolves. */
+  const danglingFors = () =>
+    Array.from(document.querySelectorAll('label[for]'))
+      .filter((l) => !document.getElementById(l.getAttribute('for')!))
+      .map((l) => ({ text: (l.textContent ?? '').trim(), for: l.getAttribute('for') }));
+
+  it('leaves no `for` in the whole panel pointing at nothing', () => {
+    // The panel-wide sweep, now that every `Field` can honour its own contract.
+    // Scoped per-field assertions cannot catch a SIXTH field added later with
+    // the same defect; this one can, which is why it is written wide.
+    renderWidget({ dataset: 'sales_pipeline' });
+    expect(danglingFors()).toEqual([]);
+  });
+
+  it('names the swatch group with the visible Color Variant label, by IDREF', () => {
+    renderWidget();
+
+    const label = screen.getByText('Color Variant');
+    const group = screen.getByRole('radiogroup');
+
+    // The label publishes an id and drops its `for` — a group cannot be the
+    // target of a labelable association.
+    expect(label).toHaveAttribute('id', 'widget-color-label');
+    expect(label).not.toHaveAttribute('for');
+
+    const idref = group.getAttribute('aria-labelledby');
+    expect(idref).toBe('widget-color-label');
+    // Resolved to a NODE, and to THAT node: a name-only assertion would pass on
+    // an IDREF aimed at any same-texted element in the panel.
+    expect(document.getElementById(idref!)).toBe(label);
+    expect(document.querySelectorAll(`[id="${idref}"]`)).toHaveLength(1);
+    expect(group).toHaveAccessibleName('Color Variant');
+  });
+
+  it('no longer publishes the bare `widget-color` id to anyone', () => {
+    // The pre-fix `for` target. Nothing carries it now — and nothing should
+    // start to: putting it on the radiogroup would resolve the IDREF while
+    // still naming nothing, the half-fix this issue refused.
+    renderWidget();
+    expect(document.getElementById('widget-color')).toBeNull();
+  });
+
+  it('keeps naming the group under zh-CN, with no second string to translate', () => {
+    // The IDREF carries whatever the label rendered, so the accessible name is
+    // translated by the same `t()` call the visible text already went through.
+    renderWidget({}, { locale: 'zh-CN' });
+    const group = screen.getByRole('radiogroup');
+    const label = document.getElementById(group.getAttribute('aria-labelledby')!);
+    expect(label).toBe(screen.getByText('颜色'));
+    expect(group).toHaveAccessibleName('颜色');
   });
 });
 
