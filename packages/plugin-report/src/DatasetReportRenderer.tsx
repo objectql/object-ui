@@ -71,7 +71,7 @@ import {
   type DatasetResultField,
   type DatasetDrillRange,
 } from '@object-ui/core';
-import { useSafeFieldLabel, useSafeTranslate, useDisplayLocale } from '@object-ui/i18n';
+import { useSafeFieldLabel, useSafeTranslate, useDisplayLocale, useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { mergeFilters } from './mergeFilters';
 import { useDatasetDimensionLabels } from './useDatasetDimensionLabels';
 
@@ -643,6 +643,37 @@ function useRegistryComponent(
 }
 
 /**
+ * The author's per-chart override for ONE measure's display name — the entry of
+ * `chart.series[]` whose `name` IS that measure (objectui#4020, level ①).
+ *
+ * `ReportChartSchema.series[]` has declared `{ name, label? }` since rc.1, but
+ * the renderer never read it: the chart was handed `series: [{ dataKey }]` with
+ * no label at all, so an authored `label` was inert metadata and the measure
+ * printed as its raw `name`. Declared is now enforced.
+ *
+ * The FIRST entry naming the measure wins, the same ruling the dashboard's
+ * `mergeAuthoredPresentation` makes for its own `chartConfig.series` — a later
+ * duplicate cannot silently re-label a series the author already described.
+ *
+ * `label` is the spec's `I18nLabel` (`string | { en, 'zh-CN', … }`), so it goes
+ * through `pickLocalized`, the repo's one resolver for that shape — a
+ * first-string-wins pick would put the English limb of a translated label on a
+ * zh-CN console, which is the very defect class this card closes. An entry that
+ * names the measure but carries no usable `label` returns `undefined` and falls
+ * through to the dataset's own measure label, exactly as an absent entry does.
+ */
+function authoredSeriesLabel(series: unknown, measure: string, language: string | undefined): string | undefined {
+  if (!Array.isArray(series) || !measure) return undefined;
+  for (const entry of series as unknown[]) {
+    if (!entry || typeof entry !== 'object') continue;
+    const { name, label } = entry as { name?: unknown; label?: unknown };
+    if (name !== measure) continue;
+    return pickLocalized(label, language) || undefined;
+  }
+  return undefined;
+}
+
+/**
  * Render a report's embedded `chart` (ADR-0021) by running its OWN dataset
  * query — the `xAxis` dimension grouped, the `yAxis` measure aggregated — and
  * feeding the rows to the registered generic chart component (plugin-charts).
@@ -696,6 +727,12 @@ function DatasetReportChart({
   // and follows the display locale. (The series charts render their own labels
   // through the chart component, not through `formatMeasure`.)
   const displayLocale = useDisplayLocale();
+  // objectui#4020 — the UI LANGUAGE an authored `series[].label` is picked in.
+  // Deliberately not `displayLocale`: that one prefers the tenant's REGIONAL
+  // locale (ADR-0053) because it feeds `Intl` number formatting, and a workspace
+  // formatting numbers as `de-DE` while its console runs zh must still read the
+  // zh limb of a translated label.
+  const { language } = useObjectTranslation();
   // objectui#4330 — the embedded chart plots the SAME dimension the table
   // beneath it groups by, so it takes the same label map. Leaving it out would
   // put the two spellings of one value on one screen, which is the defect this
@@ -738,8 +775,25 @@ function DatasetReportChart({
   // On error or empty, fall back silently to the table beneath.
   if (state.status === 'error' || state.rows.length === 0) return null;
 
+  const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
+  // The measure's display name, resolved ONCE for every branch below
+  // (objectui#4020). Three levels, highest first:
+  //
+  //  1. `chart.series[]`'s entry naming this measure — the spec's own per-chart
+  //     override (see `authoredSeriesLabel`);
+  //  2. the bound dataset's `measures[].label`, which reaches the client as the
+  //     result field's `label` — `headerLabel` reads exactly that (then the i18n
+  //     field-label convention), so the chart and the summary table BENEATH IT
+  //     print one string for one measure instead of two;
+  //  3. the measure NAME, `headerLabel`'s own last resort.
+  //
+  // Level ② is what the dashboard's `buildChartSeries` already did for its own
+  // chart series (`fields[].label`), and what the table here has always done;
+  // the report chart was the one surface that consulted neither and shipped the
+  // raw `name` to a fully-translated console.
+  const measureLabel = authoredSeriesLabel(chart.series, yAxis, language) ?? headerLabel(yAxis);
+
   if (plan.kind === 'single_value') {
-    const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
     const mf = measureField(yAxis);
     return (
       <div className="rounded-md border bg-card p-3" data-testid="dataset-report-metric">
@@ -748,7 +802,7 @@ function DatasetReportChart({
           <span className="text-2xl font-semibold tabular-nums">
             {formatMeasure(state.rows[0]?.[yAxis], mf?.format, mf?.currency, mf?.percentScale, displayLocale)}
           </span>
-          <span className="text-xs text-muted-foreground">{headerLabel(yAxis)}</span>
+          <span className="text-xs text-muted-foreground">{measureLabel}</span>
         </div>
       </div>
     );
@@ -767,7 +821,12 @@ function DatasetReportChart({
           chartType: plan.chartType,
           data: relabelDimensions(state.rows, dimensionLabels),
           xAxisKey: xAxis,
-          series: [{ dataKey: yAxis }],
+          // One series, carrying its display name. `ChartRenderer` turns a
+          // series `label` into `config[dataKey].label`, which is the single
+          // input the legend, the mark's tooltip name and the single-value
+          // caption all read — so legend and tooltip follow this by
+          // construction rather than by a second resolution.
+          series: [{ dataKey: yAxis, label: measureLabel }],
           height: typeof chart.height === 'number' ? chart.height : 280,
           // Render deterministically (no rAF entrance animation): reports are
           // often viewed in a background tab or exported, where an animated
