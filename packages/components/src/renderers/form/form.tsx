@@ -921,13 +921,19 @@ ComponentRegistry.register('form',
         const name = f?.name;
         if (!name) continue;
         const resolvedType = (f as any).widget || f.type;
-        if (
-          resolvedType !== 'select' &&
-          resolvedType !== 'radio' &&
-          resolvedType !== 'multiselect' &&
-          resolvedType !== 'checkboxes'
-        )
-          continue;
+        // `field:select` and `select` name the SAME field kind, so this clear
+        // must recognise both spellings — the object-form path
+        // (`mapFieldTypeToFormType`) emits the prefixed id, hand-written SDUI
+        // schemas the bare one. Comparing the RAW string recognised only the
+        // bare form, so every option field coming from an object schema fell
+        // out of this effect entirely: its parent could narrow the offered set
+        // and the stale value was never dropped, submitting the "china +
+        // california" pair this effect exists to prevent (objectui#4014).
+        // `normalizeFieldType` + the shared set is exactly what the render path
+        // below already does for `isOptionField` (objectui#3231) — the two
+        // readers of "is this an option field?" must not disagree.
+        if (typeof resolvedType !== 'string') continue;
+        if (!CASCADE_OPTION_FIELD_TYPES.has(normalizeFieldType(resolvedType))) continue;
         const opts = (f as any).options as SelectOption[] | undefined;
         if (!opts || opts.length === 0) continue;
         const dependsOn = f.dependsOn;
