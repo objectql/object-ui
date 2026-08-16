@@ -237,67 +237,57 @@ For the full expression syntax reference (operators, formula functions, security
 
 ## CSS theming template for third-party apps
 
-Third-party projects must set up Tailwind + Shadcn CSS variables correctly. Without this, Object UI components render unstyled.
+Object UI components render unstyled unless the app's Tailwind entry brings in the
+packages' styles. How it does that depends on where the packages come from — installed
+from npm, or linked inside the ObjectUI workspace. The two cases are not interchangeable.
+
+### Installed from npm (the third-party case)
+
+Import the published stylesheets. There is no `tailwind.config.js` step, and no scanning
+of `node_modules`.
 
 **Required `src/index.css`:**
 ```css
 @import "tailwindcss";
+@import "@object-ui/components/style.css";
+@import "@object-ui/fields/style.css";
+```
 
-/* Scan ObjectUI packages so Tailwind generates their utility classes */
+Each `style.css` is a real package export, mapped to that package's `dist/index.css` and
+compiled at build time from the package's own sources. The components sheet carries every
+utility its components use **and** the `@theme` block those utilities are built on, so the
+whole Shadcn palette and the `:root` / `.dark` token defaults arrive with that one import
+— you do not restate those tokens in a `@theme` block of your own. The order is
+load-bearing: the fields sheet is a supplement compiled against the components theme with
+every rule that sheet already ships subtracted from it, so imported first or alone its
+rules resolve against tokens that are not there yet. `@object-ui/fields` is a separate
+dependency, not a transitive one — install it, or leave that second line out.
+
+Do **not** point Tailwind at the ObjectUI packages inside `node_modules`, with neither a
+v4 `@source` line nor a v3 `content` entry: the published tarballs carry `dist` only, and
+the `@theme` block the themed utilities come from lives in package source, which is not
+published. To recolour, override the token values (Shadcn HSL channel triples) rather than
+the utilities — see `content/docs/guide/theming.md`.
+
+### Inside the ObjectUI workspace
+
+Here the packages are linked to their sources, so Tailwind scans them directly and the app
+owns the theme declaration:
+
+```css
+@import "tailwindcss";
+
+/* Workspace packages are linked to their sources — scan them */
 @source "../../packages/components/src/**/*.tsx";
 @source "../../packages/fields/src/**/*.tsx";
 @source "../../packages/layout/src/**/*.tsx";
 @source "../../packages/react/src/**/*.tsx";
-@source "../../node_modules/@object-ui/components/src/**/*.tsx";
-@source "../../node_modules/@object-ui/fields/src/**/*.tsx";
-
-/* Map Shadcn CSS variables to Tailwind 4 color tokens */
-@theme {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-}
-
-/* Light mode CSS variables (Shadcn defaults) */
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --radius: 0.625rem;
-}
 ```
 
-Adjust `@source` paths based on your project's location relative to `node_modules` or the monorepo root.
+Adjust those paths to your app's location relative to the monorepo root, and add a
+`@source` line per plugin package the app renders. Because the app owns the Tailwind entry
+in this case, it also declares the `@theme` mapping and the `:root` token values;
+`apps/console/src/index.css` is the maintained reference for both.
 
 ## Plugin integration in page schemas
 
@@ -484,7 +474,7 @@ It exposes `ObjectRenderer`, `PageRenderer`, `DashboardRenderer` and matching pr
 - Skipping docs updates for newly introduced schema patterns.
 - Putting expression values in top-level `value`/`label` fields instead of `props.*`.
 - Missing Shadcn CSS variables — components render but look completely unstyled.
-- Forgetting `@source` directives in Tailwind config — utility classes not generated for ObjectUI packages.
+- Forgetting the `@object-ui/components/style.css` and `@object-ui/fields/style.css` imports, or importing them in the wrong order — ObjectUI's utilities never reach the page.
 
 ## Fast triage playbook for ambiguous requests
 
