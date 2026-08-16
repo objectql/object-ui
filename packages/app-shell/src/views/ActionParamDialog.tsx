@@ -14,6 +14,11 @@
  * uploads) and `SchemaRendererContext` (dataSource for lookup/user pickers)
  * come from the host view, exactly as the previous `LookupField` reuse did.
  *
+ * One thing is threaded rather than ambient, and deliberately so: the record an
+ * option widget resolves its per-option `visibleWhen` against. The dialog is a
+ * small form, so its own in-progress `values` are that record — see
+ * `CASCADE_OPTION_WIDGET_TYPES` below (objectui#3765).
+ *
  * Returns collected param values or null on cancel.
  */
 
@@ -199,6 +204,28 @@ function WidgetFallback() {
   return <div className="h-9 w-full animate-pulse rounded-md bg-muted" aria-hidden="true" />;
 }
 
+/**
+ * Widget keys whose OFFERED option set is re-resolved against a live record by
+ * the shared cascading-options evaluator (`useCascadingOptions` →
+ * `resolveCascadingOptions`): each option may carry a `visibleWhen` predicate
+ * read against `record.*` (ADR-0058 / objectui#2284).
+ *
+ * Deliberately the same four keys the object form threads `dependentValues` to
+ * (`CASCADE_OPTION_FIELD_TYPES` in `components/renderers/form/form.tsx`) — the
+ * dialog and the form must feed one evaluator the same way or the two surfaces
+ * drift on what "the record" means. It is an ALLOW-LIST, not a blanket
+ * pass-through, because `dependentValues` is also the channel two widget-hint
+ * pickers read a specific SIBLING KEY from (`filter-condition` reads
+ * `object_name`, `recipient-picker` reads `recipient_type`) and the lookup
+ * family filters its query by it; feeding those from dialog params is a
+ * different wiring question than the one ruled here.
+ *
+ * `select` + `multiple: true` is not listed separately: `SelectField` delegates
+ * to `MultiSelectField` with the whole prop object, so the key it resolves
+ * under (`select`) is the one that must carry the record.
+ */
+const CASCADE_OPTION_WIDGET_TYPES = new Set(['select', 'multiselect', 'radio', 'checkboxes']);
+
 export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProps) {
   const { t, language } = useObjectTranslation();
   const [values, setValues] = useState<Record<string, any>>({});
@@ -305,6 +332,29 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
             const uploadProps = isUploadWidget
               ? { onUploadingChange: (u: boolean) => setUploading((prev) => ({ ...prev, [param.name]: u })) }
               : {};
+            // The dialog's own in-progress values ARE the record its option
+            // predicates are resolved against (objectui#3765, maintainer ruling
+            // 2026-08-11, Option B: "the dialog is a small form"). Until this
+            // prop existed the dialog passed nothing, so `useCascadingOptions`
+            // fell through to `SchemaRendererContext`'s `formValues` / `data` —
+            // the OUTER page's record — and a `visibleWhen` written against a
+            // sibling PARAM could never see the value the user had just picked
+            // in this same dialog. The evaluator is untouched: it already reads
+            // `dependentValues ?? formValues ?? data`; this is the supply half
+            // that was missing.
+            //
+            // Ruled cost, recorded rather than worked around: because a
+            // supplied record wins that chain outright, a predicate naming a
+            // ROW field the dialog has no param for (`record.owner_id`) no
+            // longer resolves against the host page here. It becomes
+            // unresolvable, which `resolveVisibleOptions` fails OPEN — the
+            // option is offered, never wrongly hidden. Merging the two records
+            // (`{ ...row, ...values }`) was option C on the card and was NOT
+            // ruled: it invents a third scope dialect that would have to be
+            // written into the contract first.
+            const cascadeProps = CASCADE_OPTION_WIDGET_TYPES.has(field.type)
+              ? { dependentValues: values }
+              : {};
             // A lookup-typed param that fell back to text (no referenceTo)
             // keeps the "paste an ID" placeholder/help hints.
             const isLookupParam = param.type === 'lookup' || param.type === 'reference';
@@ -393,6 +443,7 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
                   // whitelist, so this reaches the real control.
                   aria-required={param.required || undefined}
                   {...uploadProps}
+                  {...cascadeProps}
                 />
               </Suspense>
 
