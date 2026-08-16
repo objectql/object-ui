@@ -48,16 +48,20 @@ interface AppShellProps {
 
 ### Responsive Sidebar
 
-The AppShell includes a responsive sidebar that:
+The AppShell does not build a sidebar of its own: it renders the node you pass in
+`sidebar`, wrapped in a `SidebarProvider`. Pass a `Sidebar`-based node (`SidebarNav`, or
+your own) and you get a sidebar that:
 - Collapses on mobile devices
-- Can be toggled via hamburger menu
+- Can be toggled with the `Cmd/Ctrl + B` keyboard shortcut, or by a toggle button you
+  render yourself — see Collapsible Sidebar below
 - Persists state across page navigations
 - Supports smooth animations
 
 ### Header Bar
 
-The header bar provides:
-- Sidebar toggle button
+The header renders your `navbar` content and nothing else — the AppShell adds no controls
+of its own to it, in particular **no sidebar toggle**. If you want one, render it inside
+`navbar` (see Collapsible Sidebar below). The header itself provides:
 - Custom navbar content area
 - Fixed height: `h-14` (3.5rem / 56px) at every breakpoint — there is no responsive height variant
 - Border bottom separator
@@ -76,7 +80,7 @@ The main content area features:
 
 ```
 ┌─────────────────────────────────────┐
-│     Header (Sidebar Toggle + Nav)  │
+│     Header (your navbar content)    │
 ├──────────┬──────────────────────────┤
 │          │                          │
 │ Sidebar  │   Main Content Area      │
@@ -100,10 +104,22 @@ Control whether sidebar is open by default:
 
 ### Collapsible Sidebar
 
-The sidebar can be toggled via:
-- Hamburger menu button (always visible)
-- Keyboard shortcuts (when implemented)
-- Programmatic control
+The AppShell renders no toggle button of its own. What it does give you is the
+`SidebarProvider` wrapped around both slots, so the sidebar you supply can be toggled via:
+- The `Cmd/Ctrl + B` keyboard shortcut, provided by `SidebarProvider`
+- Programmatic control — `useSidebar().toggleSidebar()` from any component inside the shell
+- A toggle button you render yourself; it belongs in the `navbar` slot:
+
+```plaintext
+import { SidebarTrigger } from '@object-ui/components';
+
+<AppShell
+  navbar={<SidebarTrigger />}
+  sidebar={<SidebarNav items={navItems} />}
+>
+  {/* Your page content */}
+</AppShell>
+```
 
 ## Navbar Content
 
@@ -247,13 +263,12 @@ Combine AppShell with the Page component for complete layouts:
 The AppShell uses Tailwind CSS and Shadcn UI components:
 
 - `SidebarProvider`: Manages sidebar state
-- `SidebarTrigger`: Hamburger menu button
 - `SidebarInset`: Content area wrapper
 
 ## Accessibility
 
 The AppShell includes:
-- Proper ARIA labels for sidebar toggle
+- A keyboard shortcut for toggling the sidebar (`Cmd/Ctrl + B`), from `SidebarProvider`
 - Keyboard navigation support
 - Focus management
 - Screen reader announcements
