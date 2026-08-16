@@ -135,6 +135,48 @@ isRTL('ar'); // true
 isRTL('en'); // false
 ```
 
+## Scope — the `engine.*` carve-out (metadata-admin / Studio)
+
+Not every user-facing string in this repository resolves through these packs.
+The metadata-admin (Studio) surface — the metadata directory, the inspectors,
+package management, the flow designer and their refusal messages — resolves its
+`engine.*` keys through a module-local **two-locale** table in
+[`packages/app-shell/src/views/metadata-admin/i18n.ts`](../app-shell/src/views/metadata-admin/i18n.ts):
+a plain `Record` lookup over `en-US` and `zh-CN`, not an i18next namespace.
+Roughly 1,300 keys per locale live there, and **no `engine.*` key exists in any
+of the ten packs.**
+
+That is design, not drift — the file's header records it as "Phase 3f". The
+server holds the primary path: the engine consumes `label` from the
+`/meta/types` response, sourced from the platform's metadata-type registry. The
+module-local table is a **fallback** for deployments with no translation bundles
+configured, and the interim source of truth for Chinese until the platform's
+`setup.translation.ts` ships zh-CN coverage. Copying the namespace into the
+packs would duplicate strings whose primary source is a server response.
+
+Two consequences follow, and both are accepted rather than outstanding work:
+
+- **Only `en` and `zh` are covered.** On an `ar` / `de` / `es` / `fr` / `ja` /
+  `ko` / `pt` / `ru` console, `engine.*` strings render English. That is the
+  price of the carve-out, not a backfill someone forgot.
+- **The i18n gates cannot see this namespace, by construction.** Key parity
+  ([`src/__tests__/all-locales-key-parity.test.ts`](./src/__tests__/all-locales-key-parity.test.ts))
+  compares pack against pack, and `engine.*` is in no pack — so it is not an
+  *exception* to that test, it is outside its subject. The call-site gate
+  ([`scripts/check-i18n-call-site-keys.mjs`](../../scripts/check-i18n-call-site-keys.mjs))
+  skips these call sites **by declaration**: the module is registered in its
+  `EXCLUDED_TRANSLATORS` list with a reason, and an imported `t` from any
+  unregistered module is a hard error there — so a second local table cannot
+  appear silently, and this carve-out cannot quietly widen.
+
+**When to revisit.** Migrating the namespace into the packs is mechanical but
+wide (~1,300 keys × 8 further locales) and argues against the server-driven
+design above, so it is not worth doing speculatively. The condition to reopen it
+is concrete: a stated demand for an admin console in a language other than `en`
+or `zh` — not a general wish for broader locale coverage, which the packs
+already serve on every other surface. See objectui#4662 for the measurement and
+the ruling.
+
 ## Links
 
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/i18n)

@@ -37,6 +37,20 @@
  * more machinery than the defect is worth). Follow it when adding a value; the
  * designer renders inside the console shell, so a `...` here lands on the same
  * screen as a `…` from the packs.
+ *
+ * ## The same posture, recorded on the i18n conventions side (objectui#4662)
+ *
+ * Everything above is this file's own account of why it exists.
+ * `packages/i18n/README.md`, section "Scope — the `engine.*` carve-out", states
+ * it from the pack system's end, where a reader looking for the translation
+ * conventions finds it, and adds the two facts this header does not spell out:
+ * only `en` and `zh` are covered, so the other eight shipped locales render
+ * English on these screens; and the i18n gates cannot see it by construction
+ * (key parity compares pack against pack, and `scripts/check-i18n-call-site-keys.mjs`
+ * skips this module by declaration). It also carries the condition for
+ * reopening the question, which is deliberately narrow: a stated demand for an
+ * admin console in a language other than `en` or `zh` — not a general wish for
+ * broader locale coverage. Keep the two records in step when either moves.
  */
 
 import { useObjectTranslation } from '@object-ui/i18n';
