@@ -248,18 +248,30 @@ export interface AdvancedChartImplProps {
    * Optional drill-down click handler. Fires when a chart segment is clicked
    * with `{ category, categoryId, series, value }`. Wired for
    * bar/horizontal-bar/line/area/pie/donut/funnel/scatter/treemap/sankey —
-   * each has its own click handler attached to its mark(s) below. Radar and
-   * combo are no-ops in L1: neither branch attaches a click handler anywhere,
-   * even though combo renders the same `Bar`/`Line`/`Area` marks the wired
-   * cartesian branch does — its `ComposedChart` element (see the
-   * `chartType === 'combo'` branch) is built and returned before
-   * `cartesianClickProps` is applied to anything.
+   * each has its own click handler attached to its mark(s) below — and for
+   * `combo`, whose `Bar`/`Line`/`Area` marks are the same components the plain
+   * cartesian branch renders and now emit the same event with the same
+   * semantics (ruled on objectui#4692).
    *
-   * The combo branch is reachable without authoring `chartType: 'combo'`:
-   * `effectiveChartFamily` derives it whenever a series' own family disagrees
-   * with the chart's own (see its doc comment), so giving one series of an
-   * otherwise-drillable chart a different `type` silently turns that chart's
-   * drill off too — nothing in the authored spec says drill was touched.
+   * `combo` differs from the plain cartesian branch in exactly ONE way, and
+   * deliberately: **only its marks drill.** A click on the plot surface or an
+   * axis stays silent there, where the plain branch would fall back to its
+   * axis-level answer. A combo plots several measures on one plot, so a
+   * surface click has no single series answer to give — the same reasoning
+   * objectui#4672's ruling used for the pivoted case. The plain branch keeps
+   * that fallback because its own marks share one measure, so its axis answer
+   * is either unambiguous or explicitly named by recharts.
+   *
+   * That combo drills at all is what keeps its DERIVATION from costing an
+   * interaction. The branch is reachable without authoring
+   * `chartType: 'combo'`: `effectiveChartFamily` derives it whenever a series'
+   * own family disagrees with the chart's own (see its doc comment), so giving
+   * one series of a drillable chart a different `type` used to turn that
+   * chart's drill off with nothing in the authored spec saying drill was
+   * touched. It now changes the mark and nothing else.
+   *
+   * Radar is the one remaining no-op in L1 — its branch attaches no click
+   * handler anywhere.
    */
   onChartClick?: (event: ChartSegmentClickEvent) => void;
   /**
@@ -480,7 +492,22 @@ function AdvancedChartImplInner({
     ? (s: NormalizedSeries) => ({ onClick: handleMarkClick(s) })
     : () => ({});
 
-  const handleCartesianClick = React.useCallback((payload: any, event?: any) => {
+  // Compose-and-emit for a chart-level cartesian click. TWO branches reach it,
+  // and they differ in one rule only — `requireMark` (objectui#4692):
+  //
+  //  - the plain branch (bar / horizontal-bar / line / area) emits for EVERY
+  //    click, falling back to the axis answer described above when the gesture
+  //    landed on no mark;
+  //  - `combo` emits ONLY for a gesture that landed on a mark. Its plot carries
+  //    several measures, so a surface/axis click there has no single series to
+  //    report and the fallback would have to invent one — the same reasoning
+  //    objectui#4672's ruling gave the pivoted case.
+  //
+  // Sharing the composer rather than writing combo its own is the point: a
+  // combo mark's click IS a cartesian mark's click (same components, same
+  // recorded series identity), so there is one event shape and one emit site,
+  // and the two branches disagree about reachability alone.
+  const emitCartesianClick = React.useCallback((payload: any, event: any, requireMark: boolean) => {
     if (!onChartClick || !payload) return;
     // A click with no active tick (the plot margins, an axis label) reports a
     // NULL index, not an absent one — and `Number(null)` is 0, which would
@@ -496,6 +523,9 @@ function AdvancedChartImplInner({
     clickedMark.current = null;
     const gesture = gestureIdOf(event);
     const onMark = mark != null && gesture !== undefined && mark.gesture === gesture;
+    // The record is cleared above whether or not it is used, so a combo's
+    // silent surface click cannot leave a stale series behind for the next one.
+    if (requireMark && !onMark) return;
     const clickedKey = onMark
       ? mark!.dataKey
       : resolveClickedSeriesKey(payload.activeDataKey, series);
@@ -510,6 +540,14 @@ function AdvancedChartImplInner({
       value: typeof cell === 'number' ? cell : undefined,
     });
   }, [onChartClick, data, series]);
+
+  const handleCartesianClick = React.useCallback((payload: any, event?: any) => {
+    emitCartesianClick(payload, event, false);
+  }, [emitCartesianClick]);
+
+  const handleComboClick = React.useCallback((payload: any, event?: any) => {
+    emitCartesianClick(payload, event, true);
+  }, [emitCartesianClick]);
 
   // A pie sector's `payload` is a SPREAD COPY of the data row (recharts builds
   // it as `{...entry, ...cellProps}`), which is precisely why the bucket
@@ -531,6 +569,14 @@ function AdvancedChartImplInner({
   }, [onChartClick, xAxisKey, series]);
 
   const cartesianClickProps = onChartClick ? { onClick: handleCartesianClick, style: { cursor: 'pointer' as const } } : {};
+  // Combo carries NO chart-wide pointer cursor, unlike every other wired
+  // family: on this plot only the marks answer a click, and a surface-wide
+  // pointer would promise a drill the axis deliberately does not perform. The
+  // affordance rides on the marks instead — see `comboMarkClickProps`.
+  const comboClickProps = onChartClick ? { onClick: handleComboClick } : {};
+  const comboMarkClickProps = onChartClick
+    ? (s: NormalizedSeries) => ({ ...markClickProps(s), cursor: 'pointer' as const })
+    : () => ({});
   const pieClickProps = onChartClick ? { onClick: handlePieClick, style: { cursor: 'pointer' as const } } : {};
 
   // Per-category colour: a select/lookup dimension's option colour (passed via
@@ -1111,7 +1157,13 @@ function AdvancedChartImplInner({
             host mixed marks. Under `BarChart` an `<Area>` child renders nothing
             at all, so the `seriesType === 'area'` arm below was unreachable —
             an authored combo with an `area` series drew a blank series. */}
-        <ComposedChart data={data}>
+        {/* `comboClickProps`, not `cartesianClickProps`: the chart-level
+            handler here emits ONLY for a gesture a mark recorded, so an axis /
+            surface click stays silent (objectui#4692's ruling). The emit still
+            happens at chart level because that is the only place the CATEGORY
+            is known — a line/area item handler is handed the curve's props and
+            no datum. */}
+        <ComposedChart data={data} {...comboClickProps}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey={xAxisKey} {...xAxisCommonProps} />
           <YAxis yAxisId="left" tickLine={false} axisLine={false} tickFormatter={yTickFormatter} width={48} {...yAxisSpecProps(primaryY)} />
@@ -1148,20 +1200,20 @@ function AdvancedChartImplInner({
 
             if (seriesType === 'line') {
               return (
-                <Line key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} stroke={color} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...animProps}>
+                <Line key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} stroke={color} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...animProps} {...comboMarkClickProps(s)}>
                   {dataLabel(valueFormatter)}
                 </Line>
               );
             }
             if (seriesType === 'area') {
               return (
-                <Area key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} fill={color} stroke={color} fillOpacity={cmp?.fillOpacity ?? 0.4} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...stackProps} {...animProps}>
+                <Area key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} fill={color} stroke={color} fillOpacity={cmp?.fillOpacity ?? 0.4} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...stackProps} {...animProps} {...comboMarkClickProps(s)}>
                   {dataLabel(valueFormatter)}
                 </Area>
               );
             }
             return (
-              <Bar key={s.dataKey} yAxisId={yAxisId} dataKey={s.dataKey} fill={color} radius={4} fillOpacity={cmp?.fillOpacity} {...stackProps} {...animProps}>
+              <Bar key={s.dataKey} yAxisId={yAxisId} dataKey={s.dataKey} fill={color} radius={4} fillOpacity={cmp?.fillOpacity} {...stackProps} {...animProps} {...comboMarkClickProps(s)}>
                 {dataLabel(valueFormatter)}
               </Bar>
             );
