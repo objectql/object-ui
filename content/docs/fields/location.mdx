@@ -92,9 +92,11 @@ import { LocationField } from '@object-ui/fields';
   map: {                        // the declared config input; markers are derived from the data
     locationField: 'location',  // this page's field, read as { latitude, longitude }
     titleField: 'name',         // field used as the marker label
-    zoom: 12,                     // initial zoom level
-    center: [37.7749, -122.4194]  // [latitude, longitude]; used when no records match
-  }                               // (with records the view fits to their bounds)
+    zoom: 12,                   // initial zoom level
+    // Initial centre as [latitude, longitude]. Used only when no record
+    // matches — with records the view fits to their bounds instead.
+    center: [37.7749, -122.4194]
+  }
 }
 ```
 
