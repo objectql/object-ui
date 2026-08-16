@@ -75,17 +75,24 @@
  *     measured 73 `*.test.d.ts` files landing in the published `dist/` of
  *     `@object-ui/fields` and `@object-ui/plugin-editor`, and three packages
  *     (`fields`, `types`, `data-objectstack`) listed `src` in `files`, so their
- *     tarballs carried the test SOURCES too. `data-objectstack` no longer does
- *     (objectui#4847 dropped `src` from its `files` — 43 source files, 38 of
- *     them tests, left that tarball); `fields` and `types` still do, and for
- *     `types` the entry is load-bearing rather than leftover, because it builds
- *     with a bare `tsc` under the root's `declarationMap` / `sourceMap` and no
- *     `inlineSources`, so its shipped `dist/*.d.ts.map` name `../src/*.ts` with
- *     no embedded content. That is a real defect where it is one, and it is
- *     already filed; it is not this gate's, because nothing resolves those files
- *     and so no install of them can fail. Stated here rather than glossed,
- *     because "the build excludes tests" is the plausible-sounding version of
- *     this paragraph and it is not what the repository measures.
+ *     tarballs carried the test SOURCES too. Two of the three no longer do:
+ *     objectui#4847 dropped `src` from `data-objectstack`'s `files` (43 source
+ *     files, 38 of them tests, left that tarball) and objectui#4856 dropped it
+ *     from `fields`' (173 source files, 97 of them tests). Only `types` still
+ *     lists it, and there the entry is load-bearing rather than leftover,
+ *     because it builds with a bare `tsc` under the root's `declarationMap` /
+ *     `sourceMap` and no `inlineSources`, so its shipped `dist/*.d.ts.map` name
+ *     `../src/*.ts` with no embedded content — dropping `src` there would leave
+ *     published maps pointing at files the tarball no longer carries. `fields`
+ *     was measurably NOT that shape, which is why the two were split rather than
+ *     fixed together: its declarations come from `vite-plugin-dts`, and a clean
+ *     rebuild emits zero `.map` files and zero `sourceMappingURL` comments, so
+ *     nothing in its `dist` referred back to `src` at all. That is a real defect
+ *     where it is one, and it is already filed; it is not this gate's, because
+ *     nothing resolves those files and so no install of them can fail. Stated
+ *     here rather than glossed, because "the build excludes tests" is the
+ *     plausible-sounding version of this paragraph and it is not what the
+ *     repository measures.
  *
  * The root allowance is a decision, not an oversight, and it is worth stating
  * why it is honest rather than convenient. This repository installs its test
