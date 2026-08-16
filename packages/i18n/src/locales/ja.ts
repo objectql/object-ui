@@ -3345,6 +3345,10 @@ const ja = {
     noResults: "結果なし",
     searchField: "{{label}}を検索…",
     enterId: "{{label}} IDを入力",
+    addValue: "値を入力して Enter キーを押す",
+    removeValue: "{{value}} を削除",
+    rangeStart: "開始",
+    rangeEnd: "終了",
     operators: {
       equals: "等しい",
       notEquals: "等しくない",

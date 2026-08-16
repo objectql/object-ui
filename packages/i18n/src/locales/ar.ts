@@ -3352,6 +3352,10 @@ const ar = {
     noResults: "لا توجد نتائج",
     searchField: "بحث {{label}}…",
     enterId: "أدخل معرّف {{label}}",
+    addValue: "أدخل قيمة ثم اضغط Enter",
+    removeValue: "إزالة {{value}}",
+    rangeStart: "من",
+    rangeEnd: "إلى",
     operators: {
       equals: "يساوي",
       notEquals: "لا يساوي",

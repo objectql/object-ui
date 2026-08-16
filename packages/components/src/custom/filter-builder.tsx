@@ -10,10 +10,16 @@
 
 import * as React from "react"
 import { X, Plus, Trash2, Search, Loader2, ChevronDown } from "lucide-react"
+import {
+  VIEW_FILTER_LIST_VALUE_OPERATORS,
+  VIEW_FILTER_PAIR_VALUE_OPERATORS,
+  normalizeFilterOperator,
+} from "@objectstack/spec/ui"
 import { SchemaRendererContext } from "@object-ui/react"
 import { createSafeTranslation } from "@object-ui/i18n"
 
 import { cn } from "../lib/utils"
+import { Badge } from "../ui/badge"
 import { Button } from "../ui/button"
 import { Checkbox } from "../ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
@@ -253,6 +259,96 @@ export const VALUELESS_FILTER_BUILDER_OPERATORS: ReadonlySet<string> = new Set([
   "notExists",
 ])
 
+/**
+ * The SHAPE an operator's `value` must have — the question
+ * `ViewFilterRuleSchema` asks, asked here in the one place that decides what
+ * input the user is given (objectui#3958).
+ *
+ *   - `list` — membership over any arity, `[]` included (`in` / `not_in`).
+ *   - `pair` — exactly two bounds, in order (`between`).
+ *   - `scalar` — everything else, including the value-less operators above
+ *     (they draw no input at all, so their shape never reaches storage).
+ */
+export type FilterValueArity = "scalar" | "list" | "pair"
+
+/**
+ * The two families are IMPORTED from `@objectstack/spec`, never restated
+ * (objectstack#6227 exports them for exactly this).
+ *
+ * This component used to decide the same fact from a local
+ * `["in", "notIn"]` literal, and that literal was already one spelling adrift:
+ * `notIn` is an ALIAS, the canonical member is `not_in`. Any path that hands
+ * this builder a canonical operator — a stored view read back through a reader
+ * that does not camelCase it — matched neither entry, so a SET operator got
+ * the single-value input and the user typed a scalar into it.
+ * `ViewFilterRuleSchema` then refused the row at save time, on a shape this
+ * builder's own UI led them into building.
+ */
+const LIST_VALUE_OPERATORS: ReadonlySet<string> = new Set(VIEW_FILTER_LIST_VALUE_OPERATORS)
+const PAIR_VALUE_OPERATORS: ReadonlySet<string> = new Set(VIEW_FILTER_PAIR_VALUE_OPERATORS)
+
+/**
+ * Which value shape `operator` takes, in EITHER dialect.
+ *
+ * The argument is folded through the spec's own `normalizeFilterOperator`
+ * first, so the builder's camelCase dropdown ids (`notIn`) and the canonical
+ * spellings a stored rule carries (`not_in`) land on the same answer. That
+ * fold is the whole point: one vocabulary, declared upstream, consulted here —
+ * not a second local dialect that has to be kept in sync by hand.
+ *
+ * @internal exported for tests
+ */
+export function filterValueArity(operator: string): FilterValueArity {
+  const canonical = normalizeFilterOperator(operator)
+  if (LIST_VALUE_OPERATORS.has(canonical)) return "list"
+  if (PAIR_VALUE_OPERATORS.has(canonical)) return "pair"
+  return "scalar"
+}
+
+/**
+ * Re-shape a row's `value` for the operator it is being changed TO.
+ *
+ * Switching the operator dropdown used to update `operator` alone, so the
+ * value the previous family had produced simply survived the switch — a scalar
+ * `"acme"` (or the seed `""`) still sitting there under `in`, which is
+ * precisely the shape `ViewFilterRuleSchema` refuses. Re-shaping rather than
+ * blanking keeps what the user typed wherever it still means something:
+ *
+ *   - to `list`: a scalar becomes a one-element list (`"acme"` → `["acme"]`),
+ *     an empty scalar becomes `[]` — a real, spec-valid predicate;
+ *   - to `pair`: the first two entries become `[min, max]`, padded with `""`;
+ *     with nothing to carry it collapses to `[]`, which the write path reads
+ *     as "row not filled in yet" and drops, exactly as it drops an empty
+ *     scalar today;
+ *   - to `scalar`: the first entry of a list survives; the rest cannot, and
+ *     dropping them is the honest answer — `equals` compares against one value.
+ *
+ * @internal exported for tests
+ */
+export function reshapeFilterValue(
+  value: FilterBuilderCondition["value"],
+  nextOperator: string,
+): FilterBuilderCondition["value"] {
+  switch (filterValueArity(nextOperator)) {
+    case "list":
+      return Array.isArray(value) ? value : normalizeToArray(value)
+    case "pair": {
+      const [min = "", max = ""] = normalizeToArray(value)
+      return min === "" && max === "" ? [] : [min, max]
+    }
+    default:
+      return Array.isArray(value) ? (value[0] ?? "") : value
+  }
+}
+
+/** The two bounds a `pair` row edits, with the gaps filled in for rendering. */
+function toPairBounds(
+  value: FilterBuilderCondition["value"],
+): [string | number | boolean, string | number | boolean] {
+  const [min = "", max = ""] = normalizeToArray(value)
+  return [min, max]
+}
+
 const useSafeFilterTranslation = createSafeTranslation(
   {
     'filterBuilder.where': 'Where',
@@ -270,6 +366,10 @@ const useSafeFilterTranslation = createSafeTranslation(
     'filterBuilder.noResults': 'No results',
     'filterBuilder.searchField': 'Search {{label}}…',
     'filterBuilder.enterId': 'Enter {{label}} id',
+    'filterBuilder.addValue': 'Type a value, press Enter',
+    'filterBuilder.removeValue': 'Remove {{value}}',
+    'filterBuilder.rangeStart': 'From',
+    'filterBuilder.rangeEnd': 'To',
     'filterBuilder.operators.equals': 'Equals',
     'filterBuilder.operators.notEquals': 'Does not equal',
     'filterBuilder.operators.contains': 'Contains',
@@ -433,6 +533,27 @@ function FilterBuilder({
     })
   }
 
+  /**
+   * Change a row's operator AND bring its value into the shape the new
+   * operator's family takes (objectui#3958).
+   *
+   * Deliberately not `updateCondition(id, { operator })`: that update carried
+   * the previous family's value through untouched, which is how a scalar ended
+   * up under `in`. The two edits are one edit — a row's operator and the shape
+   * of its value are not independently settable — so they are made together
+   * here rather than left for each caller to remember.
+   */
+  const changeOperator = (conditionId: string, nextOperator: string) => {
+    handleChange({
+      ...filterGroup,
+      conditions: filterGroup.conditions.map((c) =>
+        c.id === conditionId
+          ? { ...c, operator: nextOperator, value: reshapeFilterValue(c.value, nextOperator) }
+          : c,
+      ),
+    })
+  }
+
   const toggleLogic = () => {
     handleChange({
       ...filterGroup,
@@ -465,7 +586,11 @@ function FilterBuilder({
 
   const renderValueInput = (condition: FilterBuilderCondition) => {
     const field = fields.find((f) => f.value === condition.field)
-    const isMultiOperator = ["in", "notIn"].includes(condition.operator)
+    // The spec's vocabulary, not a local literal — and folded through
+    // `normalizeFilterOperator`, so a stored `not_in` read back in canonical
+    // form gets the multi-value input its alias `notIn` already got.
+    const arity = filterValueArity(condition.operator)
+    const isMultiOperator = arity === "list"
     const isLookupLike = lookupLikeTypes.includes(field?.type || "")
 
     // Lookup-like fields without static options → use remote search picker
@@ -508,6 +633,64 @@ function FilterBuilder({
               </label>
             )
           })}
+        </div>
+      )
+    }
+
+    // A LIST operator on a field with no static options and no remote picker —
+    // a plain text or number column (objectui#3958). This used to fall all the
+    // way through to the single-value input below, so `in` on such a field
+    // could only ever produce a scalar: refused by `ViewFilterRuleSchema` at
+    // save time, and read as an unfiltered query by the live grid before that.
+    // A token input is the input that matches the shape, so the row the user
+    // builds is a row the spec accepts.
+    if (isMultiOperator) {
+      return (
+        <MultiValueInput
+          values={normalizeToArray(condition.value)}
+          inputType={getInputType(condition.field)}
+          numeric={numberLikeTypes.includes(field?.type || "")}
+          testId={`filter-multi-value-${condition.field}`}
+          onChange={(next) => updateCondition(condition.id, { value: next })}
+        />
+      )
+    }
+
+    // A PAIR operator (`between`) — two bounds, in order. One input could only
+    // ever produce one of them, and the spec refuses an incomplete range as
+    // firmly as it refuses a scalar for `in`.
+    if (arity === "pair") {
+      const bounds = toPairBounds(condition.value)
+      const inputType = getInputType(condition.field)
+      const numeric = numberLikeTypes.includes(field?.type || "")
+      const setBound = (index: 0 | 1, raw: string) => {
+        const next: [string | number | boolean, string | number | boolean] = [bounds[0], bounds[1]]
+        next[index] = numeric && raw !== "" ? parseFloat(raw) || 0 : raw
+        // Both bounds cleared → back to the "nothing filled in yet" shape the
+        // write path drops, rather than persisting an empty range.
+        updateCondition(condition.id, {
+          value: next[0] === "" && next[1] === "" ? [] : next,
+        })
+      }
+      return (
+        <div className="flex items-center gap-1.5" data-testid={`filter-range-${condition.field}`}>
+          <Input
+            type={inputType}
+            className="h-9 text-sm"
+            placeholder={t('filterBuilder.rangeStart')}
+            aria-label={t('filterBuilder.rangeStart')}
+            value={bounds[0] === "" ? "" : String(bounds[0])}
+            onChange={(e) => setBound(0, e.target.value)}
+          />
+          <span className="text-xs text-muted-foreground shrink-0">-</span>
+          <Input
+            type={inputType}
+            className="h-9 text-sm"
+            placeholder={t('filterBuilder.rangeEnd')}
+            aria-label={t('filterBuilder.rangeEnd')}
+            value={bounds[1] === "" ? "" : String(bounds[1])}
+            onChange={(e) => setBound(1, e.target.value)}
+          />
         </div>
       )
     }
@@ -650,9 +833,7 @@ function FilterBuilder({
               <div className="col-span-4">
                 <Select
                   value={condition.operator}
-                  onValueChange={(value) =>
-                    updateCondition(condition.id, { operator: value })
-                  }
+                  onValueChange={(value) => changeOperator(condition.id, value)}
                 >
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue placeholder={t('filterBuilder.operator')} />
@@ -709,6 +890,99 @@ function FilterBuilder({
 }
 
 FilterBuilder.displayName = "FilterBuilder"
+
+// ============================================================================
+// MultiValueInput — token input for the LIST operators on an optionless field
+// ============================================================================
+
+interface MultiValueInputProps {
+  values: (string | number | boolean)[]
+  /** The `<input type>` the field's own type asks for (`text` / `number` / …). */
+  inputType: string
+  /** Numeric field → committed tokens are numbers, so the wire carries numbers. */
+  numeric: boolean
+  testId: string
+  onChange: (next: (string | number | boolean)[]) => void
+}
+
+/**
+ * A list of committed tokens plus a draft input — the same interaction
+ * `@object-ui/fields`' `TagsField` uses (type, Enter or comma commits, `×` or
+ * Backspace removes), rebuilt here because `fields` depends on this package and
+ * not the other way round.
+ *
+ * It exists so that `in` / `not_in` have a value input AT ALL on a field with
+ * no static options. Its only contract with the outside is the shape it emits:
+ * always an array, `[]` when empty — never the scalar
+ * {@link https://github.com/objectstack-ai/objectstack/issues/6227 |
+ * ViewFilterRuleSchema} refuses for a membership operator.
+ */
+function MultiValueInput({ values, inputType, numeric, testId, onChange }: MultiValueInputProps) {
+  const { t } = useSafeFilterTranslation()
+  const [draft, setDraft] = React.useState("")
+
+  const commit = (raw: string) => {
+    const trimmed = raw.trim()
+    if (trimmed === "") return
+    const next = numeric ? (parseFloat(trimmed) || 0) : trimmed
+    setDraft("")
+    if (values.some((v) => String(v) === String(next))) return
+    onChange([...values, next])
+  }
+
+  const removeAt = (index: number) => {
+    onChange(values.filter((_, i) => i !== index))
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      // Enter inside a <form> would submit it (objectstack#3821, the same
+      // hazard every control here is `type="button"` for).
+      e.preventDefault()
+      commit(draft)
+    } else if (e.key === "Backspace" && draft === "" && values.length > 0) {
+      removeAt(values.length - 1)
+    }
+  }
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-1.5 rounded-md border border-input bg-background p-1.5"
+      data-testid={testId}
+    >
+      {values.map((v, index) => (
+        <Badge key={`${String(v)}-${index}`} variant="secondary" className="gap-1">
+          <span className="truncate max-w-[12ch]">{String(v)}</span>
+          <button
+            type="button"
+            onClick={() => removeAt(index)}
+            className="ml-0.5 rounded-full text-muted-foreground hover:text-foreground"
+            aria-label={t('filterBuilder.removeValue', { value: String(v) })}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </Badge>
+      ))}
+      <Input
+        type={inputType}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={onKeyDown}
+        onBlur={() => commit(draft)}
+        placeholder={values.length === 0 ? t('filterBuilder.addValue') : ""}
+        aria-label={t('filterBuilder.addValue')}
+        // `min-w-[6ch]`, not the `8ch` its `TagsField` twin uses: that utility
+        // is produced ONLY by `@object-ui/fields`, and its CSS build subtracts
+        // the components sheet from its own — emitting it here would delete it
+        // from the fields bundle, which `build-css.mjs` refuses as
+        // over-subtraction (objectui#4059).
+        className="h-7 flex-1 border-0 bg-transparent p-0 px-1 shadow-none focus-visible:ring-0 min-w-[6ch] text-sm"
+      />
+    </div>
+  )
+}
+
+MultiValueInput.displayName = "MultiValueInput"
 
 // ============================================================================
 // LookupValuePicker — remote-search picker for lookup/master_detail/user/owner
@@ -895,7 +1169,22 @@ function LookupValuePicker({ field, value, multiple, onChange }: LookupValuePick
   }
 
   if (!hasDataSource) {
-    // Fallback to a plain text input when no DataSource is available
+    // Fallback when no DataSource is available: ids are typed in by hand.
+    // A MULTIPLE picker still has to emit a LIST here (objectui#3958) — this
+    // branch used to hand back `e.target.value`, a scalar, which is the shape
+    // `ViewFilterRuleSchema` refuses for `in` / `not_in`. The single case keeps
+    // the plain input it always had.
+    if (multiple) {
+      return (
+        <MultiValueInput
+          values={normalizeToArray(value)}
+          inputType="text"
+          numeric={false}
+          testId={`lookup-ids-${field.value}`}
+          onChange={onChange}
+        />
+      )
+    }
     return (
       <Input
         className="h-9 text-sm"

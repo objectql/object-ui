@@ -3344,6 +3344,10 @@ const ko = {
     noResults: "결과 없음",
     searchField: "{{label}} 검색…",
     enterId: "{{label}} ID 입력",
+    addValue: "값을 입력하고 Enter 키를 누르세요",
+    removeValue: "{{value}} 제거",
+    rangeStart: "시작",
+    rangeEnd: "끝",
     operators: {
       equals: "같음",
       notEquals: "같지 않음",

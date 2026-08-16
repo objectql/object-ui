@@ -3344,6 +3344,10 @@ const pt = {
     noResults: "Sem resultados",
     searchField: "Pesquisar {{label}}…",
     enterId: "Inserir ID de {{label}}",
+    addValue: "Digite um valor e pressione Enter",
+    removeValue: "Remover {{value}}",
+    rangeStart: "De",
+    rangeEnd: "Até",
     operators: {
       equals: "Igual a",
       notEquals: "Diferente de",

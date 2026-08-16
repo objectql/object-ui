@@ -3403,6 +3403,10 @@ const zh = {
     noResults: '无结果',
     searchField: '搜索 {{label}}…',
     enterId: '输入 {{label}} ID',
+    addValue: '输入值后按回车',
+    removeValue: '移除 {{value}}',
+    rangeStart: '起始值',
+    rangeEnd: '结束值',
     operators: {
       equals: '等于',
       notEquals: '不等于',

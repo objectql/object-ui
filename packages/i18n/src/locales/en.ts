@@ -3592,6 +3592,10 @@ const en = {
     noResults: 'No results',
     searchField: 'Search {{label}}…',
     enterId: 'Enter {{label}} id',
+    addValue: 'Type a value, press Enter',
+    removeValue: 'Remove {{value}}',
+    rangeStart: 'From',
+    rangeEnd: 'To',
     operators: {
       equals: 'Equals',
       notEquals: 'Does not equal',

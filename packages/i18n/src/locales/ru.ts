@@ -3356,6 +3356,10 @@ const ru = {
     noResults: "Нет результатов",
     searchField: "Поиск {{label}}…",
     enterId: "Введите ID {{label}}",
+    addValue: "Введите значение и нажмите Enter",
+    removeValue: "Удалить {{value}}",
+    rangeStart: "От",
+    rangeEnd: "До",
     operators: {
       equals: "Равно",
       notEquals: "Не равно",

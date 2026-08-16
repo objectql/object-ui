@@ -3345,6 +3345,10 @@ const de = {
     noResults: "Keine Ergebnisse",
     searchField: "{{label}} suchen…",
     enterId: "{{label}}-ID eingeben",
+    addValue: "Wert eingeben, Enter drücken",
+    removeValue: "{{value}} entfernen",
+    rangeStart: "Von",
+    rangeEnd: "Bis",
     operators: {
       equals: "Gleich",
       notEquals: "Ungleich",

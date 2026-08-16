@@ -3347,6 +3347,10 @@ const fr = {
     noResults: "Aucun résultat",
     searchField: "Rechercher {{label}}…",
     enterId: "Saisir l'ID {{label}}",
+    addValue: "Saisir une valeur, puis Entrée",
+    removeValue: "Supprimer {{value}}",
+    rangeStart: "De",
+    rangeEnd: "À",
     operators: {
       equals: "Égal à",
       notEquals: "Différent de",

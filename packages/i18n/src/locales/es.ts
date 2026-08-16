@@ -3349,6 +3349,10 @@ const es = {
     noResults: "Sin resultados",
     searchField: "Buscar {{label}}…",
     enterId: "Ingresar ID de {{label}}",
+    addValue: "Escriba un valor y pulse Intro",
+    removeValue: "Quitar {{value}}",
+    rangeStart: "Desde",
+    rangeEnd: "Hasta",
     operators: {
       equals: "Igual a",
       notEquals: "Distinto de",
