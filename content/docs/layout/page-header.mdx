@@ -43,7 +43,7 @@ recordChrome / showStar / showCopyId / aria` and has no `description`. Both `tit
 
 `icon` is deliberately **not** in that list, and the distinction matters because this page
 documents a React component while the spec governs an authored node. `PageHeaderProps.icon`
-was retired in `@objectstack/spec` 17.0.0 (objectstack#6946, ADR-0087 D2): the canonical
+was retired from `@objectstack/spec` (objectstack#6946, ADR-0087 D2): the canonical
 `page:header` renderer never read it, so an authored value used to be accepted and dropped,
 and the contract now rejects the key by name. On a canonical `page:header` node the
 header's identity comes from the record chrome (`recordChrome`, on by default) plus each
