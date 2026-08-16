@@ -1802,9 +1802,9 @@ function ColorPickerWidget({ value, onChange, readOnly, schema, fieldSpec }: Wid
         // is filed as objectui#4871 rather than guessed at here.
         //
         // So the group carries its own name, exactly as this file's other
-        // unassociated groups do (`FilterElementWidget`'s radiogroup, and the
-        // free-colour `<input type="color">` below). The text is the host's own
-        // first-precedence label source so the two agree wherever it is set —
+        // unassociated groups do (`FilterModeWidget`'s segmented radiogroup,
+        // and the free-colour `<input type="color">` below). The text is the
+        // host's own first-precedence label source so the two agree wherever set —
         // WCAG 2.5.3 (Label in Name) is about the visible text, not a generic
         // stand-in — falling back to this file's existing constant.
         ariaLabel={fieldSpec?.label ?? (typeof schema?.title === 'string' ? schema.title : undefined) ?? 'Color'}
