@@ -74,8 +74,14 @@
  *     than "not present in the tarball" — which would be false. objectui#4006
  *     measured 73 `*.test.d.ts` files landing in the published `dist/` of
  *     `@object-ui/fields` and `@object-ui/plugin-editor`, and three packages
- *     (`fields`, `types`, `data-objectstack`) list `src` in `files`, so their
- *     tarballs carry the test SOURCES too. That is a real defect and it is
+ *     (`fields`, `types`, `data-objectstack`) listed `src` in `files`, so their
+ *     tarballs carried the test SOURCES too. `data-objectstack` no longer does
+ *     (objectui#4847 dropped `src` from its `files` — 43 source files, 38 of
+ *     them tests, left that tarball); `fields` and `types` still do, and for
+ *     `types` the entry is load-bearing rather than leftover, because it builds
+ *     with a bare `tsc` under the root's `declarationMap` / `sourceMap` and no
+ *     `inlineSources`, so its shipped `dist/*.d.ts.map` name `../src/*.ts` with
+ *     no embedded content. That is a real defect where it is one, and it is
  *     already filed; it is not this gate's, because nothing resolves those files
  *     and so no install of them can fail. Stated here rather than glossed,
  *     because "the build excludes tests" is the plausible-sounding version of
