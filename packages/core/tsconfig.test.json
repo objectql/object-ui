@@ -37,5 +37,14 @@
     // `.d.ts` instead of pulling sibling sources in as program inputs (TS6059).
     "paths": {}
   },
-  "include": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+  // `*.bench.ts` is here for the same reason the tests are, and it arrived the
+  // same way: `tsconfig.json` now excludes `src/__benchmarks__/` from the BUILD
+  // program so it stops being emitted into the published `dist`
+  // (objectui#4836). Until that exclusion, `src/__benchmarks__/core.bench.ts`
+  // was type-checked only as a side effect of being in the emit program — the
+  // exact "coverage that is right by accident" objectui#4006 recorded. Nothing
+  // would have reported its loss either: scripts/check-type-check-coverage.mjs
+  // enumerates `*.test.ts(x)` only, so a bench that no program reads is
+  // invisible to it. It is named here by choice, not because a gate forced it.
+  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.bench.ts"]
 }
