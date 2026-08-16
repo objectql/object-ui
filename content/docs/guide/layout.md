@@ -11,7 +11,7 @@ ObjectUI provides a comprehensive layout system through the `@object-ui/layout` 
 
 The layout system provides:
 
-- **AppShell** - Full application container with header, sidebar, and content areas
+- **AppShell** - Full application container with a top navbar, sidebar, and content areas
 - **Page** - Individual page wrapper with header and body
 - **PageHeader** - Consistent page headers with title, breadcrumbs, and actions
 - **SidebarNav** - Navigation sidebar with menu items
@@ -28,60 +28,79 @@ Layout components are automatically registered when you import ObjectUI.
 
 ## AppShell Component
 
-The `AppShell` provides a complete application structure with header, sidebar, and main content area.
+The `AppShell` provides a complete application structure with a top navbar, a sidebar, and
+a main content area.
+
+**`AppShell` is a React component, not an authorable JSON node.** Four of its seven props
+are `React.ReactNode` slots — `sidebar`, `navbar`, `children` and `rightRail` — and a JSON
+document has no way to put a node into any of them. Compose the shell in React, and render
+your JSON pages *inside* it. What a `{ "type": "app-shell" }` node does with each key is
+spelled out under [In a JSON node](#in-a-json-node) below.
 
 ### Basic Usage
 
-```json
-{
-  "type": "app-shell",
-  "header": {
-    "type": "header-bar",
-    "title": "My Application"
-  },
-  "sidebar": {
-    "type": "sidebar-nav",
-    "items": [
-      { "label": "Dashboard", "href": "/dashboard", "icon": "layout-dashboard" },
-      { "label": "Users", "href": "/users", "icon": "users" },
-      { "label": "Settings", "href": "/settings", "icon": "settings" }
-    ]
-  },
-  "body": {
-    "type": "page",
-    "title": "Dashboard",
-    "body": {
-      "type": "text",
-      "value": "Welcome to the dashboard!"
-    }
-  }
-}
+```tsx
+import { AppShell, SidebarNav, type NavItem } from '@object-ui/layout';
+import { SchemaRenderer } from '@object-ui/react';
+import { LayoutDashboard, Settings, Users } from 'lucide-react';
+
+const navItems: NavItem[] = [
+  { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { title: 'Users', href: '/users', icon: Users },
+  { title: 'Settings', href: '/settings', icon: Settings },
+];
+
+<AppShell
+  navbar={<span className="font-semibold">My Application</span>}
+  sidebar={<SidebarNav items={navItems} />}
+>
+  <SchemaRenderer schema={pageSchema} />
+</AppShell>
 ```
 
-### Schema API
+Top-bar content goes in `navbar`. `AppShell` renders the sticky `<header>` element itself
+and `{navbar}` is the only thing that fills it — there is no `header` prop. Main content is
+the component's `children`; there is no `body` prop either.
 
-```typescript
-{
-  type: 'app-shell',
-  
-  // Header configuration
-  header?: ComponentSchema,
-  
-  // Sidebar configuration  
-  sidebar?: ComponentSchema,
-  sidebarCollapsible?: boolean,  // Allow sidebar collapse
-  sidebarDefaultOpen?: boolean,  // Initial sidebar state
-  
-  // Main content
-  body: ComponentSchema,
-  
-  // Styling
-  className?: string,
-  headerClassName?: string,
-  sidebarClassName?: string,
-  contentClassName?: string
-}
-```
+### Props
+
+`AppShellProps` (`packages/layout/src/AppShell.tsx`) declares exactly these seven. The
+component destructures that fixed key list with **no rest element**, so anything else you
+pass is built and then dropped on the floor.
+
+| Prop | Type | Required | In a JSON node | Description |
+| --- | --- | --- | --- | --- |
+| `sidebar` | `React.ReactNode` | no | no | Left sidebar node, a flex sibling of the content. Pass `SidebarNav`, or your own node. |
+| `navbar` | `React.ReactNode` | no | no | Top-bar content. `AppShell` supplies the sticky `<header>` around it, so pass only what goes inside. |
+| `children` | `React.ReactNode` | yes | no | Main content, rendered inside the `<main>` element. |
+| `className` | `string` | no | yes | Tailwind overrides for the `<main>` content element — **not** for the outer container. |
+| `defaultOpen` | `boolean` | no | yes | Initial open state of the underlying Shadcn `SidebarProvider`. Defaults to `true`. |
+| `branding` | `AppShellBranding` | no | yes | App branding, applied by `useAppShellBranding`: `primaryColor` / `accentColor` become CSS custom properties on the document root, `favicon` sets the icon link's `href`, and `title` sets `document.title`. |
+| `rightRail` | `React.ReactNode` | no | no | Optional right-side rail. It reflows the content beside it rather than overlaying it; absent → unchanged single-pane layout. |
+
+### In a JSON node
+
+`app-shell` is registered on the `ComponentRegistry` (`packages/layout/src/index.ts`), so
+`{ "type": "app-shell" }` does resolve to this component. The registration declares no
+`inputs`, which is why `sdui-parser`'s unknown-prop check has nothing to compare a node
+against and stays silent whatever you write. Measured, key by key:
+
+- **The three plain-data props work.** `className`, `defaultOpen` and `branding` are
+  spread onto the component unchanged. `className` lands on the `<main>` element, and
+  `branding`'s fields are applied by `useAppShellBranding` exactly as in React.
+- **`children` is dropped, silently.** `SchemaRenderer` strips `children` (and `body`) out
+  of a node before spreading the remaining keys as props, and `AppShell` reads its
+  `children` **prop**, not `schema.children`. The `<main>` element renders empty and
+  nothing is logged.
+- **`sidebar` / `navbar` / `rightRail` cannot hold a schema.** They are `React.ReactNode`;
+  a JSON value reaches the component as a plain object, and React refuses to render one.
+  The node is replaced by the renderer's error box: `Component "app-shell" failed to
+  render — Objects are not valid as a React child`.
+
+So do not author an `app-shell` node in JSON. Build the shell in React as above — or, when
+the whole shell should come from metadata, use `AppSchemaRenderer` (registered as
+`app-schema-renderer`), which builds branding and sidebar navigation from an `AppSchema`
+JSON document and takes the page content as its `children`.
 
 ### Features
 
@@ -332,55 +351,47 @@ The `SidebarNav` provides a collapsible navigation sidebar with menu items.
 
 ### Full Application Layout
 
-```json
-{
-  "type": "app-shell",
-  "header": {
-    "type": "header-bar",
-    "title": "My App",
-    "logo": "/logo.png",
-    "actions": [
-      { "type": "button", "text": "Profile", "variant": "ghost" }
-    ]
-  },
-  "sidebar": {
-    "type": "sidebar-nav",
-    "items": [
-      { "label": "Home", "href": "/", "icon": "home" },
-      { "label": "Products", "href": "/products", "icon": "package" },
-      { "label": "Orders", "href": "/orders", "icon": "shopping-cart" }
-    ]
-  },
-  "sidebarCollapsible": true,
-  "sidebarDefaultOpen": true,
-  "body": {
-    "type": "page",
-    "title": "Dashboard",
-    "body": {
-      "type": "object-grid",
-      "object": "orders"
-    }
+The shell is React; the page inside it is your JSON.
+
+```tsx
+import { AppShell, SidebarNav, type NavItem } from '@object-ui/layout';
+import { SchemaRenderer } from '@object-ui/react';
+import { SidebarTrigger } from '@object-ui/components';
+import { Home, Package, ShoppingCart } from 'lucide-react';
+
+const navItems: NavItem[] = [
+  { title: 'Home', href: '/', icon: Home },
+  { title: 'Products', href: '/products', icon: Package },
+  { title: 'Orders', href: '/orders', icon: ShoppingCart },
+];
+
+<AppShell
+  navbar={
+    <div className="flex w-full items-center gap-2">
+      <SidebarTrigger />
+      <span className="font-semibold">My App</span>
+    </div>
   }
-}
+  sidebar={<SidebarNav items={navItems} />}
+  defaultOpen
+>
+  <SchemaRenderer schema={pageSchema} />
+</AppShell>
 ```
+
+`AppShell` adds no controls of its own to the top bar — the sidebar toggle above is one
+you render yourself, in `navbar`. There is no `sidebarCollapsible` prop: the sidebar's
+collapse behaviour belongs to the sidebar node you pass (`SidebarNav`'s `collapsible`),
+and `defaultOpen` is the shell's own initial-state prop.
 
 ### Landing Page (No Sidebar)
 
-```json
-{
-  "type": "app-shell",
-  "header": {
-    "type": "header-bar",
-    "title": "Welcome"
-  },
-  "body": {
-    "type": "container",
-    "className": "mx-auto py-12",
-    "children": [
-      { "type": "text", "value": "Landing page content" }
-    ]
-  }
-}
+Omit `sidebar` and the content fills the width under the top bar.
+
+```tsx
+<AppShell navbar={<span className="font-semibold">Welcome</span>}>
+  <SchemaRenderer schema={landingSchema} />
+</AppShell>
 ```
 
 ### Settings Page with Tabs
@@ -474,16 +485,24 @@ Layout components automatically adapt to different screen sizes:
 
 Add Tailwind classes to layout components:
 
-```json
-{
-  "type": "app-shell",
-  "className": "custom-app",
-  "headerClassName": "bg-primary text-primary-foreground",
-  "sidebarClassName": "bg-muted",
-  "contentClassName": "bg-background",
-  "body": {...}
-}
+```tsx
+<AppShell
+  className="bg-background"
+  navbar={
+    <div className="flex w-full items-center bg-primary text-primary-foreground">
+      My App
+    </div>
+  }
+  sidebar={<SidebarNav className="bg-muted" items={navItems} />}
+>
+  <SchemaRenderer schema={pageSchema} />
+</AppShell>
 ```
+
+`className` is the only class hook `AppShell` itself takes, and it lands on the `<main>`
+content element — not on the outer container. There is **no** per-slot className:
+`headerClassName`, `sidebarClassName` and `contentClassName` do not exist. The top bar and
+the sidebar are nodes you build, so style them where you build them, as above.
 
 ### Page Padding
 
@@ -505,20 +524,13 @@ Control page content padding:
 
 ### 1. Consistent Structure
 
-Use the same layout structure across your app:
+Compose the shell once and let the page JSON change per route:
 
-```json
-// Every page should follow this pattern
-{
-  "type": "app-shell",
-  "header": { ... },
-  "sidebar": { ... },
-  "body": {
-    "type": "page",
-    "title": "...",
-    "body": { ... }
-  }
-}
+```tsx
+// One shell for the whole app; `pageSchema` is whatever the route resolves to.
+<AppShell navbar={navbar} sidebar={<SidebarNav items={navItems} />}>
+  <SchemaRenderer schema={pageSchema} />
+</AppShell>
 ```
 
 ### 2. Breadcrumbs for Deep Navigation
