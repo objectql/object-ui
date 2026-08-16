@@ -87,13 +87,18 @@ import { LocationField } from '@object-ui/fields';
 // With map visualization (using map plugin)
 // Keys sit on the node — a `props` envelope is never read by the renderer
 {
-  type: 'plugin:map',
-  bind: 'location',
-  center: location,
-  zoom: 12,
-  markers: [location]
+  type: 'object-map',           // the registered type name — there is no `plugin:map`
+  objectName: 'store',          // the records to plot
+  map: {                        // the declared config input; markers are derived from the data
+    locationField: 'location',  // this page's field, read as { latitude, longitude }
+    titleField: 'name',         // field used as the marker label
+    zoom: 12,                     // initial zoom level
+    center: [37.7749, -122.4194]  // [latitude, longitude]; used when no records match
+  }                               // (with records the view fits to their bounds)
 }
 ```
+
+**Note**: the map plots the records it fetches, so it takes an `objectName` (or an explicit `data` array) rather than a `bind` path, and it derives its markers from those records — a `markers` key on the node is not read. Every marker setting lives under the declared `map` input.
 
 ## Validation
 
