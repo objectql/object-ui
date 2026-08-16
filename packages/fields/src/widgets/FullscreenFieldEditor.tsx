@@ -45,8 +45,15 @@ import { FullscreenEditor, type FullscreenEditorProps } from '@object-ui/compone
  * primitive already answers it (no affordance at all).
  *
  * Everything else — `value` / `onCommit` / `label` / `testIdPrefix` /
- * `disabled` / `children` / `footer` — passes straight through, so the hosts and
- * their pins are unchanged. `testIdPrefix` still namespaces this package's ids
+ * `disabled` / `error` / `children` / `footer` — passes straight through, so the
+ * hosts and their pins are unchanged. `error` is REQUIRED by the primitive
+ * (objectui#4824) and stays required here: both hosts already destructure it off
+ * the widget props contract (objectui#3222), and it is what the primitive turns
+ * into the dialog control's `aria-invalid` / `aria-errormessage` and into the
+ * dialog-local message node. A host that omits it gets a dialog announcing
+ * `aria-invalid="false"` for an invalid field, which is the defect #4824
+ * measured — so the type system asks for it rather than trusting the next
+ * author to remember. `testIdPrefix` still namespaces this package's ids
  * (`textarea-`, `richtext-`), distinct from the built-in branch's
  * `form-textarea-`, so a test can still say which render path it found.
  */

@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn, Textarea, EmptyValue } from '@object-ui/components';
+import { cn, Textarea, EmptyValue, type FullscreenEditorAria } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/react';
 import { FullscreenFieldEditor } from './FullscreenFieldEditor';
 import { FieldWidgetComponentProps } from './types';
@@ -37,6 +37,7 @@ function RichTextEditorSurface({
   textareaTestId,
   overlay,
   domProps,
+  editorAria,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -67,6 +68,23 @@ function RichTextEditorSurface({
    * makes for the same pair of surfaces.
    */
   domProps?: DomProps<FieldWidgetComponentProps<string>>;
+  /**
+   * The accessibility set `FullscreenFieldEditor` computes for the control it
+   * hosts — accessible name and validation state (objectui#4824 / #4832).
+   *
+   * The mirror image of `domProps`: given to the DIALOG rendering only, because
+   * only the dialog rendering has a name and a message node to be pointed at
+   * from inside the modal. The inline surface takes both from the host, through
+   * `domProps` and its own `error`.
+   *
+   * It is the dialog copy's SINGLE author of `aria-invalid`, which is why the
+   * dialog rendering below passes no `error`: this surface used to compute
+   * `aria-invalid={!!error}` from an `error` prop the dialog rendering never
+   * received, so it announced a literal `aria-invalid="false"` for a field the
+   * inline surface was announcing `true` for at the same moment — the sharper
+   * half of objectui#4824.
+   */
+  editorAria?: FullscreenEditorAria;
 }) {
   return (
     <div className={cn('space-y-2', fullHeight && 'flex flex-col h-full')}>
@@ -108,6 +126,12 @@ function RichTextEditorSurface({
           // keeps that entry passing instead of handing the state back to a
           // host that may not have one.
           aria-invalid={!!error}
+          // LAST, and only ever non-empty on the dialog rendering: inside the
+          // modal the primitive is the authority on both the name and the
+          // validation state, and its `aria-invalid` must win over the `!!error`
+          // above (which is the INLINE channel and is `false` there by
+          // construction). On the inline surface this spreads nothing.
+          {...editorAria}
         />
         {overlay}
       </div>
@@ -215,8 +239,17 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
             label={richField?.label}
             testIdPrefix="richtext"
             disabled={disabled}
+            /*
+              The validation channel the dialog rendering never had
+              (objectui#4824). It is handed to the PRIMITIVE, not down to the
+              second `RichTextEditorSurface`, because the primitive is what
+              renders the message node the control points at — a node that must
+              live inside the modal, since the host's `<FormMessage>` is
+              `aria-hidden` for as long as this dialog is open.
+            */
+            error={error}
           >
-            {(draft, setDraft, editorDisabled) => (
+            {(draft, setDraft, editorDisabled, editorAria) => (
               <RichTextEditorSurface
                 value={draft}
                 onChange={setDraft}
@@ -227,6 +260,7 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
                 autoFocus
                 fullHeight
                 textareaTestId="richtext-fullscreen-input"
+                editorAria={editorAria}
               />
             )}
           </FullscreenFieldEditor>
