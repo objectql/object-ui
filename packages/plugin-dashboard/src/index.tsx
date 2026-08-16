@@ -24,6 +24,15 @@ import { DrillDownDrawer } from './DrillDownDrawer';
 
 export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, ObjectMetricWidget, PivotTable, ObjectPivotTable, ObjectDataTable, DashboardConfigPanel, WidgetConfigPanel, DashboardWithConfig, DrillDownDrawer };
 export type { WidgetConfigPanelProps } from './WidgetConfigPanel';
+// objectui#4748 — the config sidebar's provider-less English, exported for the
+// same reason the sibling plugins export theirs: a defaults map that disagrees
+// with the `en` pack renders two labels for one control, and the assertion that
+// it does not needs to be able to import it.
+export {
+  CONFIG_PANEL_DEFAULT_TRANSLATIONS,
+  useConfigPanelTranslation,
+  type ConfigPanelTranslate,
+} from './useConfigPanelTranslation';
 export type {
   WidgetDatasetCatalogEntry,
   WidgetDatasetDimension,

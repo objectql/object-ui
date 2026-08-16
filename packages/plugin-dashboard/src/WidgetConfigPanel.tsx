@@ -19,35 +19,57 @@ import { ConfigRow } from '@object-ui/components';
 import { X } from 'lucide-react';
 import type { ConfigPanelSchema, ConfigField } from '@object-ui/components';
 import type { WidgetDatasetCatalogEntry } from './dataset-catalog';
+import {
+  useConfigPanelTranslation,
+  type ConfigPanelTranslate,
+} from './useConfigPanelTranslation';
 
 // ---------------------------------------------------------------------------
 // Widget type options derived from @object-ui/types DASHBOARD_WIDGET_TYPES
+//
+// The stored `value` is the spec's widget type and never localizes; the label
+// is translated per render (objectui#4748).
+//
+// Every key is written as a LITERAL argument of `t()` rather than carried in a
+// `{ value, key }` table the builder maps over. The table reads more tightly
+// and was the first shape here, but it costs both i18n gates their view of
+// these keys: `check-i18n-call-site-keys` cannot verify a key it only sees as
+// `t(key)` (it counts as a dynamic-key site and is skipped), and
+// `check-i18n-dead-keys` cannot see a reader for it either — measured, the
+// table shape put all 33 option keys on the dead-key report as NEEDS-REVIEW
+// while the 42 keys passed literally elsewhere in these two files stayed off
+// it entirely. Literal-at-the-call-site is what makes a key checkable.
 // ---------------------------------------------------------------------------
 
-const WIDGET_TYPE_OPTIONS = [
-  { value: 'metric', label: 'Metric' },
-  { value: 'bar', label: 'Bar Chart' },
-  { value: 'horizontal-bar', label: 'Horizontal Bar' },
-  { value: 'line', label: 'Line Chart' },
-  { value: 'pie', label: 'Pie Chart' },
-  { value: 'donut', label: 'Donut Chart' },
-  { value: 'area', label: 'Area Chart' },
-  { value: 'scatter', label: 'Scatter Plot' },
-  { value: 'funnel', label: 'Funnel' },
-  { value: 'table', label: 'Table' },
-  { value: 'pivot', label: 'Pivot Table' },
-];
+function widgetTypeOptions(t: ConfigPanelTranslate): Array<{ value: string; label: string }> {
+  return [
+    { value: 'metric', label: t('dashboard.config.widgetType.metric') },
+    { value: 'bar', label: t('dashboard.config.widgetType.bar') },
+    { value: 'horizontal-bar', label: t('dashboard.config.widgetType.horizontalBar') },
+    { value: 'line', label: t('dashboard.config.widgetType.line') },
+    { value: 'pie', label: t('dashboard.config.widgetType.pie') },
+    { value: 'donut', label: t('dashboard.config.widgetType.donut') },
+    { value: 'area', label: t('dashboard.config.widgetType.area') },
+    { value: 'scatter', label: t('dashboard.config.widgetType.scatter') },
+    { value: 'funnel', label: t('dashboard.config.widgetType.funnel') },
+    { value: 'table', label: t('dashboard.config.widgetType.table') },
+    { value: 'pivot', label: t('dashboard.config.widgetType.pivot') },
+  ];
+}
 
-const COLOR_VARIANT_OPTIONS = [
-  { value: 'default', label: 'Default' },
-  { value: 'blue', label: 'Blue' },
-  { value: 'teal', label: 'Teal' },
-  { value: 'orange', label: 'Orange' },
-  { value: 'purple', label: 'Purple' },
-  { value: 'success', label: 'Success' },
-  { value: 'warning', label: 'Warning' },
-  { value: 'danger', label: 'Danger' },
-];
+function colorVariantOptions(t: ConfigPanelTranslate): Array<{ value: string; label: string }> {
+  return [
+    { value: 'default', label: t('dashboard.config.color.default') },
+    { value: 'blue', label: t('dashboard.config.color.blue') },
+    { value: 'teal', label: t('dashboard.config.color.teal') },
+    { value: 'orange', label: t('dashboard.config.color.orange') },
+    { value: 'purple', label: t('dashboard.config.color.purple') },
+    { value: 'success', label: t('dashboard.config.color.success') },
+    { value: 'warning', label: t('dashboard.config.color.warning') },
+    { value: 'danger', label: t('dashboard.config.color.danger') },
+  ];
+}
+
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -82,6 +104,24 @@ export function supportsDrillDown(t: string | undefined): boolean {
   return !!t && DRILL_DOWN_TYPES.includes(t);
 }
 
+/**
+ * The breadcrumb's second segment, by widget type.
+ *
+ * Keyed separately from the widget-type PICKER labels on purpose: the picker
+ * offers `Pivot Table`, the breadcrumb reads `Pivot table`. Same word, two
+ * authored strings, so two keys — see useConfigPanelTranslation.ts.
+ */
+function widgetBreadcrumbLabel(
+  t: ConfigPanelTranslate,
+  widgetType: string | undefined,
+): string {
+  if (widgetType === 'pivot') return t('dashboard.config.breadcrumb.pivotTable');
+  if (widgetType === 'table') return t('dashboard.config.breadcrumb.table');
+  return isChartType(widgetType)
+    ? t('dashboard.config.breadcrumb.chart')
+    : t('dashboard.config.breadcrumb.widget');
+}
+
 // ---------------------------------------------------------------------------
 // Dataset member (dimensions / values) multi-picker
 //
@@ -106,6 +146,10 @@ function DatasetNamesField({
   emptyText: string;
   onChange: (next: string[]) => void;
 }) {
+  // Its own hook call rather than a forwarded `t`: this is a component, and the
+  // three strings below are its own chrome (chip remove button, add control),
+  // not part of the schema its parent builds.
+  const { t } = useConfigPanelTranslation();
   const [draftName, setDraftName] = React.useState('');
   const used = React.useMemo(() => new Set(names), [names]);
   const addable = React.useMemo(
@@ -141,7 +185,7 @@ function DatasetNamesField({
               {name}
               <button
                 type="button"
-                aria-label={`Remove ${name}`}
+                aria-label={t('dashboard.config.action.remove', { name })}
                 className="text-muted-foreground hover:text-foreground"
                 onClick={() => remove(name)}
               >
@@ -158,8 +202,8 @@ function DatasetNamesField({
           value=""
           onValueChange={add}
           placeholder={placeholder}
-          searchPlaceholder="Search…"
-          emptyText="Nothing left to add."
+          searchPlaceholder={t('dashboard.config.placeholder.searchMembers')}
+          emptyText={t('dashboard.config.empty.nothingToAdd')}
           className="h-7 w-full text-xs"
         />
       ) : (
@@ -184,7 +228,7 @@ function DatasetNamesField({
             onClick={() => add(draftName)}
             disabled={!draftName.trim()}
           >
-            Add
+            {t('dashboard.config.action.add')}
           </Button>
         </div>
       )}
@@ -198,7 +242,8 @@ function DatasetNamesField({
 // and `values` select that dataset's members by name.
 // ---------------------------------------------------------------------------
 
-function buildWidgetSchema(
+export function buildWidgetSchema(
+  t: ConfigPanelTranslate,
   datasets: WidgetDatasetCatalogEntry[] | undefined,
   widgetType?: string,
 ): ConfigPanelSchema {
@@ -214,22 +259,25 @@ function buildWidgetSchema(
     typeof name === 'string' ? catalog.find((d) => d.name === name) : undefined;
 
   // ---- Dataset selector (Combobox over the catalog, free-text fallback) ----
+  const datasetLabel = t('dashboard.config.field.dataset');
+  const datasetHelp = t('dashboard.config.help.dataset');
+
   const datasetField: ConfigField = hasCatalog
     ? {
         key: 'dataset',
-        label: 'Dataset',
+        label: datasetLabel,
         type: 'custom',
-        helpText: 'The semantic-layer dataset this widget binds to (ADR-0021).',
+        helpText: datasetHelp,
         render: (value: any, onChange: (v: any) => void) => (
-          <ConfigRow label="Dataset">
+          <ConfigRow label={datasetLabel}>
             <div data-testid="config-field-dataset">
               <Combobox
                 options={datasetOptions}
                 value={value ?? ''}
                 onValueChange={onChange}
-                placeholder="Select dataset…"
-                searchPlaceholder="Search datasets…"
-                emptyText="No datasets found."
+                placeholder={t('dashboard.config.placeholder.selectDataset')}
+                searchPlaceholder={t('dashboard.config.placeholder.searchDatasets')}
+                emptyText={t('dashboard.config.empty.datasets')}
                 className="h-7 w-40 text-xs"
               />
             </div>
@@ -238,21 +286,23 @@ function buildWidgetSchema(
       }
     : {
         key: 'dataset',
-        label: 'Dataset',
+        label: datasetLabel,
         type: 'input',
-        placeholder: 'Dataset name',
-        helpText: 'The semantic-layer dataset this widget binds to (ADR-0021).',
+        placeholder: t('dashboard.config.placeholder.datasetName'),
+        helpText: datasetHelp,
       };
+
+  const dimensionsLabel = t('dashboard.config.field.dimensions');
 
   const dimensionsField: ConfigField = {
     key: 'dimensions',
-    label: 'Dimensions',
+    label: dimensionsLabel,
     type: 'custom',
     visibleWhen: (d: Record<string, any>) => usesDimensions(d.type),
     helpText:
       widgetType === 'pivot'
-        ? 'Group/split fields. The last dimension spreads across as columns.'
-        : 'Group/split the values by these dataset dimensions.',
+        ? t('dashboard.config.help.dimensionsPivot')
+        : t('dashboard.config.help.dimensions'),
     render: (value: any, onChange: (v: any) => void, draft: Record<string, any>) => {
       const entry = entryFor(draft.dataset);
       const options = (entry?.dimensions ?? []).map((dim) => ({
@@ -260,13 +310,13 @@ function buildWidgetSchema(
         label: dim.label && dim.label !== dim.name ? `${dim.label} (${dim.name})` : dim.name,
       }));
       return (
-        <ConfigRow label="Dimensions">
+        <ConfigRow label={dimensionsLabel}>
           <div data-testid="config-field-dimensions" className="w-40">
             <DatasetNamesField
               names={Array.isArray(value) ? value : []}
               options={options}
-              placeholder="Add dimension…"
-              emptyText="No dimensions selected."
+              placeholder={t('dashboard.config.placeholder.addDimension')}
+              emptyText={t('dashboard.config.empty.dimensions')}
               onChange={onChange}
             />
           </div>
@@ -275,11 +325,13 @@ function buildWidgetSchema(
     },
   };
 
+  const valuesLabel = t('dashboard.config.field.values');
+
   const valuesField: ConfigField = {
     key: 'values',
-    label: 'Values',
+    label: valuesLabel,
     type: 'custom',
-    helpText: 'Measure(s) from the dataset to display (at least one).',
+    helpText: t('dashboard.config.help.values'),
     render: (value: any, onChange: (v: any) => void, draft: Record<string, any>) => {
       const entry = entryFor(draft.dataset);
       const options = (entry?.measures ?? []).map((m) => ({
@@ -287,13 +339,13 @@ function buildWidgetSchema(
         label: m.aggregate ? `${m.label ?? m.name} · ${m.aggregate}` : (m.label ?? m.name),
       }));
       return (
-        <ConfigRow label="Values">
+        <ConfigRow label={valuesLabel}>
           <div data-testid="config-field-values" className="w-40">
             <DatasetNamesField
               names={Array.isArray(value) ? value : []}
               options={options}
-              placeholder="Add measure…"
-              emptyText="No measures selected."
+              placeholder={t('dashboard.config.placeholder.addMeasure')}
+              emptyText={t('dashboard.config.empty.measures')}
               onChange={onChange}
             />
           </div>
@@ -302,40 +354,34 @@ function buildWidgetSchema(
     },
   };
 
-  // ---- Breadcrumb varies by widget type ------------------------------------
-
-  const BREADCRUMB_LABELS: Record<string, string> = {
-    pivot: 'Pivot table',
-    table: 'Table',
-  };
-  const typeName = BREADCRUMB_LABELS[widgetType ?? '']
-    ?? (isChartType(widgetType) ? 'Chart' : 'Widget');
-
   return {
-    breadcrumb: ['Dashboard', typeName],
+    breadcrumb: [
+      t('dashboard.config.breadcrumb.dashboard'),
+      widgetBreadcrumbLabel(t, widgetType),
+    ],
     sections: [
       // ----- General (always visible) -------------------------------------
       {
         key: 'general',
-        title: 'General',
+        title: t('dashboard.config.section.general'),
         fields: [
           {
             key: 'title',
-            label: 'Title',
+            label: t('dashboard.config.field.title'),
             type: 'input',
-            placeholder: 'Widget title',
+            placeholder: t('dashboard.config.placeholder.widgetTitle'),
           },
           {
             key: 'description',
-            label: 'Description',
+            label: t('dashboard.config.field.description'),
             type: 'input',
-            placeholder: 'Widget description',
+            placeholder: t('dashboard.config.placeholder.widgetDescription'),
           },
           {
             key: 'type',
-            label: 'Widget type',
+            label: t('dashboard.config.field.widgetType'),
             type: 'select',
-            options: WIDGET_TYPE_OPTIONS,
+            options: widgetTypeOptions(t),
             defaultValue: 'metric',
           },
         ],
@@ -344,7 +390,7 @@ function buildWidgetSchema(
       // ----- Data binding (ADR-0021 dataset shape) ------------------------
       {
         key: 'data',
-        title: 'Data Binding',
+        title: t('dashboard.config.section.dataBinding'),
         collapsible: true,
         fields: [
           datasetField,
@@ -356,12 +402,12 @@ function buildWidgetSchema(
       // ----- Layout (always visible) --------------------------------------
       {
         key: 'layout',
-        title: 'Layout',
+        title: t('dashboard.config.section.layout'),
         collapsible: true,
         fields: [
           {
             key: 'layoutW',
-            label: 'Width (columns)',
+            label: t('dashboard.config.field.width'),
             type: 'slider',
             min: 1,
             max: 12,
@@ -370,7 +416,7 @@ function buildWidgetSchema(
           },
           {
             key: 'layoutH',
-            label: 'Height (rows)',
+            label: t('dashboard.config.field.height'),
             type: 'slider',
             min: 1,
             max: 6,
@@ -396,15 +442,15 @@ function buildWidgetSchema(
       // ----- Appearance (always visible, collapsed by default) ------------
       {
         key: 'appearance',
-        title: 'Appearance',
+        title: t('dashboard.config.section.appearance'),
         collapsible: true,
         defaultCollapsed: true,
         fields: [
           {
             key: 'colorVariant',
-            label: 'Color variant',
+            label: t('dashboard.config.field.colorVariant'),
             type: 'select',
-            options: COLOR_VARIANT_OPTIONS,
+            options: colorVariantOptions(t),
             defaultValue: 'default',
           },
         ],
@@ -501,6 +547,8 @@ export function WidgetConfigPanel({
   datasets,
   datasetsLoading: _datasetsLoading,
 }: WidgetConfigPanelProps) {
+  const { t } = useConfigPanelTranslation();
+
   // Pre-process config to resolve any I18nLabel values for title/description
   const normalizedConfig: Record<string, any> = React.useMemo(() => ({
     ...config,
@@ -513,8 +561,8 @@ export function WidgetConfigPanel({
   });
 
   const schema = React.useMemo(
-    () => buildWidgetSchema(datasets, draft.type),
-    [datasets, draft.type],
+    () => buildWidgetSchema(t, datasets, draft.type),
+    [t, datasets, draft.type],
   );
 
   return (
