@@ -341,15 +341,21 @@ describe('P1 SpecBridge Protocol Alignment', () => {
       expect(field.colSpan).toBe(2);
     });
 
-    it('should pass through aria properties', () => {
+    // The `should pass through aria properties` case that stood here pinned a
+    // read the bridge no longer has: spec 17 retired `aria` on the FORM carrier
+    // (#3901), so no FormView that parsed can carry it. Replacing rather than
+    // re-spelling — a fixture whose key the bridge stopped reading keeps passing
+    // only because nothing is produced. The surviving behaviour is pinned in
+    // `FormViewRetiredKeys.test.ts`; the LIST carrier's aria pass-through is
+    // still live and still covered above (P1.1).
+    it('does not carry the retired form `aria` onto the node', () => {
       const bridge = new SpecBridge();
       const node = bridge.transformFormView({
         type: 'simple',
         aria: { ariaLabel: 'Create Account Form' },
       });
 
-      expect(node.aria).toBeDefined();
-      expect(node.aria.ariaLabel).toBe('Create Account Form');
+      expect('aria' in node).toBe(false);
     });
   });
 
