@@ -22,6 +22,12 @@ import {
 import { AlertTriangle, CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import { getLazyFieldWidget } from '@object-ui/fields';
+// The shared allow-table of widgets that are fed the dialog's own in-progress
+// values as their record — one definition for this dialog, the single-record
+// action dialog and the object form (objectui#4770). Its TSDoc carries the
+// rationale (including the unruled picker-family boundary, objectui#4771) that
+// used to be repeated in each of the three copies.
+import { CASCADE_OPTION_WIDGET_TYPES } from '@object-ui/core';
 import type { BulkActionDef, BulkActionParam } from '@object-ui/types';
 import { useBulkExecutor, type BulkExecutorOptions, type BulkResult } from '../hooks/useBulkExecutor';
 import { hasMultiValueShape, type MultiValueFieldDef } from '../hooks/multiValueFields';
@@ -556,44 +562,6 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
     </Dialog>
   );
 };
-
-/**
- * Widget keys whose OFFERED option set is re-resolved against a live record by
- * the shared cascading-options evaluator (`useCascadingOptions` →
- * `resolveCascadingOptions`): each option may carry a `visibleWhen` CEL
- * predicate read against `record.*` (ADR-0058 / objectui#2284).
- *
- * SAME FOUR KEYS as the two other surfaces that feed that one evaluator, and
- * they must stay the same set or the three drift on what "the record" means:
- *
- * - `CASCADE_OPTION_WIDGET_TYPES` in `app-shell/src/views/ActionParamDialog.tsx`
- *   (the single-record action dialog, objectui#3765 / PR objectui#4756)
- * - `CASCADE_OPTION_FIELD_TYPES` in `components/src/renderers/form/form.tsx`
- *   (the object form, the original)
- *
- * Duplicated rather than imported ON PURPOSE, and this is a debt worth naming:
- * neither of those definitions is exported from its package, and plugin-grid
- * depends on neither app-shell (which depends the other way) nor form-internal
- * modules. Lifting the set to a shared home — `@object-ui/fields`, next to
- * `resolveFormWidgetType`, which every one of the three already imports — is
- * the right end state; it is out of scope here because objectui#4757 is scoped
- * to this file and both other packages have work in flight. If you move one
- * copy, move all three.
- *
- * It is an ALLOW-LIST, not a blanket pass-through, because `dependentValues` is
- * also the channel two widget-hint pickers read a specific SIBLING KEY from
- * (`filter-condition` reads `object_name`, `recipient-picker` reads
- * `recipient_type`) and the lookup family filters its query by it; feeding
- * those from bulk params is a different wiring question than the one ruled on
- * objectui#3765.
- *
- * `select` + `multiple: true` is not listed separately: `SelectField` delegates
- * to `MultiSelectField` with the whole prop object, so the key it resolves
- * under (`select`) is the one that must carry the record. The keys are the
- * post-`bulkParamToField` WIDGET keys (`resolveFormWidgetType` output), not the
- * authored `param.type` spellings.
- */
-const CASCADE_OPTION_WIDGET_TYPES = new Set(['select', 'multiselect', 'radio', 'checkboxes']);
 
 interface ParamFieldProps {
   param: BulkActionParam;

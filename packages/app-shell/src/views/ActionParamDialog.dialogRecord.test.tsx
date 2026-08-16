@@ -36,6 +36,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { SchemaRendererContext } from '@object-ui/react';
 import type { ActionParamDef } from '@object-ui/core';
+import { CASCADE_OPTION_WIDGET_TYPES } from '@object-ui/core';
 // Module scope, per AGENTS.md §测试纪律: the dialog reaches its widgets through
 // `React.lazy(() => import('./widgets/RadioField'))` inside `@object-ui/fields`,
 // and a first dynamic import() under a saturated transform pipeline can eat most
@@ -168,5 +169,27 @@ describe('ActionParamDialog — the dialog IS the record for its option predicat
     typeCountry('cn');
     await waitFor(() => expect(screen.queryByTestId('radio-option-tx')).not.toBeInTheDocument());
     expect(screen.getByTestId('radio-option-zj')).toBeInTheDocument();
+  });
+});
+
+describe('ActionParamDialog — the allow-table is the SHARED object (objectui#4770)', () => {
+  it('asks @object-ui/core CASCADE_OPTION_WIDGET_TYPES which params get the record', async () => {
+    // Identity, not membership. Three surfaces feed one cascading-options
+    // evaluator and each used to hold a private copy of the same four keys; the
+    // failure mode #4770 closes is those copies drifting, which no test could
+    // see because every copy passed its OWN behavioural pins. So this asserts
+    // the object: the spy is installed on the very Set exported by
+    // `@object-ui/core`, and it only records a call if the dialog consulted
+    // THAT object while rendering. Re-inline a private copy here and the four
+    // behavioural cases above stay green (the members are unchanged) while this
+    // one turns red — which is exactly the drift they cannot report.
+    const spy = vi.spyOn(CASCADE_OPTION_WIDGET_TYPES, 'has');
+    try {
+      openDialog([COUNTRY, PROVINCE]);
+      expect(await screen.findByTestId('radio-option-zj')).toBeInTheDocument();
+      expect(spy.mock.calls.map(([k]) => k)).toContain('radio');
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

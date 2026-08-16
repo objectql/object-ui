@@ -16,8 +16,9 @@
  *
  * One thing is threaded rather than ambient, and deliberately so: the record an
  * option widget resolves its per-option `visibleWhen` against. The dialog is a
- * small form, so its own in-progress `values` are that record — see
- * `CASCADE_OPTION_WIDGET_TYPES` below (objectui#3765).
+ * small form, so its own in-progress `values` are that record — for WHICH
+ * widgets receive it, see `CASCADE_OPTION_WIDGET_TYPES` in `@object-ui/core`
+ * (objectui#3765; shared with the form and the bulk dialog per objectui#4770).
  *
  * Returns collected param values or null on cancel.
  */
@@ -35,7 +36,15 @@ import {
 } from '@object-ui/components';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ActionParamDef } from '@object-ui/core';
-import { evalRowPredicate, hasDeclaredPredicate } from '@object-ui/core';
+import {
+  evalRowPredicate,
+  hasDeclaredPredicate,
+  // The shared allow-table of widgets that are fed the dialog's own values as
+  // their record — one definition for this dialog, the object form and the bulk
+  // dialog (objectui#4770). Its TSDoc carries the rationale that used to be
+  // repeated in each of the three copies.
+  CASCADE_OPTION_WIDGET_TYPES,
+} from '@object-ui/core';
 import { usePredicateScope } from '@object-ui/react';
 import { getLazyFieldWidget, fileIdOf } from '@object-ui/fields';
 import { paramToField } from '../utils/paramToField';
@@ -203,28 +212,6 @@ export function serializeParamValues(
 function WidgetFallback() {
   return <div className="h-9 w-full animate-pulse rounded-md bg-muted" aria-hidden="true" />;
 }
-
-/**
- * Widget keys whose OFFERED option set is re-resolved against a live record by
- * the shared cascading-options evaluator (`useCascadingOptions` →
- * `resolveCascadingOptions`): each option may carry a `visibleWhen` predicate
- * read against `record.*` (ADR-0058 / objectui#2284).
- *
- * Deliberately the same four keys the object form threads `dependentValues` to
- * (`CASCADE_OPTION_FIELD_TYPES` in `components/renderers/form/form.tsx`) — the
- * dialog and the form must feed one evaluator the same way or the two surfaces
- * drift on what "the record" means. It is an ALLOW-LIST, not a blanket
- * pass-through, because `dependentValues` is also the channel two widget-hint
- * pickers read a specific SIBLING KEY from (`filter-condition` reads
- * `object_name`, `recipient-picker` reads `recipient_type`) and the lookup
- * family filters its query by it; feeding those from dialog params is a
- * different wiring question than the one ruled here.
- *
- * `select` + `multiple: true` is not listed separately: `SelectField` delegates
- * to `MultiSelectField` with the whole prop object, so the key it resolves
- * under (`select`) is the one that must carry the record.
- */
-const CASCADE_OPTION_WIDGET_TYPES = new Set(['select', 'multiselect', 'radio', 'checkboxes']);
 
 export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProps) {
   const { t, language } = useObjectTranslation();

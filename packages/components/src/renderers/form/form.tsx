@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveCascadingOptions, isValueStillOffered, isMissingForRequired, isServerOwnedValue } from '@object-ui/core';
+import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveCascadingOptions, CASCADE_OPTION_WIDGET_TYPES, isValueStillOffered, isMissingForRequired, isServerOwnedValue } from '@object-ui/core';
 import type { FormSchema, FormField as FormFieldConfig, FormFieldTab, FormFieldPane, FieldValidationRules, FieldCondition, SelectOption } from '@object-ui/types';
 import { useForm } from 'react-hook-form';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '../../ui/form';
@@ -249,8 +249,10 @@ const DATA_SOURCE_FIELD_TYPES = new Set([
 // its OFFERED set against the live form record (`record.country == 'cn'` …). They
 // take no `dataSource`, but they DO need the live `dependentValues` record —
 // without it a cascading select never sees its controlling field and stays
-// permanently gated on the "select the parent first" hint.
-const CASCADE_OPTION_FIELD_TYPES = new Set(['select', 'radio', 'multiselect', 'checkboxes']);
+// permanently gated on the "select the parent first" hint. The set itself is
+// `CASCADE_OPTION_WIDGET_TYPES`, imported from `@object-ui/core` above: this
+// form, the action dialog and the bulk dialog feed one evaluator and must read
+// one allow-table (objectui#4770 — until then each held a private copy).
 
 function stripRendererOnlyProps<T extends Record<string, any>>(props: T): T {
   const {
@@ -399,7 +401,7 @@ function stripRegisteredFieldProps(type: string, props: RenderFieldProps): Rende
     // stripped by default because every OTHER registered widget spreads its
     // leftover props onto a DOM node, where an unknown `emptyHint` attribute is
     // a React warning — hence an allow-list, not an unconditional pass-through.
-    ...(CASCADE_OPTION_FIELD_TYPES.has(normalizedType) ? { dependentValues, emptyHint } : {}),
+    ...(CASCADE_OPTION_WIDGET_TYPES.has(normalizedType) ? { dependentValues, emptyHint } : {}),
   };
 }
 
@@ -933,7 +935,7 @@ ComponentRegistry.register('form',
         // below already does for `isOptionField` (objectui#3231) — the two
         // readers of "is this an option field?" must not disagree.
         if (typeof resolvedType !== 'string') continue;
-        if (!CASCADE_OPTION_FIELD_TYPES.has(normalizeFieldType(resolvedType))) continue;
+        if (!CASCADE_OPTION_WIDGET_TYPES.has(normalizeFieldType(resolvedType))) continue;
         const opts = (f as any).options as SelectOption[] | undefined;
         if (!opts || opts.length === 0) continue;
         const dependsOn = f.dependsOn;
@@ -1565,7 +1567,7 @@ ComponentRegistry.register('form',
       // (objectui#3231). `normalizeFieldType` is the same normalization
       // `stripRegisteredFieldProps` already applies a few lines down; the two
       // must agree on what a `select` is.
-      const isOptionField = CASCADE_OPTION_FIELD_TYPES.has(normalizeFieldType(resolvedType));
+      const isOptionField = CASCADE_OPTION_WIDGET_TYPES.has(normalizeFieldType(resolvedType));
       const rawOptions = (fieldProps as any).options as SelectOption[] | undefined;
       // Resolve gating + `visibleWhen` filtering through the shared
       // core helper so this pre-filter can't drift from the widgets'

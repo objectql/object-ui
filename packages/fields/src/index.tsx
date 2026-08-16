@@ -2486,6 +2486,19 @@ export function resolveFormWidgetType(fieldType: string): string {
   return fieldWidgetMap[mapped] ? mapped : 'text';
 }
 
+/**
+ * The widget keys that must be fed the live record (`dependentValues`) so their
+ * offered option set can be re-resolved per option `visibleWhen` / `dependsOn`.
+ *
+ * Defined in `@object-ui/core`, next to `resolveCascadingOptions` — the
+ * evaluator that reads the record — and re-exported here because this is the
+ * package whose {@link resolveFormWidgetType} produces the keys the set is
+ * keyed on: a consumer resolving a widget key finds the allow-table in the
+ * same place. One definition, two doorways; never a second copy (objectui#4770,
+ * which converged the three private copies that preceded it).
+ */
+export { CASCADE_OPTION_WIDGET_TYPES } from '@object-ui/core';
+
 /** Cache so each widget type creates one lazy component (and one chunk request). */
 const lazyFieldWidgets = new Map<string, React.ComponentType<any>>();
 

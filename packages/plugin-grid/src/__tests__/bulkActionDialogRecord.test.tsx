@@ -38,6 +38,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { SchemaRendererContext } from '@object-ui/react';
+import { CASCADE_OPTION_WIDGET_TYPES } from '@object-ui/core';
 // Module scope, per AGENTS.md §测试纪律: the dialog reaches its widgets through
 // `getLazyFieldWidget` → `React.lazy(() => import('./widgets/RadioField'))`
 // inside `@object-ui/fields`, and a first dynamic import() under a saturated
@@ -234,5 +235,26 @@ describe('BulkActionDialog — the dialog IS the record for its option predicate
 
     await waitFor(() => expect(screen.getByTestId('select-empty-region')).toBeInTheDocument());
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+});
+
+describe('BulkActionDialog — the allow-table is the SHARED object (objectui#4770)', () => {
+  it('asks @object-ui/core CASCADE_OPTION_WIDGET_TYPES which params get the record', async () => {
+    // Identity, not membership — the same pin the other two surfaces carry
+    // (`app-shell/src/views/ActionParamDialog.dialogRecord.test.tsx`,
+    // `components/src/renderers/form/__tests__/form-dependent-values.test.tsx`).
+    // This file's four behavioural cases above pass against ANY set with these
+    // four members, including a re-inlined private copy — which is precisely
+    // the drift objectui#4770 removed and nothing could report. The spy is
+    // installed on the Set object exported by `@object-ui/core`, so it records
+    // a call only if this dialog consulted THAT object while rendering.
+    const spy = vi.spyOn(CASCADE_OPTION_WIDGET_TYPES, 'has');
+    try {
+      openDialog([COUNTRY, PROVINCE]);
+      expect(await screen.findByTestId('radio-option-zj')).toBeInTheDocument();
+      expect(spy.mock.calls.map(([k]) => k)).toContain('radio');
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
