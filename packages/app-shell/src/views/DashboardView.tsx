@@ -9,28 +9,21 @@
  * so there is a single, consistent authoring surface.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { DashboardRenderer } from '@object-ui/plugin-dashboard';
 import { DrillNavigationProvider } from '@object-ui/react';
 import { useOpenRecordList } from './useOpenRecordList';
-import { ModalForm } from '@object-ui/plugin-form';
 import { toast } from 'sonner';
-import type { ModalHandler, ActionDef, ActionContext, ActionResult } from '@object-ui/core';
+import type { ActionDef, ActionContext, ActionResult } from '@object-ui/core';
 import {
   Empty,
   EmptyTitle,
   EmptyDescription,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
 } from '@object-ui/components';
 import { LayoutDashboard } from 'lucide-react';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
+import { useActionModal } from '../hooks/useActionModal';
 import { SkeletonDashboard } from '../skeletons';
 import { useMetadata } from '../providers/MetadataProvider';
 import { useExpressionContext } from '../providers/ExpressionProvider';
@@ -52,46 +45,35 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   const { dashboardLabel, dashboardDescription } = useObjectLabel();
   const [isLoading, setIsLoading] = useState(true);
 
-  // Modal state for header action buttons that request a modal (e.g. New Opportunity)
-  const [modalState, setModalState] = useState<{
-    schema: any;
-    resolve: (r: ActionResult) => void;
-  } | null>(null);
-
-  const closeModal = useCallback((result: ActionResult) => {
-    setModalState((curr) => {
-      if (curr) curr.resolve(result);
-      return null;
-    });
-  }, []);
-
-  const modalHandler = useCallback<ModalHandler>(
-    (schema) =>
-      new Promise<ActionResult>((resolve) => {
-        // Normalize string schema (e.g. action.target = 'opportunity' or
-        // 'create_opportunity') to a ModalForm-compatible descriptor so header
-        // `modal` actions like { actionType: 'modal', actionUrl: 'create_opportunity' }
-        // open the create form for that object. Supports the conventional
-        // `<verb>_<object>` form (create_/new_/add_/edit_/update_) emitted by
-        // server-driven dashboard schemas.
-        let normalized: any;
-        if (typeof schema === 'string') {
-          const m = schema.match(/^(create|new|add|edit|update)_(.+)$/);
-          if (m) {
-            const verb = m[1];
-            const objectName = m[2];
-            const mode = verb === 'edit' || verb === 'update' ? 'edit' : 'create';
-            normalized = { objectName, mode };
-          } else {
-            normalized = { objectName: schema, mode: 'create' };
-          }
-        } else {
-          normalized = schema;
-        }
-        setModalState({ schema: normalized, resolve });
-      }),
-    [],
-  );
+  /**
+   * Client-side modal transport for header `modal` actions — the SHARED
+   * `useActionModal`, the same handler `RecordDetailView` and the console
+   * runtimes install (objectui#4766).
+   *
+   * This view used to carry its own private handler, and with it a second
+   * live copy of the `create_`/`new_`/`add_`/`edit_`/`update_` prefix
+   * convention: `create_opportunity` was split into the object `opportunity`
+   * in `create` mode, and any other string became `{ objectName: <target> }`.
+   * Both limbs retire under the maintainer ruling on objectstack#6739
+   * (2026-08-09) — a `type: 'modal'` action's string `target` names a PAGE,
+   * and only a page. PR #4764 retired them in `useActionModal`; this copy was
+   * off that path, so the ruling could not reach it.
+   *
+   * The convention's stated producer — "server-driven dashboard schemas" —
+   * was enumerated before deleting it and does not exist: no dashboard in
+   * either repo's corpus (objectstack `examples/app-{crm,showcase,todo}`,
+   * `packages/apps/*`, objectui `apps/*` + `examples/*` including the 11
+   * dashboards in `examples/schema-catalog`) authors a `header.actions[]`
+   * entry at all, let alone a `<verb>_<object>` one.
+   *
+   * Delegating rather than re-implementing is the point: the contract now has
+   * one implementation, so a dashboard header button, a record-header action
+   * and a console list action resolve, refuse, and REPORT identically. The
+   * refusal names the target and points at `type: 'form'` — which reaches a
+   * dashboard header too (`actionType` is the full `ActionType` enum), and is
+   * the validated way to open an object's form.
+   */
+  const { modalHandler, modalElement } = useActionModal(adapter);
 
   const scriptHandlers = useMemo<Record<string, (a: ActionDef, c: ActionContext) => Promise<ActionResult> | ActionResult>>(
     () => ({
@@ -235,43 +217,8 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
          />
       </div>
 
-      {/* Modal triggered by header actions (e.g. "New Opportunity") */}
-      {modalState && modalState.schema?.objectName ? (
-        <ModalForm
-          schema={{
-            type: 'object-form',
-            formType: 'modal',
-            objectName: modalState.schema.objectName,
-            mode: modalState.schema.mode || 'create',
-            recordId: modalState.schema.recordId,
-            title: modalState.schema.title,
-            description: modalState.schema.description,
-            fields: modalState.schema.fields,
-            open: true,
-            onOpenChange: (open: boolean) => { if (!open) closeModal({ success: false }); },
-            onSuccess: (data: any) => { closeModal({ success: true, reload: true, data }); },
-            onCancel: () => { closeModal({ success: false }); },
-            showSubmit: true,
-            showCancel: true,
-          }}
-          dataSource={adapter as any}
-        />
-      ) : modalState ? (
-        <Dialog open onOpenChange={(open) => { if (!open) closeModal({ success: false }); }}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{modalState.schema?.title || t('actionDialog.defaultActionTitle')}</DialogTitle>
-              {modalState.schema?.description && (
-                <DialogDescription>{modalState.schema.description}</DialogDescription>
-              )}
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => closeModal({ success: false })}>{t('actionDialog.cancel')}</Button>
-              <Button onClick={() => closeModal({ success: true })}>{t('actionDialog.ok')}</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      ) : null}
+      {/* Modal opened by a header action whose `target` names a page. */}
+      {modalElement}
     </div>
   );
 }
