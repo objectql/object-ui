@@ -46,7 +46,12 @@ import {
   Label,
   toast,
 } from '@object-ui/components';
-import { extractRecords, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
+import {
+  extractRecords,
+  buildExpandFields,
+  convertSortToQueryParams,
+  getRecordDisplayName,
+} from '@object-ui/core';
 
 export interface CalendarSchema {
   type: 'calendar';
@@ -119,33 +124,6 @@ function getDataConfig(schema: ObjectGridSchema | CalendarSchema): ViewData | nu
   }
   
   return null;
-}
-
-/**
- * Helper to convert sort config to QueryParams format
- */
-function convertSortToQueryParams(sort: string | any[] | undefined): Record<string, 'asc' | 'desc'> | undefined {
-  if (!sort) return undefined;
-  
-  // If it's a string like "name desc"
-  if (typeof sort === 'string') {
-    const parts = sort.split(' ');
-    const field = parts[0];
-    const order = (parts[1]?.toLowerCase() === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc';
-    return { [field]: order };
-  }
-  
-  // If it's an array of SortConfig objects
-  if (Array.isArray(sort)) {
-    return sort.reduce((acc, item) => {
-      if (item.field && item.order) {
-        acc[item.field] = item.order;
-      }
-      return acc;
-    }, {} as Record<string, 'asc' | 'desc'>);
-  }
-  
-  return undefined;
 }
 
 /**

@@ -49,6 +49,19 @@ const HOT_VIEW = {
   pagination: { pageSize: 7 },
 };
 
+/**
+ * A sort entry that omits `order` is only reachable through UNTYPED saved-view
+ * metadata: `SortConfig.order` / `ElementDataSourceSort.order` are REQUIRED in
+ * objectui's own types, so a typed caller cannot spell this, while
+ * `ElementSavedView` is `Record< string, unknown >` by design. That is the
+ * authoring surface this fixture stands in for (objectui#4022).
+ */
+const PARTIAL_SORT_VIEW = {
+  name: 'partial',
+  label: 'Partially ordered',
+  sort: [{ field: 'end_date' }, { field: 'name', order: 'desc' }],
+};
+
 const GANTT = { startDateField: 'start_date', endDateField: 'end_date', titleField: 'name' };
 
 function makeAdapter(listViews: Record<string, unknown> = { hot: HOT_VIEW }) {
@@ -162,5 +175,38 @@ describe('object-gantt — dataSource: { object, view } (objectstack#7121)', () 
     expect(object).toBe('task');
     expect(params.$filter).toEqual([['owner', '=', 'me']]);
     expect(params.$orderby).toEqual({ end_date: 'asc' });
+  });
+
+  it('orders by a sort entry that omits `order` instead of dropping it', async () => {
+    const adapter = makeAdapter({ partial: PARTIAL_SORT_VIEW });
+    renderBlock(
+      { type: 'object-gantt', gantt: GANTT, dataSource: { object: 'task', view: 'partial' } },
+      adapter,
+    );
+
+    await waitFor(() => expect(adapter.find).toHaveBeenCalled());
+    const [, params] = adapter.find.mock.calls[0] as [string, any];
+    // The private copy this block used to inline required BOTH keys and silently
+    // dropped `end_date`, sending `{ name: 'desc' }` — an authored sort key lost
+    // on the way to the wire. The shared sink reads a missing `order` as
+    // ascending, which is what `QueryParams.$orderby`'s own member shape
+    // (`{ field: string; order?: 'asc' | 'desc' }`) declares, and what the string
+    // spelling (`"end_date"`) already meant in the very same copy.
+    expect(params.$orderby).toEqual({ end_date: 'asc', name: 'desc' });
+  });
+
+  it('sends NO $orderby when nothing orderable was authored', async () => {
+    const adapter = makeAdapter();
+    renderBlock(
+      { type: 'object-gantt', objectName: 'task', gantt: GANTT, sort: [] },
+      adapter,
+    );
+
+    await waitFor(() => expect(adapter.find).toHaveBeenCalled());
+    const [, params] = adapter.find.mock.calls[0] as [string, any];
+    // The private copy reduced an empty array to `{}` — a TRUTHY value that only
+    // means "no ordering" by accident of the adapter serializer. `undefined` says
+    // it outright, so the query simply carries no `$orderby`.
+    expect(params.$orderby).toBeUndefined();
   });
 });

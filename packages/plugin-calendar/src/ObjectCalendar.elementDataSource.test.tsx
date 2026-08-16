@@ -33,6 +33,17 @@ const HOT_VIEW = {
   pagination: { pageSize: 7 },
 };
 
+/**
+ * A sort entry that omits `order` — reachable only through UNTYPED saved-view
+ * metadata (`ElementSavedView` is `Record< string, unknown >`; `SortConfig.order`
+ * is required in objectui's own types). See objectui#4022.
+ */
+const PARTIAL_SORT_VIEW = {
+  name: 'partial',
+  label: 'Partially ordered',
+  sort: [{ field: 'starts_at' }, { field: 'name', order: 'desc' }],
+};
+
 const CALENDAR = { startDateField: 'starts_at', endDateField: 'ends_at', titleField: 'name' };
 
 function makeAdapter(listViews: Record<string, unknown> = { hot: HOT_VIEW }) {
@@ -74,7 +85,10 @@ describe('object-calendar — dataSource: { object, view } (objectstack#6953)', 
     const [object, params] = adapter.find.mock.calls[0] as [string, any];
     expect(object).toBe('account');
     expect(params.$filter).toEqual([['rating', '=', 'hot']]);
-    expect(params.$orderby).toBeTruthy();
+    // Was `toBeTruthy()`, which an EMPTY object also satisfies — the one value the
+    // old private copy produced when it had dropped every entry. Pinned to the
+    // actual map so this case can still fail for the right reason (objectui#4022).
+    expect(params.$orderby).toEqual({ name: 'desc' });
   });
 
   it('reports an unresolvable `view` instead of fetching the whole object', async () => {
@@ -106,5 +120,20 @@ describe('object-calendar — dataSource: { object, view } (objectstack#6953)', 
     const [object, params] = adapter.find.mock.calls[0] as [string, any];
     expect(object).toBe('account');
     expect(params.$filter).toEqual([['owner', '=', 'me']]);
+  });
+
+  it('orders by a sort entry that omits `order` instead of dropping it', async () => {
+    const adapter = makeAdapter({ partial: PARTIAL_SORT_VIEW });
+    renderBlock(
+      { type: 'object-calendar', calendar: CALENDAR, dataSource: { object: 'account', view: 'partial' } },
+      adapter,
+    );
+
+    await waitFor(() => expect(adapter.find).toHaveBeenCalled());
+    const [, params] = adapter.find.mock.calls[0] as [string, any];
+    // The private copy required BOTH keys and silently dropped `starts_at`,
+    // sending `{ name: 'desc' }`. The shared sink reads a missing `order` as
+    // ascending — what `QueryParams.$orderby`'s member shape declares.
+    expect(params.$orderby).toEqual({ starts_at: 'asc', name: 'desc' });
   });
 });
