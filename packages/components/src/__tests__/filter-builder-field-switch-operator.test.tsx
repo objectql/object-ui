@@ -193,17 +193,32 @@ describe('the value is re-shaped for the family the operator lands in', () => {
       operator: 'between',
       value: ['2024-01-01', '2024-12-31'],
     });
-    await pick(0, 'Amount');
+    // Retargeted from `Amount` to `Title` by objectui#4781: the fact under test
+    // is the pair → scalar collapse, and a text column forces the same operator
+    // reset (its bucket has no `between`) while being able to HOLD the date
+    // string the collapse produces. On a number column the collapse still
+    // happens and #4781 then clears `"2024-01-01"`, which would have hidden
+    // this pin behind a value judgement that is not what it is here to state.
+    await pick(0, 'Title');
 
     expect(lastRow(onChange).value).toBe('2024-01-01');
   });
 
-  it('a scalar value is carried through untouched — only the SHAPE is settled', async () => {
-    // Deliberately not blanked: the reset answers the operator's family, and
-    // scalar-to-scalar has no shape question to answer. What the user typed is
-    // theirs; a field switch is not a licence to discard it.
+  it('a scalar the new column can hold is carried through — only the SHAPE is settled', async () => {
+    // The reset answers the operator's family, and scalar-to-scalar has no
+    // shape question to answer. What the user typed is theirs; a field switch
+    // is not a licence to discard it.
+    //
+    // This case used to point at `Amount` and assert that `"acme"` survived
+    // onto a NUMBER column. That is the defect objectui#4781 reported — the
+    // number input renders `"acme"` blank while the row keeps filtering by it —
+    // and the maintainer ruled the value must clear there. The pin's own
+    // subject (the shape reset does not blank a value) is unchanged, so it is
+    // asserted on a target that can still hold the value; the number target now
+    // has its own, opposite pin in
+    // `filter-builder-field-switch-value.test.tsx`.
     const { onChange } = renderRow({ field: 'title', operator: 'contains', value: 'acme' });
-    await pick(0, 'Amount');
+    await pick(0, 'Stage');
 
     expect(lastRow(onChange)).toMatchObject({ operator: 'equals', value: 'acme' });
   });

@@ -385,6 +385,243 @@ export function reconcileOperatorForField(
   return offeredOperators[0]?.value ?? operator
 }
 
+/**
+ * The value FAMILY a field type edits in — the same six branches
+ * {@link getInputType} draws its `<input type>` from, named once so the type a
+ * value is CONVERTED to and the input it is EDITED in cannot disagree
+ * (objectui#4781).
+ *
+ * `boolean` is its own family even though it renders no `<input>` at all (a
+ * two-item Select): what it can hold is a distinct question from what a text
+ * box can hold, and that is what this answers.
+ */
+type FilterValueFamily = "text" | "number" | "boolean" | "date" | "datetime" | "time"
+
+function valueFamilyForFieldType(fieldType: string | undefined): FilterValueFamily {
+  const type = fieldType || "text"
+  if (numberLikeTypes.includes(type)) return "number"
+  if (type === "boolean") return "boolean"
+  if (type === "date") return "date"
+  if (type === "datetime") return "datetime"
+  if (type === "time") return "time"
+  // select / status / lookup / master_detail / user / owner / text / unknown:
+  // all edited as free text or as a list of option ids, all string-shaped.
+  return "text"
+}
+
+/**
+ * The `<input type>` each family is edited with.
+ *
+ * @internal exported for tests
+ */
+export const FILTER_INPUT_TYPE_BY_FAMILY: Readonly<Record<FilterValueFamily, string>> = {
+  text: "text",
+  number: "number",
+  date: "date",
+  datetime: "datetime-local",
+  time: "time",
+  // Never reached today — a boolean column's bucket offers only
+  // `equals`/`notEquals`, both of which take the two-item Select above. Mapped
+  // to the harmless default rather than left absent, so the record stays total.
+  boolean: "text",
+}
+
+/** `YYYY-MM-DD`, the form `<input type="date">` both renders and emits. */
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+/** `YYYY-MM-DDTHH:mm[:ss[.sss]]` with NO zone — what `datetime-local` emits. */
+const LOCAL_DATE_TIME_PATTERN =
+  /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?$/
+/** `HH:mm[:ss]`, the form `<input type="time">` both renders and emits. */
+const CLOCK_TIME_PATTERN = /^(\d{2}):(\d{2})(?::(\d{2}))?$/
+
+/** A date that exists — the pattern alone would accept `2024-02-31`. */
+function isRealCalendarDate(dateOnly: string): boolean {
+  const match = DATE_ONLY_PATTERN.exec(dateOnly)
+  if (!match) return false
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])]
+  const probe = new Date(Date.UTC(year, month - 1, day))
+  return (
+    probe.getUTCFullYear() === year &&
+    probe.getUTCMonth() === month - 1 &&
+    probe.getUTCDate() === day
+  )
+}
+
+/** A clock reading that exists — the pattern alone would accept `29:71`. */
+function isRealClockTime(hours: string, minutes: string, seconds?: string): boolean {
+  return (
+    Number(hours) <= 23 &&
+    Number(minutes) <= 59 &&
+    (seconds === undefined || Number(seconds) <= 59)
+  )
+}
+
+/**
+ * ONE scalar, converted into `family`, or `undefined` when that family cannot
+ * hold it — the single convertibility judgement this component makes
+ * (objectui#4781, ruled there as option B: convert when convertible, clear
+ * otherwise).
+ *
+ * The bar is a CLEAN, unambiguous reading, never a lenient one:
+ *
+ *   - **number** — `Number()` over the trimmed string, kept only if finite.
+ *     `"42"` → `42`; `"42abc"`, `"1,000"` and `"acme"` convert to nothing and
+ *     the caller clears them. Deliberately stricter than the `parseFloat(x) ||
+ *     0` this file's token input and range inputs use when the USER types into
+ *     an `<input type="number">`: there the browser has already refused
+ *     everything non-numeric, so leniency is unreachable; here the string
+ *     arrives from a column that had no such input, and `parseFloat` would turn
+ *     `"acme"` into `0` — a filter the user never wrote, which is precisely
+ *     what objectui#4781 ruled against.
+ *   - **boolean** — only the two words the row can round-trip back out of a
+ *     boolean column (`"true"` / `"false"`, trimmed, case-insensitively).
+ *     `1` / `0` / `"yes"` are conventions, not readings, so they clear.
+ *   - **date / datetime / time** — only a value the target's own input can
+ *     render as-is, plus the one truncation that loses nothing that input could
+ *     have shown anyway (a zoneless timestamp → its date). Everything else
+ *     clears, which is the ruling's default:
+ *       - `date` ← `"2024-03-05"` as-is, `"2024-03-05T14:30"` → `"2024-03-05"`;
+ *       - `datetime` ← a zoneless `YYYY-MM-DDTHH:mm[:ss]` as-is. A bare date
+ *         does NOT convert: appending midnight would invent the half of the
+ *         value the user never gave, and `equals 2024-03-05T00:00` is a filter
+ *         that silently matches almost nothing — worse than an empty input;
+ *       - `time` ← `HH:mm[:ss]` as-is. A timestamp does NOT convert: a
+ *         time-of-day column asks a different question than an instant does.
+ *     A zone-carrying string (`…Z`, `…+08:00`) clears everywhere: no input here
+ *     can render it, and truncating it by hand is exactly the ambiguity the
+ *     ruling says to refuse.
+ *   - **text** — holds everything, so nothing clears; a non-string is written
+ *     out with `String()` so the row's value is typed for the column it now
+ *     filters (`42` → `"42"`, `true` → `"true"`).
+ *
+ * The empty scalar `""` is returned unchanged by every family: an unfilled row
+ * is already in the family's empty shape, and "clearing" it would be a no-op
+ * dressed as a decision.
+ */
+function convertScalarToFamily(
+  value: string | number | boolean,
+  family: FilterValueFamily,
+): string | number | boolean | undefined {
+  if (value === "") return ""
+
+  switch (family) {
+    case "text":
+      return typeof value === "string" ? value : String(value)
+
+    case "number": {
+      if (typeof value === "number") return Number.isFinite(value) ? value : undefined
+      if (typeof value === "boolean") return undefined
+      const trimmed = value.trim()
+      if (trimmed === "") return ""
+      const parsed = Number(trimmed)
+      return Number.isFinite(parsed) ? parsed : undefined
+    }
+
+    case "boolean": {
+      if (typeof value === "boolean") return value
+      if (typeof value === "number") return undefined
+      const token = value.trim().toLowerCase()
+      return token === "true" ? true : token === "false" ? false : undefined
+    }
+
+    case "date": {
+      if (typeof value !== "string") return undefined
+      const trimmed = value.trim()
+      const local = LOCAL_DATE_TIME_PATTERN.exec(trimmed)
+      if (local) {
+        return isRealCalendarDate(local[1]) && isRealClockTime(local[2], local[3], local[4])
+          ? local[1]
+          : undefined
+      }
+      return isRealCalendarDate(trimmed) ? trimmed : undefined
+    }
+
+    case "datetime": {
+      if (typeof value !== "string") return undefined
+      const trimmed = value.trim()
+      const local = LOCAL_DATE_TIME_PATTERN.exec(trimmed)
+      if (!local) return undefined
+      return isRealCalendarDate(local[1]) && isRealClockTime(local[2], local[3], local[4])
+        ? trimmed
+        : undefined
+    }
+
+    case "time": {
+      if (typeof value !== "string") return undefined
+      const trimmed = value.trim()
+      const clock = CLOCK_TIME_PATTERN.exec(trimmed)
+      if (!clock) return undefined
+      return isRealClockTime(clock[1], clock[2], clock[3]) ? trimmed : undefined
+    }
+  }
+}
+
+/**
+ * Re-TYPE a row's `value` for the field it is being changed TO — the type
+ * question, standing beside {@link reshapeFilterValue}'s shape question
+ * (objectui#4781).
+ *
+ * Changing a row's field used to carry the value through untouched whenever the
+ * shape did not have to change, which is right about the shape and wrong about
+ * the type: the value input is re-drawn from the NEW field's type, and an
+ * `<input type="number">` renders a non-numeric value as BLANK. So a `text`
+ * row filtered `equals "acme"`, pointed at a number column, showed an empty box
+ * while the row went on carrying `"acme"` — `foldFilterGroupToSpecRules`
+ * persisted it and the live grid queried `amount equals "acme"`. The same
+ * invisible-value shape objectui#4768 closed on the operator, one column over.
+ *
+ * Carry-if-possible, exactly as `reshapeFilterValue` carries what it can across
+ * a family change: `"42"` moved to a number column becomes `42` and survives;
+ * `"acme"` cannot be read as a number by any clean reading, so it clears to the
+ * family's empty shape — scalar `""`, list `[]`, pair `[]`. What a value can
+ * become is decided in one place, {@link convertScalarToFamily}.
+ *
+ * The arity is read from the operator through the same `filterValueArity` fold
+ * the rest of this component uses, because each shape clears differently:
+ *
+ *   - `scalar` — converted, or `""`.
+ *   - `list` — converted ENTRY BY ENTRY, keeping the ones that carry:
+ *     `["42", "acme"]` → `[42]`, and `[]` when none do. Reachable today only
+ *     between the two buckets that offer `in`/`notIn` (`select` ↔ `lookup`),
+ *     which are both text-family, so the conversion is the identity there; it
+ *     is written for the family the operator lands in rather than for today's
+ *     buckets, and pinned directly on this helper.
+ *   - `pair` — both bounds converted independently, an unconvertible bound
+ *     becoming `""` so the range keeps its two slots; both empty collapses to
+ *     `[]`, the "not filled in yet" shape `reshapeFilterValue` also produces
+ *     and the write path drops.
+ *
+ * @internal exported for tests
+ */
+export function retypeFilterValue(
+  value: FilterBuilderCondition["value"],
+  fieldType: string | undefined,
+  operator: string,
+): FilterBuilderCondition["value"] {
+  const family = valueFamilyForFieldType(fieldType)
+
+  switch (filterValueArity(operator)) {
+    case "list": {
+      const carried: (string | number | boolean)[] = []
+      for (const entry of normalizeToArray(value)) {
+        const converted = convertScalarToFamily(entry, family)
+        if (converted !== undefined && converted !== "") carried.push(converted)
+      }
+      return carried
+    }
+    case "pair": {
+      const [min = "", max = ""] = normalizeToArray(value)
+      const lower = convertScalarToFamily(min, family) ?? ""
+      const upper = convertScalarToFamily(max, family) ?? ""
+      return lower === "" && upper === "" ? [] : [lower, upper]
+    }
+    default: {
+      const scalar = Array.isArray(value) ? (value[0] ?? "") : value
+      return convertScalarToFamily(scalar, family) ?? ""
+    }
+  }
+}
+
 /** The two bounds a `pair` row edits, with the gaps filled in for rendering. */
 function toPairBounds(
   value: FilterBuilderCondition["value"],
@@ -626,20 +863,33 @@ function FilterBuilder({
    * An operator the new bucket DOES offer is left alone — resetting it would
    * throw away a choice that is still valid (switching `contains` from one text
    * column to another must not silently become `equals`).
+   *
+   * The value is settled in the same edit, in two steps that answer two
+   * different questions and are both needed (objectui#4781):
+   *
+   *   1. `reshapeFilterValue` — the SHAPE the new OPERATOR takes, and only when
+   *      the operator actually changed;
+   *   2. `retypeFilterValue` — the TYPE the new FIELD takes, always. A field
+   *      switch redraws the value input from the new field's type, so a value
+   *      that type cannot hold is a value the user can no longer see or edit
+   *      while the row keeps filtering by it. Convertible values are carried
+   *      (`"42"` → `42`); the rest clear.
    */
   const changeField = (conditionId: string, nextField: string) => {
     const offered = getOperatorsForField(nextField)
+    const nextType = fields.find((f) => f.value === nextField)?.type
     handleChange({
       ...filterGroup,
       conditions: filterGroup.conditions.map((c) => {
         if (c.id !== conditionId) return c
         const nextOperator = reconcileOperatorForField(c.operator, offered)
-        if (nextOperator === c.operator) return { ...c, field: nextField }
+        const reshaped =
+          nextOperator === c.operator ? c.value : reshapeFilterValue(c.value, nextOperator)
         return {
           ...c,
           field: nextField,
           operator: nextOperator,
-          value: reshapeFilterValue(c.value, nextOperator),
+          value: retypeFilterValue(reshaped, nextType, nextOperator),
         }
       }),
     })
@@ -652,15 +902,14 @@ function FilterBuilder({
     return !VALUELESS_FILTER_BUILDER_OPERATORS.has(operator)
   }
 
+  // Derived from the value FAMILY rather than from a second branch ladder over
+  // the same type lists: the input a value is edited in and the type a value is
+  // converted to on a field switch are the same question, and answering it
+  // twice is how the two could come to disagree (objectui#4781) — the disagreement
+  // being exactly the defect, a value the row keeps and its input cannot show.
   const getInputType = (fieldValue: string) => {
     const field = fields.find((f) => f.value === fieldValue)
-    const fieldType = field?.type || "text"
-    
-    if (numberLikeTypes.includes(fieldType)) return "number"
-    if (fieldType === "date") return "date"
-    if (fieldType === "datetime") return "datetime-local"
-    if (fieldType === "time") return "time"
-    return "text"
+    return FILTER_INPUT_TYPE_BY_FAMILY[valueFamilyForFieldType(field?.type)]
   }
 
   const renderValueInput = (condition: FilterBuilderCondition) => {
