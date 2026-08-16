@@ -8,19 +8,17 @@ The AppShell component provides the main application layout structure with an in
 ## Basic Usage
 
 ```plaintext
-import { AppShell } from '@object-ui/layout';
-import { SidebarNav } from '@object-ui/layout';
+import { AppShell, SidebarNav, type NavItem } from '@object-ui/layout';
+import { Home, Settings, Users } from 'lucide-react';
+
+const navItems: NavItem[] = [
+  { title: 'Dashboard', href: '/', icon: Home },
+  { title: 'Users', href: '/users', icon: Users },
+  { title: 'Settings', href: '/settings', icon: Settings },
+];
 
 <AppShell
-  sidebar={
-    <SidebarNav
-      items={[
-        { label: 'Dashboard', href: '/', icon: 'home' },
-        { label: 'Users', href: '/users', icon: 'users' },
-        { label: 'Settings', href: '/settings', icon: 'settings' }
-      ]}
-    />
-  }
+  sidebar={<SidebarNav items={navItems} />}
   navbar={
     <div className="flex items-center gap-4">
       <span className="font-semibold">My App</span>
@@ -160,55 +158,30 @@ navbar={
 ## Complete Example
 
 ```plaintext
-import { AppShell, SidebarNav } from '@object-ui/layout';
-import { Avatar, Button, Input } from '@object-ui/components';
+import { AppShell, SidebarNav, type NavItem } from '@object-ui/layout';
+import { Avatar, AvatarFallback, Button, Input } from '@object-ui/components';
+import { Bell, Folder, LayoutDashboard, Settings, Users } from 'lucide-react';
+
+const navItems: NavItem[] = [
+  { title: 'Dashboard', href: '/', icon: LayoutDashboard, badge: '12' },
+  {
+    title: 'Projects',
+    href: '/projects',
+    icon: Folder,
+    children: [
+      { title: 'Active', href: '/projects/active' },
+      { title: 'Archived', href: '/projects/archived' },
+    ],
+  },
+  { title: 'Team', href: '/team', icon: Users },
+  { title: 'Settings', href: '/settings', icon: Settings },
+];
 
 function App() {
   return (
     <AppShell
       defaultOpen={true}
-      sidebar={
-        <SidebarNav
-          header={{
-            logo: '/logo.svg',
-            title: 'ObjectUI'
-          }}
-          items={[
-            {
-              label: 'Dashboard',
-              href: '/',
-              icon: 'layout-dashboard',
-              badge: '12'
-            },
-            {
-              label: 'Projects',
-              href: '/projects',
-              icon: 'folder',
-              children: [
-                { label: 'Active', href: '/projects/active' },
-                { label: 'Archived', href: '/projects/archived' }
-              ]
-            },
-            {
-              label: 'Team',
-              href: '/team',
-              icon: 'users'
-            },
-            {
-              label: 'Settings',
-              href: '/settings',
-              icon: 'settings'
-            }
-          ]}
-          footer={
-            <div className="p-4 border-t">
-              <Button variant="outline" className="w-full">
-                Upgrade Plan
-              </Button>
-            </div>
-          }
-        />
-      }
+      sidebar={<SidebarNav title="ObjectUI" items={navItems} />}
       navbar={
         <div className="flex items-center justify-between w-full">
           {/* Search */}
@@ -241,6 +214,11 @@ function App() {
   );
 }
 ```
+
+`SidebarNav` has no logo slot and no footer slot — `title` is its only branding prop, the
+section label printed above a flat `NavItem[]` (it is ignored when `items` is a
+`NavGroup[]`, since each group prints its own `label`). Put a logo in the `navbar` slot
+instead, as the Logo and Title example under Navbar Content above does.
 
 ## With Page Component
 
