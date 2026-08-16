@@ -18,16 +18,27 @@
  *   ② the bound dataset's measure label (the result field's `label`),
  *   ③ the measure `name`.
  *
- * DIRECTIONS, written before the reverse verification was run — the resolution
- * is NOT canonical-first, so this is the ordinary direction throughout:
- *  - ① and ② are RED before the change (they resolve to the raw `name`, which
- *    is precisely what the card reports) and green after;
- *  - ③ is GREEN on both sides: with nothing to resolve, the name IS the answer.
- *    It is here to pin that the fallback did not become `undefined`/`[object
- *    Object]`, a failure the other two cases cannot see;
- *  - the table/chart parity case is red before for the same reason as ②, and is
- *    the one that states the card's actual invariant: ONE measure, ONE string,
- *    on ONE screen.
+ * DIRECTIONS, written before the reverse verification was run. "Revert it and
+ * watch them go red" is ambiguous here, because there are two different ways to
+ * take the resolution away and they do NOT move the same case — so both were
+ * predicted, then run, and both matched:
+ *
+ *  - **name直读** (`measureLabel = yAxis`): 9 red, 1 green. The survivor is ③,
+ *    and necessarily so — reading the name directly COINCIDES with level ③, so
+ *    that case cannot distinguish the two. Every failure printed
+ *    `potential_upside_tons`, i.e. the card's reported symptom verbatim.
+ *  - **the exact pre-change lines** (`series: [{ dataKey }]`, caption
+ *    `headerLabel(yAxis)`): 9 red, 1 green — a DIFFERENT survivor. ③ goes red
+ *    here (the forwarded series carried no `label` key at all, so it is
+ *    `undefined`, not the name), and the green one is "a kpi caption still
+ *    falls back to the dataset measure label" — measured `'120可抢吨位(吨)'`.
+ *    That is not a weak case; it is the record that the single-value branch
+ *    already resolved ② and ③ before this change, and that ① was the only level
+ *    missing there. The series branch resolved none of the three.
+ *
+ * So ③'s job is not "red before": it is the guard that the last resort still
+ * lands on the NAME and did not become `undefined` or `[object Object]` — a
+ * failure ① and ② cannot see, and the one the pre-change code actually had.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
