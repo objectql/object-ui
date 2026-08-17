@@ -1047,11 +1047,18 @@ interface SkeletonCheck {
  * Resolved through `flaggedClaims` for the same reason the peer checks are: the scan has
  * already turned each inventory key back into concrete line numbers, and keying off it
  * keeps "the literal is not in the tree" one fact with one reporter.
+ *
+ * `flatMap` rather than filter-then-map so `skeletonDep` narrows to a string on the way in.
+ * A cast would compile identically and read as if the invariant were assumed rather than
+ * established, which is the opposite of what this file spends its length doing.
+ *
+ * `linesOf` is reused as-is even though its cache was written for READMEs: it resolves any
+ * repo-relative path, and these entries are the first non-README to need it.
  */
-const skeletonChecks: SkeletonCheck[] = KNOWN_CLAIMS.filter(
-  (entry) => entry.skeletonDep !== undefined,
-).map((entry) => {
-  const dep = entry.skeletonDep as string;
+const skeletonChecks: SkeletonCheck[] = KNOWN_CLAIMS.flatMap((entry) => {
+  const dep = entry.skeletonDep;
+  if (dep === undefined) return [];
+
   const occurrences = claimsByKey.get(keyOf(entry)) ?? [];
   const lines = linesOf(entry.file);
   const stated: { line: number; range: string }[] = [];
@@ -1062,7 +1069,9 @@ const skeletonChecks: SkeletonCheck[] = KNOWN_CLAIMS.filter(
     stated.push({ line: occurrence.line, range: declared.range });
   }
 
-  return { entry, dep, stated, absent: occurrences.length === 0, anchor: pluginDeclaredRanges(dep) };
+  return [
+    { entry, dep, stated, absent: occurrences.length === 0, anchor: pluginDeclaredRanges(dep) },
+  ];
 });
 
 describe('doc version claims - the scan itself', () => {
