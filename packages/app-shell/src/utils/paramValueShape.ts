@@ -150,7 +150,10 @@ export const PARAM_VALUE_SHAPES: Readonly<Record<string, ParamValueShapeSpec>> =
   lookup: { base: 'string', cardinality: 'scalar|array', note: 'Referenced record id; multiple → id[]. (No referenceTo → falls back to a text string.)' },
   master_detail: { base: 'string', cardinality: 'scalar|array', note: 'Parent record id — renders the single-value LookupField, not a child list.' },
   user: { base: 'string', cardinality: 'scalar|array', note: 'sys_user id; multiple → id[].' },
-  owner: { base: 'string', cardinality: 'scalar|array', note: 'Owner (sys_user) id; multiple → id[].' },
+  // `owner` had an entry here until objectui#4814 retired the spelling. Removed
+  // on this card's own drift guard's instruction ("no stale contract entries
+  // pointing at removed widget types"): a shape declared for a type no form can
+  // render is a contract for a param nobody can author.
 
   // Uploads → fileId string(s) after serializeParamValues (#2698/#2710)
   file: { base: 'string', cardinality: 'scalar|array', note: 'fileId string after serialize; multiple → fileId[]. Widget state holds a { file_id, name, url, … } descriptor pre-serialize.' },
