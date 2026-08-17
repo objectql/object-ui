@@ -1221,9 +1221,13 @@ function FilterBuilder({
       // checked, so it is both visible and removable; they lead the list because
       // they are the ones the user cannot otherwise find.
       const allowed = optionKeysOf(field)
-      const outsideOptions = selectedValues
-        .map(String)
-        .filter((entry) => !allowed.includes(entry))
+      // De-duplicated: an externally supplied `["acme", "acme"]` would otherwise
+      // draw two rows under one React key, and unchecking either removes both
+      // (the handler filters by value, not by position) — so one row is also the
+      // honest count of what unchecking does.
+      const outsideOptions = [
+        ...new Set(selectedValues.map(String).filter((entry) => !allowed.includes(entry))),
+      ]
       return (
         <div className="max-h-40 overflow-y-auto space-y-0.5 border rounded-md p-2">
           {outsideOptions.map((entry) => (
