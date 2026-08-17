@@ -19,34 +19,127 @@ pnpm add @object-ui/plugin-grid
 
 ## Usage
 
-### Automatic Registration (Side-Effect Import)
+### Registration is a side effect of the import
+
+There is no registration call to make. Importing the package entry once runs the
+three `ComponentRegistry.register(…)` calls in `src/index.tsx`, and from then on
+the schema types below resolve:
 
 ```typescript
 // In your app entry point (e.g., App.tsx or main.tsx)
 import '@object-ui/plugin-grid';
 
-// Now you can use grid types in your schemas
+// The data grid is `object-grid`, and it queries an object — see below for why
+// this is not `type: 'grid'`.
 const schema = {
-  type: 'grid',
-  columns: [
-    { header: 'Name', accessorKey: 'name' },
-    { header: 'Email', accessorKey: 'email' }
-  ],
-  data: []
+  type: 'object-grid',
+  objectName: 'users',
+  columns: ['name', 'email']
 };
 ```
 
-### Manual Registration
+### The schema types this package claims
+
+`register(type, component, { namespace })` publishes `namespace:type`, and — unless
+`skipFallback` is set — the bare `type` as a back-compat fallback
+(`packages/core/src/registry/Registry.ts:194`, fallback at `:226-240`). So the
+three calls in `src/index.tsx` claim exactly these keys:
+
+| `register(…)` call | Namespaced key | Bare fallback |
+| --- | --- | --- |
+| `('object-grid', ObjectGridRenderer, { namespace: 'plugin-grid' })` — `src/index.tsx:181` | `plugin-grid:object-grid` | `object-grid` |
+| `('grid', ObjectGridRenderer, { namespace: 'view', skipFallback: true })` — `src/index.tsx:193` | `view:grid` | **none** — `skipFallback: true` |
+| `('import-wizard', ImportWizardRenderer, { namespace: 'plugin-grid' })` — `src/index.tsx:216` | `plugin-grid:import-wizard` | `import-wizard` |
+
+**Bare `grid` is deliberately not ours.** `skipFallback: true` on the second call
+keeps this plugin from claiming it, because `grid` belongs to the CSS Grid *layout*
+container in `@object-ui/components`
+(`src/renderers/layout/grid.tsx:50`), whose schema type is `GridSchema` in
+`@object-ui/types` (`src/layout.ts:202` — `columns` there is a **column count**,
+not a column list). A schema written as `{ type: 'grid', columns: [...] }` therefore
+renders that layout container, not this data grid. Use `object-grid`, or `view:grid`
+when you want the namespaced spelling.
+
+### Registering the renderer under your own key
+
+If you need the data grid under an additional key, register the exported renderer
+directly — that is what a "manual registration" is here:
 
 ```typescript
-import { gridComponents } from '@object-ui/plugin-grid';
+import { ObjectGridRenderer } from '@object-ui/plugin-grid';
 import { ComponentRegistry } from '@object-ui/core';
 
-// Register grid components
-Object.entries(gridComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
+ComponentRegistry.register('my-grid', ObjectGridRenderer, {
+  namespace: 'my-app',
+  label: 'My Grid',
+  category: 'plugin',
 });
 ```
+
+### Exports
+
+The complete public surface — 20 values and 29 types:
+
+```typescript
+import {
+  ObjectGrid,
+  ObjectGridRenderer,
+  VirtualGrid,
+  SplitPaneGrid,
+  ImportWizard,
+  InlineEditing,
+  FormulaBar,
+  GroupRow,
+  RowActionMenu,
+  BulkActionBar,
+  formatActionLabel,
+  inferColumnType,
+  parseSpreadsheetFile,
+  parseClipboardTable,
+  useCellClipboard,
+  useColumnSummary,
+  useGradientColor,
+  useGroupReorder,
+  useGroupedData,
+  useRowColor,
+} from '@object-ui/plugin-grid';
+
+import type {
+  ObjectGridComponentProps,
+  ObjectGridColumnState,
+  ObjectGridExternalPaginationProps,
+  ObjectGridProps, // deprecated alias of ObjectGridComponentProps (objectui#4650)
+  VirtualGridProps,
+  VirtualGridColumn,
+  SplitPaneGridProps,
+  ImportWizardProps,
+  ImportResult,
+  InlineEditingProps,
+  FormulaBarProps,
+  GroupRowProps,
+  RowActionMenuProps,
+  BulkActionBarProps,
+  GroupEntry,
+  UseGroupedDataResult,
+  AggregationType,
+  AggregationConfig,
+  AggregationResult,
+  CellRange,
+  UseCellClipboardOptions,
+  UseCellClipboardResult,
+  GradientStop,
+  UseGradientColorOptions,
+  UseGroupReorderOptions,
+  UseGroupReorderResult,
+  ColumnSummarySetting,
+  ColumnSummaryType,
+  ColumnSummaryResult,
+} from '@object-ui/plugin-grid';
+```
+
+The *schema* types are not here — they live in `@object-ui/types`
+(`ObjectGridSchema`, `ListColumn`), because the schema is the shared authoring
+contract rather than this package's component API.
 
 ## Schema API
 
@@ -56,8 +149,9 @@ Data grid with advanced features:
 
 ```typescript
 {
-  type: 'grid',
-  columns: GridColumn[],
+  type: 'object-grid',
+  objectName: string,
+  columns?: string[] | ListColumn[],
   data?: any[],
   sortable?: boolean,
   filterable?: boolean,
@@ -70,16 +164,40 @@ Data grid with advanced features:
 
 ### Column Definition
 
+A column is either a **field name** (`'name'`) or a `ListColumn` object. `ListColumn`
+is declared by `@objectstack/spec/ui` (`ListColumnSchema`) and re-exported from
+`@object-ui/types`; it is the type of `ObjectGridSchema['columns']`, so it is the
+same column vocabulary the saved-view metadata uses.
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `field` | `string` (**required**) | The field this column reads. There is no `accessorKey`. |
+| `label` | `string \| Record<string, string>` | Header text, or an inline locale map. There is no `header`. |
+| `width` | `number` | Column width in pixels. |
+| `align` | `'left' \| 'center' \| 'right'` | Cell alignment. |
+| `hidden` | `boolean` | Hidden by default, revealable in the column chooser. |
+| `sortable` | `boolean` | Allow sorting on this column. |
+| `resizable` | `boolean` | Allow dragging this column's width. |
+| `wrap` | `boolean` | Wrap long cell text instead of eliding it. |
+| `type` | `string` | Override the rendered cell type instead of inferring it from the field. |
+| `pinned` | `'left' \| 'right'` | Freeze the column to one edge. |
+| `summary` | `ColumnSummary \| { type; field? }` | Footer aggregation — see [Column Summaries](#column-summaries). |
+| `prefix` | `{ field: string; type?: 'text' \| 'badge' }` | Render a second field inline before the value. |
+| `link` | `boolean` | Render the value as a link to the record. |
+| `action` | `string` | Run a named action when the cell is clicked. |
+
+`ListColumnSchema` is a **strict** Zod object, so an unknown key is rejected rather
+than ignored — a column is spelled this one way.
+
 ```typescript
-interface GridColumn {
-  header: string;
-  accessorKey: string;
-  sortable?: boolean;
-  filterable?: boolean;
-  width?: number | string;
-  align?: 'left' | 'center' | 'right';
-  cell?: (value, row) => ReactNode;
-}
+import type { ListColumn } from '@object-ui/types';
+
+const columns: ListColumn[] = [
+  { field: 'name', label: 'Full Name', width: 200, sortable: true, pinned: 'left', link: true },
+  { field: 'stage', type: 'select', prefix: { field: 'health', type: 'badge' }, wrap: true },
+  { field: 'amount', type: 'currency', align: 'right', summary: 'sum', resizable: true },
+  { field: 'owner_id', label: { en: 'Owner', 'zh-CN': '负责人' }, hidden: true, action: 'reassign' },
+];
 ```
 
 ### Column Summaries
@@ -388,23 +506,36 @@ const schema = {
 
 ## TypeScript Support
 
-```typescript
-import type { GridSchema, GridColumn } from '@object-ui/plugin-grid';
+The schema and column types come from `@object-ui/types`; this package exports the
+*component* types.
 
-const nameColumn: GridColumn = {
-  header: 'Name',
-  accessorKey: 'name',
+```typescript
+import type { ObjectGridSchema, ListColumn } from '@object-ui/types';
+import type { ObjectGridComponentProps } from '@object-ui/plugin-grid';
+
+const nameColumn: ListColumn = {
+  field: 'name',
+  label: 'Full Name',
   sortable: true
 };
 
-const grid: GridSchema = {
-  type: 'grid',
+const grid: ObjectGridSchema = {
+  type: 'object-grid',
+  objectName: 'users',
   columns: [nameColumn],
-  data: [],
-  sortable: true,
-  pagination: true
+  pagination: { pageSize: 20 }
+};
+
+// Row callbacks are COMPONENT props, not schema keys.
+const gridProps: ObjectGridComponentProps = {
+  schema: grid,
+  onRowClick: (record) => console.log('Row clicked:', record)
 };
 ```
+
+`ObjectGridProps` is a deprecated alias of `ObjectGridComponentProps` and denotes the
+same type; `@objectstack/spec/ui` owns the name `ObjectGridProps` for the *authored*
+props document of the `object-grid` element (objectui#4650).
 
 ## Links
 
