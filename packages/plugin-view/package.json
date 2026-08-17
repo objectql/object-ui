@@ -33,7 +33,7 @@
     "@object-ui/types": "workspace:*",
     "@objectstack/spec": "^17.0.0",
     "class-variance-authority": "^0.7.1",
-    "lucide-react": "^1.29.0"
+    "lucide-react": "^1.31.0"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",

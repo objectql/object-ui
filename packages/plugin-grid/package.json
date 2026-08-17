@@ -32,7 +32,7 @@
     "@objectstack/spec": "^17.0.0",
     "@tanstack/react-virtual": "^3.14.9",
     "exceljs": "^4.4.0",
-    "lucide-react": "^1.29.0"
+    "lucide-react": "^1.31.0"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
