@@ -382,9 +382,15 @@ describe('the three commands reach detection through one helper (objectui#4923)'
   );
 
   it('resolves and reports through the shared functions', () => {
+    // The CALL, not the identifier: reverting one command's detection while
+    // leaving its now-unused import behind kept a bare-name assertion green.
     for (const [file, source] of sources) {
-      expect(source, `${file} must resolve through the shared helper`).toContain('resolveProjectSource');
-      expect(source, `${file} must report the shared detection lines`).toContain('reportProjectSource');
+      expect(source, `${file} must resolve through the shared helper`).toContain(
+        'resolveProjectSource(cwd, schemaPath)'
+      );
+      expect(source, `${file} must report the shared detection lines`).toContain(
+        'reportProjectSource(source, cwd)'
+      );
     }
   });
 
