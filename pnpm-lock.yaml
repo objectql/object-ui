@@ -754,8 +754,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^17.0.0-rc.6
-        version: 17.0.0-rc.6(ai@7.0.65(zod@4.4.3))
+        specifier: ^17.0.0
+        version: 17.0.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/lint':
         specifier: ^17.0.0-rc.6
         version: 17.0.0-rc.6(ai@7.0.65(zod@4.4.3))
@@ -1167,8 +1167,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^17.0.0-rc.6
-        version: 17.0.0-rc.6(ai@7.0.65(zod@4.4.3))
+        specifier: ^17.0.0
+        version: 17.0.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^17.0.0
         version: 17.0.0(ai@7.0.65(zod@4.4.3))
@@ -4147,6 +4147,9 @@ packages:
   '@objectstack/core@17.0.0-rc.6':
     resolution: {integrity: sha512-78VndPhlxUXAupQVJ04YDdFbyIYcMJxw1I+Q7dlUuf+NGrlP7VzWwAQZm98dRH3q+M5wEvvV5t0myLhmVEpmKQ==}
     engines: {node: '>=22.0.0'}
+
+  '@objectstack/formula@17.0.0':
+    resolution: {integrity: sha512-PhJcfhZBMZTmerGeFJfVuhntvhvPrZhXd8MxmBl8wJjOr0CpTsr25WsNxq86lwKlTkq9PRscSbIW8fxCiTRV9g==}
 
   '@objectstack/formula@17.0.0-rc.6':
     resolution: {integrity: sha512-7vK6WgjeaO4rijaI4qZucRLsYGOPnrO/vuSd6wJCr1MpsH9go1yWLVte8itF0mTU0PhqXcnwtPHYCsxYnu4Y1Q==}
@@ -12591,6 +12594,13 @@ snapshots:
     dependencies:
       '@objectstack/spec': 17.0.0-rc.6(ai@7.0.65(zod@4.4.3))
       zod: 4.4.3
+    transitivePeerDependencies:
+      - ai
+
+  '@objectstack/formula@17.0.0(ai@7.0.65(zod@4.4.3))':
+    dependencies:
+      '@marcbachmann/cel-js': 8.0.0
+      '@objectstack/spec': 17.0.0(ai@7.0.65(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
