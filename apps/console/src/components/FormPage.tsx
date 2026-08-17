@@ -1035,13 +1035,16 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
    * once `delayMs` has elapsed, or the fact that the authored destination was
    * refused (objectui#4190). Null until a redirect submit resolves.
    *
-   * A refusal needs its own state rather than riding on `error` alone, because
-   * this page renders "Redirecting…" for a submitted redirect and that line
-   * would be a lie: nothing is going anywhere, and the submitter needs the
-   * confirmation their record WAS written plus the reason it stopped here.
+   * A refusal needs its own state rather than riding on `error`, for two
+   * reasons. This page renders "Redirecting…" for a submitted redirect, and that
+   * line would be a lie — nothing is going anywhere, and the submitter needs the
+   * confirmation their record WAS written plus the reason it stopped here. And
+   * the refusal travels WITH that flag rather than in `error` so one fact has
+   * one reader: `error` is the page's load/submit failure channel, which a
+   * refused destination is not (the submit succeeded).
    */
   const [redirect, setRedirect] = useState<
-    { kind: 'pending'; path: string } | { kind: 'refused' } | null
+    { kind: 'pending'; path: string } | { kind: 'refused'; refusal: string } | null
   >(null);
 
   // Load spec on mount / when identifier or the record it targets changes.
@@ -1173,9 +1176,8 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
             // So: confirm the submit, and put the refusal on screen — dropping
             // it would leave the submitter watching a redirect that must never
             // happen, and following it is the open redirect the ruling closed.
-            setError(verdict.refusal);
             toast.error(verdict.refusal);
-            setRedirect({ kind: 'refused' });
+            setRedirect({ kind: 'refused', refusal: verdict.refusal });
             setSubmitted(true);
             break;
           }
@@ -1258,7 +1260,7 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
             </p>
           </div>
           <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-            {error}
+            {redirect.refusal}
           </div>
         </div>
       );
