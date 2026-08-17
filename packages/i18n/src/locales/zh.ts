@@ -3426,6 +3426,12 @@ const zh = {
       between: '介于',
       in: '属于',
       notIn: '不属于',
+      startsWith: '以…开头',
+      endsWith: '以…结尾',
+      isNull: '为 null',
+      isNotNull: '不为 null',
+      exists: '已设置',
+      notExists: '未设置',
     },
   },
   sortBuilder: {

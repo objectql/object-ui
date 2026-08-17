@@ -3367,6 +3367,12 @@ const pt = {
       between: "Entre",
       in: "Em",
       notIn: "Não em",
+      startsWith: "Começa com",
+      endsWith: "Termina com",
+      isNull: "É null",
+      isNotNull: "Não é null",
+      exists: "Está definido",
+      notExists: "Não está definido",
     },
   },
   sortBuilder: {

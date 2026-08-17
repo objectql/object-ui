@@ -634,6 +634,72 @@ export function retypeFilterValue(
   }
 }
 
+/**
+ * Is this row's value FINISHED for the operator it carries — the arity-aware
+ * reading of "the user has filled this in" (objectstack#8815).
+ *
+ * Both write paths used to ask this with one shape-blind predicate:
+ *
+ * ```ts
+ * value == null || value === '' || (Array.isArray(value) && value.length === 0)
+ * ```
+ *
+ * which is right for `scalar` and `list` and WRONG for `pair`. A `between` row
+ * with one bound typed is `["2024-01-01", ""]` — an array of length 2, so it
+ * read as complete, and both consumers carried it through. The live grid then
+ * queried a range with an empty upper bound and the server refused the whole
+ * view (`400 INVALID_FILTER`), which is the "该视图的查询被拒绝" the reporter
+ * hit; the saved-view path persisted the same half-range, so the refusal came
+ * back on every later read of that view.
+ *
+ * The spec cannot catch this on the way past — measured against
+ * `ViewFilterRuleSchema` on `@objectstack/spec` 17.0.0: `["2024-01-01", ""]` is
+ * ACCEPTED (it counts the two slots, not what is in them), while a scalar or a
+ * one-element array is refused. So the empty bound sails through authoring
+ * validation and only dies at query time, one layer too late to be actionable.
+ * That makes it the PRODUCER's job to not emit it — this component is what
+ * decides when a row is finished, exactly as it already decides which operators
+ * finish with no value at all ({@link VALUELESS_FILTER_BUILDER_OPERATORS}), and
+ * for the same reason: each consumer keeping its own copy is how the two came to
+ * disagree in the first place.
+ *
+ * The arity is read through the same `filterValueArity` fold the rest of this
+ * file uses, so a stored rule spelled canonically gets the same answer as the
+ * dropdown's own id.
+ *
+ * What each shape needs:
+ *
+ *   - `pair` — BOTH bounds present. A range missing an end is not a narrower
+ *     range, it is a query the server refuses.
+ *   - `list` — at least one entry; `[]` is the "nothing chosen yet" shape.
+ *   - `scalar` — anything that is not the unfilled shape.
+ *
+ * "Present" is {@link isValueUnset}, never `!bound` (objectui#4873): `0` is a
+ * real bound on a number column and `false` is a real value, and reading either
+ * as unfilled would drop a filter the user can see on screen.
+ *
+ * This answers the VALUE question only. Whether an operator wants a value at all
+ * stays with each caller, because the two layers see different vocabularies:
+ * `app-shell` also has to recognise the canonical spellings (`is_null`) that
+ * never reach this dropdown.
+ *
+ * @internal exported for tests
+ */
+export function isFilterValueComplete(
+  operator: string,
+  value: FilterBuilderCondition["value"] | undefined | null,
+): boolean {
+  if (filterValueArity(operator) === "pair") {
+    const bounds = normalizeToArray(value ?? "")
+    return bounds.length === 2 && !isValueUnset(bounds[0]) && !isValueUnset(bounds[1])
+  }
+  return !(
+    value == null ||
+    value === "" ||
+    (Array.isArray(value) && value.length === 0)
+  )
+}
+
 /** The two bounds a `pair` row edits, with the gaps filled in for rendering. */
 function toPairBounds(
   value: FilterBuilderCondition["value"],

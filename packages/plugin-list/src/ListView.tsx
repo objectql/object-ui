@@ -11,7 +11,7 @@ import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuild
 import type { SortItem } from '@object-ui/components';
 import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, ShieldAlert, RotateCw, Loader2, icons, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
-import { VALUELESS_FILTER_BUILDER_OPERATORS } from '@object-ui/components';
+import { VALUELESS_FILTER_BUILDER_OPERATORS, isFilterValueComplete } from '@object-ui/components';
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
 import { ViewSettingsPopover } from './components/ViewSettingsPopover';
 import { UserFilters } from './UserFilters';
@@ -425,8 +425,17 @@ export function convertFilterGroupToAST(group: FilterGroup): any[] {
       // would be a silently-wrong filter (matches only empty) rather than
       // "no filter", excluding all rows. Matches groupToCondition in
       // datasetFilterCondition.ts (#1964).
-      const v = c.value;
-      return !(v == null || v === '' || (Array.isArray(v) && v.length === 0));
+      //
+      // Read from `@object-ui/components` rather than spelled out here
+      // (objectstack#8815): the local predicate this replaces was blind to the
+      // operator's ARITY, so a `between` row with one bound typed
+      // (`["2024-01-01", ""]` — an array of length 2) counted as complete and
+      // this function emitted a range with an empty end. The server refuses
+      // that outright (`400 INVALID_FILTER`) and the whole view fails to load,
+      // so the row the user half-filled took down the rows they had already
+      // filtered. The builder decides when one of its rows is finished; this
+      // asks it.
+      return isFilterValueComplete(c.operator, c.value);
     })
     .map(c => {
       if (c.operator === 'isEmpty') return [c.field, '=', null];

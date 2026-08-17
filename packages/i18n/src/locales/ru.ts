@@ -3379,6 +3379,12 @@ const ru = {
       between: "Между",
       in: "В списке",
       notIn: "Не в списке",
+      startsWith: "Начинается с",
+      endsWith: "Заканчивается на",
+      isNull: "Равно null",
+      isNotNull: "Не равно null",
+      exists: "Задано",
+      notExists: "Не задано",
     },
   },
   sortBuilder: {

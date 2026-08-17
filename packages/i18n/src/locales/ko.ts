@@ -3367,6 +3367,12 @@ const ko = {
       between: "사이",
       in: "포함됨",
       notIn: "포함되지 않음",
+      startsWith: "다음으로 시작",
+      endsWith: "다음으로 끝남",
+      isNull: "null임",
+      isNotNull: "null이 아님",
+      exists: "설정됨",
+      notExists: "설정되지 않음",
     },
   },
   sortBuilder: {

@@ -3372,6 +3372,12 @@ const es = {
       between: "Entre",
       in: "En",
       notIn: "No en",
+      startsWith: "Comienza por",
+      endsWith: "Termina en",
+      isNull: "Es null",
+      isNotNull: "No es null",
+      exists: "Está definido",
+      notExists: "No está definido",
     },
   },
   sortBuilder: {

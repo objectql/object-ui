@@ -3368,6 +3368,12 @@ const de = {
       between: "Zwischen",
       in: "In",
       notIn: "Nicht in",
+      startsWith: "Beginnt mit",
+      endsWith: "Endet mit",
+      isNull: "Ist null",
+      isNotNull: "Ist nicht null",
+      exists: "Ist gesetzt",
+      notExists: "Ist nicht gesetzt",
     },
   },
   sortBuilder: {

@@ -3375,6 +3375,12 @@ const ar = {
       between: "بين",
       in: "ضمن",
       notIn: "ليس ضمن",
+      startsWith: "يبدأ بـ",
+      endsWith: "ينتهي بـ",
+      isNull: "يساوي null",
+      isNotNull: "لا يساوي null",
+      exists: "محدد",
+      notExists: "غير محدد",
     },
   },
   sortBuilder: {

@@ -3615,6 +3615,12 @@ const en = {
       between: 'Between',
       in: 'In',
       notIn: 'Not in',
+      startsWith: 'Starts with',
+      endsWith: 'Ends with',
+      isNull: 'Is null',
+      isNotNull: 'Is not null',
+      exists: 'Is set',
+      notExists: 'Is not set',
     },
   },
   sortBuilder: {

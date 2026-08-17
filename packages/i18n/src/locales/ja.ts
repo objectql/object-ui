@@ -3368,6 +3368,12 @@ const ja = {
       between: "範囲内",
       in: "いずれか",
       notIn: "いずれでもない",
+      startsWith: "前方一致",
+      endsWith: "後方一致",
+      isNull: "null である",
+      isNotNull: "null でない",
+      exists: "設定済み",
+      notExists: "未設定",
     },
   },
   sortBuilder: {
