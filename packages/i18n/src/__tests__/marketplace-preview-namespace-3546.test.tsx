@@ -32,18 +32,30 @@
  * `PluginDisclosure.tsx:70`:
  *
  *     t(`marketplace.disclosure.runtime.${version.runtime}`, {
- *       defaultValue: RUNTIME_FALLBACK[version.runtime] ?? version.runtime,
+ *       defaultValue: RUNTIME_FALLBACK[version.runtime],
  *     })
  *
  * Its value surface is a CLOSED enumeration — `PluginRuntimeSchema` in
  * objectstack `packages/spec/src/kernel/manifest.zod.ts` is
  * `z.enum(['node', 'sandbox', 'worker'])` (ADR-0025 §3.6) — so the repair is an
  * enumeration of three members, not a wildcard, and the family leaves
- * `missingPrefixes` (3 → 2). The spec lives in a sibling repo and cannot be read
- * from here, so the in-repo authority this test reads is the component's own
- * `RUNTIME_FALLBACK` map, which is what `defaultValue` reads; a fourth tier
- * added to either side fails the test, which is the job the prefix entry used to
- * do.
+ * `missingPrefixes` (3 → 2). The in-repo authority this test reads is the
+ * component's own `RUNTIME_FALLBACK` map, which is what `defaultValue` reads; a
+ * fourth tier added to either side fails the test, which is the job the prefix
+ * entry used to do.
+ *
+ * **Repointed by objectui#3846.** When this file was written the map was a
+ * `Record< string, string >` and the spec — living in a sibling repo — was
+ * unreadable from here, so "the component's own map" was the only authority
+ * available. The map is keyed by the spec's `PluginRuntime` now, and the
+ * value-level comparison against `PluginRuntimeSchema.options` itself lives in
+ * `packages/app-shell/src/console/marketplace/__tests__/plugin-runtime-tier-3846.test.tsx`
+ * — app-shell depends on `@objectstack/spec`, `@object-ui/i18n` deliberately does
+ * not (its dependencies are `@object-ui/core` + i18next, and a test-only spec
+ * dependency would be the first). So this file keeps doing what it can prove
+ * from here — that the PACKS and the label map agree, member for member — and
+ * additionally pins that the map is keyed by the spec's type rather than by
+ * `string`, which is what makes the two files one chain instead of two truths.
  *
  * ## Why a provider is mounted
  *
@@ -322,12 +334,20 @@ describe('objectui#3546 slice five — the marketplace and preview namespaces', 
     it('is enumerated from the trust-tier enum, not guessed', () => {
       // The family left `missingPrefixes` because all three members now exist.
       // The canonical enum is objectstack spec `PluginRuntimeSchema`
-      // (z.enum(['node','sandbox','worker']), ADR-0025 §3.6) which is in another
-      // repo; the in-repo authority is the component's own fallback map, and a
+      // (z.enum(['node','sandbox','worker']), ADR-0025 §3.6); since objectui#3846
+      // the component's map is KEYED by that enum's type, so this file's job is
+      // pack-vs-map parity plus proving the map still answers to the spec, and a
       // fourth tier on either side fails here — the job the prefix entry did.
       const src = sourceOf(DISCLOSURE);
-      const block = src.match(/const RUNTIME_FALLBACK: Record<string, string> = \{([^}]+)\}/);
+      const block = src.match(/const RUNTIME_FALLBACK: Record<PluginRuntime, string> = \{([^}]+)\}/);
       expect(block, 'RUNTIME_FALLBACK not found — did the map move?').not.toBeNull();
+      // The authority, asserted rather than assumed: keyed by the spec's type,
+      // imported from the spec (via marketplaceApi's re-export). A local
+      // `Record<string, …>` or a hand-written union here would be the drift this
+      // family exists to catch.
+      expect(src, 'the tier map stopped answering to the spec type').toMatch(
+        /import type \{[^}]*\bPluginRuntime\b[^}]*\} from '\.\/marketplaceApi'/,
+      );
       const members = [...block![1].matchAll(/(\w+):\s*'([^']*)'/g)].map((m) => m[1]);
       expect(members.sort()).toEqual(['node', 'sandbox', 'worker']);
       const packMembers = Object.keys(at(builtInLocales.en, 'marketplace.disclosure.runtime') as object);
@@ -341,7 +361,7 @@ describe('objectui#3546 slice five — the marketplace and preview namespaces', 
       // paths must not diverge: with the pack present i18next answers, without it
       // the map does, and a user must not be able to tell which one ran.
       const block = sourceOf(DISCLOSURE).match(
-        /const RUNTIME_FALLBACK: Record<string, string> = \{([^}]+)\}/,
+        /const RUNTIME_FALLBACK: Record<PluginRuntime, string> = \{([^}]+)\}/,
       );
       const labels = Object.fromEntries(
         [...block![1].matchAll(/(\w+):\s*'([^']*)'/g)].map((m) => [m[1], m[2]]),

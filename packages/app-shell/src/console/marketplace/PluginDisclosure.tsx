@@ -12,9 +12,21 @@
 import { Badge } from '@object-ui/components';
 import { Boxes, CheckCircle2, Code2, FolderTree, Network, ShieldAlert, ShieldCheck, Webhook } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import type { MarketplacePackageVersion } from './marketplaceApi';
+import type { MarketplacePackageVersion, PluginRuntime } from './marketplaceApi';
 
-const RUNTIME_FALLBACK: Record<string, string> = {
+/**
+ * English label per trust tier — the map i18next's `defaultValue` reads.
+ *
+ * Keyed by the spec's `PluginRuntime` rather than `string` (objectui#3846): a
+ * tier the spec adds is now a compile error here instead of a silent hole that
+ * used to fall through to `?? version.runtime` and render the raw wire value on
+ * the panel granting code execution. Total map, so the lookup below needs no
+ * fallback of its own.
+ *
+ * Exported for the parity pin next door, which compares these keys against
+ * `PluginRuntimeSchema` itself.
+ */
+export const RUNTIME_FALLBACK: Record<PluginRuntime, string> = {
   node: 'In-process · full trust',
   sandbox: 'Sandboxed',
   worker: 'Out-of-process',
@@ -67,8 +79,8 @@ export function PluginDisclosure({ version }: { version?: MarketplacePackageVers
       <div className="flex flex-wrap items-center gap-1.5">
         {version.runtime && (
           <Badge variant="outline">
-            {t(`marketplace.disclosure.runtime.${version.runtime}` as any, {
-              defaultValue: RUNTIME_FALLBACK[version.runtime] ?? version.runtime,
+            {t(`marketplace.disclosure.runtime.${version.runtime}`, {
+              defaultValue: RUNTIME_FALLBACK[version.runtime],
             })}
           </Badge>
         )}
