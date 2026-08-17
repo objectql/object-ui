@@ -243,9 +243,12 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   }, [requestedAppMissing, metadataLoading, previewDrafts, missingRecheck, refreshMetadata]);
 
   // objectui#4252 — WHY the app is missing, once the re-check above has settled
-  // and it still is. `GET /meta/apps` is filtered per session server-side
-  // (`filterAppForUser`), so a withheld app and a nonexistent one are
-  // byte-identical in the list: both absent. Everything this component can read
+  // and it still is. The list this reads is the generic metadata list route
+  // `GET /api/v1/meta/:type`, requested with the SINGULAR type segment `app`
+  // (`MetadataProvider` → `client.meta.getItems('app')`), and the server filters
+  // it per session (`filterAppForUser`, `packages/rest/src/rest-server.ts`), so
+  // a withheld app and a nonexistent one are byte-identical in the list: both
+  // absent. Everything this component can read
   // from the list has therefore already been read, and the remaining question
   // has to be asked of the BY-NAME route, which answers it explicitly since
   // objectstack#8013 (403 `PERMISSION_DENIED` for exists-but-unauthorized; 404
@@ -673,9 +676,11 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   }
 
   // objectui#4473 — a viewer with NO app to enter here must not be left on a
-  // chrome-less screen. `GET /meta/apps` is filtered PER SESSION server-side
-  // (`filterAppForUser`), so an empty list on a `member` means "nothing here is
-  // yours to open", not "this workspace has no apps" — and switching
+  // chrome-less screen. The app list arrives from `GET /api/v1/meta/:type` with
+  // the SINGULAR type segment `app`, and the server filters that list PER
+  // SESSION (`filterAppForUser`, `packages/rest/src/rest-server.ts`), so an
+  // empty list on a `member` means "nothing here is yours to open", not "this
+  // workspace has no apps" — and switching
   // organization lands exactly there: `WorkspaceSwitcher` reloads onto the
   // console root, `RootLandingRedirect` resolves the landing from the app
   // metadata `MetadataProvider` seeded out of sessionStorage (the PREVIOUS

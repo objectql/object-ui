@@ -3797,8 +3797,13 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * Ask the by-name meta app route WHY an app is not in this session's app list
    * (objectui#4252).
    *
-   * `GET /api/v1/meta/apps` is filtered per session server-side
-   * (`filterAppForUser`), so an app withheld by `requiredPermissions` and an app
+   * The app LIST is the generic metadata list route `GET /api/v1/meta/:type`,
+   * requested with the singular type segment `app` — the same address this
+   * method appends a name to below, and the one `MetadataProvider` reads its
+   * items from. The server filters that list per session in `filterAppForUser`
+   * (`packages/rest/src/rest-server.ts`, applied inside the `:type` list handler
+   * once the type segment resolves to `app`), so an app withheld by
+   * `requiredPermissions` and an app
    * that does not exist are byte-identical there: both are simply absent. A
    * console reading only that list has one fact and two conditions, and it
    * renders its copy for the wrong one — "it may still be publishing" over a
