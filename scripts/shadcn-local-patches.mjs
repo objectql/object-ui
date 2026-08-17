@@ -160,6 +160,87 @@ const sidebarCookieReadPatches = [
 ];
 
 /**
+ * The slider thumb pass-through patch (objectui#3318).
+ *
+ * A Radix slider's focusable control is the THUMB (`span[role="slider"]`,
+ * `tabindex="0"`) — the element a keyboard user lands on and the one assistive
+ * technology reads state from. `Slider.Root` renders a role-less wrapper span
+ * and takes every unrecognised prop, so a host's `id` / `aria-invalid` /
+ * `aria-describedby` / `aria-labelledby` landed on a wrapper nobody visits:
+ * a required slider showed its red message with nothing announced, its visible
+ * label pointed `for` at an id no element carried, and its help text had zero
+ * consumers.
+ *
+ * The primitive exports only `Slider`, so unlike `SelectTrigger` (objectui#3306,
+ * the same defect one step easier) a widget has NO handle on the element that
+ * must carry those facts. Hence a declared `thumbProps`.
+ *
+ * Four one-liners, each anchored on a line upstream has carried across every
+ * sync in this file's history. As with the families above, the payload stays
+ * OUT of `src/ui/`: the routing and its reasoning live in
+ * `packages/components/src/lib/slider-thumb.ts`.
+ *
+ * The root half is patched too, and that is not optional: leaving `thumbProps`
+ * in Root's spread would stringify it onto the wrapper (`thumbprops="[object
+ * Object]"`), the exact leak objectui#3291 sweeps for.
+ *
+ * @type {LocalPatch[]}
+ */
+const sliderThumbPassThroughPatches = [
+  {
+    id: 'slider-thumb-import',
+    issue: 'objectui#3318',
+    reason:
+      'Imports the router that splits a Slider\'s props between its Root wrapper ' +
+      'and its focusable thumb. Anchored on the `cn` import, which every Shadcn ' +
+      'component carries.',
+    find: 'import { cn } from "../lib/utils"',
+    replace:
+      'import { cn } from "../lib/utils"\nimport { splitSliderThumbProps, type SliderThumbPassThrough } from "../lib/slider-thumb"',
+    marker: 'from "../lib/slider-thumb"',
+    occurrences: 1,
+  },
+  {
+    id: 'slider-thumb-props-type',
+    issue: 'objectui#3318',
+    reason:
+      'Declares `thumbProps` on the wrapper so addressing the focusable control ' +
+      'is type-checked rather than cast through `any` (AGENTS.md #6). Additive: ' +
+      'every existing call site keeps the exact prop surface it had.',
+    find: '  React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>\n>',
+    replace:
+      '  React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root> & SliderThumbPassThrough\n>',
+    marker: '& SliderThumbPassThrough',
+    occurrences: 1,
+  },
+  {
+    id: 'slider-thumb-root-split',
+    issue: 'objectui#3318',
+    reason:
+      'Withholds `thumbProps` from the Root spread. Without this the object is ' +
+      'String()-ed onto the wrapper span as `thumbprops="[object Object]"` — the ' +
+      'leak class objectui#3291 sweeps for.',
+    find: '    {...props}\n  >',
+    replace: '    {...splitSliderThumbProps(props).root}\n  >',
+    marker: 'splitSliderThumbProps(props).root',
+    occurrences: 1,
+  },
+  {
+    id: 'slider-thumb-aria-delivery',
+    issue: 'objectui#3318',
+    reason:
+      'Delivers the host\'s control-channel facts to the element that can carry ' +
+      'them. Replaces (and preserves) the narrower hand-written `aria-label` ' +
+      'bridge upstream already needed here for the very same reason — proof the ' +
+      'thumb is unreachable from outside, not a new claim.',
+    find: '      aria-label={props["aria-label"]}\n',
+    replace: '      {...splitSliderThumbProps(props).thumb}\n',
+    marker: 'splitSliderThumbProps(props).thumb',
+    occurrences: 1,
+  },
+];
+
+/**
  * Component name (as tracked in `shadcn-components.json`) → patches it needs.
  *
  * @type {Record<string, LocalPatch[]>}
@@ -168,6 +249,7 @@ export const LOCAL_PATCHES = {
   sheet: i18nCloseLabelPatches('Sheet'),
   dialog: i18nCloseLabelPatches('Dialog'),
   sidebar: sidebarCookieReadPatches,
+  slider: sliderThumbPassThroughPatches,
 };
 
 /** Components that carry at least one declared patch. */

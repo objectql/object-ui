@@ -2,12 +2,48 @@ import React, { useRef, useEffect } from 'react';
 import { Button } from '@object-ui/components';
 import { Eraser } from 'lucide-react';
 import { FieldWidgetComponentProps } from './types';
+import { toHostGroupProps } from './toHostGroupProps';
 
 /**
  * Signature field widget - provides a signature pad for capturing signatures
  * Outputs signature as a base64 PNG image
+ *
+ * ## Naming, and the half that is deliberately absent (objectui#3318)
+ *
+ * This widget forwarded nothing a host handed it — every branch below wrote its
+ * attributes by hand — so its visible label pointed `for` at an id no element
+ * in the row carried, and the rendered help text had zero consumers. Measured
+ * on `origin/main`, a real form, this field required and freshly failed:
+ *
+ * ```
+ * signature  labelFor=…-form-item -> DANGLING  descConsumers=0  ids=[]
+ * ```
+ *
+ * The name and the description arrive here, on the container, through
+ * {@link toHostGroupProps} — the objectui#3961 route for a widget whose surface
+ * no `<label for>` can reach (`<canvas>` is not a labelable element), and which
+ * therefore declares `labelling: 'group'` in `FIELD_TYPES_GROUP_LABELLED`.
+ * `'instead-of-the-inputs'` because this field renders no input of its own for
+ * the description to land on: the Clear button is auxiliary — it acts on the
+ * value, it is not the value's control — the same reading that put
+ * `geolocation`'s focusable "View on map" link on that side of the split.
+ *
+ * `aria-invalid` and `aria-required` are NOT here, and their absence is a
+ * verdict rather than an omission. The drawing surface has no keyboard path at
+ * all (measured: this row offers zero focusable elements while empty — the only
+ * candidate, Clear, is `disabled` until something has been drawn), so there is
+ * no element assistive technology would read a control state from. Marking the
+ * container instead would announce a state with no control behind it — the
+ * non-focusable-wrapper move objectui#3291 and #3318 both draw the line
+ * against. The type is recorded in that sweep's NOT_APPLICABLE ledger with a
+ * guard that turns red the day a real control appears here.
  */
-export function SignatureField({ value, onChange, readonly }: FieldWidgetComponentProps<string>) {
+export function SignatureField({
+  value,
+  onChange,
+  readonly,
+  ...props
+}: FieldWidgetComponentProps<string>) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = React.useState(false);
   const [isEmpty, setIsEmpty] = React.useState(!value);
@@ -91,20 +127,26 @@ export function SignatureField({ value, onChange, readonly }: FieldWidgetCompone
     onChange('');
   };
 
+  const hostGroupProps = toHostGroupProps(props, 'instead-of-the-inputs');
+
   if (readonly && value) {
     return (
-      <div className="border rounded p-2 bg-white">
+      <div {...hostGroupProps} className="border rounded p-2 bg-white">
         <img src={value} alt="Signature" loading="lazy" className="max-w-full h-auto" />
       </div>
     );
   }
 
   if (readonly && !value) {
-    return <span className="text-sm text-muted-foreground">No signature</span>;
+    return (
+      <span {...hostGroupProps} className="text-sm text-muted-foreground">
+        No signature
+      </span>
+    );
   }
 
   return (
-    <div className="space-y-2">
+    <div {...hostGroupProps} className="space-y-2">
       <div className="border rounded bg-white">
         <canvas
           ref={canvasRef}

@@ -42,6 +42,11 @@ import { registerAllFields, mapFieldTypeToFormType } from '../index';
  * chip row is the same wrapper `div` holding the host id that `checkboxes` had.
  * It is listed here rather than left to the e2e file alone because the omission
  * of a declaration is exactly the failure that degrades silently.
+ *
+ * `slider` and `signature` (objectui#3318) are the eighth and ninth, and both
+ * are `file`'s shape rather than a composite: ONE surface, which happens not to
+ * be labelable. A slider's control is Radix's `span[role="slider"]` thumb; a
+ * signature's is a `<canvas>`. `<label for>` reaches neither.
  */
 const GROUP_LABELLED = [
   'address',
@@ -51,6 +56,8 @@ const GROUP_LABELLED = [
   'rating',
   'file',
   'multiselect',
+  'slider',
+  'signature',
 ] as const;
 
 /**

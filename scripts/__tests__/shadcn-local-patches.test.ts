@@ -94,6 +94,96 @@ describe('shadcn local patches — application to fresh upstream (objectstack#55
     expect(ids).toEqual(['sidebar-cookie-read-import', 'sidebar-cookie-read-initial-state']);
   });
 
+  /**
+   * The third family: the slider thumb pass-through (objectui#3318).
+   *
+   * The root half is listed here on purpose. It is easy to read
+   * `slider-thumb-root-split` as bookkeeping next to the delivery patch and
+   * drop it, and the result compiles and renders: the object is simply
+   * String()-ed onto the wrapper as `thumbprops="[object Object]"`, and the id
+   * it also leaves behind gives the row two elements answering to one id.
+   */
+  it('slider declares the thumb pass-through patches', () => {
+    const ids = LOCAL_PATCHES.slider.map((p: { id: string }) => p.id);
+    expect(ids).toEqual([
+      'slider-thumb-import',
+      'slider-thumb-props-type',
+      'slider-thumb-root-split',
+      'slider-thumb-aria-delivery',
+    ]);
+  });
+
+  it('applies the slider family to fresh upstream, and is idempotent', () => {
+    // The upstream shape the registry serves, after `rewriteRegistryImports`.
+    // `aria-label` on the thumb is upstream's OWN hand-written bridge — the
+    // anchor the delivery patch replaces, and the standing evidence that the
+    // thumb cannot be addressed from outside the primitive.
+    const upstream = `"use client"
+
+import * as React from "react"
+import * as SliderPrimitive from "@radix-ui/react-slider"
+
+import { cn } from "../lib/utils"
+
+const Slider = React.forwardRef<
+  React.ElementRef<typeof SliderPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <SliderPrimitive.Root
+    ref={ref}
+    className={cn("relative flex", className)}
+    {...props}
+  >
+    <SliderPrimitive.Track />
+    <SliderPrimitive.Thumb
+      className="block h-5 w-5"
+      aria-label={props["aria-label"]}
+    />
+  </SliderPrimitive.Root>
+))
+`;
+
+    const once = applyLocalPatches('slider', upstream);
+    expect(once.failed).toEqual([]);
+    expect(once.applied).toHaveLength(4);
+    expect(verifyLocalPatches('slider', once.content)).toEqual([]);
+    // The thumb takes the routed props and the wrapper does not take the raw
+    // `props` object any more — the two halves that must land together.
+    expect(once.content).toContain('{...splitSliderThumbProps(props).thumb}');
+    expect(once.content).toContain('{...splitSliderThumbProps(props).root}');
+    expect(once.content).not.toContain('aria-label={props["aria-label"]}');
+
+    const twice = applyLocalPatches('slider', once.content);
+    expect(twice.applied).toEqual([]);
+    expect(twice.content).toBe(once.content);
+  });
+
+  it('refuses when upstream restructures the thumb away', () => {
+    // A future registry drop of the hand-written `aria-label` bridge takes the
+    // delivery patch's anchor with it. That must be a hard failure the operator
+    // sees, not a sync that quietly ships an unreachable thumb again.
+    const withoutThumbAnchor = `import { cn } from "../lib/utils"
+
+const Slider = React.forwardRef<
+  React.ElementRef<typeof SliderPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <SliderPrimitive.Root
+    {...props}
+  >
+    <SliderPrimitive.Thumb className="block" />
+  </SliderPrimitive.Root>
+))
+`;
+
+    const result = applyLocalPatches('slider', withoutThumbAnchor);
+
+    expect(result.failed.map((p: { id: string }) => p.id)).toEqual([
+      'slider-thumb-aria-delivery',
+    ]);
+    expect(result.failed[0].found).toBe(0);
+  });
+
   it('turns an unpatched upstream file into the translated form', () => {
     const result = applyLocalPatches('dialog', UPSTREAM_DIALOG);
 
