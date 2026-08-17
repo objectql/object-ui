@@ -1339,14 +1339,25 @@ function FieldControl({
   formData,
 }: {
   /**
-   * The host field id — present only on the `labelling: 'control'` channel,
-   * `undefined` on the `'group'` one (objectui#4871). Every builtin branch below
-   * renders a labelable element and spreads it unconditionally; so does the JSON
-   * editor, whose `<textarea>` is exactly such an element (objectui#5039). The
-   * `'group'` faces never read it — `FieldRow` doesn't hand it to them.
+   * The host field id. From `FieldRow` it is present only on the
+   * `labelling: 'control'` channel and `undefined` on the `'group'` one
+   * (objectui#4871): every builtin branch below renders a labelable element and
+   * spreads it unconditionally, as does the JSON editor whose `<textarea>` is
+   * exactly such an element (objectui#5039), while the `'group'` faces never
+   * read it because `FieldRow` doesn't hand it to them.
    */
   id?: string;
-  /** The host label's id, on the `'group'` channel only. */
+  /**
+   * An IDREF naming whatever this control renders.
+   *
+   * From `FieldRow` this is the host label's id on the `'group'` channel only,
+   * and exactly one of `id` / `ariaLabelledBy` is ever defined — that mutual
+   * exclusion is `FieldRow`'s rule about a LABEL, not a rule about this
+   * component. A grid/table repeater cell has no `<label>` at all: its name is
+   * the column header, reached by IDREF, while the id stays on the control as a
+   * plain anchor. So a cell passes BOTH, and every branch below emits the IDREF
+   * alongside the id rather than treating them as alternatives (objectui#5063).
+   */
   ariaLabelledBy?: string;
   /** Machine field name — keys enum-option localization (e.g. flow `type`). */
   fieldName?: string;
@@ -1525,6 +1536,7 @@ function FieldControl({
         <div className="space-y-1">
           <RawJsonEditor
             id={id}
+            ariaLabelledBy={ariaLabelledBy}
             value={value as any}
             onChange={(v) => onChange(v)}
             readOnly={readOnly}
@@ -1535,7 +1547,9 @@ function FieldControl({
         </div>
       );
     }
-    return <RawJsonEditor id={id} value={value} onChange={onChange} readOnly={readOnly} small />;
+    return (
+      <RawJsonEditor id={id} ariaLabelledBy={ariaLabelledBy} value={value} onChange={onChange} readOnly={readOnly} small />
+    );
   }
 
   // The builtin scalar chain. For schemas authored as `anyOf` / `oneOf` (e.g.
@@ -1557,7 +1571,7 @@ function FieldControl({
         onValueChange={(v) => onChange(v)}
         disabled={readOnly}
       >
-        <SelectTrigger id={id}>
+        <SelectTrigger id={id} aria-labelledby={ariaLabelledBy}>
           <SelectValue placeholder={t('engine.form.selectEllipsis', locale)} />
         </SelectTrigger>
         <SelectContent>
@@ -1585,7 +1599,7 @@ function FieldControl({
         onValueChange={(v) => onChange(v)}
         disabled={readOnly}
       >
-        <SelectTrigger id={id}>
+        <SelectTrigger id={id} aria-labelledby={ariaLabelledBy}>
           <SelectValue placeholder={t('engine.form.selectEllipsis', locale)} />
         </SelectTrigger>
         <SelectContent>
@@ -1614,6 +1628,7 @@ function FieldControl({
     return (
       <Switch
         id={id}
+        aria-labelledby={ariaLabelledBy}
         checked={!!value}
         onCheckedChange={(c) => onChange(c)}
         disabled={readOnly}
@@ -1628,6 +1643,7 @@ function FieldControl({
     return (
       <Input
         id={id}
+        aria-labelledby={ariaLabelledBy}
         type="number"
         value={value == null ? '' : String(value)}
         min={min}
@@ -1654,6 +1670,7 @@ function FieldControl({
       return (
         <Textarea
           id={id}
+          aria-labelledby={ariaLabelledBy}
           rows={4}
           value={(value as string | undefined) ?? ''}
           maxLength={maxLength}
@@ -1665,6 +1682,7 @@ function FieldControl({
     return (
       <Input
         id={id}
+        aria-labelledby={ariaLabelledBy}
         value={(value as string | undefined) ?? ''}
         maxLength={maxLength}
         onChange={(e) => onChange(e.target.value || undefined)}
@@ -1685,6 +1703,7 @@ function FieldControl({
       return (
         <Input
           id={id}
+          aria-labelledby={ariaLabelledBy}
           value={arr.map(String).join(', ')}
           placeholder={t('engine.form.arrayPlaceholder', locale)}
           onChange={(e) => {
@@ -1718,7 +1737,9 @@ function FieldControl({
   // prove that correspondence, so this terminal stays — spelled as the same
   // `'control'`-channel JSON editor the `raw-json` face renders, so that if a
   // future edit did make it reachable the label channel would still be right.
-  return <RawJsonEditor id={id} value={value} onChange={onChange} readOnly={readOnly} small />;
+  return (
+    <RawJsonEditor id={id} ariaLabelledBy={ariaLabelledBy} value={value} onChange={onChange} readOnly={readOnly} small />
+  );
 }
 
 /* ----- composite / repeater (embedded structured values) ----------------- */
@@ -1883,6 +1904,23 @@ function RepeaterField({
   // into compact inline-table layout for short, atomic sub-fields.
   const useGrid = widget === 'grid' || widget === 'table';
 
+  /**
+   * Ids for the grid/table layout, path-scoped exactly like the card layout's
+   * rows (objectui#5062), so the same data cell has the same id under either
+   * layout and two repeaters carrying the same column names cannot collide.
+   *
+   * `cellId` replaces the flat `rep-{row}-{field}`, which was duplicated
+   * verbatim by every other grid repeater in the form
+   * (`DUPLICATES: ["rep-0-field"]`, measured).
+   *
+   * `columnHeaderId` names the `<th>` so the cells under it can point at it.
+   * The `-col` suffix (rather than `FieldRow`'s `-label`) says what it is: one
+   * header shared by a whole column, not one field's label — and it cannot be
+   * confused with the label id of a row at the same path.
+   */
+  const cellId = (idx: number, field: string) => fieldHostId(joinIdPath(joinIdPath(idPath, idx), field));
+  const columnHeaderId = (field: string) => `${fieldHostId(joinIdPath(idPath, field))}-col`;
+
   const update = (i: number, patch: Record<string, unknown>) => {
     const next = rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r));
     onChange(next);
@@ -1902,13 +1940,29 @@ function RepeaterField({
           <table className="w-full text-sm">
             <thead className="bg-muted/40">
               <tr>
+                {/*
+                  The column name is written ONCE, here, and every cell below
+                  points at it by IDREF (objectui#5063). Before, the name existed
+                  only as this header's visible text: no `label`, no `id` to
+                  reference, no `scope` — so each cell control had `label[for]`,
+                  `aria-label` and `aria-labelledby` all absent and read out as an
+                  unnamed edit box. Per-cell `aria-label` was the rejected
+                  alternative: it copies the column name into every row and drifts
+                  the moment a column is renamed.
+                */}
                 {specs.map((s) => (
-                  <th key={s.field} className="px-2 py-1.5 text-left text-xs font-medium">
+                  <th
+                    key={s.field}
+                    id={columnHeaderId(s.field)}
+                    scope="col"
+                    className="px-2 py-1.5 text-left text-xs font-medium"
+                  >
                     {s.label || prettify(s.field)}
                     {s.required && <span className="text-destructive ml-0.5">*</span>}
                   </th>
                 ))}
-                {!readOnly && <th className="w-8" />}
+                {/* Row actions: no name to publish, but still a column header. */}
+                {!readOnly && <th scope="col" className="w-8" />}
               </tr>
             </thead>
             <tbody>
@@ -1924,8 +1978,12 @@ function RepeaterField({
                     return (
                       <td key={s.field} className="p-1.5">
                         <FieldControl
-                          id={`rep-${idx}-${s.field}`}
+                          id={cellId(idx, s.field)}
+                          // This cell's only naming channel — there is no
+                          // `<label>` in a grid row (objectui#5063).
+                          ariaLabelledBy={columnHeaderId(s.field)}
                           fieldName={s.field}
+                          idPath={joinIdPath(joinIdPath(idPath, idx), s.field)}
                           schema={sub}
                           value={row?.[s.field]}
                           readOnly={readOnly || s.readonly}
@@ -2335,6 +2393,7 @@ function RecordField({
 
 function RawJsonEditor({
   id,
+  ariaLabelledBy,
   value,
   onChange,
   readOnly,
@@ -2349,6 +2408,12 @@ function RawJsonEditor({
    * label to associate.
    */
   id?: string;
+  /**
+   * An IDREF that names the `<textarea>` when the host has no `<label for>` to
+   * give it — a grid/table repeater cell, named by its column header
+   * (objectui#5063).
+   */
+  ariaLabelledBy?: string;
   value: unknown;
   onChange: (v: any) => void;
   readOnly?: boolean;
@@ -2370,6 +2435,7 @@ function RawJsonEditor({
     <div className="space-y-1">
       <Textarea
         id={id}
+        aria-labelledby={ariaLabelledBy}
         rows={small ? 4 : 12}
         className="font-mono text-xs"
         value={text}
