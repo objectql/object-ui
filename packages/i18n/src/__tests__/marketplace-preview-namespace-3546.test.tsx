@@ -571,13 +571,31 @@ describe('objectui#3546 slice five — the marketplace and preview namespaces', 
     // counter is dropped and the bare noun kept, which reads correctly as `3 항목`.
     expect(at(builtInLocales.ko, 'preview.history.items')).toBe('항목');
     expect(at(builtInLocales.ko, 'common.itemCount')).toBe('{{count}}개 항목');
-    // And no pack reintroduced a parenthesised plural marker here.
+    // And no pack reintroduced a parenthesised plural marker here. The class is
+    // Unicode-aware on purpose (objectui#3866): JS `\w` is [A-Za-z0-9_] with or
+    // without `u`, so the ASCII formulation this replaces could not match a
+    // Cyrillic, Arabic or CJK letter — the loop was constant-false for zh/ja/ko/
+    // ru/ar and only ever guarded de/fr/es/pt. That is inverted from what it is
+    // for: ru is a pack that DOES use the notation elsewhere (its app-designer
+    // field-count label reads `{{count}} поле(й)`), so the five packs the guard
+    // could not see are exactly the five it was written to watch.
+    const MARKER = /\([\p{L}]{1,4}\)/u;
     for (const lang of LANGS.filter((l) => l !== 'en')) {
       expect(
-        /\(\w{1,4}\)/.test(at(builtInLocales[lang], 'preview.history.items') as string),
+        MARKER.test(at(builtInLocales[lang], 'preview.history.items') as string),
         `${lang} items reintroduced a "(s)" marker`,
       ).toBe(false);
     }
+    // The counter-example, recorded so the ASCII form cannot come back looking
+    // equivalent: the same marker scores present under the class above and
+    // absent under the one it replaced.
+    expect(MARKER.test('поле(й)')).toBe(true);
+    expect(/\(\w{1,4}\)/.test('поле(й)')).toBe(false);
+    // Declared boundary, not a gap in the fix: `\p{L}` is letters only and `\(`
+    // is the ASCII paren, so a numeric parenthetical (de's own `(Pos1)` key-name
+    // gloss) and a full-width pair (U+FF08/U+FF09, ordinary punctuation in 15 zh
+    // and 19 ja values) both sit outside this census. Neither spells a plural
+    // marker, and this key uses neither in any pack.
     // en keeps the call site's own spelling, per this slice's byte-identity rule.
     expect(at(builtInLocales.en, 'preview.history.items')).toBe('item(s)');
   });
