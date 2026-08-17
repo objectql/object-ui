@@ -302,6 +302,31 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
     // `DetailSection.tsx:439` (`visibleFields.length === 0 &&
     // emptyCount === section.fields.length` returns null), not assumed.
     { name: 'hideFields', type: 'array', label: 'Hide Fields', description: 'Field names to omit from the body — applied to the top-level `fields` list AND to every section\'s `fields`. Bare field names only. Authors rarely need it: the synth pipeline fills it with the fields already shown in `record:highlights`, and hand-authored pages get the same dedup live from HighlightFieldsContext, so its purpose is suppressing a field you do not want repeated (the page H1 title field is dropped for you too). Hiding every field of a section leaves that section out entirely.' },
+    // `inlineEdit` and `showHeader` are DECLARED, not merely honoured
+    // (objectui#4668) — the same reverse-direction defect `hideFields` above
+    // records, on the two keys @objectstack/spec 17.0.0 GA added to this block.
+    // `RecordDetailsRenderer` has read both all along (`renderers/
+    // record-details.tsx`: `(schema.inlineEdit ?? true) && objectInlineEditable`,
+    // and `showHeader: schema.showHeader ?? false` on the synthesized
+    // `detail-view`), while `inputs` omitted them — so `sdui.manifest.json` and
+    // `sdui-intrinsics.d.ts` never mentioned them, `sdui-parser`'s prop walk
+    // raised `unknown-prop` on an author who wrote one, and the renderer
+    // honoured it regardless.
+    //
+    // Both are plain booleans on the installed pin — measured against
+    // `ComponentPropsMap['record:details']`, `z.boolean().optional()` each, so a
+    // single arm and no union (objectui#3832): `1` / `'true'` / `null` are
+    // rejected by value.
+    //
+    // `inlineEdit` is documented as an opt-OUT because that is the only
+    // direction it can decide. The value is AND-ed with the object's own
+    // resolved editability (`isObjectInlineEditable`, ADR-0103) and with the
+    // server's effective API operation set (objectui#3546), so `true` cannot
+    // open editing the platform refuses; only `false` is unconditional. Saying
+    // "enables inline editing" would advertise an authority this key does not
+    // have.
+    { name: 'inlineEdit', type: 'boolean', label: 'Inline Edit', defaultValue: true, description: 'Offer the per-field double-click / pencil inline-edit affordances in the detail body. On by default, and an OPT-OUT only: the value is combined with the object\'s own editability (system, engine-owned, append-only and better-auth objects are not user-editable unless they opened userActions.edit) and with the server\'s effective API operation set for the object, so `false` always wins while `true` cannot open editing the platform refuses. The edit session and the atomic Save bar are hosted by the page, so one draft spans the highlights strip and this body.' },
+    { name: 'showHeader', type: 'boolean', label: 'Show Body Header', defaultValue: false, description: 'Render the detail body\'s own title / follow-star / copy-id chip above the fields. Off by default because this block is normally composed under a `page:header` that already draws that chrome, and turning it on there shows the record title twice. Set it true only when this block is the whole page.' },
   ],
 });
 

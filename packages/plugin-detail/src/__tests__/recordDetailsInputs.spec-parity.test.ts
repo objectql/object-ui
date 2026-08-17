@@ -316,6 +316,61 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     expect(description).not.toContain('{');
   });
 
+  it('publishes the two GA keys the renderer has read all along (#4668)', () => {
+    // The same reverse direction as `hideFields` above, on the two keys
+    // @objectstack/spec 17.0.0 GA added to this block. Both were read by
+    // `RecordDetailsRenderer` — `(schema.inlineEdit ?? true) &&
+    // objectInlineEditable`, and `showHeader: schema.showHeader ?? false` on the
+    // synthesized `detail-view` — while `inputs` omitted them, so the manifest
+    // and the generated `.d.ts` said the keys did not exist and `sdui-parser`
+    // reported `unknown-prop` on an author who wrote one, which the renderer then
+    // honoured.
+    //
+    // A VALUE verdict, not merely a key-reachability one: the published
+    // `type: 'boolean'` is a claim about which values the contract takes, so the
+    // criterion is a full parse both ways. Both keys read straight off the
+    // top-level schema, so unlike `page:tabs.alwaysShowStrip` (see
+    // `packages/components/src/__tests__/page-tabs-always-show-strip.test.tsx`)
+    // the published spelling was already the one the renderer reads — no arm had
+    // to be added here.
+    for (const key of ['inlineEdit', 'showHeader']) {
+      expect(specTopLevelKeys()).toContain(key);
+      expect(isTombstoned(key), `${key} is a tombstone, not a live key`).toBe(false);
+
+      expect(inputs().map((i) => i.name)).toContain(key);
+      expect(input(key)?.type).toBe('boolean');
+      expect((input(key)?.description ?? '').length).toBeGreaterThan(0);
+
+      for (const value of [true, false]) {
+        const parsed = RecordDetailsProps.safeParse({ [key]: value });
+        expect(parsed.success).toBe(true);
+        expect((parsed.data as Record<string, unknown> | undefined)?.[key]).toBe(value);
+      }
+      for (const rejected of [1, 'true', null]) {
+        const parsed = RecordDetailsProps.safeParse({ [key]: rejected });
+        expect(parsed.success, `spec accepted ${key}=${JSON.stringify(rejected)}`).toBe(false);
+        expect(parsed.error?.issues.map((i) => i.path.join('.'))).toContain(key);
+      }
+    }
+  });
+
+  it('`inlineEdit` is documented as the opt-OUT it actually is (#4668)', () => {
+    // The description is the only place this asymmetry can be stated, and it is
+    // the part a wrong reading makes expensive rather than merely vague: the
+    // value is AND-ed with the object's resolved editability (ADR-0103) and with
+    // the server's effective API operation set (objectui#3546), so `false` is
+    // unconditional while `true` cannot open editing the platform refuses. An
+    // author told "true enables inline editing" files a bug against the renderer
+    // when a system object stays read-only.
+    const description = input('inlineEdit')?.description ?? '';
+    expect(description).not.toBe('');
+    expect(description).toMatch(/false/);
+    // Asserted through the renderer's own default, so the text cannot drift from
+    // the read: `schema.inlineEdit ?? true`.
+    expect(input('inlineEdit')?.defaultValue).toBe(true);
+    expect(input('showHeader')?.defaultValue).toBe(false);
+  });
+
   it('`fields` documents no entry shape, because the spec accepts bare names only', () => {
     // objectui#3807's fence check on the sibling input at the same call site.
     // Top-level `fields` is `z.array(z.string())`: there is no member shape to

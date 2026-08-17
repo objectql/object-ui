@@ -558,36 +558,38 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   'element:record_picker.targetVariable':
     "Spec's own declarative hint with zero read points repo-wide; the live binding is the reverse lookup by component id, as on element:text_input. Whether to publish an intent-only key is an open judgement: objectui#3834.",
 
-  // ── GA-added keys the renderers already honour — held by the PIN (5 keys) ──
-  // A different class from every entry above, and the difference is the whole
-  // reason they are here rather than declared: publishing them is the RIGHT
-  // answer and this file's own bar says so ("a spec key the renderer HONOURS
-  // and `inputs` omits is a plain defect and gets declared"). What blocks it is
-  // the installed contract, not a judgement.
+  // FIVE GA-PENDING ENTRIES DELETED HERE — objectui#4668, and they too were
+  // designed to die exactly this way.
   //
-  // @objectstack/spec 17.0.0 GA declares all five; the pinned 17.0.0-rc.6
-  // declares none of them. Declaring the inputs today would therefore fail the
-  // FORWARD direction of this very file on the pinned spec — and a forward
-  // exemption to cover THAT would go stale, and red, the moment the pin moves.
-  // The two clauses collide and "must stay green on current main" wins, the
-  // same resolution PR objectui#4660 recorded for `SECRET_MASK`.
+  // `page:header.maxVisible` / `page:header.mobileMaxVisible` /
+  // `page:tabs.alwaysShowStrip` / `record:details.inlineEdit` /
+  // `record:details.showHeader` were a class of their own: publishing them was
+  // the RIGHT answer and this file's own bar said so ("a spec key the renderer
+  // HONOURS and `inputs` omits is a plain defect and gets declared"). What held
+  // them was the installed contract, not a judgement — @objectstack/spec 17.0.0
+  // GA declares all five and the then-pinned 17.0.0-rc.6 declared none, so
+  // declaring the inputs would have failed the FORWARD direction of this very
+  // file, and a forward exemption to cover THAT would have gone stale the moment
+  // the pin moved (the collision PR objectui#4660 recorded for `SECRET_MASK`).
   //
-  // So these five are dormant on this pin and fully judged on a GA tree (see
-  // `GA_PENDING_UNPUBLISHED_KEYS`), and objectui#4668 owns declaring them once
-  // objectui#4636 / PR objectui#4639 lands the GA pin. Each dies the moment its
-  // input exists — `carries no stale unpublished-key exemption` is what kills
-  // it, exactly as it killed `element:record_picker.filter` when #3830 declared
-  // that one.
-  'page:header.maxVisible':
-    'GA declares it and PageHeaderRenderer HONOURS it already — containers.tsx:1360, `readMax(schema?.maxVisible ?? schema?.properties?.maxVisible) ?? 3`, the desktop inline/overflow action budget. Not published only because the pinned @objectstack/spec@17.0.0-rc.6 does not declare it, so the input would fail this file\'s forward direction today. Declared by objectui#4668 on the GA pin (objectui#4636 / PR #4639); dormant on this pin, dies when the input lands.',
-  'page:header.mobileMaxVisible':
-    'GA declares it and PageHeaderRenderer HONOURS it already — containers.tsx:1359, the mobile half of the same overflow budget (`?? 1`). Not published only because the pinned @objectstack/spec@17.0.0-rc.6 does not declare it. Declared by objectui#4668 on the GA pin (objectui#4636 / PR #4639); dormant on this pin, dies when the input lands.',
-  'page:tabs.alwaysShowStrip':
-    'GA declares it and PageTabsRenderer HONOURS it already — containers.tsx:637, `itemsWithValue.length > 1 || schema?.properties?.alwaysShowStrip === true` keeps the strip visible for a single tab. Not published only because the pinned @objectstack/spec@17.0.0-rc.6 does not declare it. Declared by objectui#4668 on the GA pin (objectui#4636 / PR #4639); dormant on this pin, dies when the input lands.',
-  'record:details.inlineEdit':
-    'GA declares it and RecordDetailsRenderer HONOURS it already — renderers/record-details.tsx:234, `(schema.inlineEdit ?? true) && objectInlineEditable` gates the inline-edit affordance. Not published only because the pinned @objectstack/spec@17.0.0-rc.6 does not declare it. Declared by objectui#4668 on the GA pin (objectui#4636 / PR #4639); dormant on this pin, dies when the input lands.',
-  'record:details.showHeader':
-    'GA declares it and RecordDetailsRenderer HONOURS it already — renderers/record-details.tsx:257, `showHeader: schema.showHeader ?? false` reaches DetailView, which reads it at DetailView.tsx:909/:1183. Not published only because the pinned @objectstack/spec@17.0.0-rc.6 does not declare it. Declared by objectui#4668 on the GA pin (objectui#4636 / PR #4639); dormant on this pin, dies when the input lands.',
+  // The GA pin landed (objectui#4636 / PR objectui#4639) and objectui#4668
+  // declared all five at their registration sites, which is what made `carries
+  // no stale unpublished-key exemption` name every one of them at once —
+  // exactly as it killed `element:record_picker.filter` when #3830 declared that
+  // one. They are pinned as DECLARED, by name, in `the five GA keys
+  // objectui#4668 declared are discoverable` at the bottom of this file: the
+  // derived reverse loop goes green just as readily if a declaration is swapped
+  // back for an entry here, which is the cheap move and the one thing the pin
+  // forbids.
+  //
+  // One of the five needed more than a declaration, and it is recorded here
+  // because this list is where the next reader looks: `page:tabs.alwaysShowStrip`
+  // was read ONLY as `schema.properties.alwaysShowStrip`, while `inputs`
+  // publishes top-level keys. Measured on a one-tab schema, the flat form every
+  // layer of the manifest accepts was dropped by the renderer — so #4668 added
+  // the canonical top-level arm in the same change. Publishing a key whose only
+  // read is under a different carrier is not a declaration, it is this gate's own
+  // failure mode moved one layer in.
 
   // ── object-grid's own @deprecated legacy spellings — the RULED carve-out ───
   //                                                          (10 keys)
@@ -661,8 +663,8 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
  * Every other entry in `UNPUBLISHED_EXEMPTIONS` describes a key the installed
  * spec declares right now — that is what `every unpublished-key exemption names
  * a key the spec really declares` asserts, and it is why a typo cannot hide in
- * the list. These five describe keys only @objectstack/spec 17.0.0 GA has, so
- * on the pinned 17.0.0-rc.6 they describe nothing yet.
+ * the list. These ten describe keys of a block only @objectstack/spec 17.0.0 GA
+ * carries, so on a pin predating the GA element set they describe nothing yet.
  *
  * Pinning them as a SET rather than skipping "any entry the spec does not
  * declare" is the whole safety of the mechanism: only these entries may be
@@ -671,22 +673,27 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
  * directions — so a GA release that dropped one of them fails here instead of
  * leaving an entry that quietly covers nothing.
  *
- * TWO GROUPS, and they are dormant for the same reason but retire differently:
+ * ONE GROUP NOW, and knowing which one LEFT matters more than the one that
+ * stayed:
  *
- *   - the first five are keys on blocks this pin already carries, awaiting
- *     declaration by objectui#4668 once the pin moves. Each dies when its input
- *     lands;
  *   - the ten `object-grid` entries are objectui#4648's RULED carve-out. They
- *     are dormant here only because rc.6 does not carry `object-grid` at all, so
+ *     are dormant only on a pin that does not carry `object-grid` at all, so
  *     none of its keys resolves; on a GA tree they are fully judged. They are
- *     not awaiting declaration — see their reasons above.
+ *     not awaiting declaration — see their reasons above;
+ *   - the FIVE that were listed first here (`page:header.maxVisible`,
+ *     `page:header.mobileMaxVisible`, `page:tabs.alwaysShowStrip`,
+ *     `record:details.inlineEdit`, `record:details.showHeader`) were the other
+ *     kind: keys on blocks the pin already carried, awaiting declaration. They
+ *     retired the way this mechanism intends — the pin moved to GA, objectui#4668
+ *     declared all five, and their exemption entries went stale in the same run.
+ *     A "pending" entry that never lands is the rot this set exists to make
+ *     visible; these five are the worked example of it not happening.
+ *
+ * So the two arms of `isDormantOnThisPin` are no longer symmetric in practice:
+ * a future entry here is either a ruled carve-out on a block the pin may not
+ * carry, or a declaration someone owes. Say which in the reason.
  */
 const GA_PENDING_UNPUBLISHED_KEYS = [
-  'page:header.maxVisible',
-  'page:header.mobileMaxVisible',
-  'page:tabs.alwaysShowStrip',
-  'record:details.inlineEdit',
-  'record:details.showHeader',
   'object-grid.fields',
   'object-grid.staticData',
   'object-grid.selectable',
@@ -942,7 +949,7 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     expect(dangling).toEqual([]);
   });
 
-  it('every GA-pending exemption arms exactly with the installed spec, all fifteen together', () => {
+  it('every GA-pending exemption arms exactly with the installed spec, all ten together', () => {
     // The non-vacuity and self-arming half of `GA_PENDING_UNPUBLISHED_KEYS`.
     // Without it the pinned set could name keys no entry covers (licensing
     // nothing while reading as cover) or stay dormant forever on a GA tree that
@@ -1204,6 +1211,53 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
         `element:record_picker does not publish ${key}`,
       ).toContain(key);
       expect(Object.keys(UNPUBLISHED_EXEMPTIONS)).not.toContain(`element:record_picker.${key}`);
+    }
+  });
+
+  it('the five GA keys objectui#4668 declared are discoverable, block by block', () => {
+    // Named, not merely covered by the derived reverse loop above, for exactly
+    // the reason the #3808 five and the rc.6 record_picker trio next door are:
+    // that loop goes green just as readily if a declaration is REPLACED by an
+    // `UNPUBLISHED_EXEMPTIONS` entry, which is the cheap move under time
+    // pressure and the one thing these five may not resolve to a second time.
+    // Their entries existed for a stated, expiring reason — the pre-GA pin — and
+    // that reason cannot be re-borrowed now that the pin carries the keys.
+    //
+    // Three assertions per key, and the first is the non-vacuity half: if a
+    // later pin dropped one of these from its props schema,
+    // `undiscoverableSpecKeys` would stop naming it and every derived assertion
+    // would pass while the input sat there publishing a key the contract no
+    // longer has — the forward direction would then be the one to red, which is
+    // the correct place for that failure, not here.
+    const declared: Array<[string, string]> = [
+      ['page:header', 'maxVisible'],
+      ['page:header', 'mobileMaxVisible'],
+      ['page:tabs', 'alwaysShowStrip'],
+      ['record:details', 'inlineEdit'],
+      ['record:details', 'showHeader'],
+    ];
+    for (const [type, key] of declared) {
+      expect(specTopLevelKeys(type), `${type} spec no longer declares ${key}`).toContain(key);
+      expect(declaredInputs(type) ?? [], `${type} does not publish ${key}`).toContain(key);
+      expect(Object.keys(UNPUBLISHED_EXEMPTIONS)).not.toContain(`${type}.${key}`);
+      // And they are no longer nameable as dormant: the set that licensed the
+      // dormancy dropped them, so `isDormantOnThisPin` answers false for a
+      // second, independent reason. Without this, re-adding the key to
+      // `GA_PENDING_UNPUBLISHED_KEYS` *and* to the exemption map would restore
+      // the pre-GA state and only `every GA-pending exemption arms exactly with
+      // the installed spec` would notice — and only while the pin carries the
+      // key.
+      expect(GA_PENDING_UNPUBLISHED_KEYS).not.toContain(`${type}.${key}`);
+    }
+
+    // Each carries a description, because for these five the discoverability
+    // IS the fix: an input with an empty description publishes the key to
+    // `sdui.manifest.json` and the `.d.ts` while still telling a designer panel
+    // nothing about what to write in it.
+    for (const [type, key] of declared) {
+      const input = (ComponentRegistry.getConfig(type)?.inputs ?? []).find((i) => i.name === key);
+      expect(input, `${type}.${key} input vanished`).toBeTruthy();
+      expect((input?.description ?? '').length, `${type}.${key} has no description`).toBeGreaterThan(0);
     }
   });
 

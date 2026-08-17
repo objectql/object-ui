@@ -632,9 +632,30 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     >
       {/* Hide the tab strip entirely when there's only one tab — a single
           pill labelled "Details" is visual clutter rather than an
-          affordance. Authors who want the strip even at length 1 can pass
-          `properties.alwaysShowStrip: true`. */}
-      {(itemsWithValue.length > 1 || schema?.properties?.alwaysShowStrip === true) && (
+          affordance. Authors who want the strip even at length 1 pass
+          `alwaysShowStrip: true`.
+
+          BOTH spellings are read, canonical FIRST, and the top-level arm is
+          why: `alwaysShowStrip` is a PUBLISHED input since objectui#4668, and
+          `inputs` publishes top-level keys — `gen-manifest.ts`,
+          `sdui-intrinsics.d.ts` and `sdui-parser`'s prop walk all judge the
+          flat `{ type: 'page:tabs', alwaysShowStrip: true }`. This read was
+          `properties.*`-only, so that flat form passed every one of those
+          layers and was then dropped here. Measured on a one-tab schema before
+          the arm was added: the wrapped form showed the strip, the flat form
+          did not — publishing the key without this arm would have advertised a
+          write the renderer throws away, which is the exact defect the parity
+          gate exists to prevent, one layer further in.
+
+          `SchemaRenderer` hoists `properties.*` onto the schema (it keeps the
+          bag intact for the collision-prone `type` / `id`), so the canonical
+          arm already covers the wrapped form; the `properties` arm stays for
+          any path that reaches this renderer without that hoist. The same dual
+          read `maxVisible` / `mobileMaxVisible` carry below, for the same
+          reason. */}
+      {(itemsWithValue.length > 1 ||
+        schema?.alwaysShowStrip === true ||
+        schema?.properties?.alwaysShowStrip === true) && (
         <TabsList className={listClass}>
           {itemsWithValue.map((item) => (
             <TabsTrigger key={item.value} value={item.value} className={triggerClass()}>
@@ -689,10 +710,18 @@ ComponentRegistry.register('tabs', PageTabsRenderer, {
   label: 'Page Tabs',
   category: 'layout',
   isContainer: true,
+  // `alwaysShowStrip` is DECLARED, not merely honoured (objectui#4668).
+  // @objectstack/spec 17.0.0 GA declares it on `PageTabsProps` and this
+  // renderer has read it since the one-tab strip was first suppressed, while
+  // `inputs` omitted it — so the manifest, the generated `.d.ts` and the
+  // designer panel all said the key did not exist, `sdui-parser` reported
+  // `unknown-prop` on an author who wrote it anyway, and the renderer honoured
+  // it regardless. Same defect as `record:details.hideFields` in objectui#3808.
   inputs: [
     { name: 'items', type: 'array', label: 'Tabs', required: true, description: 'Tab definitions [{ label, value?, icon?, count?, visibleWhen?, children }] — value is the stable ?tab= URL token, count auto-derives from record:related_list descendants when omitted' },
     { name: 'tabStyle', type: 'enum', label: 'Style', enum: ['line', 'card', 'pill'], defaultValue: 'line' },
     { name: 'position', type: 'enum', label: 'Position', enum: ['top', 'left'], defaultValue: 'top' },
+    { name: 'alwaysShowStrip', type: 'boolean', label: 'Always Show Tab Strip', defaultValue: false, description: 'Keep the tab strip visible when only one tab survives. Default false: a lone pill is clutter rather than an affordance, so a one-tab strip is hidden and its panel renders bare. Count the tabs AFTER each item visibleWhen predicate has been evaluated — a page authored with four tabs of which three are conditional reaches this rule whenever the other three are false.' },
   ],
 });
 
@@ -1707,6 +1736,24 @@ ComponentRegistry.register('header', PageHeaderRenderer, {
     { name: 'recordChrome', type: 'boolean', label: 'Record Chrome', defaultValue: true, description: 'Set false for the bare h1 header on non-record pages' },
     { name: 'showStar', type: 'boolean', label: 'Show Follow Star', defaultValue: true },
     { name: 'showCopyId', type: 'boolean', label: 'Show Copy-ID', defaultValue: true },
+    // The inline/overflow budget, DECLARED rather than merely honoured
+    // (objectui#4668). Both are @objectstack/spec 17.0.0 GA keys this renderer
+    // has read since objectui#2361 (`readMax(...)` at the split above, in both
+    // spellings — `page-header-actions.test.tsx` pins the schema-level and the
+    // `properties.*` variant), while `inputs` omitted them: the manifest and
+    // `sdui-intrinsics.d.ts` left them out and `sdui-parser` warned
+    // `unknown-prop` on the very key that then took effect.
+    //
+    // ONE arm each, not a union: measured against
+    // `ComponentPropsMap['page:header']` on the installed GA pin, both are
+    // `z.number()` constrained to a POSITIVE SAFE INTEGER — `0`, `-1` and `2.5`
+    // are all rejected by value, which is why the descriptions say so instead
+    // of leaving an author to discover it from a parse error. (`readMax` here is
+    // laxer than that — it accepts `0` and floors fractions — but a renderer
+    // tolerance is not an authoring surface, and the contract is what `inputs`
+    // publishes.)
+    { name: 'maxVisible', type: 'number', label: 'Max Inline Actions', defaultValue: 3, description: 'How many header actions render as inline buttons on desktop before the rest fold into the overflow menu. A positive integer — the contract rejects 0 and fractional values. Two kinds of action are routed to the overflow menu regardless of this budget and never occupy an inline slot: an action whose locations declare record_more without record_header, and any action with component action:menu.' },
+    { name: 'mobileMaxVisible', type: 'number', label: 'Max Inline Actions (Mobile)', defaultValue: 1, description: 'The same inline-button budget on mobile viewports, where horizontal room is scarce. A positive integer, defaulting to 1; the desktop half is Max Inline Actions, and the overflow routing rules stated there apply unchanged.' },
   ],
 });
 
