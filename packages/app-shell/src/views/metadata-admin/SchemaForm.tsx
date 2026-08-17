@@ -62,6 +62,7 @@ import {
   resolveColorWidgetKey,
   type RegisteredWidgetKey,
   type WidgetContext,
+  type WidgetLabelling,
   type WidgetRenderer,
 } from './widgets';
 import { useMetadataLocale, t, tFormat, translateValidationMessage, translateEnumOption, translateSchemaFieldLabel, translateSchemaFieldHelp } from './i18n';
@@ -375,6 +376,192 @@ function resolveRegisteredWidget(
     return resolveColorWidgetKey(schema, fieldSpec);
   }
   return widget;
+}
+
+/* ----- which face renders, resolved BEFORE the label (objectui#5039) ------- */
+
+/**
+ * The face {@link FieldControl} will render for a field — a closed set, so the
+ * host can name it without rendering it first.
+ */
+export type FieldFace =
+  /** `fieldSpec.type: 'composite'` → {@link CompositeField}. */
+  | { kind: 'composite' }
+  /** `fieldSpec.type: 'repeater'` → {@link RepeaterField}. */
+  | { kind: 'repeater'; itemSchema: JsonSchema }
+  /** `fieldSpec.type: 'record'` → {@link RecordField}. */
+  | { kind: 'record'; itemSchema: JsonSchema }
+  /** A key of {@link WIDGETS} — the face objectui#4871's declaration covers. */
+  | { kind: 'registered'; widget: RegisteredWidgetKey }
+  /** Object-with-properties → a recursive {@link SchemaForm} in a bordered box. */
+  | { kind: 'nested-form'; effective: JsonSchema }
+  /** Array-of-object → {@link RepeaterField} with per-row inputs. */
+  | { kind: 'object-rows'; effective: JsonSchema; itemSchema: JsonSchema }
+  /**
+   * {@link RawJsonEditor}. `hint` is the unregistered widget name whose
+   * fallback we are announcing; absent for the last-resort (`small`) editor.
+   */
+  | { kind: 'raw-json'; hint?: string }
+  /** Every builtin branch: select / switch / number / input / tag input. */
+  | { kind: 'scalar'; effective: JsonSchema };
+
+/**
+ * Resolve which face a field renders, from exactly the inputs `FieldControl`
+ * renders from — no DOM, no render (objectui#5039).
+ *
+ * `FieldRow` must decide how its visible label reaches the control BEFORE it
+ * writes that label. For the twenty REGISTERED widgets objectui#4871 answered
+ * that from the registry's `labelling` declaration. Six paths never reach the
+ * registry, so they had no declaration and took the default `control` channel:
+ * `composite` / `repeater` / `record` come from `fieldSpec.type`, and the three
+ * structural fallbacks (recursive `SchemaForm` / `RepeaterField` /
+ * `RawJsonEditor`) were picked INSIDE `FieldControl` from the union-resolved
+ * `effective` schema — i.e. after the label had already been written. None of the
+ * six consumed the id, so all six emitted a `<label for>` aimed at an id no
+ * element in the document carried (`for=DANGLING hostIdEl=NONE`, both states).
+ *
+ * This function is that late decision lifted out whole. `FieldRow` calls it
+ * before the label; `FieldControl` calls it instead of deciding again — one
+ * resolution, so the naming channel and the rendered DOM cannot drift apart.
+ * Same shape as `resolveRegisteredWidget()`, applied to the paths that have no
+ * registry entry to declare anything.
+ *
+ * Branch order mirrors `FieldControl` exactly, asymmetry included: with a widget
+ * hint present the structural checks run BEFORE the scalar chain, and an
+ * unregistered non-passthrough hint short-circuits to the JSON editor; with no
+ * hint (or a passthrough one that matched no structure) the scalar chain runs
+ * first.
+ */
+export function resolveFieldFace({
+  fieldSpec,
+  widget,
+  schema,
+  value,
+}: {
+  fieldSpec?: FormFieldSpec;
+  widget?: string;
+  schema?: JsonSchema;
+  value?: unknown;
+}): FieldFace {
+  // 1. Spec-declared structured types — known from `fieldSpec.type` alone, and
+  // short-circuited in `FieldControl` ahead of the registry lookup.
+  if (fieldSpec?.type === 'composite') return { kind: 'composite' };
+  if (fieldSpec?.type === 'repeater') {
+    return { kind: 'repeater', itemSchema: repeaterItemSchema(schema, value) };
+  }
+  if (fieldSpec?.type === 'record') {
+    return {
+      kind: 'record',
+      itemSchema: (schema?.additionalProperties as JsonSchema | undefined) ?? {},
+    };
+  }
+
+  const effective = resolveUnionBranch(schema, value) ?? schema ?? {};
+  const isObjectForm = (s: JsonSchema | undefined) =>
+    s?.type === 'object' && !!s.properties && typeof s.properties === 'object';
+  /** The row schema of an array-of-object face, or undefined if it isn't one. */
+  const objectRowSchema = (s: JsonSchema | undefined): JsonSchema | undefined => {
+    if (s?.type !== 'array' || !s.items || typeof s.items !== 'object') return undefined;
+    const itemSchema = resolveUnionBranch(
+      s.items as JsonSchema,
+      Array.isArray(value) && value.length ? value[0] : undefined,
+    );
+    return isObjectForm(itemSchema) ? itemSchema : undefined;
+  };
+
+  // 2. A widget hint: the registry first, then the structural fallbacks, then
+  // the announced JSON editor — the order of `FieldControl`'s `if (widget)` block.
+  if (widget) {
+    if (WIDGETS[widget as RegisteredWidgetKey]) {
+      return { kind: 'registered', widget: widget as RegisteredWidgetKey };
+    }
+    if (isObjectForm(effective)) return { kind: 'nested-form', effective };
+    const rows = objectRowSchema(effective);
+    if (rows) return { kind: 'object-rows', effective, itemSchema: rows };
+    if (!KNOWN_PASSTHROUGH_WIDGETS.has(widget)) return { kind: 'raw-json', hint: widget };
+  }
+
+  // 3. The builtin scalar chain. Each of these branches spreads the host id onto
+  // its own labelable control, so they are all one face as far as naming goes.
+  const effectiveType = effective?.type as string | undefined;
+  const hasOptions = Array.isArray(fieldSpec?.options) && fieldSpec.options.length > 0;
+  const hasEnum = Array.isArray(effective?.enum) && (effective.enum as unknown[]).length > 0;
+  if (
+    hasOptions ||
+    hasEnum ||
+    effectiveType === 'boolean' ||
+    widget === 'switch' ||
+    fieldSpec?.type === 'boolean' ||
+    fieldSpec?.type === 'toggle' ||
+    effectiveType === 'number' ||
+    effectiveType === 'integer' ||
+    effectiveType === 'string'
+  ) {
+    return { kind: 'scalar', effective };
+  }
+  if (effectiveType === 'array') {
+    const itemsSchema = (effective?.items as JsonSchema | undefined) ?? {};
+    if (
+      itemsSchema.type === 'string' ||
+      itemsSchema.type === 'number' ||
+      itemsSchema.type === 'integer'
+    ) {
+      return { kind: 'scalar', effective };
+    }
+  }
+
+  // 4. Structured fallback, then the last-resort JSON editor.
+  if (isObjectForm(effective)) return { kind: 'nested-form', effective };
+  const rows = objectRowSchema(effective);
+  if (rows) return { kind: 'object-rows', effective, itemSchema: rows };
+  return { kind: 'raw-json' };
+}
+
+/**
+ * The naming channel each face needs — what `WIDGET_LABELLING` does for the
+ * registry, for the paths that have no registry entry. Decided on the same
+ * MEASURED basis (objectui#5039's ledger: real `SchemaForm` renders, both
+ * states, does the `for` resolve and to a labelable element / what does the face
+ * actually own).
+ *
+ * `'group'` — five of the six. `composite` and the recursive `nested-form` are
+ * containers of independently labelled sub-rows: every labelable element inside
+ * them is addressed by a SUB-field's own label, so the outer `for` had nothing of
+ * its own to point at. `repeater` / `object-rows` / `record` own nothing but
+ * auxiliary buttons — collapse, add, remove — in the editable state, and just the
+ * collapse toggles when read-only. All five take the objectui#4788 container
+ * shape: the label publishes its id, the container answers `aria-labelledby` on
+ * a `role="group"`, and the `for` is dropped rather than left pointing at a
+ * container it can neither activate nor name (objectui#3978/#4010).
+ *
+ * `'control'` — `raw-json`, MEASURED rather than assumed (objectui#5039 named
+ * this the reading to confirm). `RawJsonEditor`'s face is exactly ONE labelable
+ * element, a `<textarea>` no other label addresses, in every branch and both
+ * states — `readOnly` only sets the attribute. Its `hostIdEl=NONE` reading was
+ * the id never being PLUMBED to it, not a face that cannot hold one. Naming a
+ * wrapper `role="group"` around a lone textarea instead would name the container
+ * and leave the control the user actually types in anonymous, which is
+ * objectui#4010's ruling in reverse. So the id reaches the textarea and the plain
+ * `<label for>` channel is what this face gets.
+ *
+ * `'registered'` defers to the widget's own declaration — this function must not
+ * second-guess objectui#4871's reviewed table. `'scalar'` is every builtin
+ * branch, each of which already spreads the host id onto its own control.
+ */
+export function faceLabelling(face: FieldFace): WidgetLabelling {
+  switch (face.kind) {
+    case 'registered':
+      return widgetLabelling(face.widget);
+    case 'composite':
+    case 'repeater':
+    case 'record':
+    case 'nested-form':
+    case 'object-rows':
+      return 'group';
+    case 'raw-json':
+    case 'scalar':
+      return 'control';
+  }
 }
 
 const CONDITION_FIELD_NAMES = new Set(['visible', 'hidden', 'disabled', 'visibleOn', 'condition', 'predicate']);
@@ -953,21 +1140,29 @@ function FieldRow({
   // declaration below describes the surface the user gets (objectui#4871).
   widget = resolveRegisteredWidget(widget, schema, fieldSpec);
 
-  // How this field's visible label must reach what the widget renders — the
-  // widget's own DECLARATION, never an inference from the DOM it happens to
-  // produce (objectui#4871, the vocabulary of `ComponentMeta.labelling`).
+  // Which face `FieldControl` will render — resolved HERE, before the label, from
+  // the same inputs it renders from (objectui#5039). The six paths that never
+  // reach the `WIDGETS` registry (`composite` / `repeater` / `record` and the
+  // three structural fallbacks) used to be decided inside `FieldControl`, i.e.
+  // after this label was written, which is why they all emitted a dangling `for`.
+  const face = resolveFieldFace({ fieldSpec, widget, schema, value });
+
+  // How this field's visible label must reach what that face renders — a
+  // DECLARATION either way, never an inference from the DOM it happens to
+  // produce (objectui#4871, the vocabulary of `ComponentMeta.labelling`): the
+  // registry's `labelling` for a registered widget, `faceLabelling` for the
+  // structural faces that have no registry entry (objectui#5039).
   //
-  //  - `'control'` — the widget puts this `id` on a labelable element, so the
-  //    label associates the plain way, `<label for>` → id. Unchanged path;
-  //    every non-registered widget name resolves here too.
+  //  - `'control'` — the face puts this `id` on a labelable element, so the
+  //    label associates the plain way, `<label for>` → id.
   //  - `'group'` — no `<label for>` can reach the surface. The label publishes
-  //    its OWN id, the widget answers `aria-labelledby`, and the `for` is
+  //    its OWN id, the face answers `aria-labelledby`, and the `for` is
   //    DROPPED: aimed at a container it activates nothing and names nothing,
   //    and leaving it beside the working channel is one label with two
   //    associations, one of them broken (the `form.tsx` `labelling: 'group'`
   //    branch, objectui#3961/#3978, and objectui#4010's refusal to relocate
   //    the id onto the radiogroup instead).
-  const labelling = widgetLabelling(widget);
+  const labelling = faceLabelling(face);
   const groupLabelled = labelling === 'group';
   // Whitespace-free by construction (`mdf-` + a field name), and consumed as an
   // `aria-labelledby` IDREF — a space in it would silently resolve to two ids.
@@ -1080,9 +1275,9 @@ function FieldControl({
   /**
    * The host field id — present only on the `labelling: 'control'` channel,
    * `undefined` on the `'group'` one (objectui#4871). Every builtin branch below
-   * renders a labelable element, so they all spread it unconditionally; a group
-   * declaration can only come from a REGISTERED widget, and that branch returns
-   * before them.
+   * renders a labelable element and spreads it unconditionally; so does the JSON
+   * editor, whose `<textarea>` is exactly such an element (objectui#5039). The
+   * `'group'` faces never read it — `FieldRow` doesn't hand it to them.
    */
   id?: string;
   /** The host label's id, on the `'group'` channel only. */
@@ -1099,15 +1294,23 @@ function FieldControl({
   formData?: Record<string, unknown>;
 }) {
   const locale = useMetadataLocale();
+  // WHICH face renders is not decided here — `resolveFieldFace` decides it, and
+  // `FieldRow` already called it with these very inputs to pick the naming
+  // channel (objectui#5039). Calling the same pure function again here, rather
+  // than re-testing `fieldSpec.type` / the union-resolved schema inline, is what
+  // makes the declaration and the DOM impossible to drift apart: there is one
+  // set of branch predicates, not two that must be kept in step.
+  const face = resolveFieldFace({ fieldSpec, widget, schema, value });
+
   // Composite/repeater are first-class structured types — render natively
   // with recursive FieldRow calls so all UI features (widgets, options,
   // visibility, readonly) work uniformly at every nesting level.
   // When `fields` is omitted, fall back to schema-derived sub-fields
   // (all schema.properties / items.properties) so authors don't have to
   // enumerate every sub-property by hand.
-  if (fieldSpec?.type === 'composite') {
+  if (face.kind === 'composite') {
     const fields =
-      fieldSpec.fields?.length
+      fieldSpec?.fields?.length
         ? fieldSpec.fields
         : derivePropertyNames(schema);
     return (
@@ -1118,21 +1321,22 @@ function FieldControl({
         readOnly={readOnly}
         widgetContext={widgetContext}
         fieldSpec={fieldSpec}
+        ariaLabelledBy={ariaLabelledBy}
         onChange={onChange}
       />
     );
   }
-  if (fieldSpec?.type === 'repeater') {
+  if (face.kind === 'repeater') {
     // The row schema may be nested inside a union (`anyOf` / `oneOf`) — e.g.
     // a View `sort` authored as `anyOf: [ string, {field,order}[] ]`. Reading
     // `schema.items` at the top level misses the array branch and renders a
-    // blank row with no sub-fields (objectui#3379). Resolve to the array
-    // branch's items and hand RepeaterField a schema whose `items` is that
-    // object schema, so both the derived field list and `pickSubSchema`
+    // blank row with no sub-fields (objectui#3379). `resolveFieldFace` resolved
+    // to the array branch's items; hand RepeaterField a schema whose `items` is
+    // that object schema, so both the derived field list and `pickSubSchema`
     // (per-row controls) see real sub-schemas.
-    const itemSchema = repeaterItemSchema(schema, value);
+    const itemSchema = face.itemSchema;
     const fields =
-      fieldSpec.fields?.length
+      fieldSpec?.fields?.length
         ? fieldSpec.fields
         : derivePropertyNames(itemSchema);
     return (
@@ -1142,17 +1346,18 @@ function FieldControl({
         schema={{ ...schema, items: itemSchema }}
         readOnly={readOnly}
         widgetContext={widgetContext}
-        widget={fieldSpec.widget}
+        widget={fieldSpec?.widget}
+        ariaLabelledBy={ariaLabelledBy}
         onChange={onChange}
       />
     );
   }
-  if (fieldSpec?.type === 'record') {
+  if (face.kind === 'record') {
     // Record<string, item> — name-keyed map. Insertion order is display
     // order. JSON Schema shape: { type:'object', additionalProperties: itemSchema }.
-    const itemSchema = (schema?.additionalProperties as JsonSchema | undefined) ?? {};
+    const itemSchema = face.itemSchema;
     const fields =
-      fieldSpec.fields?.length
+      fieldSpec?.fields?.length
         ? fieldSpec.fields
         : derivePropertyNames(itemSchema);
     return (
@@ -1162,116 +1367,106 @@ function FieldControl({
         schema={schema}
         readOnly={readOnly}
         widgetContext={widgetContext}
-        widget={fieldSpec.widget}
-        keyField={(fieldSpec as any).keyField}
+        widget={fieldSpec?.widget}
+        keyField={(fieldSpec as any)?.keyField}
         formData={formData}
+        ariaLabelledBy={ariaLabelledBy}
         onChange={onChange}
       />
     );
   }
 
-  // Widget hint takes precedence: try the registry first, then the
-  // passthrough hint list, then fall back to JSON with an inline hint.
-  if (widget) {
-    const Renderer = WIDGETS[widget as RegisteredWidgetKey] as WidgetRenderer | undefined;
-    if (Renderer) {
-      return (
-        <Renderer
-          // Exactly one of these is defined, decided by the widget's own
-          // `labelling` declaration in `FieldRow` (objectui#4871).
-          id={id}
-          ariaLabelledBy={ariaLabelledBy}
-          schema={schema}
-          value={value}
-          onChange={onChange}
-          readOnly={readOnly}
-          context={widgetContext}
-          fieldSpec={fieldSpec}
-          formData={formData}
-        />
-      );
-    }
-    // Resolve discriminated unions (oneOf / anyOf) against the current
-    // value so the recursive renderer below works on a concrete branch.
-    // Without this, every union field (View `data`, `columns`, `sort`,
-    // ...) falls through to a raw JSON editor.
-    const effective = resolveUnionBranch(schema, value);
+  // Widget hint takes precedence: the registry first, then the structural
+  // fallbacks, then JSON with an inline hint — all four already resolved.
+  if (face.kind === 'registered') {
+    const Renderer = WIDGETS[face.widget] as WidgetRenderer;
+    return (
+      <Renderer
+        // Exactly one of these is defined, decided by the widget's own
+        // `labelling` declaration in `FieldRow` (objectui#4871).
+        id={id}
+        ariaLabelledBy={ariaLabelledBy}
+        schema={schema}
+        value={value}
+        onChange={onChange}
+        readOnly={readOnly}
+        context={widgetContext}
+        fieldSpec={fieldSpec}
+        formData={formData}
+      />
+    );
+  }
 
-    // Nested object schema with a `properties` map: recurse into a
-    // nested SchemaForm so the user gets real labelled inputs instead
-    // of raw JSON. Covers the auto-inferred `object-fields` widget that
-    // SchemaForm picks for every `type: 'object'` schema, and any custom
-    // widget name that wasn't registered but still describes structured
-    // data.
-    if (
-      effective?.type === 'object' &&
-      effective.properties &&
-      typeof effective.properties === 'object'
-    ) {
-      return (
-        <div className="rounded-md border border-border/40 bg-card/30 p-3">
-          <SchemaForm
-            schema={effective}
-            value={(value as Record<string, unknown>) ?? {}}
-            onChange={(v) => onChange(v)}
-            readOnly={readOnly}
-            widgetContext={widgetContext}
-          />
-        </div>
-      );
-    }
-    // Array-of-object schemas: route through RepeaterField so the user
-    // gets per-row inputs rather than a JSON blob. Derive sub-field
-    // names from items.properties (after union resolution).
-    if (
-      effective?.type === 'array' &&
-      effective.items &&
-      typeof effective.items === 'object'
-    ) {
-      const itemSchema = resolveUnionBranch(
-        effective.items as JsonSchema,
-        Array.isArray(value) && value.length ? value[0] : undefined,
-      );
-      if (
-        itemSchema?.type === 'object' &&
-        itemSchema.properties &&
-        typeof itemSchema.properties === 'object'
-      ) {
-        return (
-          <RepeaterField
-            value={value}
-            fields={derivePropertyNames(itemSchema)}
-            schema={{ ...effective, items: itemSchema }}
-            readOnly={readOnly}
-            widgetContext={widgetContext}
-            widget={fieldSpec?.widget}
-            onChange={onChange}
-          />
-        );
-      }
-    }
-    if (!KNOWN_PASSTHROUGH_WIDGETS.has(widget)) {
+  // Nested object schema with a `properties` map: recurse into a nested
+  // SchemaForm so the user gets real labelled inputs instead of raw JSON.
+  // Covers the auto-inferred `object-fields` widget that SchemaForm picks for
+  // every `type: 'object'` schema, any custom widget name that wasn't
+  // registered but still describes structured data, and the same shape reached
+  // with no widget hint at all (a union whose object branch won).
+  if (face.kind === 'nested-form') {
+    return (
+      // A container of independently labelled sub-rows: the host label names it
+      // by IDREF and dropped its `for`, because every labelable element in here
+      // belongs to a SUB-field's own label (objectui#5039, #4788's shape). The
+      // inner `SchemaForm` publishes its own per-field channels, untouched — this
+      // name is the outer field's, not theirs.
+      <div className="rounded-md border border-border/40 bg-card/30 p-3" role="group" aria-labelledby={ariaLabelledBy}>
+        <SchemaForm
+          schema={face.effective}
+          value={(value as Record<string, unknown>) ?? {}}
+          onChange={(v) => onChange(v)}
+          readOnly={readOnly}
+          widgetContext={widgetContext}
+        />
+      </div>
+    );
+  }
+  // Array-of-object schemas: route through RepeaterField so the user gets
+  // per-row inputs rather than a JSON blob. Sub-field names come from the
+  // union-resolved `items.properties`.
+  if (face.kind === 'object-rows') {
+    return (
+      <RepeaterField
+        value={value}
+        fields={derivePropertyNames(face.itemSchema)}
+        schema={{ ...face.effective, items: face.itemSchema }}
+        readOnly={readOnly}
+        widgetContext={widgetContext}
+        widget={fieldSpec?.widget}
+        ariaLabelledBy={ariaLabelledBy}
+        onChange={onChange}
+      />
+    );
+  }
+  // Raw JSON — the announced fallback for an unregistered widget name (`hint`),
+  // or the last resort for a shape no branch could type. Its `<textarea>` IS a
+  // labelable element and takes the host id: this face is `labelling: 'control'`
+  // (objectui#5039), so `id` is defined here whenever the host has a label.
+  if (face.kind === 'raw-json') {
+    if (face.hint) {
       return (
         <div className="space-y-1">
           <RawJsonEditor
+            id={id}
             value={value as any}
             onChange={(v) => onChange(v)}
             readOnly={readOnly}
           />
           <div className="text-[10px] text-muted-foreground">
-            {tFormat('engine.form.fallbackJson', locale, { widget })}
+            {tFormat('engine.form.fallbackJson', locale, { widget: face.hint })}
           </div>
         </div>
       );
     }
+    return <RawJsonEditor id={id} value={value} onChange={onChange} readOnly={readOnly} small />;
   }
-  // For schemas authored as `anyOf` / `oneOf` (e.g. `width: anyOf[string,
-  // number]`, `sort: anyOf[string, array<obj>]`), the outer schema's
-  // `type` / `enum` are undefined and every primitive branch below would
-  // miss, dropping us straight to RawJsonEditor. Resolve the union against
-  // the current value once and use the resolved branch for type/enum
-  // checks so primitive unions render as real inputs.
-  const effective = resolveUnionBranch(schema, value) ?? schema;
+
+  // The builtin scalar chain. For schemas authored as `anyOf` / `oneOf` (e.g.
+  // `width: anyOf[string, number]`, `sort: anyOf[string, array<obj>]`), the
+  // outer schema's `type` / `enum` are undefined and every primitive branch
+  // below would miss; `resolveFieldFace` already resolved the union against the
+  // current value, so these checks run on the concrete branch.
+  const effective = face.effective;
   const effectiveType = effective?.type as string | undefined;
   // Enum / Select — fieldSpec.options takes precedence over schema.enum.
   const options = fieldSpec?.options;
@@ -1433,62 +1628,20 @@ function FieldControl({
     }
   }
 
-  // Structured fallback — try to recurse into a real nested form before
-  // dropping to a raw JSON editor. Order matters:
-  //   1. Resolve oneOf / anyOf against the value (discriminated unions
-  //      like View `data.provider` or anyOf [array<string>, array<obj>]).
-  //   2. type:'object' with properties → nested SchemaForm.
-  //   3. type:'array' of objects → RepeaterField with per-row inputs.
-  //   4. Last resort → JSON editor.
-  {
-    if (
-      effective?.type === 'object' &&
-      effective.properties &&
-      typeof effective.properties === 'object'
-    ) {
-      return (
-        <div className="rounded-md border border-border/40 bg-card/30 p-3">
-          <SchemaForm
-            schema={effective}
-            value={(value as Record<string, unknown>) ?? {}}
-            onChange={(v) => onChange(v)}
-            readOnly={readOnly}
-            widgetContext={widgetContext}
-          />
-        </div>
-      );
-    }
-    if (
-      effective?.type === 'array' &&
-      effective.items &&
-      typeof effective.items === 'object'
-    ) {
-      const itemSchema = resolveUnionBranch(
-        effective.items as JsonSchema,
-        Array.isArray(value) && value.length ? value[0] : undefined,
-      );
-      if (
-        itemSchema?.type === 'object' &&
-        itemSchema.properties &&
-        typeof itemSchema.properties === 'object'
-      ) {
-        return (
-          <RepeaterField
-            value={value}
-            fields={derivePropertyNames(itemSchema)}
-            schema={{ ...effective, items: itemSchema }}
-            readOnly={readOnly}
-            widgetContext={widgetContext}
-            widget={fieldSpec?.widget}
-            onChange={onChange}
-          />
-        );
-      }
-    }
-  }
-
-  // Object / complex → JSON fallback so admins can still edit.
-  return <RawJsonEditor value={value} onChange={onChange} readOnly={readOnly} small />;
+  // The structured fallbacks that used to be re-tested here — object-with-
+  // properties → nested SchemaForm, array-of-object → RepeaterField, and the
+  // last-resort JSON editor — are the `nested-form` / `object-rows` / `raw-json`
+  // faces, returned above. `resolveFieldFace` keeps their precedence relative to
+  // this scalar chain (structural checks come after it when there is no widget
+  // hint, before it when there is), so the rendering order is unchanged; what is
+  // gone is the second copy of the predicates.
+  //
+  // Unreachable by construction: a `'scalar'` face is returned only when one of
+  // the branches above matches, and every one of them returns. The compiler can't
+  // prove that correspondence, so this terminal stays — spelled as the same
+  // `'control'`-channel JSON editor the `raw-json` face renders, so that if a
+  // future edit did make it reachable the label channel would still be right.
+  return <RawJsonEditor id={id} value={value} onChange={onChange} readOnly={readOnly} small />;
 }
 
 /* ----- composite / repeater (embedded structured values) ----------------- */
@@ -1536,6 +1689,7 @@ function CompositeField({
   readOnly,
   widgetContext,
   fieldSpec,
+  ariaLabelledBy,
   onChange,
 }: {
   value: unknown;
@@ -1544,6 +1698,12 @@ function CompositeField({
   readOnly?: boolean;
   widgetContext?: WidgetContext;
   fieldSpec?: FormFieldSpec;
+  /**
+   * The host label's id — this face is `labelling: 'group'` (objectui#5039).
+   * Answered on the box, not on any inner control: every labelable element in
+   * here is addressed by a SUB-field's own label.
+   */
+  ariaLabelledBy?: string;
   onChange: (v: unknown) => void;
 }) {
   const obj = (value && typeof value === 'object' && !Array.isArray(value))
@@ -1573,7 +1733,11 @@ function CompositeField({
   if (fieldSpec?.disclosure === 'popover') {
     const summary = summariseComposite(obj, specs);
     return (
-      <div className="flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/20 px-3 py-1.5">
+      <div
+        className="flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/20 px-3 py-1.5"
+        role="group"
+        aria-labelledby={ariaLabelledBy}
+      >
         <span className="text-sm text-muted-foreground truncate" title={summary}>
           {summary || <span className="italic opacity-70">Not configured</span>}
         </span>
@@ -1592,7 +1756,7 @@ function CompositeField({
   }
 
   return (
-    <div className="rounded-md border border-border/50 bg-muted/20 p-3 space-y-3">
+    <div className="rounded-md border border-border/50 bg-muted/20 p-3 space-y-3" role="group" aria-labelledby={ariaLabelledBy}>
       {rows}
     </div>
   );
@@ -1605,6 +1769,7 @@ function RepeaterField({
   readOnly,
   widgetContext,
   widget,
+  ariaLabelledBy,
   onChange,
 }: {
   value: unknown;
@@ -1613,6 +1778,12 @@ function RepeaterField({
   readOnly?: boolean;
   widgetContext?: WidgetContext;
   widget?: string;
+  /**
+   * The host label's id — this face is `labelling: 'group'` (objectui#5039).
+   * Both layouts own only auxiliary buttons (collapse, add, remove) plus rows
+   * that label themselves, so the name belongs on the list, not on a control.
+   */
+  ariaLabelledBy?: string;
   onChange: (v: unknown) => void;
 }) {
   const locale = useMetadataLocale();
@@ -1638,7 +1809,7 @@ function RepeaterField({
 
   if (useGrid) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2" role="group" aria-labelledby={ariaLabelledBy}>
         <div className="overflow-x-auto rounded-md border border-border/50">
           <table className="w-full text-sm">
             <thead className="bg-muted/40">
@@ -1703,7 +1874,7 @@ function RepeaterField({
 
   // Card layout — one collapsible fieldset per row.
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" role="group" aria-labelledby={ariaLabelledBy}>
       {rows.length === 0 && (
         <div className="rounded-md border border-dashed border-border/50 px-3 py-4 text-center text-xs text-muted-foreground">
           {t('engine.list.empty', locale)}
@@ -1792,6 +1963,7 @@ function RecordField({
   widget,
   keyField,
   formData,
+  ariaLabelledBy,
   onChange,
 }: {
   value: unknown;
@@ -1800,6 +1972,12 @@ function RecordField({
   readOnly?: boolean;
   widgetContext?: WidgetContext;
   widget?: string;
+  /**
+   * The host label's id — this face is `labelling: 'group'` (objectui#5039).
+   * Answered on the card list, and forwarded to a delegated widget so the
+   * declaration holds in BOTH of this face's shapes.
+   */
+  ariaLabelledBy?: string;
   keyField?: {
     field?: string;
     label?: string;
@@ -1825,11 +2003,14 @@ function RecordField({
     const Renderer = WIDGETS[widget as RegisteredWidgetKey] as WidgetRenderer | undefined;
     if (Renderer) {
       return (
-        // Neither naming channel is handed down here: this delegation is nested
-        // INSIDE a `record` field that already rendered its own label above, and
-        // the widget replaces the record editor rather than being that field's
-        // control. Unchanged by objectui#4871 — measured and left alone.
+        // The `id` channel is deliberately NOT handed down: a `record` field is
+        // declared `labelling: 'group'`, so the host published its label's id and
+        // dropped the `for` (objectui#5039). The IDREF is forwarded, because this
+        // delegated widget IS what the record field renders — leaving it out is
+        // what left this shape unnamed while objectui#4871 measured it and left
+        // it alone.
         <Renderer
+          ariaLabelledBy={ariaLabelledBy}
           schema={schema}
           value={value}
           onChange={onChange}
@@ -1930,7 +2111,7 @@ function RecordField({
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" role="group" aria-labelledby={ariaLabelledBy}>
       {entries.length === 0 && (
         <div className="rounded-md border border-dashed border-border/50 px-3 py-4 text-center text-xs text-muted-foreground">
           {t('engine.list.empty', locale)}
@@ -2055,11 +2236,21 @@ function RecordField({
 /* ----- raw JSON fallback -------------------------------------------------- */
 
 function RawJsonEditor({
+  id,
   value,
   onChange,
   readOnly,
   small,
 }: {
+  /**
+   * The host field id, when this editor is a field's control. It goes on the
+   * `<textarea>` — the one labelable element this face renders, in every branch
+   * and both states — which is why the face is declared `labelling: 'control'`
+   * rather than wrapped in a named group (objectui#5039). Absent when
+   * `SchemaForm` renders this as the whole-form fallback, where there is no host
+   * label to associate.
+   */
+  id?: string;
   value: unknown;
   onChange: (v: any) => void;
   readOnly?: boolean;
@@ -2080,6 +2271,7 @@ function RawJsonEditor({
   return (
     <div className="space-y-1">
       <Textarea
+        id={id}
         rows={small ? 4 : 12}
         className="font-mono text-xs"
         value={text}
