@@ -102,15 +102,82 @@ const schema = {
 };
 ```
 
-### Manual Registration
+### What the side-effect import registers
+
+Registration is *only* a side effect of importing the package — the single
+`import '@object-ui/plugin-gantt'` above is the whole of it. There is no
+components map to iterate over: importing the entry point runs the
+`ComponentRegistry.register(...)` calls at the bottom of `src/index.tsx`, which
+claim these schema types:
+
+| Schema `type` | Namespaced key | Renderer |
+| --- | --- | --- |
+| `object-gantt` | `plugin-gantt:object-gantt` | `ObjectGanttRenderer` |
+| `gantt` | `view:gantt` | `ObjectGanttRenderer` |
+
+Both spellings resolve — `register` stores the namespaced key *and* a bare-`type`
+fallback. Both keys declare the same two inputs: `objectName` (required) and the
+`gantt` configuration object.
+
+`ObjectGanttRenderer` is a thin wrapper: it pulls `dataSource` off the renderer
+context and hands the schema to `ObjectGantt`.
+
+### Public exports
+
+The package exports components, helpers and their types — not a registry map:
 
 ```typescript
-import { ganttComponents } from '@object-ui/plugin-gantt';
-import { ComponentRegistry } from '@object-ui/core';
+import {
+  ObjectGantt, // ObjectQL-integrated gantt: loads records, writes back edits
+  ObjectGanttRenderer, // the registered renderer for `object-gantt` / `gantt`
+  GanttView, // the standalone timeline component
+  QuickFilterBar, // the toolbar's quick-filter dropdowns
+  ResourceWorkload, // resource × period workload grid
+  normalizeDependencies, // raw dependency-field value -> GanttDependency[]
+  normalizeTaskType, // raw type-field value -> GanttTaskType
+  normalizeShiftSegments, // raw timeSegments config -> NormShiftSegments
+  parseHHMM,
+  shiftDayStart,
+  bandAt,
+  computeWorkload,
+} from '@object-ui/plugin-gantt';
 
-// Register gantt components
-Object.entries(ganttComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
+import type {
+  ObjectGanttProps,
+  GanttViewProps,
+  GanttTask,
+  GanttTaskType,
+  GanttViewMode,
+  GanttDependency,
+  GanttDependencyObject,
+  GanttLinkType,
+  GanttMarker,
+  QuickFilterDef,
+  QuickFilterBarProps,
+  QuickFilterField,
+  QuickFilterOption,
+  QuickFilterLabels,
+  ShiftSegmentsConfig,
+  ShiftBandConfig,
+  NormShiftSegments,
+  NormShiftBand,
+  ResourceWorkloadProps,
+  WorkloadColumn,
+  WorkloadOptions,
+  ResourceCell,
+  ResourceLoad,
+} from '@object-ui/plugin-gantt';
+```
+
+To serve the gantt under a registry key of your own, register the exported
+renderer under that key:
+
+```typescript
+import { ComponentRegistry } from '@object-ui/core';
+import { ObjectGanttRenderer } from '@object-ui/plugin-gantt';
+
+ComponentRegistry.register('my-gantt', ObjectGanttRenderer, {
+  namespace: 'my-app',
 });
 ```
 
@@ -134,18 +201,32 @@ Display project timeline with tasks:
 
 ### Task Structure
 
+`GanttTask` is the **component's runtime** task — what `<GanttView>` renders and
+what `ObjectGantt` produces from each record. Dates are real `Date` objects and
+the label field is `title` (`src/GanttView.tsx`):
+
 ```typescript
 interface GanttTask {
-  id: string;
-  name: string;
-  start: string;                  // ISO date string
-  end: string;                    // ISO date string
-  progress: number;               // 0-100
-  dependencies?: string[];         // Task IDs
-  assignee?: string;
-  color?: string;                 // Tailwind color class
+  id: string | number;
+  title: string;
+  start: Date;
+  end: Date;
+  progress: number;                  // 0-100
+  dependencies?: GanttDependency[];  // predecessor id, optionally with a link type
+  parent?: string | number | null;   // builds the hierarchy; unknown ids render as roots
+  type?: GanttTaskType;              // 'task' | 'summary' | 'milestone' | 'group'
+  color?: string;                    // bar fill — any CSS color, e.g. '#3b82f6'
+  borderColor?: string;              // alert outline, fill untouched
+  locked?: boolean;                  // view-only row (still clickable)
+  baselineStart?: Date;              // planned-vs-actual reference bar
+  baselineEnd?: Date;
+  data?: any;                        // the source record behind the row
 }
 ```
+
+A few more optional fields (`fields` for tooltip rows, `hasOwnDates`) are
+populated by `ObjectGantt` itself — see `GanttTask` in `src/GanttView.tsx` for
+the full declaration.
 
 ## Examples
 
@@ -403,24 +484,52 @@ const schema = {
 
 ## TypeScript Support
 
+Two different vocabularies, two different packages — don't mix them up.
+
+**The component's runtime types** come from this package. Use them when you
+render `<GanttView>` (or `ObjectGantt`) yourself in React:
+
 ```typescript
-import type { GanttSchema, GanttTask } from '@object-ui/plugin-gantt';
+import type { GanttTask, GanttViewProps } from '@object-ui/plugin-gantt';
 
 const task: GanttTask = {
   id: '1',
-  name: 'My Task',
-  start: '2024-01-01',
-  end: '2024-01-10',
+  title: 'My Task',
+  start: new Date('2024-01-01'),
+  end: new Date('2024-01-10'),
   progress: 50,
-  dependencies: []
+  dependencies: [],
 };
 
-const gantt: GanttSchema = {
-  type: 'gantt',
+const props: GanttViewProps = {
+  tasks: [task],
   viewMode: 'week',
-  tasks: [task]
 };
 ```
+
+**The authored (JSON metadata) types** live in `@object-ui/types` — this package
+imports them and does not re-export them. There is no `GanttSchema`; the
+component schema is `ObjectGanttSchema`, and it is **record-driven**: it names an
+object and the fields to read, it does not carry a task array.
+
+```typescript
+import type { ObjectGanttSchema } from '@object-ui/types';
+
+const gantt: ObjectGanttSchema = {
+  type: 'object-gantt',
+  objectName: 'project_tasks',
+  titleField: 'name',
+  startDateField: 'start_date',
+  endDateField: 'end_date',
+  progressField: 'completion_percentage',
+  dependencyField: 'dependent_task_ids',
+};
+```
+
+For a list view served under the `gantt` view type, the same configuration is a
+`gantt` block on `ListViewSchema` (typed by `GanttConfig`, also from
+`@object-ui/types`) rather than top-level keys — `ObjectGantt` reads either
+spelling.
 
 ## Links
 
