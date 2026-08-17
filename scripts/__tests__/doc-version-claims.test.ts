@@ -189,6 +189,85 @@ import { fileURLToPath } from 'node:url';
  * range once the line had to exist. The unanimity of an anchor decides which range to
  * teach, never which dependencies a doc ought to have.
  *
+ * ## What objectui#4981 added: a THIRD scan root, and a skeleton that is NOT a plugin
+ *
+ * Everything above judges two surfaces humans read. `skills/objectui/**` is the surface
+ * an AGENT reads before it writes a project, and it was outside `SCAN_ROOTS` from the day
+ * this file was written. Nothing else covered it either: `check-skills-paths.mjs` walks
+ * the same 18 files but judges the paths they name, `check-doc-links.mjs` has no `skills`
+ * row, and a grep of `scripts/` finds no other reader of a version literal. So the two
+ * `package.json` blocks those guides teach were the one doc surface in this repository
+ * where a version could sit unmeasured forever — and the cost is not the usual one. A
+ * fossil in `content/docs` costs one human a failed build; a fossil in a scaffolding
+ * guide is COPIED, into a new user repository, every time an agent follows it.
+ *
+ * Measured at objectui#4981's cut (6098ecd08), the widening brought in 12 literals:
+ *
+ *   - FOUR fossils, one to two majors behind and repaired in the content half of that
+ *     card: `typescript` `^5.0.0` (workspace: `^6.0.3`), `vite` `^6.0.0` (`^8.2.1`) and
+ *     `@vitejs/plugin-react` `^4.0.0` (`^6.0.5`) in `project-setup.md`, plus
+ *     `lucide-react` `^0.400.0` (`^1.31.0`) in `plugin-development.md`. The last is the
+ *     one that could never have floated off its value on its own: a `0.x` caret does not
+ *     cross a minor, so `^0.400.0` resolves inside 0.400.x forever — the same trap
+ *     objectui#3755 removed from the `create-plugin` generator's own dependency map.
+ *   - ONE claim measured WRONG and NOT repaired here: `i18n.md` attributes its
+ *     plain-string label rule to `@objectstack/spec` `v4` while 33 manifests declare
+ *     `^17.0.0`. Thirteen majors, same shape as the `architecture-overview.md` literal
+ *     objectui#3708 repaired. It is inventoried `stale` and filed as objectui#5081,
+ *     because its repair is a judgement this card did not own (correct the number, or
+ *     delete a version qualifier that carries no information) — the same split the
+ *     census below made nine times.
+ *   - The rest are floors and reader-owned ranges, recorded with their reasons below.
+ *
+ * ### Which of them could be ANCHORED, and the line this card had to draw
+ *
+ * `skeletonDep` (the objectui#3855 mechanism) compares a doc's range against the range
+ * the in-repo plugin manifests declare. Two of the three skills claims it now judges are
+ * an exact fit and one is not, and pretending otherwise would be the "wrong anchor" the
+ * card warned about:
+ *
+ *   - `plugin-development.md`'s block IS the shape #3855 was built for, and more clearly
+ *     than the page that motivated it: it is named `@object-ui/plugin-my-widget`, takes
+ *     all four `@object-ui` dependencies at `workspace:*` and builds with `vite build`.
+ *     A manifest spelled that way resolves in exactly one place, so its `lucide-react`
+ *     range is this repository's, not the reader's. Anchor measured: 16 of the 19
+ *     `packages/plugin-<name>` manifests declare `lucide-react` and all 16 say `^1.31.0`
+ *     (23 across the whole workspace, unanimous). The card estimated NINE, which would
+ *     have fallen under the ten-declarer floor the unanimity premise demands; the
+ *     re-measurement is why this line is anchored rather than merely recorded.
+ *   - `project-setup.md`'s block is NOT a plugin. It is a standalone application taking
+ *     published `@object-ui/*` packages at `latest` — no workspace protocol anywhere on
+ *     the page — so "what this workspace installs to build the copied thing" is not
+ *     literally what its toolchain lines state. They are anchored anyway, and the reason
+ *     is a measurement rather than a convenience: this repository states exactly ONE
+ *     range for each of those three dependencies, everywhere. At this cut, of the
+ *     manifests that declare them, `typescript` is `^6.0.3` in 40 of 40, `vite`
+ *     `^8.2.1` in 29 of 29, `@vitejs/plugin-react` `^6.0.5` in 27 of 27 — root,
+ *     `apps/console`, `examples/console-starter` and the plugin packages alike. The
+ *     plugin set the assertion reads is therefore a strict SUBSET of a repo-wide
+ *     unanimity, and the range it pins is "the one range this repository states", not a
+ *     private choice of the plugin packages.
+ *
+ *     The residual is stated rather than implied, because it is the thing that would
+ *     make this entry wrong later: if the plugin packages ever move to a toolchain a
+ *     standalone consumer should NOT be told to use, this assertion will paint that page
+ *     red for a divergence that is not a defect of the page. The red is then a question,
+ *     and the answer is to reclassify these three entries (or to give them an anchor set
+ *     of their own — `apps/console` plus the `examples/*` starters, 3 to 4 declarers
+ *     today, too thin for the current floor). What is NOT an acceptable answer is
+ *     demoting them to `sample`: that class is what let three majors of drift sit in
+ *     `content/docs/guide/plugins.md` for months, and it is what left these four literals
+ *     unread for the whole life of this gate.
+ *
+ * The criterion those two paragraphs share, and the one the react/tailwind lines fail:
+ * a literal is anchorable when this tree states exactly one range for that dependency AND
+ * the doc's line is the same KIND of statement. `react` fails the second half — the repo
+ * pins `19.2.8` exactly, for deterministic test resolution, while the page states a
+ * consumer's caret range, and "the doc must say 19.2.8" would be bad advice mechanically
+ * enforced. `@tailwindcss/vite` fails the first: this repository declares it in ZERO
+ * manifests (it wires Tailwind 4 through `@tailwindcss/postcss` instead), so there is
+ * nothing here to compare against, whatever the page teaches.
+ *
  * ## The census that set the design (measured on d46b40324, the merge of PR #3698)
  *
  * The dispatch expected the bare-claim count to be zero, since #3688 and #3698 had just
@@ -244,8 +323,10 @@ import { fileURLToPath } from 'node:url';
  *     and no such peer at all — fixed by objectui#3709.
  *
  * So: scan fences, absorb the samples in the inventory. The residual hole is stated
- * rather than implied — a version literal in a file OUTSIDE the two scan roots is
- * invisible here, exactly as it was before.
+ * rather than implied — a version literal in a file OUTSIDE the three scan roots is
+ * invisible here, exactly as it was before. That hole is not theoretical and the list of
+ * roots is not decorative: `skills` was outside it until objectui#4981, and four fossils
+ * and one thirteen-major misattribution lived there the whole time (see that section).
  *
  * ## The version-heading exemption is deliberately narrow, and here is why
  *
@@ -265,13 +346,22 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 /**
- * The two surfaces objectui#3697 names. Both are read by humans looking for the
- * version they must install, and both are already walked by `check-doc-links.mjs`
+ * The three surfaces this gate reads.
+ *
+ * The first two are the ones objectui#3697 names. Both are read by humans looking for
+ * the version they must install, and both are already walked by `check-doc-links.mjs`
  * (its `content/docs` and package-README rows — named rather than numbered, since
  * that table has grown twice since) — this gate adds a second question about the
  * same files.
+ *
+ * `skills` is objectui#4981's, and it is NOT a human surface: those 18 files are a
+ * direct input to every agent that scaffolds against this project. It is walked by
+ * `check-skills-paths.mjs`, which judges the PATHS those guides name and reads no
+ * version; `check-doc-links.mjs` has no `skills` row at all. So until this row landed,
+ * every version literal in the agent-facing tree was invisible to every gate in
+ * `scripts/` — see the objectui#4981 section in the header for what the widening found.
  */
-const SCAN_ROOTS = ['content/docs', 'packages/*/README.md'] as const;
+const SCAN_ROOTS = ['content/docs', 'packages/*/README.md', 'skills'] as const;
 
 const UNSCANNED_DIRS = new Set(['node_modules', 'dist', 'build', '.next', '.turbo', '.git']);
 
@@ -509,7 +599,8 @@ const keyOf = (c: Pick<Claim, 'file' | 'claim'>): string => `${c.file} :: ${c.cl
  *                  re-verified by a reviewer; the one entry that does not is
  *                  `ci-cd-pipeline.md`, which carries its own pin test next door.
  * `restatement`  - a README restating its OWN package.json. Formally a subclass of
- *                  `anchored`, kept separate because it is the largest class (13 of 21)
+ *                  `anchored`, kept separate because it is the largest class (14 of the
+ *                  34 entries at the objectui#4981 cut)
  *                  and the one that had already drifted: the two drifted members were
  *                  repaired by objectui#3710 and re-filed here as restatements, and a
  *                  third joined from `stale` when objectui#3690 widened the manifest its
@@ -680,6 +771,86 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     why: 'Names the major of this package own dependencies["@ai-sdk/react"], which is ^4.0.47. Kept rather than deleted because the reader follows it to the streaming protocol docs; re-verify with a one-line read of the manifest.',
     notAPeerRestatement:
       'Restates a dependencies entry, not a peerDependencies range, and restates its MAJOR ("v4" for ^4.0.47) rather than the range verbatim. Both facts put it outside the peer-line assertion, which judges verbatim equality of a peer range and nothing else. Covering it would need a second, weaker rule ("same major"), and one rule that returns two kinds of red is a rule whose failures nobody can read.',
+  },
+
+  // --- skills/objectui (objectui#4981) -----------------------------------------
+  // The agent-facing surface, unscanned until that card. See the header section for
+  // the measurement and for why two of these blocks anchor and one does not.
+  {
+    file: 'skills/objectui/SKILL.md',
+    claim: 'React 18+',
+    kind: 'unanchored',
+    why: 'The Tech Stack floor this file mirrors verbatim from AGENTS.md section 2 ("React 18+ (Hooks), TypeScript 5.0+ (Strict)"). Consistent with the ^18.0.0 || ^19.0.0 peer ranges, but stated repo-wide with no per-package anchor - the same claim, the same class and the same reason as the content/docs/guide/troubleshooting.md entry above.',
+  },
+  {
+    file: 'skills/objectui/SKILL.md',
+    claim: 'TypeScript 5.0',
+    kind: 'unanchored',
+    why: 'The second half of that same mirrored sentence, and a FLOOR ("5.0+") rather than a statement of what this repo builds with - 40 manifests declare typescript ^6.0.3, which satisfies it, and would still satisfy it after another major. Deliberately not "corrected" to 6.0 here: the sentence is copied from AGENTS.md section 2, and editing the skills copy alone would desync the two agent-facing texts. What this gate cannot measure, stated so it is not mistaken for checked: whether 5.0 is still a true floor for a CONSUMER, given the published declarations are emitted by TypeScript 6.',
+  },
+  {
+    file: 'skills/objectui/guides/i18n.md',
+    claim: '@objectstack/spec' + TICK + ' v4',
+    kind: 'stale',
+    why: 'Measured WRONG at the time of writing, recorded rather than blessed - the class the census below opened and objectui#3708/#3709/#3710/#3690 emptied. Two lines (117 and 162, one inventory key) attribute the plain-string label rule to @objectstack/spec v4 while 33 manifests in this repo declare ^17.0.0 and node_modules carries 17.0.0: thirteen majors, the same shape as the architecture-overview.md literal #3708 repaired. Filed as objectui#5081 rather than repaired in #4981, because the repair is a judgement that card did not own (correct the number, or delete a version qualifier that carries no information and can only rot). When that card lands, this entry must go with it or the downward ratchet turns red.',
+  },
+  {
+    file: 'skills/objectui/guides/plugin-development.md',
+    claim: 'react": "^18.0.0',
+    kind: 'sample',
+    why: 'The peerDependencies range of the plugin skeleton on that page: what the copied plugin ACCEPTS from its host, which its author owns and may legitimately widen or narrow. Same line, same class and same reasoning as the content/docs/guide/plugins.md peer entry above - installed-here versus accepted-from-the-host is the distinction, not which fence the line sits in.',
+  },
+  {
+    file: 'skills/objectui/guides/plugin-development.md',
+    // Reads as a `react` claim and is not one, for the same reason the plugins.md
+    // `@vitejs/plugin-react` entry does: `React` is a TOOLCHAIN word and the `-` before it
+    // is a word boundary, so the recorded literal is the TAIL of `lucide-react`.
+    claim: 'react": "^1.31.0',
+    kind: 'anchored',
+    skeletonDep: 'lucide-react',
+    why: 'A runtime dependency of an IN-WORKSPACE plugin skeleton - the block is named @object-ui/plugin-my-widget, takes all four @object-ui dependencies at workspace:* and builds with vite build, so it resolves in this workspace and nowhere else. Anchor measured at the objectui#4981 cut: 16 of the 19 packages/plugin-<name> manifests declare lucide-react and all 16 say ^1.31.0 (23 workspace-wide, unanimous). It read ^0.400.0, which is worse than an ordinary fossil: a 0.x caret cannot cross a minor, so that range resolves inside 0.400.x forever - the trap objectui#3755 removed from create-plugin\'s own dependency map. Recorded fork, not acted on here: #3755 DELETED its lucide entry rather than re-anchoring it, on the rule that this repo declares an icon library only where it imports one, and no code on this page imports one. Deleting the line is the alternative disposition; it would retire this entry with it.',
+  },
+  {
+    file: 'skills/objectui/guides/project-setup.md',
+    claim: 'react": "^19.0.0',
+    kind: 'sample',
+    why: 'The React major the reader\'s own application declares, in a scaffold whose @object-ui/* dependencies are all "latest" - the reader owns it after copying it. Not anchorable even though this repo does state a react range: the repo pins 19.2.8 EXACTLY, for deterministic test resolution, and a page teaching a consumer to pin React to one patch would be bad advice mechanically enforced. Two statements of different kinds, so there is nothing to compare.',
+  },
+  {
+    file: 'skills/objectui/guides/project-setup.md',
+    claim: '@tailwindcss/vite": "^4.0.0',
+    kind: 'sample',
+    why: 'Names a package this repository declares in ZERO manifests: it wires Tailwind 4 through @tailwindcss/postcss ^4.3.3 (apps/console and 7 others), not the Vite plugin. The page is internally consistent - its own vite.config.ts example imports @tailwindcss/vite and calls it in plugins, which is the upstream-supported Tailwind 4 integration for a standalone Vite app - so this is the reader\'s toolchain and there is nothing in this tree to adjudicate its range, whatever the page teaches.',
+  },
+  {
+    file: 'skills/objectui/guides/project-setup.md',
+    claim: 'tailwindcss": "^4.0.0',
+    kind: 'sample',
+    why: 'The Tailwind major the reader\'s application installs. A floor the reader owns, and one that already covers the ^4.3.3 the 8 in-repo declarations carry - same major, which is the objectui#3827 criterion for "not a fossil". Anchoring it would demand the page restate this repo\'s patch range for a dependency the reader\'s project, not this workspace, installs.',
+  },
+  {
+    file: 'skills/objectui/guides/project-setup.md',
+    claim: 'typescript": "^6.0.3',
+    kind: 'anchored',
+    skeletonDep: 'typescript',
+    why: 'It read ^5.0.0, one major behind, on the page an agent follows to scaffold a project. Anchored although this block is NOT an in-workspace plugin - it is a standalone app taking published packages at "latest" - because the range being pinned is the one this repository states everywhere: at the objectui#4981 cut, 40 of the 40 manifests that declare typescript say ^6.0.3 (root, apps/console, examples/console-starter and the plugin packages alike), so the plugin set this assertion reads is a strict subset of a repo-wide unanimity. Read the header section for the residual this trades away and what to do if the two sets ever diverge.',
+  },
+  {
+    file: 'skills/objectui/guides/project-setup.md',
+    claim: 'vite": "^8.2.1',
+    kind: 'anchored',
+    skeletonDep: 'vite',
+    why: 'Same block, same anchor argument, and the worst of the four: it read ^6.0.0 against a workspace unanimously on ^8.2.1 - two majors - in the devDependencies an agent copies into a user repository. Measured: 29 of 29 declaring manifests, including the root, agree on ^8.2.1.',
+  },
+  {
+    file: 'skills/objectui/guides/project-setup.md',
+    // Same tail-of-the-scoped-name match as the plugins.md entry: the literal reads
+    // `react` and the line declares `@vitejs/plugin-react`, which is what skeletonDep
+    // names and what parseManifestLine reads off the whole line.
+    claim: 'react": "^6.0.5',
+    kind: 'anchored',
+    skeletonDep: '@vitejs/plugin-react',
+    why: 'Same block, same anchor argument. It read ^4.0.0 - two majors - while 27 of 27 declaring manifests, 19 of them packages/plugin-<name>, say ^6.0.5. The page needs the dependency for a reason of its own, independent of this anchor: its vite.config.ts example imports @vitejs/plugin-react and calls react() in plugins, which is the same self-contradiction objectui#4961 repaired on content/docs/guide/plugins.md - here the line existed but named a toolchain generation this repo left behind two majors ago.',
   },
 ];
 
@@ -1562,16 +1733,26 @@ describe('doc version claims - the plugin-skeleton assertion', () => {
 
     expect(
       failures,
-      `The plugin guide's package.json skeleton and this workspace's plugin packages no ` +
+      `A package.json skeleton in the docs and this workspace's plugin packages no ` +
         `longer agree on the toolchain:\n` +
         failures.map((f) => `  - ${f}`).join('\n') +
-        `\n\nThe page teaches an IN-WORKSPACE plugin - workspace:* dependencies and a ` +
-        `vite build && tsc build script - so a reader following it builds with this repo's ` +
-        `toolchain, not one they chose. Update the page to the range measured above. If the ` +
-        `intent has changed and the example should stop naming versions at all, delete the ` +
-        `lines and the two entries together: an unpinned example makes no claim and needs ` +
-        `no anchor, which was objectui#3855's documented alternative.\n\n` +
-        `Note what this does NOT judge: the same block's peerDependencies. A peer range is ` +
+        `\n\nTwo kinds of page reach this assertion, and the fix differs (objectui#4981):\n` +
+        `  - content/docs/guide/plugins.md and skills/objectui/guides/plugin-development.md ` +
+        `teach an IN-WORKSPACE plugin - workspace:* dependencies, a vite build script - so a ` +
+        `reader following either builds with this repo's toolchain, not one they chose. ` +
+        `Update the page to the range measured above.\n` +
+        `  - skills/objectui/guides/project-setup.md teaches a STANDALONE app on published ` +
+        `packages. Its entries are anchored because this repository states exactly one range ` +
+        `for each of those dependencies everywhere, the plugin set being a subset of that ` +
+        `unanimity. If this red says the plugin packages moved somewhere a consumer app ` +
+        `should not follow, that is the case the header names: reclassify those three ` +
+        `entries or give them their own anchor set - do not "fix" the page to a range you ` +
+        `would not recommend.\n\n` +
+        `If the intent has changed and an example should stop naming versions at all, delete ` +
+        `the lines and their entries together: an unpinned example makes no claim and needs ` +
+        `no anchor, which was objectui#3855's documented alternative and the move ` +
+        `objectui#3755 made on the generator side.\n\n` +
+        `Note what this does NOT judge: the same blocks' peerDependencies. A peer range is ` +
         `what the copied plugin accepts from its host and its author owns it, which is why ` +
         `those entries stay sample - see the header.`,
     ).toEqual([]);
@@ -1587,30 +1768,36 @@ describe('doc version claims - the plugin-skeleton assertion', () => {
 
     expect(
       skeletonChecks.length,
-      'no inventory entry carries skeletonDep - the three plugin-guide entries lost the field ' +
+      'no inventory entry carries skeletonDep - the anchored skeleton entries lost the field ' +
         'and are back to being recorded rather than checked',
-    ).toBeGreaterThanOrEqual(3);
+    ).toBeGreaterThanOrEqual(7);
 
     expect(
       skeletonChecks.reduce((n, check) => n + check.stated.length, 0),
       'the skeleton assertion compared implausibly few lines - the manifest-line parser or ' +
         'the claim resolution collapsed, and it is now green over nothing',
-    ).toBeGreaterThanOrEqual(3);
+    ).toBeGreaterThanOrEqual(7);
   });
 
   it('resolves the anchor unanimously, and would notice if it stopped being unanimous', () => {
     // The premise the assertion rests on, asserted rather than assumed: it is only fair to
     // pin a doc to "the" range if there is one. Measured at the #3855 cut - 19 plugin
     // manifests declaring vite ^8.2.1, 16 of them typescript ^6.0.3; re-measured at the
-    // #4961 cut, which added the third name below - 19 of 19 on @vitejs/plugin-react ^6.0.5.
+    // #4961 cut, which added the third name below - 19 of 19 on @vitejs/plugin-react ^6.0.5;
+    // re-measured again at the #4981 cut for the fourth - 16 plugin manifests on
+    // lucide-react ^1.31.0, 23 workspace-wide. That fourth measurement is why the name is
+    // here at all: the card estimated NINE declarers, which would have failed the
+    // ten-declarer floor below, and the entry would have had to be recorded rather than
+    // checked. The floor is doing exactly what it was written for - it decides the class of
+    // an entry from a count, so the count has to be taken rather than quoted.
     //
-    // Derived from the inventory rather than hardcoded, so a THIRD skeletonDep added later
-    // is covered by this premise too instead of resting on the assertion alone. #4961 was
-    // that third one and needed no change here beyond joining the list. The names below are
-    // then a floor on that derivation: read from skeletonChecks and it could quietly become
-    // an empty loop, so every dep measured so far must still be in it.
+    // Derived from the inventory rather than hardcoded, so a skeletonDep added later is
+    // covered by this premise too instead of resting on the assertion alone. #4961 and
+    // #4981 both needed nothing here beyond joining the list. The names below are then a
+    // floor on that derivation: read from skeletonChecks and it could quietly become an
+    // empty loop, so every dep measured so far must still be in it.
     const anchoredDeps = [...new Set(skeletonChecks.map((check) => check.dep))];
-    for (const measured of ['vite', 'typescript', '@vitejs/plugin-react']) {
+    for (const measured of ['vite', 'typescript', '@vitejs/plugin-react', 'lucide-react']) {
       expect(
         anchoredDeps,
         `${measured} lost its skeletonDep entry - either the plugin guide stopped naming it ` +
