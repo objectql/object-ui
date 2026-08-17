@@ -218,10 +218,27 @@ const declaresObjectName = (cfg: { inputs?: Array<{ name?: string }> }) =>
  * instances of one lesson: a plausible value for EVERY input is not the same as
  * a plausible CONFIGURATION.
  *
+ * `customFields` is the second, and it arrived the same way `data` did — as a
+ * red on this probe the moment objectui#4648 declared `object-form`'s full
+ * authoring surface. Its guard is `ObjectForm.tsx:426`,
+ * `const hasInlineFields = schema.customFields && schema.customFields.length > 0`,
+ * read at `:455` under the comment *"Skip fetching if we have inline fields"* —
+ * which substitutes a minimal in-memory object schema for the
+ * `getObjectSchema(schema.objectName)` call — and again at `:479` to skip the
+ * record fetch. The repo's own type says the same in prose: *"When used with
+ * inline field definitions (without dataSource), this becomes the primary field
+ * source"* (`ObjectFormSchema.customFields`, `packages/types/src/objectql.ts`).
+ * So a non-empty `customFields` is the author declaring the fields inline, i.e.
+ * telling the block not to fetch — the `data` case exactly. Note the guard is
+ * LENGTH-sensitive: `sampleFor` returns a non-empty `['name']` for an array
+ * input, which is what tripped it; an empty array would have left the binding
+ * intact. That is the "plausible value ≠ plausible configuration" lesson a
+ * fourth time.
+ *
  * Add to this list only with the guard quoted, so the next reader can check the
  * claim instead of trusting it.
  */
-const SUPERSEDES_BINDING = new Set(['data']);
+const SUPERSEDES_BINDING = new Set(['data', 'customFields']);
 
 /**
  * A plausible value for one declared input.

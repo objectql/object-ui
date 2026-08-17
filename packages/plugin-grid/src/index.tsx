@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, type ComponentInput } from '@object-ui/core';
 import {
   ElementDataSourceGate,
   useSchemaContext,
@@ -119,12 +119,64 @@ export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> =
  * second de-facto contract (AGENTS.md #0.1).
  *
  * Shared by both registrations below so the alias cannot drift from the block.
+ *
+ * ## The rest of the surface (objectui#4648)
+ *
+ * Everything after `filter` was declared by the maintainer ruling of 2026-08-16
+ * on objectui#4648 (option B + carve-out). These are NOT new capabilities — every
+ * one of them is read by `ObjectGrid` today, and until this landed an author who
+ * wrote one got `unknown-prop` from `sdui-parser` on a key that works, while the
+ * designer panel and the generated `sdui-intrinsics.d.ts` denied it existed.
+ * Publishing them is what makes the manifest, the `.d.ts`, the designer and the
+ * renderer finally agree.
+ *
+ * TEN keys `@objectstack/spec` 17.0.0 GA also declares are deliberately NOT here
+ * — this block's own `@deprecated` legacy spellings (`fields`, `staticData`,
+ * `selectable`, `pageSize`, `showSearch`, `showPagination`, `defaultSort`,
+ * `defaultFilters`, `resizableColumns`, `title` — all tagged `@deprecated` in
+ * `ObjectGridSchema`, `packages/types/src/objectql.ts`). The renderer still reads
+ * them as back-compat fallbacks, but publishing a deprecated alias as NEW
+ * authoring surface would harden it into a second dialect (AGENTS.md #0.1), so
+ * each gets a cited exemption in the console parity gate instead. Their canonical
+ * spellings — `columns`, `data`, `selection`, `pagination`, `searchableFields`,
+ * `sort`, `filter`, `resizable`, `label` — are all declared here, and each
+ * description below says so, so the exemption teaches rather than merely omits.
  */
-const GRID_QUERY_INPUTS = [
+const GRID_QUERY_INPUTS: ComponentInput[] = [
   { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-  { name: 'columns', type: 'array', label: 'Columns' },
-  { name: 'filter', type: 'array', label: 'Filter' },
-] as const;
+  { name: 'columns', type: 'array', label: 'Columns', description: 'Columns to show, either field names (`["name", "email"]`) or column objects (`[{ field: "name", label: "Full Name", width: 200 }]`). The canonical spelling — the deprecated `fields` is only read when this is absent.' },
+  { name: 'filter', type: 'array', label: 'Filter', description: 'Filter criteria in JSON-rules form. The canonical spelling — the deprecated `defaultFilters` is only read when this is absent.' },
+  // ── identity ──────────────────────────────────────────────────────────────
+  { name: 'label', type: 'string', label: 'Label', description: 'Grid label, used as the table caption and as the export file title. The canonical spelling — the deprecated `title` is only read when this is absent.' },
+  // ── query shaping ─────────────────────────────────────────────────────────
+  { name: 'sort', type: 'array', label: 'Sort', description: 'Initial sort order, `[{ field, order }]`. The canonical spelling — the deprecated single-sort `defaultSort` is only read when this is absent.' },
+  { name: 'pagination', type: 'object', label: 'Pagination', description: 'Pagination config, `{ pageSize, pageSizeOptions, … }`. Its presence is what enables paging; prefer it over the deprecated flat `pageSize` / `showPagination` pair.' },
+  { name: 'searchableFields', type: 'array', label: 'Searchable Fields', description: 'Fields the toolbar search box queries. A non-empty list is what enables search — prefer it over the deprecated boolean `showSearch`, which cannot say WHICH fields to search.' },
+  { name: 'data', type: 'array', label: 'Static Data', description: 'Inline rows, which bypass the object query entirely. For demos and fixtures; the canonical spelling — the deprecated `staticData` is the same thing.' },
+  // ── presentation ──────────────────────────────────────────────────────────
+  { name: 'rowHeight', type: 'enum', label: 'Row Height', enum: ['compact', 'short', 'medium', 'tall', 'extra_tall'], description: 'Row density. An unrecognised value falls back to `compact` rather than erroring.' },
+  { name: 'frozenColumns', type: 'number', label: 'Frozen Columns', description: 'How many leading columns stay pinned while the grid scrolls horizontally.' },
+  { name: 'resizable', type: 'boolean', label: 'Resizable Columns', description: 'Let users drag column borders to resize. The canonical spelling — the deprecated `resizableColumns` is only read when this is absent.' },
+  { name: 'reorderableColumns', type: 'boolean', label: 'Reorderable Columns', description: 'Let users drag columns into a different order.' },
+  { name: 'showColumnTypeIcons', type: 'boolean', label: 'Show Column Type Icons', description: 'Show a field-type icon in each column header. Off by default — the type is usually obvious from the cell content, and the icons compete with the column labels.' },
+  { name: 'rowColor', type: 'object', label: 'Row Color', description: 'Rules that colour whole rows from a field value.' },
+  { name: 'conditionalFormatting', type: 'array', label: 'Conditional Formatting', description: 'Row/cell styling rules. Accepts both the ObjectUI `{ field, operator, value }` form and the spec expression form `{ condition, style }`.' },
+  // ── grouping and roll-ups ─────────────────────────────────────────────────
+  { name: 'grouping', type: 'object', label: 'Grouping', description: 'Group rows by one or more fields into collapsible sections.' },
+  { name: 'aggregations', type: 'array', label: 'Aggregations', description: 'Per-group roll-ups shown in group headers, `[{ field, type: "sum" | "count" | "avg" | "min" | "max" | "count_distinct" }]`. Needs `grouping` to have anything to roll up.' },
+  // ── selection and actions ─────────────────────────────────────────────────
+  { name: 'selection', type: 'object', label: 'Selection', description: 'Selection config, `{ type: "none" | "single" | "multiple" }`. The canonical spelling — the deprecated boolean/string `selectable` is only read when this is absent.' },
+  { name: 'rowActions', type: 'array', label: 'Row Actions', description: 'Names of actions offered on each row’s menu.' },
+  { name: 'bulkActions', type: 'array', label: 'Bulk Actions', description: 'Names of actions offered once rows are selected. Needs a multi-row `selection` to be reachable.' },
+  { name: 'batchActions', type: 'array', label: 'Batch Actions (legacy alias)', description: 'Legacy alias of `bulkActions`, and the one the renderer reads FIRST when both are set. Prefer `bulkActions` in new schemas.' },
+  { name: 'bulkActionDefs', type: 'array', label: 'Bulk Action Definitions', description: 'Full inline bulk-action definitions, for actions that are not named entries in the object’s action set. Use `bulkActions` when the action already exists.' },
+  // ── behaviour ─────────────────────────────────────────────────────────────
+  { name: 'editable', type: 'boolean', label: 'Editable', description: 'Enable inline cell editing (double-click or Enter opens a cell).' },
+  { name: 'singleClickEdit', type: 'boolean', label: 'Single-click Edit', description: 'With `editable`, a single click opens the cell instead of a double-click. Has no effect on a non-editable grid.' },
+  { name: 'navigation', type: 'object', label: 'Navigation', description: 'What a row click does, `{ mode: "page" | "drawer" | "modal" | "split" | "none", … }`.' },
+  { name: 'operations', type: 'object', label: 'Operations', description: 'Toggles for the built-in create/read/update/delete/export/import affordances, e.g. `{ delete: false }`.' },
+  { name: 'exportOptions', type: 'object', label: 'Export Options', description: 'Export config, `{ formats, maxRecords, includeHeaders, fileNamePrefix }`. Needs `operations.export` to be reachable from the toolbar.' },
+];
 
 ComponentRegistry.register('object-grid', ObjectGridRenderer, {
   namespace: 'plugin-grid',

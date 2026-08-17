@@ -586,6 +586,71 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
     'GA declares it and RecordDetailsRenderer HONOURS it already — renderers/record-details.tsx:234, `(schema.inlineEdit ?? true) && objectInlineEditable` gates the inline-edit affordance. Not published only because the pinned @objectstack/spec@17.0.0-rc.6 does not declare it. Declared by objectui#4668 on the GA pin (objectui#4636 / PR #4639); dormant on this pin, dies when the input lands.',
   'record:details.showHeader':
     'GA declares it and RecordDetailsRenderer HONOURS it already — renderers/record-details.tsx:257, `showHeader: schema.showHeader ?? false` reaches DetailView, which reads it at DetailView.tsx:909/:1183. Not published only because the pinned @objectstack/spec@17.0.0-rc.6 does not declare it. Declared by objectui#4668 on the GA pin (objectui#4636 / PR #4639); dormant on this pin, dies when the input lands.',
+
+  // ── object-grid's own @deprecated legacy spellings — the RULED carve-out ───
+  //                                                          (10 keys)
+  // A class of its own, and the only part of objectui#4648's option B that is
+  // NOT declared. The maintainer ruling of 2026-08-16 on that card reads:
+  // "object-grid's own `@deprecated` legacy spellings … are NOT published as new
+  // authoring surface — they get reasoned, cited exemptions so a deprecated
+  // alias is not hardened."
+  //
+  // So the reason here is NOT the one every other entry gives. These ten are not
+  // undecided, not upstream-owned, and not blocked on anything: the renderer
+  // reads all ten and will keep reading them, because documents authored under
+  // the old spellings must keep rendering. What is refused is PUBLISHING them —
+  // an `inputs` entry is a recommendation to write the key, and recommending a
+  // deprecated alias is how a second dialect gets hardened (AGENTS.md #0.1).
+  // A back-compat read is not an authoring surface: the same split
+  // `page:card.body` records above, and the one `page-header-subtitle-alias`
+  // established in `packages/layout`.
+  //
+  // Each is tagged `@deprecated` in this repo's own `ObjectGridSchema`
+  // (`packages/types/src/objectql.ts`), and GA's own `.describe()` text says the
+  // same thing from the producer side ("Legacy … fallback, read only when
+  // `filter` is absent. Prefer `filter`"). Both authorities agree, which is why
+  // this is an exemption rather than an open question. The CANONICAL spelling of
+  // each is declared by objectui#4648 in `plugin-grid/src/index.tsx` and named in
+  // the reason below, so the pair reads as "write this one instead" rather than
+  // as an unexplained hole.
+  //
+  // THESE DO NOT SELF-RETIRE ON A PIN BUMP, and that is deliberate: unlike the
+  // GA-pending five above, no issue owns declaring them later. They retire only
+  // if `@objectstack/spec` retires the keys upstream (an ADR-0087 D2 tombstone,
+  // which by itself would NOT make them stale here — see the record_picker trio)
+  // or if objectui un-deprecates a spelling. Do not resolve one by declaring the
+  // input; that is the move the ruling refused.
+  //
+  // Measurement note, reported on objectui#4648 with this change: the ruling
+  // enumerated FIVE (`fields` / `staticData` / `selectable` / `pageSize` /
+  // `showSearch`) from the fork report's list. Re-deriving the class it named —
+  // `@deprecated` in `ObjectGridSchema`, AND declared by GA — measures TEN. The
+  // five extra (`showPagination`, `defaultSort`, `defaultFilters`,
+  // `resizableColumns`, `title`) are the same class by the same test, so they are
+  // carved out with it. Trimming back to exactly five is a one-line reversal
+  // (delete the entry, declare the input); publishing first and withdrawing later
+  // is not, which is why the exemption is the direction taken while the card is
+  // open.
+  'object-grid.fields':
+    '@deprecated in ObjectGridSchema ("Use columns instead"); GA describes it as the "Field list fallback used when `columns` is absent". Read as back-compat, deliberately not published as authoring surface — the canonical `columns` IS declared. Ruled carve-out, objectui#4648 (maintainer 2026-08-16).',
+  'object-grid.staticData':
+    '@deprecated in ObjectGridSchema ("Use data with provider: \'value\' instead"); GA describes it as the "Alternate spelling of `data`". Read as back-compat, deliberately not published — the canonical `data` IS declared. Ruled carve-out, objectui#4648 (maintainer 2026-08-16).',
+  'object-grid.selectable':
+    '@deprecated in ObjectGridSchema ("Use selection.type instead"); GA describes it as the "Legacy selection shorthand, read only when `selection` is absent. Prefer `selection`". Read as back-compat, deliberately not published — the canonical `selection` IS declared. Ruled carve-out, objectui#4648 (maintainer 2026-08-16).',
+  'object-grid.pageSize':
+    '@deprecated in ObjectGridSchema ("Use pagination.pageSize instead"); GA describes it as the "Flat page-size shorthand; `pagination.pageSize` wins when both are set". Read as back-compat, deliberately not published — the canonical `pagination` IS declared. Ruled carve-out, objectui#4648 (maintainer 2026-08-16).',
+  'object-grid.showSearch':
+    '@deprecated in ObjectGridSchema ("Use searchableFields instead"); GA describes it as "read only when `searchableFields` is absent". A boolean cannot say WHICH fields to search, which is why the list is the surface. Read as back-compat, deliberately not published — the canonical `searchableFields` IS declared. Ruled carve-out, objectui#4648 (maintainer 2026-08-16).',
+  'object-grid.showPagination':
+    '@deprecated in ObjectGridSchema ("Use pagination config instead"); GA describes it as "read only when `pagination` is absent". Read as back-compat, deliberately not published — the canonical `pagination` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
+  'object-grid.defaultSort':
+    '@deprecated in ObjectGridSchema ("Use sort instead"); GA describes it as the "Legacy single-sort fallback ({ field, order }), read only when `sort` is absent. Prefer `sort`". Read as back-compat, deliberately not published — the canonical `sort` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
+  'object-grid.defaultFilters':
+    '@deprecated in ObjectGridSchema ("Use filter instead"); GA describes it as the "Legacy base-filter fallback, read only when `filter` is absent. Prefer `filter`". Read as back-compat, deliberately not published — the canonical `filter` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
+  'object-grid.resizableColumns':
+    '@deprecated in ObjectGridSchema ("Moved to top-level resizable"); GA describes it as the "Alternate spelling of `resizable`". Read as back-compat, deliberately not published — the canonical `resizable` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
+  'object-grid.title':
+    '@deprecated in ObjectGridSchema ("Use label instead"); GA describes it as the "Fallback for `label` (the renderer reads `label || title`)". Read as back-compat, deliberately not published — the canonical `label` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
 };
 
 /**
@@ -598,11 +663,21 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
  * on the pinned 17.0.0-rc.6 they describe nothing yet.
  *
  * Pinning them as a SET rather than skipping "any entry the spec does not
- * declare" is the whole safety of the mechanism: only these five may be
+ * declare" is the whole safety of the mechanism: only these entries may be
  * dormant, and `every GA-pending exemption arms exactly with the installed
  * spec` asserts that their dormancy tracks the installed element set in BOTH
  * directions — so a GA release that dropped one of them fails here instead of
  * leaving an entry that quietly covers nothing.
+ *
+ * TWO GROUPS, and they are dormant for the same reason but retire differently:
+ *
+ *   - the first five are keys on blocks this pin already carries, awaiting
+ *     declaration by objectui#4668 once the pin moves. Each dies when its input
+ *     lands;
+ *   - the ten `object-grid` entries are objectui#4648's RULED carve-out. They
+ *     are dormant here only because rc.6 does not carry `object-grid` at all, so
+ *     none of its keys resolves; on a GA tree they are fully judged. They are
+ *     not awaiting declaration — see their reasons above.
  */
 const GA_PENDING_UNPUBLISHED_KEYS = [
   'page:header.maxVisible',
@@ -610,6 +685,16 @@ const GA_PENDING_UNPUBLISHED_KEYS = [
   'page:tabs.alwaysShowStrip',
   'record:details.inlineEdit',
   'record:details.showHeader',
+  'object-grid.fields',
+  'object-grid.staticData',
+  'object-grid.selectable',
+  'object-grid.pageSize',
+  'object-grid.showSearch',
+  'object-grid.showPagination',
+  'object-grid.defaultSort',
+  'object-grid.defaultFilters',
+  'object-grid.resizableColumns',
+  'object-grid.title',
 ];
 
 /** Split a `BLOCK.KEY` exemption id into its two halves. */
@@ -630,23 +715,35 @@ const isDormantOnThisPin = (exemptionKey: string): boolean => {
 };
 
 /*
- * THE FOUR GA BLOCKS HAVE NO ENTRIES HERE, DELIBERATELY — objectui#4648.
+ * THE FOUR GA BLOCKS — RULED AND RESOLVED, objectui#4648 (maintainer 2026-08-16).
  *
  * On a GA tree `object-form` / `object-grid` / `object-master-detail-form` /
  * `object-metric` enter `covered` (see `GA_ONLY_BLOCKS`) and the reverse
- * direction goes RED on 78 spec keys their `inputs` do not publish. That red is
- * unresolved on purpose: the card's ruling chose reasoned exemptions on the
- * premise that nothing in this repo reads those keys, and the implementation
- * measurement contradicted the premise — all 78 are honoured today, either off
- * `schema.*` in the renderer or through `SchemaRenderer`'s rest-prop spread
- * onto components whose props declare them one for one (`ObjectGridSchema` in
- * `@object-ui/types`, `ObjectMetricWidget`'s props, the form renderers').
+ * direction judges the 78 spec keys their `inputs` did not publish. That red is
+ * now resolved the way this file's own bar prescribes — "a spec key the renderer
+ * HONOURS and `inputs` omits is a plain defect and gets declared" — because the
+ * implementation measurement that forked the card's first ruling showed all 78
+ * ARE honoured today, either off `schema.*` in the renderer or through
+ * `SchemaRenderer`'s rest-prop spread onto components whose props declare them
+ * one for one. The maintainer re-ruled on that measurement (option B):
  *
- * Under this file's stated bar that makes them A-class defects to DECLARE, not
- * keys to exempt — so writing the exemptions would have required rewriting the
- * bar as well as acting on a falsified premise. Both are the maintainer's call
- * and neither is silent: the measurement went back to objectui#4648 as a fork
- * report. Add nothing here until that card rules again.
+ *   - 68 keys are DECLARED, at the four registration sites —
+ *     `plugin-form/src/index.tsx` (`object-form` +20, `object-master-detail-form`
+ *     +10), `plugin-grid/src/index.tsx` (`object-grid` +21 in
+ *     `GRID_QUERY_INPUTS`), `plugin-dashboard/src/index.tsx` (`object-metric`
+ *     +14). No exemption is owed for a declared key and none is written;
+ *   - 10 are the ruled CARVE-OUT — `object-grid`'s own `@deprecated` legacy
+ *     spellings, which are exempted rather than declared so a deprecated alias is
+ *     not hardened into a second dialect. Their entries are in
+ *     `UNPUBLISHED_EXEMPTIONS` above, each naming the canonical spelling that IS
+ *     declared in its place.
+ *
+ * The bar was NOT amended: option B is the arm that needed no amendment, which
+ * is one of the reasons the ruling chose it.
+ *
+ * The exemption list is therefore the carve-out and nothing else. A future key
+ * these blocks gain is a plain A-class defect: declare it at the registration
+ * site. Do not add an entry here to silence one.
  */
 
 const exemptedFor = (type: string): string[] =>
@@ -785,7 +882,7 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     expect(dangling).toEqual([]);
   });
 
-  it('every GA-pending exemption arms exactly with the installed spec, all five together', () => {
+  it('every GA-pending exemption arms exactly with the installed spec, all fifteen together', () => {
     // The non-vacuity and self-arming half of `GA_PENDING_UNPUBLISHED_KEYS`.
     // Without it the pinned set could name keys no entry covers (licensing
     // nothing while reading as cover) or stay dormant forever on a GA tree that
@@ -826,6 +923,74 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     // one release, so `specCarriesGaBlocks` may not be a partial truth.
     const carried = GA_ONLY_BLOCKS.filter((type) => type in ComponentPropsMap);
     expect([0, GA_ONLY_BLOCKS.length]).toContain(carried.length);
+  });
+
+  it('the four GA blocks resolve their ruled split — declared vs carved out', () => {
+    // objectui#4648's ruling, pinned by name rather than left to the derived
+    // reverse-direction loop above, for exactly the reason the `#3808 / #3830`
+    // and `rc.6 record_picker` pins next door exist: that loop goes green just as
+    // readily if a declaration is REPLACED by an exemption, which is the cheap
+    // move under time pressure and the one thing option B forbids. So the split
+    // is asserted as "declared" and "exempted, not declared", not merely as
+    // "not failing".
+    //
+    // Dormant on a pin that predates the GA element set — there is nothing to
+    // judge when the spec carries none of the four — and the dormancy is not
+    // silent: `the four GA blocks enter coverage exactly when the installed spec
+    // carries them` above owns that fact for both pins.
+    if (!specCarriesGaBlocks) {
+      expect(covered.filter((type) => GA_ONLY_BLOCKS.includes(type))).toEqual([]);
+      return;
+    }
+
+    // The carve-out, by name: `@deprecated` in this repo's own ObjectGridSchema,
+    // declared by GA, and deliberately NOT published (maintainer 2026-08-16).
+    const CARVED_OUT_GRID_KEYS = [
+      'defaultFilters',
+      'defaultSort',
+      'fields',
+      'pageSize',
+      'resizableColumns',
+      'selectable',
+      'showPagination',
+      'showSearch',
+      'staticData',
+      'title',
+    ];
+
+    for (const key of CARVED_OUT_GRID_KEYS) {
+      expect(
+        specTopLevelKeys('object-grid'),
+        `spec no longer declares object-grid.${key} — re-check the carve-out`,
+      ).toContain(key);
+      expect(
+        declaredInputs('object-grid') ?? [],
+        `object-grid publishes ${key}; the ruling carved it out as a deprecated alias`,
+      ).not.toContain(key);
+      expect(
+        Object.keys(UNPUBLISHED_EXEMPTIONS),
+        `object-grid.${key} is carved out but carries no cited exemption`,
+      ).toContain(`object-grid.${key}`);
+    }
+
+    // Everything else the four blocks' spec schemas declare is DECLARED, and
+    // carries no exemption. Stated as an exact set difference rather than a
+    // spot-check so a key added by a later GA cannot slip through as neither.
+    for (const type of GA_ONLY_BLOCKS) {
+      const carved = type === 'object-grid' ? CARVED_OUT_GRID_KEYS : [];
+      const shouldPublish = specTopLevelKeys(type)
+        .filter((key) => !(key in GLOBALLY_UNPUBLISHED_SPEC_KEYS))
+        .filter((key) => !carved.includes(key));
+      const declared = new Set(declaredInputs(type) ?? []);
+      expect(
+        shouldPublish.filter((key) => !declared.has(key)),
+        `${type} does not publish these spec keys, and they are not the ruled carve-out`,
+      ).toEqual([]);
+      expect(
+        shouldPublish.filter((key) => Object.keys(UNPUBLISHED_EXEMPTIONS).includes(`${type}.${key}`)),
+        `${type} exempts a key it declares — an exemption may not stand in for a declaration here`,
+      ).toEqual([]);
+    }
   });
 
   it('every unpublished-key exemption states a reason and references a tracking issue', () => {
