@@ -59,7 +59,13 @@ describe('WizardForm — navigateOnSuccess', () => {
 describe('WizardForm — submitBehavior', () => {
   beforeEach(() => toastSuccess.mockClear());
 
-  it('redirect: same-origin-guarded navigate, no navigateOnSuccess/successMessage fallback', async () => {
+  // The guard on this arm is no longer `isSameOriginUrl` — objectui#4989 moved it
+  // to the spec's own relative-only verdict (`submitRedirect.ts`), which this
+  // authored value satisfies either way. The contract-level cases live in
+  // `WizardForm.submitRedirect.test.tsx`; what this one still pins is the
+  // ARBITRATION: a declared `submitBehavior` suppresses the legacy
+  // `navigateOnSuccess` / `successMessage` fallback entirely.
+  it('redirect: navigates a ruled relative path, no navigateOnSuccess/successMessage fallback', async () => {
     const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => {});
     const ds = makeDS();
     const schema = {

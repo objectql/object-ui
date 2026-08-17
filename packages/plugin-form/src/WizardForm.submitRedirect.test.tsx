@@ -1,0 +1,192 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * What `WizardForm` DOES with a declared `submitBehavior: { kind: 'redirect' }`
+ * (objectui#4989) — the wizard half of `ObjectForm.submitRedirect.test.tsx`.
+ *
+ * Both components consume the ruled key through the SAME module
+ * (`submitRedirect.ts`), so the value-level verdicts are pinned once, in
+ * `submitRedirect.test.ts`, against the spec's own schema. Two component files
+ * exist anyway because the card filed the defect at two call sites and each has
+ * its own terminal-state rendering: a wizard's refusal has to replace a STEP form
+ * (with its footer Create button living outside the `<form>`), and a shared module
+ * cannot prove that either call site actually reaches it. Deleting one call site
+ * leaves the unit file entirely green, which is exactly why the consumption is
+ * pinned per component.
+ *
+ * **Defect 4 (mount-blindness) is deliberately NOT fixed** here either — it is
+ * escalated on the issue, with the measurement in
+ * `submitRedirect.mountBlind.test.tsx`. The navigation is still
+ * `window.location.assign`, and these tests assert the string it receives.
+ *
+ * ## Reverse verification — predicted before running, then measured
+ *
+ * 1. **Restoring `isSameOriginUrl(behavior.url)` around the old assign**: the
+ *    same-origin-absolute test goes RED on the assign (the old guard says yes and
+ *    navigates), the protocol-relative test goes RED on the missing refusal (the
+ *    old guard says no and does nothing — defect 2's silence), and the
+ *    interpolation tests go RED because the old line assigned the authored string
+ *    with its braces intact.
+ * 2. **Deleting only the refusal arm**, keeping the parse: exactly the two refusal
+ *    tests go red, on the visible-refusal assertions.
+ * 3. **Deleting the `encodeURIComponent`**: the escaping test goes red here and
+ *    the unit file's escape block goes red with it.
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, waitFor, fireEvent, screen } from '@testing-library/react';
+import React from 'react';
+
+const { toastSuccess, toastError } = vi.hoisted(() => ({
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
+}));
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const actual = await importOriginal<any>();
+  return { ...actual, toast: { ...actual.toast, success: toastSuccess, error: toastError } };
+});
+
+import { WizardForm } from './WizardForm';
+import { registerAllFields } from '@object-ui/fields';
+
+registerAllFields();
+
+const objectSchema = {
+  name: 'o',
+  fields: { name: { type: 'text', label: 'Name' }, note: { type: 'text', label: 'Note' } },
+};
+
+const makeDS = (created: Record<string, unknown> = {}) => ({
+  getObjectSchema: vi.fn().mockResolvedValue(objectSchema),
+  create: vi.fn(async (_o: string, d: any) => ({ id: 'r1', ...d, ...created })),
+  update: vi.fn(),
+  findOne: vi.fn(),
+});
+
+const waitInput = (c: HTMLElement, name: string) =>
+  waitFor(() => {
+    const el = c.querySelector(`input[name="${name}"]`) as HTMLInputElement | null;
+    if (!el) throw new Error(`${name} not ready`);
+    return el;
+  });
+
+async function submitWith(url: string, ds: ReturnType<typeof makeDS>, typed = 'Alpha') {
+  const view = render(
+    <WizardForm
+      schema={{
+        type: 'object-form', formType: 'wizard', objectName: 'o', mode: 'create',
+        sections: [{ label: 'A', fields: ['name'] }],
+        submitBehavior: { kind: 'redirect', url },
+      } as any}
+      dataSource={ds as any}
+    />,
+  );
+  fireEvent.change(await waitInput(view.container, 'name'), { target: { value: typed } });
+  fireEvent.submit(view.container.querySelector('form') as HTMLFormElement);
+  await waitFor(() => expect(ds.create).toHaveBeenCalledTimes(1));
+  return view;
+}
+
+let assign: ReturnType<typeof vi.spyOn>;
+
+beforeEach(() => {
+  toastSuccess.mockClear();
+  toastError.mockClear();
+  assign = vi.spyOn(window.location, 'assign').mockImplementation(() => {});
+});
+
+afterEach(() => {
+  assign.mockRestore();
+});
+
+describe('WizardForm redirect — an in-contract destination is followed', () => {
+  it('navigates to a ruled relative path', async () => {
+    const ds = makeDS();
+    await submitWith('/apps/x/done', ds);
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/apps/x/done'));
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('substitutes the id of the record the write answered (defect 5)', async () => {
+    const ds = makeDS();
+    await submitWith('/thanks?ref={{record.id}}', ds);
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/thanks?ref=r1'));
+  });
+
+  it('escapes an interpolated value into one segment', async () => {
+    const ds = makeDS({ slug: 'a/b c' });
+    await submitWith('/t/{{record.slug}}', ds);
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/t/a%2Fb%20c'));
+  });
+
+  it('reads the same scope as ObjectForm: submitted values, server answer on top', async () => {
+    // Same module, same merge order — a `{{record.slug}}` token cannot resolve one
+    // way in a wizard and another in a flat form.
+    const ds = makeDS({ slug: 'server-slug' });
+    await submitWith('/t/{{record.slug}}?n={{record.name}}', ds, 'Alpha');
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/t/server-slug?n=Alpha'));
+  });
+});
+
+describe('WizardForm redirect — an out-of-contract destination is refused, not dropped', () => {
+  it('refuses a SAME-ORIGIN absolute url and says so on screen (defects 2 + 3)', async () => {
+    const ds = makeDS();
+    const { container } = await submitWith(`${window.location.origin}/thanks`, ds);
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    expect(assign).not.toHaveBeenCalled();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('RELATIVE path only');
+    expect(alert.textContent).toContain('#7496');
+    expect(vi.mocked(toastError).mock.calls[0][0]).toContain('RELATIVE path only');
+
+    // The write succeeded and is confirmed…
+    expect(screen.getByText('Thanks!')).toBeTruthy();
+    expect(screen.getByText('Created')).toBeTruthy();
+
+    // …and the filled step form is gone, along with the footer Create button that
+    // lives outside it — a wizard's duplicate-submit route.
+    expect(container.querySelector('input[name="name"]')).toBeNull();
+    expect(container.querySelector('form')).toBeNull();
+    expect(ds.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a protocol-relative destination — the leading slash is not enough', async () => {
+    const ds = makeDS();
+    await submitWith('//example.com/thanks', ds);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('protocol-relative');
+    expect(assign).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledTimes(1);
+    expect(ds.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fall through to navigateOnSuccess or a success toast', async () => {
+    // `submitBehavior` and the legacy `navigateOnSuccess` are alternative arms of
+    // one `if`, and a REFUSED redirect must not leak into the other one: the
+    // legacy key has its own dialect and its own contract question still open.
+    const ds = makeDS();
+    render(
+      <WizardForm
+        schema={{
+          type: 'object-form', formType: 'wizard', objectName: 'o', mode: 'create',
+          sections: [{ label: 'A', fields: ['name'] }],
+          navigateOnSuccess: '/apps/x/o/record/{id}',
+          submitBehavior: { kind: 'redirect', url: '//example.com/thanks' },
+        } as any}
+        dataSource={ds as any}
+      />,
+    );
+    const input = await waitInput(document.body, 'name');
+    fireEvent.change(input, { target: { value: 'Alpha' } });
+    fireEvent.submit(document.body.querySelector('form') as HTMLFormElement);
+    await waitFor(() => expect(ds.create).toHaveBeenCalledTimes(1));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    expect(assign).not.toHaveBeenCalled();
+    expect(toastSuccess).not.toHaveBeenCalled();
+  });
+});

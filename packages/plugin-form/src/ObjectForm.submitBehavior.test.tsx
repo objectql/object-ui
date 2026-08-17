@@ -40,7 +40,12 @@ const waitInput = (c: HTMLElement, name: string) =>
 describe('ObjectForm — submitBehavior', () => {
   beforeEach(() => toastSuccess.mockClear());
 
-  it('redirect: same-origin-guarded navigate, no toast', async () => {
+  // The guard on this arm is no longer `isSameOriginUrl` — objectui#4989 moved it
+  // to the spec's own relative-only verdict (`submitRedirect.ts`), which this
+  // authored value satisfies either way. The contract-level cases live in
+  // `ObjectForm.submitRedirect.test.tsx`; what this one still pins is that a
+  // followed redirect does NOT also toast.
+  it('redirect: navigates a ruled relative path, no toast', async () => {
     const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => {});
     const ds = makeDS();
     const { container } = render(

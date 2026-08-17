@@ -19,7 +19,8 @@ import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules, formatFileSize } from '@object-ui/fields';
 import { useIsMobile, toast } from '@object-ui/components';
 import { resolveEffectiveCrudAffordances } from '@object-ui/core';
-import { resolveSuccessNavigate, isSameOriginUrl } from './successBehavior';
+import { resolveSuccessNavigate } from './successBehavior';
+import { resolveSubmitRedirect, submitRedirectScope } from './submitRedirect';
 import { usePermissions } from '@object-ui/permissions';
 import { TabbedForm } from './TabbedForm';
 import { WizardForm } from './WizardForm';
@@ -417,7 +418,17 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
   // — without it the form stayed mounted and fully filled after a successful
   // submit, with nothing disabling re-submission (a second click created a
   // second record).
-  const [submitted, setSubmitted] = useState<{ title?: string; message?: string } | null>(null);
+  //
+  // `refusal` carries the second fact a REFUSED `redirect` destination has to
+  // report (objectui#4989): the write succeeded — hence the confirmation this
+  // state already renders — but the authored destination is out of contract, so
+  // nothing was navigated to and the author needs the reason. It rides on this
+  // state rather than on `error` because `error` is the load/submit FAILURE
+  // channel and a refused destination is not a failed submit; putting it there
+  // would tell the submitter their record was lost.
+  const [submitted, setSubmitted] = useState<
+    { title?: string; message?: string; refusal?: string } | null
+  >(null);
 
   // OCC-guarded edit save + its conflict dialog (see occSave.tsx).
   const { saveWithOcc, conflictDialog } = useOccSave();
@@ -799,11 +810,42 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
       } else if (!schema.submitHandler && schema.submitBehavior) {
         const behavior = schema.submitBehavior;
         switch (behavior.kind) {
-          case 'redirect':
-            if (isSameOriginUrl(behavior.url)) {
-              setTimeout(() => window.location.assign(behavior.url), behavior.delayMs ?? 0);
+          case 'redirect': {
+            // objectstack#7496 ruled this url a RELATIVE in-app path with
+            // `{{record.field_name}}` interpolation, URL-escaped when the
+            // redirect is built. `resolveSubmitRedirect` asks the spec's own
+            // `FormViewSchema` for the shape verdict and performs the
+            // substitution — see that module for why the verdict is not
+            // restated here and what it deliberately does not fix.
+            //
+            // The old line asked `isSameOriginUrl`, which accepts a same-origin
+            // ABSOLUTE url the contract refuses at the authoring door, and
+            // dropped everything else in SILENCE: the write had already
+            // succeeded, so the submitter was left facing a still-filled form
+            // with no feedback, and the obvious next move — submit again — wrote
+            // a second record (objectui#4989 defects 2, 3 and 5).
+            const verdict = resolveSubmitRedirect(
+              behavior.url,
+              submitRedirectScope(payload, result),
+            );
+            if (!verdict.ok) {
+              // The write SUCCEEDED and only the destination is out of contract.
+              // So both facts are shown: the confirmation panel (which also
+              // removes the form, so there is nothing left to resubmit) and the
+              // spec's own prescription for the author. Following the value
+              // instead would be the spelling the contract refuses; dropping it
+              // is the silence the ruling rules out.
+              toast.error(verdict.refusal);
+              setSubmitted({
+                message: schema.successMessage
+                  || (schema.mode === 'create' ? 'Created' : 'Saved'),
+                refusal: verdict.refusal,
+              });
+              break;
             }
+            setTimeout(() => window.location.assign(verdict.url), behavior.delayMs ?? 0);
             break;
+          }
           case 'continue':
             // Reset is driven declaratively by `resetOnSubmit` below (mirrors
             // `resetOnSuccess`) — nothing imperative to do here.
@@ -937,12 +979,28 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
   }
 
   if (submitted) {
-    return (
+    const confirmation = (
       <div className="rounded-md border bg-card p-6 sm:p-8 text-center">
         <h3 className="text-lg font-semibold">{submitted.title ?? 'Thanks!'}</h3>
         {submitted.message && (
           <p className="mt-2 text-sm text-muted-foreground">{submitted.message}</p>
         )}
+      </div>
+    );
+    // A refused `redirect` destination (objectui#4989) keeps the confirmation —
+    // the record WAS written — and adds the reason nothing was navigated to.
+    // `role="alert"` because this appears after the submit the user just made,
+    // so it has to reach a screen reader without a focus move.
+    if (!submitted.refusal) return confirmation;
+    return (
+      <div className="space-y-4">
+        {confirmation}
+        <div
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
+        >
+          {submitted.refusal}
+        </div>
       </div>
     );
   }

@@ -24,7 +24,8 @@ import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { seedCreateValues, omitServerResolvedDefaults, isCreateFormMode } from './schemaDefaults';
 import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
-import { resolveSuccessNavigate, isSameOriginUrl, type SubmitBehavior } from './successBehavior';
+import { resolveSuccessNavigate, type SubmitBehavior } from './successBehavior';
+import { resolveSubmitRedirect, submitRedirectScope } from './submitRedirect';
 import { useOccSave } from './occSave';
 import type { FormSectionConfig } from './TabbedForm';
 
@@ -236,7 +237,16 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   // Without this the last step's form stayed mounted and fully filled after a
   // successful create, with nothing disabling "Create" — a second click fired
   // a second create request (duplicate record).
-  const [submitted, setSubmitted] = useState<{ title?: string; message?: string } | null>(null);
+  //
+  // `refusal` carries the second fact a REFUSED `redirect` destination has to
+  // report (objectui#4989): the write succeeded — hence the confirmation this
+  // state already renders — but the authored destination is out of contract, so
+  // nothing was navigated to and the author needs the reason. Same reasoning as
+  // ObjectForm's copy of this state: a refused destination is not a failed
+  // submit, so it must not travel in an error channel.
+  const [submitted, setSubmitted] = useState<
+    { title?: string; message?: string; refusal?: string } | null
+  >(null);
 
   // Stable id for the *inner* step form's <form> element. The wizard's
   // Next/Create buttons live in the footer, OUTSIDE that form, and submit it
@@ -487,9 +497,35 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           const behavior = schema.submitBehavior;
           switch (behavior.kind) {
             case 'redirect': {
-              if (isSameOriginUrl(behavior.url)) {
-                setTimeout(() => window.location.assign(behavior.url), behavior.delayMs ?? 0);
+              // objectstack#7496 ruled this url a RELATIVE in-app path with
+              // `{{record.field_name}}` interpolation, URL-escaped when the
+              // redirect is built. Same consumption as ObjectForm's redirect
+              // arm, through the same module, so a wizard and a flat form cannot
+              // disagree about one authored value — see `submitRedirect.ts` for
+              // why the shape verdict is the spec's own and what it does not fix.
+              //
+              // The old line asked `isSameOriginUrl`, which accepts a same-origin
+              // ABSOLUTE url the contract refuses at the authoring door, and
+              // dropped everything else in SILENCE after a successful write
+              // (objectui#4989 defects 2, 3 and 5).
+              const verdict = resolveSubmitRedirect(
+                behavior.url,
+                submitRedirectScope(mergedData, result),
+              );
+              if (!verdict.ok) {
+                // The write SUCCEEDED and only the destination is out of
+                // contract: confirm the submit, replace the still-filled step
+                // form so there is nothing left to resubmit, and show the spec's
+                // own prescription for the author.
+                toast.error(verdict.refusal);
+                setSubmitted({
+                  message: schema.successMessage
+                    || (schema.mode === 'create' ? 'Created' : 'Saved'),
+                  refusal: verdict.refusal,
+                });
+                break;
               }
+              setTimeout(() => window.location.assign(verdict.url), behavior.delayMs ?? 0);
               break;
             }
             case 'continue':
@@ -593,13 +629,27 @@ export const WizardForm: React.FC<WizardFormProps> = ({
 
   if (submitted) {
     return (
-      <div className={cn('w-full', className, schema.className)}>
+      <div className={cn('w-full space-y-4', className, schema.className)}>
         <div className="rounded-md border bg-card p-8 text-center">
           <h3 className="text-lg font-semibold">{submitted.title ?? 'Thanks!'}</h3>
           {submitted.message && (
             <p className="mt-2 text-sm text-muted-foreground">{submitted.message}</p>
           )}
         </div>
+        {/*
+          A refused `redirect` destination (objectui#4989) keeps the confirmation
+          above — the record WAS written — and adds the reason nothing was
+          navigated to. `role="alert"` because it appears after the submit the
+          user just made, so it has to reach a screen reader without a focus move.
+        */}
+        {submitted.refusal && (
+          <div
+            role="alert"
+            className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
+          >
+            {submitted.refusal}
+          </div>
+        )}
       </div>
     );
   }
