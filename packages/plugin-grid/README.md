@@ -389,8 +389,9 @@ const schema: ObjectGridSchema = {
 ```
 
 `PaginationConfig` is a **strict** object of exactly `pageSize` and
-`pageSizeOptions` — a page-size picker is offered whenever `pageSizeOptions` is
-set, so there is no separate `showSizeChanger` toggle to write.
+`pageSizeOptions` — there is no `showSizeChanger`, and none is needed: the pager
+always carries a rows-per-page picker, and `pageSizeOptions` only replaces the
+choices it offers with your own.
 
 ## Integration with Data Sources
 
