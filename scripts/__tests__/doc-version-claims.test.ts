@@ -117,6 +117,44 @@ import { fileURLToPath } from 'node:url';
  * so a reader following that README installs the package and gets an unmet-peer warning
  * for a dependency the README never named.
  *
+ * ## What objectui#3855 added: the hole was the CLASSIFICATION, not the regex
+ *
+ * objectui#3855 arrived asking why this gate "missed" `content/docs/guide/plugins.md`,
+ * whose plugin `package.json` skeleton taught `typescript` `^5.0.0` and `vite` `^5.0.0`
+ * against a workspace on `^6.0.3` and `^8.2.1` — one major and three majors behind. It did
+ * not miss them. Both lines MATCHED (`TypeScript` and `Vite` are `TOOLCHAIN` words and the
+ * `": "` between name and value is three of `SEP`'s six characters), both were inventoried,
+ * and both sat in `KNOWN_CLAIMS` as `sample` — a class that by construction asserts
+ * nothing. So this gate reported green over three majors of drift for the same reason the
+ * ratchet is blind to a widened range: not a blind spot in the scan, but a class that
+ * records instead of checking, holding a line that had an anchor all along.
+ *
+ * The reason those two entries gave was "the plugin author picks their own bundler version
+ * after copying it". That sentence is true of a standalone plugin and false of the block on
+ * that page, which is why the misfile is worth naming rather than just correcting: the
+ * skeleton is named `@object-ui/plugin-myfeature`, takes all three of its `@object-ui`
+ * dependencies at `workspace:*`, and builds with `vite build && tsc --emitDeclarationOnly`.
+ * A manifest spelled that way resolves in exactly one place — this workspace — so the
+ * toolchain it names is not the reader's choice, it is this repository's, and this
+ * repository states it unanimously: at the cut where #3855 landed, all 19
+ * `packages/plugin-<name>` manifests declared `vite` `^8.2.1`, and the 16 that declare
+ * `typescript` all said `^6.0.3`. An anchor that unanimous is not a judgement call.
+ *
+ * Hence `describe('the plugin-skeleton assertion')` below, and the `skeletonDep` field: the
+ * two entries are now `anchored`, each naming the dependency whose range is READ off the
+ * skeleton line and compared against the in-repo plugin manifests. The next toolchain bump
+ * turns this file red naming that page, which is the half of #3855 that outlives the two
+ * values it corrected — the values alone would re-fossilise on the next bump, and had
+ * already begun to: the card was filed measuring `vite` `^8.2.1` as `^8.2.0`, and the
+ * workspace had moved on in the nine days before it was implemented.
+ *
+ * What did NOT move: the same skeleton's `peerDependencies` `react` entry stays `sample`,
+ * and the distinction is the point of the class rather than an inconsistency. A peer range
+ * says what a package ACCEPTS from its host, so the author of a copied plugin owns it and
+ * may legitimately widen or narrow it; a devDependency range says what gets INSTALLED to
+ * build this thing here. objectui#3827's anchor table drew that line first and excluded
+ * peer ranges from its anchor sources for the same reason.
+ *
  * ## The census that set the design (measured on d46b40324, the merge of PR #3698)
  *
  * The dispatch expected the bare-claim count to be zero, since #3688 and #3698 had just
@@ -432,7 +470,10 @@ const keyOf = (c: Pick<Claim, 'file' | 'claim'>): string => `${c.file} :: ${c.cl
  * than folded in silently, because each carries a different repair.
  *
  * `anchored`     - true today AND checkable against a machine-readable truth in this
- *                  tree, so a reviewer can re-verify it in one command.
+ *                  tree. Since objectui#3855 an entry in this class may name that truth
+ *                  with `skeletonDep` and have the comparison RUN here rather than
+ *                  re-verified by a reviewer; the one entry that does not is
+ *                  `ci-cd-pipeline.md`, which carries its own pin test next door.
  * `restatement`  - a README restating its OWN package.json. Formally a subclass of
  *                  `anchored`, kept separate because it is the largest class (13 of 21)
  *                  and the one that had already drifted: the two drifted members were
@@ -445,7 +486,14 @@ const keyOf = (c: Pick<Claim, 'file' | 'claim'>): string => `${c.file} :: ${c.cl
  *                  `notAPeerRestatement`.
  * `sample`       - illustrative or template content. NOT an assertion about this
  *                  repository's versions: a changelog a plugin renders as demo data, or
- *                  a package.json skeleton the reader owns after copying it.
+ *                  a range the reader owns after copying it.
+ *
+ *                  Read the header's objectui#3855 section before filing anything here.
+ *                  This class held three majors of real drift for months because "it is
+ *                  a skeleton the reader copies" was accepted for a whole fenced block,
+ *                  when only PART of that block was the reader's to own. A range is a
+ *                  `sample` because nothing in this tree can adjudicate it — not because
+ *                  the lines around it are illustrative.
  * `unanchored`   - a claim about this repository with no checkable anchor anywhere,
  *                  believed true today. The class this gate exists to shrink: nothing
  *                  can tell us when it stops being true.
@@ -476,6 +524,18 @@ interface KnownClaim {
    * coverage by simply not parsing — it goes red until someone writes the sentence.
    */
   notAPeerRestatement?: string;
+  /**
+   * Only legal on an `anchored` entry, and it opts the entry INTO a comparison rather than
+   * out of one (objectui#3855): the dependency name whose range is parsed off the very line
+   * this claim was matched on and compared against the range the in-repo plugin manifests
+   * declare for it. Present means checked; absent means the entry rests on the reviewer.
+   *
+   * The dep name is written out rather than derived from the claim text because the two are
+   * not the same string — the inventory key carries the markdown-normalised match
+   * (`vite": "^8.2.1`), and re-deriving a package name from it would put a second parser in
+   * the path of the assertion for no gain.
+   */
+  skeletonDep?: string;
 }
 
 /**
@@ -502,19 +562,21 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     file: 'content/docs/guide/plugins.md',
     claim: 'react": "^18.0.0',
     kind: 'sample',
-    why: 'A package.json skeleton for a plugin author to copy into THEIR repo. Not a statement about versions this repository uses or requires.',
+    why: 'A peerDependencies range in the plugin skeleton: what the copied plugin ACCEPTS from its host, which its author owns and may legitimately widen or narrow. Stays a sample while the two devDependency ranges in the same block became anchored in objectui#3855 - installed-here versus accepted-from-the-host is the distinction, not which fence the line sits in.',
   },
   {
     file: 'content/docs/guide/plugins.md',
-    claim: 'typescript": "^5.0.0',
-    kind: 'sample',
-    why: 'Same skeleton block. Advice a plugin author owns once copied, not a claim this repo can be measured against.',
+    claim: 'typescript": "^6.0.3',
+    kind: 'anchored',
+    skeletonDep: 'typescript',
+    why: 'A devDependency of the same skeleton, which is an IN-WORKSPACE plugin (workspace:* deps, vite build && tsc --emitDeclarationOnly), so the compiler it builds with is this repo\'s and not the reader\'s. Asserted against the in-repo plugin manifests by the plugin-skeleton assertion below (objectui#3855); it read ^5.0.0, one major behind, while classified as a sample nothing could check.',
   },
   {
     file: 'content/docs/guide/plugins.md',
-    claim: 'vite": "^5.0.0',
-    kind: 'sample',
-    why: 'Same skeleton block; the plugin author picks their own bundler version after copying it.',
+    claim: 'vite": "^8.2.1',
+    kind: 'anchored',
+    skeletonDep: 'vite',
+    why: 'Same skeleton, same anchor, same assertion (objectui#3855). This was the worst of the pair: it read ^5.0.0 against a workspace unanimously on ^8.2.1 — three majors — and the entry excusing it said the plugin author picks their own bundler version, which is not what a workspace:* manifest with a vite build script means.',
   },
   {
     file: 'content/docs/guide/theming.md',
@@ -887,6 +949,121 @@ for (const block of peerBlocks) {
     });
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * The plugin-skeleton anchor (objectui#3855). See the header section.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The in-repo plugin packages: the thing the plugin guide's skeleton IS, and therefore the
+ * anchor its devDependency ranges are read against.
+ *
+ * Scoped to the plugin directories rather than every workspace manifest, because that is
+ * what the skeleton is a skeleton OF. Both spellings were measured at the #3855 cut and
+ * agreed — 19 plugin manifests on `vite` `^8.2.1`, 29 workspace-wide; 16 and 40 on
+ * `typescript` `^6.0.3` — so the narrower one costs no coverage and says something truer
+ * about why the range applies.
+ */
+const PLUGIN_PACKAGE_DIR = /^plugin-[a-z0-9-]+$/;
+
+function pluginPackageDirs(): string[] {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(path.join(repoRoot, 'packages'), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((e) => e.isDirectory() && PLUGIN_PACKAGE_DIR.test(e.name))
+    .map((e) => e.name)
+    .sort();
+}
+
+const pluginDirs = pluginPackageDirs();
+
+/**
+ * Every range the plugin manifests declare for one dependency, each mapped to the packages
+ * declaring it.
+ *
+ * A Map rather than a single string on purpose: the assertion must be able to tell "the
+ * workspace says X" from "the workspace is mid-bump and says X in twelve places and Y in
+ * seven". Collapsing a split vote to a first-seen winner would let the doc be pinned to
+ * whichever package `readdirSync` happened to return first — an arbitrary choice wearing a
+ * measurement's clothes — and would go red or green depending on directory order.
+ */
+function pluginDeclaredRanges(dep: string): Map<string, string[]> {
+  const byRange = new Map<string, string[]>();
+  for (const dir of pluginDirs) {
+    let raw: string;
+    try {
+      raw = fs.readFileSync(path.join(repoRoot, 'packages', dir, 'package.json'), 'utf8');
+    } catch {
+      continue;
+    }
+    const json = JSON.parse(raw) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const range = json.devDependencies?.[dep] ?? json.dependencies?.[dep];
+    if (range === undefined) continue;
+    const bucket = byRange.get(range);
+    if (bucket === undefined) byRange.set(range, [dir]);
+    else bucket.push(dir);
+  }
+  return byRange;
+}
+
+/**
+ * The dep and range one line of a JSON manifest declares, or null when the line declares
+ * none.
+ *
+ * `RANGE_OPENS` does the same work here it does for peer bullets, and it is just as
+ * load-bearing: the very block this reads contains `"build": "vite build && tsc
+ * --emitDeclarationOnly"` and three `workspace:*` lines, all of which are shaped like a
+ * dependency entry and none of which states a version. Without the guard a future
+ * `skeletonDep` pointed at one of them would compare a build script against a semver range
+ * and go red for a reason that has nothing to do with drift.
+ */
+const MANIFEST_LINE = /^\s*"([^"]+)"\s*:\s*"([^"]+)"\s*,?\s*$/;
+
+function parseManifestLine(line: string): { dep: string; range: string } | null {
+  const match = MANIFEST_LINE.exec(line);
+  if (match === null) return null;
+  if (!RANGE_OPENS.test(match[2])) return null;
+  return { dep: match[1], range: match[2] };
+}
+
+interface SkeletonCheck {
+  entry: KnownClaim;
+  dep: string;
+  /** Lines carrying this entry's literal that read as a declaration OF `dep`. */
+  stated: { line: number; range: string }[];
+  /** The literal is not in the tree — the downward ratchet is its single reporter. */
+  absent: boolean;
+  anchor: Map<string, string[]>;
+}
+
+/**
+ * Resolved through `flaggedClaims` for the same reason the peer checks are: the scan has
+ * already turned each inventory key back into concrete line numbers, and keying off it
+ * keeps "the literal is not in the tree" one fact with one reporter.
+ */
+const skeletonChecks: SkeletonCheck[] = KNOWN_CLAIMS.filter(
+  (entry) => entry.skeletonDep !== undefined,
+).map((entry) => {
+  const dep = entry.skeletonDep as string;
+  const occurrences = claimsByKey.get(keyOf(entry)) ?? [];
+  const lines = linesOf(entry.file);
+  const stated: { line: number; range: string }[] = [];
+
+  for (const occurrence of occurrences) {
+    const declared = parseManifestLine(lines[occurrence.line - 1] ?? '');
+    if (declared === null || declared.dep !== dep) continue;
+    stated.push({ line: occurrence.line, range: declared.range });
+  }
+
+  return { entry, dep, stated, absent: occurrences.length === 0, anchor: pluginDeclaredRanges(dep) };
+});
 
 describe('doc version claims - the scan itself', () => {
   it('reads a plausible corpus, so a broken scan cannot report green', () => {
@@ -1273,5 +1450,165 @@ describe('doc version claims - the peer-line assertion', () => {
     // block" and "has an empty block" stay distinguishable - the reverse-direction rule
     // above judges the second and deliberately ignores the first.
     expect(peerBlockBullets('packages/plugin-grid/README.md')).toBeNull();
+  });
+});
+
+describe('doc version claims - the plugin-skeleton assertion', () => {
+  it('pins the skeleton toolchain to the range the in-repo plugin packages declare', () => {
+    const failures: string[] = [];
+
+    for (const check of skeletonChecks) {
+      // The downward ratchet already names a literal that left the tree, and reporting it
+      // twice would read as two problems. The coverage floor below is what stops this skip
+      // from becoming the way out.
+      if (check.absent) continue;
+
+      if (check.stated.length === 0) {
+        failures.push(
+          `${check.entry.file} :: the literal ${JSON.stringify(check.entry.claim)} is present, ` +
+            `but no line carrying it reads as a declaration of ${check.dep}, so NOTHING was ` +
+            `compared - point skeletonDep at the dependency the line actually declares, or ` +
+            `drop the field and let the entry rest on a reviewer again`,
+        );
+        continue;
+      }
+
+      if (check.anchor.size === 0) {
+        failures.push(
+          `${check.entry.file} :: skeletonDep names ${check.dep}, which none of the ` +
+            `${pluginDirs.length} in-repo plugin manifests declares - there is no anchor to ` +
+            `read, so this entry cannot be anchored: reclassify it as sample or unanchored`,
+        );
+        continue;
+      }
+
+      if (check.anchor.size > 1) {
+        failures.push(
+          `${check.entry.file} :: the in-repo plugin manifests do not agree on ${check.dep}, ` +
+            `so there is no single range for the docs to state: ` +
+            [...check.anchor.entries()]
+              .map(([range, dirs]) => `${JSON.stringify(range)} in ${dirs.length} (${dirs.join(', ')})`)
+              .join('; ') +
+            ` - finish the bump across the plugin packages first, then update the page`,
+        );
+        continue;
+      }
+
+      const [anchorRange] = [...check.anchor.keys()];
+      for (const stated of check.stated) {
+        if (sameRange(stated.range, anchorRange)) continue;
+        failures.push(
+          `${check.entry.file}:${stated.line}  ${check.dep}: the page teaches ` +
+            `${JSON.stringify(stated.range)}, every in-repo plugin package declares ` +
+            `${JSON.stringify(anchorRange)}`,
+        );
+      }
+    }
+
+    expect(
+      failures,
+      `The plugin guide's package.json skeleton and this workspace's plugin packages no ` +
+        `longer agree on the toolchain:\n` +
+        failures.map((f) => `  - ${f}`).join('\n') +
+        `\n\nThe page teaches an IN-WORKSPACE plugin - workspace:* dependencies and a ` +
+        `vite build && tsc build script - so a reader following it builds with this repo's ` +
+        `toolchain, not one they chose. Update the page to the range measured above. If the ` +
+        `intent has changed and the example should stop naming versions at all, delete the ` +
+        `lines and the two entries together: an unpinned example makes no claim and needs ` +
+        `no anchor, which was objectui#3855's documented alternative.\n\n` +
+        `Note what this does NOT judge: the same block's peerDependencies. A peer range is ` +
+        `what the copied plugin accepts from its host and its author owns it, which is why ` +
+        `those entries stay sample - see the header.`,
+    ).toEqual([]);
+
+    // Vacuity floors. Every branch above is a loop over a list that could be empty, and an
+    // empty list reports success over nothing - the exact failure this file's own history
+    // is made of.
+    expect(
+      pluginDirs.length,
+      'no packages/plugin-<name> directory was found, so the anchor was assembled from ' +
+        'nothing and every comparison above was vacuously green',
+    ).toBeGreaterThanOrEqual(15);
+
+    expect(
+      skeletonChecks.length,
+      'no inventory entry carries skeletonDep - the two plugin-guide entries lost the field ' +
+        'and are back to being recorded rather than checked',
+    ).toBeGreaterThanOrEqual(2);
+
+    expect(
+      skeletonChecks.reduce((n, check) => n + check.stated.length, 0),
+      'the skeleton assertion compared implausibly few lines - the manifest-line parser or ' +
+        'the claim resolution collapsed, and it is now green over nothing',
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it('resolves the anchor unanimously, and would notice if it stopped being unanimous', () => {
+    // The premise the assertion rests on, asserted rather than assumed: it is only fair to
+    // pin a doc to "the" range if there is one. Measured at the #3855 cut - 19 plugin
+    // manifests declaring vite ^8.2.1, 16 of them typescript ^6.0.3.
+    for (const dep of ['vite', 'typescript']) {
+      const ranges = pluginDeclaredRanges(dep);
+      expect(
+        [...ranges.keys()],
+        `the in-repo plugin packages declare more than one ${dep} range, so the plugin ` +
+          `guide cannot state one - this is a real finding about the workspace, not a test bug`,
+      ).toHaveLength(1);
+      expect(
+        [...ranges.values()][0].length,
+        `implausibly few plugin packages declare ${dep} - the anchor is thinner than the ` +
+          `claim it backs`,
+      ).toBeGreaterThanOrEqual(10);
+    }
+
+    // And a dependency no plugin declares must resolve to nothing rather than to a
+    // coincidence, which is the branch the "no anchor to read" failure above depends on.
+    expect([...pluginDeclaredRanges('webpack').keys()]).toEqual([]);
+  });
+
+  it('reads a manifest dependency line, and refuses the lines beside it', () => {
+    expect(parseManifestLine('    "vite": "^8.2.1"')).toEqual({ dep: 'vite', range: '^8.2.1' });
+    expect(parseManifestLine('    "typescript": "^6.0.3",')).toEqual({
+      dep: 'typescript',
+      range: '^6.0.3',
+    });
+    // A range spelled with a comparator rather than a caret still parses: RANGE_OPENS
+    // admits it, and a doc is free to teach one.
+    expect(parseManifestLine('  "vite": ">=8.2.1",')).toEqual({ dep: 'vite', range: '>=8.2.1' });
+
+    for (const notADeclaration of [
+      // The build script of the very block this parses. Shaped exactly like a dependency
+      // entry, states no version - the line RANGE_OPENS exists to reject.
+      '    "build": "vite build && tsc --emitDeclarationOnly"',
+      // Three of these sit in the same devDependencies object.
+      '    "@object-ui/components": "workspace:*",',
+      // Not a string value at all.
+      '  "files": ["dist"],',
+      '  "exports": {',
+      '  "peerDependencies": {',
+      '```json',
+      '',
+    ]) {
+      expect(
+        parseManifestLine(notADeclaration),
+        `${JSON.stringify(notADeclaration)} declares no version and must not parse as one`,
+      ).toBeNull();
+    }
+  });
+
+  it('lets no skeletonDep sit on a kind the anchor was never meant to judge', () => {
+    // Same closure discipline as notAPeerRestatement, in the opposite direction: that field
+    // must not appear where it would fake coverage, this one must not appear where it would
+    // silently claim a class of anchor the entry does not have. An entry checked against a
+    // machine-readable truth in this tree IS the definition of `anchored`, so a skeletonDep
+    // on a sample or an unanchored entry would be two statements contradicting each other.
+    for (const entry of KNOWN_CLAIMS) {
+      if (entry.skeletonDep === undefined) continue;
+      expect(
+        entry.kind,
+        `${keyOf(entry)} carries skeletonDep, so its range IS compared against this tree - ` +
+          `that is what anchored means, and any other kind says the opposite`,
+      ).toBe('anchored');
+    }
   });
 });
