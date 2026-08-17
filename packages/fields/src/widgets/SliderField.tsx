@@ -68,10 +68,11 @@ export function SliderField({
     );
   }
 
-  // `className` is withheld alongside them for a third, purely mechanical
-  // reason: the primitive spreads `thumbProps` AFTER the thumb's own classes,
-  // so a host className passed through here would REPLACE the thumb's shape
-  // rather than compose with it. It goes to Root below, exactly as before.
+  // `name` and `disabled` stay on Root for the contract reasons in this
+  // widget's doc comment above. `className` is withheld for a third, purely
+  // mechanical one: the primitive spreads `thumbProps` AFTER the thumb's own
+  // classes, so a host className routed through here would REPLACE the thumb's
+  // shape rather than compose with it. It goes to Root below, exactly as before.
   const {
     name: domName,
     disabled: _domDisabled,
