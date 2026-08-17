@@ -125,7 +125,25 @@ export function CloudConnectionPanel() {
           await refreshStatus();
           return;
         }
-        setPhase({ kind: 'error', message: body?.error?.code ?? t('cloudConnection.errors.bindFailed') });
+        // `message` first, `code` only as a fallback — the same precedence
+        // `getJson` above already applies to every OTHER failure on this
+        // surface. Reading `code` alone showed a machine identifier to a human
+        // whenever the readable half was on the wire.
+        //
+        // Which bodies land here: a 2xx that says `success: false` with neither
+        // `pending` nor `bound` — i.e. the control plane's `/bind` answer,
+        // passed through verbatim with its own status. A non-2xx failure never
+        // reaches this line at all: `getJson` throws it, and the catch below
+        // renders that error's message.
+        //
+        // The chain stops at `code` deliberately. `getJson` has a third arm
+        // (`?? body?.error`) but guards it with a non-string check before use;
+        // here the last arm is the translated string, which is always safe to
+        // render, and an unguarded object would reach JSX as a child.
+        setPhase({
+          kind: 'error',
+          message: body?.error?.message ?? body?.error?.code ?? t('cloudConnection.errors.bindFailed'),
+        });
       } catch (err: any) {
         setPhase({ kind: 'error', message: err?.message ?? String(err) });
       }
