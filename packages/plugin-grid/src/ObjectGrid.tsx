@@ -36,7 +36,7 @@ import {
   RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, listViewPredicates, isProjectableField, isExpandableFieldType, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, listViewPredicates, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
@@ -2157,24 +2157,38 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   const manualSearchOn = manualPaginationOn;
 
   /**
-   * Withhold the sort affordance from a relational column when the sort is the
-   * server's (objectui#3096 + #3106).
+   * Withhold the sort affordance from a column the server cannot honestly order
+   * by, when the sort is the server's (objectui#3096 + #3106, #3950).
    *
-   * A `lookup` / `master_detail` / `user` / `tree` column stores a foreign-key
-   * id and shows the related record's name. A server `$orderby` can only order
-   * by the stored id — objectstack#4256 settled that no relation join is coming
-   * — so the column of names would come back in an order with no relation to
-   * the names. The ListView toolbar's sort picker already withholds these for
-   * exactly this reason; a clickable header would have been the same illusion
-   * through a different control.
+   * TWO reasons, one mechanism — a column is offered as a sort key only when
+   * both hold:
    *
-   * Only under manual sorting. A client-side sort keys off the label the cell
-   * renders (`getSortValue`, #3096), which is honest, so those headers stay.
+   *  - RELATIONAL (`lookup` / `master_detail` / `user` / `tree`): the column
+   *    stores a foreign-key id and shows the related record's name. A server
+   *    `$orderby` can only order by the stored id — objectstack#4256 settled
+   *    that no relation join is coming — so the column of names would come back
+   *    in an order with no relation to the names.
+   *  - UNMATERIALIZED (`formula`): no driver materialises a column for it, so
+   *    there is nothing to order by at all. That sort never worked; until
+   *    objectstack#6994 the platform did not say so (a `200` whose rows carried
+   *    the values they were asked to be ordered by, unordered), and now it
+   *    answers `400 INVALID_SORT`. Both are the same defect on this side of the
+   *    wire: a header offering a sort the platform cannot perform.
+   *
+   * The ListView toolbar's sort picker withholds both for exactly these
+   * reasons; a clickable header would have been the same illusion through a
+   * different control.
+   *
+   * Only under manual sorting. A client-side sort keys off the value the cell
+   * renders (`getSortValue`, #3096) — the resolved label for a relational
+   * column, the server-hydrated result for a formula one — which is honest, so
+   * those headers stay.
    */
   const withSortability = (col: any) => {
     if (!manualSortingOn || col.sortable === false) return col;
     const fieldDef = (objectSchema as any)?.fields?.[col.accessorKey];
-    return isExpandableFieldType(fieldDef) ? { ...col, sortable: false } : col;
+    const serverCanOrderBy = !isExpandableFieldType(fieldDef) && !isUnmaterializedFieldType(fieldDef);
+    return serverCanOrderBy ? col : { ...col, sortable: false };
   };
 
   const applyColumnChrome = (col: any) => withSortability(applyDensity(col));

@@ -24,6 +24,7 @@ export * from './utils/filter-converter.js';
 export * from './utils/managedBy.js';
 export * from './utils/extract-records.js';
 export * from './utils/expand-fields.js';
+export * from './utils/unmaterialized-fields.js';
 export * from './utils/column-identity.js';
 export * from './utils/sort-values.js';
 export * from './utils/sort-query.js';
