@@ -326,7 +326,7 @@ double-displays it.
     "@object-ui/core": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "lucide-react": "^0.400.0"
+    "lucide-react": "^1.31.0"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
