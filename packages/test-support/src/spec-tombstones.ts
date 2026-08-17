@@ -61,8 +61,8 @@
  * Either channel alone identifies today's tombstones (measured: all eight in
  * `@objectstack/spec@17.0.0`'s `ComponentPropsMap` satisfy both — the same eight
  * the preceding `17.0.0-rc.6` carried), so the OR is not about coverage — it is
- * about which channel a future change breaks. A
- * Zod internals rework can silence (1) without touching the contract; a
+ * about which channel a future change breaks. A Zod internals rework can
+ * silence (1) without touching the contract; a
  * tombstone hand-written without `retiredKey()` silences (2). Recognition that
  * needs both would go quietly permissive on either event, and "quietly
  * permissive" is the failure this module was written to end. Callers that want
