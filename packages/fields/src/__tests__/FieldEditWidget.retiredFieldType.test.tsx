@@ -67,6 +67,26 @@ const SURVIVOR = 'user';
 
 const RETIRED_TYPES = () => Object.keys(RETIRED_FIELD_TYPES);
 
+/**
+ * A field literal spelling a RETIRED type.
+ *
+ * The type escape is the POINT here, not a workaround, and it is confined to
+ * this one helper so the strictness holds everywhere else in the file. PR
+ * #4932 shrank `owner` out of the published field-type unions in
+ * `@object-ui/types`, so the compiler now REFUSES to let this payload be
+ * written at all — and a payload the type refuses needs an escape to be
+ * authored (the shape settled by objectui#4910 / PR #4920). That refusal is
+ * the published contract twin working exactly as designed; it is asserted
+ * head-on by `packages/types/src/__tests__/owner-retired-contract-twins.test.ts`,
+ * so nothing is lost by escaping it here.
+ *
+ * This suite still has to author the refused spelling, because what it pins is
+ * the RUNTIME disposition for a field that is ALREADY STORED that way — a
+ * record typed `owner` before the retirement, which no compile-time union can
+ * reach or fix. That stored-field case is the whole reason this seam mattered.
+ */
+const retiredFieldLiteral = (name: string) => ({ name, type: RETIRED as never });
+
 let error: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
@@ -140,7 +160,7 @@ describe('road 3 — a direct call, ignoring both gates', () => {
   it('renders no control at all for a retired spelling', () => {
     const { container } = render(
       <FieldEditWidget
-        field={{ name: 'record_owner', type: RETIRED }}
+        field={retiredFieldLiteral('record_owner')}
         value="u-1"
         onChange={vi.fn()}
       />,
@@ -164,7 +184,7 @@ describe('road 3 — a direct call, ignoring both gates', () => {
     // the one most likely to slip past a refusal keyed on anything but type.
     const { container } = render(
       <FieldEditWidget
-        field={{ name: 'record_owner', type: RETIRED }}
+        field={retiredFieldLiteral('record_owner')}
         value={{ id: 'u-1', name: 'Ada Lovelace' }}
         onChange={vi.fn()}
       />,
@@ -175,7 +195,7 @@ describe('road 3 — a direct call, ignoring both gates', () => {
   it('is LOUD — it writes the prescription naming the migration', () => {
     render(
       <FieldEditWidget
-        field={{ name: 'record_owner', type: RETIRED }}
+        field={retiredFieldLiteral('record_owner')}
         value="u-1"
         onChange={vi.fn()}
       />,
@@ -196,7 +216,7 @@ describe('road 3 — a direct call, ignoring both gates', () => {
     for (let i = 0; i < 25; i++) {
       render(
         <FieldEditWidget
-          field={{ name: `owner_${i}`, type: RETIRED }}
+          field={retiredFieldLiteral(`owner_${i}`)}
           value="u-1"
           onChange={vi.fn()}
         />,
