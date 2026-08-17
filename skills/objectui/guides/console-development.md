@@ -211,8 +211,11 @@ generic-engine defaults can be registered independently.
    `type: 'permission'`.
 2. Otherwise it picks a schema: `createSchema` in create mode, else the `/meta/types`
    row's `schema`, else the registry's `defaultSchema`.
-3. Fetches the layered view (`?layers=true`) so code / overlay / effective are all
-   visible, and renders `SchemaForm` against that schema.
+3. Fetches the layered view (`GET /meta/:type/:name/layers`, via `client.layered()`) so
+   code / overlay / effective are all visible, and renders `SchemaForm` against that
+   schema. That projection has a path and a response schema of its own
+   (`GetMetaItemLayeredResponseSchema`); the older spelling that flagged the ordinary
+   item read is deprecated upstream — don't reintroduce it.
 4. Save → PUT. A `409 destructive_change` opens a confirmation dialog and retries with
    `?force=true`. Reset overlay → DELETE. The References tab calls `client.references()`
    so an admin sees the back-pointers before deleting.

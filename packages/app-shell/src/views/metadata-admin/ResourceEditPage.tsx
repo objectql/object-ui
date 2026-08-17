@@ -4,8 +4,8 @@
  * MetadataResourceEditPage — generic AutoForm-driven editor (Phase 3c).
  *
  * What it does:
- *   1. Fetches the layered view (`?layers=true`) so the user sees code
- *      vs overlay vs effective.
+ *   1. Fetches the layered view (`GET /meta/:type/:name/layers`) so the user
+ *      sees code vs overlay vs effective.
  *   2. Renders a SchemaForm against the JSONSchema in the type's
  *      `/meta/types` registry row.
  *   3. Save → PUT, with automatic destructive-change handling: a 409
