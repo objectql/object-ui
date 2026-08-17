@@ -15,6 +15,7 @@ import fs from 'fs';
 // `native` becomes the default loader (objectui#3384).
 import { viteCryptoStub } from '../../scripts/vite-crypto-stub.ts';
 import { viteMaplibreWorker } from '../../scripts/vite-maplibre-worker.ts';
+import { resolveSpecDistInjection } from '../../scripts/vite-objectstack-spec-dist.ts';
 import { compression } from 'vite-plugin-compression2';
 import { visualizer } from 'rollup-plugin-visualizer';
 
@@ -169,6 +170,65 @@ if (clientDistOverride) {
   clientFsAllow.push(path.dirname(resolved), path.resolve(path.dirname(resolved), '..'));
 }
 
+// Deps pre-bundled for the dev server. Build-time pre-bundling was removed in
+// Vite 5.1, so this list is read by `pnpm dev` only, never by `vite build`.
+const OPTIMIZE_DEPS_INCLUDE = [
+  '@objectstack/spec',
+  '@objectstack/spec/data',
+  '@objectstack/spec/system',
+  '@objectstack/spec/ui',
+  'react-map-gl',
+  'react-map-gl/maplibre',
+  'maplibre-gl'
+];
+
+// Baseline `vendor-objectstack` grouping: the installed spec/client, reached
+// either through `node_modules/@objectstack/` or through pnpm's flattened
+// `@objectstack+<pkg>` store path.
+const VENDOR_OBJECTSTACK_TEST = /([\\/]node_modules[\\/]@objectstack[\\/]|[\\/]@objectstack\+)/;
+
+// Opt-in override of the installed `@objectstack/spec` — the spec twin of
+// OBJECTSTACK_CLIENT_DIST above, so a framework build can bundle the console
+// against its OWN spec instead of the last published one (objectui#4854, ruled
+// on objectstack#8134). Point it at a built spec package (its directory, its
+// `dist/`, or an entry file inside it).
+//
+// It is NOT a copy of the client line: `@objectstack/spec` publishes an 18-entry
+// exports map that redirects every subpath into `dist/`, and a Vite string alias
+// does not consult exports maps. So the injection is derived from the OVERRIDE's
+// own exports map, one alias per entry — see the module for the derivation and
+// for why every failure mode throws instead of falling back.
+//
+// Inert when unset: `null` here leaves the alias table, the pre-bundle list, the
+// vendor chunk test and the dev server's fs allow-list at their baseline values.
+const specDistInjection = resolveSpecDistInjection(process.env.OBJECTSTACK_SPEC_DIST, {
+  vendorChunkTest: VENDOR_OBJECTSTACK_TEST,
+});
+if (specDistInjection) Object.assign(workspaceAliases, specDistInjection.aliases);
+
+const specFsAllow: string[] = specDistInjection ? specDistInjection.fsAllow : [];
+
+// Pre-bundling an ALIASED, out-of-workspace dep is opt-in through this list and
+// nothing else: Vite's pre-alias plugin only registers such a resolution as a
+// dep when `optimizeDeps.include` names the specifier. Keeping the four spec
+// entries while the override is live would therefore park the injected spec in
+// `node_modules/.vite`, whose cache key does not move when the framework
+// rebuilds its spec in place — a stale pre-bundle serving yesterday's schema is
+// the same silent skew this hook exists to end. Dropping them costs a colder
+// dev start and nothing else; `vite build` never reads this list.
+const optimizeDepsInclude = specDistInjection
+  ? OPTIMIZE_DEPS_INCLUDE.filter((specifier) => !Object.hasOwn(specDistInjection.aliases, specifier))
+  : OPTIMIZE_DEPS_INCLUDE;
+
+// An injected spec resolves OUTSIDE node_modules, so the baseline test above
+// stops matching it and the biggest vendor surface in the bundle (spec is
+// imported by 29 packages here) would scatter into its importers' chunks. The
+// injected build should differ from a released one in spec CONTENT, not in
+// chunk layout, so the override's location joins the group's test.
+const vendorObjectstackTest = specDistInjection
+  ? specDistInjection.vendorChunkTest
+  : VENDOR_OBJECTSTACK_TEST;
+
 // https://vitejs.dev/config/
 export default defineConfig({
   base: basePath,
@@ -233,15 +293,7 @@ export default defineConfig({
     dedupe: ['react', 'react-dom', 'sonner'],
   },
   optimizeDeps: {
-    include: [
-      '@objectstack/spec',
-      '@objectstack/spec/data',
-      '@objectstack/spec/system',
-      '@objectstack/spec/ui',
-      'react-map-gl',
-      'react-map-gl/maplibre',
-      'maplibre-gl'
-    ]
+    include: optimizeDepsInclude
   },
   build: {
     target: 'esnext',
@@ -266,7 +318,7 @@ export default defineConfig({
           groups: [
             { name: 'vendor-react', test: /[\\/]node_modules[\\/](react|react-dom|react-router|scheduler)[\\/]/, priority: 100 },
             { name: 'vendor-radix', test: /[\\/]node_modules[\\/]@radix-ui[\\/]/, priority: 95 },
-            { name: 'vendor-objectstack', test: /([\\/]node_modules[\\/]@objectstack[\\/]|[\\/]@objectstack\+)/, priority: 95 },
+            { name: 'vendor-objectstack', test: vendorObjectstackTest, priority: 95 },
             { name: 'vendor-icons-core', test: /[\\/]node_modules[\\/]lucide-react[\\/]dist[\\/](lucide-react|esm[\\/](Icon|createLucideIcon|defaultAttributes|shared))/, priority: 90 },
             { name: 'vendor-ui-utils', test: /[\\/]node_modules[\\/](class-variance-authority|clsx|tailwind-merge|sonner)[\\/]/, priority: 90 },
             { name: 'vendor-zod', test: /[\\/]node_modules[\\/]zod[\\/]/, priority: 90 },
@@ -318,9 +370,13 @@ export default defineConfig({
   },
   server: {
     port: 5180,
-    // Widen the fs allow-list only when an out-of-tree client override is set
-    // (see OBJECTSTACK_CLIENT_DIST above); otherwise keep Vite's defaults.
-    ...(clientFsAllow.length ? { fs: { allow: [path.resolve(import.meta.dirname, '../..'), ...clientFsAllow] } } : {}),
+    // Widen the fs allow-list only when an out-of-tree override is set (see
+    // OBJECTSTACK_CLIENT_DIST / OBJECTSTACK_SPEC_DIST above); otherwise keep
+    // Vite's defaults. Both overrides live outside the workspace root, which
+    // Vite's default `fs.allow` serves as a 403 (blank page, no build error).
+    ...(clientFsAllow.length || specFsAllow.length
+      ? { fs: { allow: [path.resolve(import.meta.dirname, '../..'), ...clientFsAllow, ...specFsAllow] } }
+      : {}),
     proxy: {
       '/api': { target: process.env.DEV_PROXY_TARGET || 'http://localhost:3000', changeOrigin: true },
     },

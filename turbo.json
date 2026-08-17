@@ -11,7 +11,7 @@
         "**/*.tsbuildinfo",
         "!**/node_modules/**"
       ],
-      "env": ["NODE_ENV", "VITE_BASE_PATH", "OBJECTSTACK_CLIENT_DIST"],
+      "env": ["NODE_ENV", "VITE_BASE_PATH", "OBJECTSTACK_CLIENT_DIST", "OBJECTSTACK_SPEC_DIST"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/tsconfig.json",
