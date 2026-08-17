@@ -39,17 +39,58 @@ const schema = {
 };
 ```
 
-### Manual Registration
+### What the side-effect import registers
+
+That single import is the whole of registration — there is no components map to
+iterate over. Importing the entry runs the eight `ComponentRegistry.register(...)`
+calls in `src/index.tsx`, which claim exactly these schema types. The keys below
+are read off those calls:
+
+| Namespaced key | Bare-name fallback | Renderer behind it |
+| --- | --- | --- |
+| `view:dashboard` | `dashboard` | `DashboardRenderer` — the widget container |
+| `plugin-dashboard:metric` | `metric` | `MetricWidget` — one KPI value |
+| `plugin-dashboard:metric-card` | `metric-card` | `MetricCard` — KPI with trend and icon |
+| `plugin-dashboard:object-metric` | `object-metric` | internal wrapper around `ObjectMetricWidget` — aggregates over an object |
+| `plugin-dashboard:pivot` | `pivot` | `PivotTable` — pivot over rows you pass in |
+| `plugin-dashboard:object-pivot` | `object-pivot` | internal wrapper around `ObjectPivotTable` — pivot queried from an object |
+| `plugin-dashboard:dashboard-grid` | `dashboard-grid` | `DashboardGridLayout` — the drag/resize editable grid |
+| `plugin-dashboard:object-data-table` | `object-data-table` | `ObjectDataTable` — table queried from an object |
+
+`ComponentRegistry.register` publishes `namespace:type`, and — unless the call
+passes `skipFallback: true` — the bare `type` as a back-compat fallback
+(`packages/core/src/registry/Registry.ts:194`, fallback branch at `:226`). No
+call in this package passes `skipFallback`, so each type above resolves under
+both spellings. The two `object-*` types are served by internal wrappers that
+first resolve the spec's per-element `dataSource` binding (through
+`ElementDataSourceGate` from `@object-ui/react`) and then render the exported
+component, which is why those rows name a wrapper rather than an export.
+
+### Registering a component under your own key
+
+To serve one of this package's components under a key of your own, register the
+exported component — that is what a manual registration is here:
 
 ```typescript
-import { dashboardComponents } from '@object-ui/plugin-dashboard';
 import { ComponentRegistry } from '@object-ui/core';
+import { MetricCard } from '@object-ui/plugin-dashboard';
 
-// Register dashboard components
-Object.entries(dashboardComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
+ComponentRegistry.register('my-metric', MetricCard, {
+  namespace: 'my-app',
+  label: 'My Metric',
+  category: 'Dashboard',
 });
 ```
+
+There is also a `dashboardComponents` export, and two measured facts about it
+are worth stating, because iterating it is not the manual registration above:
+its eleven keys are **component class names** (`DashboardRenderer`,
+`MetricCard`, `WidgetConfigPanel`, …) rather than schema types, and passing each
+key straight to `ComponentRegistry.register` therefore registers eleven names no
+schema author writes — while the eight types in the table stay untouched, having
+already been registered by the import. Each such call also passes no `meta`, so
+it trips the no-namespace deprecation warning in `register`
+(`packages/core/src/registry/Registry.ts:198`).
 
 ## Schema API
 
@@ -464,9 +505,25 @@ through the `onSchemaChange` callback.
 <DashboardGridLayout
   schema={dashboard}
   // ✅ Preferred — write the updated schema through your data adapter.
-  onSchemaChange={(next) => client.meta.saveItem('dashboard', next.name, next)}
+  onSchemaChange={(next) => {
+    // `name` is optional on the schema, and `saveItem` requires it — decide
+    // what an unnamed dashboard means to your host instead of writing through.
+    if (!next.name) return;
+    client.meta.saveItem('dashboard', next.name, next);
+  }}
 />
 ```
+
+The guard is not defensive noise: the callback receives a
+`DashboardComponentSchema`, whose `name` is optional (`BaseSchema.name` in
+`@object-ui/types`), while `client.meta.saveItem(type, name, item)` declares
+`name: string`. Passing `next.name` straight through is `TS2345` under `strict`
+(`Argument of type 'string | undefined' is not assignable to parameter of type
+'string'`), so a copied snippet does not compile — and what the server does with
+an absent name has **not** been measured here, which is the other reason this
+example declines to send one rather than guessing. A host that already knows
+which metadata item the grid is editing should pass that name from its own state
+instead of reading it off the node.
 
 If `onSchemaChange` is **not** provided, layout edits stay in component
 state and are lost on refresh — a `console.warn` is emitted in development
