@@ -73,9 +73,14 @@ type Severity = 'info' | 'warning' | 'error' | 'success';
  * (objectui#4970): both are read through `pickLocalized` further down, and the
  * block's published authoring surface declares the two arms
  * (`plugin-detail/src/index.tsx`, `type: ['string', 'object']` since
- * objectui#3832). While these said `string`, this file was the last place in the
- * package still claiming the map form was not accepted here — the
+ * objectui#3832), so while these two said `string` they were narrower than both
+ * the renderer and this block's own published surface — the
  * declaration-narrower-than-the-renderer family of objectui#4581.
+ *
+ * The CTA's `action.label` below is the same slot one level down and is
+ * deliberately NOT widened here (objectui#4998): its published surface declares
+ * `action` as a bare `object` with the member shape in prose only, so the arms it
+ * would be aligned against do not exist yet.
  */
 interface RecordAlertProps {
   schema?: {

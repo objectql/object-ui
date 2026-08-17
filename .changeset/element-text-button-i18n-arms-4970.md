@@ -35,7 +35,9 @@ remaining 57 public blocks serializing byte for byte as they did.
 `record:alert`'s renderer-local prop type is corrected in the same pass
 (`plugin-detail`): its `title` / `body` were still typed `string` while the same
 file resolves both through `pickLocalized` and the block's published `inputs`
-have declared `['string', 'object']` since objectui#3832. The type is not
-exported, so no consumer was misled and no published surface changes — it was
-simply the last place in the package still claiming the map form was not accepted
-there.
+have declared `['string', 'object']` since objectui#3832, so the two slots were
+narrower than both the renderer and the block's own published surface. The type
+is not exported, so no consumer was misled and no published surface changes. The
+CTA's `action.label` one level down is left alone on purpose (objectui#4998):
+`action` is published as a bare `object` whose member shape lives in prose, so
+there are no declared arms for it to be aligned against yet.
