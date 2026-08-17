@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { build } from 'vite';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -33,18 +34,27 @@ import {
  *      being conditional turns these red rather than shipping a silently
  *      different production bundle.
  *
- * Reverse verification, direction predicted BEFORE running (both plain RED — the
- * derivation is the sole input to case 1, and the `null` branch the sole input to
- * case 2, so a mutation in either can only add findings):
+ * Reverse verification, direction predicted BEFORE running. Both plain RED — the
+ * derivation is the sole input to case 1 and the `null` branch the sole input to
+ * case 2, so a mutation in either can only ADD findings; neither has the
+ * count-shaped or inverted direction some pins do. Predicted, then measured:
  *
- *   - Delete one subpath from the derived table (`subpaths.filter(s => s !==
- *     '@objectstack/spec/ui')`) → the reconciliation case fails naming the
- *     missing specifier, and the repo sweep fails on the 214 `/ui` sites.
- *   - Make the hook unconditional (drop the `if (!raw …) return null` guard, or
- *     read a hardcoded dir) → the four laziness cases fail, each naming the
- *     surface that moved.
+ *   - **Drop one subpath** from the derived table (`… && s !==
+ *     '@objectstack/spec/ui'`) → 5 red. Worth recording precisely, because the
+ *     obvious expectation is wrong: the dropped specifier does NOT show up as
+ *     "no alias". It falls through to the bare entry and is reported as
+ *     `@objectstack/spec/ui -> …/dist/index.mjs/ui` — a path that cannot exist
+ *     — so the finding lands in the repo sweep's `unresolved` list, while
+ *     `missing` stays empty. The reconciliation case fails one step earlier, on
+ *     18-vs-17.
+ *   - **Make the hook unconditional** (default the env read to the installed
+ *     spec dir) → 2 red, both in the console-config block: the alias table gains
+ *     18 `@objectstack` keys, and `optimizeDeps.include` drops from 7 to 3.
  *
- * Both were run; the recorded direction is what happened.
+ * The real-build cases at the bottom carry their own control rather than a
+ * mutation: the same bundle is built a second time through the literal
+ * client-hook alias, and a green build there would mean this whole derivation is
+ * unnecessary. Measured: it fails with 2 resolve errors.
  */
 
 const require_ = createRequire(import.meta.url);
@@ -359,6 +369,69 @@ describe('objectui#4854: the four flagged surfaces in the console config', () =>
     // caller believed it had injected a spec.
     expect(turbo.tasks.build.env).toContain('OBJECTSTACK_SPEC_DIST');
     expect(turbo.tasks.build.env).toContain('OBJECTSTACK_CLIENT_DIST');
+  });
+});
+
+describe('objectui#4854: a real Vite build resolves the injected spec', () => {
+  // The transcribed matcher above agrees with Vite's source, but only Vite can
+  // answer whether it preserves the alias table's KEY ORDER through
+  // `normalizeAlias` — and the order is what makes the bare entry a backstop
+  // rather than a swallow-everything. So this bundles for real: ~300ms, because
+  // the entry is three modules and the output is never written.
+  const ENTRY = [
+    "import * as root from '@objectstack/spec';",
+    "import * as ui from '@objectstack/spec/ui';",
+    "import * as data from '@objectstack/spec/data';",
+    "import pkg from '@objectstack/spec/package.json';",
+    "globalThis.__probe4854 = [root, ui, data, pkg.name];",
+  ].join('\n');
+
+  async function bundle(
+    alias: Record<string, string>,
+    root: string
+  ): Promise<{ code: string; imports: string[] }> {
+    const result = (await build({
+      root,
+      logLevel: 'silent',
+      resolve: { alias },
+      build: {
+        write: false,
+        minify: false,
+        lib: { entry: path.join(root, 'entry.mjs'), formats: ['es'], fileName: 'probe' },
+      },
+    })) as { output: { code?: string; imports?: string[] }[] }[];
+    const chunk = result[0].output[0];
+    return { code: chunk.code ?? '', imports: chunk.imports ?? [] };
+  }
+
+  function withEntry<T>(run: (root: string) => Promise<T>): Promise<T> {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'spec-build-4854-'));
+    fs.writeFileSync(path.join(dir, 'entry.mjs'), ENTRY);
+    return run(dir).finally(() => fs.rmSync(dir, { recursive: true, force: true }));
+  }
+
+  it('bundles the bare specifier and its subpaths with nothing left unresolved', async () => {
+    const injection = inject(installedSpecDir)!;
+    const chunk = await withEntry((root) => bundle(injection.aliases, root));
+
+    // Anti-vacuity: the injected package's own schema code is in the output…
+    expect(chunk.code.length).toBeGreaterThan(100_000);
+    expect(chunk.code).toContain(SPEC_PACKAGE_NAME);
+    // …and the chunk imports nothing from outside itself, so no specifier fell
+    // back to the installed spec or leaked out as an external. (Asserted on the
+    // rollup chunk's import list rather than on the code text: the spec bundles
+    // its own name into string literals, which a text scan reads as an import.)
+    expect(chunk.imports).toEqual([]);
+  });
+
+  it('is what the literal client-hook copy cannot do', async () => {
+    // The premise of the card, measured rather than asserted: one prefix alias
+    // at the package directory rewrites `@objectstack/spec/ui` to `SPEC_PKG/ui`,
+    // which does not exist. A green build here would mean the whole
+    // exports-map derivation is unnecessary.
+    await expect(
+      withEntry((root) => bundle({ [SPEC_PACKAGE_NAME]: installedSpecDir }, root))
+    ).rejects.toThrow();
   });
 });
 
