@@ -977,6 +977,8 @@ const ru = {
     writeStrippedTitle: "Сохранено, но часть полей не применена",
     writeStrippedReadonly: "Поля только для чтения, поэтому не применены: {{fields}}",
     writeStrippedByState: "Поля недоступны для редактирования в текущем состоянии записи, поэтому не применены: {{fields}}",
+    writeStrippedPrimaryKey: "Идентификатор записи нельзя изменить при сохранении, поэтому поля не применены: {{fields}}",
+    writeStrippedUnknownReason: "Не применены сервером: {{fields}}",
     approvalPendingEditable: "На согласовании · редактирование доступно",
     approvalPendingTooltip: "У этой записи есть ожидающий запрос на согласование, но этот шаг всё ещё разрешает редактирование",
     approvalProgress: "Согласования — {{got}} из {{need}}",

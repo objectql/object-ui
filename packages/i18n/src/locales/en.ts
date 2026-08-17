@@ -929,6 +929,8 @@ const en = {
     writeStrippedTitle: 'Saved — but some fields did not take effect',
     writeStrippedReadonly: 'Read-only, so it did not take effect: {{fields}}',
     writeStrippedByState: "Not editable in this record's current state, so it did not take effect: {{fields}}",
+    writeStrippedPrimaryKey: "The record's identifier cannot be changed by a save, so it did not take effect: {{fields}}",
+    writeStrippedUnknownReason: 'Not applied by the server: {{fields}}',
     approvalPendingEditable: 'In approval · editable',
     approvalPendingTooltip: 'This record has a pending approval request; this step still allows editing',
     approvalProgress: 'Approvals — {{got}} of {{need}}',

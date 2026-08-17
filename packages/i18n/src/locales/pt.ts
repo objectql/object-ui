@@ -959,6 +959,8 @@ const pt = {
     writeStrippedTitle: "Salvo, mas alguns campos não foram aplicados",
     writeStrippedReadonly: "Somente leitura, portanto não foi aplicado: {{fields}}",
     writeStrippedByState: "Não editável no estado atual deste registro, portanto não foi aplicado: {{fields}}",
+    writeStrippedPrimaryKey: "O identificador do registro não pode ser alterado ao salvar, portanto não foi aplicado: {{fields}}",
+    writeStrippedUnknownReason: "Não aplicado pelo servidor: {{fields}}",
     approvalPendingEditable: "Em aprovação · editável",
     approvalPendingTooltip: "Este registro tem uma solicitação de aprovação pendente; esta etapa ainda permite a edição",
     approvalProgress: "Aprovações — {{got}} de {{need}}",
