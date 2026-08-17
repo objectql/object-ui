@@ -25,15 +25,16 @@
  * one spelling at the producer — there is deliberately no `c.field ?? c.name`
  * alias to make the retired spelling keep working.
  *
- * Reverse verification (predicted before running): restore the reader to
- * `c.field` and BOTH assertions below go red — cell inputs read back `''`
- * because `row[undefined]` is `undefined`, and React logs the missing-key
- * warning because every `key` is `undefined`. That is the "Red" direction: the
- * rule reads a key the fixtures do not spell, so removing the fix removes the
- * values, not merely the diagnostics.
+ * Reverse verification: restore the reader to `c.field` and every case here
+ * goes red — cell inputs read back `''` because `row[undefined]` is
+ * `undefined`. The other half of the bug, the React missing-key warning, is
+ * pinned in `GridField.keyWarning.test.tsx` rather than here: React emits that
+ * warning only ONCE per owner component, so a second render inside this file
+ * observes nothing and the assertion would pass for an empty reason. It needs
+ * to own the first render of the file, hence its own file.
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import type { GridColumnDefinition, GridFieldMetadata } from '@object-ui/types';
@@ -54,26 +55,9 @@ const rows = [
 
 const field = { type: 'grid', name: 'order_items', columns } as GridFieldMetadata;
 
-/** Collect React's console warnings for the duration of one render. */
-function captureConsole() {
-  const messages: string[] = [];
-  const record = (...args: unknown[]) => { messages.push(args.map(String).join(' ')); };
-  const errorSpy = vi.spyOn(console, 'error').mockImplementation(record);
-  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(record);
-  return {
-    messages,
-    keyWarnings: () => messages.filter((m) => /unique "?key"?/i.test(m)),
-    restore: () => { errorSpy.mockRestore(); warnSpy.mockRestore(); },
-  };
-}
-
-afterEach(() => { vi.restoreAllMocks(); });
-
 describe('GridField reads the DECLARED column spelling (objectui#3951)', () => {
   it('renders every cell populated from metadata authored as GridColumnDefinition', () => {
-    const capture = captureConsole();
     render(<GridField value={rows} onChange={() => {}} field={field} />);
-    capture.restore();
 
     // One cell input per column per row, each echoing the row's stored value —
     // this is the assertion the `field`-keyed reader could not satisfy.
@@ -93,13 +77,6 @@ describe('GridField reads the DECLARED column spelling (objectui#3951)', () => {
     for (const cell of [...products.slice(0, 2), ...quantities.slice(0, 2), ...prices.slice(0, 2)]) {
       expect(cell.value).not.toBe('');
     }
-  });
-
-  it('renders with no React "unique key" warning', () => {
-    const capture = captureConsole();
-    render(<GridField value={rows} onChange={() => {}} field={field} />);
-    capture.restore();
-    expect(capture.keyWarnings()).toEqual([]);
   });
 
   it('the read-only surface shows the stored values, not blanks', () => {
