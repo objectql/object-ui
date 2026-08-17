@@ -6,7 +6,7 @@
  *     passes) to find the zero-slack chain that drives the project end.
  *   - `computeProjectReschedule` — dependency-driven forward shifting: push
  *     successors later until every link constraint holds, preserving each
- *     task's duration. Tasks are only ever moved *later* (顺延), never pulled
+ *     task's duration. Tasks are only ever moved *later* (forward-only), never pulled
  *     earlier, so the result is a minimal repair, not an ASAP recompute.
  *
  * Both treat the dependency on a task as a *predecessor* edge: if task B lists
@@ -114,7 +114,7 @@ export interface SchedulableTask {
   parent?: string | number | null;
   type?: string;
   /**
-   * Row-level lock (仅查看). A locked task is never moved by the reschedule;
+   * Row-level lock (view-only row). A locked task is never moved by the reschedule;
    * when it VIOLATES a link it is reported in `skippedLocked` instead.
    */
   locked?: boolean;
@@ -323,9 +323,9 @@ export interface RescheduleOptions {
    */
   summaryExtent?: 'children' | 'self';
   /**
-   * Snap a computed start instant onto a grid — e.g. shift-band boundaries
-   * (班次边界), so a pushed task never starts mid-band. Must return an
-   * instant `>=` the input (this is 顺延; snapping may only push later).
+   * Snap a computed start instant onto a grid — e.g. shift-band boundaries, so
+   * a pushed task never starts mid-band. Must return an instant `>=` the input
+   * (this is forward-only; snapping may only push later).
    * Applied only to tasks that actually move, and only in non-calendar mode
    * (a WorkingCalendar already owns the day-granularity snapping).
    */
@@ -336,7 +336,7 @@ export interface RescheduleResult {
   changes: RescheduleChange[];
   /**
    * Tasks that VIOLATE a link but stayed put because they are locked
-   * (仅查看). Lets the UI report "N skipped" honestly instead of implying
+   * (view-only rows). Lets the UI report "N skipped" honestly instead of implying
    * the schedule is fully repaired.
    */
   skippedLocked: string[];
@@ -350,7 +350,7 @@ export interface RescheduleResult {
  * Summary handling follows {@link RescheduleOptions.summaryExtent}: rollup
  * summaries are fixed predecessor nodes; self-dated summaries move and carry
  * their unlocked subtree (a descendant already pushed further by its own
- * links keeps the later position — 顺延 only, so max wins). The cascade is a
+ * links keeps the later position — forward-only, so max wins). The cascade is a
  * single forward pass: carried positions don't re-propagate through links,
  * matching the function's minimal-repair pragmatism (no constraint solver).
  *
@@ -409,7 +409,7 @@ export function computeProjectRescheduleDetailed(
       ? workingDaysSpan(startMs.get(id)!, endMs.get(id)!, cal)
       : endMs.get(id)! - startMs.get(id)!;
     const origStart = t.start.getTime();
-    // Never pull earlier than the current start — this is 顺延, not ASAP.
+    // Never pull earlier than the current start — this is forward-only, not ASAP.
     let reqStart = origStart;
     for (const e of preds.get(id) ?? []) {
       const pStart = startMs.get(e.pred)!;
@@ -459,7 +459,7 @@ export function computeProjectRescheduleDetailed(
   // Cascade: a shifted self-dated summary carries its subtree along — the
   // same semantics as dragging its bar — skipping locked descendants. A
   // descendant already pushed further by its OWN links keeps the later
-  // position (max wins; this stays 顺延-only).
+  // position (max wins; this stays forward-only).
   if (selfExtent) {
     for (const t of tasks) {
       const id = key(t.id);
