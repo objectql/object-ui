@@ -21,6 +21,8 @@
  * to stop forwarding — drop the `...chrome` spread and hand
  * `series: [{ dataKey: yAxis, label: measureLabel }]` again:
  *
+ * Measured: 11 red / 8 green, matching the prediction case for case.
+ *
  *  - every "reaches the chart component" case goes RED, and the `showLegend`
  *    one goes red in the card's own way: the key is `undefined`, i.e. absent,
  *    i.e. a legend;

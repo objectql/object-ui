@@ -27,12 +27,22 @@
  * and `series: [{ dataKey: yAxis, label: measureLabel }]`, i.e. the pre-change
  * lines.
  *
+ * Measured: 5 red / 5 green, matching the prediction case for case.
+ *
  *  - ①/②/③ go RED: with the rows passed through, the category stays `null` and
  *    every assertion about a bucket string fails on `null`. This is the
  *    ordinary direction and the one the card describes.
- *  - The BOUNDARY cases (no null group; the `en` floor read through the bundle)
- *    stay GREEN on both sides, and that is their job: this card buys a bucketed
- *    null category and must not move a byte of an ordinary report's chart.
+ *  - The `en` BOUNDARY case goes red too, and that is worth stating precisely
+ *    rather than filing under "boundary cases stay green". It is green on both
+ *    sides of the NARROWER mutation it was written for — dropping the
+ *    `nullCategoryLabel` option while keeping the routing, i.e. objectui#4500's
+ *    own limb, where core's English floor and the `en` pack produce the same
+ *    bytes through different channels. It cannot be green across THIS mutation,
+ *    which removes the bucket itself: there is no label to read in either
+ *    language when nothing is bucketed.
+ *  - The no-null-group BOUNDARY stays GREEN on both sides, and that is its job:
+ *    this card buys a bucketed null category and must not move a byte of an
+ *    ordinary report's chart.
  *  - ④ stays GREEN on both sides too, and is NOT a weak case: it is the guard
  *    that the new derivation's own `fields[].label` did not silently take over
  *    the label, which is a failure only visible AFTER the change. Reverting
@@ -177,9 +187,12 @@ describe('report chart — the bucket label comes from the locale bundle (object
   });
 
   it('BOUNDARY — under `en` the bucket reads `(None)`, through the same channel', async () => {
-    // Green either way, but not for the same reason on each side: core's
-    // hardcoded floor produces it without the option, the `en` pack's
-    // `chart.nullCategory` produces it with. Same bytes, which is the point.
+    // The boundary this guards is objectui#4500's CHANNEL, not #4878's routing:
+    // core's hardcoded floor produces this string without the option and the
+    // `en` pack's `chart.nullCategory` produces it with, so an `en` console
+    // reads exactly what it read before the label became localizable. Measured
+    // red under the routing mutation, as it must be — with no bucket at all
+    // there is no label to read in either language.
     const schema = await chartSchema(NULL_GROUP, { language: 'en' });
     expect(categoriesOf(schema)).toContain(NULL_CATEGORY_LABEL);
     expect(categoriesOf(schema)).not.toContain('(未指定)');
