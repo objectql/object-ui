@@ -207,6 +207,26 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
   );
   const [consentError, setConsentError] = useState<string | null>(null);
 
+  // The accepted thank-you destination, together with the delay declared for
+  // it, held from the moment the write succeeds until the wait below elapses
+  // (objectui#5049).
+  //
+  // The wait used to be a bare `setTimeout` armed inside the submit handler:
+  // nothing stored the handle and nothing cleared it, so a full-page navigation
+  // stayed pending for the whole delay and OUTLIVED this component. With the
+  // default delay that window is 3 seconds on every submit, not an edge
+  // authoring. Recording the destination here hands the wait to the effect
+  // below, which owns it for exactly as long as this component is mounted and
+  // for exactly as long as the destination stands.
+  //
+  // The delay travels WITH the destination rather than being re-read from
+  // `config.thankYouPage` at wait time: the value honoured is the one declared
+  // when the write was accepted, so a host re-rendering with a different
+  // `redirectDelay` mid-wait cannot restart the pause under the submitter.
+  const [pendingRedirect, setPendingRedirect] = useState<
+    { url: string; delayMs: number } | null
+  >(null);
+
   const honeypotRef = useRef<HTMLInputElement | null>(null);
   // Seeded lazily by the mount effect below — Date.now() is impure and must not
   // run during render. The effect always overwrites this before any submit.
@@ -216,6 +236,21 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
     // screen so anti-bot timing measures the next interaction, not the first.
     if (!submitted) mountedAtRef.current = Date.now();
   }, [submitted]);
+
+  // The delayed leg of a thank-you redirect.
+  //
+  // Which destinations are followed and which are refused is decided before a
+  // destination ever reaches this state (`isRedirectUrlSafe` in the submit
+  // handler); nothing here re-judges a URL. What changed is who owns the wait:
+  // unmounting, or dropping the destination, cancels it instead of leaving it to
+  // fire into a page the submitter has moved on from.
+  useEffect(() => {
+    if (!pendingRedirect) return;
+    const timer = setTimeout(() => {
+      window.location.href = pendingRedirect.url;
+    }, pendingRedirect.delayMs);
+    return () => clearTimeout(timer);
+  }, [pendingRedirect]);
 
   const honeypotName = config.honeypot === false ? null : config.honeypot || DEFAULT_HONEYPOT_NAME;
   const minFillTime = config.minFillTime ?? DEFAULT_MIN_FILL_MS;
@@ -307,9 +342,11 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
         if (rawRedirect) {
           if (isRedirectUrlSafe(rawRedirect, config.allowedRedirectHosts)) {
             const delay = config.thankYouPage?.redirectDelay ?? 3000;
-            setTimeout(() => {
-              window.location.href = rawRedirect;
-            }, delay);
+            // Record the destination; the effect that owns the wait takes it
+            // from here (objectui#5049). This arm still decides WHETHER to
+            // navigate — the guard above is untouched — only no longer WHEN,
+            // because a timer armed here answered to nobody.
+            setPendingRedirect({ url: rawRedirect, delayMs: delay });
           } else {
             console.warn('[EmbeddableForm] Blocked unsafe redirect target:', rawRedirect);
             setError(config.texts?.redirectBlocked ?? null);
@@ -327,6 +364,13 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
   const handleReset = useCallback(() => {
     setSubmitted(false);
     setError(null);
+    // "Submit Another Response" cancels a pending thank-you redirect
+    // (objectui#5049). The button offers the submitter a fresh form; that offer
+    // and throwing the whole page away a moment later cannot both be honoured,
+    // and the one the submitter just chose is the form. Dropping the
+    // destination re-runs the effect above, whose cleanup clears the timer —
+    // the cancellation is done by that `clearTimeout`, not by this line alone.
+    setPendingRedirect(null);
   }, []);
 
   // Branding styles
