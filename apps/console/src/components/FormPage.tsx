@@ -37,11 +37,23 @@
  * {@link FORM_RECORD_OBJECT_PARAM} for why it can only ever refuse, and the
  * guard in {@link loadInternalForm} for where it fires (before any `/data/`
  * request, so a mismatch reads nothing and writes nothing).
+ *
+ * ## Where a declared `redirect` goes (objectui#4190)
+ *
+ * `submitBehavior: { kind: 'redirect' }` was consumed as a browser-level
+ * navigation on the authored string, which is why the card asked what that
+ * string even meant. objectstack#7496 ruled it: a RELATIVE in-app path, with
+ * `{{record.field}}` interpolation, URL-escaped when the redirect is built.
+ * So the destination is a route in this shell and it is navigated to with the
+ * router — a full-page navigation ignores the console mount and drops the
+ * submitter at the origin root — while an out-of-contract absolute is refused
+ * on screen instead of followed. See `submitRedirect.ts`.
  */
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { resolveSubmitRedirect } from './submitRedirect';
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || '') + '/api/v1';
 
@@ -84,7 +96,15 @@ interface FormViewSpec {
   submitBehavior?: SubmitBehavior;
 }
 
-/** Mirrors the spec FormView.submitBehavior union (added in Step 4). */
+/**
+ * Mirrors the spec FormView.submitBehavior union (added in Step 4).
+ *
+ * `redirect.url` stays a plain string here because that is what the contract
+ * ships: the ruled shape (objectstack#7496) is a refinement ON a string, so the
+ * key arrives as the author wrote it. What it is ALLOWED to say is not restated
+ * in this type — `resolveSubmitRedirect` asks the spec's own schema at the
+ * moment of use (`submitRedirect.ts`).
+ */
 type SubmitBehavior =
   | { kind: 'thank-you'; title?: string; message?: string }
   | { kind: 'redirect'; url: string; delayMs?: number }
@@ -1010,6 +1030,22 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  /**
+   * The outcome of a `redirect` submit behaviour: the in-app route to go to
+   * once `delayMs` has elapsed, or the fact that the authored destination was
+   * refused (objectui#4190). Null until a redirect submit resolves.
+   *
+   * A refusal needs its own state rather than riding on `error`, for two
+   * reasons. This page renders "Redirecting…" for a submitted redirect, and that
+   * line would be a lie — nothing is going anywhere, and the submitter needs the
+   * confirmation their record WAS written plus the reason it stopped here. And
+   * the refusal travels WITH that flag rather than in `error` so one fact has
+   * one reader: `error` is the page's load/submit failure channel, which a
+   * refused destination is not (the submit succeeded).
+   */
+  const [redirect, setRedirect] = useState<
+    { kind: 'pending'; path: string } | { kind: 'refused'; refusal: string } | null
+  >(null);
 
   // Load spec on mount / when identifier or the record it targets changes.
   useEffect(() => {
@@ -1059,6 +1095,24 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
     loaded?.form?.submitBehavior,
   );
 
+  /**
+   * The delayed leg of a `redirect` submit behaviour.
+   *
+   * It is an effect rather than a timer armed inside the submit handler so the
+   * wait is TIED to this component: a submitter who leaves during `delayMs` is
+   * not yanked back by a timer that outlived the page. `delayMs` semantics are
+   * otherwise unchanged — the pause is what makes the confirmation readable,
+   * the spec still declares the key, and an unset one still means "go now"
+   * (a zero-delay timer, i.e. after this render commits).
+   */
+  const pendingRedirect = redirect?.kind === 'pending' ? redirect.path : null;
+  const redirectDelayMs = behavior.kind === 'redirect' ? (behavior.delayMs ?? 0) : 0;
+  useEffect(() => {
+    if (pendingRedirect === null) return;
+    const timer = setTimeout(() => navigate(pendingRedirect), redirectDelayMs);
+    return () => clearTimeout(timer);
+  }, [pendingRedirect, redirectDelayMs, navigate]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!loaded) return;
@@ -1098,8 +1152,36 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
           break;
         }
         case 'redirect': {
-          const delay = behavior.delayMs ?? 0;
-          setTimeout(() => window.location.assign(behavior.url), delay);
+          // objectstack#7496 ruled this url a RELATIVE in-app path, so the
+          // destination is a route in this shell — see `submitRedirect.ts` for
+          // why the verdict is the spec's own, why a browser-level navigation
+          // was the objectui#4190 defect rather than the mechanism, and why
+          // `withConsoleBase` is not the tool.
+          //
+          // The token scope is the record this submit just wrote: the values as
+          // submitted, with whatever the server echoed back layered over them
+          // (defaults and computed fields are canonical there). The id is read
+          // exactly as the `created-record` arm above reads it, so ONE rule
+          // answers "the record this submit wrote" for both arms and a
+          // `{{record.id}}` token cannot resolve one way here and another there.
+          const written = unwrapTransportEnvelope(result)?.record;
+          const writtenId = editingId ?? readCreatedRecordId(result);
+          const verdict = resolveSubmitRedirect(behavior.url, {
+            ...values,
+            ...(written && typeof written === 'object' ? (written as Record<string, unknown>) : {}),
+            ...(writtenId ? { id: writtenId } : {}),
+          });
+          if (!verdict.ok) {
+            // The write SUCCEEDED and only the destination is out of contract.
+            // So: confirm the submit, and put the refusal on screen — dropping
+            // it would leave the submitter watching a redirect that must never
+            // happen, and following it is the open redirect the ruling closed.
+            toast.error(verdict.refusal);
+            setRedirect({ kind: 'refused', refusal: verdict.refusal });
+            setSubmitted(true);
+            break;
+          }
+          setRedirect({ kind: 'pending', path: verdict.path });
           setSubmitted(true);
           break;
         }
@@ -1165,6 +1247,24 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
     );
   }
   if (submitted && behavior.kind === 'redirect') {
+    // A refused destination (objectui#4190) still confirms the write — it
+    // happened — and shows why nothing was navigated to. "Redirecting…" is
+    // reserved for a redirect that is actually pending.
+    if (redirect?.kind === 'refused') {
+      return (
+        <div className="mx-auto max-w-2xl space-y-4 p-6">
+          <div className="rounded-md border bg-card p-6 text-center">
+            <h2 className="mb-2 text-lg font-semibold">Thanks!</h2>
+            <p className="text-sm text-muted-foreground">
+              Your submission has been received.
+            </p>
+          </div>
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+            {redirect.refusal}
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="mx-auto max-w-2xl p-6 text-center text-sm text-muted-foreground">
         Redirecting…

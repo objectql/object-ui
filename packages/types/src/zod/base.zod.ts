@@ -178,23 +178,47 @@ export function specFieldsExcept<T extends z.ZodRawShape, K extends keyof T & st
 }
 
 /**
+ * One coarse control kind an input may declare — the enforced half of
+ * `ComponentInputControlType` in `../base.ts`. Exported so a consumer that
+ * needs the arm vocabulary at runtime reads it from here instead of writing a
+ * twelfth copy of the list.
+ */
+export const ComponentInputControlTypeSchema = z.enum([
+  'string',
+  'number',
+  'boolean',
+  'enum',
+  'array',
+  'object',
+  'color',
+  'date',
+  'code',
+  'file',
+  'slot',
+]);
+
+/**
  * Component Input Configuration
  */
 export const ComponentInputSchema = z.object({
   name: z.string().describe('Property name'),
-  type: z.enum([
-    'string',
-    'number',
-    'boolean',
-    'enum',
-    'array',
-    'object',
-    'color',
-    'date',
-    'code',
-    'file',
-    'slot',
-  ]).describe('Input control type'),
+  /**
+   * One coarse kind, or a NON-EMPTY array of distinct kinds for a key whose
+   * contract is a union (objectui#3832). Both bounds are enforced rather than
+   * tolerated, because this is where an authoring slip is cheapest to catch:
+   * an empty array declares an input nothing can satisfy (and the serializer
+   * would have to invent an arm for it), and a repeated arm means the author
+   * believes they said something they did not. The single-kind form stays
+   * valid — it is the canonical spelling for a one-arm key.
+   */
+  type: z.union([
+    ComponentInputControlTypeSchema,
+    z.array(ComponentInputControlTypeSchema)
+      .min(1)
+      .refine((arms) => new Set(arms).size === arms.length, {
+        message: 'Input control type arms must be distinct',
+      }),
+  ]).describe('Input control type, or the arms of a union type'),
   label: z.string().optional().describe('Display label'),
   defaultValue: z.any().optional().describe('Default value'),
   required: z.boolean().optional().describe('Required flag'),

@@ -21,7 +21,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
@@ -223,30 +223,6 @@ export function normalizeFilterCondition(condition: any[]): any[] {
  * Format an action identifier string into a human-readable label.
  * e.g., 'send_email' → 'Send Email'
  */
-/**
- * Field types the SERVER refuses to order by, so the sort picker must not
- * offer them (objectui#4243).
- *
- * This mirrors `UNMATERIALIZED_SORT_TYPES` in objectstack
- * `packages/metadata-protocol/src/protocol.ts` — a `formula` value is computed
- * on read, no driver materialises a column for it, and since objectstack#6994
- * a sort naming one is a hard 400 (before that it degraded silently: the
- * response carried the very values it was asked to order by, out of order,
- * under a 200, with `asc` and `desc` byte-identical).
- *
- * The set is `formula` ALONE, deliberately — NOT the spec's
- * `COMPUTED_VALUE_TYPES` (`formula` / `summary` / `autonumber`). That set is
- * the WRITE contract ("never client-written"); `summary` and `autonumber` each
- * get a real maintained column and order correctly. objectstack's own
- * conformance test pins that trap by name ("a summary field still sorts, in
- * both directions — the family is `formula`, not 'computed'"), so widening
- * this set would withhold two types that work.
- *
- * Kept local to this renderer rather than added to `@object-ui/core`: it is
- * one sortability rule for one picker.
- */
-const UNSORTABLE_FIELD_TYPES: ReadonlySet<string> = new Set(['formula']);
-
 /**
  * Normalize a view's `sort` declaration to SortItem[]. @objectstack/spec
  * ListViewSchema.sort is `string | Array<{ field, order }>` — the TOP-LEVEL
@@ -2144,13 +2120,19 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // below points at the supported alternative (a formula field that
   // denormalizes the name onto this object, which sorts like any text column).
   //
-  // Second rule — {@link UNSORTABLE_FIELD_TYPES}: a `formula` field has no
-  // materialised column, so the server answers a sort naming one with a 400.
-  // It matters here precisely BECAUSE the base set widened: a formula field
-  // used to reach this picker only if someone had whitelisted it, and now
-  // every formula field on the object would be offered. Withheld silently —
-  // the relational hint below stays strictly about relations, which is what
-  // its sentence describes.
+  // Second rule — `UNMATERIALIZED_FIELD_TYPES` (`@object-ui/core`, bound to the
+  // spec's own storage fact): a `formula` field has no materialised column, so
+  // the server answers a sort naming one with a 400. It matters here precisely
+  // BECAUSE the base set widened: a formula field used to reach this picker only
+  // if someone had whitelisted it, and now every formula field on the object
+  // would be offered. Withheld silently — the relational hint below stays
+  // strictly about relations, which is what its sentence describes.
+  //
+  // The set used to be a private copy in this file, on the reasoning that it was
+  // one sortability rule for one picker. objectui#3950 made it three more
+  // consumers (this grid's own column headers, and both of RelatedList's sort
+  // entry points), so it moved to core where the relational family already
+  // lives — one judgement, not four copies drifting apart.
   //
   // Exception (both rules): a field the CURRENT sort already uses stays listed
   // — relational ones flagged as ordering by ID — so opening this popover on a
@@ -2164,7 +2146,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const fields: Array<{ value: string; label: string }> = [];
     for (const field of candidateFields) {
       const relational = EXPANDABLE_FIELD_TYPES.has(field.type);
-      if (!relational && !UNSORTABLE_FIELD_TYPES.has(field.type)) {
+      if (!relational && !UNMATERIALIZED_FIELD_TYPES.has(field.type)) {
         fields.push({ value: field.value, label: field.label });
         continue;
       }

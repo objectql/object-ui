@@ -244,9 +244,18 @@ relational ones labelled `(by ID)` — so existing view metadata round-trips
 instead of silently losing its sort, and a sort the server would refuse can
 still be edited away in the picker that otherwise hides its field.
 
-Column-header sorting inside the grid is unaffected: it is client-side over the
-rows already loaded, where the label the cell shows IS available, so it orders by
-that label (see `getSortValue` in `@object-ui/core`).
+Column-header sorting inside the grid follows the **same two rules**, because a
+header click is a server `$orderby` as well whenever the grid is showing one
+window of a larger collection (`objectui#3106`) — not a client-side reorder of
+the loaded rows. So on that path a relational or formula column carries no
+clickable header either (`objectui#3950`); offering one would have been the same
+illusion through a different control.
+
+Where the sort really does stay in the browser — inline `data`, or the grouped
+view, which holds every row it groups — both kinds of header stay live and order
+by the value the cell shows: the resolved label for a relational column, the
+server-hydrated result for a formula one (see `getSortValue` in
+`@object-ui/core`).
 
 ## View Persistence
 

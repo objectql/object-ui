@@ -47,6 +47,7 @@ import {
   getRecordDisplayName,
   getSortValue,
   isExpandableFieldType,
+  isUnmaterializedFieldType,
   mergeFilterNodes,
   toFilterNode,
   userActionPredicates,
@@ -1058,24 +1059,32 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   }, [columns, objectSchema, objectName, api, resolveFieldLabel, referenceField, relatedData, maxColumns, lookupLabels, perms]);
 
   /**
-   * The same columns, with the sort affordance withheld from relational ones
-   * while the sort is the server's.
+   * The same columns, with the sort affordance withheld from the ones a server
+   * `$orderby` cannot honestly order by.
    *
-   * A windowed sort goes out as `$orderby` on the flat field name, and a
-   * relational column stores a foreign-key id — so "sort by Owner" would order
-   * the collection by `rec_7f3…` while the cells show names (objectui#3096;
-   * objectstack#4256 settled that no relation join is coming). This is the rule
-   * the sort-button row already applied; the headers inherit it rather than
-   * re-opening the same door.
+   * A windowed sort goes out as `$orderby` on the flat field name, and two kinds
+   * of column cannot survive that trip (objectui#3096, #3950):
    *
-   * In client mode the sort keys off the resolved label, so those headers stay
-   * live — the same split `sortedData` makes.
+   *  - a relational column stores a foreign-key id, so "sort by Owner" would
+   *    order the collection by `rec_7f3…` while the cells show names
+   *    (objectstack#4256 settled that no relation join is coming);
+   *  - a `formula` column has no materialised column to order by at all —
+   *    silently unordered rows under a `200` before objectstack#6994, a
+   *    `400 INVALID_SORT` after it.
+   *
+   * This is the rule the sort-button row already applied; the headers inherit it
+   * rather than re-opening the same door.
+   *
+   * In client mode the sort keys off the value the cell shows — the resolved
+   * label, the hydrated formula result — so those headers stay live: the same
+   * split `sortedData` makes.
    */
   const sortableColumns = React.useMemo(() => {
     if (!windowed) return effectiveColumns;
     return effectiveColumns.map((col: any) => {
       const field = col.accessorKey || columnIdentity(col);
-      return field && isExpandableFieldType((objectSchema?.fields as any)?.[field])
+      const fieldDef = field ? (objectSchema?.fields as any)?.[field] : undefined;
+      return isExpandableFieldType(fieldDef) || isUnmaterializedFieldType(fieldDef)
         ? { ...col, sortable: false }
         : col;
     });
@@ -1306,11 +1315,15 @@ export const RelatedList: React.FC<RelatedListProps> = ({
               // A windowed sort goes out as a server `$orderby` on the flat
               // field name, so a relational column would order the collection by
               // its stored foreign-key id while the cells show related-record
-              // names — sorting looks broken (objectui#3096). No button rather
-              // than a button that sorts by something invisible. The client-mode
-              // branch keeps its button: there the sort key is the resolved
-              // label (see `sortedData`).
-              if (windowed && isExpandableFieldType((objectSchema?.fields as any)?.[field])) {
+              // names — sorting looks broken (objectui#3096) — and a `formula`
+              // column has no materialised column to order by at all, which the
+              // platform now refuses outright (objectstack#6994, objectui#3950).
+              // No button rather than a button that sorts by something invisible
+              // or that cannot be answered. The client-mode branch keeps its
+              // button: there the sort key is the value the cell shows (see
+              // `sortedData`).
+              const fieldDef = (objectSchema?.fields as any)?.[field];
+              if (windowed && (isExpandableFieldType(fieldDef) || isUnmaterializedFieldType(fieldDef))) {
                 return null;
               }
               const label = col.header || col.label || field;

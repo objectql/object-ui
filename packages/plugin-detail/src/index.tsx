@@ -555,8 +555,15 @@ ComponentRegistry.register('alert', RecordAlertRenderer, {
   icon: 'AlertTriangle',
   inputs: [
     { name: 'severity', type: 'enum', label: 'Severity', enum: ['info', 'warning', 'error', 'success'], defaultValue: 'info' },
-    { name: 'title', type: 'string', label: 'Title', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
-    { name: 'body', type: 'string', label: 'Body', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    // Two arms each (objectui#3832). Unlike the `page:*` specimens these two
+    // have no props schema to measure against — `ComponentPropsMap` carries no
+    // `record:alert` entry at rc.6 — so the second arm is justified by the
+    // RENDERER: `renderers/record-alert.tsx` resolves both through
+    // `pickLocalized`, which is exactly what these descriptions teach. Declaring
+    // the map arm therefore adds no shape the block does not already honour; it
+    // stops the manifest gate warning `type-mismatch` on the recommended write.
+    { name: 'title', type: ['string', 'object'], label: 'Title', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    { name: 'body', type: ['string', 'object'], label: 'Body', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
     { name: 'visible', type: 'string', label: 'Visible When', description: 'Expression gating the banner against the current record' },
     { name: 'icon', type: 'string', label: 'Icon', description: 'Lucide icon name; defaults to the severity icon' },
     { name: 'action', type: 'object', label: 'Call to Action', description: '{ actionName, label?, variant? } — the action the banner offers' },

@@ -1,0 +1,597 @@
+import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import {
+  NOT_A_GATE,
+  main,
+  OPTIONAL_CONTEXTS,
+  REQUIRED_CONTEXTS,
+  evaluateGate,
+  latestByName,
+  renderVerdict,
+  waitForGate,
+} from '../dependabot-merge-gate.mjs';
+
+/**
+ * objectui#4973 — `dependabot-auto-merge.yml` merged a pull request 8m20s before
+ * its own test shard reported `failure`.
+ *
+ * `gh pr merge --auto --squash` was run unconditionally for every semver-patch
+ * and semver-minor bump. `--auto` lands the merge the moment GitHub considers
+ * the pull request mergeable — the moment the BRANCH-PROTECTION required set is
+ * satisfied — which is a different set from "the checks this repository runs".
+ * On 2026-08-17 #4959 (`lucide-react` 1.29.0 -> 1.31.0) was red on its own head
+ * SHA `31745d8b` and merged anyway; `main` went red for every parallel agent and
+ * #4968 had to repair it. It was the second time in seven days (#4098 was the
+ * same test and the same dependency).
+ *
+ * ## Why the #4959 timeline is a FIXTURE here
+ *
+ * A workflow cannot be executed locally, so the usual way to argue about one is
+ * a prose walkthrough in the pull-request body — which proves nothing later.
+ * The decision therefore lives in `scripts/dependabot-merge-gate.mjs`, and the
+ * measured check-run timeline of the incident lives below, so the central claim
+ * of the fix is an assertion instead of a paragraph:
+ *
+ *   at 08:13:36Z, the second the old workflow merged #4959, this gate says
+ *   `pending` -> nothing is merged;
+ *   at 08:21:01Z, when shard 3/4 reports, it says `red` -> nothing is merged.
+ *
+ * Every field in `INCIDENT_4959` is copied from the check runs GitHub still has
+ * for that SHA (19 runs; `started_at` / `completed_at` / `conclusion` verbatim).
+ * `snapshotAt()` reconstructs what the API would have returned at any instant,
+ * the same way the gate reads it.
+ *
+ * ## The other half: the buckets have to stay honest
+ *
+ * A declared required set is a second source of truth about which checks exist,
+ * and the failure mode of a stale one is silence — a renamed job simply stops
+ * being waited for, and the gate goes green a little earlier every time. So the
+ * three buckets are asserted to PARTITION the set of check names that
+ * `pull_request`-triggered workflows actually produce: nothing produced may be
+ * unclassified, nothing classified may be unproduced. That is the assertion a
+ * new `ci.yml` job or a renamed shard trips.
+ *
+ * The buckets' *reasons* are pinned too, not just their membership: every
+ * required context must come from a workflow whose `pull_request` trigger has no
+ * path filter (the #3523 rule — only an unfiltered gate reports on every pull
+ * request and can therefore be waited for), and every optional context must come
+ * from one that has such a filter (which is the entire reason it cannot be
+ * required). Move a filter and the bucket, not just the comment, goes red.
+ */
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(here, '..', '..');
+const workflowDir = path.join(repoRoot, '.github', 'workflows');
+
+// ── The incident, as GitHub recorded it ──────────────────────────────────────
+// PR #4959, head SHA 31745d8b6805dc829c05660a9592e92ca537bc3b, merged by
+// github-actions[bot] at 2026-08-17T08:13:36Z.
+const MERGED_AT = '2026-08-17T08:13:36Z';
+
+const INCIDENT_4959 = [
+  { name: 'Test (coverage)', started: '08:13:05Z', completed: '08:13:05Z', conclusion: 'skipped' },
+  { name: 'Skill Guide Path Check', started: '08:13:07Z', completed: '08:13:17Z', conclusion: 'success' },
+  { name: 'Test (shard 2/4)', started: '08:13:07Z', completed: '08:22:08Z', conclusion: 'success' },
+  { name: 'Test (shard 4/4)', started: '08:13:07Z', completed: '08:18:55Z', conclusion: 'success' },
+  { name: 'Bundle Analysis', started: '08:13:07Z', completed: '08:17:12Z', conclusion: 'success' },
+  { name: 'Test (shard 3/4)', started: '08:13:07Z', completed: '08:21:01Z', conclusion: 'failure' },
+  { name: 'Build & E2E', started: '08:13:07Z', completed: '08:16:51Z', conclusion: 'success' },
+  { name: 'Test (shard 1/4)', started: '08:13:07Z', completed: '08:21:56Z', conclusion: 'failure' },
+  { name: 'Changeset Fixed Group Check', started: '08:13:08Z', completed: '08:13:16Z', conclusion: 'success' },
+  { name: 'Type Check', started: '08:13:07Z', completed: '08:22:33Z', conclusion: 'success' },
+  { name: 'Live E2E (informational)', started: '08:13:07Z', completed: '08:15:13Z', conclusion: 'success' },
+  { name: 'Build Docs', started: '08:13:08Z', completed: '08:18:46Z', conclusion: 'success' },
+  { name: 'Control Byte Scan', started: '08:13:07Z', completed: '08:13:17Z', conclusion: 'success' },
+  { name: 'Internal Docs Link Check', started: '08:13:07Z', completed: '08:13:13Z', conclusion: 'success' },
+  { name: 'Changeset Declaration', started: '08:13:07Z', completed: '08:13:18Z', conclusion: 'success' },
+  { name: 'Lint', started: '08:13:07Z', completed: '08:17:13Z', conclusion: 'success' },
+  { name: 'Doc Component Type Check', started: '08:13:07Z', completed: '08:13:15Z', conclusion: 'success' },
+  { name: 'dependabot', started: '08:13:07Z', completed: '08:13:30Z', conclusion: 'success' },
+  { name: 'label', started: '08:13:07Z', completed: '08:13:15Z', conclusion: 'success' },
+] as const;
+
+const at = (hms: string) => Date.parse(`2026-08-17T${hms}`);
+
+/** What `GET /commits/{sha}/check-runs` would have returned at one instant. */
+function snapshotAt(instant: string) {
+  const t = Date.parse(instant);
+  return INCIDENT_4959.map((run, index) => {
+    const id = 95_325_240_000 + index;
+    if (at(run.completed) <= t) return { id, name: run.name, status: 'completed', conclusion: run.conclusion };
+    if (at(run.started) <= t) return { id, name: run.name, status: 'in_progress', conclusion: null };
+    return { id, name: run.name, status: 'queued', conclusion: null };
+  });
+}
+
+/** The same 19 names, all green — the shape the gate is allowed to merge. */
+function allGreenSnapshot() {
+  return INCIDENT_4959.map((run, index) => ({
+    id: 95_325_240_000 + index,
+    name: run.name,
+    status: 'completed',
+    conclusion: run.name === 'Test (coverage)' ? 'skipped' : 'success',
+  }));
+}
+
+describe('the #4959 counterfactual: this gate stops the merge that happened', () => {
+  it('is PENDING at 08:13:36Z — the instant the old workflow merged #4959', () => {
+    const result = evaluateGate({ checkRuns: snapshotAt(MERGED_AT) });
+
+    expect(result.verdict).toBe('pending');
+    // Nothing is merged on `pending`; the workflow's merge step is behind
+    // `gate == 'green'` and nothing else.
+    expect(result.verdict).not.toBe('green');
+
+    // Nine contexts were still running when the merge landed: these eight
+    // required ones plus `Bundle Analysis`, which is optional-if-present and was
+    // also in flight. The exact count is asserted so a fixture edit cannot
+    // quietly weaken the case.
+    expect(result.pending).toHaveLength(9);
+    expect(result.pending).toContain('Bundle Analysis (in_progress)');
+    expect(result.pending).toEqual(
+      expect.arrayContaining([
+        'Type Check (in_progress)',
+        'Test (shard 1/4) (in_progress)',
+        'Test (shard 2/4) (in_progress)',
+        'Test (shard 3/4) (in_progress)',
+        'Test (shard 4/4) (in_progress)',
+        'Build & E2E (in_progress)',
+        'Build Docs (in_progress)',
+        'Lint (in_progress)',
+      ]),
+    );
+
+    // And nothing had failed YET. This is why no configuration that only looks
+    // at *reported* checks could have caught it, and why the fix has to be a
+    // wait rather than a stricter reading of what had already reported.
+    expect(result.failing).toEqual([]);
+    for (const run of snapshotAt(MERGED_AT)) {
+      if (run.status === 'completed') expect(['success', 'skipped']).toContain(run.conclusion);
+    }
+  });
+
+  it('turns RED the moment shard 3/4 reports, 5m25s after the old merge', () => {
+    const result = evaluateGate({ checkRuns: snapshotAt('2026-08-17T08:21:01Z') });
+
+    expect(result.verdict).toBe('red');
+    expect(result.failing).toContain('Test (shard 3/4) (failure)');
+  });
+
+  it('names both failing shards once the run has finished', () => {
+    const result = evaluateGate({ checkRuns: snapshotAt('2026-08-17T08:22:33Z') });
+
+    expect(result.verdict).toBe('red');
+    expect(result.failing.sort()).toEqual(['Test (shard 1/4) (failure)', 'Test (shard 3/4) (failure)']);
+    // Shards 2 and 4 passed. A gate that waited for "Test" as one name, or for
+    // whichever shard reported first, would have merged this pull request.
+    expect(result.failing.join()).not.toContain('shard 2/4');
+    expect(result.failing.join()).not.toContain('shard 4/4');
+  });
+
+  it('is green on the same 19 contexts when they all pass', () => {
+    const result = evaluateGate({ checkRuns: allGreenSnapshot() });
+
+    expect(result).toEqual({ verdict: 'green', failing: [], pending: [], missing: [] });
+  });
+
+  it('classifies every context the incident produced — no unknown name is ignored', () => {
+    const classified = new Set([
+      ...REQUIRED_CONTEXTS,
+      ...Object.keys(OPTIONAL_CONTEXTS),
+      ...Object.keys(NOT_A_GATE),
+    ]);
+
+    for (const run of INCIDENT_4959) expect(classified).toContain(run.name);
+  });
+});
+
+describe('absence is never green (#3523 in mirror image)', () => {
+  it('waits for a required context that has not reported at all', () => {
+    const runs = allGreenSnapshot().filter((run) => run.name !== 'Test (shard 1/4)');
+    const result = evaluateGate({ checkRuns: runs });
+
+    expect(result.verdict).toBe('pending');
+    expect(result.missing).toEqual(['Test (shard 1/4)']);
+  });
+
+  it('refuses a required context that reported `skipped`', () => {
+    const runs = allGreenSnapshot().map((run) =>
+      run.name === 'Control Byte Scan' ? { ...run, conclusion: 'skipped' } : run,
+    );
+    const result = evaluateGate({ checkRuns: runs });
+
+    expect(result.verdict).toBe('red');
+    expect(result.failing).toEqual(['Control Byte Scan (skipped)']);
+  });
+
+  it('refuses `cancelled` and `timed_out` as well as `failure`', () => {
+    for (const conclusion of ['cancelled', 'timed_out', 'action_required', 'neutral', 'stale']) {
+      const runs = allGreenSnapshot().map((run) => (run.name === 'Lint' ? { ...run, conclusion } : run));
+      expect(evaluateGate({ checkRuns: runs }).verdict).toBe('red');
+    }
+  });
+
+  it('reads the newest run per name, so a re-run in flight is not green', () => {
+    const runs = [
+      ...allGreenSnapshot(),
+      { id: 99_999_999_999, name: 'Type Check', status: 'queued', conclusion: null },
+    ];
+
+    expect(latestByName(runs).get('Type Check')?.status).toBe('queued');
+    expect(evaluateGate({ checkRuns: runs }).verdict).toBe('pending');
+  });
+
+  it('holds an empty check-run list at pending, never at green', () => {
+    const result = evaluateGate({ checkRuns: [] });
+
+    expect(result.verdict).toBe('pending');
+    expect(result.missing).toEqual([...REQUIRED_CONTEXTS]);
+  });
+});
+
+describe('the path-filtered blocking checks (optional bucket)', () => {
+  it('ignores one that did not report — its trigger filtered it out', () => {
+    const runs = allGreenSnapshot().filter((run) => run.name !== 'Bundle Analysis');
+
+    expect(evaluateGate({ checkRuns: runs }).verdict).toBe('green');
+  });
+
+  it('refuses one that reported `failure`', () => {
+    const runs = allGreenSnapshot().map((run) =>
+      run.name === 'Bundle Analysis' ? { ...run, conclusion: 'failure' } : run,
+    );
+    const result = evaluateGate({ checkRuns: runs });
+
+    expect(result.verdict).toBe('red');
+    expect(result.failing).toEqual(['Bundle Analysis (failure)']);
+  });
+
+  it('waits for one that is present but still running', () => {
+    const runs = allGreenSnapshot().map((run) =>
+      run.name === 'Bundle Analysis' ? { ...run, status: 'in_progress', conclusion: null } : run,
+    );
+
+    expect(evaluateGate({ checkRuns: runs }).verdict).toBe('pending');
+  });
+});
+
+describe('waitForGate: the deadline fails closed', () => {
+  const fakeClock = () => {
+    let nowMs = 0;
+    return {
+      now: () => nowMs,
+      sleep: async (ms: number) => {
+        nowMs += ms;
+      },
+    };
+  };
+
+  it('polls until the verdict is decided, then returns it', async () => {
+    const clock = fakeClock();
+    const timeline = [snapshotAt(MERGED_AT), snapshotAt('2026-08-17T08:18:55Z'), allGreenSnapshot()];
+    let call = 0;
+
+    const result = await waitForGate({
+      api: { listCheckRuns: async () => timeline[Math.min(call++, timeline.length - 1)] },
+      sha: 'deadbeef',
+      timeoutMs: 60_000,
+      intervalMs: 1_000,
+      now: clock.now,
+      sleep: clock.sleep,
+    });
+
+    expect(result.verdict).toBe('green');
+    expect(result.polls).toBe(3);
+    expect(result.timedOut).toBe(false);
+  });
+
+  it('stops at the first red without waiting for the rest of the matrix', async () => {
+    const clock = fakeClock();
+    const result = await waitForGate({
+      api: { listCheckRuns: async () => snapshotAt('2026-08-17T08:21:01Z') },
+      sha: 'deadbeef',
+      timeoutMs: 60_000,
+      intervalMs: 1_000,
+      now: clock.now,
+      sleep: clock.sleep,
+    });
+
+    expect(result.verdict).toBe('red');
+    expect(result.polls).toBe(1);
+    expect(result.failing).toContain('Test (shard 3/4) (failure)');
+  });
+
+  it('turns an undecided gate RED at the deadline — a timeout is not a pass', async () => {
+    const clock = fakeClock();
+    const result = await waitForGate({
+      // A context that never reports: the shape a renamed job produces.
+      api: { listCheckRuns: async () => allGreenSnapshot().filter((r) => r.name !== 'Type Check') },
+      sha: 'deadbeef',
+      timeoutMs: 10_000,
+      intervalMs: 1_000,
+      now: clock.now,
+      sleep: clock.sleep,
+    });
+
+    expect(result.verdict).toBe('red');
+    expect(result.timedOut).toBe(true);
+    expect(result.missing).toEqual(['Type Check']);
+  });
+
+  it('surfaces an API failure as a throw, so the job fails and nothing merges', async () => {
+    await expect(
+      waitForGate({
+        api: {
+          listCheckRuns: async () => {
+            throw new Error('GET /repos/o/r/commits/sha/check-runs -> HTTP 403');
+          },
+        },
+        sha: 'deadbeef',
+      }),
+    ).rejects.toThrow('HTTP 403');
+  });
+});
+
+describe('main(): a misconfigured deadline fails loudly, not silently', () => {
+  const greenApi = { listCheckRuns: async () => allGreenSnapshot() };
+  const baseEnv = { HEAD_SHA: 'deadbeef', GATE_REPORT_FILE: '/dev/null' };
+
+  it('rejects a non-numeric timeout instead of polling forever', async () => {
+    await expect(
+      main({ api: greenApi, env: { ...baseEnv, GATE_TIMEOUT_SECONDS: '40 minutes' } }),
+    ).rejects.toThrow('GATE_TIMEOUT_SECONDS must be a positive number of seconds');
+  });
+
+  it('rejects a zero or negative interval', async () => {
+    await expect(
+      main({ api: greenApi, env: { ...baseEnv, GATE_INTERVAL_SECONDS: '0' } }),
+    ).rejects.toThrow('GATE_INTERVAL_SECONDS must be a positive number of seconds');
+  });
+
+  it('refuses to run without being told which SHA it is judging', async () => {
+    await expect(main({ api: greenApi, env: { GATE_REPORT_FILE: '/dev/null' } })).rejects.toThrow('HEAD_SHA');
+  });
+});
+
+describe('the refusal is legible', () => {
+  it('says nothing was merged, and names what refused', () => {
+    const body = renderVerdict({
+      ...evaluateGate({ checkRuns: snapshotAt('2026-08-17T08:22:33Z') }),
+      sha: '31745d8b6805dc829c05660a9592e92ca537bc3b',
+      elapsedMs: 540_000,
+    });
+
+    expect(body).toContain('NOT merged');
+    expect(body).toContain('31745d8');
+    expect(body).toContain('Test (shard 1/4) (failure)');
+    expect(body).toContain('Test (shard 3/4) (failure)');
+  });
+
+  it('distinguishes a deadline from a failure', () => {
+    const body = renderVerdict({
+      verdict: 'red',
+      failing: [],
+      pending: ['Type Check (in_progress)'],
+      missing: [],
+      timedOut: true,
+      sha: 'deadbeef',
+    });
+
+    expect(body).toContain('deadline');
+    expect(body).toContain('Type Check (in_progress)');
+  });
+});
+
+// ── The buckets versus the workflows that actually produce the checks ────────
+
+type Workflow = {
+  file: string;
+  text: string;
+  /** Lines with comments stripped, so prose mentioning `pull_request:` cannot count. */
+  lines: string[];
+};
+
+function readWorkflows(): Workflow[] {
+  return fs
+    .readdirSync(workflowDir)
+    .filter((file) => file.endsWith('.yml') || file.endsWith('.yaml'))
+    .map((file) => {
+      const text = fs.readFileSync(path.join(workflowDir, file), 'utf8');
+      return { file, text, lines: text.split('\n').filter((line) => !/^\s*#/.test(line)) };
+    });
+}
+
+/** The `on:` block of a workflow, comment lines already stripped. */
+function triggerBlock(workflow: Workflow): string[] {
+  const start = workflow.lines.findIndex((line) => /^on:/.test(line));
+  if (start === -1) return [];
+  const rest = workflow.lines.slice(start + 1);
+  const end = rest.findIndex((line) => /^[A-Za-z]/.test(line));
+  return end === -1 ? rest : rest.slice(0, end);
+}
+
+/**
+ * Does this workflow subscribe `pull_request`, and does that subscription carry
+ * a path filter? `pull_request_target` deliberately does not count:
+ * `cross-repo-issue-closer.yml` uses it with `types: [closed]`, so it acts after
+ * a merge and has no verdict to contribute to one.
+ */
+function pullRequestTrigger(workflow: Workflow): { subscribes: boolean; filtered: boolean } {
+  const block = triggerBlock(workflow);
+  const start = block.findIndex((line) => /^ {2}pull_request:\s*$/.test(line));
+  if (start === -1) return { subscribes: false, filtered: false };
+
+  const rest = block.slice(start + 1);
+  const end = rest.findIndex((line) => /^ {2}\S/.test(line));
+  const sub = end === -1 ? rest : rest.slice(0, end);
+  return { subscribes: true, filtered: sub.some((line) => /^ {4}paths(-ignore)?:/.test(line)) };
+}
+
+/**
+ * The check names a workflow's jobs appear under. A job's `name:` if it has one,
+ * else its id (`labeler.yml`'s job is simply `label`), with `matrix.shard`
+ * expanded. Every job of a subscribing workflow produces a check run on a pull
+ * request — including one skipped by a job-level `if:`, which reports
+ * `conclusion=skipped` rather than not existing.
+ */
+function checkNames(workflow: Workflow): string[] {
+  const jobsAt = workflow.lines.findIndex((line) => /^jobs:\s*$/.test(line));
+  if (jobsAt === -1) return [];
+  const body = workflow.lines.slice(jobsAt + 1);
+
+  const starts: number[] = [];
+  body.forEach((line, index) => {
+    if (/^ {2}[A-Za-z0-9_-]+:\s*$/.test(line)) starts.push(index);
+  });
+
+  return starts.flatMap((start, i) => {
+    const block = body.slice(start, starts[i + 1] ?? body.length);
+    const id = block[0].trim().replace(/:$/, '');
+    const named = block.find((line) => /^ {4}name:/.test(line));
+    const name = named ? named.replace(/^ {4}name:\s*/, '').trim() : id;
+
+    const shards = block.find((line) => /^ {8}shard: \[/.test(line));
+    if (!shards || !name.includes('matrix.shard')) return [name];
+
+    return (shards.match(/\[(.*)\]/)?.[1] ?? '')
+      .split(',')
+      .map((shard) => shard.trim())
+      .filter(Boolean)
+      .map((shard) => name.replace(/\$\{\{\s*matrix\.shard\s*\}\}/g, shard));
+  });
+}
+
+describe('the declared buckets partition what a pull request actually produces', () => {
+  const workflows = readWorkflows().filter((workflow) => pullRequestTrigger(workflow).subscribes);
+
+  const produced = new Map<string, string>();
+  for (const workflow of workflows) {
+    for (const name of checkNames(workflow)) produced.set(name, workflow.file);
+  }
+
+  it('found the workflows and the shard matrix (the parser still parses)', () => {
+    expect(workflows.map((w) => w.file)).toContain('ci.yml');
+    expect([...produced.keys()]).toEqual(
+      expect.arrayContaining(['Test (shard 1/4)', 'Test (shard 4/4)', 'Lint', 'dependabot', 'label']),
+    );
+    // No unexpanded template survived the matrix expansion.
+    for (const name of produced.keys()) expect(name).not.toContain('${{');
+  });
+
+  it('classifies every produced check exactly once', () => {
+    const buckets = [
+      ...REQUIRED_CONTEXTS.map((name) => [name, 'required'] as const),
+      ...Object.keys(OPTIONAL_CONTEXTS).map((name) => [name, 'optional'] as const),
+      ...Object.keys(NOT_A_GATE).map((name) => [name, 'not-a-gate'] as const),
+    ];
+
+    const seen = new Map<string, string>();
+    const duplicated: string[] = [];
+    for (const [name, bucket] of buckets) {
+      if (seen.has(name)) duplicated.push(`${name} (${seen.get(name)} + ${bucket})`);
+      seen.set(name, bucket);
+    }
+    expect(duplicated).toEqual([]);
+
+    const unclassified = [...produced.keys()].filter((name) => !seen.has(name));
+    expect(
+      unclassified,
+      `these checks run on every pull request but the gate does not classify them: ${unclassified.join(', ')}`,
+    ).toEqual([]);
+
+    const unproduced = [...seen.keys()].filter((name) => !produced.has(name));
+    expect(
+      unproduced,
+      `the gate names checks that no pull-request workflow produces (renamed or deleted?): ${unproduced.join(', ')}`,
+    ).toEqual([]);
+  });
+
+  it('requires only contexts whose workflow carries NO path filter', () => {
+    const filtered = new Map(
+      readWorkflows().map((workflow) => [workflow.file, pullRequestTrigger(workflow).filtered]),
+    );
+
+    for (const name of REQUIRED_CONTEXTS) {
+      const file = produced.get(name);
+      expect(file, `${name} is required but nothing produces it`).toBeTruthy();
+      expect(
+        filtered.get(file as string),
+        `${name} is required, but ${file} filters its pull_request trigger by path — it cannot be waited for on every PR (#3523)`,
+      ).toBe(false);
+    }
+  });
+
+  it('marks optional exactly those blocking contexts whose workflow IS path-filtered', () => {
+    for (const name of Object.keys(OPTIONAL_CONTEXTS)) {
+      const file = produced.get(name);
+      expect(pullRequestTrigger(readWorkflows().find((w) => w.file === file) as Workflow).filtered).toBe(true);
+    }
+  });
+
+  it('writes down the check-runs-only boundary, so the scope is not inferred from the endpoint', () => {
+    // A third-party commit STATUS (this repository has one: `Vercel`) is not a
+    // check run and is not read by the gate. That boundary has to be stated
+    // rather than left to whoever next wonders why a red status did not block.
+    const script = fs.readFileSync(path.join(repoRoot, 'scripts', 'dependabot-merge-gate.mjs'), 'utf8');
+
+    expect(script).toMatch(/commit STATUS/i);
+    expect(script).toContain('Vercel');
+  });
+
+  it('states a reason for every context it declines to gate on', () => {
+    for (const [name, reason] of Object.entries({ ...OPTIONAL_CONTEXTS, ...NOT_A_GATE })) {
+      expect(reason.length, `${name} needs a reason, not just an entry`).toBeGreaterThan(40);
+    }
+  });
+});
+
+describe('the workflow cannot merge without consulting the gate', () => {
+  const workflow = fs.readFileSync(path.join(workflowDir, 'dependabot-auto-merge.yml'), 'utf8');
+  const steps = workflow.split(/^ {6}- name: /m).slice(1);
+
+  it('has no `gh pr merge` that is not behind a green gate', () => {
+    const merging = steps.filter((step) => /gh pr merge/.test(step));
+
+    expect(merging.length).toBeGreaterThan(0);
+    for (const step of merging) {
+      expect(step, 'a `gh pr merge` step must be conditioned on the gate verdict').toMatch(
+        /if:\s*steps\.gate\.outputs\.gate == 'green'/,
+      );
+    }
+  });
+
+  it('does not approve before the gate is green either', () => {
+    for (const step of steps.filter((step) => /gh pr review --approve/.test(step))) {
+      expect(step).toMatch(/if:\s*steps\.gate\.outputs\.gate == 'green'/);
+    }
+  });
+
+  it('runs the gate script and tells it which SHA to judge', () => {
+    expect(workflow).toContain('node scripts/dependabot-merge-gate.mjs');
+    expect(workflow).toMatch(/HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha }}/);
+    // Pins the merge to the judged SHA: a push that lands during the wait must
+    // not be enqueued on the strength of the previous commit's checks.
+    expect(workflow).toContain('--match-head-commit');
+  });
+
+  it('grants `checks: read`, without which the gate 403s', () => {
+    expect(workflow).toMatch(/^\s*checks: read$/m);
+  });
+
+  it('fails the job when the gate refuses, so the PR carries a red check', () => {
+    expect(workflow).toMatch(/steps\.gate\.outputs\.gate != 'green'/);
+  });
+
+  it('keeps the semver policy the issue did not ask to change', () => {
+    expect(workflow).toContain('version-update:semver-patch');
+    expect(workflow).toContain('version-update:semver-minor');
+    expect(workflow).toMatch(/steps\.metadata\.outputs\.update-type == 'version-update:semver-major'/);
+  });
+
+  it('keeps the lockfile merge driver `ci-cd-pipeline.md` pins it for', () => {
+    expect(workflow).toContain('merge.pnpm-merge.driver');
+  });
+});

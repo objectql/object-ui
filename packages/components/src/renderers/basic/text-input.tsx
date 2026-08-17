@@ -154,17 +154,19 @@ ComponentRegistry.register('text_input', ElementTextInputRenderer, {
     },
     {
       name: 'defaultValue',
-      // The spec's type is the union `string | number`, which `ComponentInput`
-      // has no way to spell — its `type` is one coarse control kind. `'string'`
-      // is the arm chosen here (a text input's ordinary case, and the DOM value
-      // is `String(...)`-coerced anyway) and the number arm is named in the
-      // description, following the same call made for the inline-translation
-      // shapes on `page:header.title` / `record:alert.title`. It is a real
-      // narrowing, not a free choice: `sdui-parser`'s `checkType` warns
-      // `type-mismatch` on `defaultValue={42}`, a value the spec accepts. The
-      // limit is `ComponentInput`'s, tracked separately — it is the union twin
-      // of the member-shape limit PR #3795 left open.
-      type: 'string',
+      // BOTH arms of the spec's union, declared (objectui#3832).
+      // `ElementTextInputPropsSchema.defaultValue` accepts `string | number` —
+      // measured in this block's spec-parity test — and until `ComponentInput`
+      // learned to carry more than one coarse kind, this entry had to pick one.
+      // It picked `'string'` and named the number arm in the description, which
+      // left the manifest gate warning `type-mismatch` on `defaultValue={42}`:
+      // a value the spec accepts, the renderer honours (the DOM value is
+      // `String(...)`-coerced anyway) and an author writing a numeric field
+      // reaches for first. Both arms are now declared, so the gate agrees with
+      // the contract. No `'object'` arm here — unlike its inline-translation
+      // neighbours the spec REJECTS a map on this key (measured), and the
+      // arms exist to match the contract, not to relax the gate.
+      type: ['string', 'number'],
       label: 'Default Value',
       // Description taken from what the renderer DOES with the key (the seeding
       // effect above, and the native `defaultValue` pass-through at the

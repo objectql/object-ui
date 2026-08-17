@@ -52,6 +52,7 @@ export {
 export {
   BaseSchema,
   SchemaNodeSchema,
+  ComponentInputControlTypeSchema,
   ComponentInputSchema,
   ComponentMetaSchema,
   ComponentConfigSchema,

@@ -332,6 +332,16 @@ function inRepoRangesOf(name: string): Record<string, string[]> {
  * objectui#3852 migrated that pipeline — so Tailwind anchors to this repo like
  * everything else. See `keeps the generated Tailwind pipeline v4 end to end`
  * below for what replaced the ledger.
+ *
+ * TWO RULES READ THIS MAP, and they are complements — stated together here
+ * because they live in separate `it`s below, where neither is visible from the
+ * other (objectui#4974): the range rule judges ONLY the names listed here, and
+ * the completeness rule requires the union of the three generated dependency
+ * maps to equal this key set exactly. So a dependency added to any generator
+ * without an entry here is not silently unjudged — it fails `keeps all three
+ * generated dependency maps under one anchor table`, and entering it here is
+ * what puts its range under the anchor gate at all. Add the dependency and its
+ * anchor in the same change.
  */
 const DEPENDENCY_ANCHORS: Record<string, 'root' | 'in-repo' | 'cli-version'> = {
   '@object-ui/components': 'cli-version',
@@ -536,44 +546,74 @@ describe('generated app manifests', () => {
     const plain = allRangesOf(buildAppPackageJson(STANDALONE));
     const init = allRangesOf(buildInitPackageJson('sample-app'));
     const cliVersion = readManifest(CLI_MANIFEST_PATH).version as string;
+    /**
+     * Every manifest that declares the name, so all of them are judged rather
+     * than just the first — one generator anchored and another fossilised is
+     * exactly the state objectui#3892 found, and reading `routed ?? plain ??
+     * init` would have reported it green.
+     */
+    const declaredBy = (name: string) => ({
+      routed: routed[name],
+      plain: plain[name],
+      init: init[name]
+    });
 
+    // Pass 1 — the PRECONDITIONS, which are facts about THIS REPO rather than
+    // drift in a generated range: a name no generator declares at all, a `root`
+    // anchor the root manifest no longer carries, an in-repo split with no
+    // single range to quote. They keep throwing on the first failure, and they
+    // all run before any range is compared, so a broken precondition can never
+    // be reported as drift nor read as crosstalk beside one (objectui#4974).
+    // There is nothing to accumulate here either: with the anchor unresolvable
+    // there is no expectation to compare a generated range against.
+    const expectedRanges: Record<string, { range: string; source: string }> = {};
     for (const [name, anchor] of Object.entries(DEPENDENCY_ANCHORS)) {
-      // Every manifest that declares the name is judged, not just the first —
-      // one generator anchored and another fossilised is exactly the state
-      // objectui#3892 found, and reading `routed ?? plain ?? init` would have
-      // reported it green.
-      const declaredBy = { routed: routed[name], plain: plain[name], init: init[name] };
       expect(
-        Object.values(declaredBy).some((range) => range !== undefined),
+        Object.values(declaredBy(name)).some((range) => range !== undefined),
         `${name} must be declared by at least one generator`
       ).toBe(true);
 
-      for (const [generator, generated] of Object.entries(declaredBy)) {
-        if (generated === undefined) continue;
-        const where = `${generator} manifest's ${name}`;
+      if (anchor === 'cli-version') {
+        expectedRanges[name] = { range: `^${cliVersion}`, source: "this CLI's own version" };
+        continue;
+      }
 
-        if (anchor === 'cli-version') {
-          expect(generated, `${where} must track this CLI's own version`).toBe(`^${cliVersion}`);
-          continue;
-        }
+      if (anchor === 'root') {
+        const rootRange = rootRangeOf(name);
+        expect(rootRange, `${name} must exist in the root manifest`).toBeTruthy();
+        expectedRanges[name] = { range: rootRange as string, source: 'the repo root' };
+        continue;
+      }
 
-        if (anchor === 'root') {
-          const rootRange = rootRangeOf(name);
-          expect(rootRange, `${name} must exist in the root manifest`).toBeTruthy();
-          expect(generated, `${where} must match the repo root`).toBe(rootRange);
-          continue;
-        }
+      const byRange = inRepoRangesOf(name);
+      const ranges = Object.keys(byRange);
+      expect(ranges.length, `${name} must be declared in-repo to anchor to`).toBeGreaterThan(0);
+      expect(
+        ranges.sort(),
+        `in-repo manifests disagree on ${name}: ${JSON.stringify(byRange)} — settle on one range first`
+      ).toHaveLength(1);
+      expectedRanges[name] = { range: ranges[0], source: 'its in-repo range' };
+    }
 
-        const byRange = inRepoRangesOf(name);
-        const ranges = Object.keys(byRange);
-        expect(ranges.length, `${name} must be declared in-repo to anchor to`).toBeGreaterThan(0);
-        expect(
-          ranges.sort(),
-          `in-repo manifests disagree on ${name}: ${JSON.stringify(byRange)} — settle on one range first`
-        ).toHaveLength(1);
-        expect(generated, `${where} must match its in-repo range`).toBe(ranges[0]);
+    // Pass 2 — the DRIFT, accumulated and reported by a single assertion, which
+    // is what objectui#4974 is about. The per-name `expect` this replaced threw
+    // on the first mismatch, and the table is walked in insertion order, so
+    // which drift you were told about depended on a name's POSITION in the
+    // table rather than on anything about the defect: objectui#4098 had five
+    // bumps hidden behind the first, and objectui#4968 had six hidden behind
+    // `lucide-react` — measuring the real size of that batch needed a throwaway
+    // script, because the gate would only ever name one. One dependabot round
+    // moving several ranges is now one round of repair, and every line carries
+    // the generator, the name, the generated range and the range it must be, so
+    // the whole batch is fixable from one failure report.
+    const drifted: string[] = [];
+    for (const [name, { range, source }] of Object.entries(expectedRanges)) {
+      for (const [generator, generated] of Object.entries(declaredBy(name))) {
+        if (generated === undefined || generated === range) continue;
+        drifted.push(`${generator} manifest's ${name}: ${generated} must match ${source}, ${range}`);
       }
     }
+    expect(drifted).toEqual([]);
   });
 
   it('names every range the pre-fix init manifest had drifted on', () => {

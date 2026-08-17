@@ -249,10 +249,12 @@ ComponentRegistry.register('record_picker', ElementRecordPickerRenderer, {
       // here (a non-null non-array object) and rejects exactly what it rejects
       // (arrays, strings, numbers, booleans — all verified against
       // `ElementRecordPickerPropsSchema.safeParse` in the parity test next to
-      // this file). So this is the one case in the family where
-      // `ComponentInput`'s coarse typing costs nothing: no narrowing to name in
-      // the description, unlike `element:text_input.defaultValue`'s
-      // `string | number` (objectui#3832).
+      // this file). So this is the one case in the family where the coarse
+      // vocabulary lines up with the contract exactly as declared: one arm, no
+      // union to spell and nothing for the description to make up for. Contrast
+      // `element:text_input.defaultValue`, whose `string | number` needs two
+      // arms (objectui#3832), and `emptyText` below, which keeps one arm for a
+      // render-site reason rather than a type-system one.
       type: 'object',
       label: 'Filter',
       // Taken from what the renderer DOES with the key, because the one thing
@@ -297,13 +299,19 @@ ComponentRegistry.register('record_picker', ElementRecordPickerRenderer, {
     },
     {
       name: 'emptyText',
-      // A NARROWED type, named here for the objectui#3832 reason: the contract
-      // is `string | Record< string, string >` — rc.6 widened it to the same
-      // `I18nLabel` union it widened everywhere else — and `ComponentInput.type`
-      // is one coarse control kind with no way to spell a union. Publishing
-      // `'string'` therefore describes the form this renderer actually resolves,
-      // and the description carries the half the type cannot, which is the same
-      // treatment `element:text_input.defaultValue`'s `string | number` gets.
+      // A NARROWED type, and it STAYS narrow now that it need not be. The
+      // contract is `string | Record< string, string >` — rc.6 widened it to the
+      // same `I18nLabel` union it widened everywhere else — and since
+      // objectui#3832 this entry could spell that union. It deliberately does
+      // not: the reason for the narrowing was never the type's expressiveness,
+      // it is that THIS RENDERER passes the value straight into a text node with
+      // no locale resolution, so the map form does not render (objectui#4163).
+      // Declaring an arm the renderer drops would advertise a shape that never
+      // reaches the screen — the false-declaration defect this repo files
+      // separately — so `'string'` keeps describing what actually works, and the
+      // description below carries the gap. Contrast
+      // `element:text_input.defaultValue`, which DID widen: there both arms are
+      // honoured.
       type: 'string',
       label: 'Empty Text',
       description:

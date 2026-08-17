@@ -92,6 +92,10 @@ export type {
   SchemaNode,
   ComponentRendererProps,
   ComponentInput,
+  // The arm vocabulary of `ComponentInput.type`, exported because that field
+  // takes one arm OR an array of them (objectui#3832) and every declaration
+  // site and reader needs the set by name rather than re-spelling it.
+  ComponentInputControlType,
   ComponentMeta,
   ComponentConfig,
   HTMLAttributes,

@@ -1064,6 +1064,18 @@ if (invokedAsCli()) {
   });
 }
 
-// Exported for scripts/__tests__/shadcn-sync-fetch-cache.test.ts. The CLI is
-// the only production consumer; nothing else imports this module.
-export { fetchUrl, fetchRegistry, isRegistryEntry, cacheFileFor, cacheStats, bodySnippet, CACHE_TTL_MS };
+// Exported for scripts/__tests__/shadcn-sync-fetch-cache.test.ts and
+// scripts/__tests__/shadcn-local-patches.test.ts (OBJECTUI_HEADER, so the
+// round-trip assertion strips the header this script prepends rather than
+// keeping a second spelling of it). The CLI is the only production consumer;
+// nothing else imports this module.
+export {
+  fetchUrl,
+  fetchRegistry,
+  isRegistryEntry,
+  cacheFileFor,
+  cacheStats,
+  bodySnippet,
+  CACHE_TTL_MS,
+  OBJECTUI_HEADER,
+};

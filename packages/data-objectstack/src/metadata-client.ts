@@ -239,7 +239,14 @@ export interface MetadataDeleteOptions extends MetadataClientSaveOptions {
   state?: 'active' | 'draft';
 }
 
-/** Layered view of a metadata item — Phase 3a `?layers=true`. */
+/**
+ * Layered view of a metadata item — the body of
+ * `GET /meta/:type/:name/layers` (`GetMetaItemLayeredResponseSchema`).
+ *
+ * A subset by design: the response also carries `type` / `name`, which the
+ * caller already knows because it passed them in, so
+ * {@link MetadataClient.layered} does not hand them back.
+ */
 export interface MetadataLayered<T = unknown> {
   /** Code-level (artifact) item; null if the item only exists as an overlay. */
   code: T | null;
@@ -803,17 +810,49 @@ export class MetadataClient {
   }
 
   /**
-   * Get the 3-state layered view of a metadata item (Phase 3a). Returns
-   * `code` (the artifact / fallback default), `overlay` (the saved
-   * customisation, if any), and `effective` (what the runtime sees).
+   * Get the 3-state layered view of a metadata item: `code` (the packaged
+   * artifact baseline), `overlay` (the tenant customisation row alone) and
+   * `effective` (the merged value the runtime sees).
+   *
+   * Reads **`GET /meta/:type/:name/layers`** — the path the framework declares
+   * for this projection, with a response schema of its own
+   * (`GetMetaItemLayeredResponseSchema`, objectstack#5882 ruling B). It used to
+   * be reached by hanging a `layers` flag on the ordinary item read, which made
+   * one route answer two unrelated representations while `packages/spec`
+   * declared only one of them. That spelling still answers this same body
+   * inside its deprecation window (the response carries RFC 9745
+   * `Deprecation: true` and an RFC 8288 `Link: rel="successor-version"` back to
+   * this path) and is scheduled for removal upstream, so nothing here may
+   * depend on it — the repo-wide ratchet is
+   * `scripts/__tests__/layered-read-declared-path-4016.test.ts`.
+   *
+   * The request is built here rather than delegated to `@objectstack/client`
+   * because the SDK expresses no layered read in EITHER spelling: the
+   * framework's REST route ledger records this route as `server-only`,
+   * "consumed by objectui over plain HTTP", and whether the SDK should express
+   * it is an open upstream product call.
+   *
+   * One behaviour delta rides along with the path, and it is the server's
+   * choice rather than ours: the retired flag FELL THROUGH to the plain item
+   * read on a backend whose protocol implementation had no layered support,
+   * answering the `{ type, name, item }` envelope. A dedicated path refuses to
+   * answer a different resource under this one's declared shape, so it returns
+   * 501 `NOT_IMPLEMENTED` instead — which surfaces here as a thrown error
+   * rather than a view with `code` and `overlay` silently blank.
    */
   async layered<T = unknown>(
     type: string,
     name: string,
     options: { packageId?: string } = {},
   ): Promise<MetadataLayered<T>> {
-    const pkg = options.packageId ? `&package=${encodeURIComponent(options.packageId)}` : '';
-    const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}?layers=true${pkg}`;
+    // ADR-0048 — `?package=` scopes resolution to one installed package (the
+    // editor passes the edited item's owning package, not the Studio app's).
+    // It leads the query string now that the flag it used to trail is gone:
+    // keeping the `&` would have appended it to the last PATH segment
+    // (`…/layers&package=crm`), which matches no route — a 404 that this
+    // method turns into an empty-but-successful layered view.
+    const qs = options.packageId ? `?package=${encodeURIComponent(options.packageId)}` : '';
+    const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}/layers${qs}`;
     const res = await this.fetchImpl(url, { method: 'GET', headers: this.headers, cache: 'no-store' });
     if (res.status === 404) {
       return { code: null, overlay: null, overlayScope: null, effective: null };
@@ -822,6 +861,13 @@ export class MetadataClient {
     const body = (await res.json()) as MetadataLayered<T> & Record<string, unknown>;
     const hasEnvelope =
       body && (('code' in body) || ('overlay' in body) || ('effective' in body));
+    // Left standing, but no longer reachable from a conforming server: the only
+    // producer of a 200 body WITHOUT these keys was the retired flag's
+    // fall-through to the plain item read, and the declared path answers 501
+    // there. Kept out of this migration's scope on purpose — deleting it is a
+    // behaviour change for a non-conforming backend, not part of moving the
+    // request — and filed as objectui#4983 for removal once the upstream
+    // deprecation window closes.
     if (!hasEnvelope) {
       return {
         code: null,

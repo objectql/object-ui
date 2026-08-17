@@ -129,6 +129,14 @@ function inRepoPluginManifests(): Record<string, Manifest> {
  * Every key of the generated `devDependencies` must appear here — the
  * completeness test below fails on an unanchored addition, so this map cannot
  * quietly go back to covering a subset (objectui#3742).
+ *
+ * That completeness rule and the range rule are complements, stated together
+ * here because they live in separate `it`s below where neither is visible from
+ * the other (objectui#4974): the range rule judges ONLY the names listed here,
+ * so entering the table is what puts a new template devDependency under the
+ * anchor gate at all, and `anchors every devDependency range, leaving none
+ * unpinned` is what makes skipping the entry impossible rather than silent. Add
+ * the devDependency and its anchor in the same change.
  */
 const DEV_DEPENDENCY_ANCHORS: Record<string, 'root' | 'in-repo-plugins'> = {
   '@testing-library/jest-dom': 'root',
@@ -349,11 +357,20 @@ describe('generated package.json', () => {
     // this test exists to catch — update `src/templates.ts` in the same PR.
     const generated = generatedDevDependencies(VARS);
 
+    // Pass 1 — the PRECONDITIONS, which are facts about THIS REPO rather than
+    // drift in a generated range: a `root` anchor the root manifest no longer
+    // carries, an in-repo split with no single range to quote. They keep
+    // throwing on the first failure, and they all run before any range is
+    // compared, so a broken precondition can never be reported as drift nor
+    // read as crosstalk beside one (objectui#4974). Nothing to accumulate here
+    // either: with the anchor unresolvable there is no expectation to compare a
+    // generated range against.
+    const expectedRanges: Record<string, { range: string; source: string }> = {};
     for (const [name, anchor] of Object.entries(DEV_DEPENDENCY_ANCHORS)) {
       if (anchor === 'root') {
         const rootRange = rootRangeOf(name);
         expect(rootRange, `${name} must exist in the root manifest`).toBeTruthy();
-        expect(generated[name], `${name} range must match the repo root`).toBe(rootRange);
+        expectedRanges[name] = { range: rootRange as string, source: 'the repo root' };
         continue;
       }
 
@@ -367,8 +384,24 @@ describe('generated package.json', () => {
         ranges.sort(),
         `in-repo plugins disagree on ${name}: ${JSON.stringify(byRange)} — settle on one range first`
       ).toHaveLength(1);
-      expect(generated[name], `${name} range must match packages/plugin-*`).toBe(ranges[0]);
+      expectedRanges[name] = { range: ranges[0], source: 'its in-repo plugin range' };
     }
+
+    // Pass 2 — the DRIFT, accumulated and reported by a single assertion
+    // (objectui#4974). Per-name `expect` threw on the first mismatch, so a
+    // dependabot round moving several of these ranges was one round of repair
+    // PER NAME, and which name you were told about depended on its POSITION in
+    // the table. It cost this file directly: the testing-library range sat
+    // drifted on `main` while the sibling generator's table in `packages/cli`
+    // was still red, so nothing reported it until that one was green
+    // (objectui#4968). Each line carries the name, the generated range and the
+    // range it must be, so the whole batch is fixable from one failure report.
+    const drifted: string[] = [];
+    for (const [name, { range, source }] of Object.entries(expectedRanges)) {
+      if (generated[name] === range) continue;
+      drifted.push(`${name}: ${generated[name]} must match ${source}, ${range}`);
+    }
+    expect(drifted).toEqual([]);
   });
 
   it('keeps the two anchors consistent wherever both declare a dependency', () => {

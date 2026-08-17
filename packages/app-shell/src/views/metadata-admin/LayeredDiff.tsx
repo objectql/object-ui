@@ -12,7 +12,7 @@
  *   • Overlay   — pretty-printed JSON of just the deltas they've saved.
  *   • Effective — the merged value the runtime serves.
  *
- * Backed by `client.layered(type, name)` (Phase 3a `?layers=true`).
+ * Backed by `client.layered(type, name)`, i.e. `GET /meta/:type/:name/layers`.
  *
  * Diff scope: top-level keys only. Nested objects/arrays are compared by
  * JSON-stringify equality. Drilling into nested diffs is a future

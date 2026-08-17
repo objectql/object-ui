@@ -15,6 +15,11 @@ import {
   patchedComponents,
   describePatchFailure,
 } from '../shadcn-local-patches.mjs';
+// The licence header `updateComponent` prepends on write. Imported rather than
+// re-typed so the round-trip assertion below strips exactly what the sync adds;
+// importing the CLI module is safe (it only runs `main()` when it IS the
+// process entry point) and `shadcn-sync-fetch-cache.test.ts` already does it.
+import { OBJECTUI_HEADER } from '../shadcn-sync.js';
 
 /**
  * objectstack#5505 — the Shadcn `Sheet`/`Dialog` primitives shipped a hardcoded
@@ -82,6 +87,58 @@ const DialogContent = React.forwardRef((props, ref) => (
 ))
 `;
 
+/**
+ * What the registry serves for `slider`, after `rewriteRegistryImports` (so
+ * `@/lib/utils` already reads `../lib/utils`) — the exact input the patch engine
+ * sees during `--update`.
+ *
+ * Verbatim and complete, not an excerpt, and that is the whole point: this is
+ * the only offline statement of what upstream actually looks like, so the
+ * round-trip assertion below can hold it to the shipped primitive byte for
+ * byte. Transcribed from `https://ui.shadcn.com/r/styles/default/slider.json`,
+ * which shadcn-ui/ui checks in verbatim as
+ * `apps/v4/public/r/styles/default/slider.json` — read there at HEAD
+ * 8a7701ec27eb9cb8e0377db769fbe6d744113c52, where the sha256 of
+ * `files[0].content` is
+ * 48bd0ba32cc7f341ecca995374be73111da2f761694cfcf91dbf8d4d9e632c06.
+ *
+ * objectui#4976: the fixture this replaces was reverse-engineered from the
+ * LOCAL file instead, so it carried objectui's own hand-written accessible-name
+ * forwarding (commit a014bc00c) as though upstream had shipped it, and trimmed
+ * the rest to a sketch. The delivery patch was anchored on that invented line
+ * and could not match any real registry response — while this test stayed green,
+ * because the fixture agreed with the anchor rather than with upstream.
+ */
+const UPSTREAM_SLIDER = `"use client"
+
+import * as React from "react"
+import * as SliderPrimitive from "@radix-ui/react-slider"
+
+import { cn } from "../lib/utils"
+
+const Slider = React.forwardRef<
+  React.ElementRef<typeof SliderPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <SliderPrimitive.Root
+    ref={ref}
+    className={cn(
+      "relative flex w-full touch-none select-none items-center",
+      className
+    )}
+    {...props}
+  >
+    <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary">
+      <SliderPrimitive.Range className="absolute h-full bg-primary" />
+    </SliderPrimitive.Track>
+    <SliderPrimitive.Thumb className="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50" />
+  </SliderPrimitive.Root>
+))
+Slider.displayName = SliderPrimitive.Root.displayName
+
+export { Slider }
+`;
+
 describe('shadcn local patches — application to fresh upstream (objectstack#5505)', () => {
   it.each(closeLabelComponents)('%s declares the i18n close patch', (name: string) => {
     const ids = LOCAL_PATCHES[name].map((p: { id: string }) => p.id);
@@ -114,36 +171,8 @@ describe('shadcn local patches — application to fresh upstream (objectstack#55
   });
 
   it('applies the slider family to fresh upstream, and is idempotent', () => {
-    // The upstream shape the registry serves, after `rewriteRegistryImports`.
-    // `aria-label` on the thumb is upstream's OWN hand-written bridge — the
-    // anchor the delivery patch replaces, and the standing evidence that the
-    // thumb cannot be addressed from outside the primitive.
-    const upstream = `"use client"
+    const once = applyLocalPatches('slider', UPSTREAM_SLIDER);
 
-import * as React from "react"
-import * as SliderPrimitive from "@radix-ui/react-slider"
-
-import { cn } from "../lib/utils"
-
-const Slider = React.forwardRef<
-  React.ElementRef<typeof SliderPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
->(({ className, ...props }, ref) => (
-  <SliderPrimitive.Root
-    ref={ref}
-    className={cn("relative flex", className)}
-    {...props}
-  >
-    <SliderPrimitive.Track />
-    <SliderPrimitive.Thumb
-      className="block h-5 w-5"
-      aria-label={props["aria-label"]}
-    />
-  </SliderPrimitive.Root>
-))
-`;
-
-    const once = applyLocalPatches('slider', upstream);
     expect(once.failed).toEqual([]);
     expect(once.applied).toHaveLength(4);
     expect(verifyLocalPatches('slider', once.content)).toEqual([]);
@@ -151,32 +180,71 @@ const Slider = React.forwardRef<
     // `props` object any more — the two halves that must land together.
     expect(once.content).toContain('{...splitSliderThumbProps(props).thumb}');
     expect(once.content).toContain('{...splitSliderThumbProps(props).root}');
-    expect(once.content).not.toContain('aria-label={props["aria-label"]}');
 
     const twice = applyLocalPatches('slider', once.content);
     expect(twice.applied).toEqual([]);
     expect(twice.content).toBe(once.content);
   });
 
-  it('refuses when upstream restructures the thumb away', () => {
-    // A future registry drop of the hand-written `aria-label` bridge takes the
-    // delivery patch's anchor with it. That must be a hard failure the operator
-    // sees, not a sync that quietly ships an unreachable thumb again.
-    const withoutThumbAnchor = `import { cn } from "../lib/utils"
+  /**
+   * The assertion that would have caught objectui#4976 on the day it landed.
+   *
+   * Patching real registry bytes must reproduce the primitive we ship, byte for
+   * byte. Anything weaker is a claim nobody can check: an anchor invented from
+   * the local file matches the local file quite happily, and a hand-trimmed
+   * "faithful excerpt" of upstream can be wrong about the very line a patch
+   * targets without one assertion noticing. Equality can only hold if every
+   * anchor in the family was written from registry bytes — which is exactly the
+   * property the declaration needs and cannot otherwise state offline.
+   *
+   * When this goes red, the question is which side moved. Upstream drifting is
+   * the expected cause: re-target the patch against the new bytes, refresh this
+   * fixture from the registry, and if the incoming shape is an improvement take
+   * it into `src/ui/slider.tsx` too. What red must never mean is "trim the
+   * fixture until it agrees again".
+   */
+  it('regenerates the shipped slider.tsx byte for byte from registry bytes', () => {
+    const patched = applyLocalPatches('slider', UPSTREAM_SLIDER);
+    const shipped = fs.readFileSync(path.join(uiDir, 'slider.tsx'), 'utf-8');
 
-const Slider = React.forwardRef<
-  React.ElementRef<typeof SliderPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
->(({ className, ...props }, ref) => (
-  <SliderPrimitive.Root
-    {...props}
-  >
-    <SliderPrimitive.Thumb className="block" />
-  </SliderPrimitive.Root>
-))
-`;
+    expect(patched.failed).toEqual([]);
+    // The header is added on write, downstream of the patch engine, so it is
+    // stripped here rather than baked into the fixture.
+    expect(patched.content).toBe(shipped.replace(OBJECTUI_HEADER, ''));
+  });
 
-    const result = applyLocalPatches('slider', withoutThumbAnchor);
+  it('refuses when upstream restyles the thumb', () => {
+    // The realistic churn: shadcn tweaks the thumb's class list. The anchor
+    // names that list verbatim, so a tweak takes the anchor with it. Loud is
+    // the correct outcome — the operator has to re-target, and pick up the new
+    // classes while doing so — but it must be loud about the DELIVERY patch
+    // only, not smear across the family.
+    const restyled = UPSTREAM_SLIDER.replace('block h-5 w-5', 'block size-4');
+    expect(restyled).not.toBe(UPSTREAM_SLIDER);
+
+    const result = applyLocalPatches('slider', restyled);
+
+    expect(result.failed.map((p: { id: string }) => p.id)).toEqual([
+      'slider-thumb-aria-delivery',
+    ]);
+    expect(result.failed[0].found).toBe(0);
+    // The other three anchors are independent of the class list and still land.
+    expect(result.applied).toHaveLength(3);
+    // And the delivery payload is NOT in the content: a caller that ignored
+    // `failed` would ship an unreachable thumb again.
+    expect(result.content).not.toContain('splitSliderThumbProps(props).thumb');
+  });
+
+  it('refuses when upstream drops the thumb element altogether', () => {
+    // The structural case: no thumb to deliver to. Radix would still render one
+    // internally, so this compiles and renders — the patch must refuse rather
+    // than let a sync quietly ship a slider nothing can address.
+    const withoutThumb = UPSTREAM_SLIDER.replace(/^ {4}<SliderPrimitive\.Thumb .*\n/m, '');
+    // Guard the mutation itself: a pattern that silently matched nothing would
+    // leave the assertions below testing unmodified upstream.
+    expect(withoutThumb).not.toContain('SliderPrimitive.Thumb');
+
+    const result = applyLocalPatches('slider', withoutThumb);
 
     expect(result.failed.map((p: { id: string }) => p.id)).toEqual([
       'slider-thumb-aria-delivery',

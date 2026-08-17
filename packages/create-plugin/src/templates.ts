@@ -59,7 +59,7 @@ export const VITEST_SETUP_FILE = 'vitest.setup.ts';
  *
  * | dependency                  | range     | anchor                                     |
  * | --------------------------- | --------- | ------------------------------------------ |
- * | `@testing-library/jest-dom` | `^7.0.0`  | repo root package.json (also apps/console) |
+ * | `@testing-library/jest-dom` | `^7.0.1`  | repo root package.json (also apps/console) |
  * | `@testing-library/react`    | `^16.3.2` | repo root package.json (also apps/console) |
  * | `@vitejs/plugin-react`      | `^6.0.5`  | every `packages/plugin-*` (not in root)    |
  * | `jsdom`                     | `^30.0.1` | repo root package.json                     |
@@ -84,7 +84,7 @@ export const VITEST_SETUP_FILE = 'vitest.setup.ts';
  * monorepo, not a failing install.
  */
 const DEV_DEPENDENCIES: Record<string, string> = {
-  '@testing-library/jest-dom': '^7.0.0',
+  '@testing-library/jest-dom': '^7.0.1',
   '@testing-library/react': '^16.3.2',
   '@vitejs/plugin-react': '^6.0.5',
   jsdom: '^30.0.1',

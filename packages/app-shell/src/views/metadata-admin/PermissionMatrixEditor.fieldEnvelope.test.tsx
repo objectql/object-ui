@@ -79,7 +79,17 @@ function realClient(): MetadataClient {
     baseUrl: 'http://localhost:3000',
     fetch: (async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes('/meta/permission/sales_perms?layers=true')) {
+      // The layered read's declared path (objectstack#5882 ruling B, migrated
+      // in objectui#4016). Kept exact so this double stays truthful about what
+      // the real client puts on the wire — the next reader copies from here.
+      //
+      // Measured, not assumed: it carries no assertion pressure. Reverting the
+      // client to the retired query flag leaves all three cases below GREEN,
+      // because the layered body only feeds the artifact-backed verdict and the
+      // permission draft, and the field sub-table these cases assert is fed by
+      // the `get()` read further down. The URL itself is pinned where it belongs,
+      // in `packages/data-objectstack/src/metadata-client.layeredRoute.test.ts`.
+      if (url.endsWith('/meta/permission/sales_perms/layers')) {
         return json({
           code: null,
           overlay: null,

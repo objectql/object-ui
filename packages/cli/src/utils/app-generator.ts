@@ -177,6 +177,23 @@ function buildAppDependencies(): Record<string, string> {
  * with an unsatisfiable import. Declaring it at the producer is the fix — the
  * alias becomes a workspace convenience rather than the only thing holding the
  * import up.
+ *
+ * Both ranges here are QUOTED from this repo, per the objectui#3742 /
+ * objectui#3754 anchoring discipline: `react-router-dom` from the root
+ * manifest, `lucide-react` from the sibling manifests that declare it (the root
+ * does not). `app-generator.test.ts`'s `DEPENDENCY_ANCHORS` names the anchor for
+ * each and fails when a bump on either side leaves this file behind — which is
+ * the whole reason the values are allowed to be literals at all.
+ *
+ * That gate is not decoration; it has fired. objectui#4968: a dependabot bump
+ * moved `lucide-react` across all 22 sibling manifests and this literal stayed
+ * a minor behind, so the pin went red on every open PR's merge ref until the
+ * literal caught up. Deriving the value instead was considered and rejected in
+ * that PR — 9 of the 13 anchored ranges quote the repo ROOT manifest, which is
+ * not published with this CLI, so there is no one derivation the whole table
+ * could share and a bespoke one for this single name would buy nothing. The
+ * durable cure is upstream of this file: the shards carrying the gate have to
+ * finish before a dependency PR can merge.
  */
 function buildRoutedAppDependencies(): Record<string, string> {
   const range = platformPackageRange();
@@ -184,7 +201,7 @@ function buildRoutedAppDependencies(): Record<string, string> {
     react: REACT_RANGE,
     'react-dom': REACT_RANGE,
     'react-router-dom': '^7.18.2',
-    'lucide-react': '^1.29.0',
+    'lucide-react': '^1.31.0',
     ...Object.fromEntries(PLATFORM_RUNTIME_PACKAGES.map((name) => [name, range]))
   };
 }
