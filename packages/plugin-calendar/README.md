@@ -100,16 +100,48 @@ const schema = {
 };
 ```
 
-### Manual Registration
+### What the side-effect import registers
+
+Registration is *only* a side effect of importing the package — the single
+`import '@object-ui/plugin-calendar'` above is the whole of it. There is no
+components map to iterate over: importing the entry point runs the
+`ComponentRegistry.register(...)` calls in `src/index.tsx` and
+`src/calendar-view-renderer.tsx`, which claim these schema types:
+
+| Schema `type` | Namespaced key | Renderer |
+| --- | --- | --- |
+| `object-calendar` | `plugin-calendar:object-calendar` | `ObjectCalendarRenderer` |
+| `calendar` | `view:calendar` | `ObjectCalendarRenderer` |
+| `calendar-view` | `plugin-calendar:calendar-view` | internal wrapper around `CalendarView` (not exported) |
+
+Both spellings work — the namespaced key and the bare `type` fallback.
+
+### Public exports
+
+The package exports components and their types, not a registry map:
 
 ```typescript
-import { calendarComponents } from '@object-ui/plugin-calendar';
-import { ComponentRegistry } from '@object-ui/core';
+import {
+  ObjectCalendar, // ObjectQL-integrated calendar component
+  CalendarView, // standalone calendar component
+  ObjectCalendarRenderer, // the registered renderer for `object-calendar` / `calendar`
+} from '@object-ui/plugin-calendar';
 
-// Register calendar components
-Object.entries(calendarComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
-});
+import type {
+  ObjectCalendarComponentProps,
+  CalendarViewProps,
+  CalendarEvent,
+} from '@object-ui/plugin-calendar';
+```
+
+To serve the calendar under a registry key of your own, register the exported
+renderer under that key:
+
+```typescript
+import { ComponentRegistry } from '@object-ui/core';
+import { ObjectCalendarRenderer } from '@object-ui/plugin-calendar';
+
+ComponentRegistry.register('my-calendar', ObjectCalendarRenderer);
 ```
 
 ## Schema API
@@ -130,6 +162,8 @@ Display a monthly calendar with events:
 ```
 
 ### Calendar Event Structure
+
+The authored event shape, declared by `@object-ui/types`:
 
 ```typescript
 interface CalendarEvent {
@@ -238,8 +272,11 @@ const schema = {
 
 ## TypeScript Support
 
+The **authored** (JSON metadata) types live in `@object-ui/types`, not in this
+package — this package imports them too, and does not re-export them:
+
 ```typescript
-import type { CalendarViewSchema, CalendarEvent } from '@object-ui/plugin-calendar';
+import type { CalendarViewSchema, CalendarEvent } from '@object-ui/types';
 
 const event: CalendarEvent = {
   id: '1',
@@ -253,6 +290,16 @@ const schema: CalendarViewSchema = {
   events: [event]
 };
 ```
+
+> **Two different `CalendarEvent` types, same name.** The one above, from
+> `@object-ui/types`, is the *authored* event: `id: string` and
+> `start` / `end` accept ISO strings — that is the shape documented under
+> [Calendar Event Structure](#calendar-event-structure) and the one a
+> `calendar-view` schema carries. This package also exports a `CalendarEvent`
+> (`CalendarViewProps['events']`), which is the `CalendarView` **component's
+> runtime** type: `id: string | number` and `start: Date` / `end?: Date`. Use
+> the `@object-ui/types` one for metadata and the plugin one when you render
+> `CalendarView` yourself in React; they are not interchangeable.
 
 ## Links
 
