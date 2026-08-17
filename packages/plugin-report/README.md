@@ -1,14 +1,14 @@
 # @object-ui/plugin-report
 
-Report components for Object UI — build, view, render, and export reports with scheduling support.
+Report components for Object UI — render, view and export reports, with scheduling support. Report *authoring* is not part of this package.
 
 ## Features
 
 - 🧩 **Four spec report variants** — `tabular` / `summary` / `matrix` / `joined`, dispatched by a single `<ReportRenderer schema={...}>`
-- 🧮 **Server-side aggregation** — `useReportData()` posts spec `QueryAST` to `POST /api/v1/data/:object/query`; transparent in-memory fallback
+- 🧮 **Server-side aggregation** — a dataset-bound report selects measures by name through `dataSource.queryDataset`; totals come back pre-aggregated (ADR-0021)
 - 📅 **Date bucketing** — `dateGranularity: day|week|month|quarter|year` on `groupingsAcross` / `groupingsDown`
 - 🪜 **Multi-level grouping + totals** — row totals, column totals, grand totals for matrix; tabular/summary delegate to `ObjectGrid`
-- 🎯 **Cell drill-down** — every aggregated cell dispatches a `drill` action via `ActionRunner`; targets List view or a nested Report (M3)
+- 🎯 **Cell drill-down** — aggregated rows and matrix cells emit `DatasetDrillArgs` to the host's `onDrill` callback; the host owns navigation (ADR-0021 D2)
 - 🧱 **Joined reports** — vertically stacked sub-reports; each block owns its own `objectName`, filter and data fetch
 - 🎨 **Type-aware cells** — `select` → Badge, `lookup` → link, `boolean` → ✓/✗, `email`/`url`/`phone` → links, `image` → thumbnail (auto-hydrated from object metadata)
 - 🖨️ **Multi-format export** — CSV, JSON, HTML, PDF, Excel; live-data and Excel-formula variants
@@ -26,23 +26,55 @@ npm install @object-ui/plugin-report
 
 ## Quick Start
 
+`ReportRenderer` is the one entry point — a dispatcher that routes any report
+shape to the right renderer. It takes the report as `schema`; there is no
+report-authoring component in this package (see
+[Legacy presentation layer](#legacy-presentation-layer)).
+
 ```tsx
-import { ReportBuilder, ReportViewer, ReportRenderer } from '@object-ui/plugin-report';
+import { ReportRenderer } from '@object-ui/plugin-report';
 
-function ReportEditorPage() {
-  return <ReportBuilder report={initialReport} />;
-}
-
-function ReportViewPage() {
-  return <ReportViewer report={reportDefinition} showToolbar />;
-}
-
-function EmbeddedReport() {
+// `dataSource` and `router` are host-provided.
+function ReportPage() {
   return (
     <ReportRenderer
-      title="Monthly Sales"
-      description="Sales performance overview"
-      chart={chartConfig}
+      schema={{
+        name: 'opp_by_stage',
+        type: 'summary',
+        dataset: 'opportunity_pipeline',
+        rows: ['stage'],
+        values: ['amount_sum', 'deal_count'],
+      }}
+      dataSource={dataSource}
+      onDrill={({ object }) => router.push(`/records/${object}`)}
+    />
+  );
+}
+```
+
+The dataset-bound renderer can also be addressed directly when the host has
+already decided the shape — it takes the report as `report`, not `schema`:
+
+```tsx
+import { DatasetReportRenderer, isDatasetReport } from '@object-ui/plugin-report';
+
+if (isDatasetReport(stored)) {
+  return <DatasetReportRenderer report={stored} dataSource={dataSource} />;
+}
+```
+
+`ReportViewer` renders a presentation-layer report, and takes a whole
+`ReportViewerSchema` as `schema` — `report` / `showToolbar` are keys *inside*
+that schema, not props of the component:
+
+```tsx
+import { ReportViewer } from '@object-ui/plugin-report';
+
+function LegacyReportPage() {
+  return (
+    <ReportViewer
+      schema={{ type: 'report-viewer', report: reportDefinition, data: rows, showToolbar: true }}
+      onRefresh={refetch}
     />
   );
 }
@@ -115,22 +147,47 @@ with the container's; each block runs an isolated `useReportData()` call;
 
 ## Server-side aggregation + drill-down
 
-`useReportData()` translates a `Report` into spec `QueryAST` and posts it
-to `POST /api/v1/data/:object/query`. If the endpoint is unavailable it
-falls back transparently to `dataSource.find()` + client-side aggregation.
+A dataset-bound report selects its dimensions (`rows`, and for `matrix` also
+`columns`) and measures (`values`) **by name** and runs them through
+`dataSource.queryDataset` — the same governed semantic-layer path that
+dataset-bound dashboard widgets and the dataset preview use, so the numbers and
+the server-resolved dimension labels match everywhere. Totals (row subtotals,
+column subtotals, grand total) are **server-computed**: the renderer places the
+pre-aggregated rows it is handed and never re-aggregates bucketed values
+client-side, since measures like `avg` cannot be recombined without drifting
+from the semantic layer.
 
-Every aggregated cell dispatches a `drill` action through `ActionRunner`:
+Drill-down is a **host callback, not a registered handler**: pass `onDrill` and
+every aggregated row / matrix cell becomes clickable. The report emits *what was
+clicked*; the host decides where that goes, because the renderer only knows
+dimension names (ADR-0021 D2).
 
 ```tsx
-import { registerDrillHandler } from '@object-ui/plugin-report';
-registerDrillHandler(actionRunner, { navigate: router.push });
+import { ReportRenderer, type DatasetDrillArgs } from '@object-ui/plugin-report';
+
+<ReportRenderer
+  schema={report}
+  dataSource={dataSource}
+  onDrill={(args: DatasetDrillArgs) => {
+    // The host resolves dataset → object and dimension → field, then navigates.
+    const filter = { ...args.objectFilter, ...args.runtimeFilter };
+    router.push(`/records/${args.object}?filter=${encodeURIComponent(JSON.stringify(filter))}`);
+  }}
+/>
 ```
 
-Drill targets:
-1. **List view** — default; navigates to the filtered records.
-2. **Report drawer** — if the host widget declares `drillDown.report`,
-   the click opens a side drawer that renders that report scoped to the
-   cell's group key (composes dashboard → report → record).
+What a drill click carries:
+
+| `DatasetDrillArgs` | Meaning |
+| ------------------ | ------- |
+| `dataset`      | Dataset the clicked aggregate was computed over. |
+| `groupKey`     | Dimension **name** → clicked bucket value (row dims, plus across dims for a matrix cell). |
+| `runtimeFilter`| The effective render-time scope filter, if any. |
+| `object`       | The dataset's base object, when the server supplied it. |
+| `objectFilter` | Exact record-list filter (object **field** name → raw stored value) for the clicked bucket. Present only when the server returned the dimension→field mapping plus raw grouped values — that is what lets select/lookup dimensions filter precisely instead of by display label. |
+
+Supply no `onDrill` and nothing is clickable; a report can also opt out with
+`drilldown: false`.
 
 ## Filter-time date helpers — current limitation
 
@@ -150,13 +207,20 @@ filter: { close_date: { $gte: daysAgo(30) } }
 See the bundled CRM `customer_churn_signals` demo for the full pattern.
 Native filter-time CEL evaluation is tracked for a future major version.
 
-## Legacy components
+## Legacy presentation layer
 
-`ReportBuilder`, `ReportViewer` and the export functions below remain
-available for legacy presentation-layer reports and are not affected by
-the spec-driven pipeline above.
+`ReportViewer`, `LegacyReportRenderer` and the export functions below remain
+available for pre-spec presentation reports (`{ report, data, columns, chart }`)
+and are not affected by the dataset-bound pipeline above.
 
+The authoring components that used to sit alongside them — `ReportBuilder`,
+`ScheduleConfig`, `ChartConfig`, the columns/groupings editors — and the
+`registerDrillHandler`-style drill helpers were **removed** in the 9.0 cutover
+(see `CHANGELOG.md`). They have no replacement export in this package: report
+authoring lives in the console designer, and drill-down is the `onDrill`
+callback above.
 
+### Export
 
 Export reports in multiple formats:
 
@@ -188,31 +252,80 @@ await exportExcelWithFormulas(reportConfig, {
 });
 ```
 
-### ScheduleConfig
+### Scheduled export
 
-Configure recurring report generation:
+A schedule is **data on the report schema**, not a component: it is
+`ReportComponentSchema.schedule`, typed `ReportScheduleConfig`. Both types live
+in `@object-ui/types` and are *not* re-exported here — importing them from this
+package is a TS2305.
 
-```tsx
-import { ScheduleConfig, createScheduleTrigger } from '@object-ui/plugin-report';
+`createScheduleTrigger` turns that declared schedule into a callable a workflow
+engine can invoke. It takes the report, the data source, the resource to query
+and a completion callback:
 
-<ScheduleConfig
-  reportId="monthly-sales"
-  onSave={(schedule) => saveSchedule(schedule)}
-/>
+```ts
+import { createScheduleTrigger } from '@object-ui/plugin-report';
+import type { ReportComponentSchema, ReportScheduleConfig } from '@object-ui/types';
 
-const trigger = createScheduleTrigger((reportId) => generateReport(reportId));
+// `dataSource` and `notify` are host-provided.
+
+const report: ReportComponentSchema = {
+  type: 'report',
+  title: 'Monthly Sales',
+  schedule: {
+    enabled: true,
+    frequency: 'monthly',
+    dayOfMonth: 1,
+    time: '07:00',
+    formats: ['pdf', 'excel'],
+    recipients: ['sales@example.com'],
+  },
+};
+
+const trigger = createScheduleTrigger(
+  report,
+  dataSource,
+  'orders',
+  (exported: ReportComponentSchema, schedule: ReportScheduleConfig) => {
+    notify(schedule.recipients ?? [], schedule.subject ?? exported.title);
+  },
+);
+
+const results = await trigger(); // LiveExportResult[] — one entry per scheduled format
 ```
+
+`trigger()` reads `report.schedule` itself: a schedule that is missing or
+`enabled: false` exports nothing and resolves to `[]`. Otherwise it exports once
+per entry in `schedule.formats` (falling back to `report.defaultExportFormat`,
+then `'pdf'`) and calls the completion callback with the report and the schedule
+it ran.
 
 ### Schema-Driven Usage
 
-Components auto-register with `ComponentRegistry`:
+Importing the package registers three component types with `ComponentRegistry`:
+
+| `type`          | Component        | Notes                                              |
+| --------------- | ---------------- | -------------------------------------------------- |
+| `report`        | `ReportRenderer` | The dispatcher.                                    |
+| `spec-report`   | `ReportRenderer` | Spec-native alias; the report goes under `report`.  |
+| `report-viewer` | `ReportViewer`   | Presentation-layer viewer.                         |
 
 ```json
 {
-  "type": "report-builder",
-  "report": { "sections": [] }
+  "type": "spec-report",
+  "report": {
+    "name": "opp_by_stage",
+    "type": "summary",
+    "dataset": "opportunity_pipeline",
+    "rows": ["stage"],
+    "values": ["amount_sum"]
+  }
 }
 ```
+
+There is no `report-builder` component type — the authoring component that name
+addressed was removed in the 9.0 cutover, so a node declaring it resolves to
+nothing.
 
 ### Type-aware cell rendering
 
