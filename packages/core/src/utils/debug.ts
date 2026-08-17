@@ -118,8 +118,14 @@ export function isDebugEnabled(): boolean {
 export function debugLog(category: DebugCategory, message: string, data?: unknown): void {
   if (!isDebugEnabled()) return;
   if (data !== undefined) {
+    // objectui#4029 — this IS the repo's debug channel (opt-in via
+    // globalThis.OBJECTUI_DEBUG, gated by isDebugEnabled() above), not a
+    // leaked module-scope log; no-console's blanket ban would otherwise
+    // block the function whose entire job is to console.log.
+    // eslint-disable-next-line no-console
     console.log(`[ObjectUI Debug][${category}] ${message}`, data);
   } else {
+    // eslint-disable-next-line no-console -- see comment above
     console.log(`[ObjectUI Debug][${category}] ${message}`);
   }
 }
@@ -142,6 +148,7 @@ export function debugTimeEnd(label: string): void {
   const start = timers.get(label);
   if (start !== undefined) {
     const elapsed = (performance.now() - start).toFixed(2);
+    // eslint-disable-next-line no-console -- objectui#4029, see debugLog above
     console.log(`[ObjectUI Debug][perf] ${label}: ${elapsed}ms`);
     timers.delete(label);
   }

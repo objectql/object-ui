@@ -311,7 +311,6 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
               window.location.href = rawRedirect;
             }, delay);
           } else {
-            // eslint-disable-next-line no-console
             console.warn('[EmbeddableForm] Blocked unsafe redirect target:', rawRedirect);
             setError(config.texts?.redirectBlocked ?? null);
           }

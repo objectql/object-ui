@@ -145,10 +145,6 @@ const EN_FIXTURE = `const en = {
   // The one shape that makes a non-optional \`t()\` falsy, so \`||\` really can
   // reach its right operand. \`en\` has no such leaf today (objectui#4117).
   edge: { blank: '' },
-  // The real key registered in EXTERNALLY_INTERPOLATED_HOLES, so the registry's
-  // effect can be exercised against a synthetic repo rather than only observed
-  // on \`main\`. The registry is keyed by NAME, so a fixture is enough.
-  auth: { forgotPassword: { successDescription: 'Sent a reset link to {{email}}.' } },
 } as const;
 export default en;
 `;
@@ -656,19 +652,30 @@ export const A = (name: string, n: number, idx: number) => {
     expect(parityOf(root)).toEqual(['interp.imageAlt: inert=[wrong] unfilled=[index]']);
   });
 
-  it('subtracts reserved names from BOTH sides, which is the only way `count` works', () => {
-    // `count` is an i18next control option AND the value of a `{{count}}` hole.
-    // Dropping it from the call site's names only would report every counted
-    // string in the repo as unfilled; dropping it from the holes only would
-    // report every `count` passed to a plural key as inert.
+  it('the reservation protects `inert`: passing a control option is never flagged, holed key or not', () => {
+    // `count` is an i18next control option, legitimate to PASS even when the
+    // `en` value shows no visible `{{count}}` hole to receive it. The
+    // reservation drops it from the names judged for `inert` — see the RED
+    // case right below for the direction this must NOT also silence.
     const root = repoWith(
       callSite(
-        "[t('interp.counted', { count: n }), t('interp.counted'), t('interp.bare', { ns: 'x', lng: 'en', defaultValue: 'Update' })]",
+        "[t('interp.counted', { count: n }), t('interp.bare', { ns: 'x', lng: 'en', defaultValue: 'Update' })]",
       ),
     );
     expect(parityOf(root)).toEqual([]);
     expect(RESERVED_OPTION_NAMES.has('count')).toBe(true);
     expect(RESERVED_OPTION_NAMES.has('version')).toBe(false);
+  });
+
+  it('RED: the reservation must NOT also protect `unfilled` — a real {{count}} miss is still reported (objectui#4206)', () => {
+    // Before objectui#4206, the reservation was subtracted from the shared
+    // `holes` set BEFORE either direction was derived, so a `{{count}}` hole
+    // was removed from the comparison entirely and `unfilled` could
+    // structurally never contain `count` — this is objectui#4157's exact
+    // shape: a call site passing no options against an `en` value that reads
+    // `Deleted {{count}} rows`.
+    const root = repoWith(callSite("t('interp.counted')"));
+    expect(parityOf(root)).toEqual(['interp.counted: inert=[] unfilled=[count]']);
   });
 
   it('never judges a plural family, where there is no single value to read holes off', () => {
@@ -728,26 +735,37 @@ export const A = (rest: Record<string, unknown>, key: string, opts: Record<strin
     expect([...holesOf('Resend in {seconds}s')].sort()).toEqual([]);
   });
 
-  describe('holes filled by the CONSUMER of the string, not by i18next', () => {
-    it('does not demand an argument for a registered hole', () => {
-      const root = repoWith(callSite("t('auth.forgotPassword.successDescription')"));
-      expect(parityOf(root)).toEqual([]);
+  describe('the EXTERNALLY_INTERPOLATED_HOLES registry — retired for auth.forgotPassword.successDescription (objectui#4135)', () => {
+    it('is empty: the maintainer\'s 2026-08-11 ruling converged on single-brace `{x}` for every hole filled downstream of `t()`, which sits outside i18next\'s `{{…}}` syntax and needs no exemption', () => {
+      expect(EXTERNALLY_INTERPOLATED_HOLES).toEqual([]);
     });
 
-    it('still reports the argument if someone passes it — that is the real defect here', () => {
-      // Passing it lets i18next consume the hole, `ForgotPasswordForm`'s
-      // `includes('{{email}}')` guard then misses, and its fallback branch appends
-      // the address a SECOND time. So the registry silences one direction only.
-      const root = repoWith(callSite("t('auth.forgotPassword.successDescription', { email: name })"));
-      expect(parityOf(root)).toEqual(['auth.forgotPassword.successDescription: inert=[email] unfilled=[]']);
+    it('so an argument-less `{{email}}` on that exact key is now judged like any other unfilled hole, not silenced', () => {
+      // Before the retirement this exact call site (no `email` argument) was
+      // silenced by the registry — `parityOf(root)` returned `[]`. A synthetic
+      // pack is used here (not the repo's real, now single-brace, value) to
+      // pin the GENERAL mechanism: whatever `en` happens to say, a bare
+      // double-brace hole with no argument is always reported.
+      const root = repoWith({
+        'packages/i18n/src/locales/en.ts': EN_FIXTURE.replace(
+          "edge: { blank: '' },",
+          "edge: { blank: '' },\n  auth: { forgotPassword: { successDescription: 'Sent a reset link to {{email}}.' } },",
+        ),
+        'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = () => { const { t } = useObjectTranslation(); return t('auth.forgotPassword.successDescription'); };
+`,
+      });
+      expect(parityOf(root)).toEqual(['auth.forgotPassword.successDescription: inert=[] unfilled=[email]']);
     });
 
-    it('every registered entry still describes something real, in en AND in the source', () => {
-      // An exemption that outlives the substitution it describes is an allowlist.
-      // Both halves of each entry's premise are checked against `main`: the pack
-      // really has the hole, and the named file really fills it.
+    it('every entry the registry DOES hold still describes something real, in en AND in the source', () => {
+      // Future-proofing: the registry mechanism stays in place, empty, for the
+      // day a genuinely unavoidable double-brace hole is registered again. An
+      // exemption that outlives the substitution it describes is an allowlist,
+      // so both halves of each entry's premise (if any) are checked against
+      // `main`: the pack really has the hole, and the named file really fills
+      // it. Trivially true today because the loop runs zero times.
       const parsed = collectEnKeys(repoRoot);
-      expect(EXTERNALLY_INTERPOLATED_HOLES.length).toBeGreaterThan(0);
       for (const entry of EXTERNALLY_INTERPOLATED_HOLES) {
         const value = parsed.values.get(entry.key);
         expect(value, `en does not define ${entry.key} as a string`).toBeTypeOf('string');

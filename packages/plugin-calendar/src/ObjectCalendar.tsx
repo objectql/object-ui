@@ -46,7 +46,12 @@ import {
   Label,
   toast,
 } from '@object-ui/components';
-import { extractRecords, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
+import {
+  extractRecords,
+  buildExpandFields,
+  convertSortToQueryParams,
+  getRecordDisplayName,
+} from '@object-ui/core';
 
 export interface CalendarSchema {
   type: 'calendar';
@@ -61,7 +66,23 @@ export interface CalendarSchema {
   defaultView?: 'month' | 'week' | 'day';
 }
 
-export interface ObjectCalendarProps {
+/**
+ * Props of the `ObjectCalendar` React component.
+ *
+ * Renamed off the bare `ObjectCalendarProps` (objectui#4650): from 17.0.0
+ * `@objectstack/spec/ui` owns that name, where it is the AUTHORED props
+ * document of the `object-calendar` element — `z.input<typeof
+ * ObjectCalendarPropsSchema>`, i.e. serialisable authoring keys only. This is
+ * the RENDERER's props: a live `dataSource`, records pre-fetched by a parent,
+ * and the host callbacks below, none of which can exist in authored metadata.
+ * Two layers under one word, resolved the way this repo already resolved it for
+ * `PageHeaderProps` -> `PageHeaderComponentProps` (app-shell) and the
+ * `Record*ComponentProps` family in `@object-ui/types`.
+ *
+ * The barrel keeps `ObjectCalendarProps` as a deprecated alias of this type, so
+ * no importer breaks. Tripwire: `__tests__/spec-symbol-4650.test.ts`.
+ */
+export interface ObjectCalendarComponentProps {
   schema: ObjectGridSchema | CalendarSchema;
   dataSource?: DataSource;
   className?: string;
@@ -106,33 +127,6 @@ function getDataConfig(schema: ObjectGridSchema | CalendarSchema): ViewData | nu
 }
 
 /**
- * Helper to convert sort config to QueryParams format
- */
-function convertSortToQueryParams(sort: string | any[] | undefined): Record<string, 'asc' | 'desc'> | undefined {
-  if (!sort) return undefined;
-  
-  // If it's a string like "name desc"
-  if (typeof sort === 'string') {
-    const parts = sort.split(' ');
-    const field = parts[0];
-    const order = (parts[1]?.toLowerCase() === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc';
-    return { [field]: order };
-  }
-  
-  // If it's an array of SortConfig objects
-  if (Array.isArray(sort)) {
-    return sort.reduce((acc, item) => {
-      if (item.field && item.order) {
-        acc[item.field] = item.order;
-      }
-      return acc;
-    }, {} as Record<string, 'asc' | 'desc'>);
-  }
-  
-  return undefined;
-}
-
-/**
  * Helper to get calendar configuration from schema
  */
 function getCalendarConfig(schema: ObjectGridSchema | CalendarSchema): CalendarConfig | null {
@@ -160,7 +154,7 @@ function getCalendarConfig(schema: ObjectGridSchema | CalendarSchema): CalendarC
   return null;
 }
 
-export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
+export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   schema,
   dataSource,
   className,
@@ -434,7 +428,6 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
     } catch (err) {
       // Roll back optimistic state
       setData(prevData);
-      // eslint-disable-next-line no-console
       console.error('[ObjectCalendar] Failed to persist drag-and-drop reschedule:', err);
       // Surface the failure — never silently snap the event back. A row-level
       // security denial (403) is the common case: the user lacks permission to
@@ -529,7 +522,6 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
     } catch (err: any) {
       const msg = err?.message || String(err);
       setQuickCreate(qc => qc ? { ...qc, submitting: false, error: msg } : qc);
-      // eslint-disable-next-line no-console
       console.error('[ObjectCalendar] Quick-create failed:', err);
     }
   }, [quickCreate, calendarConfig, schema.objectName, dataSource, objectSchema]);

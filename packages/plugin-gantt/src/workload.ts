@@ -7,7 +7,7 @@
  */
 
 /**
- * Resource / workload model (资源/工作负载视图).
+ * Resource / workload model.
  *
  * Pure, framework-free aggregation that turns a flat task list into a
  * per-resource, per-time-column load histogram. The renderer (ResourceWorkload)

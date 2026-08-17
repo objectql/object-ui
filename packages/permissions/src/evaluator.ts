@@ -54,7 +54,16 @@ export function evaluatePermission({
 
   // Check role-based permissions
   for (const roleName of effectiveRoles) {
-    const roleConfig = objectConfig.roles[roleName];
+    // `roles` is declared required on `ObjectPermissionConfig`, but a config
+    // reaching here from JS — or from metadata the type checker never saw —
+    // can omit it, and `undefined[roleName]` is a TypeError, not a denial.
+    // Reading it unguarded therefore let a malformed config crash the render
+    // through every `check()` for a non-public action, which is precisely
+    // what the note below forbids. Guarded, a missing `roles` grants nothing:
+    // no role resolves, the loop falls through, and the function returns the
+    // ordinary `allowed: false` denial. Fail-closed, and the `publicAccess`
+    // early return above still answers first (objectui#4812).
+    const roleConfig = objectConfig.roles?.[roleName];
     if (!roleConfig) continue;
 
     // `actions` is optional in practice: a role config may carry only

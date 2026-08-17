@@ -11,10 +11,12 @@ import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuild
 import type { SortItem } from '@object-ui/components';
 import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, ShieldAlert, RotateCw, Loader2, icons, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
+import { VALUELESS_FILTER_BUILDER_OPERATORS } from '@object-ui/components';
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
 import { ViewSettingsPopover } from './components/ViewSettingsPopover';
 import { UserFilters } from './UserFilters';
-import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
+import { SchemaRenderer, useNavigationOverlay, classifyLoadError } from '@object-ui/react';
+import type { LoadErrorKind } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
@@ -155,6 +157,29 @@ export function mapOperator(op: string) {
     default: return op;
   }
 }
+
+/**
+ * Opt-in `FilterBuilder` operators the list toolbar offers — deliberately NONE
+ * (objectui#4736).
+ *
+ * `OPT_IN_OPERATORS` in `@object-ui/components` withholds the operator ids that
+ * only the MongoDB-style criteria dialect can carry. This toolbar persists into
+ * the other two, and into BOTH of them at once:
+ *
+ *   - the array/triplet filter AST, via `mapOperator` above, for the live grid;
+ *   - `ViewFilterRule[]`, via app-shell's `foldFilterGroupToSpecRules`, when the
+ *     user saves the panel's group as a view.
+ *
+ * Neither vocabulary has a case-insensitive contains or an existence operator,
+ * so this surface opts into nothing. Named and passed explicitly rather than
+ * omitted at the call site: this constant is the handle
+ * `list-offered-operator-expressible-parity.test.ts` reads to compute what the
+ * toolbar actually offers, and an inline `extraOperators` added later would
+ * otherwise widen the dropdown without the parity test noticing.
+ *
+ * @internal exported for that test
+ */
+export const LIST_VIEW_EXTRA_OPERATORS: readonly string[] = [];
 
 /** Every not-in spelling this normalizer expands. See the note at the call site. */
 const NOT_IN_SPELLINGS = new Set(['nin', 'not_in', 'notIn', 'notin', 'not in']);
@@ -387,8 +412,15 @@ export function convertFilterGroupToAST(group: FilterGroup): any[] {
 
   const conditions = group.conditions
     .filter(c => {
-      // isEmpty/isNotEmpty carry no value input — always keep them.
-      if (c.operator === 'isEmpty' || c.operator === 'isNotEmpty') return true;
+      // A value-less OPERATOR is complete without a value — the builder draws
+      // no value input for it, so "no value" is the row's finished state
+      // (objectui#4744). Read from `@object-ui/components`, which is the thing
+      // that decides it; the two-operator literal that used to stand here
+      // listed `isEmpty`/`isNotEmpty` only, so a fresh `Is null` row — seeded
+      // `value: ''` by `addCondition`, and left that way because the operator
+      // dropdown preserves `value` — was dropped as unfinished. The grid then
+      // applied NO filter while the panel showed one.
+      if (VALUELESS_FILTER_BUILDER_OPERATORS.has(c.operator)) return true;
       // Skip incomplete rows (no value entered yet). Emitting `[field, op, '']`
       // would be a silently-wrong filter (matches only empty) rather than
       // "no filter", excluding all rows. Matches groupToCondition in
@@ -399,6 +431,17 @@ export function convertFilterGroupToAST(group: FilterGroup): any[] {
     .map(c => {
       if (c.operator === 'isEmpty') return [c.field, '=', null];
       if (c.operator === 'isNotEmpty') return [c.field, '!=', null];
+      // A value-less row's third slot is emitted as `null` rather than as
+      // whatever `c.value` still holds: the operator dropdown PRESERVES the
+      // previous operator's value, so an `Is null` row can carry a leftover
+      // `'abc'` the user can no longer see or edit. The spec's own lowering
+      // (`convertComparison`, `@objectstack/spec/data`) ignores the third slot
+      // for `isnull`/`isnotnull` — it emits `{ [field]: { $null: true|false } }`
+      // — so `null` is inert on the wire and keeps the emission a function of
+      // the operator alone. Same shape the `isEmpty` arms above already use.
+      if (VALUELESS_FILTER_BUILDER_OPERATORS.has(c.operator)) {
+        return [c.field, mapOperator(c.operator), null];
+      }
       return [c.field, mapOperator(c.operator), c.value];
     });
 
@@ -437,71 +480,6 @@ export function evaluateConditionalFormatting(
 ): React.CSSProperties {
   return resolveConditionalFormatting(record, rules as any, scope, fields as never) as React.CSSProperties;
 }
-
-/**
- * Classify a failed data fetch by HTTP status / error code so the error panel
- * can say what actually happened. A 403 rendered as "check your connection"
- * is indistinguishable from a real outage — users were told to debug their
- * network when the server had (correctly) denied them access.
- */
-function classifyLoadError(
-  err: unknown,
-): 'api-disabled' | 'forbidden' | 'unauthorized' | 'rejected' | 'network' {
-  const e = err as any;
-  // The ObjectStack client decorates errors with `httpStatus`; raw fetch
-  // wrappers surface `status` / `statusCode`; some adapters only embed the
-  // status in the message ("HTTP 403 Forbidden — …").
-  let status = [e?.httpStatus, e?.status, e?.statusCode]
-    .find((s: unknown): s is number => typeof s === 'number');
-  if (status === undefined) {
-    const m = /HTTP (\d{3})\b/.exec(String(e?.message ?? ''));
-    if (m) status = Number(m[1]);
-  }
-  const code = typeof e?.code === 'string' ? e.code.toUpperCase() : '';
-  // The object's `enable` block withholds this operation — checked FIRST, and
-  // on the CODE alone. Status cannot carry this verdict: the denial is a 404,
-  // the same status a missing collection and a missing record answer with, and
-  // its 405 sibling is the same status any other method rejection uses. Unlike
-  // every kind below it this one is not about the request, the session or the
-  // network — it is a permanent property of the object, identical for every
-  // persona and every retry (objectui#4408).
-  if (API_ACCESS_DENIED_CODES.has(code)) return 'api-disabled';
-  if (status === 403 || code === 'PERMISSION_DENIED' || code === 'FORBIDDEN') return 'forbidden';
-  if (status === 401 || code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED') return 'unauthorized';
-  // The server understood the request and refused it as malformed. Retrying
-  // sends the identical bad request, so "check your connection and try again"
-  // is the same wrong advice this function exists to stop giving — one status
-  // code over. The server now rejects a `$filter` that is not a filter AST
-  // (objectstack#4121) and an unsupported `$`-parameter, both as 400.
-  if (status === 400 || REJECTED_REQUEST_CODES.has(code)) return 'rejected';
-  return 'network';
-}
-
-/** 400-class error codes the data API returns for a request it will never accept. */
-const REJECTED_REQUEST_CODES = new Set([
-  'INVALID_FILTER',
-  'UNSUPPORTED_QUERY_PARAM',
-  'INVALID_QUERY',
-]);
-
-/**
- * The denials the server derives from the object's `enable` block —
- * `apiAccessDenialFromEnable` in objectstack's REST server.
- *
- *   - `OBJECT_API_DISABLED` (404) — `enable.apiEnabled: false`; the object is
- *     not exposed over the data API at all.
- *   - `OBJECT_API_METHOD_NOT_ALLOWED` (405) — the operation is absent from the
- *     `enable.apiMethods` whitelist.
- *
- * Both are pure functions of the object's metadata: no user, no permission, no
- * request body. So the honest copy for them is neither "try again" (nothing
- * will change) nor "ask your administrator for access" (this is not a
- * permission grant — the object is not published to the API at all).
- */
-const API_ACCESS_DENIED_CODES = new Set([
-  'OBJECT_API_DISABLED',
-  'OBJECT_API_METHOD_NOT_ALLOWED',
-]);
 
 // Default English translations for fallback when I18nProvider is not available.
 //
@@ -850,7 +828,10 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // failed. Captured here so the render can show a retryable error panel.
   const [loadError, setLoadError] = React.useState<string | null>(null);
   // What KIND of failure `loadError` is — drives which error panel copy shows.
-  const [loadErrorKind, setLoadErrorKind] = React.useState<'api-disabled' | 'forbidden' | 'unauthorized' | 'rejected' | 'network'>('network');
+  // Classified by the shared `classifyLoadError` (`@object-ui/react`,
+  // objectui#4693 — lifted from this file so `RecordAttachmentsPanel` can
+  // reuse the same "api-disabled is retry-invariant" verdict).
+  const [loadErrorKind, setLoadErrorKind] = React.useState<LoadErrorKind>('network');
   // Start in loading state when we will fetch from a dataSource so the empty
   // state doesn't flash before the first effect runs. Inline data (schema.data
   // as an array or a `value` provider) starts as not-loading.
@@ -1836,9 +1817,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       rowHeight: densityRowHeight,
       // Suppress child grid's own row-height toggle since ListView toolbar controls it
       hideRowHeightToggle: true,
-      // Forward display properties to child views
-      ...(schema.striped != null ? { striped: schema.striped } : {}),
-      ...(schema.bordered != null ? { bordered: schema.bordered } : {}),
       // Forward column-state callback (resize/reorder) so a parent can
       // persist user adjustments alongside the view definition.
       ...(onColumnStateChange ? { onColumnStateChange } : {}),
@@ -1859,7 +1837,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...(schema.conditionalFormatting ? { conditionalFormatting: schema.conditionalFormatting } : {}),
           editable: inlineEdit,
           ...(schema.wrapHeaders != null ? { wrapHeaders: schema.wrapHeaders } : {}),
-          ...(schema.virtualScroll != null ? { virtualScroll: schema.virtualScroll } : {}),
           ...(schema.resizable != null ? { resizable: schema.resizable } : {}),
           ...(schema.selection ? { selection: schema.selection } : {}),
           ...(schema.pagination ? { pagination: schema.pagination } : {}),
@@ -2594,6 +2571,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                 <FilterBuilder
                   fields={filterFields}
                   value={currentFilters}
+                  extraOperators={LIST_VIEW_EXTRA_OPERATORS}
                   onChange={(newFilters) => {
                     setCurrentFilters(newFilters);
                     if (onFilterChange) onFilterChange(newFilters);

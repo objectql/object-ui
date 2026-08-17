@@ -49,7 +49,6 @@ interface ServerFieldSchema {
   defaultValue?: unknown;
   placeholder?: string;
   group?: string;
-  indexed?: boolean;
   externalId?: boolean;
   trackHistory?: boolean;
   referenceTo?: string;
@@ -96,10 +95,36 @@ function toDesignerField(name: string, raw: ServerFieldSchema): DesignerFieldDef
     isSystem: raw.isSystem,
     externalId: raw.externalId,
     trackHistory: raw.trackHistory,
-    indexed: raw.indexed,
     referenceTo: raw.referenceTo,
     formula: raw.formula,
   };
+}
+
+/**
+ * Field keys the ObjectStack spec REJECTS by name (objectui#4644).
+ *
+ * `indexed` was never a `FieldSchema` key — the field-level flag built no
+ * index (objectstack#2377 removed it) and, since objectstack#4001 closed the
+ * silent-drop shape, `FieldSchema.safeParse` refuses it outright. Object-level
+ * `indexes[]` is the real surface.
+ *
+ * The Advanced section of {@link FieldDesigner} used to offer it, so objects
+ * saved from this page can still carry the key — and `fromDesignerField`
+ * spreads `prev` verbatim to preserve unknown keys, which would carry it back
+ * out to `PUT /api/v1/meta/object/:name` as a hard 422 (`INVALID_METADATA`)
+ * that blocks every later save. Stripping it out of the carried-over keys is
+ * what makes an edit-and-save round-trip of such an object come out
+ * parseable; it is keyed to the tombstone, so every other unknown key the
+ * designer does not render still survives.
+ */
+const RETIRED_FIELD_KEYS = ['indexed'] as const;
+
+/** Carry over `prev`'s unknown keys, minus {@link RETIRED_FIELD_KEYS}. */
+function carryOver(prev?: ServerFieldSchema): ServerFieldSchema {
+  if (!prev) return {};
+  const next: ServerFieldSchema = { ...prev };
+  for (const k of RETIRED_FIELD_KEYS) delete next[k];
+  return next;
 }
 
 function fromDesignerField(
@@ -107,7 +132,7 @@ function fromDesignerField(
   prev?: ServerFieldSchema,
 ): ServerFieldSchema {
   return {
-    ...(prev ?? {}),
+    ...carryOver(prev),
     type: designed.type,
     label: designed.label,
     description: designed.description,
@@ -118,7 +143,6 @@ function fromDesignerField(
     defaultValue: designed.defaultValue,
     placeholder: designed.placeholder,
     group: designed.group,
-    indexed: designed.indexed,
     externalId: designed.externalId,
     trackHistory: designed.trackHistory,
     referenceTo: designed.referenceTo,

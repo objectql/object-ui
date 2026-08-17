@@ -16,7 +16,16 @@ import {
 import { ObjectForm } from './ObjectForm';
 
 export { ObjectForm };
-export type { ObjectFormProps } from './ObjectForm';
+export type { ObjectFormComponentProps } from './ObjectForm';
+
+/**
+ * @deprecated Use `ObjectFormComponentProps`. Renamed in objectui#4650 because
+ * `@objectstack/spec/ui` owns `ObjectFormProps` from 17.0.0, where it means the
+ * AUTHORED props document of the `object-form` element — not this component's
+ * props. The alias denotes the SAME type and is kept only so existing importers
+ * keep compiling.
+ */
+export type { ObjectFormComponentProps as ObjectFormProps } from './ObjectForm';
 export { FormSectionContainer } from './FormSection';
 export type { FormSectionContainerProps } from './FormSection';
 export {
@@ -117,6 +126,30 @@ ComponentRegistry.register('object-form', ObjectFormRenderer, {
     { name: 'drawerWidth', type: 'string', label: 'Drawer Width' },
     // Modal
     { name: 'modalSize', type: 'enum', label: 'Modal Size', enum: ['sm', 'default', 'lg', 'xl', 'full'] },
+    { name: 'modalCloseButton', type: 'boolean', label: 'Modal Close Button', description: 'Show the modal presentation’s close button. Read at ObjectForm.tsx:361 and honoured by ModalForm.' },
+    { name: 'contentLayout', type: 'enum', label: 'Modal Content Layout', enum: ['simple', 'tabbed'], description: 'How the modal presentation lays out sections. `tabbed` needs more than one section to differ from `simple` (ModalForm.tsx:638).' },
+    { name: 'confirmOnDiscard', type: 'boolean', label: 'Confirm On Discard', description: 'Ask before discarding unsaved edits when a drawer/modal form is dismissed. Set `false` to close immediately.' },
+    // Record binding
+    { name: 'recordId', type: 'string', label: 'Record Id', description: 'The record to load in `edit` / `view` mode. Leave unset for `create`.' },
+    { name: 'customFields', type: 'array', label: 'Custom Fields', description: 'Field definitions merged over the set generated from object metadata. With inline definitions and no data source, this becomes the only field source.' },
+    { name: 'initialValues', type: 'object', label: 'Initial Values', description: 'Values to prefill in `create` mode.' },
+    { name: 'initialData', type: 'object', label: 'Initial Data', description: 'Alternate spelling of `initialValues` that the drawer/modal presentations read FIRST (`schema.initialData || schema.initialValues`). Prefer `initialValues` in new schemas.' },
+    { name: 'readOnly', type: 'boolean', label: 'Read Only', description: 'Render every field read-only, whatever `mode` says.' },
+    // Buttons
+    { name: 'submitText', type: 'string', label: 'Submit Button Text' },
+    { name: 'cancelText', type: 'string', label: 'Cancel Button Text' },
+    { name: 'nextText', type: 'string', label: 'Next Button Text', description: 'Label of the next-step button (wizard).' },
+    { name: 'prevText', type: 'string', label: 'Previous Button Text', description: 'Label of the previous-step button (wizard).' },
+    { name: 'showSubmit', type: 'boolean', label: 'Show Submit Button' },
+    { name: 'showCancel', type: 'boolean', label: 'Show Cancel Button' },
+    { name: 'showReset', type: 'boolean', label: 'Show Reset Button' },
+    // After a successful submit
+    { name: 'submitBehavior', type: 'object', label: 'Submit Behavior', description: 'Declarative post-submit behaviour, one of `{ kind: "thank-you", title?, message? }`, `{ kind: "redirect", url, delayMs? }`, `{ kind: "continue" }`, `{ kind: "next-record" }`. When present it takes precedence over `successMessage` / `navigateOnSuccess` / `resetOnSuccess`.' },
+    { name: 'successMessage', type: 'string', label: 'Success Message', description: 'Toast shown after a successful submit. Ignored when `submitBehavior` or `navigateOnSuccess` is set.' },
+    { name: 'navigateOnSuccess', type: 'string', label: 'Navigate On Success', description: 'Path to navigate to after a successful create/update. Supports `{id}` / `{recordId}` interpolation from the saved record and is same-origin-guarded. Takes precedence over `successMessage`.' },
+    { name: 'resetOnSuccess', type: 'boolean', label: 'Reset On Success', description: 'Clear the form after a successful submit instead of keeping the saved values.' },
+    // Mobile
+    { name: 'mobile', type: 'object', label: 'Mobile Overrides', description: 'Phone-only presentation overrides, e.g. `{ stepper: "auto", stepperMinFields: 8, fullscreenLongText: true }`.' },
   ]
 });
 
@@ -249,6 +282,16 @@ ComponentRegistry.register('object-master-detail-form', MasterDetailFormRenderer
     { name: 'mode', type: 'enum', label: 'Mode', enum: ['create', 'edit'] },
     { name: 'sections', type: 'array', label: 'Parent Sections' },
     { name: 'details', type: 'array', label: 'Detail Collections', required: true },
+    { name: 'recordId', type: 'string', label: 'Parent Record Id', description: 'The parent record to load in `edit` mode. Leave unset for `create`.' },
+    { name: 'formType', type: 'string', label: 'Parent Form Presentation', description: 'How the PARENT half of the form is presented. The detail grids below it are unaffected.' },
+    { name: 'fields', type: 'array', label: 'Parent Fields', description: 'Which parent fields to show, in order. Ignored when `sections` is given — sections carry their own field lists.' },
+    { name: 'title', type: 'string', label: 'Title' },
+    { name: 'submitText', type: 'string', label: 'Submit Button Text', description: 'Label of the button that saves the parent and every detail row in one batch.' },
+    { name: 'cancelText', type: 'string', label: 'Cancel Button Text' },
+    { name: 'showSubmit', type: 'boolean', label: 'Show Submit Button' },
+    { name: 'initialValues', type: 'object', label: 'Initial Values', description: 'Values to prefill on the PARENT record in `create` mode.' },
+    { name: 'initialData', type: 'object', label: 'Initial Data', description: 'Alternate spelling of `initialValues` the renderer also reads (MasterDetailForm.tsx:602). Prefer `initialValues` in new schemas.' },
+    { name: 'taxRateField', type: 'string', label: 'Tax Rate Field', description: 'Name of the field ON THE CHILD object that holds each line’s tax rate. Feeds the line-items totals row; leave unset when the detail rows carry no tax.' },
   ],
 });
 

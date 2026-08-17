@@ -248,12 +248,14 @@ describe('the declaration face matches what the renderers read (#3972)', () => {
 
   it('still draws `unknown-prop` for a key the declaration deliberately withholds', () => {
     // The control, and it is a real key rather than a nonsense one: `description`
-    // is the legacy alias `PageHeader.tsx:143` still READS, which objectui#3226
-    // removed from `inputs` on purpose so the registry stops teaching a second
-    // dialect for `subtitle`. It must keep drawing `unknown-prop` — that warning
-    // is the narrowing doing its job. If this goes green, either the alias was
-    // re-declared or the check stopped running, and the assertion above is then
-    // measuring nothing.
+    // is the legacy alias of `subtitle`, which objectui#3226 removed from `inputs`
+    // on purpose so the registry stops teaching a second dialect — and which
+    // objectui#3789 has since removed from the renderer too, once the load-path
+    // conversion was measured to rewrite it everywhere. It must keep drawing
+    // `unknown-prop` — that warning is the narrowing doing its job, and it now
+    // reports a key nothing on this side reads at all. If this goes green, either
+    // the alias was re-declared or the check stopped running, and the assertion
+    // above is then measuring nothing.
     const schema = { ...(getExample(EXAMPLE_ID).schema as Record<string, unknown>), description: 'x' };
     expect(codesFor(schema)).toContain('unknown-prop');
   });

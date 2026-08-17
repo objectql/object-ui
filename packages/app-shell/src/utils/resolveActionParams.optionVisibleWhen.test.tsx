@@ -25,20 +25,21 @@
  * under a saturated transform pipeline can eat most of RTL's 1s budget, and the
  * assertions below are synchronous effects.
  *
- * Deliberately NOT passed: `dependentValues`. The dialog does not pass it either —
- * it keeps the in-progress param values in local state — so the predicate `record`
- * a dialog option sees is whatever `SchemaRendererContext` supplies (the page's
- * `formValues` / `data`), never the dialog's own values. The predicates exercised
- * here are therefore the ones that work in a dialog today: scope-relative
- * (`current_user`), the role-gating case ADR-0058 opens. RECORD-relative
- * predicates in a dialog are measured, not asserted, in the last test — see the
- * note there.
+ * Most cases below pass no `dependentValues`, which is now the NON-dialog wiring:
+ * since objectui#3765 the dialog supplies its own in-progress values on that prop,
+ * so a widget reached without one is a widget outside a dialog (the object form
+ * before it threads the record, hand-written SDUI, the inline editor). Those cases
+ * therefore exercise the predicates that need no record at all — scope-relative
+ * (`current_user`), the role-gating case ADR-0058 opens — plus, in the last two
+ * tests, what a record-relative predicate does on each side of that prop:
+ * supplied (the dialog's values narrow the list) and absent (the evaluator's
+ * documented fallback chain still reaches `SchemaRendererContext`).
  */
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { PredicateScopeProvider } from '@object-ui/react';
+import { PredicateScopeProvider, SchemaRendererContext } from '@object-ui/react';
 import { SelectField } from '@object-ui/fields';
 import type { ActionParamOption } from '@object-ui/core';
 import { resolveActionParams, type ResolveActionParamsContext } from './resolveActionParams';
@@ -76,6 +77,14 @@ function renderInheritedSelect(
   options: Array<ActionParamOption | string>,
   positions: string[],
   value?: string,
+  /**
+   * The two record channels `useCascadingOptions` reads, in its own precedence
+   * order. `dependentValues` is what a HOST supplies (the dialog now supplies
+   * its in-progress param values on it — objectui#3765); `ctxFormValues` is the
+   * `SchemaRendererContext` fallback the hook drops to when no host supplied
+   * one. Both default to absent, which is the "no record at all" case.
+   */
+  records?: { dependentValues?: Record<string, unknown>; ctxFormValues?: Record<string, unknown> },
 ) {
   const onChange = vi.fn();
   const param = resolveActionParams([{ field: 'tier' }], accountCtx(options))[0];
@@ -83,12 +92,27 @@ function renderInheritedSelect(
   // Same props the dialog passes a non-boolean param's widget. The cast is the
   // dialog's own seam: `paramToField()` returns `Record< string, unknown >`-shaped
   // field metadata and the widget is reached through a lazy `any` component there.
-  const props = { id: param.name, value: value ?? null, onChange, field } as unknown as
-    React.ComponentProps<typeof SelectField>;
-  render(
+  const props = {
+    id: param.name,
+    value: value ?? null,
+    onChange,
+    field,
+    ...(records?.dependentValues ? { dependentValues: records.dependentValues } : {}),
+  } as unknown as React.ComponentProps<typeof SelectField>;
+  const tree = (
     <PredicateScopeProvider scope={{ current_user: { positions } }}>
       <SelectField {...props} />
-    </PredicateScopeProvider>,
+    </PredicateScopeProvider>
+  );
+  render(
+    records?.ctxFormValues
+      // The context type declares `dataSource` only; `formValues` is the key
+      // `useCascadingOptions` / `LookupField` read off it through an `any` cast,
+      // so a host supplying one is expressed the same way here.
+      ? <SchemaRendererContext.Provider value={{ dataSource: null, formValues: records.ctxFormValues } as never}>
+          {tree}
+        </SchemaRendererContext.Provider>
+      : tree,
   );
   return { onChange, field };
 }
@@ -142,31 +166,54 @@ describe('field-inherited option predicates reach the dialog control (objectui#3
     expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 
-  it('MEASURES a record-relative predicate with no record in context: fails OPEN', () => {
-    // Not a claim about correct behaviour — a recorded measurement, because the
-    // fix delivers the keys and the widget honours them, but WHICH record a
-    // dialog evaluates them against is a separate question this PR does not
-    // settle.
-    //
-    // Measured, not assumed (the prediction going in was the opposite): with no
-    // `dependentValues` — the dialog passes none, it keeps param values in local
-    // state — and no `SchemaRendererContext` above, `record` is `{}`, and
-    // `record.country == 'cn'` is UNRESOLVABLE rather than false. Per
-    // `resolveVisibleOptions()`'s documented fail-open default the option is
-    // therefore KEPT, not hidden. Same list against a populated record filters
-    // as expected (`{ country: 'us' }` → `[]`), which is what the object form
-    // gets and what a dialog mounted under a page picks up from that page's
-    // `formValues`/`data`.
-    //
-    // So the residual gap is narrow and safe-by-default: a dialog cannot narrow
-    // an inherited list against its OWN in-progress params, and unresolvable
-    // predicates offer everything rather than hiding everything. Reported
-    // separately; nothing here should be read as endorsing it.
-    renderInheritedSelect(
-      [{ label: 'Zhejiang', value: 'zj', visibleWhen: "record.country == 'cn'" }],
-      ['admin'],
-    );
-    expect(screen.queryByTestId('select-empty-tier')).not.toBeInTheDocument();
+  /**
+   * The record half, which objectui#3765 settled. The predicate is the same
+   * `record.country == 'cn'` in all three cases; only WHERE the record comes
+   * from changes.
+   *
+   * This file's last case used to be a MEASUREMENT rather than an assertion —
+   * "no record reaches a dialog option, so this fails open" — recorded that way
+   * on purpose, because which record a dialog evaluates against was undecided
+   * and the number could legitimately move. The maintainer ruled it on
+   * 2026-08-11 (Option B: the dialog's own in-progress values ARE the record),
+   * so the measurement becomes the three assertions below.
+   */
+  const PROVINCE = [{ label: 'Zhejiang', value: 'zj', visibleWhen: "record.country == 'cn'" }];
+
+  it('narrows a record-relative list against the record its HOST supplies', () => {
+    // The channel the dialog now feeds. A satisfied predicate keeps the option…
+    renderInheritedSelect(PROVINCE, ['admin'], undefined, { dependentValues: { country: 'cn' } });
     expect(screen.getByRole('combobox')).toBeInTheDocument();
+    expect(screen.queryByTestId('select-empty-tier')).not.toBeInTheDocument();
+  });
+
+  it('drops it when the supplied record fails the predicate', () => {
+    // …and a failed one drops it — the whole (single-option) list here, so the
+    // widget renders its empty state instead of a dropdown. This is the pair
+    // that makes the dialog's own values load-bearing: `{ country: 'us' }` is a
+    // value the user could have just picked in a sibling param.
+    renderInheritedSelect(PROVINCE, ['admin'], undefined, { dependentValues: { country: 'us' } });
+    expect(screen.getByTestId('select-empty-tier')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
+  it('falls back to the context record when the host supplies none, and fails OPEN when neither exists', () => {
+    // The evaluator was NOT touched by objectui#3765 — the ruling was "supply
+    // the record, do not change the reader" — so its documented chain
+    // (`dependentValues ?? ctx.formValues ?? ctx.data ?? {}`) must still work
+    // from the second link down for every widget rendered outside a dialog.
+    // Pinned here because the dialog is now the loudest producer of the FIRST
+    // link, and a wiring change that quietly bypassed the rest of the chain
+    // would look identical from the dialog's side.
+    renderInheritedSelect(PROVINCE, ['admin'], undefined, { ctxFormValues: { country: 'us' } });
+    expect(screen.getByTestId('select-empty-tier')).toBeInTheDocument();
+
+    // Neither link supplied → `record` is `{}`, and `record.country` is
+    // UNRESOLVABLE rather than false, which `resolveVisibleOptions()` fails
+    // OPEN by documented default: the option is offered, never wrongly hidden.
+    // That is what an empty dialog now looks like, and it is the direction that
+    // makes this whole surface safe to get wrong.
+    renderInheritedSelect(PROVINCE, ['admin']);
+    expect(screen.getAllByRole('combobox')).toHaveLength(1);
   });
 });

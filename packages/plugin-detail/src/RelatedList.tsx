@@ -458,7 +458,6 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   // Add affordance is unconfigured and the list body is perfectly fine.
   React.useEffect(() => {
     if (!add || pickerObject) return;
-    // eslint-disable-next-line no-console
     console.warn(
       `[RelatedList] "${api || objectName || 'related list'}" declares add without add.picker.object — the Add affordance is not rendered. add.picker is required by the spec (RecordRelatedListProps.add): set add.picker.object to the object the picker should list.`,
     );
@@ -481,7 +480,6 @@ export const RelatedList: React.FC<RelatedListProps> = ({
       if (!canScope) {
         if (api && (parentId === undefined || parentId === null || parentId === '') && !referenceField) {
           // Developer hint: only surface in console once per mount.
-          // eslint-disable-next-line no-console
           console.warn(
             `[RelatedList] "${api}" has no referenceField/parentId — refusing to fetch all rows. Pass relationshipField + parentId to scope the query.`,
           );
@@ -554,7 +552,6 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         // wiring exists to remove (objectstack#7118), so it refuses and says so
         // instead. Empty-and-loud beats wider-and-quiet; the guard above refuses
         // an unscoped fetch on the same reasoning.
-        // eslint-disable-next-line no-console
         console.warn(
           `[RelatedList] "${api}" declares a filter but has no dataSource adapter — the raw-URL fallback cannot express it, so no rows are fetched. Pass a dataSource (RecordContext) to use a filtered related list.`,
         );
@@ -602,7 +599,6 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   // page 3 of the filtered ones.
   React.useEffect(() => {
     setCurrentPage(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, referenceField, parentId, filterKey]);
 
   // Refetch when a mutation elsewhere signals this related object changed —

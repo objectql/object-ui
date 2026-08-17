@@ -34,12 +34,10 @@ export function ObjectField({ value, onChange, field, readonly, error, ...props 
       // This prevents cursor jumping/reformatting while typing valid JSON
       const currentParsed = jsonString ? JSON.parse(jsonString) : null;
       if (JSON.stringify(currentParsed) !== JSON.stringify(value)) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- Required for controlled component sync
         setJsonString(JSON.stringify(value, null, 2));
       }
     } catch {
       // Fallback if internal state was invalid JSON
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Required for controlled component sync
       setJsonString(JSON.stringify(value, null, 2));
     }
   }, [value, jsonString]);

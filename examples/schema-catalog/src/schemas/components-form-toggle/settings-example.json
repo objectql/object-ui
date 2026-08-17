@@ -1,6 +1,7 @@
 {
-  "type": "div",
-  "className": "max-w-md p-6 border rounded-lg space-y-4",
+  "type": "stack",
+  "gap": 4,
+  "className": "max-w-md p-6 border rounded-lg",
   "children": [
     {
       "type": "text",

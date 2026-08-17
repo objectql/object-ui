@@ -39,10 +39,15 @@ export function OrganizationsPage() {
   const { t } = useObjectTranslation();
   const navigate = useNavigate();
   // Two deliberate ways to reach this page (vs the auto-skipping post-login
-  // redirect): `?manage=1` (avatar menu "My Organizations") shows the picker;
-  // `?create=1` (avatar menu "Create workspace") additionally opens the create
-  // dialog directly. Both suppress the single-org auto-skip below so a
-  // single-org user can actually reach "New organization" / the dialog.
+  // redirect), both from the avatar menu:
+  //   `?manage=1` ("My Workspaces") — the user came to MANAGE. With ≥2 orgs
+  //     that means the picker; with exactly one it RE-TARGETS the auto-skip
+  //     below at that org's members page rather than suppressing it, since a
+  //     one-item picker is not a choice. Either way they land somewhere they
+  //     can act, which is the point (objectstack#8096).
+  //   `?create=1` ("Create workspace") — suppresses the auto-skip outright and
+  //     opens the create dialog, so a single-org user can reach "New
+  //     organization" instead of being bounced back into their existing org.
   const [searchParams] = useSearchParams();
   const manageMode = searchParams.get('manage') === '1';
   const wantsCreate = searchParams.get('create') === '1';
@@ -128,7 +133,7 @@ export function OrganizationsPage() {
     if (orgList.length !== 1) return;
     autoSelectedRef.current = true;
     // Single-org users have no real choice to make. In manage mode (`?manage=1`,
-    // used by the Cloud app "Members" nav and the avatar "My Organizations"
+    // used by the Cloud app "Members" nav and the avatar "My Workspaces"
     // entry), skip the pointless one-item picker and deep-link straight to that
     // org's member management; otherwise switch into the org and land on home.
     if (manageMode) {

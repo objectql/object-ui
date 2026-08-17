@@ -9,6 +9,7 @@
 import * as React from 'react';
 import { useState } from 'react';
 import { X, Save, RotateCcw, ChevronRight, Undo2, Redo2 } from 'lucide-react';
+import { createSafeTranslation } from '@object-ui/i18n';
 
 import { cn } from '../lib/utils';
 import { Button } from '../ui/button';
@@ -16,6 +17,70 @@ import { Separator } from '../ui/separator';
 import { SectionHeader } from './section-header';
 import { ConfigFieldRenderer } from './config-field-renderer';
 import type { ConfigPanelSchema } from '../types/config-panel';
+
+/**
+ * The footer's own copy — objectui#4750.
+ *
+ * `saveLabel` / `discardLabel` used to carry the English literals `'Save'` and
+ * `'Discard'` as PARAMETER DEFAULTS, and no caller in the repo passes either
+ * prop. So the sticky footer that appears the moment a config draft is dirty
+ * said `Save` / `Discard` in every locale, inside panels whose every other
+ * string (breadcrumb, sections, field labels — objectui#4748) translates. The
+ * fix belongs here rather than in each panel: the footer is the RENDERER's own
+ * chrome, so a per-caller fix would translate one panel's footer and leave the
+ * next one's English.
+ *
+ * ## Mechanism: `createSafeTranslation`, the one this package already uses
+ *
+ * Measured, not chosen: `form.tsx`, `fullscreen-editor.tsx`,
+ * `action-param-dialog.tsx`, `data-table.tsx`, `containers.tsx`,
+ * `filter-builder.tsx`, `sort-builder.tsx`, `navigation-overlay.tsx` and
+ * `lib/close-label.tsx` all reach their built-in copy through a
+ * `createSafeTranslation` defaults map. The safe hook rather than a bare
+ * `useObjectTranslation` because this primitive has provider-less consumers —
+ * embedded hosts, the preview gallery, and this package's own bare-render
+ * tests — where the bare hook returns the raw KEY.
+ *
+ * ## Keys: `common.save` reused, `common.discard` added
+ *
+ * `common.save` already ships `Save` in all ten packs and is what the console's
+ * other save buttons read (`app-shell`'s `ReportConfigPanel` footer,
+ * `plugin-view`'s `ManageViewsDialog`), so a `configPanel.save` twin would be
+ * exactly the one-word drift `form.tsx` documents having had to undo — and
+ * `configPanel.*` is also the block objectui#4746 just deleted as dead.
+ *
+ * `common.discard` is NEW because the packs carried no SHARED spelling of the
+ * word: the three that existed are all surface-scoped — `form.discard` (the
+ * confirm button of plugin-form's "Discard changes?" alert dialog),
+ * `console.settingsView.discard` and `console.objectView.discard` (two
+ * app-shell/console view footers) — and they do not even agree with each other
+ * across packs (`console.objectView.discard` is zh 丢弃 / ko 취소 / fr Annuler
+ * where the other two are zh 放弃 / ko 버리기 / fr Abandonner). Borrowing one
+ * of them would bind this shared primitive's copy to another surface's wording.
+ * The new key's ten values are the dominant spelling — byte-identical to
+ * `form.discard` and `console.settingsView.discard`, which agree in all ten
+ * packs.
+ *
+ * Both defaults below are byte-identical to the literals they replaced, so a
+ * provider-less host renders exactly what it did before. Pinned positively in
+ * `__tests__/config-panel-footer-no-provider-4750.test.tsx` (DOM bytes + the
+ * `en` pack), and the translated direction in
+ * `__tests__/config-panel-footer-i18n-4750.test.tsx`.
+ */
+const FOOTER_DEFAULT_TRANSLATIONS: Record<string, string> = {
+  'common.save': 'Save',
+  'common.discard': 'Discard',
+};
+
+/**
+ * Probe key: one this component itself consumes, so it cannot rot into pointing
+ * at a key no caller reads. With no translations configured `t('common.save')`
+ * returns the key itself, which is the signal to serve the defaults above.
+ */
+const useSafeConfigPanelTranslation = createSafeTranslation(
+  FOOTER_DEFAULT_TRANSLATIONS,
+  'common.save',
+);
 
 export interface ConfigPanelRendererProps {
   /** Whether the panel is visible */
@@ -42,9 +107,9 @@ export interface ConfigPanelRendererProps {
   className?: string;
   /** Additional inline styles applied to the panel root (e.g. to override `--config-panel-width`). */
   style?: React.CSSProperties;
-  /** Label for save button (default: "Save") */
+  /** Label for save button (default: the locale pack's `common.save`) */
   saveLabel?: string;
-  /** Label for discard button (default: "Discard") */
+  /** Label for discard button (default: the locale pack's `common.discard`) */
   discardLabel?: string;
   /** Ref for the panel root element */
   panelRef?: React.Ref<HTMLDivElement>;
@@ -104,8 +169,11 @@ export function ConfigPanelRenderer({
   objectDef,
   className,
   style,
-  saveLabel = 'Save',
-  discardLabel = 'Discard',
+  // No parameter defaults: the fallback is a TRANSLATION, resolved at render
+  // time from the active language (objectui#4750). An explicitly passed label
+  // still wins — see the `??` at each button below.
+  saveLabel,
+  discardLabel,
   panelRef,
   role,
   ariaLabel,
@@ -124,6 +192,9 @@ export function ConfigPanelRenderer({
   redoLabel = 'Redo',
 }: ConfigPanelRendererProps) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // Above the `open` early return: a hook may not sit behind a conditional
+  // return, or the hook order changes the render the panel is opened.
+  const { t } = useSafeConfigPanelTranslation();
 
   if (!open) return null;
 
@@ -292,7 +363,7 @@ export function ConfigPanelRenderer({
         <div className="px-4 py-2 border-t flex gap-2 shrink-0" data-testid={footerTestId ?? 'config-panel-footer'}>
           <Button size="sm" onClick={onSave} data-testid={saveTestId ?? 'config-panel-save'}>
             <Save className="h-3.5 w-3.5 mr-1" />
-            {saveLabel}
+            {saveLabel ?? t('common.save')}
           </Button>
           <Button
             size="sm"
@@ -301,7 +372,7 @@ export function ConfigPanelRenderer({
             data-testid={discardTestId ?? 'config-panel-discard'}
           >
             <RotateCcw className="h-3.5 w-3.5 mr-1" />
-            {discardLabel}
+            {discardLabel ?? t('common.discard')}
           </Button>
         </div>
       )}

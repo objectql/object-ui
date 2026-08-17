@@ -123,7 +123,6 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
       // must NOT be spread onto the underlying DOM element (avoids React
       // "unknown DOM attribute" warnings — especially for camelCase keys
       // like `systemActions`, `mobileMaxVisible`).
-      /* eslint-disable @typescript-eslint/no-unused-vars */
       actions: _schemaActions,
       systemActions: _schemaSystemActions,
       location: _schemaLocation,
@@ -134,7 +133,6 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
       variant: _schemaVariant,
       size: _schemaSize,
       visible: _schemaVisible,
-      /* eslint-enable @typescript-eslint/no-unused-vars */
       ...rest
     } = props;
 

@@ -15,7 +15,10 @@
  * server resolves per insert is neither seedable nor missing. Keeping the two
  * consumers on one predicate is the point of this module — a second copy would
  * be free to disagree about, say, a CEL envelope, and then a form would seed a
- * field it also refuses to submit.
+ * field it also refuses to submit. Since #4085 that classifier LIVES in
+ * `@object-ui/core` (this module re-exports it) so a third consumer — the
+ * `requiredWhen` suppression inside `resolveFieldRuleState` — reads the very
+ * same one from a package `@object-ui/components` is allowed to depend on.
  *
  * ## What this is for
  *
@@ -65,49 +68,18 @@
  * Callers gate on create; this module never sees the mode.
  */
 
-import { isRuntimeDefaultToken } from '@objectstack/spec/data';
-import { isMissingForRequired } from '@object-ui/core';
+import { isMissingForRequired, isRuntimeDefault } from '@object-ui/core';
+
+// Re-exported (not re-implemented) so this package's long-standing import site
+// keeps working while there is exactly ONE classifier in the workspace. It
+// moved down to `@object-ui/core` for #4085: the form renderer and the
+// wizard's step gate need the same fact to suppress `requiredWhen`, and
+// `@object-ui/components` cannot depend on a `plugin-*` package.
+export { isRuntimeDefault };
 
 /** An object schema as the data source serves it (`{ fields: { [name]: def } }`). */
 interface ObjectSchemaLike {
   fields?: Record<string, { defaultValue?: unknown } | undefined>;
-}
-
-/**
- * Is `v` a CEL/template Expression envelope rather than a literal value?
- *
- * Same shape test the engine applies before handing a default to
- * `ExpressionEngine` (`{ dialect, source }`), kept structural on purpose: the
- * point is "the server evaluates this", which is true for every dialect.
- */
-function isExpressionEnvelope(v: unknown): boolean {
-  return (
-    typeof v === 'object' &&
-    v !== null &&
-    typeof (v as { dialect?: unknown }).dialect === 'string' &&
-    typeof (v as { source?: unknown }).source === 'string'
-  );
-}
-
-/**
- * Is this declared `defaultValue` a RUNTIME INSTRUCTION the server resolves per
- * insert, rather than a literal value?
- *
- * True for the `DEFAULT_VALUE_TOKENS` family (`'NOW()'` / `'current_user'`) and
- * for CEL/template Expression envelopes. This is THE classifier for "the
- * producer owns this field's create value" — both consumers in this package
- * read it, and neither may grow a second copy:
- *
- *   1. seeding (#4047 / #4068) — such a default is not seeded, because putting
- *      the literal text `NOW()` into a datetime input and submitting it
- *      suppresses the very resolution the declaration asked for;
- *   2. the create-mode `required` rule (#4069) — see {@link isRequiredInForm}.
- *
- * The two are the same fact seen twice: a field whose value the server supplies
- * is neither seedable nor missing.
- */
-export function isRuntimeDefault(v: unknown): boolean {
-  return isRuntimeDefaultToken(v) || isExpressionEnvelope(v);
 }
 
 /**
@@ -172,9 +144,16 @@ export function isCreateFormMode(
  * user really is not required to provide the value. Surfacing what the server
  * WILL supply is issue #4069's option B, a separate follow-up card.
  *
- * Deliberately NOT extended to `requiredWhen` (the conditional-required CEL
- * rule): that is resolved downstream in the form renderer against the live
- * record, outside this package.
+ * The CONDITIONAL spelling (`requiredWhen`) reaches the same verdict, ruled
+ * identically in #4085 — but it cannot be decided here, because it is resolved
+ * downstream against the live record. It is suppressed in the one evaluator
+ * that resolves it, `resolveFieldRuleState`, which reads the same fact off
+ * `@object-ui/core`'s `isServerOwnedValue` (and therefore the same
+ * {@link isRuntimeDefault} classifier this function reads). That evaluator
+ * subsumes this function on every path that threads the fact; this static
+ * answer stays because it is also the one the containers publish as the
+ * FormField's `required` flag, and because it is what re-runs when a form VIEW
+ * restates `required` over the object field (see `normalizeSectionField`).
  */
 export function isRequiredInForm(
   field: { required?: unknown; defaultValue?: unknown } | null | undefined,

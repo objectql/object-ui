@@ -85,17 +85,15 @@ const buttonVariants = cva(
 );
 ```
 
-## Rule: Expose `className` in Schema Props
+## Rule: Expose `className` on the Schema Node
 
-**Every component must accept `className` in its schema props** to allow JSON-level style overrides:
+**Every component must accept `className` on its schema node** to allow JSON-level style overrides. Like every other key, it is read off the node itself — not out of a `props` envelope, which the renderers never read:
 
 ```json
 {
   "type": "card",
   "className": "bg-red-500",  // ✅ User can override styles
-  "props": {
-    "title": "Alert"
-  }
+  "title": "Alert"
 }
 ```
 
@@ -180,61 +178,58 @@ className="overflow-hidden text-ellipsis whitespace-nowrap"
 
 ## Rule: Tailwind 4 CSS Variables Setup
 
-For ObjectUI components to render correctly, third-party projects must include this CSS setup:
+For ObjectUI components to render correctly, a third-party project imports the
+stylesheets the packages **publish**. There is no `tailwind.config.js` step: ObjectUI is
+Tailwind 4, configured in CSS.
+
+**✅ CORRECT:**
+```css
+/* src/index.css */
+@import "tailwindcss";
+@import "@object-ui/components/style.css";
+@import "@object-ui/fields/style.css";
+```
+
+Each `style.css` is a real package export, mapped to that package's `dist/index.css` and
+compiled at build time from the package's own sources.
+
+`@object-ui/components/style.css` is the base of the pair. It carries every utility its
+components use **and** the `@theme` block those utilities are built on, so the whole
+Shadcn palette (`bg-background`, `bg-primary`, `border-input`, `ring-ring`) plus the
+`:root` / `.dark` token defaults arrive with that one import. You do **not** restate
+those tokens in a `@theme` block of your own.
+
+The order is load-bearing. `@object-ui/fields/style.css` is a supplement: it is compiled
+against the components theme and then has every rule that sheet already ships subtracted
+from it, so it holds only what the field widgets add — the tag colour map, the signature
+canvas cursor, and 17 themed utilities such as `hover:bg-accent/30` that no consumer-side
+configuration can generate. Import it first, or alone, and those rules resolve against
+tokens that are not there yet. `@object-ui/fields` is a separate dependency, not a
+transitive one — install it, or leave that second line out.
+
+**❌ FORBIDDEN — pointing Tailwind at the installed packages:**
+
+Do not scan the ObjectUI packages inside `node_modules`, with neither a v4 `@source` line
+nor a v3 `content` entry. It regenerates the shape-only utilities (`inline-flex`,
+`rounded-md`, `h-9`) the two sheets already contain, and it cannot produce the themed ones
+at all: the `@theme` block they come from lives in package source, which is not published
+(the tarballs carry `dist` only). Your own Tailwind entry goes on generating the classes
+*your* source uses, exactly as before.
+
+Inside the ObjectUI workspace the picture is different, and `@source` is right there: the
+packages are linked to their sources, so an app scans `packages/*/src` and declares the
+theme itself. `apps/console/src/index.css` is the maintained reference for that case.
+
+To recolour, override the token **values** rather than the utilities. They are Shadcn HSL
+channel triples, not finished colours:
 
 ```css
-@import "tailwindcss";
-
-/* Scan ObjectUI packages so Tailwind generates their utility classes */
-@source "../../node_modules/@object-ui/components/src/**/*.tsx";
-@source "../../node_modules/@object-ui/fields/src/**/*.tsx";
-@source "../../node_modules/@object-ui/layout/src/**/*.tsx";
-@source "../../node_modules/@object-ui/react/src/**/*.tsx";
-
-/* Map Shadcn CSS variables to Tailwind 4 color tokens */
-@theme {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-}
-
-/* Light mode CSS variables (Shadcn defaults) */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --radius: 0.625rem;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
 }
 ```
 
-**Without this setup, ObjectUI components will render but look completely unstyled.**
+See `content/docs/guide/theming.md` for the full token list and the `ThemeProvider` route.
+
+**Without these imports, ObjectUI components will render but look completely unstyled.**

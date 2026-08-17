@@ -1,6 +1,7 @@
 {
-  "type": "div",
-  "className": "w-full max-w-6xl mx-auto",
+  "type": "container",
+  "maxWidth": "6xl",
+  "padding": 0,
   "children": [
     {
       "type": "div",
@@ -19,8 +20,12 @@
       ]
     },
     {
-      "type": "div",
-      "className": "grid md:grid-cols-3 gap-8",
+      "type": "grid",
+      "columns": {
+        "xs": 1,
+        "md": 3
+      },
+      "gap": 8,
       "children": [
         {
           "type": "card",

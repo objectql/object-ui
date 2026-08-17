@@ -44,6 +44,19 @@ const FIELD_DEFAULTS: Record<string, string> = {
   // renderer so both cannot drift apart in a locale.
   'fields.options.empty': 'No options available',
   'fields.options.selectFirst': 'Select {{fields}} first',
+  // objectui#4026 — the separator between the controlling-field names that
+  // fill `{{fields}}` of the two gate sentences above/below (`lookup.
+  // selectFirst`, `fields.options.selectFirst`). It is a LOCALE property, not
+  // a code constant: the call sites hardcoded it, and not even to the same
+  // value (`', '` in `LookupField`, `' / '` in `OptionsEmptyState` and the
+  // form renderer), so one deliberately-shared sentence read differently
+  // depending on which side produced it. Deliberately the SAME key
+  // objectstack#5407 added for the invalid-submit toast's field list rather
+  // than a gate-specific twin — it is the same class of truncated-name list,
+  // and a second key would recreate exactly the divergence being removed.
+  // The default here is the `en` pack's value, so a provider-less render is
+  // byte-identical to what `LookupField` produced before.
+  'validation.formInvalidJoiner': ', ',
   // objectstack#3821 — sharing-rule authoring widgets (object-ref /
   // recipient-picker / filter-condition). The recipient placeholder is keyed
   // PER TYPE rather than interpolating the enum value into an English
@@ -77,6 +90,16 @@ const FIELD_DEFAULTS: Record<string, string> = {
   // objectui#3342 — the tags widget's input hint. Used only when the field
   // author declared no `placeholder` of their own (author declaration wins).
   'fields.tags.placeholder': 'Type and press Enter to add…',
+  // objectui#4028 — `AddressField`'s five sub-labels. The parts of an address
+  // are NOT fields on the object (`billing_address` is one column), so no
+  // translation bundle could ever key them and an app had no workaround short
+  // of abandoning `Field.address()`. Byte-identical to the literals they
+  // replace, so English and provider-less rendering are unchanged.
+  'fields.address.street': 'Street Address',
+  'fields.address.city': 'City',
+  'fields.address.state': 'State / Province',
+  'fields.address.postalCode': 'ZIP / Postal Code',
+  'fields.address.country': 'Country',
   // objectui#3406 — the accessible name of `TextAreaField`'s character
   // counter, rendered only when the field declares `maxLength`. The visible
   // `{n}/{max}` is digits; this sentence is what a screen reader speaks, and

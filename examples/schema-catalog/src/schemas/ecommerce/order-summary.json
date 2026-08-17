@@ -8,8 +8,12 @@
       "className": "text-2xl font-bold"
     },
     {
-      "type": "div",
-      "className": "grid md:grid-cols-2 gap-6",
+      "type": "grid",
+      "columns": {
+        "xs": 1,
+        "md": 2
+      },
+      "gap": 6,
       "children": [
         {
           "type": "card",
@@ -77,8 +81,11 @@
                   "className": "items-center gap-3",
                   "children": [
                     {
-                      "type": "div",
-                      "className": "h-10 w-16 rounded bg-muted flex items-center justify-center",
+                      "type": "flex",
+                      "justify": "center",
+                      "align": "center",
+                      "gap": 0,
+                      "className": "h-10 w-16 rounded bg-muted",
                       "children": [
                         {
                           "type": "icon",

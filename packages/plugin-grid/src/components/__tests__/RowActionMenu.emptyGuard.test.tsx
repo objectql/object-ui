@@ -30,7 +30,7 @@
  * surface needs: the inline PRIMARY button path, and the legacy string
  * `rowActions` that carry no predicate.
  */
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
@@ -39,6 +39,8 @@ import { registerAllFields } from '@object-ui/fields';
 import type { CrudAffordances } from '@object-ui/core';
 import { RowActionMenu, planRowActionMenu } from '../RowActionMenu';
 import { ObjectGrid } from '../../ObjectGrid';
+import { __clearRecordCrudVerdictCache } from '../../hooks/useRecordCrudVerdicts';
+import { installExplainDouble } from '../../__tests__/explainDouble';
 
 registerAllFields();
 
@@ -62,7 +64,16 @@ function renderMenu(props: Record<string, unknown>) {
   );
 }
 
-afterEach(() => { cleanup(); });
+// [#4296] The `ObjectGrid` describe at the bottom of this file renders a real
+// grid, which batches a record-level explain probe for its rows. Answer it from
+// a double instead of letting it escape to the network (objectui#3339 / PR
+// #4105); `visible: true` for every row leaves this file's alignment and
+// trigger-count assertions measuring exactly what they measured before.
+beforeEach(() => {
+  __clearRecordCrudVerdictCache();
+  installExplainDouble();
+});
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('RowActionMenu — the "⋮" counts renderable items, not handlers (#3562)', () => {
   it('renders NO trigger when every built-in item is predicate-suppressed', () => {

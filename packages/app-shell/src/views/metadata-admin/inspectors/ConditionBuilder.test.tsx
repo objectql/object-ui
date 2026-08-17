@@ -11,9 +11,22 @@
  */
 
 import * as React from 'react';
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+// objectui#4697 — ConditionBuilder calls useObjectFields(objectName)
+// unconditionally even when a `fields` prop is supplied (the prop only
+// overrides the VALUE used, not whether the hook's own effect fetches). Stub
+// the shared client so that mount-time fetch doesn't escape to the real
+// network; see PageBlockInspector.i18n.test.tsx for the full mechanism.
+const state = vi.hoisted(() => ({
+  metadataClient: { get: vi.fn(async () => undefined), list: vi.fn(async () => [] as unknown[]) },
+}));
+vi.mock('../useMetadata', () => ({
+  useMetadataClient: () => state.metadataClient,
+}));
+
 import { ConditionBuilder } from './ConditionBuilder';
 import { __setCelFormulaLoader } from '../celAuthoring';
 

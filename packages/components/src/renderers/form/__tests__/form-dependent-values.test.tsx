@@ -17,9 +17,9 @@
  * matter what the user picked in the parent field.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, CASCADE_OPTION_WIDGET_TYPES } from '@object-ui/core';
 import '../../../renderers';
 
 // Probe widget standing in for a lookup field: surfaces the received
@@ -109,4 +109,37 @@ describe('form renderer — dependentValues injection for data-source fields (#2
     });
   });
 
+});
+
+describe('form renderer — the allow-table is the SHARED object (objectui#4770)', () => {
+  it('asks @object-ui/core CASCADE_OPTION_WIDGET_TYPES which fields get the record', () => {
+    // Identity, not membership — the same pin the two dialog surfaces carry
+    // (`app-shell/src/views/ActionParamDialog.dialogRecord.test.tsx`,
+    // `plugin-grid/src/__tests__/bulkActionDialogRecord.test.tsx`). The
+    // injection cases above pass against ANY set holding these four members,
+    // including the private `CASCADE_OPTION_FIELD_TYPES` copy this form carried
+    // until objectui#4770 — so they cannot report the failure mode #4770
+    // closed, which was the three copies drifting apart. The spy is installed
+    // on the Set object exported by `@object-ui/core`; it records a call only
+    // if this renderer consulted THAT object.
+    const spy = vi.spyOn(CASCADE_OPTION_WIDGET_TYPES, 'has');
+    try {
+      renderForm([
+        { name: 'country', label: 'Country', type: 'input', defaultValue: '' },
+        {
+          name: 'province',
+          label: 'Province',
+          type: 'select',
+          widget: 'field:select',
+          dependsOn: 'country',
+          options: [{ label: 'Zhejiang', value: 'zj', visibleWhen: "record.country == 'cn'" }],
+        },
+      ]);
+      // The form normalizes `field:select` to `select` BEFORE the lookup, so
+      // the key reaching the shared set is the widget key it is defined on.
+      expect(spy.mock.calls.map(([k]) => k)).toContain('select');
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });

@@ -40,7 +40,41 @@ export function colorVariantCss(value: string | undefined): string {
   return CSS_BY_VALUE[value] ?? '#9ca3af';
 }
 
-export function ColorVariantPicker({ value, onChange, disabled, options }: {
+/**
+ * How this picker's `radiogroup` gets its accessible name (objectui#4010).
+ *
+ * The swatches are `role="radio"` buttons, each already named by its colour —
+ * "Blue", "Success". The GROUP is a separate naming surface, and its name is
+ * the one that says WHAT is being coloured; without it focus enters an
+ * anonymous radiogroup and the field's visible label is unowned text.
+ *
+ * Naming is required at the type level, exactly one channel, mirroring
+ * `InspectorComboField` (objectui#3997): an unnamed picker does not compile.
+ *
+ *  - `ariaLabelledBy` — a VISIBLE label names this field. It publishes its own
+ *    `id` and the group answers by IDREF. This is the WAI-ARIA group pattern
+ *    this repo already applies to `labelling: 'group'` field widgets
+ *    (objectui#3961 → #3990), and it is the right channel here for the reason
+ *    stated there: `role="radiogroup"` is a CONTAINER, not a labelable element,
+ *    so a `<label for>` aimed at it is inert HTML that names nothing. The
+ *    visible text becomes the accessible name verbatim — one fact, one author,
+ *    no second string to drift.
+ *  - `ariaLabel` — no visible label is in a position to publish an id (a
+ *    generic host that rendered its `<label for>` before it knew this surface
+ *    would be a group). Self-owned name; keep it EQUAL to the visible text
+ *    where one exists, or WCAG 2.5.3 (Label in Name) fails.
+ *
+ * Deliberately no `id` variant: handing this container the id a `<label for>`
+ * points at would make the IDREF resolve while still naming nothing — the
+ * cosmetic half-fix objectui#4010 was filed to avoid, and the pairing
+ * `form.tsx` refuses outright ("one label two association channels, one of
+ * which is broken").
+ */
+export type ColorVariantPickerNaming =
+  | { ariaLabelledBy: string; ariaLabel?: never }
+  | { ariaLabel: string; ariaLabelledBy?: never };
+
+export function ColorVariantPicker({ value, onChange, disabled, options, ariaLabelledBy, ariaLabel }: ColorVariantPickerNaming & {
   value: string | undefined;
   onChange: (v: string) => void;
   disabled?: boolean;
@@ -52,7 +86,12 @@ export function ColorVariantPicker({ value, onChange, disabled, options }: {
     : COLOR_VARIANTS.slice(0, 8); // canonical 8 (skip aliases in the default row)
   const current = value ?? 'default';
   return (
-    <div className="flex flex-wrap gap-1.5" role="radiogroup">
+    <div
+      className="flex flex-wrap gap-1.5"
+      role="radiogroup"
+      aria-labelledby={ariaLabelledBy}
+      aria-label={ariaLabel}
+    >
       {opts.map((o) => {
         const on = current === o.value;
         return (

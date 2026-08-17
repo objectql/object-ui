@@ -45,12 +45,13 @@
  *   objectui#4626  2 entries were filed as blank tiles, each authoring a key
  *                          its own renderer never reads — one of the two was
  *                          measured to be neither (see below)
- *   objectui#4627  2 entries author 2024 event dates, outside the window
- *                          `calendar-view` paints
+ *   objectui#4627  2 entries author events in a fixed past month, outside the
+ *                          window `calendar-view` paints around today
  *
- * The first three are FIXED in the entries as of objectui#4624's PR, so the
- * eight entries they covered carry the full assertion set here and no longer
- * appear in either table. What that PR measured, and corrects in this header:
+ * All four are FIXED in the entries — the first three as of objectui#4624's
+ * PR, #4627 as of its own — so the ten entries they covered carry the full
+ * assertion set here and no longer appear in either table. What #4624 measured,
+ * and corrects in this header:
  *
  *  - #4625's six now author `ui:calendar`, the namespaced key the primitive is
  *    registered under. Probed through this file's own render path before the
@@ -108,8 +109,9 @@
  * distinction matters in both directions (see the header). For
  * the categories objectui#4616 newly registered, a stronger positive control on
  * top: the titles the entry itself authors are on screen
- * (`AUTHORED_TEXT_EXEMPT` records the two that cannot be asserted that way,
- * with the reason).
+ * (`AUTHORED_TEXT_EXEMPT` records any that cannot be asserted that way, with
+ * the reason — it is empty as of objectui#4627, and every entry in those
+ * categories carries the control).
  *
  * The diagnostic strings are COPIED as literals rather than imported from the
  * packages' internals, for the reason objectui#4600 gave: they are
@@ -242,24 +244,27 @@ const NEWLY_REGISTERED_CATEGORIES = [
 
 /**
  * Entries in those categories whose authored titles provably cannot reach the
- * DOM. Each still carries the full no-red-tile assertion and the
+ * DOM. Each would still carry the full no-red-tile assertion and the
  * DOM-was-produced control above; only the authored-title control is lifted,
  * with the measured reason.
  *
- * date window: `calendar-view` paints the grid for the CURRENT month/week, and
- * both entries author events with fixed 2024 dates, so no event title is in
- * range (measured on a 2026-08-14 run: "August 2026" and "Aug 9 - Aug 15,
- * 2026"). That is a staleness question about the entries' data, not a render
- * defect — filed as objectui#4627. Everything else still applies to them: both
- * draw a real calendar, 163 and 421 elements.
+ * EMPTY, and that is the assertion: every entry in the newly-registered
+ * categories now puts its own authored titles on screen. The table held
+ * `plugin-calendar`'s two until objectui#4627 — `calendar-view` paints the
+ * window around `currentDate`, which defaults to TODAY, and both entries
+ * authored events in a fixed past month, so no event title could ever be in
+ * range (measured on a 2026-08-14 run: the tiles drew "August 2026" and
+ * "Aug 9 - Aug 15, 2026" around an empty grid). That was a staleness question
+ * about the entries' data, not a render defect: both already drew a real
+ * calendar, 163 and 421 elements. Both entries now author `currentDate` — the
+ * registry input `calendar-view` declares, parsed from its documented ISO
+ * string at the renderer boundary since objectui#4452 — pinning each view onto
+ * its own events, so the exemption is gone rather than reworded.
  *
  * (`plugin-editor`'s and `plugin-map`'s six are absent from this table because
  * they are not rendered here at all — see `EXCLUSIONS`.)
  */
-const AUTHORED_TEXT_EXEMPT: Record<string, string> = {
-  'plugin-calendar/month-view-calendar': 'date window',
-  'plugin-calendar/week-view-calendar': 'date window',
-};
+const AUTHORED_TEXT_EXEMPT: Record<string, string> = {};
 
 /**
  * The gallery's data source, in the shape `SchemaThumbnail` supplies it. Kept

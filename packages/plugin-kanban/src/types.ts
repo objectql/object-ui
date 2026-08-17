@@ -78,6 +78,19 @@ export interface KanbanSchema extends BaseSchema {
   data?: any[];
 
   /**
+   * Row cap for the fetch. Defaults to `DEFAULT_KANBAN_LIMIT` (100); a board
+   * renders every fetched record into a lane and has no pagination control, so
+   * this is the author's window rather than a page size. A bound `dataSource`
+   * writes it here too — the binding's own `limit`, or the named view's
+   * `pagination.pageSize`.
+   *
+   * Not to be confused with {@link KanbanColumn.limit}, one level down: that is
+   * a lane's WIP limit (the card count at which the lane warns) and never
+   * reaches the query.
+   */
+  limit?: number;
+
+  /**
    * Array of columns to display in the kanban board.
    * Each column contains an array of cards.
    */

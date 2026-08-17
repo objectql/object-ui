@@ -17,21 +17,23 @@
  * accepts four shapes; normalizing here means one shape reaches the wire and a
  * block does not have to know which spelling its author used.
  *
- * This is the same conversion three sibling blocks already inline privately
- * (`ObjectGantt` / `ObjectMap` / `ObjectCalendar`, byte-identical copies). It is
- * hoisted here because objectstack#7137 added two more read sites
- * (`object-timeline`, `record:line_items`), and a fifth and sixth private copy is
- * how the conversions start disagreeing. Collapsing the three existing copies
- * onto this one is deliberately NOT part of #7137 — it is tracked as
- * objectstack#7148.
+ * This is now the ONLY definition in the repo. It was hoisted here because
+ * objectstack#7137 added two more read sites (`object-timeline`,
+ * `record:line_items`) next to three sibling blocks that each inlined a
+ * byte-identical private copy (`ObjectGantt` / `ObjectMap` / `ObjectCalendar`),
+ * and a fifth and sixth copy is how the conversions start disagreeing. Those
+ * three copies were deliberately left alone by #7137 and collapsed onto this
+ * function by objectui#4022; every block now imports it from here.
  *
- * Two deliberate differences from those private copies, both of which make this
- * function more faithful to the declared contract rather than adding tolerance:
+ * Two deliberate differences from those retired private copies, both of which
+ * make this function more faithful to the declared contract rather than adding
+ * tolerance — and both are BEHAVIOUR CHANGES the migration delivered, not pure
+ * refactor:
  *
  *  - **`order` is optional in `SortConfig`**, so an entry that omits it means
  *    ascending (that is what `$orderby`'s own
  *    `Array<{ field: string; order?: 'asc' | 'desc' }>` shape says). The private
- *    copies require BOTH keys and silently drop such an entry, which loses an
+ *    copies required BOTH keys and silently dropped such an entry, which lost an
  *    authored sort key instead of ordering by it.
  *  - **Nothing usable yields `undefined`, never `{}`.** An empty object is a
  *    truthy value that means "no ordering" only by accident of the adapter's

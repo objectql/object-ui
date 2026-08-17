@@ -19,8 +19,7 @@ import { emulateBatchTransaction } from '@object-ui/core';
  * 在真实项目中，你会在这里使用 fetch/axios 调用你的 API。
  */
 export class MockDataSource implements DataSource {
-  async find(resource: string, params?: QueryParams): Promise<QueryResult> {
-    console.log(`[DataSource] Querying ${resource}`, params);
+  async find(_resource: string, _params?: QueryParams): Promise<QueryResult> {
     // `find` returns an envelope, not a bare array — consumers read `.data`
     // and `.total` (see QueryResult). Returning `[]` here would leave every
     // caller with `undefined` data.
@@ -34,8 +33,7 @@ export class MockDataSource implements DataSource {
   async create(resource: string, data: any): Promise<any> {
     // 模拟网络请求
     await new Promise(resolve => setTimeout(resolve, 800));
-    
-    console.log(`[DataSource] Created ${resource}:`, data);
+
     alert(`Success! Created record in "${resource}":\n${JSON.stringify(data, null, 2)}`);
     
     return { id: Math.random().toString(), ...data };
@@ -59,8 +57,7 @@ export class MockDataSource implements DataSource {
     if (!objectName || typeof objectName !== 'string') {
       throw new Error('Invalid object name');
     }
-    
-    console.log(`[DataSource] Getting schema for ${objectName}`);
+
     // Return a minimal schema for mock purposes
     return {
       name: objectName,

@@ -31,6 +31,7 @@
 
 import { normalizeFilterOperator } from '@objectstack/spec/ui';
 import type { ViewFilterRule } from '@objectstack/spec/ui';
+import { VALUELESS_FILTER_BUILDER_OPERATORS } from '@object-ui/components';
 
 /** Why a group could not be folded to a flat spec rule list. */
 export type FilterFoldRefusal =
@@ -56,19 +57,34 @@ interface FilterGroupLike {
  *
  * The builder renders no value input for these (`needsValueInput` in
  * `@object-ui/components`'s `filter-builder.tsx`), so "no value" is the row's
- * finished state, not an unfinished one. `exists` / `notExists` have no
- * canonical spec spelling and pass through verbatim for the server's enum to
- * reject loudly (see the operator note above) — they are listed so that
- * rejection stays the reason they fail, rather than being silently dropped here
- * as incomplete.
+ * finished state, not an unfinished one.
  *
- * `viewFilterFold.emptyValue.test.ts` pins this set against the builder's own
- * list so the two cannot drift apart unnoticed.
+ * `exists` / `notExists` are still listed, and no longer for the reason they
+ * used to be. They have no canonical spec spelling — `VIEW_FILTER_OPERATORS`
+ * has no existence operator — so a rule carrying one is refused by
+ * `ViewFilterRuleSchema`. That used to be their whole story here: they reached
+ * this fold from the shared dropdown, and listing them kept the server's loud
+ * rejection as the reason they failed rather than a silent drop as incomplete.
+ * Since objectui#4736 the dropdown no longer OFFERS them to any consumer that
+ * folds through here (they moved behind `OPT_IN_OPERATORS`, and only
+ * `FilterConditionField` — which writes MongoDB-style criteria, never a view
+ * rule — opts in), so the live path stopped producing them. They are still in
+ * the set because `needsValueInput` still draws them value-less for that
+ * widget, and because stored metadata may carry one — and they now arrive by
+ * IMPORT rather than by being re-listed here, so that reasoning lives at the
+ * one place that owns it.
+ *
+ * The builder half is no longer restated here: it is imported from
+ * `@object-ui/components`, the module whose `needsValueInput` decides it
+ * (objectui#4744). This layer only ADDS what the builder never sees — the
+ * canonical spec spellings a stored `ViewFilterRule` carries.
+ * `viewFilterFold.emptyValue.test.ts` pins the union against that import so a
+ * new value-less operator upstream cannot land here half-applied.
  */
 export const VALUELESS_FILTER_OPERATORS: ReadonlySet<string> = new Set([
-    // FilterBuilder vocabulary
-    'isEmpty', 'isNotEmpty', 'isNull', 'isNotNull', 'exists', 'notExists',
-    // …and their canonical spec spellings
+    // FilterBuilder vocabulary — the one shared set, not a copy of it.
+    ...VALUELESS_FILTER_BUILDER_OPERATORS,
+    // …and their canonical spec spellings, which only this layer sees.
     'is_empty', 'is_not_empty', 'is_null', 'is_not_null',
 ]);
 

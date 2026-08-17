@@ -3,8 +3,11 @@
   "className": "w-full max-w-sm mx-auto overflow-hidden",
   "children": [
     {
-      "type": "div",
-      "className": "aspect-square bg-muted flex items-center justify-center",
+      "type": "flex",
+      "justify": "center",
+      "align": "center",
+      "gap": 0,
+      "className": "aspect-square bg-muted",
       "children": [
         {
           "type": "icon",

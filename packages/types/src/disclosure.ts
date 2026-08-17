@@ -35,12 +35,12 @@ export interface AccordionItem {
   content: SchemaNode | SchemaNode[];
   /**
    * Whether item is disabled
+   *
+   * Forwarded to the underlying accordion item by the `accordion` renderer,
+   * matching the item-level `disabled` that `tabs`, `select`, `dropdown-menu`,
+   * `menubar`, `context-menu` and `toggle-group` already honor.
    */
   disabled?: boolean;
-  /**
-   * Item icon
-   */
-  icon?: string;
 }
 
 /**
@@ -126,11 +126,11 @@ export interface ToggleGroupItem {
    */
   label: string;
   /**
-   * Item icon
-   */
-  icon?: string;
-  /**
    * Whether item is disabled
+   *
+   * Forwarded to the underlying toggle item by the `toggle-group` renderer,
+   * matching the item-level `disabled` that `tabs`, `select`, `dropdown-menu`,
+   * `menubar` and `context-menu` already honor.
    */
   disabled?: boolean;
 }

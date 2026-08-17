@@ -891,7 +891,6 @@ function MetadataResourceEditPageImpl({
     if (Number.isFinite(v) && v >= 22 && v <= 80) {
       lastInspectorSizeRef.current = v;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inspectorPanelRef = React.useRef<any>(null);
@@ -950,6 +949,53 @@ function MetadataResourceEditPageImpl({
     return () => window.removeEventListener('keydown', onKey);
   }, [isFullscreen]);
 
+  // ── Is this item a packaged ARTIFACT, or org-authored content? ────────
+  // The two-tier authorization model (PR-10d.7) applies a different gate to
+  // each: overlaying a code-shipped artifact needs `allowOrgOverride`, while
+  // authoring org content needs only `allowRuntimeCreate`. Several call sites
+  // below key off the answer, so it is derived ONCE here — the previous two
+  // in-place copies are how the two drifted from the server (objectui#4308).
+  //
+  // A non-null `code` layer is NOT by itself proof of a packaged artifact: it
+  // only proves that SOME package tagged the item, and org-authored items
+  // carry a package tag too. Two exclusions cover that, and they mirror the
+  // server rather than guessing alongside it:
+  //
+  //   1. `_packageId === 'sys_metadata'` — the save-path sentinel for a
+  //      published org item, excluded by the protocol's own
+  //      `isArtifactBacked` / `lookupArtifactItem`.
+  //   2. `provenance === 'org'` (ADR-0010) — the axis that actually separates
+  //      tenant-authored content from code-shipped artifacts. The sentinel in
+  //      (1) holds only on the save path: boot-time rehydration of
+  //      `sys_metadata` re-registers each row under its REAL package id, so a
+  //      tenant's own item reads back with a code-looking `_packageId`. The
+  //      framework hit exactly this and fixed it by asking provenance instead
+  //      (`isTenantAuthored`, cloud#970) — an app the user had just built went
+  //      un-editable at the first kernel rebuild. This page still carried the
+  //      pre-cloud#970 spelling, which is objectui#4308: an object published
+  //      into a WRITABLE package was mis-tiered as a packaged artifact, so
+  //      this pillar alone showed the "provided by an installed package"
+  //      lock while Studio treated it as editable and the server accepted the
+  //      PUT.
+  //
+  // The server ships the answer on the layered envelope, so we read it rather
+  // than re-deriving package writability from a third source. `provenance`
+  // describes `code` here (the server resolves it from `code ?? overlay`, and
+  // this branch already requires `code != null`); `undefined` means "no
+  // opinion" (older server / unstamped item) and keeps the conservative
+  // artifact reading, matching the `lock*` flags below.
+  //
+  // Deliberately NOT loosened: a genuine code package still reports
+  // `provenance: 'package'` and stays read-only here, per the objectui#4036
+  // ruling — "a code-defined package is read-only; customize in a writable
+  // package" is one rule, and this change only stops it firing on packages
+  // that are not code-defined.
+  const isArtifactItem =
+    !createMode
+    && layered?.code != null
+    && (layered.code as { _packageId?: string } | null)?._packageId !== 'sys_metadata'
+    && layered?.provenance !== 'org';
+
   // Auto-enable design mode for designer-capable types. We do this once
   // per (type,name) navigation so the user lands in the productive
   // state instead of having to click "Edit". Truly read-only types
@@ -966,18 +1012,16 @@ function MetadataResourceEditPageImpl({
     if (designerAutoOnRef.current === key) return;
     const PC = getMetadataPreview(type);
     if (!PC) return;
-    // See `isArtifactItem` below — a `sys_metadata`-tagged code layer is a
-    // published org object, NOT a packaged artifact, so it stays editable.
-    const isArtifact =
-      layered?.code != null
-      && (layered.code as { _packageId?: string } | null)?._packageId !== 'sys_metadata';
-    const cw = isArtifact
+    // Same tier question as the Save gate below, from the same derivation —
+    // this used to be an in-place copy of the artifact heuristic, so the two
+    // could (and did) answer differently for one item (objectui#4308).
+    const cw = isArtifactItem
       ? !!entry?.allowOrgOverride
       : !!(entry?.allowOrgOverride || entry?.allowRuntimeCreate);
     if (!cw) return;
     designerAutoOnRef.current = key;
     setEditing(true);
-  }, [type, name, createMode, embedded, loading, entry, layered]);
+  }, [type, name, createMode, embedded, loading, entry, isArtifactItem]);
 
   // Keyboard shortcut: Cmd/Ctrl+\ toggles the inspector. This is the
   // designer convention shared by Figma, VS Code (Cmd+B), Sketch — `\`
@@ -1326,19 +1370,12 @@ function MetadataResourceEditPageImpl({
   // Two-tier authorization (PR-10d.7) — hoisted above the early `loading`
   // return so the auto-save / keyboard / blocker effects below can read
   // them. Recomputed cheaply on every render.
-  //   - artifact-backed items (layered.code != null) need allowOrgOverride
-  //   - DB-only items (no artifact) need allowOrgOverride OR allowRuntimeCreate
+  //   - artifact-backed items need allowOrgOverride
+  //   - org-authored items need allowOrgOverride OR allowRuntimeCreate
   //   - createMode is always writable (the server will gate on intent)
-  // A non-null `code` layer alone is NOT proof of a code (artifact) package:
-  // a published org object also surfaces its active version in `code`, but
-  // tagged with the `sys_metadata` provenance sentinel. Mirror the server's
-  // `isArtifactBacked` (which excludes `_packageId === 'sys_metadata'`) so an
-  // org-authored object stays editable after publish instead of being mis-read
-  // as a read-only packaged item.
-  const isArtifactItem =
-    !createMode
-    && layered?.code != null
-    && (layered.code as { _packageId?: string } | null)?._packageId !== 'sys_metadata';
+  // Which tier this item is in is decided once, next to the designer
+  // auto-on effect above — see `isArtifactItem` for why a non-null `code`
+  // layer alone cannot answer it.
   // ADR-0010 — server-computed lock flags. undefined means "no opinion"
   // (older server / non-lockable item) → preserve legacy behaviour.
   const lockEditable = layered?.editable !== false;

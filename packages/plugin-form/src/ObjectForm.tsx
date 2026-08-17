@@ -45,7 +45,23 @@ import {
 } from './schemaDefaults';
 import { useOccSave } from './occSave';
 
-export interface ObjectFormProps {
+/**
+ * Props of the `ObjectForm` React component.
+ *
+ * Renamed off the bare `ObjectFormProps` (objectui#4650): from 17.0.0
+ * `@objectstack/spec/ui` owns that name, where it is the AUTHORED props
+ * document of the `object-form` element — `z.input<typeof
+ * ObjectFormPropsSchema>`, i.e. serialisable authoring keys only. This is the
+ * RENDERER's props: a live `dataSource`, submit/cancel callbacks and imperative
+ * handles, none of which can exist in authored metadata. Two layers under one
+ * word, resolved the way this repo already resolved it for `PageHeaderProps` ->
+ * `PageHeaderComponentProps` (app-shell) and the `Record*ComponentProps` family
+ * in `@object-ui/types`.
+ *
+ * The barrel keeps `ObjectFormProps` as a deprecated alias of this type, so no
+ * importer breaks. Tripwire: `__tests__/spec-symbol-4650.test.ts`.
+ */
+export interface ObjectFormComponentProps {
   /**
    * The schema configuration for the form
    */
@@ -64,7 +80,6 @@ export interface ObjectFormProps {
 }
 
 /**
-/**
  * Fold the structured, spec-aligned `buttons`/`defaults` surface
  * (`@objectstack/spec` FormViewSchema; framework#1894 / #2998) down onto the
  * flat renderer props ObjectForm and its variants read
@@ -77,7 +92,7 @@ export interface ObjectFormProps {
  * Returns the input untouched when neither structured key is present (the
  * common case), so there is no allocation on the hot path.
  */
-function foldFormButtons(schema: ObjectFormProps['schema']): ObjectFormProps['schema'] {
+function foldFormButtons(schema: ObjectFormComponentProps['schema']): ObjectFormComponentProps['schema'] {
   const buttons = (schema as { buttons?: ObjectFormSchema['buttons'] }).buttons;
   const defaults = (schema as { defaults?: Record<string, any> }).defaults;
   if (!buttons && !defaults) return schema;
@@ -89,7 +104,7 @@ function foldFormButtons(schema: ObjectFormProps['schema']): ObjectFormProps['sc
   if (buttons?.cancel?.label != null && s.cancelText === undefined) out.cancelText = buttons.cancel.label;
   if (buttons?.reset?.show !== undefined && s.showReset === undefined) out.showReset = buttons.reset.show;
   if (defaults && s.initialValues === undefined) out.initialValues = defaults;
-  return out as ObjectFormProps['schema'];
+  return out as ObjectFormComponentProps['schema'];
 }
 
 /**
@@ -110,7 +125,7 @@ function foldFormButtons(schema: ObjectFormProps['schema']): ObjectFormProps['sc
  * />
  * ```
  */
-export const ObjectForm: React.FC<ObjectFormProps> = ({
+export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
   schema: rawSchema,
   dataSource,
 }) => {
@@ -119,7 +134,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
   // fields) BEFORE dispatching to any variant. This way all variants
   // (Tabbed/Wizard/Split/Drawer/Modal/Simple) transparently honour FLS.
   // Fail-open when no provider mounted (perms.isLoaded false).
-  const schema = useMemo<ObjectFormProps['schema']>(() => {
+  const schema = useMemo<ObjectFormComponentProps['schema']>(() => {
     // framework#1894 / #2998 (ADR-0078): the authored @objectstack/spec
     // FormViewSchema carries the structured `buttons.{submit,cancel,reset}.
     // {show,label}` + `defaults` surface, but this renderer historically read
@@ -133,7 +148,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
     // so groups-only metadata actually renders (it used to be silently
     // ignored). Legacy shape maps `title`→`label`, `defaultCollapsed`→`collapsed`.
     const legacyGroups = (folded as any).groups;
-    const base: ObjectFormProps['schema'] =
+    const base: ObjectFormComponentProps['schema'] =
       !folded.sections?.length && Array.isArray(legacyGroups) && legacyGroups.length
         ? {
             ...folded,
@@ -166,7 +181,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
         ...s,
         fields: filterArr(s.fields),
       })),
-    } as ObjectFormProps['schema'];
+    } as ObjectFormComponentProps['schema'];
   }, [rawSchema, perms]);
   const { sectionLabel } = useSafeFieldLabel();
   const tSec = (s: any) =>
@@ -358,7 +373,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
 /**
  * SimpleObjectForm — default form variant with auto-generated fields from ObjectQL schema.
  */
-const SimpleObjectForm: React.FC<ObjectFormProps> = ({
+const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
   schema,
   dataSource,
 }) => {
@@ -1103,9 +1118,37 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
   //    Every type below has a READER, which is what makes the stamp mean
   //    something (objectui#3301): `textarea` is the form renderer's built-in
   //    branch, `field:textarea` is `TextAreaField`, and `field:markdown` /
-  //    `field:html` both resolve to `RichTextField` — which now reads the flag
-  //    too, so `ObjectFormSchema.mobile`'s documented "textarea/rich-text get
-  //    an expand button" is finally true of rich text as well.
+  //    `field:html` / `field:richtext` ALL resolve to `RichTextField` — which
+  //    reads the flag since #3301, so `ObjectFormSchema.mobile`'s documented
+  //    "textarea/rich-text get an expand button" is true of rich text as well.
+  //
+  //    `field:richtext` was missing from this list until objectui#4831, and it
+  //    is the ONE spelling `@objectstack/spec` itself uses: `FieldType` spells
+  //    the type `richtext` (`markdown` / `html` are the other two), the alias
+  //    table maps `richtext → field:richtext` (`field-type-alias.ts`), and the
+  //    widget map resolves `richtext` to `RichTextField` right beside the other
+  //    two (`fields/src/index.tsx`). So the reader had been there all along and
+  //    two of that widget's THREE registry keys were stamped — a field authored
+  //    exactly as the spec prescribes was the only one that got nothing. Same
+  //    shape as objectui#4250, which found the same hole in the twin set below
+  //    (`WIDE_FIELD_TYPES` in `./autoLayout`) and closed it the same way.
+  //
+  //    Why this stays a hand-written list rather than becoming "whatever
+  //    resolves to a long-text widget" (measured for #4831, both candidates):
+  //    `fieldWidgetMap` is module-private and its entries are distinct arrow
+  //    closures over distinct `import()`s, so widget IDENTITY is observable
+  //    only by awaiting a dynamic import — this stamp is a synchronous `.map()`
+  //    during render, so deriving from it means eagerly loading every widget
+  //    module, the exact cost the lazy registry exists to avoid.
+  //    `mapFieldTypeToFormType` records no "these three are one widget" fact
+  //    either: it maps each spelling to its own value. And NEITHER source can
+  //    account for `'textarea'`, which is not a registry key at all but the
+  //    form renderer's built-in branch (`BUILTIN_FIELD_TYPES`). There is no
+  //    single source to derive from; inventing one would put a second
+  //    definition of "long text" in the repo, so the list stays explicit and
+  //    the behavioural pin in `__tests__/ObjectForm.mobileFullscreen.test.tsx`
+  //    is what keeps it honest (never an assertion that a literal is present —
+  //    that is the fake-green shape objectui#4250 named).
   //
   //    A sixth type, `'string-multiline'`, was stamped here until #3301 and is
   //    gone: `grep -rn "string-multiline"` across BOTH this repo and
@@ -1119,7 +1162,8 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     ? autoLayoutResult.fields.map((f) => {
         const t = f.type as string | undefined;
         const isTextarea = t === 'textarea' || t === 'field:textarea' ||
-          t === 'field:markdown' || t === 'field:html';
+          t === 'field:markdown' || t === 'field:html' ||
+          t === 'field:richtext';
         if (!isTextarea) return f;
         return f.field
           ? { ...f, field: { ...f.field, mobile_fullscreen: true } }

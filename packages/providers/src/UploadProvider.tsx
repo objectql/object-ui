@@ -331,7 +331,6 @@ async function uploadWithProgress(
   const maxRetries = options.maxRetries ?? 3;
   const baseDelay = options.retryDelayMs ?? 500;
   let attempt = 0;
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     if (options.signal?.aborted) throw new DOMException('aborted', 'AbortError');
     try {

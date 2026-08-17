@@ -1,8 +1,7 @@
 import React, { useEffect } from 'react';
 import {
   SidebarProvider,
-  SidebarInset,
-  Sidebar
+  SidebarInset
 } from '@object-ui/components';
 import { cn } from '@object-ui/components';
 

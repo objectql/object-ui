@@ -63,10 +63,10 @@ export function EmbeddedItemEditor({
   const { entries } = useMetadataTypes(client);
   const subEntry = editAs ? entries.find((e) => e.type === editAs) : undefined;
   // Fallback inline schemas for sub-types the framework registers without
-  // a JSON-Schema (validation / index live in object.body but the
-  // registry only exposes their metadata, not their shape). The
-  // schemas below mirror the framework's Zod definitions and the
-  // shapes we see on disk under packages/data-objectstack fixtures.
+  // a JSON-Schema (index lives in object.body but the registry only
+  // exposes its metadata, not its shape). The schemas below mirror the
+  // framework's Zod definitions — a claim that is now ASSERTED rather
+  // than promised, by `EmbeddedItemEditor.indexFallback.test.tsx`.
   const fallback = !subEntry?.schema && editAs ? FALLBACK_SCHEMAS[editAs] : undefined;
   const schema = (subEntry?.schema as Record<string, unknown> | undefined) ?? fallback?.schema;
   const form = (subEntry?.form as any) ?? fallback?.form;
@@ -301,8 +301,31 @@ function spliceEmbedded(
  *
  * `validation` used to be here but is now published by the server via
  * `HAND_CRAFTED_SCHEMAS.validation` in `objectql/protocol.ts`.
+ *
+ * ## ⛔ This copy must MIRROR `IndexSchema`, and that is now pinned
+ *
+ * A hand-copied schema is a drift source by construction, and this one drifted
+ * (objectstack#5247): it grew a `where` control the spec never declared and a
+ * `brin` value the spec never allowed. `EmbeddedItemEditor.indexFallback.test.tsx`
+ * now parses a fixture built from these very properties through the INSTALLED
+ * `@objectstack/spec`, so a control that edits a key the spec drops or rejects
+ * fails the build instead of shipping.
+ *
+ * ### Do not re-add `type` ("Algorithm") or `partial` / `where`
+ *
+ * Both keys were RETIRED in `@objectstack/spec` 17.0.0 (objectstack#5248,
+ * ADR-0049 enforce-or-remove, maintainer ruling 2026-08-06) and are `retiredKey`
+ * tombstones in `IndexSchema` today — the spec REJECTS them at any value, so the
+ * old "Algorithm" select was a control every one of whose options now produces a
+ * 422 on the parent save. `where` was never declared at all (the spec's spelling
+ * was `partial`, itself now retired), so it was silently dropped on every save.
+ *
+ * The replacements are not console controls: an index METHOD is the
+ * driver/dialect's choice, and a PARTIAL index is built at the database layer by
+ * a runtime migration issuing `CREATE [UNIQUE] INDEX … WHERE`. Neither is a
+ * declaration-surface concern, so neither comes back here.
  */
-const FALLBACK_SCHEMAS: Record<
+export const FALLBACK_SCHEMAS: Record<
   string,
   { schema: Record<string, unknown>; form?: Record<string, unknown> }
 > = {
@@ -314,29 +337,39 @@ const FALLBACK_SCHEMAS: Record<
         name: {
           type: 'string',
           title: 'Name',
-          description: 'Synthesised from columns if omitted (e.g. idx_email).',
+          description: 'Index name (auto-generated from the columns if not provided).',
         },
         fields: {
           type: 'array',
           title: 'Fields',
-          description: 'Columns to index, in order.',
+          description: 'Fields included in the index, in order.',
           items: { type: 'string' },
         },
-        type: {
-          type: 'string',
-          title: 'Algorithm',
-          enum: ['btree', 'hash', 'gin', 'gist', 'brin'],
-          default: 'btree',
-        },
+        // ADR-0120: `unique` is a SCOPE, not a flag —
+        // `z.union([z.boolean(), z.literal('global'), z.literal('organization')])`.
+        // The union is mirrored verbatim, with the scope branch FIRST on
+        // purpose: `resolveUnionBranch` falls back to `branches[0]` when the
+        // value is absent, so a new index gets the scope select and can only
+        // author a spelling that survives protocol 18. An index already
+        // carrying the legacy boolean scores the boolean branch and keeps
+        // rendering as the switch it was authored with, unchanged.
+        //
+        // Bare `true` is the DEPRECATED positional spelling of `'global'`: lint
+        // `unique/unscoped-declared-index` warns on it in 17.x and protocol 18
+        // rejects it (objectstack#5082), which is why it is not offered as an
+        // option here. Leaving the control empty is the spec default (`false`).
         unique: {
-          type: 'boolean',
           title: 'Unique',
-          description: 'Enforce uniqueness across the indexed columns.',
-        },
-        where: {
-          type: 'string',
-          title: 'Partial-index predicate',
-          description: 'Optional WHERE clause for a partial index.',
+          description:
+            "Whether the index enforces uniqueness, and at which scope. 'global' " +
+            'materializes over exactly the listed fields — one holder across the whole ' +
+            "installation. 'organization' has the driver prepend the NULL-safe " +
+            'organization key part at registration — one holder per organization. Leave ' +
+            'empty for a non-unique index.',
+          anyOf: [
+            { type: 'string', enum: ['global', 'organization'] },
+            { type: 'boolean' },
+          ],
         },
       },
     },

@@ -205,23 +205,29 @@ Object.entries(formComponents).forEach(([type, component]) => {
 
 ### Multi-Step Form
 
+Multi-step is a **mode of the object-bound form**, not a component of its own — there is
+no `multi-step-form` type. The registered type is `object-form`, and `formType: 'wizard'`
+turns its `sections` into steps; `WizardFormSchema` (exported by
+`@object-ui/plugin-form`) declares the shape. Because the wizard resolves its fields from
+the object's own metadata, a section lists field **names** rather than field definitions.
+
 ```json
 {
-  "type": "multi-step-form",
-  "steps": [
+  "type": "object-form",
+  "objectName": "contact",
+  "mode": "create",
+  "formType": "wizard",
+  "showStepIndicator": true,
+  "sections": [
     {
-      "title": "Personal Info",
-      "fields": [
-        { "name": "firstName", "type": "input", "label": "First Name", "required": true },
-        { "name": "lastName", "type": "input", "label": "Last Name", "required": true }
-      ]
+      "name": "personal",
+      "label": "Personal Info",
+      "fields": ["first_name", "last_name"]
     },
     {
-      "title": "Contact Info",
-      "fields": [
-        { "name": "email", "type": "input", "inputType": "email", "label": "Email", "required": true },
-        { "name": "phone", "type": "input", "inputType": "tel", "label": "Phone" }
-      ]
+      "name": "contact_details",
+      "label": "Contact Info",
+      "fields": ["email", "phone"]
     }
   ]
 }

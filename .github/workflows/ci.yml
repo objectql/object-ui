@@ -197,6 +197,19 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:phantom-deps
 
+      # A file inside a package that names its OWN package resolves through that
+      # package's `exports` map to `dist/`, and `type-check` waits on `^build`
+      # (the DEPENDENCIES' builds), never on the package's own — so on a cold
+      # cache the declarations do not exist and the file fails with TS2307. It is
+      # green on every machine that has ever run a build, which makes CI the only
+      # place it can be seen: PR #4789's first run was red on exactly this, one
+      # line in `packages/fields/src` (objectui#4801). Parses sources with
+      # `typescript` through the sibling gate's scanner, so it needs the install
+      # and nothing built — same placement rationale as the step above.
+      - name: Verify no package imports itself by name
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:self-import
+
       # A local type/const declared under a `@objectstack/spec` export's NAME reads
       # to the next agent as the spec's own definition — four such symbols had
       # already drifted from the spec they claimed to be (objectstack#4115). Needs

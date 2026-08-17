@@ -311,7 +311,6 @@ export class SafeExpressionParser {
     let left = this.parseAddition();
     this.skipWhitespace();
 
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       // Every branch below either assigns `op` or `break`s out of the loop, so
       // `op` is always set by the time the switch reads it (no null initializer
@@ -344,9 +343,7 @@ export class SafeExpressionParser {
       switch (op) {
         case '===': left = left === right; break;
         case '!==': left = left !== right; break;
-        // eslint-disable-next-line eqeqeq
         case '==': left = (left as any) == (right as any); break;
-        // eslint-disable-next-line eqeqeq
         case '!=': left = (left as any) != (right as any); break;
         case '>': left = (left as any) > (right as any); break;
         case '<': left = (left as any) < (right as any); break;
@@ -441,7 +438,6 @@ export class SafeExpressionParser {
   private parseMember(): unknown {
     let obj = this.parsePrimary();
 
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       this.skipWhitespace();
 

@@ -249,7 +249,7 @@ ignores would be accepted and dropped, which is the defect this binding removes.
 | `element:record_picker` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `record:related_list` | ✅ | columns / filter / sort / limit | ✅ | ✅ | ✅ |
 | `object-calendar` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
-| `object-kanban` | ✅ | filter | ✅ | — no ordering | — fixed window |
+| `object-kanban` | ✅ | filter / limit | ✅ | — no ordering | ✅ (`limit`) |
 | `object-chart` | ✅ | filter | ✅ | — engine orders | — no page |
 | `object-metric` | ✅ | filter | ✅ | — single value | — single value |
 | `object-gantt` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
@@ -300,6 +300,23 @@ came with that:
 - `record:line_items` still does **not** take a view's `columns`: they are editable
   `GridColumn` objects (`{ field, type, … }`) rather than a field-name projection,
   so a view's column list would be the wrong *shape*, not merely a wider answer.
+
+`object-kanban` carried the same nesting, and until objectui#4025 this table read
+`— fixed window` in its `limit` cell. There was no window: the board's cap was
+written `{ options: { $top: 100 } }` — `$filter` at the top level where the
+adapters read it, the cap one level down under a key that is not a `QueryParams`
+field — so a board over a large object fetched every row the server would return
+and grouped all of it into lanes, client-side. The cap is now a real `$top`,
+defaulting to 100, and the `limit` cell is ✅ because the read site exists: a
+`limit` authored on the block, the binding's `limit`, or the named view's
+`pagination.pageSize` all set it. The board's `sort` cell still reads `— no
+ordering` — lanes come from `groupBy` and the fetch declares no `$orderby`, so
+mapping `sort` would be the accepted-and-dropped defect one block over.
+
+Note the two `limit`s on a board are different keys at different levels: the row
+cap above is `limit` on the **board**, while `limit` on a **column** is that
+lane's WIP limit (how many cards it may hold before it warns), which is display
+behaviour and never touches the query.
 
 Remaining gap, recorded rather than papered over:
 

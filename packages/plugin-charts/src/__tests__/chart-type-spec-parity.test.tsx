@@ -78,7 +78,6 @@ describe('plugin-charts covers the spec chart-type vocabulary', () => {
     // instead of quietly accumulating stale exceptions.
     const adopted = [...TRACKED_DIALECT].filter((name) => specNames.includes(name));
     if (adopted.length > 0) {
-      // eslint-disable-next-line no-console
       console.info(
         `[chart-type parity] the spec now defines ${adopted.join(', ')} — remove them from TRACKED_DIALECT.`,
       );

@@ -25,7 +25,7 @@ The `init` command scaffolds a project with templates: `simple`, `form`, `dashbo
 ```bash
 pnpm create vite my-app --template react-ts
 cd my-app
-pnpm add @object-ui/components @object-ui/core @object-ui/react
+pnpm add @object-ui/components @object-ui/core @object-ui/react @object-ui/fields
 pnpm add -D tailwindcss @tailwindcss/vite postcss
 ```
 
@@ -41,6 +41,7 @@ Then configure the required files (see "Essential configuration files" below).
     "@object-ui/components": "latest",
     "@object-ui/core": "latest",
     "@object-ui/react": "latest",
+    "@object-ui/fields": "latest",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -120,65 +121,47 @@ export default {
 };
 ```
 
-### src/index.css (Shadcn theme)
+### src/index.css (ObjectUI stylesheets)
 
-This file is critical — without it, Object UI components render unstyled.
+This file is critical — without it, Object UI components render unstyled. There is no
+`tailwind.config.js` step: ObjectUI is Tailwind 4, configured in CSS.
 
 ```css
 @import "tailwindcss";
+@import "@object-ui/components/style.css";
+@import "@object-ui/fields/style.css";
+```
 
-/* Scan ObjectUI packages for utility class generation */
-@source "../node_modules/@object-ui/components/src/**/*.tsx";
-@source "../node_modules/@object-ui/fields/src/**/*.tsx";
-@source "../node_modules/@object-ui/layout/src/**/*.tsx";
-@source "../node_modules/@object-ui/react/src/**/*.tsx";
+That is the whole of the styling setup. Each `style.css` is a real package export, mapped
+to that package's `dist/index.css` and compiled at build time from the package's own
+sources: the components sheet carries every utility its components use **and** the
+`@theme` block those utilities are built on, so the whole Shadcn palette
+(`bg-background`, `bg-primary`, `border-input`, `ring-ring`) and the `:root` / `.dark`
+token defaults arrive with it. You do not restate those tokens in a `@theme` block of your
+own.
 
-/* Map Shadcn CSS variables to Tailwind 4 color tokens */
-@theme {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-}
+The order matters: `@object-ui/fields/style.css` is a supplement compiled against the
+components theme, with every rule that sheet already ships subtracted from it. Imported
+first, or alone, its rules resolve against tokens that are not there yet.
 
+Do **not** point Tailwind at the ObjectUI packages inside `node_modules`, with neither a
+v4 `@source` line nor a v3 `content` entry. The published tarballs carry `dist` only, and
+the `@theme` block the themed utilities come from lives in package source, which is not
+published — so scanning them regenerates shape-only utilities the two sheets already carry
+and cannot produce the themed ones at all. Your own `@source` lines (or Tailwind's
+defaults) go on covering *your* source, exactly as before.
+
+To recolour, override the token values rather than the utilities — they are Shadcn HSL
+channel triples, not finished colours:
+
+```css
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --radius: 0.625rem;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
 }
 ```
 
-Adjust `@source` paths to match your project structure relative to `node_modules`.
+See `content/docs/guide/theming.md` for the full token list and the `ThemeProvider` route.
 
 ### tsconfig.json
 
@@ -465,8 +448,9 @@ Access in code: `import.meta.env.VITE_API_BASE_URL`
 ## Troubleshooting
 
 ### Components render unstyled
-- Missing `@source` directives in CSS — Tailwind can't find ObjectUI utility classes
-- Missing `:root` CSS variables — Shadcn components need color tokens
+- Missing the `@object-ui/components/style.css` / `@object-ui/fields/style.css` imports — ObjectUI's own utilities never reach the page
+- The two sheets imported in the wrong order, or the components one left out — the fields sheet carries no tokens of its own
+- Overridden `:root` tokens written as finished colours instead of Shadcn HSL channel triples (`0 0% 100%`), so `hsl(var(--token))` resolves to nothing
 - CSS file not imported in `main.tsx`
 
 ### Module not found errors

@@ -44,6 +44,17 @@ const HOT_VIEW = {
   pagination: { pageSize: 7 },
 };
 
+/**
+ * A sort entry that omits `order` — reachable only through UNTYPED saved-view
+ * metadata (`ElementSavedView` is `Record< string, unknown >`; `SortConfig.order`
+ * is required in objectui's own types). See objectui#4022.
+ */
+const PARTIAL_SORT_VIEW = {
+  name: 'partial',
+  label: 'Partially ordered',
+  sort: [{ field: 'rating' }, { field: 'name', order: 'desc' }],
+};
+
 const MAP = { latitudeField: 'lat', longitudeField: 'lng', titleField: 'name' };
 
 function makeAdapter(listViews: Record<string, unknown> = { hot: HOT_VIEW }) {
@@ -148,5 +159,20 @@ describe('object-map — dataSource: { object, view } (objectstack#7121)', () =>
     expect(object).toBe('store');
     expect(params.$filter).toEqual([['owner', '=', 'me']]);
     expect(params.$orderby).toEqual({ name: 'asc' });
+  });
+
+  it('orders by a sort entry that omits `order` instead of dropping it', async () => {
+    const adapter = makeAdapter({ partial: PARTIAL_SORT_VIEW });
+    renderBlock(
+      { type: 'object-map', map: MAP, dataSource: { object: 'store', view: 'partial' } },
+      adapter,
+    );
+
+    await waitFor(() => expect(adapter.find).toHaveBeenCalled());
+    const [, params] = adapter.find.mock.calls[0] as [string, any];
+    // The private copy required BOTH keys and silently dropped `rating`, sending
+    // `{ name: 'desc' }`. The shared sink reads a missing `order` as ascending —
+    // what `QueryParams.$orderby`'s member shape declares.
+    expect(params.$orderby).toEqual({ rating: 'asc', name: 'desc' });
   });
 });

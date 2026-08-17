@@ -37,8 +37,8 @@ import { Loader2 } from 'lucide-react';
 import { MasterDetailForm } from './MasterDetailForm';
 import { SchemaRenderer, useSafeFieldLabel, usePreviewMode } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
-import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
+import { buildFlatFields } from './flatFields';
 import {
   applyAutoColSpan,
   applyAutoLayout,
@@ -50,12 +50,7 @@ import {
 } from './autoLayout';
 import { deriveFieldGroupSections } from './fieldGroups';
 import { sanitizeFormData } from './sanitize';
-import {
-  seedCreateValues,
-  isCreateFormMode,
-  isRequiredInForm,
-  omitServerResolvedDefaults,
-} from './schemaDefaults';
+import { seedCreateValues, omitServerResolvedDefaults } from './schemaDefaults';
 import { usePermissions } from '@object-ui/permissions';
 import { useOccSave } from './occSave';
 
@@ -403,43 +398,20 @@ export const ModalForm: React.FC<ModalFormProps> = ({
 
     if (!objectSchema) return;
 
-    const fieldsToShow = schema.fields || Object.keys(objectSchema.fields || {});
-    const generated: FormField[] = [];
-
-    for (const fieldName of fieldsToShow) {
-      const name = typeof fieldName === 'string' ? fieldName : (fieldName as any).name;
-      if (!name) continue;
-      const field = objectSchema.fields?.[name];
-      if (!field) continue;
-
-      generated.push({
-        name,
-        label: fieldLabel(schema.objectName, name, field.label || name),
-        // (type, multiple) decides the widget (objectui#3986) — see `sectionFields`.
-        type: mapFieldTypeToFormType(field.type, { multiple: field.multiple }),
-        // Mode-aware, same rule as the sectioned path (#4069) — a runtime
-        // `defaultValue` is the server's to resolve, so a CREATE form does not
-        // refuse the submit over the empty control it deliberately left.
-        required: isRequiredInForm(field, isCreateFormMode(schema)),
-        disabled: schema.readOnly || schema.mode === 'view' || field.readonly,
-        placeholder: field.placeholder,
-        description: field.help || field.description,
-        validation: buildValidationRules(field),
-        field: field,
-        options: field.options,
-        multiple: field.multiple,
-        // Field-level conditional rules (ADR-0036) — resolved reactively by
-        // the form renderer via the canonical engine (#2212).
-        visibleWhen: (field as any).visibleWhen,
-        readonlyWhen: (field as any).readonlyWhen,
-        requiredWhen: (field as any).requiredWhen,
-        // Field-group membership (Field.group → object.fieldGroups[].key) —
-        // read by deriveFieldGroupSections for the fieldGroups fallback.
-        group: (field as any).group,
-      });
-    }
-
-    setFormFields(generated);
+    // ONE builder, shared with DrawerForm (objectui#4755) — the ADR-0036 rules
+    // and `group` this path carries now reach both containers from a single
+    // mapping instead of a hand-copied second loop.
+    setFormFields(
+      buildFlatFields({
+        fields: schema.fields as any,
+        objectSchema,
+        objectName: schema.objectName,
+        readOnly: schema.readOnly,
+        mode: schema.mode,
+        recordId: schema.recordId,
+        fieldLabel,
+      }),
+    );
     setLoading(false);
   }, [objectSchema, schema.fields, schema.customFields, schema.sections, schema.readOnly, schema.mode, dataSource]);
 

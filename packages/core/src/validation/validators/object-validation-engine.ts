@@ -279,13 +279,11 @@ class SimpleExpressionEvaluator implements ValidationExpressionEvaluator {
           return leftVal === rightVal;
         case '==':
           // Use loose equality for backward compatibility with existing expressions
-          // eslint-disable-next-line eqeqeq
           return leftVal == rightVal;
         case '!==':
           return leftVal !== rightVal;
         case '!=':
           // Use loose inequality for backward compatibility with existing expressions
-          // eslint-disable-next-line eqeqeq
           return leftVal != rightVal;
         case '>': return leftVal > rightVal;
         case '<': return leftVal < rightVal;

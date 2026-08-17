@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ObjectStack Inc. MIT.
 import { describe, it, expect } from 'vitest';
-import { resolveRowCrudAffordances } from '../rowCrudAffordances';
+import { resolveRowCrudAffordances, resolveRowRecordCrudAffordance } from '../rowCrudAffordances';
 
 /** The row-level verdict only — drops the object-level bulk-delete bit. */
 const rowGate = (opts: Parameters<typeof resolveRowCrudAffordances>[0]) => {
@@ -287,5 +287,43 @@ describe('resolveRowCrudAffordances', () => {
         permissionDelete: true,
       })).toEqual({ canEdit: true, canDelete: false });
     });
+  });
+});
+
+/**
+ * [#4296] Layer (e) — the RECORD-level verdict, the one narrowing that is
+ * decided per row rather than per object.
+ *
+ * The layer below it (#4096) answers "may this principal write this OBJECT";
+ * `writeScope`, the sharing model and RLS narrow that per record, so the row
+ * kebab offered Edit/Delete on every row the user could READ until this layer
+ * existed — including rows the server answers 403 for.
+ */
+describe('resolveRowRecordCrudAffordance (#4296)', () => {
+  it('hides the entry when the record-level verdict denies THIS row', () => {
+    // The card's cell: the object grant is true, the row is not the caller's.
+    expect(resolveRowRecordCrudAffordance(true, false)).toBe(false);
+  });
+
+  it('keeps the entry when the record-level verdict allows THIS row', () => {
+    expect(resolveRowRecordCrudAffordance(true, true)).toBe(true);
+  });
+
+  it('degrades to the object verdict when the record answer is UNKNOWN', () => {
+    // No answer yet / endpoint down / row missing from the map / no row id.
+    // Unknown must never read as denial: the server already fail-closes, so an
+    // over-hidden row costs a permitted user a capability they actually have.
+    expect(resolveRowRecordCrudAffordance(true, undefined)).toBe(true);
+    expect(resolveRowRecordCrudAffordance(false, undefined)).toBe(false);
+  });
+
+  it('intersects, never unions — a record grant cannot re-open the object verdict', () => {
+    // The whole chain above (bucket, userActions, apiOperations, allowEdit)
+    // stays authoritative; this layer only ever removes.
+    expect(resolveRowRecordCrudAffordance(false, true)).toBe(false);
+  });
+
+  it('an absent object verdict stays absent', () => {
+    expect(resolveRowRecordCrudAffordance(undefined, true)).toBe(false);
   });
 });

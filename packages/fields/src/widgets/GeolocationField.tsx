@@ -37,11 +37,21 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
     'aria-labelledby': _hostLabelledBy,
     ...domProps
   } = toDomProps(props);
-  // The pair held back above, in the one spelling every group-labelled widget
-  // uses for it — and computed HERE, before the readonly early return below,
-  // because that return used to drop both keys on the floor: a published label
-  // id with no consumer in the document (objectui#3990). See `toHostGroupProps`.
-  const hostGroupProps = toHostGroupProps(props);
+  // The keys held back above, in the one spelling every group-labelled widget
+  // uses for them — and computed HERE, before the readonly early return below,
+  // because that return used to drop them on the floor: a published label id
+  // with no consumer in the document (objectui#3990). See `toHostGroupProps`.
+  //
+  // TWO surfaces, so two answers, and the difference is only the description
+  // (objectui#4005). Readonly this widget collapses to a coordinates row with no
+  // lat/lng input in it, so that row is the only thing that can carry the help
+  // text — the "View on map" link inside it is focusable but is not an input of
+  // the FIELD and never receives the field's `aria-describedby`. The editable
+  // container below is a different case: its sub-inputs each take
+  // `aria-describedby` in the `domProps` spread and the container must NOT take
+  // it a second time — objectui#3318's split.
+  const readonlyHostGroupProps = toHostGroupProps(props, 'instead-of-the-inputs');
+  const hostGroupProps = toHostGroupProps(props, 'above-the-inputs');
   // Sub-input ids (objectui#3343): `useId()` prefix + sub-field name — the
   // `groupId` paradigm of RadioField / CheckboxesField. Hardcoded literals
   // ("latitude" / "longitude") collide as soon as a form renders two
@@ -99,11 +109,12 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
   if (readonly) {
     // Readonly the composite collapses to the formatted coordinates (plus the
     // "View on map" link), so THAT row is the surface the host label names
-    // (objectui#3990). The `EmptyValue` placeholder sits inside it, so it needs
-    // nothing of its own.
+    // (objectui#3990) and the surface its help text describes (objectui#4005).
+    // The `EmptyValue` placeholder sits inside it, so it needs nothing of its
+    // own.
     const formatted = formatLocation(location);
     return (
-      <div {...hostGroupProps} className="flex items-center gap-2">
+      <div {...readonlyHostGroupProps} className="flex items-center gap-2">
         <MapPin className="w-4 h-4 text-muted-foreground" />
         {formatted ? <span className="text-sm">{formatted}</span> : <EmptyValue />}
         {location.latitude && location.longitude && (
@@ -125,7 +136,11 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
     // `role="group"` only when a host actually named this container
     // (objectui#3961); standalone rendering stays exactly as it was. That
     // condition now lives in `toHostGroupProps` so this container and the
-    // readonly row above cannot answer differently (objectui#3990).
+    // readonly row above cannot answer differently about the NAME
+    // (objectui#3990). They answer differently about exactly one key, by
+    // declaration rather than by drift: this container asks for
+    // `'above-the-inputs'` and gets no `aria-describedby`, because the
+    // sub-inputs below already carry it (objectui#3318 / objectui#4005).
     <div className="space-y-3" {...hostGroupProps}>
       <div className="flex items-center gap-2">
         <Button

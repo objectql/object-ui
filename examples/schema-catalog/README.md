@@ -39,23 +39,42 @@ src/
     dashboard/
     forms/
     ...
-  index.ts     # Registry: id -> { schema, meta }
-  types.ts     # ExampleMeta type
+  catalog-meta.json  # Hand-curated title / description / tags, by entry id
+  index.ts           # GENERATED registry: id -> { schema, meta }
+  types.ts           # ExampleMeta type
 test/
   smoke.test.tsx  # Renders every example with SchemaRenderer
 ```
 
+`src/index.ts` is **generated** — a pure function of the schema files and
+`src/catalog-meta.json`. Never edit it by hand: the next person to regenerate
+discards whatever you typed there (objectui#4633, where that is exactly what
+happened to ten entries' curated strings).
+
 ## Adding an example
 
 1. Drop a `.json` file under `src/schemas/<category>/<slug>.json`
-2. Register it in `src/index.ts` with metadata (title, description, tags)
-3. Reference it from MDX:
+2. Give it a real title and description in `src/catalog-meta.json`, keyed by
+   `<category>/<slug>`. Optional — an entry with no curated metadata gets a
+   title derived from its slug and an empty description — but the title and
+   description are user-visible on `/docs/guide/schema-catalog`, so write them.
+3. Regenerate the registry:
+
+   ```bash
+   pnpm --filter @object-ui/example-schema-catalog regenerate
+   ```
+
+   Safe to run on an untouched tree: it produces no diff unless you changed an
+   input. The `regenerate:check` script verifies without writing, and CI runs
+   it (`scripts/__tests__/catalog-index-regenerable-4633.test.ts`).
+
+4. Reference it from MDX:
 
    ```mdx
    <SchemaExample id="auth/login-simple" />
    ```
 
-4. The smoke test picks it up automatically — no per-example test needed.
+5. The smoke test picks it up automatically — no per-example test needed.
 
 ## Consuming from code
 

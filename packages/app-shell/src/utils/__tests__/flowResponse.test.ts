@@ -75,6 +75,134 @@ describe('interpretFlowResponse — transport failures stay retryable', () => {
     });
 });
 
+/**
+ * The ADR-0112 error envelope, reproduced from the producer rather than
+ * imagined: `apiErrorResponse` (objectstack `packages/runtime/src/error-envelope.ts`)
+ * emits `{success:false, error:{code, message, httpStatus, details?}}`, and
+ * `splitSemanticCode` promotes a `details.code` into `error.code` while keeping
+ * the remaining `details` keys on the wire.
+ */
+function errorEnvelope(
+    status: number,
+    code: string,
+    message: string,
+    details?: Record<string, unknown>,
+) {
+    return {
+        success: false,
+        error: { code, message, httpStatus: status, ...(details ? { details } : {}) },
+    };
+}
+
+const RESUME_FAILED = "Node 'create_opportunity' failed: Amount must be greater than zero";
+
+describe('interpretFlowResponse — a 400 FLOW_FAILED on resume is TERMINAL (objectui#4784)', () => {
+    // objectstack#8684 moves this exact event off `200 {data:{success:false}}`
+    // onto a real status code. It must land in the same class as the inner
+    // envelope failure, NOT in the transport class: the engine consumed the
+    // suspension (resume-once), so the wizard must close rather than offer a
+    // retry that can only reach "No suspended run".
+    it('classifies it NON-retryable — keyed on the code, not on the status alone', () => {
+        const out = interpretFlowResponse(
+            { ok: false, status: 400 },
+            errorEnvelope(400, 'FLOW_FAILED', RESUME_FAILED),
+            'Resume',
+        );
+        expect(out).toMatchObject({ kind: 'failed', retryable: false, error: RESUME_FAILED });
+    });
+
+    it('prefers the flow-declared errorMessage from `error.details` over the raw error', () => {
+        // The 200 path prefers `data.errorMessage`; the error envelope has no
+        // `data`, so `error.details` is the declared carrier that survives to
+        // the wire. Losing this half was the second regression #4784 names.
+        const out = interpretFlowResponse(
+            { ok: false, status: 400 },
+            errorEnvelope(400, 'FLOW_FAILED', RESUME_FAILED, {
+                errorMessage: 'This lead has already been converted.',
+            }),
+            'Resume',
+        );
+        expect(out).toMatchObject({
+            kind: 'failed',
+            retryable: false,
+            error: 'This lead has already been converted.',
+        });
+    });
+
+    it('falls back to the envelope message when no errorMessage was carried', () => {
+        const out = interpretFlowResponse(
+            { ok: false, status: 400 },
+            errorEnvelope(400, 'FLOW_FAILED', RESUME_FAILED, { durationMs: 45 }),
+            'Resume',
+        );
+        expect(out).toMatchObject({ kind: 'failed', error: RESUME_FAILED, retryable: false });
+    });
+
+    it('matches the pre-ADR-0112 lowercase spelling too — the console outlives one vocabulary', () => {
+        const out = interpretFlowResponse(
+            { ok: false, status: 400 },
+            errorEnvelope(400, 'flow_failed', RESUME_FAILED),
+            'Resume',
+        );
+        expect(out).toMatchObject({ kind: 'failed', retryable: false });
+    });
+
+    it('needs BOTH the 400 and the code — FLOW_FAILED on another status stays retryable', () => {
+        // A 500 is the server saying it broke, whatever code rode along; that
+        // did not consume the suspension.
+        const out = interpretFlowResponse(
+            { ok: false, status: 500 },
+            errorEnvelope(500, 'FLOW_FAILED', 'Internal server error'),
+            'Resume',
+        );
+        expect(out).toMatchObject({ kind: 'failed', retryable: true });
+    });
+
+    it('leaves the OTHER 400s on this route retryable — the engine refused before consuming', () => {
+        // `INVALID_SCREEN_INPUT` / `INVALID_SIGNAL` are refused at the one place
+        // a signal reaches the variable map, i.e. before the suspension is
+        // consumed. The user fixes the input and resubmits the same run — the
+        // exact case the flag exists to keep open.
+        for (const code of ['INVALID_SCREEN_INPUT', 'INVALID_SIGNAL', 'VALIDATION_ERROR']) {
+            const out = interpretFlowResponse(
+                { ok: false, status: 400 },
+                errorEnvelope(400, code, 'Field "amount" is required'),
+                'Resume',
+            );
+            expect(out, code).toMatchObject({ kind: 'failed', retryable: true });
+        }
+    });
+});
+
+describe('interpretFlowResponse — a 404 is terminal for a different reason (objectui#4784)', () => {
+    // NOT dormant: the route answers this today (`RUN_NOT_FOUND` → 404), and
+    // every one of them had been keeping the wizard open for a retry that can
+    // only 404 again.
+    it('marks "no such suspended run" non-retryable, keeping the endpoint’s own message', () => {
+        const out = interpretFlowResponse(
+            { ok: false, status: 404 },
+            errorEnvelope(404, 'RESOURCE_NOT_FOUND', 'No such suspended run'),
+            'Resume',
+        );
+        expect(out).toMatchObject({
+            kind: 'failed',
+            retryable: false,
+            error: 'No such suspended run',
+        });
+    });
+
+    it('holds for a BARE 404 with no envelope at all — status alone decides', () => {
+        // A proxy or an unmounted route answers 404 with HTML; `json` is null
+        // because parsing threw. The disposition must not depend on that.
+        const out = interpretFlowResponse({ ok: false, status: 404 }, null, 'Resume');
+        expect(out).toMatchObject({
+            kind: 'failed',
+            retryable: false,
+            error: 'Resume failed (HTTP 404)',
+        });
+    });
+});
+
 describe('interpretFlowResponse — error is ALWAYS a string (React #31)', () => {
     it('resolves the nested {code, message} object to a string', () => {
         // Handing this object to `toast.error()` puts an object where React

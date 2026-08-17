@@ -112,8 +112,6 @@ export const ObjectGridSchema = BaseSchema.extend({
   sort: z.union([z.string(), z.array(SortConfigSchema)]).optional().describe('Sort configuration'),
   searchableFields: z.array(z.string()).optional().describe('Searchable fields'),
   resizable: z.boolean().optional().describe('Enable column resizing'),
-  striped: z.boolean().optional().describe('Striped rows'),
-  bordered: z.boolean().optional().describe('Show borders'),
   showColumnTypeIcons: z.boolean().optional().describe('Show column type icons (T/Tag/Calendar) in headers. Off by default — type is usually obvious from cell content; the icons add visual noise.'),
   selection: SelectionConfigSchema.optional().describe('Selection configuration'),
   pagination: PaginationConfigSchema.optional().describe('Pagination configuration'),
@@ -400,6 +398,19 @@ export const ListViewSchema = BaseSchema
   // rowActions, bulkActions, bulkActionDefs, virtualScroll, inlineEdit, userActions,
   // appearance, tabs, addRecord, showRecordCount, allowPrinting, emptyState, responsive,
   // performance.
+  //
+  // `striped`, `bordered` and `virtualScroll` are in that list because the spec
+  // pin still carries them, NOT because objectui offers them: objectstack#7176
+  // retired all three (maintainer-ruled 2026-08-10) after measuring every
+  // objectui reader as pass-through — no renderer ever applied one. objectui's
+  // own declarations and the forwarding chain came out with objectui#4649; what
+  // is left here is the by-reference import, which is exactly what must stay.
+  // It carries the spec's `retiredKey()` tombstones in on the GA bump, so an
+  // author writing one gets a rejection from the protocol rather than silence.
+  // Do NOT add them to LIST_VIEW_LOCAL_OVERRIDES to "clean this up" — that
+  // excludes the tombstone and hands the key back to `BaseSchema`'s
+  // passthrough, turning a loud rejection into a silently-accepted dead key.
+  // Re-forwarding needs an implementation card filed first (the ruling's text).
   .extend(specFieldsExcept(SpecListViewSchema.shape, LIST_VIEW_LOCAL_OVERRIDES).shape)
   .extend({
     // Component discriminator — load-bearing for the ObjectQLComponentSchema union.

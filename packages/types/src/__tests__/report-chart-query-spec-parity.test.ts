@@ -41,6 +41,7 @@ import {
 import type { JoinedReportBlock as SpecJoinedReportBlock } from '@objectstack/spec/ui';
 import { AppContextSelectorSchema } from '../zod/app.zod.js';
 import { DashboardWidgetSchema, GlobalFilterSchema } from '../zod/complex.zod.js';
+import type { DashboardWidgetSchema as DashboardWidgetInterface } from '../complex.js';
 import {
   liftLegacyGlobalFilterDefault,
   liftLegacyDashboardFilterDefaults,
@@ -427,6 +428,68 @@ describe('DashboardWidgetSchema derives from the spec', () => {
         expect(result.error.issues.some((i) => i.path[0] === key)).toBe(true);
       }
     }
+  });
+
+  it('REFUSES `responsive`, retired separately by objectstack#4876', () => {
+    // Same inheritance mechanism as the four above, DIFFERENT retirement:
+    // `responsive` fell in @objectstack/spec 17.0.0-rc.6 under objectstack#4876
+    // (ADR-0049 D2), not rc.3's #5010 — so it carries its own tombstone text and
+    // gets its own case rather than a fifth entry in the loop above.
+    //
+    // objectui kept `responsive?: any` in `complex.ts` past that retirement, on
+    // the stated grounds that the renderer reads a per-breakpoint record.
+    // objectui#3173 measured it: zero `widget.responsive` read points, zero
+    // authored occurrences. The override was removed, so TS and Zod now agree.
+    const result = DashboardWidgetSchema.safeParse({
+      id: 'w1',
+      type: 'bar',
+      dataset: 'pipeline',
+      dimensions: ['stage'],
+      values: ['amount'],
+      responsive: { sm: { columns: 1 } },
+    });
+    expect(result.success, '`responsive` must be refused, not accepted').toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path[0] === 'responsive');
+      expect(issue, '`responsive` must be reported by name').toBeDefined();
+      // The tombstone names its own retirement, not #5010's — if this ever reads
+      // `#5010` the key was folded into the wrong retirement upstream.
+      expect(issue?.message).toContain('#4876, ADR-0049 D2');
+      // And it must point at the surviving home for breakpoint behaviour rather
+      // than just saying "removed".
+      expect(issue?.message).toContain('page.components[].responsive');
+    }
+  });
+
+  it('refuses `responsive` on the TypeScript interface too', () => {
+    // The Zod case above does NOT guard this change, and saying so is the point
+    // of splitting it out. Restoring `responsive?: any` to `complex.ts` leaves
+    // that case green: the Zod twin derives every key by reference, so it
+    // refused `responsive` from the moment rc.6 landed the tombstone and its
+    // verdict never depended on the interface. What objectui#3173 actually
+    // fixed is the TS half — the `Omit` that held `responsive` out of the
+    // inherited key set so tsc kept accepting a value validation rejects.
+    //
+    // So the guard for it is this directive, not an `expect`. Per this
+    // package's `type-check` (`tsc -p tsconfig.test.json` compiles every test
+    // file), putting `responsive` back makes the directive unused and fails
+    // the build — the same enforcement `accordion-item-authorable-keys.test.ts`
+    // relies on. Measured both ways on objectui#3173's branch: with the fix,
+    // `error TS2322: Type '{ sm: { columns: number; }; }' is not assignable to
+    // type 'undefined'`; with `responsive?: any` restored, tsc is silent.
+    const widget: DashboardWidgetInterface = {
+      id: 'w1',
+      type: 'bar',
+      // @ts-expect-error `responsive` is retired (objectstack#4876, ADR-0049
+      // D2) and inherits as `?: never`. Excess-property checking on this
+      // literal is what carries the retirement to authors writing TypeScript,
+      // who would otherwise meet it only at validation time.
+      responsive: { sm: { columns: 1 } },
+    };
+
+    // The runtime assertion is incidental — the contract lives in the directive
+    // above, which only compiles while the key is absent from the interface.
+    expect(widget.id).toBe('w1');
   });
 });
 

@@ -1152,11 +1152,9 @@ export class ActionRunner {
         } catch (err) {
           // Acknowledgement failure is non-fatal; the underlying action already
           // succeeded. Log so consumers can wire it through their error reporter.
-          // eslint-disable-next-line no-console
           console.warn('[ActionRunner] resultDialog handler rejected; treating as acknowledged', err);
         }
       } else {
-        // eslint-disable-next-line no-console
         console.warn(
           '[ActionRunner] action.resultDialog set but no resultDialogHandler registered — the response value will not be shown to the user.',
           { action: action.name, data: result.data }

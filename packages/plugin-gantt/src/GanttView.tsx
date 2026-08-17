@@ -48,8 +48,9 @@ const COLUMN_WIDTH = 100; // Time column width
 // Width, in px, of the resize "grab zone" at each end of a task bar. The visible
 // grip is only a few px, but pointer synthesis in headless browsers quantizes the
 // click coordinate, so a click aimed at the edge routinely lands a pixel or two
-// inside the bar body — starting a MOVE instead of a resize (命中不稳). Treating a
-// full-height band at each end as a resize edge makes the hit deterministic.
+// inside the bar body — starting a MOVE instead of a resize (unstable hit
+// detection). Treating a full-height band at each end as a resize edge makes
+// the hit deterministic.
 const RESIZE_EDGE_PX = 8;
 
 /**
@@ -143,9 +144,9 @@ export interface GanttTask {
   progress: number
   color?: string
   /**
-   * Per-task alert stroke (逐任务预警描边). When set, the bar/milestone/summary
+   * Per-task alert stroke. When set, the bar/milestone/summary
    * is outlined in this color (border + 2px halo) without touching its fill —
-   * e.g. red for 超期, amber for 临期, unset for normal. Maps from the view's
+   * e.g. red for overdue, amber for due-soon, unset for normal. Maps from the view's
    * `borderColorField` in ObjectGantt. The critical-path overlay, when active,
    * takes precedence on the rows it marks.
    */
@@ -157,16 +158,17 @@ export interface GanttTask {
   /**
    * Node kind. Defaults to a leaf `task` (or `summary` automatically when it has
    * children). Set `'group'` to render a pure tree header — expandable/collapsible
-   * like a summary but with NO timeline bar (用于 项目/产品 这类纯分组层级，左侧成树、右侧无条).
+   * like a summary but with NO timeline bar (for project / product style pure
+   * grouping levels: a tree on the left, no bar on the right).
    * Its children still render their own bars normally.
    */
   type?: GanttTaskType
   /**
-   * Per-node lock (仅查看/跳转). When true this row is view-only: its bar can't be
+   * Per-node lock (view-only / click-through). When true this row is view-only: its bar can't be
    * dragged/resized, progress can't be dragged, no dependency can be drawn from
    * it, and inline-edit / context-menu edit+delete are hidden. Clicking the bar
    * (onTaskClick — open drawer / jump) still works. Independent of the global
-   * `readOnly`; use to lock individual levels (e.g. 派工单) while others stay
+   * `readOnly`; use to lock individual levels (e.g. work orders) while others stay
    * editable. Maps from the view's `lockField` in ObjectGantt.
    */
   locked?: boolean
@@ -177,7 +179,7 @@ export interface GanttTask {
   baselineStart?: Date
   baselineEnd?: Date
   /**
-   * Extra label/value rows for the hover tooltip (悬浮详情), in display order.
+   * Extra label/value rows for the hover tooltip, in display order.
    * Populated from the view's `tooltipFields` config (resolved + formatted by
    * ObjectGantt). When present they replace the default date·duration·progress
    * line in the tooltip.
@@ -226,7 +228,7 @@ function tzOffsetMs(timeZone: string, at: Date): number {
 }
 
 /**
- * "Shifted clock" for business-time-zone rendering (业务时区渲染): translate
+ * "Shifted clock" for business-time-zone rendering: translate
  * real instants into a display space where the browser's local clock reads
  * the CONFIGURED zone's wall time. All existing local-clock logic — shift
  * bands, day columns, snapping, the today line, date labels — then renders
@@ -314,7 +316,7 @@ export interface GanttMarker {
 }
 
 /**
- * Per-interaction switches (交互开关) — the DHTMLX `drag_move` / `drag_resize` /
+ * Per-interaction switches — the DHTMLX `drag_move` / `drag_resize` /
  * `drag_progress` / `drag_links` model. Each defaults to true; flipping one off
  * hides that affordance everywhere while the others keep working. They only
  * NARROW what the write callbacks / `readOnly` / row locks already allow —
@@ -358,7 +360,8 @@ export interface GanttViewProps {
   onBeforeDependencyCreate?: (source: GanttTask, target: GanttTask, type: GanttLinkType) => boolean
   /**
    * Enables dependency removal: right-clicking a dependency link opens a menu
-   * with "移除依赖" and a type switch. Called with the source/target tasks of the
+   * with a "Remove dependency" entry (`gantt.menu.removeDependency`) and a type
+   * switch. Called with the source/target tasks of the
    * removed link (target no longer depends on source).
    */
   onDependencyDelete?: (source: GanttTask, target: GanttTask) => void
@@ -373,17 +376,18 @@ export interface GanttViewProps {
   inlineEdit?: boolean
   /**
    * Show the "auto-schedule" toolbar button. Clicking it runs a one-shot
-   * dependency-driven reschedule of the whole project (顺延): every successor is
+   * dependency-driven reschedule of the whole project (forward-only): every successor is
    * pushed later until its link constraints hold, preserving durations, and the
    * resulting date changes are emitted via `onTaskUpdate`. Requires onTaskUpdate.
    */
   autoSchedule?: boolean
   /**
-   * After a bar drag/resize, validate the move against dependency constraints
-   * (拖拽冲突校验). If the new position would violate a link — the task moved
+   * After a bar drag/resize, validate the move against dependency constraints.
+   * If the new position would violate a link — the task moved
    * earlier than a predecessor allows, or its move pushes successors past their
-   * constraints — a confirmation prompts to 自动顺延 (cascade-reschedule the
-   * affected tasks, preserving durations) or keep the overlap. Requires
+   * constraints — a confirmation prompts to "Auto-reschedule"
+   * (`gantt.conflict.confirm` — cascade-reschedule the affected tasks,
+   * preserving durations) or keep the overlap. Requires
    * onTaskUpdate and only fires when links exist. Ignored in readOnly.
    */
   rescheduleOnConflict?: boolean
@@ -396,9 +400,9 @@ export interface GanttViewProps {
    */
   workingCalendar?: WorkingCalendar
   /**
-   * Shift segmentation (班次/排班分段). When set AND the active granularity is
-   * `day`, each day column is replaced by one column per band (白班 | 夜班…), and
-   * the upper header tier shows the 排班日 (shift-day starting at `dayStart`, e.g.
+   * Shift segmentation. When set AND the active granularity is
+   * `day`, each day column is replaced by one column per band (day | night | …),
+   * and the upper header tier shows the shift-day (starting at `dayStart`, e.g.
    * 08:00). Drag/resize then snaps to band boundaries instead of whole days.
    * Off by default → existing gantts are unaffected (parity with `folding`).
    * Mutually exclusive with weekend/holiday folding (segmenting wins).
@@ -417,7 +421,7 @@ export interface GanttViewProps {
    */
   readOnly?: boolean
   /**
-   * Mobile read-only (移动端只读缩略). When true, the chart auto-enters read-only
+   * Mobile read-only. When true, the chart auto-enters read-only
    * mode on narrow viewports (< 640px) so touch users get a clean, scrollable
    * thumbnail of the schedule instead of error-prone drag editing — equivalent
    * to `readOnly` but scoped to small screens. Wider viewports are unaffected.
@@ -425,7 +429,7 @@ export interface GanttViewProps {
    */
   mobileReadOnly?: boolean
   /**
-   * Dynamic grouping accessor (动态 Group by). When provided, leaf tasks are
+   * Dynamic grouping accessor. When provided, leaf tasks are
    * bucketed by the returned `key` and rendered beneath one synthesized summary
    * row per group — the original `parent` hierarchy is replaced by the grouping.
    * Return `null` to drop a task into the "ungrouped" bucket. Grouping is purely
@@ -436,18 +440,19 @@ export interface GanttViewProps {
   /** Label for the bucket collecting tasks whose `groupBy` returns null. */
   ungroupedLabel?: string
   /**
-   * Auto-collapse tree nodes at or below this depth on first render (默认折叠).
+   * Auto-collapse tree nodes at or below this depth on first render.
    * Depth is 0-indexed: roots are 0, their children 1, etc. Every node whose
    * depth is `>= defaultCollapsedDepth` AND which has children is seeded into the
    * collapsed set once, so its subtree starts hidden. The user can still expand
-   * any of them — this only sets the initial state. Example: a 项目→产品→排产计划→派工单
-   * tree where 排产计划 sits at depth 2 uses `defaultCollapsedDepth={2}` to start
-   * with every 排产计划 (and its 派工单 children) folded. Omit (or pass a depth past
+   * any of them — this only sets the initial state. Example: a
+   * project→product→production-plan→work-order tree where the production plan
+   * sits at depth 2 uses `defaultCollapsedDepth={2}` to start
+   * with every production plan (and its work-order children) folded. Omit (or pass a depth past
    * the deepest node) to start fully expanded.
    */
   defaultCollapsedDepth?: number
   /**
-   * How a summary bar's span is computed (汇总条区间). `'children'` (default)
+   * How a summary bar's span is computed. `'children'` (default)
    * rolls up from the children — min start / max end / duration-weighted
    * progress — ignoring the summary task's own dates. `'self'` draws the bar
    * from the task's OWN start/end/progress; tasks flagged `hasOwnDates: false`
@@ -459,18 +464,19 @@ export interface GanttViewProps {
   /**
    * Persist the user's layout tweaks (granularity + column/task-list widths)
    * to `localStorage` under this key. On mount the saved layout is restored;
-   * the "保存布局" toolbar button writes the current layout. Omit to disable
+   * the "Save layout" toolbar button (`gantt.toolbar.saveLayout`) writes the
+   * current layout. Omit to disable
    * persistence. The button still appears when `onLayoutChange` is set.
    */
   persistLayoutKey?: string
   /**
-   * Notified when the user saves the current layout (保存布局). Receives the
+   * Notified when the user saves the current layout. Receives the
    * snapshot `{ viewMode, columnWidth, taskListCollapsed }`. Use this to persist
    * layout in your own store instead of (or alongside) `persistLayoutKey`.
    */
   onLayoutChange?: (layout: GanttLayout) => void
   /**
-   * Show a manual refresh button in the toolbar (手动刷新). The host re-reads
+   * Show a manual refresh button in the toolbar (`gantt.toolbar.refresh`). The host re-reads
    * its data source so server-computed fields (rollups, alert colors) and
    * other users' edits reach the chart without a full page reload. Omit to
    * hide the button (e.g. inline `value` data has nothing to re-read).
@@ -481,30 +487,30 @@ export interface GanttViewProps {
   /**
    * Whether the data source can persist dependency LINK TYPES (fs/ss/ff/sf).
    * Default true. Set false when dependencies are stored as bare predecessor
-   * ids (仅存紧前 id,无类型位) — the link context menu then hides the type
+   * ids (predecessor ids only, no type slot) — the link context menu then hides the type
    * switcher (a switch would be silently reverted on refetch) and drag-created
    * links are always FS regardless of which endpoints were connected.
    */
   dependencyTypes?: boolean
   /**
-   * Business time zone for rendering (业务时区), an IANA name like
+   * Business time zone for rendering, an IANA name like
    * 'Asia/Shanghai'. The chart's calendar math — shift bands, day columns,
    * drag snapping, the today line, start/end labels — renders this zone's
    * wall time for EVERY viewer instead of the browser's; without it, a
-   * viewer in another zone sees bands and dates shifted (班次错位). Writes
+   * viewer in another zone sees bands and dates misaligned. Writes
    * still persist real instants. Note: dates handed to `onBeforeTaskUpdate`
    * are in this display space (durations/deltas are unaffected).
    */
   timeZone?: string
   /**
-   * Base name for exported files (导出文件名), e.g. the view or object label —
-   * "排班计划甘特图" exports as `排班计划甘特图-20260719-1530.png`. Falls back
+   * Base name for exported files, e.g. the view or object label —
+   * "Shift Plan Gantt" exports as `Shift Plan Gantt-20260719-1530.png`. Falls back
    * to "gantt". The timestamp suffix keeps repeated exports from silently
    * overwriting each other in the Downloads folder.
    */
   exportFileName?: string
   /**
-   * Per-interaction switches (交互开关). Omit for all-on. See
+   * Per-interaction switches. Omit for all-on. See
    * {@link GanttInteractions}: e.g. `{ resize: false }` keeps bars movable and
    * links drawable but pins every duration; `{ link: false }` removes the
    * dependency drag-dots and the create/delete menu entries. Subject to
@@ -526,7 +532,7 @@ export interface GanttViewProps {
   ) => boolean | Promise<boolean>
 }
 
-/** Persisted layout snapshot written by the "保存布局" toolbar button. */
+/** Persisted layout snapshot written by the "Save layout" toolbar button. */
 export interface GanttLayout {
   viewMode: GanttViewMode
   /** Effective day-column width in px, or null when auto-fit. */
@@ -535,14 +541,14 @@ export interface GanttLayout {
   /** User-dragged task-list (name column) width in px, or null when auto-sized. */
   taskListWidth?: number | null
   /**
-   * Ids of rows the user had collapsed when saving (展开状态). Present (even
+   * Ids of rows the user had collapsed when saving. Present (even
    * empty) means the saved expand/collapse state wins over
    * `defaultCollapsedDepth`; absent (older snapshots) leaves the default.
    */
   collapsedIds?: string[]
 }
 
-// --- Export helpers (导出 PNG / PDF) — module-level, no React deps. ---
+// --- Export helpers (PNG / PDF) — module-level, no React deps. ---
 
 /** Rasterize a standalone SVG string to a 2×-scaled canvas (white-backed). */
 function rasterizeSvg(svg: string, W: number, H: number, scale = 2): Promise<HTMLCanvasElement | null> {
@@ -699,7 +705,7 @@ export function GanttView({
   interactions,
   onBeforeTaskUpdate,
 }: GanttViewProps) {
-  // Business-time-zone shim (业务时区): translate every incoming date into
+  // Business-time-zone shim: translate every incoming date into
   // the display space where the browser clock reads the configured zone's
   // wall time; translate emitted date changes back to real instants. All
   // calendar logic below runs unchanged and becomes zone-correct.
@@ -741,7 +747,7 @@ export function GanttView({
   // drag/resize/progress, inline edit, delete, link-drag, reorder,
   // auto-schedule, and the Undo/Redo toolbar (which keys off onTaskUpdate) —
   // inherits it. `mobileReadOnly` folds in on narrow viewports so touch users
-  // get a read-only thumbnail (移动端只读缩略). `onTaskClick` / `onViewChange`
+  // get a read-only thumbnail. `onTaskClick` / `onViewChange`
   // stay live: they don't mutate.
   const effectiveReadOnly = readOnly || (mobileReadOnly && isNarrow);
   // Interaction switches (default all on). `link` folds into the dependency
@@ -883,7 +889,7 @@ export function GanttView({
   // Hovered bar id — used to highlight its dependency links.
   const [hoveredTaskId, setHoveredTaskId] = React.useState<string | number | null>(null);
 
-  // Dynamic Group by (动态 Group by). When `groupBy` is set we synthesize one
+  // Dynamic Group by. When `groupBy` is set we synthesize one
   // summary row per bucket and reparent each leaf task onto it, replacing the
   // original hierarchy. The existing rollup/collapse/summary machinery then
   // renders the groups for free. This is a PRESENTATIONAL transform: the
@@ -990,7 +996,7 @@ export function GanttView({
   const suppressNextClickRef = React.useRef(false);
 
   const computeDragChanges = React.useCallback((s: NonNullable<typeof dragState>) => {
-    // In shift mode a bar can be as short as the smallest band (e.g. a 12h 白班);
+    // In shift mode a bar can be as short as the smallest band (e.g. a 12h day shift);
     // otherwise never collapse below one whole day.
     const segActive = viewMode === 'day' && !!shiftSegments && shiftSegments.bands.length > 0;
     const minDurationMs =
@@ -1042,7 +1048,7 @@ export function GanttView({
   const commitTaskUpdates = React.useCallback(
     (updates: Array<{ task: GanttTask; changes: Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>> }>) => {
       if (!onTaskUpdate) return;
-      // Central belt: a locked row (仅查看) is never committed, whatever the
+      // Central belt: a locked (view-only) row is never committed, whatever the
       // path — group shift, conflict reschedule, or a future caller.
       const candidates = updates.filter((u) => !u.task.locked);
       // The host veto (onBeforeTaskUpdate) may be async, so the whole commit
@@ -1093,7 +1099,7 @@ export function GanttView({
     [onTaskUpdate, onBeforeTaskUpdate],
   );
 
-  // --- 拖拽冲突校验 + 顺延确认 (Group 2) ---
+  // --- Drag conflict validation + auto-reschedule confirmation (Group 2) ---
   // After a bar drag/resize commits, replay the dependency forward-pass over the
   // moved task(s). If the new position would violate a link (a predecessor ends
   // after the dragged task starts, or a successor now overlaps the dragged
@@ -1101,7 +1107,7 @@ export function GanttView({
   // from what the drag itself applied — that delta is the conflict we surface.
   const [pendingConflict, setPendingConflict] = React.useState<RescheduleChange[] | null>(null);
 
-  // Snap a rescheduled start onto the next shift-band boundary (班次边界) so
+  // Snap a rescheduled start onto the next shift-band boundary so
   // a pushed task never starts mid-band — the reschedule twin of the drag
   // snapping. Only meaningful when shift segments are configured.
   const snapToBandStart = React.useCallback(
@@ -1240,7 +1246,7 @@ export function GanttView({
           if (cur.group) {
             // Move the summary and every descendant by the same ms offset so
             // the subtree keeps its internal spacing and durations — recorded as
-            // a single undoable batch. Locked descendants (仅查看) stay put:
+            // a single undoable batch. Locked (view-only) descendants stay put:
             // they must never be mutated, by drag or by group shift.
             const deltaMs = start.getTime() - cur.originStart.getTime();
             const shifted = [task, ...collectDescendants(task.id).filter((t) => !t.locked)].map((t) => ({
@@ -1281,7 +1287,7 @@ export function GanttView({
     opts?: { group?: boolean; originStart?: Date; originEnd?: Date }
   ) => {
     // Synthetic Group-by rows have no real backing task to mutate; locked
-    // rows (仅查看) can't be dragged from any handle, summary bars included.
+    // view-only (locked) rows can't be dragged from any handle, summary bars included.
     if (!onTaskUpdate || task.data?.__group || task.locked) return;
     e.stopPropagation();
     e.preventDefault();
@@ -1364,7 +1370,7 @@ export function GanttView({
 
   // Built-in drop-target policy, applied both when a bar registers itself as
   // the hover target (no candidate highlight) and again on release (pointer
-  // ordering isn't trusted): locked rows (仅查看) and group headers can't
+  // ordering isn't trusted): locked (view-only) rows and group headers can't
   // receive a dependency, and a link that would close a cycle is rejected.
   // ONE classifier, two consumers. The hover affordance and the drop toast
   // both read this verdict, so the reason a user is shown cannot drift from
@@ -1475,7 +1481,7 @@ export function GanttView({
     };
   }, [ctxMenu]);
 
-  // --- Dependency link context menu (依赖增删 + 类型选择) ---------------------
+  // --- Dependency link context menu (add/remove + link type) ----------------
   // Right-clicking a dependency link opens a small menu to switch its type
   // (FS/SS/FF/SF) or remove it. Closing mirrors the task context menu.
   const [linkCtxMenu, setLinkCtxMenu] = React.useState<{
@@ -1501,7 +1507,8 @@ export function GanttView({
     };
   }, [linkCtxMenu]);
 
-  // --- "添加紧前/紧后" dependency picker --------------------------------------
+  // --- "Add predecessor / successor" dependency picker -----------------------
+  // (`gantt.menu.addPredecessor` / `gantt.menu.addSuccessor`)
   // A secondary panel that lists candidate tasks; choosing one creates a
   // dependency. `relation: 'pred'` makes the picked task a predecessor of the
   // anchor (anchor depends on picked); `'succ'` makes it a successor.
@@ -1587,7 +1594,7 @@ export function GanttView({
       return next;
     });
   }, []);
-  // Seed the collapsed set once from `defaultCollapsedDepth` (默认折叠). We walk
+  // Seed the collapsed set once from `defaultCollapsedDepth`. We walk
   // the parent chain to derive each node's 0-indexed depth and fold every node
   // at/below the threshold that actually has children. Runs a single time so the
   // user's later expand/collapse is never clobbered by a data refresh.
@@ -1791,8 +1798,8 @@ export function GanttView({
     
     // Snap the start to a column boundary of the active granularity so
     // bars (linear ms→px from range start) line up with the grid. In shift mode
-    // the boundary is the 排班日 start (e.g. 08:00), not calendar midnight, so a
-    // cross-midnight 夜班 sits wholly inside one shift-day's band columns.
+    // the boundary is the shift-day start (e.g. 08:00), not calendar midnight,
+    // so a cross-midnight night shift sits wholly inside one shift-day's band columns.
     if (viewMode === 'day' && shiftSegments && shiftSegments.bands.length > 0) {
       start = shiftDayStart(start, shiftSegments.dayStartMin);
     } else {
@@ -1809,14 +1816,14 @@ export function GanttView({
     return { start, end };
   }, [startDate, endDate, tasks, viewMode, shiftSegments, tzShift]);
 
-  // Non-linear working-time axis (非线性工作时间轴). In day mode, when a working
+  // Non-linear working-time axis. In day mode, when a working
   // calendar marks weekends/holidays as non-working, those columns are DROPPED
   // from the grid entirely — Friday sits directly against Monday — so the
   // timeline shows only working time. This makes the date→px mapping non-linear
   // (a weekend spans zero pixels), which is why all positioning is routed
   // through `dateToX`/`xToDate` below rather than a flat ms→px factor.
-  // Shift segmentation (班次分段). In day mode, when a normalized shift config is
-  // supplied, each day column is subdivided into its bands (白班 | 夜班…). Like
+  // Shift segmentation. In day mode, when a normalized shift config is
+  // supplied, each day column is subdivided into its bands (day | night | …). Like
   // `folding` this makes the axis non-linear in px (bands have different widths),
   // so all positioning routes through `dateToX`/`xToDate`. Off → zero regression.
   const segmenting =
@@ -1862,7 +1869,7 @@ export function GanttView({
 
     // Shift mode: emit one column per band, walking shift-day by shift-day.
     // Bands sum to 24h, so advancing the cursor by each band's duration lands
-    // exactly on the next 排班日 start — columns stay time-contiguous.
+    // exactly on the next shift-day start — columns stay time-contiguous.
     if (segmenting && shiftSegments) {
       let cursor = new Date(timelineRange.start);
       while (cursor <= timelineRange.end) {
@@ -2006,7 +2013,7 @@ export function GanttView({
   // keeps a raw pixel scrollLeft across a re-render, but a Day→Month switch
   // shrinks the timeline ~5×, so that same pixel offset lands on a wildly
   // different (usually clamped-to-edge) date — which is what users read as
-  // "乱". Instead we record the date sitting at the *left edge* of the viewport
+  // "jumbled". Instead we record the date sitting at the *left edge* of the viewport
   // now (via the current xToDate) and pin that same date back to the left edge
   // once the new layout is measured — so the leftmost visible date never moves.
   const changeViewMode = React.useCallback(
@@ -2097,9 +2104,9 @@ export function GanttView({
   // month/quarter, decade groups under year.
   const headerGroups = React.useMemo(() => {
     const groups: { key: string; label: string; width: number; offset: number }[] = [];
-    // Shift mode: the upper tier is the 排班日 (shift-day). All bands of one
+    // Shift mode: the upper tier is the shift-day. All bands of one
     // shift-day share its `shiftDayStart`, so grouping by it yields one cell per
-    // day spanning its 白班|夜班 columns, labelled by the day's date.
+    // day spanning its day|night band columns, labelled by the day's date.
     if (segmenting && shiftSegments) {
       let acc = 0;
       for (const col of timeColumns) {
@@ -2206,7 +2213,7 @@ export function GanttView({
     };
   }, []);
 
-  // 定位闪烁: id of the bar currently pulsing after a "locate" click, plus the
+  // Locate flash: id of the bar currently pulsing after a "locate" click, plus the
   // pending timers that toggle it on/off (cleared on re-trigger and unmount).
   const [flashTaskId, setFlashTaskId] = React.useState<string | number | null>(null);
   const flashTimerRef = React.useRef<number[]>([]);
@@ -2336,7 +2343,7 @@ export function GanttView({
     return () => window.cancelAnimationFrame(raf);
   }, [tasks, todayLeftPx, dateToX]);
 
-  // 导航: scroll the timeline so a given date sits near the left edge. Returns
+  // Navigation: scroll the timeline so a given date sits near the left edge. Returns
   // false (no-op) when the date is outside the rendered range.
   const scrollToDate = React.useCallback(
     (date: Date, align: 'left' | 'center' = 'left') => {
@@ -2349,7 +2356,7 @@ export function GanttView({
     },
     [timelineRange, dateToX],
   );
-  // 定位到记录: scroll the timeline so a row's bar is centered horizontally,
+  // Locate a record: scroll the timeline so a row's bar is centered horizontally,
   // triggered by the locate icon in the task list's End column. Centers on the
   // bar's midpoint and clamps so an out-of-range edge still lands on-screen.
   const scrollToTask = React.useCallback(
@@ -2380,7 +2387,7 @@ export function GanttView({
       flashCleanupRef.current = null;
       setFlashTaskId(null);
 
-      // 闪烁高亮: pulse the bar *after* the scroll lands so the eye catches it
+      // Flash highlight: pulse the bar *after* the scroll lands so the eye catches it
       // where it settles, not mid-flight. rAF restarts the CSS animation cleanly
       // even when the same row is located twice; auto-clears when it finishes.
       const startFlash = () => {
@@ -2439,7 +2446,7 @@ export function GanttView({
     [scrollToDate, tzShift],
   );
 
-  // --- Always-visible horizontal scrollbar (自绘水平滚动条) ----------------
+  // --- Always-visible horizontal scrollbar (self-drawn) -------------------
   // The native bar can't be relied on here: overlay-scrollbar engines (macOS
   // "show while scrolling", embedded Chromium) silently ignore the
   // ::-webkit-scrollbar styling injected above, and in tall host layouts the
@@ -2866,7 +2873,7 @@ export function GanttView({
   const CRIT_COLOR = '#dc2626';
 
   // --- Auto-schedule (Phase 6) ------------------------------------------
-  // One-shot dependency-driven reschedule (顺延): push successors later until
+  // One-shot dependency-driven reschedule (forward-only): push successors later until
   // their link constraints hold, preserving durations, then persist each
   // changed task through onTaskUpdate (as one undoable batch).
   // Toolbar auto-schedule is a bulk server write, so it CONFIRMS first (the
@@ -2978,8 +2985,8 @@ export function GanttView({
     // Timeline: bars / milestones / links / today line.
     parts.push(`<g transform="translate(${nameW},${headerH})" font-family="sans-serif" font-size="9">`);
     rows.forEach((row, i) => {
-      // 分组层级 (项目/产品): a pure tree header — the live chart draws NO
-      // bar for these rows, so the export must not invent a rollup one.
+      // Grouping level (project / product): a pure tree header — the live chart
+      // draws NO bar for these rows, so the export must not invent a rollup one.
       if (row.task.type === 'group') return;
       const y = i * rowHeight;
       const { left, width } = styleFor(row.start, row.end);
@@ -3001,7 +3008,7 @@ export function GanttView({
         parts.push(`<rect x="${left.toFixed(1)}" y="${(y + summaryBarTop).toFixed(1)}" width="${width.toFixed(1)}" height="${summaryBarHeight}" rx="3" fill="${fill}"${stroke}/>`);
         const pw = (width * Math.min(100, Math.max(0, row.progress))) / 100;
         parts.push(`<rect x="${left.toFixed(1)}" y="${(y + summaryBarTop).toFixed(1)}" width="${pw.toFixed(1)}" height="${summaryBarHeight}" rx="3" fill="rgba(0,0,0,0.2)"/>`);
-        // In-bar title (条上标题), matching the live summary bar.
+        // In-bar title, matching the live summary bar.
         const label = fitText(row.task.title, width);
         if (label) {
           parts.push(`<text x="${(left + 6).toFixed(1)}" y="${(y + rowHeight / 2 + 3).toFixed(1)}" fill="#ffffff" font-weight="500">${esc(label)}</text>`);
@@ -3050,7 +3057,7 @@ export function GanttView({
     return { svg, W, H };
   }, [tasks, rows, links, linkPath, styleFor, isCriticalTask, critical, timeColumns, colOffsets, totalWidth, taskListWidth, rowHeight, barTop, barHeight, summaryBarTop, summaryBarHeight, milestoneSize, todayLeftPx, viewMode, showBaselines, baselineTop, baselineHeight, BASELINE_FILL, BASELINE_BORDER, resolvedMarkers, headerGroups]);
 
-  // 导出文件名: `<view/object label>-<yyyyMMdd-HHmm>.<ext>` — carries the
+  // Export file name: `<view/object label>-<yyyyMMdd-HHmm>.<ext>` — carries the
   // business context instead of an opaque `gantt-week`, and the timestamp
   // keeps repeated exports from overwriting each other. Filesystem-hostile
   // characters are stripped from the label.
@@ -3122,7 +3129,7 @@ export function GanttView({
            button's own :hover/:focus-visible full-opacity rule can win. */
         :where(.group\\/task-row:hover) .gantt-row-open-btn { opacity: 0.6; }
         .gantt-row-open-btn:hover, .gantt-row-open-btn:focus-visible { opacity: 1; }
-        /* 定位闪烁: blink the located bar 3× with a thick ring + colored glow so
+        /* Locate flash: blink the located bar 3× with a thick ring + colored glow so
            it's hard to miss. The ring is an outline (not box-shadow) and the glow
            is a drop-shadow *filter* — both stay clear of the critical-path bar's
            inline box-shadow, which they'd otherwise clobber. */
@@ -3148,13 +3155,14 @@ export function GanttView({
           .gantt-sm-hidden { display: none; }
         }
         /* The timeline's NATIVE scrollbars are fully hidden — both axes are
-           replaced by the self-drawn bars (水平底部 / 垂直右侧). Styling the
-           native bar is a dead end: overlay-scrollbar engines (macOS "show
-           while scrolling", embedded Chromium) ignore ::-webkit-scrollbar
-           theming yet still flash their own auto-hiding bar on scroll, which
-           doubled up with the self-drawn one (双滚动条). scrollbar-width:none
-           is honored by overlay engines too; the ::-webkit rule covers older
-           WebKit. Wheel/trackpad/programmatic scrolling is unaffected. */
+           replaced by the self-drawn bars (horizontal at the bottom, vertical
+           on the right). Styling the native bar is a dead end: overlay-scrollbar
+           engines (macOS "show while scrolling", embedded Chromium) ignore
+           ::-webkit-scrollbar theming yet still flash their own auto-hiding bar
+           on scroll, which doubled up with the self-drawn one (two visible
+           scrollbars). scrollbar-width:none is honored by overlay engines too;
+           the ::-webkit rule covers older WebKit. Wheel/trackpad/programmatic
+           scrolling is unaffected. */
         [data-testid="gantt-timeline"] { scrollbar-width: none; }
         [data-testid="gantt-timeline"]::-webkit-scrollbar { display: none; width: 0; height: 0; }
         /* The task-list pane scrolls in lockstep with the timeline, so its own
@@ -3465,9 +3473,10 @@ export function GanttView({
                 <div className="w-16 gantt-sm-w20 text-right">{t('gantt.column.end')}</div>
               </>
             )}
-            {/* Mirror of the data rows' 「→」 open-details slot (w-6 + 4px gap).
+            {/* Mirror of the data rows' `→` open-details slot (w-6 + 4px gap).
                 Every row reserves it whenever onTaskClick is live, so the
-                header must too — otherwise the 开始/结束 labels sit 28px to the
+                header must too — otherwise the Start/End labels
+                (`gantt.column.start` / `gantt.column.end`) sit 28px to the
                 right of the values they caption. */}
             {onTaskClick && (
               <div
@@ -3579,10 +3588,11 @@ export function GanttView({
                 } : undefined}
                 onContextMenu={(e) => openContextMenu(task, e)}
                 onClick={() => {
-                  // Focus 查看: a single row click selects + locates the bar on
+                  // Focus/locate: a single row click selects + locates the bar on
                   // the timeline (scroll + pulse) WITHOUT opening the detail
-                  // drawer. Detail is on double-click, the row's 「→」 button,
-                  // the context menu 查看 and keyboard Enter.
+                  // drawer. Detail is on double-click, the row's `→` button,
+                  // the context menu's "View details" (`gantt.menu.view`) and
+                  // keyboard Enter.
                   setSelectedTaskId(task.id);
                   if (!isEditing) scrollToTask(row.start, row.end, task.id);
                 }}
@@ -3685,7 +3695,7 @@ export function GanttView({
                     row.end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })
                   )}
                 </div>
-                {/* 跳转详情「→」: opens the detail drawer / page — the row click
+                {/* Open details `→`: opens the detail drawer / page — the row click
                     itself is reserved for Focus-locate, so detail needs its own
                     always-reachable affordance besides double-click. A dedicated
                     flex slot (not an absolute overlay) so it never covers the
@@ -3711,7 +3721,7 @@ export function GanttView({
                   </div>
                 )}
                 {/* Row View/Edit/Delete stay reachable from the detail drawer
-                    (double-click / 「→」 / context menu / Enter); inline edit is
+                    (double-click / `→` / context menu / Enter); inline edit is
                     still triggerable via row double-click when enabled. */}
               </div>
               );
@@ -3793,10 +3803,11 @@ export function GanttView({
                   })}
                 </div>
 
-                {/* Calendar-midnight markers (日历午夜). A subtle dashed vertical
-                    line where the calendar date flips INSIDE a band — e.g. the
-                    夜班 (20:00→次日08:00) straddles 0:00. The 排班日 cell stays
-                    unbroken; the line is just a cue that the day rolled over. */}
+                {/* Calendar-midnight markers. A subtle dashed vertical
+                    line where the calendar date flips INSIDE a band — e.g. a
+                    night shift (20:00→08:00 next day) straddles 0:00. The
+                    shift-day cell stays unbroken; the line is just a cue that
+                    the day rolled over. */}
                 {segmenting && shiftSegments && shiftSegments.showMidnight && (
                   <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0 }}>
                     {timeColumns.slice(colWindow.start, colWindow.end).map((col, i) => {
@@ -3856,7 +3867,7 @@ export function GanttView({
                    const inDragGroup = dragGroupIds?.has(String(task.id)) ?? false;
                    const inDragStretch = dragStretchAncestorIds?.has(String(task.id)) ?? false;
                    const liveStyle = isDragging || inDragGroup || inDragStretch ? getLiveRowStyle(row) : baseStyle;
-                   // Per-node lock (仅查看): treat like read-only for this row —
+                   // Per-node lock (view-only): treat like read-only for this row —
                    // no move/resize/progress/link, but onTaskClick still fires.
                    const isLocked = !!task.locked;
                    // Per-interaction gates: the row must be editable at all
@@ -3868,7 +3879,7 @@ export function GanttView({
                    const canProgress = editableRow && ixProgress;
                    const canDrag = canMove || canResize;
                    // A bar that is explicitly non-editable — the whole view is
-                   // read-only, or this row is locked (仅查看) — gets a not-allowed
+                   // read-only, or this row is locked (view-only) — gets a not-allowed
                    // cursor so hovering signals "can't drag/resize here". A plain
                    // display gantt (no edit handlers, not flagged read-only) keeps a
                    // normal pointer instead.
@@ -3928,7 +3939,8 @@ export function GanttView({
                    const durationDays = Math.max(1, Math.round(
                      (row.end.getTime() - row.start.getTime()) / MS_PER_DAY
                    ));
-                   // Tooltip flip (bottom rows, 最后一行悬浮狂闪): a downward
+                   // Tooltip flip (bottom rows, where a hover on the last row
+                   // otherwise flickers): a downward
                    // tooltip on one of the last rows overflows the rows box,
                    // growing the scroller's scrollHeight while shown. With the
                    // user scrolled to the bottom, the browser's scroll
@@ -3987,7 +3999,7 @@ export function GanttView({
                    ) : null;
 
                    if (task.type === 'group') {
-                     // 分组层级 (项目/产品): a pure tree header — the left list still
+                     // Grouping level (project / product): a pure tree header — the left list still
                      // shows the caret + label, but the timeline row carries NO bar.
                      return (
                        <div
@@ -4017,7 +4029,7 @@ export function GanttView({
                        summaryExtent === 'self' && task.hasOwnDates !== false;
                      // Locked summaries were already unmovable (beginDrag rejects
                      // them) — folding the lock in here also fixes the cursor:
-                     // 仅查看 rows now show not-allowed (🚫) instead of grab.
+                     // view-only rows now show not-allowed (🚫) instead of grab.
                      const summaryMovable = !!onTaskUpdate && ixMove && !isLocked;
                      const summaryResizable = !!onTaskUpdate && ixResize && summaryOwnsDates && !isLocked;
                      return (
@@ -4084,7 +4096,7 @@ export function GanttView({
                             // Clicking the bar only selects it — opening the detail
                             // drawer is reserved for the task-name column, the
                             // context menu, and keyboard Enter, so a mis-tap while
-                            // aiming to drag never pops the side panel (易误触).
+                            // aiming to drag never pops the side panel.
                             setSelectedTaskId(task.id);
                           }}
                           onContextMenu={(e) => openContextMenu(task, e)}
@@ -4240,7 +4252,7 @@ export function GanttView({
                             // Clicking the bar only selects it — opening the detail
                             // drawer is reserved for the task-name column, the
                             // context menu, and keyboard Enter, so a mis-tap while
-                            // aiming to drag never pops the side panel (易误触).
+                            // aiming to drag never pops the side panel.
                             setSelectedTaskId(task.id);
                           }}
                           onContextMenu={(e) => openContextMenu(task, e)}
@@ -4318,7 +4330,7 @@ export function GanttView({
                           // Clicking the bar only selects it — opening the detail
                           // drawer is reserved for the task-name column, the
                           // context menu, and keyboard Enter, so a mis-tap while
-                          // aiming to drag never pops the side panel (易误触).
+                          // aiming to drag never pops the side panel.
                           setSelectedTaskId(task.id);
                         }}
                         onContextMenu={(e) => openContextMenu(task, e)}
@@ -4667,7 +4679,7 @@ export function GanttView({
             </div>
           </div>
 
-          {/* Self-drawn vertical scrollbar (自绘垂直滚动条) — the native bars
+          {/* Self-drawn vertical scrollbar — the native bars
               are fully hidden (see the style block), so this is the one
               vertical affordance; synced with the timeline's scrollTop. */}
           <div
@@ -4702,7 +4714,7 @@ export function GanttView({
           </div>
         </div>
 
-        {/* Always-visible horizontal scrollbar (自绘水平滚动条): sticky to the
+        {/* Always-visible horizontal scrollbar (self-drawn): sticky to the
             visible bottom so it stays reachable even when the pane's bottom
             edge extends past the viewport. Hidden by syncHScrollbar when the
             timeline fits. */}
@@ -4831,7 +4843,7 @@ export function GanttView({
         );
       })()}
 
-      {/* Dependency link context menu (类型选择 + 移除) — fixed-position. */}
+      {/* Dependency link context menu (link type + remove) — fixed-position. */}
       {linkCtxMenu && (() => {
         const source = tasks.find((tk) => String(tk.id) === String(linkCtxMenu.sourceId));
         const target = tasks.find((tk) => String(tk.id) === String(linkCtxMenu.targetId));
@@ -4900,7 +4912,7 @@ export function GanttView({
         );
       })()}
 
-      {/* "添加紧前/紧后" task picker — lists candidate tasks; choosing one
+      {/* "Add predecessor / successor" task picker — lists candidate tasks; choosing one
           creates a dependency. Excludes self and tasks already linked in that
           direction (avoids no-op duplicates). */}
       {depPicker && onDependencyCreate && (() => {
@@ -4912,10 +4924,10 @@ export function GanttView({
           links.map((l) => `${String(l.sourceId)}->${String(l.targetId)}`),
         );
         // Candidates = rows that can actually participate in a dependency:
-        // 'group' tree headers have no bar to schedule, and locked (仅查看)
+        // 'group' tree headers have no bar to schedule, and locked (view-only)
         // rows must not enter new links. Summary rows stay IN — they are
         // draggable (group move) and in parent-child models (plan → locked
-        // dispatch) the summary row is exactly the linkable record.
+        // work order) the summary row is exactly the linkable record.
         const candidates = tasks.filter((c) => {
           if (String(c.id) === String(anchor.id)) return false;
           if (c.type === 'group' || c.locked) return false;
@@ -4973,11 +4985,9 @@ export function GanttView({
         );
       })()}
 
-      {/* 拖拽冲突 → 顺延确认 (Group 2). A centered modal lists how many tasks
-          would shift and offers to auto-reschedule (自动顺延) or keep the manual
-          placement (取消保留). */}
-      {/* 自动排程确认 — the toolbar wand computes first, then asks before the
-          bulk write; mirrors the conflict dialog's interaction contract. */}
+      {/* Auto-schedule confirmation — the toolbar wand computes first, then
+          asks before the bulk write; mirrors the conflict dialog's interaction
+          contract. */}
       {pendingAutoSchedule && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30"
@@ -5027,7 +5037,8 @@ export function GanttView({
         </div>
       )}
 
-      {/* 无需排程 transient notice — every link already holds. */}
+      {/* "Nothing to reschedule" transient notice (`gantt.autoScheduleDlg.none`)
+          — every link already holds. */}
       {autoScheduleClean && (
         <div
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] rounded-md border bg-popover text-popover-foreground px-3 py-1.5 text-sm shadow-md"
@@ -5038,6 +5049,10 @@ export function GanttView({
         </div>
       )}
 
+      {/* Drag conflict → auto-reschedule confirmation (Group 2). A centered
+          modal lists how many tasks would shift and offers to auto-reschedule
+          (`gantt.conflict.confirm`) or keep the manual placement
+          (`gantt.conflict.cancel`). */}
       {pendingConflict && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30"

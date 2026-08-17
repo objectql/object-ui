@@ -27,7 +27,6 @@ export const AccordionItemSchema = z.object({
   title: z.string().describe('Accordion item title'),
   content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).describe('Accordion item content'),
   disabled: z.boolean().optional().describe('Whether item is disabled'),
-  icon: z.string().optional().describe('Item icon'),
 });
 
 /**
@@ -63,7 +62,6 @@ export const CollapsibleSchema = BaseSchema.extend({
 export const ToggleGroupItemSchema = z.object({
   value: z.string().describe('Item value'),
   label: z.string().describe('Item label'),
-  icon: z.string().optional().describe('Item icon'),
   disabled: z.boolean().optional().describe('Whether item is disabled'),
 });
 

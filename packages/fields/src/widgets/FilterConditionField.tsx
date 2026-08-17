@@ -47,6 +47,38 @@ interface BuilderGroup {
 
 const EMPTY_GROUP: BuilderGroup = { id: 'root', logic: 'and', conditions: [] };
 
+/**
+ * Opt-in FilterBuilder operators this widget offers (objectui#4023,
+ * objectui#4736).
+ *
+ * The shared dropdown withholds these because two of its three consumers
+ * persist into dialects that cannot carry them (see `OPT_IN_OPERATORS` in
+ * `@object-ui/components`'s `filter-builder.tsx`). THIS widget can: its value
+ * is a MongoDB-style `FieldOperatorsSchema` criteria that the server's engine
+ * evaluates directly — never lowered through the array/triplet AST and never
+ * folded into a `ViewFilterRule` — so the spec's `FILTER_OPERATORS` is the only
+ * vocabulary it has to satisfy.
+ *
+ *   - `containsCaseInsensitive` authors `$icontains`, executable on every
+ *     driver and evaluation face the platform ships (objectstack#5702 +
+ *     objectstack#6520).
+ *   - `exists` / `notExists` author `$exists`, which `condToMongo` has emitted
+ *     and `kvToCondition` has read back since objectui#2942. Naming them here
+ *     is what KEEPS them reachable now that the shared dropdown no longer
+ *     offers them to the list and view surfaces, whose dialects have no
+ *     existence operator at all (objectui#4736).
+ *
+ * Module scope, not an inline literal: a fresh array each render would reset
+ * `FilterBuilder`'s memo inputs on every keystroke.
+ *
+ * @internal exported for tests
+ */
+export const FILTER_CONDITION_EXTRA_OPERATORS: readonly string[] = [
+  'containsCaseInsensitive',
+  'exists',
+  'notExists',
+];
+
 /** Field types that are not meaningfully filterable in a simple builder. */
 const NON_FILTERABLE = new Set([
   'object', 'vector', 'file', 'image', 'avatar', 'signature',
@@ -118,6 +150,13 @@ export function condToMongo(c: BuilderCondition, typeOf: (f: string) => string |
     case 'equals': return { [field]: cv };
     case 'notEquals': return { [field]: { $ne: cv } };
     case 'contains': return { [field]: { $contains: value } };
+    // Case-insensitive contains (objectui#4023). `$contains` and its ASCII-case-
+    // folding twin are two operators, not one with a flag: `contains` keeps
+    // emitting `$contains` so stored criteria keep meaning what they meant.
+    // The fold is ASCII-only by contract (objectstack#4706 Q1 = A) — `café` does
+    // NOT match `CAFÉ` — which is why the label says "ignore case" rather than
+    // promising an accent-blind search.
+    case 'containsCaseInsensitive': return { [field]: { $icontains: value } };
     // `$notContains` is the spec spelling (FieldOperatorsSchema, data/filter.zod.ts).
     // This emitted `$ncontains` — a token that appears nowhere in @objectstack/spec and
     // that convertFiltersToAST throws on, so every "does not contain" rule authored here
@@ -189,6 +228,10 @@ export function kvToCondition(field: string, v: any, idx: number): BuilderCondit
     switch (op) {
       case '$ne': return { id, field, operator: 'notEquals', value: val };
       case '$contains': return { id, field, operator: 'contains', value: val };
+      // Without this arm a criteria the builder itself just wrote would fail to
+      // load on reopen ("criteria can't be represented") and drop the admin into
+      // the raw-JSON editor — the degradation objectui#4023 deliverable 2 names.
+      case '$icontains': return { id, field, operator: 'containsCaseInsensitive', value: val };
       // `$ncontains` is the pre-fix spelling this widget used to emit. Criteria saved
       // before the fix still carry it, so keep reading it — dropping it here would make
       // those rules fail to load ("criteria can't be represented") instead of migrating.
@@ -422,6 +465,7 @@ export function FilterConditionField({
           fields={fields ?? []}
           value={(group ?? EMPTY_GROUP) as any}
           onChange={handleBuilderChange as any}
+          extraOperators={FILTER_CONDITION_EXTRA_OPERATORS}
         />
       )}
       {/*

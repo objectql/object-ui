@@ -24,7 +24,7 @@ import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import type { ObjectGridSchema, DataSource, ViewData } from '@object-ui/types';
 import { useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay, cn, useIsMobile } from '@object-ui/components';
-import { extractRecords, buildExpandFields } from '@object-ui/core';
+import { extractRecords, buildExpandFields, convertSortToQueryParams } from '@object-ui/core';
 import { z } from 'zod';
 import MapGL, { NavigationControl, Marker, Popup } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
@@ -105,33 +105,6 @@ function getDataConfig(schema: ObjectGridSchema): ViewData | null {
   }
   
   return null;
-}
-
-/**
- * Helper to convert sort config to QueryParams format
- */
-function convertSortToQueryParams(sort: string | any[] | undefined): Record<string, 'asc' | 'desc'> | undefined {
-  if (!sort) return undefined;
-  
-  // If it's a string like "name desc"
-  if (typeof sort === 'string') {
-    const parts = sort.split(' ');
-    const field = parts[0];
-    const order = (parts[1]?.toLowerCase() === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc';
-    return { [field]: order };
-  }
-  
-  // If it's an array of SortConfig objects
-  if (Array.isArray(sort)) {
-    return sort.reduce((acc, item) => {
-      if (item.field && item.order) {
-        acc[item.field] = item.order;
-      }
-      return acc;
-    }, {} as Record<string, 'asc' | 'desc'>);
-  }
-  
-  return undefined;
 }
 
 const isDev = (): boolean =>

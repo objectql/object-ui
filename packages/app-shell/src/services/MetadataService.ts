@@ -58,7 +58,10 @@ export interface FieldMetadataPayload {
   options?: Array<{ label: string; value: string; color?: string }>;
   externalId?: boolean;
   trackHistory?: boolean;
-  indexed?: boolean;
+  // No `indexed` (objectui#4644): the spec has no field-level index flag —
+  // `FieldSchema.safeParse` rejects the key by name, so writing it made
+  // `PUT /api/v1/meta/object/:name` fail with 422 `INVALID_METADATA`.
+  // Object-level `indexes[]` is the real surface.
   referenceTo?: string;
   formula?: string;
   sortOrder?: number;
@@ -100,7 +103,6 @@ function toFieldPayload(field: DesignerFieldDefinition): FieldMetadataPayload {
     options: field.options,
     externalId: field.externalId,
     trackHistory: field.trackHistory,
-    indexed: field.indexed,
     referenceTo: field.referenceTo,
     formula: field.formula,
     sortOrder: field.sortOrder,

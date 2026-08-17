@@ -49,7 +49,7 @@ import {
 } from './ChartContainerImpl';
 import { mapScatterClick, mapTreemapClick, mapSankeyClick } from './chartDrillEvents';
 import { formatterFor, domainFor, ticksFor, RENDERABLE, SINGLE_VALUE_CHART_TYPES, TABULAR_CHART_TYPES, effectiveChartFamily, comboBaseFamily, type NormalizedAxis, type NormalizedSeries } from './normalizeChartSchema';
-import { buildCategoryRank } from '@object-ui/core';
+import { buildCategoryRank, chartRowBucketId, type ChartSegmentClickEvent } from '@object-ui/core';
 
 // Default color fallback for chart series
 const DEFAULT_CHART_COLOR = 'hsl(var(--primary))';
@@ -96,6 +96,112 @@ const comparisonStyle = (s: any, kind: 'line' | 'area' | 'bar' | 'scatter') => {
   return { strokeOpacity, fillOpacity, strokeDasharray };
 };
 
+/**
+ * Which series did a CARTESIAN click land on? (objectui#4672)
+ *
+ * recharts 3 answers with `activeDataKey` on the chart-level click payload —
+ * but only when the interaction was dispatched by a graphical ITEM, which is
+ * the per-series cursor (`Tooltip shared={false}`). Under the SHARED (axis)
+ * cursor these charts render, the click is an AXIS interaction, and recharts
+ * dispatches those with `activeDataKey: undefined` hard-coded
+ * (`recharts/lib/state/mouseEventsMiddleware.js`) — the cursor spans every
+ * series at that tick, so the payload names no single one. Measured against
+ * the installed recharts 3.10.1 for bar, line and area, clicking a mark and
+ * empty plot area alike: the key is absent in every shared-cursor case.
+ *
+ * So take the payload's answer when it has one; failing that, the only click
+ * with an unambiguous answer is on a chart plotting exactly ONE series, where
+ * the clicked column can belong to nothing else. A multi-series chart under
+ * the shared cursor is left UNRESOLVED rather than guessed: naming a series
+ * the user did not click drills to the wrong records, which is worse than the
+ * dead click. Resolving that half needs a different mechanism (an item-level
+ * handler, which changes what a cartesian drill means) — it is the open half
+ * of objectui#4672, deliberately not answered here.
+ */
+const resolveClickedSeriesKey = (
+  activeDataKey: unknown,
+  plotted: NormalizedSeries[],
+): string | undefined => {
+  if (typeof activeDataKey === 'string' || typeof activeDataKey === 'number') {
+    const fromPayload = String(activeDataKey);
+    if (fromPayload !== '') return fromPayload;
+  }
+  if (plotted.length === 1) {
+    const only = plotted[0]?.dataKey;
+    if (only != null && String(only) !== '') return String(only);
+  }
+  return undefined;
+};
+
+/**
+ * The DOM event behind a React synthetic one — the IDENTITY of a single user
+ * gesture (objectui#4672).
+ *
+ * Load-bearing rather than incidental: a click on a mark reaches the item-level
+ * handler and the chart-level handler as two separate callbacks, and the only
+ * thing that says they are ONE click is that both were handed the same
+ * `nativeEvent` object. Measured on recharts 3.10.1 for bar, line and area
+ * alike: identical object, item first, chart second. Matching on that object
+ * rather than on a flag-and-timeout means a stale record can never be adopted
+ * by a later click — a different gesture is a different object, always.
+ */
+const gestureIdOf = (value: unknown): unknown => {
+  if (value && typeof value === 'object' && 'nativeEvent' in value) {
+    return (value as { nativeEvent: unknown }).nativeEvent;
+  }
+  return undefined;
+};
+
+/**
+ * The gesture identity out of an ITEM handler's arguments, whose shape differs
+ * per mark family — measured, because recharts does not type two of the three.
+ *
+ *  - `Bar`:  `(item: BarRectangleItem, index: number, event)` — three args, and
+ *    the item carries the row and the value.
+ *  - `Line` / `Area`: `(curveProps, event)` — TWO args, and the first is the
+ *    rendered curve's props, not a datum. A line/area mark click therefore
+ *    knows WHICH SERIES it is (this component rendered it) and nothing about
+ *    which category, which is exactly why the series is recorded here and the
+ *    event is still composed by the chart-level handler, which does know.
+ *
+ * Scanning from the end takes the event in both shapes without branching on the
+ * mark family, and returns `undefined` for any shape carrying no event at all —
+ * an argument list this code has never seen cannot be mistaken for a gesture.
+ */
+const gestureIdOfArgs = (args: unknown[]): unknown => {
+  for (let i = args.length - 1; i >= 0; i -= 1) {
+    const id = gestureIdOf(args[i]);
+    if (id !== undefined) return id;
+  }
+  return undefined;
+};
+
+/**
+ * The DISPLAY LABEL of a plotted series, given the key a click resolved to
+ * (objectui#4682).
+ *
+ * A series key is a `dataKey` — what the renderer binds and what the drill
+ * lookup resolves back to a group. Its label is what the legend paints. For
+ * every ordinary group those are the same string, which is why reading the key
+ * as a title has passed unnoticed; they part company exactly when a group keys
+ * by its IDENTITY because its label cannot name it (objectui#4673's
+ * `pivotSeriesBuckets`, over objectui#4508's collision) — and then the drawer
+ * title reads `[null]` at a segment the user saw labelled `(None)`.
+ *
+ * Keys are unique within a chart's series (`buildChartSeries` assigns them
+ * injectively; the measure branch keys by measure name), so this lookup is
+ * unambiguous and both arms — the clicked mark and the axis fallback — resolve
+ * their label through this one path.
+ */
+const seriesLabelForKey = (
+  key: string | undefined,
+  plotted: NormalizedSeries[],
+): string | undefined => {
+  if (key == null) return undefined;
+  const found = plotted.find((s) => String(s.dataKey) === key);
+  return typeof found?.label === 'string' ? found.label : undefined;
+};
+
 export interface AdvancedChartImplProps {
   /**
    * Chart family. `combo` is renderer-local and rarely needs to be passed:
@@ -140,10 +246,34 @@ export interface AdvancedChartImplProps {
   categoryOrder?: string[];
   /**
    * Optional drill-down click handler. Fires when a chart segment is clicked
-   * with `{ category, series, value }`. Wired for bar/horizontal-bar/line/
-   * area/pie/donut. Other chart types are no-ops in L1.
+   * with `{ category, categoryId, series, value }`. Wired for
+   * bar/horizontal-bar/line/area/pie/donut/funnel/scatter/treemap/sankey —
+   * each has its own click handler attached to its mark(s) below — and for
+   * `combo`, whose `Bar`/`Line`/`Area` marks are the same components the plain
+   * cartesian branch renders and now emit the same event with the same
+   * semantics (ruled on objectui#4692).
+   *
+   * `combo` differs from the plain cartesian branch in exactly ONE way, and
+   * deliberately: **only its marks drill.** A click on the plot surface or an
+   * axis stays silent there, where the plain branch would fall back to its
+   * axis-level answer. A combo plots several measures on one plot, so a
+   * surface click has no single series answer to give — the same reasoning
+   * objectui#4672's ruling used for the pivoted case. The plain branch keeps
+   * that fallback because its own marks share one measure, so its axis answer
+   * is either unambiguous or explicitly named by recharts.
+   *
+   * That combo drills at all is what keeps its DERIVATION from costing an
+   * interaction. The branch is reachable without authoring
+   * `chartType: 'combo'`: `effectiveChartFamily` derives it whenever a series'
+   * own family disagrees with the chart's own (see its doc comment), so giving
+   * one series of a drillable chart a different `type` used to turn that
+   * chart's drill off with nothing in the authored spec saying drill was
+   * touched. It now changes the mark and nothing else.
+   *
+   * Radar is the one remaining no-op in L1 — its branch attaches no click
+   * handler anywhere.
    */
-  onChartClick?: (event: { category?: string; series?: string; value?: number }) => void;
+  onChartClick?: (event: ChartSegmentClickEvent) => void;
   /**
    * Spec `ChartAxis` presentation for the category axis — `format` (tick
    * formatter), `title`, `showGridLines`. Its `field` already arrived as
@@ -300,29 +430,153 @@ function AdvancedChartImplInner({
   };
   const [isMobile, setIsMobile] = React.useState(false);
 
-  // Recharts' top-level onClick payload: { activeLabel, activePayload, ... }
-  const handleCartesianClick = React.useCallback((payload: any) => {
+  // Recharts' top-level onClick payload: { activeLabel, activeTooltipIndex, … }
+  // — `MouseHandlerDataParam`, which carries an INDEX into this chart's `data`
+  // and no row of its own. So the clicked bucket's row (and with it the
+  // objectui#4508 identity) is read out of OUR OWN array rather than out of the
+  // event: nothing in the payload can be stale or copied, because none of it
+  // came from recharts.
+  //
+  // The measure VALUE is read the same way, off that row — for the same reason,
+  // and because the payload has no value either. (recharts 2 carried both in an
+  // `activePayload` array; recharts 3 dropped the field, so the objectui#4672
+  // read of it was `undefined` on every click and every cartesian drill lost
+  // its series and its value.)
+  //
+  // WHICH SERIES was clicked is the one thing the payload cannot always answer
+  // — see `resolveClickedSeriesKey`, and the mark handler below it.
+  //
+  // ── The clicked mark (objectui#4672's ruled Option A) ──────────────────────
+  // A chart-level cartesian click is an AXIS interaction, and recharts names no
+  // series in one: several series sit under one shared cursor at a tick, so the
+  // payload cannot say which of them the pointer was over. That left every
+  // PIVOTED drill dead, because its lookup matches on the second dimension.
+  //
+  // The mark itself knows. This component renders the series, so a `Bar` /
+  // `Line` / `Area` item handler closes over the very `dataKey` it was rendered
+  // with — the answer is statically known, not inferred from tooltip state.
+  //
+  // Both handlers fire for one click (item first, chart second — measured), so
+  // the item handler does NOT emit: it RECORDS its series, stamped with the
+  // gesture, and the chart-level handler below emits the single event. That is
+  // the double-fire answer and the additive property at once —
+  //
+  //  - exactly one `onChartClick` per gesture, because there is exactly one
+  //    emit site, rather than a second event suppressed after the fact;
+  //  - a click that lands on NO mark records nothing, so it falls through to
+  //    the axis answer this handler already gave (category + identity, series
+  //    when unambiguous) with not one byte changed. Nothing that resolved
+  //    before stops resolving; a line's `dot={false}` stroke simply gains the
+  //    exact series where the stroke itself is hit.
+  //
+  // It also has to be this way round for line and area, whose item handlers are
+  // handed the curve's props and no datum: the mark knows its series and only
+  // the chart-level payload knows the category. Each contributes what it has.
+  const clickedMark = React.useRef<{ gesture: unknown; dataKey: string } | null>(null);
+
+  const handleMarkClick = React.useCallback(
+    (s: NormalizedSeries) => (...args: unknown[]) => {
+      const gesture = gestureIdOfArgs(args);
+      if (gesture === undefined) return;
+      // Recorded EXACTLY as rendered, `''` included. The empty string is a real
+      // second-dimension group as of objectui#4673 — it draws its own bar and
+      // its key is its own label — and `''` is falsy, so any truthiness test on
+      // the way out would send `series: undefined` and hand that bar's click to
+      // whichever group an absent key happens to coerce to.
+      clickedMark.current = { gesture, dataKey: String(s.dataKey) };
+    },
+    [],
+  );
+
+  const markClickProps = onChartClick
+    ? (s: NormalizedSeries) => ({ onClick: handleMarkClick(s) })
+    : () => ({});
+
+  // Compose-and-emit for a chart-level cartesian click. TWO branches reach it,
+  // and they differ in one rule only — `requireMark` (objectui#4692):
+  //
+  //  - the plain branch (bar / horizontal-bar / line / area) emits for EVERY
+  //    click, falling back to the axis answer described above when the gesture
+  //    landed on no mark;
+  //  - `combo` emits ONLY for a gesture that landed on a mark. Its plot carries
+  //    several measures, so a surface/axis click there has no single series to
+  //    report and the fallback would have to invent one — the same reasoning
+  //    objectui#4672's ruling gave the pivoted case.
+  //
+  // Sharing the composer rather than writing combo its own is the point: a
+  // combo mark's click IS a cartesian mark's click (same components, same
+  // recorded series identity), so there is one event shape and one emit site,
+  // and the two branches disagree about reachability alone.
+  const emitCartesianClick = React.useCallback((payload: any, event: any, requireMark: boolean) => {
     if (!onChartClick || !payload) return;
-    const ap = Array.isArray(payload.activePayload) ? payload.activePayload[0] : undefined;
+    // A click with no active tick (the plot margins, an axis label) reports a
+    // NULL index, not an absent one — and `Number(null)` is 0, which would
+    // resolve to bucket ZERO and drill the wrong bucket. Only a real index
+    // selects a row.
+    const rawIdx = payload.activeTooltipIndex ?? payload.activeIndex;
+    const idx = rawIdx == null ? Number.NaN : Number(rawIdx);
+    const row = Number.isInteger(idx) && idx >= 0 ? data[idx] : undefined;
+    // The mark handler runs first and only for THIS gesture; anything left over
+    // from a click that never reached here belongs to a different DOM event and
+    // can never be adopted by this one.
+    const mark = clickedMark.current;
+    clickedMark.current = null;
+    const gesture = gestureIdOf(event);
+    const onMark = mark != null && gesture !== undefined && mark.gesture === gesture;
+    // The record is cleared above whether or not it is used, so a combo's
+    // silent surface click cannot leave a stale series behind for the next one.
+    if (requireMark && !onMark) return;
+    const clickedKey = onMark
+      ? mark!.dataKey
+      : resolveClickedSeriesKey(payload.activeDataKey, series);
+    const cell = clickedKey != null && row ? (row as Record<string, any>)[clickedKey] : undefined;
     onChartClick({
       category: payload.activeLabel != null ? String(payload.activeLabel) : undefined,
-      series: ap?.dataKey ? String(ap.dataKey) : undefined,
-      value: typeof ap?.value === 'number' ? ap.value : undefined,
+      categoryId: chartRowBucketId(row),
+      series: clickedKey,
+      // The KEY stays the lookup's answer; the LABEL rides alongside it so the
+      // drill title can read what the segment actually said (objectui#4682).
+      seriesLabel: seriesLabelForKey(clickedKey, series),
+      value: typeof cell === 'number' ? cell : undefined,
     });
-  }, [onChartClick]);
+  }, [onChartClick, data, series]);
 
+  const handleCartesianClick = React.useCallback((payload: any, event?: any) => {
+    emitCartesianClick(payload, event, false);
+  }, [emitCartesianClick]);
+
+  const handleComboClick = React.useCallback((payload: any, event?: any) => {
+    emitCartesianClick(payload, event, true);
+  }, [emitCartesianClick]);
+
+  // A pie sector's `payload` is a SPREAD COPY of the data row (recharts builds
+  // it as `{...entry, ...cellProps}`), which is precisely why the bucket
+  // identity is an ordinary enumerable property — see `CHART_BUCKET_ID_KEY`.
   const handlePieClick = React.useCallback((entry: any) => {
     if (!onChartClick || !entry) return;
     const cat = entry.payload?.[xAxisKey];
     const dk = series[0]?.dataKey || 'value';
     onChartClick({
       category: cat != null ? String(cat) : undefined,
+      categoryId: chartRowBucketId(entry.payload),
       series: dk,
+      // Measured for objectui#4682: this path sends only the KEY, so a pie over
+      // a pivot whose first group keys by identity titles its drawer with that
+      // identity. The funnel path is untouched — it sends no series at all.
+      seriesLabel: seriesLabelForKey(dk, series),
       value: typeof entry.payload?.[dk] === 'number' ? entry.payload[dk] : undefined,
     });
   }, [onChartClick, xAxisKey, series]);
 
   const cartesianClickProps = onChartClick ? { onClick: handleCartesianClick, style: { cursor: 'pointer' as const } } : {};
+  // Combo carries NO chart-wide pointer cursor, unlike every other wired
+  // family: on this plot only the marks answer a click, and a surface-wide
+  // pointer would promise a drill the axis deliberately does not perform. The
+  // affordance rides on the marks instead — see `comboMarkClickProps`.
+  const comboClickProps = onChartClick ? { onClick: handleComboClick } : {};
+  const comboMarkClickProps = onChartClick
+    ? (s: NormalizedSeries) => ({ ...markClickProps(s), cursor: 'pointer' as const })
+    : () => ({});
   const pieClickProps = onChartClick ? { onClick: handlePieClick, style: { cursor: 'pointer' as const } } : {};
 
   // Per-category colour: a select/lookup dimension's option colour (passed via
@@ -495,7 +749,6 @@ function AdvancedChartImplInner({
       }
     }
     return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, series, hasDualAxis]);
 
   /** Recharts props derived from one spec y-axis (domain / scale / ticks / label). */
@@ -710,6 +963,7 @@ function AdvancedChartImplInner({
           if (!entry) return;
           onChartClick({
             category: entry?.payload?.[xAxisKey] ?? entry?.[xAxisKey],
+            categoryId: chartRowBucketId(entry?.payload) ?? chartRowBucketId(entry),
             value: entry?.payload?.[dataKey] ?? entry?.[dataKey],
           });
         }
@@ -903,7 +1157,13 @@ function AdvancedChartImplInner({
             host mixed marks. Under `BarChart` an `<Area>` child renders nothing
             at all, so the `seriesType === 'area'` arm below was unreachable —
             an authored combo with an `area` series drew a blank series. */}
-        <ComposedChart data={data}>
+        {/* `comboClickProps`, not `cartesianClickProps`: the chart-level
+            handler here emits ONLY for a gesture a mark recorded, so an axis /
+            surface click stays silent (objectui#4692's ruling). The emit still
+            happens at chart level because that is the only place the CATEGORY
+            is known — a line/area item handler is handed the curve's props and
+            no datum. */}
+        <ComposedChart data={data} {...comboClickProps}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey={xAxisKey} {...xAxisCommonProps} />
           <YAxis yAxisId="left" tickLine={false} axisLine={false} tickFormatter={yTickFormatter} width={48} {...yAxisSpecProps(primaryY)} />
@@ -940,20 +1200,20 @@ function AdvancedChartImplInner({
 
             if (seriesType === 'line') {
               return (
-                <Line key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} stroke={color} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...animProps}>
+                <Line key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} stroke={color} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...animProps} {...comboMarkClickProps(s)}>
                   {dataLabel(valueFormatter)}
                 </Line>
               );
             }
             if (seriesType === 'area') {
               return (
-                <Area key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} fill={color} stroke={color} fillOpacity={cmp?.fillOpacity ?? 0.4} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...stackProps} {...animProps}>
+                <Area key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} fill={color} stroke={color} fillOpacity={cmp?.fillOpacity ?? 0.4} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...stackProps} {...animProps} {...comboMarkClickProps(s)}>
                   {dataLabel(valueFormatter)}
                 </Area>
               );
             }
             return (
-              <Bar key={s.dataKey} yAxisId={yAxisId} dataKey={s.dataKey} fill={color} radius={4} fillOpacity={cmp?.fillOpacity} {...stackProps} {...animProps}>
+              <Bar key={s.dataKey} yAxisId={yAxisId} dataKey={s.dataKey} fill={color} radius={4} fillOpacity={cmp?.fillOpacity} {...stackProps} {...animProps} {...comboMarkClickProps(s)}>
                 {dataLabel(valueFormatter)}
               </Bar>
             );
@@ -1079,7 +1339,7 @@ function AdvancedChartImplInner({
             const colorPerCategory = primaryCount === 1 && !isComparison && series.length === 1 && data.length > 1;
             const cmp = comparisonStyle(s, 'bar');
             return (
-              <Bar key={s.dataKey} dataKey={s.dataKey} fill={`url(#bg-${gslug(seriesColor)})`} radius={4} fillOpacity={cmp?.fillOpacity} {...stackProps} {...axisProps} {...animProps}>
+              <Bar key={s.dataKey} dataKey={s.dataKey} fill={`url(#bg-${gslug(seriesColor)})`} radius={4} fillOpacity={cmp?.fillOpacity} {...stackProps} {...axisProps} {...animProps} {...markClickProps(s)}>
                 {colorPerCategory && data.map((entry, idx) => (
                   <Cell key={`cell-${idx}`} fill={`url(#bg-${gslug(resolveColor(colorForCategory(entry?.[xAxisKey], idx, palette)))})`} />
                 ))}
@@ -1090,7 +1350,7 @@ function AdvancedChartImplInner({
           if (chartType === 'line') {
             const cmp = comparisonStyle(s, 'line');
             return (
-              <Line key={s.dataKey} type="monotone" dataKey={s.dataKey} stroke={seriesColor} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...axisProps} {...animProps}>
+              <Line key={s.dataKey} type="monotone" dataKey={s.dataKey} stroke={seriesColor} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...axisProps} {...animProps} {...markClickProps(s)}>
                 {dataLabel(valueFormatter)}
               </Line>
             );
@@ -1098,7 +1358,7 @@ function AdvancedChartImplInner({
           if (chartType === 'area') {
             const cmp = comparisonStyle(s, 'area');
             return (
-              <Area key={s.dataKey} type="monotone" dataKey={s.dataKey} fill={`url(#ag-${gslug(seriesColor)})`} stroke={seriesColor} strokeWidth={2} fillOpacity={cmp?.fillOpacity ?? 1} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...stackProps} {...axisProps} {...animProps}>
+              <Area key={s.dataKey} type="monotone" dataKey={s.dataKey} fill={`url(#ag-${gslug(seriesColor)})`} stroke={seriesColor} strokeWidth={2} fillOpacity={cmp?.fillOpacity ?? 1} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...stackProps} {...axisProps} {...animProps} {...markClickProps(s)}>
                 {dataLabel(valueFormatter)}
               </Area>
             );
@@ -1146,6 +1406,116 @@ function hasNoCategoryKey(props: AdvancedChartImplProps): boolean {
 }
 
 /**
+ * Chart families whose marks come from `series` AND NOTHING ELSE — the set the
+ * series-axis guard below is allowed to refuse for.
+ *
+ * MEASURED in this file, not assumed, and deliberately NARROWER than
+ * {@link CATEGORY_AXIS_CHART_TYPES}: `bar` / `horizontal-bar` / `line` / `area`
+ * share one cartesian tail that renders `series.map(…)` and nothing else, and
+ * `combo`'s `ComposedChart` does the same. Every other family reads
+ * `series[0]?.dataKey || 'value'` — pie, donut, funnel, radar, scatter,
+ * treemap, sankey all fall back to a `value` column and draw a perfectly good
+ * chart with no series declared at all, so a refusal there would blank a
+ * WORKING chart rather than explain a broken one.
+ */
+const SERIES_ONLY_CHART_TYPES: ReadonlySet<string> = new Set([
+  'bar', 'horizontal-bar', 'line', 'area', 'combo',
+]);
+
+/**
+ * The series-axis half of the same doctrine — objectui#4683.
+ *
+ * `hasNoCategoryKey` above answers "cannot know refuses loudly" for the FIRST
+ * dimension. A pivoted chart has a second one, and it had no answer at all: a
+ * pivot whose SECOND dimension was never projected produces
+ * `series: []` with one bucket row per category, so the renderer drew axes,
+ * grid, tooltip and legend around ZERO marks and said nothing. To the author
+ * that reads as "no data matched", when what happened is that a dimension they
+ * grouped BY never arrived.
+ *
+ * ## What this reads, and what it deliberately does NOT read
+ *
+ * The signal is `series: []` — {@link buildChartSeries}' own output — plus rows
+ * to draw it against. NOT `groupKey in row`, which is the objectui#4507 trap
+ * INVERTED: this component is handed the PIVOTED bucket rows, whose columns are
+ * the group's VALUES, so the second dimension's own key is a column of no pivot
+ * ever, ordinary ones included. A `key in row` test here would refuse every
+ * grouped chart in the product.
+ *
+ * That keeps the three-way distinction intact, and each arm is pinned by a test:
+ *
+ *   - **null / `''` group values DRAW** (objectui#4673) — they are real groups,
+ *     they get real buckets, so `series` is non-empty and this never fires;
+ *   - **an unprojected group key REFUSES** — no row carries it, so no bucket
+ *     exists, so `series` is `[]`: this fires;
+ *   - **an ordinary pivot renders unchanged**, and so does a PARTIALLY
+ *     projected one. That last is the mirror of `hasNoCategoryKey`'s own
+ *     `!rows.some(…)`: the first dimension refuses only when NOT ONE row
+ *     carries the key, and draws what projects otherwise. A pivot where some
+ *     rows carry the group key yields those groups' series, so this stays
+ *     silent and the chart draws what projected.
+ *
+ * ## Why the message cannot name the group key, and why that is honest
+ *
+ * `hasNoCategoryKey` names the key it could not find. This cannot, because the
+ * renderer is not told which dimension the pivot grouped by — and the two
+ * upstream shapes that reach it are byte-identical. Measured:
+ * `buildChartSeries(rows, ['status','priority'], ['est_hours'])` with `priority`
+ * unprojected and `buildChartSeries(rows, ['status'], [])` with no measure
+ * selected BOTH return `{data:[{status:'Backlog'},…], xAxisKey:'status',
+ * series:[]}`. Naming one cause would be a sentence that is false half the time,
+ * which is worse than the silence this replaces — so the copy names the failure
+ * and BOTH authoring causes, and the console warning carries the diagnostic pair
+ * (`xAxisKey` + the keys the rows actually carry) exactly as the model does.
+ *
+ * ## Why `[]` and not "no series at all"
+ *
+ * `Array.isArray(series) && series.length === 0` — a binding that was COMPUTED
+ * and came out empty, which is what both `buildChartSeries` call paths hand
+ * over. `series === undefined` means no binding was ever computed (a caller that
+ * never went through the helper); those charts are left byte-for-byte as they
+ * were.
+ */
+function hasNoPlottableSeries(props: AdvancedChartImplProps): boolean {
+  const chartType = props.chartType === 'column' ? 'bar' : (props.chartType ?? 'bar');
+  const rows = Array.isArray(props.data) ? props.data : [];
+  return (
+    SERIES_ONLY_CHART_TYPES.has(chartType) &&
+    rows.length > 0 &&
+    Array.isArray(props.series) &&
+    props.series.length === 0
+  );
+}
+
+/**
+ * The shell both refusals render — one placeholder, two diagnoses.
+ *
+ * Stated once so the series-axis guard cannot drift from the framework#4033 one
+ * it mirrors: same box, same `role="status"` (a refusal is a state, not an
+ * alert), same muted centred type, and a `data-chart-error` code naming WHICH
+ * refusal fired.
+ */
+function ChartRefusal({
+  code,
+  className,
+  children,
+}: {
+  code: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`flex h-full min-h-[120px] w-full items-center justify-center p-4 text-center text-sm text-muted-foreground ${className ?? ''}`}
+      role="status"
+      data-chart-error={code}
+    >
+      <span>{children}</span>
+    </div>
+  );
+}
+
+/**
  * Public entry point. A THIN wrapper purely so the unreadable-data guard can
  * short-circuit without breaking the rules of hooks: the condition depends on
  * `data`, which arrives asynchronously, so an early return inside the renderer
@@ -1154,6 +1524,11 @@ function hasNoCategoryKey(props: AdvancedChartImplProps): boolean {
  */
 export default function AdvancedChartImpl(props: AdvancedChartImplProps) {
   const missingCategoryKey = hasNoCategoryKey(props);
+  // The x-axis refusal WINS when both apply: a chart whose rows carry no
+  // category key at all cannot plot an axis, which is the more fundamental
+  // failure and the more specific message. Without this gate such a chart would
+  // also warn about its series, printing two diagnoses for one cause.
+  const noPlottableSeries = !missingCategoryKey && hasNoPlottableSeries(props);
   const xAxisKey = props.xAxisKey ?? 'name';
   const firstRowKeys = React.useMemo(
     () => Object.keys((Array.isArray(props.data) ? props.data[0] : undefined) ?? {}),
@@ -1173,18 +1548,35 @@ export default function AdvancedChartImpl(props: AdvancedChartImplProps) {
     );
   }, [missingCategoryKey, xAxisKey, firstRowKeys]);
 
+  React.useEffect(() => {
+    if (!noPlottableSeries) return;
+    // The same diagnostic PAIR the guard above prints, for the same reason: the
+    // axis the chart did plot, and the keys its rows actually carry. In the
+    // objectui#4683 shape that second half is the tell — bucket rows carrying
+    // the category and NOTHING else say the group column was never written.
+    console.warn(
+      `[chart] no series to plot against the category axis "${xAxisKey}" — rendering an ` +
+      `explanatory placeholder instead of an empty frame. Row keys: ${JSON.stringify(firstRowKeys)}. ` +
+      `A grouped chart's SECOND dimension must be PROJECTED by the dataset query, and a ` +
+      `chart with no measure selected has nothing to draw either (objectui#4683, framework#4033).`,
+    );
+  }, [noPlottableSeries, xAxisKey, firstRowKeys]);
+
   if (missingCategoryKey) {
     return (
-      <div
-        className={`flex h-full min-h-[120px] w-full items-center justify-center p-4 text-center text-sm text-muted-foreground ${props.className ?? ''}`}
-        role="status"
-        data-chart-error="missing-category-key"
-      >
-        <span>
-          This chart cannot plot its category axis: no row has a{' '}
-          <code className="font-mono">{xAxisKey}</code> field.
-        </span>
-      </div>
+      <ChartRefusal code="missing-category-key" className={props.className}>
+        This chart cannot plot its category axis: no row has a{' '}
+        <code className="font-mono">{xAxisKey}</code> field.
+      </ChartRefusal>
+    );
+  }
+
+  if (noPlottableSeries) {
+    return (
+      <ChartRefusal code="no-plottable-series" className={props.className}>
+        This chart cannot plot any series: no measure or group reached its{' '}
+        <code className="font-mono">{xAxisKey}</code> axis.
+      </ChartRefusal>
     );
   }
 

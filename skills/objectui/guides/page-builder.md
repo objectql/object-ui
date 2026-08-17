@@ -73,22 +73,28 @@ Use a strict component schema shape similar to:
   "type": "card",
   "id": "customer_summary",
   "className": "col-span-12 lg:col-span-4",
-  "props": {
-    "title": "Customer Summary"
-  },
+  "title": "Customer Summary",
   "hidden": "${data.userRole !== 'admin'}",
   "children": [
     {
       "type": "text",
-      "props": {
-        "content": "Active users: ${data.metrics.activeUsers}"
-      }
+      "content": "Active users: ${data.metrics.activeUsers}"
     }
   ]
 }
 ```
 
-Prefer expression-based behavior (`hidden`, `disabled`, computed props) over imperative branching in component code.
+**Every key belongs on the node itself — never in a `props` envelope.** The
+renderers read `schema.title` / `schema.content` / `schema.columns` directly;
+`SchemaRenderer` spreads `schema.props` as React props instead of merging it
+into the node, so a key parked under `props` is never read and the component
+paints an empty frame (the envelope itself also lands in the DOM as
+`props="[object Object]"`). Namespaced `element:*` components are the one
+deliberate exception — they read their config out of `properties` / `props`
+by design (`readProps` in `packages/components/src/renderers/basic/elements.tsx`).
+
+Prefer expression-based behavior (`hidden`, `disabled`) over imperative
+branching in component code.
 
 ### 4. Wire renderer and registry cleanly
 
@@ -161,39 +167,64 @@ When users ask for a "console-like" experience, prefer:
 
 Understanding what gets evaluated and what does not is critical for correct schemas.
 
+A key must clear **two independent gates** to reach the screen: the renderer
+has to *read* it, and `SchemaRenderer` has to *evaluate* it. Keys on the node
+clear the first gate; only the short list below clears the second.
+
 **Evaluated by SchemaRenderer automatically:**
 
 | Field | What happens |
 |-------|-------------|
-| `props.*` | All values in the `props` object are expression-evaluated. Use `props.label`, `props.value`, etc. |
-| `content` | Evaluated for text components. `"content": "Hello ${user.name}"` works. |
+| `content` | Template-evaluated **and** read by the text renderers. `"content": "Hello ${user.name}"` works end to end. |
 | `hidden` / `hiddenOn` | Boolean expression. Component removed from DOM when true. |
 | `visible` / `visibleOn` | Boolean expression. `visible` takes priority over `hidden`. |
 | `disabled` / `disabledOn` | Boolean expression. Passed as prop to component. |
+| `props.*` | Template-evaluated, but handed to the component as React props — a `ui:*` / `page:*` renderer never reads the result back, so the evaluated value is discarded. Only `element:*` components consume it. Do not use it as an expression carrier. |
 
 **NOT evaluated (raw strings passed through):**
 
-| Field | Workaround |
+| Field | What to do instead |
 |-------|-----------|
-| `value` (top-level) | Move to `props.value` |
-| `label` (top-level) | Move to `props.label` |
-| `description` (top-level) | Move to `props.description` |
+| `title` / `label` / `value` / `description` | Read by the renderer, but never template-evaluated — an inline `${...}` reaches the screen as literal text. Moving it under `props` does not help: it gets evaluated there and then dropped. Resolve the value in the host **before** handing the schema to `SchemaRenderer` (the same pattern the i18n guide uses for `t(...)`), or carry it on a `text` node's `content`. |
 | `className` | Not expression-evaluated. Use static Tailwind classes only. |
 | `id` | Static string. No expressions. |
 
-**Correct pattern:**
+**Correct pattern** — a `statistic`'s text keys sit on the node and carry
+values the host already resolved:
+```json
+{
+  "type": "statistic",
+  "label": "Active Users",
+  "value": "42",
+  "description": "+5% from last month",
+  "trend": "up"
+}
+```
+
+**Correct pattern for a live-bound number** — `content` is the one text key
+that is both evaluated and read:
+```json
+{
+  "type": "card",
+  "title": "Active Users",
+  "children": [
+    { "type": "text", "content": "${data.metrics.activeUsers} active, +${data.metrics.growth}% this month" }
+  ]
+}
+```
+
+**Wrong pattern (renders an empty card — the envelope is never read):**
 ```json
 {
   "type": "statistic",
   "props": {
     "label": "Active Users",
-    "value": "${data.metrics.activeUsers}",
-    "description": "+${data.metrics.growth}% from last month"
+    "value": "${data.metrics.activeUsers}"
   }
 }
 ```
 
-**Wrong pattern (value will show as raw `${...}` text):**
+**Also wrong (value shows as raw `${...}` text — read, but not evaluated):**
 ```json
 {
   "type": "statistic",
@@ -206,84 +237,75 @@ For the full expression syntax reference (operators, formula functions, security
 
 ## CSS theming template for third-party apps
 
-Third-party projects must set up Tailwind + Shadcn CSS variables correctly. Without this, Object UI components render unstyled.
+Object UI components render unstyled unless the app's Tailwind entry brings in the
+packages' styles. How it does that depends on where the packages come from — installed
+from npm, or linked inside the ObjectUI workspace. The two cases are not interchangeable.
+
+### Installed from npm (the third-party case)
+
+Import the published stylesheets. There is no `tailwind.config.js` step, and no scanning
+of `node_modules`.
 
 **Required `src/index.css`:**
 ```css
 @import "tailwindcss";
+@import "@object-ui/components/style.css";
+@import "@object-ui/fields/style.css";
+```
 
-/* Scan ObjectUI packages so Tailwind generates their utility classes */
+Each `style.css` is a real package export, mapped to that package's `dist/index.css` and
+compiled at build time from the package's own sources. The components sheet carries every
+utility its components use **and** the `@theme` block those utilities are built on, so the
+whole Shadcn palette and the `:root` / `.dark` token defaults arrive with that one import
+— you do not restate those tokens in a `@theme` block of your own. The order is
+load-bearing: the fields sheet is a supplement compiled against the components theme with
+every rule that sheet already ships subtracted from it, so imported first or alone its
+rules resolve against tokens that are not there yet. `@object-ui/fields` is a separate
+dependency, not a transitive one — install it, or leave that second line out.
+
+Do **not** point Tailwind at the ObjectUI packages inside `node_modules`, with neither a
+v4 `@source` line nor a v3 `content` entry: the published tarballs carry `dist` only, and
+the `@theme` block the themed utilities come from lives in package source, which is not
+published. To recolour, override the token values (Shadcn HSL channel triples) rather than
+the utilities — see `content/docs/guide/theming.md`.
+
+### Inside the ObjectUI workspace
+
+Here the packages are linked to their sources, so Tailwind scans them directly and the app
+owns the theme declaration:
+
+```css
+@import "tailwindcss";
+
+/* Workspace packages are linked to their sources — scan them */
 @source "../../packages/components/src/**/*.tsx";
 @source "../../packages/fields/src/**/*.tsx";
 @source "../../packages/layout/src/**/*.tsx";
 @source "../../packages/react/src/**/*.tsx";
-@source "../../node_modules/@object-ui/components/src/**/*.tsx";
-@source "../../node_modules/@object-ui/fields/src/**/*.tsx";
-
-/* Map Shadcn CSS variables to Tailwind 4 color tokens */
-@theme {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-}
-
-/* Light mode CSS variables (Shadcn defaults) */
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --radius: 0.625rem;
-}
 ```
 
-Adjust `@source` paths based on your project's location relative to `node_modules` or the monorepo root.
+Adjust those paths to your app's location relative to the monorepo root, and add a
+`@source` line per plugin package the app renders. Because the app owns the Tailwind entry
+in this case, it also declares the `@theme` mapping and the `:root` token values;
+`apps/console/src/index.css` is the maintained reference for both.
 
 ## Plugin integration in page schemas
 
-When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin package and ensure its components are registered before rendering.
+When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin package and ensure its components are registered before rendering. Plugin
+widgets read their configuration off the node exactly like the built-in
+renderers do (`schema.objectName`, `schema.columns`, `schema.fields`,
+`schema.gantt`) — the `props` envelope is not read here either.
 
 **Grid plugin example:**
 ```json
 {
   "type": "object-grid",
-  "props": {
-    "objectName": "products",
-    "columns": [
-      { "name": "name", "label": "Name", "type": "text" },
-      { "name": "price", "label": "Price", "type": "currency" },
-      { "name": "status", "label": "Status", "type": "select" }
-    ]
-  },
+  "objectName": "products",
+  "columns": [
+    { "name": "name", "label": "Name", "type": "text" },
+    { "name": "price", "label": "Price", "type": "currency" },
+    { "name": "status", "label": "Status", "type": "select" }
+  ],
   "bind": "products"
 }
 ```
@@ -292,14 +314,12 @@ When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin
 ```json
 {
   "type": "object-form",
-  "props": {
-    "objectName": "customer",
-    "mode": "edit",
-    "fields": [
-      { "name": "name", "label": "Name", "type": "text", "required": true },
-      { "name": "email", "label": "Email", "type": "text" }
-    ]
-  }
+  "objectName": "customer",
+  "mode": "edit",
+  "fields": [
+    { "name": "name", "label": "Name", "type": "text", "required": true },
+    { "name": "email", "label": "Email", "type": "text" }
+  ]
 }
 ```
 
@@ -307,10 +327,8 @@ When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin
 ```json
 {
   "type": "kanban",
-  "props": {
-    "objectName": "tasks",
-    "groupBy": "status"
-  },
+  "objectName": "tasks",
+  "groupBy": "status",
   "bind": "tasks"
 }
 ```
@@ -319,37 +337,35 @@ When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin
 ```json
 {
   "type": "gantt",
-  "props": {
-    "objectName": "project_task",
-    "gantt": {
-      "titleField": "name",
-      "startDateField": "start_date",
-      "endDateField": "end_date",
-      "progressField": "progress",
-      "parentField": "parent_id",
-      "dependenciesField": "depends_on",
-      "typeField": "item_type",
-      "lockField": "is_locked",
-      "defaultCollapsedDepth": 2,
-      "colorField": "status",
-      "baselineStartField": "planned_start",
-      "baselineEndField": "planned_end",
-      "tooltipFields": [{ "field": "owner", "label": "Owner" }, "status", "effort"],
-      "groupByField": "owner",
-      "assigneeField": "owner",
-      "effortField": "effort"
-    },
-    "criticalPath": true,
-    "skipWeekends": true,
-    "holidays": ["2026-01-01", "2026-12-25"],
-    "quickFilters": [
-      { "field": "status", "label": "状态" },
-      { "field": "project", "label": "项目" },
-      { "field": "priority", "label": "优先级", "options": ["high", "medium", "low"] }
-    ],
-    "autoZoomToFilter": true,
-    "readOnly": false
+  "objectName": "project_task",
+  "gantt": {
+    "titleField": "name",
+    "startDateField": "start_date",
+    "endDateField": "end_date",
+    "progressField": "progress",
+    "parentField": "parent_id",
+    "dependenciesField": "depends_on",
+    "typeField": "item_type",
+    "lockField": "is_locked",
+    "defaultCollapsedDepth": 2,
+    "colorField": "status",
+    "baselineStartField": "planned_start",
+    "baselineEndField": "planned_end",
+    "tooltipFields": [{ "field": "owner", "label": "Owner" }, "status", "effort"],
+    "groupByField": "owner",
+    "assigneeField": "owner",
+    "effortField": "effort"
   },
+  "criticalPath": true,
+  "skipWeekends": true,
+  "holidays": ["2026-01-01", "2026-12-25"],
+  "quickFilters": [
+    { "field": "status", "label": "状态" },
+    { "field": "project", "label": "项目" },
+    { "field": "priority", "label": "优先级", "options": ["high", "medium", "low"] }
+  ],
+  "autoZoomToFilter": true,
+  "readOnly": false,
   "bind": "project_task"
 }
 ```
@@ -458,7 +474,7 @@ It exposes `ObjectRenderer`, `PageRenderer`, `DashboardRenderer` and matching pr
 - Skipping docs updates for newly introduced schema patterns.
 - Putting expression values in top-level `value`/`label` fields instead of `props.*`.
 - Missing Shadcn CSS variables — components render but look completely unstyled.
-- Forgetting `@source` directives in Tailwind config — utility classes not generated for ObjectUI packages.
+- Forgetting the `@object-ui/components/style.css` and `@object-ui/fields/style.css` imports, or importing them in the wrong order — ObjectUI's utilities never reach the page.
 
 ## Fast triage playbook for ambiguous requests
 

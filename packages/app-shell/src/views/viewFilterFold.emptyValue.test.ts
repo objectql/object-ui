@@ -34,9 +34,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { VALUELESS_FILTER_BUILDER_OPERATORS } from '@object-ui/components';
 import { foldFilterGroupToSpecRules, VALUELESS_FILTER_OPERATORS } from './viewFilterFold';
 
 const group = (conditions: unknown[], logic = 'and') => ({ id: 'root', logic, conditions });
@@ -127,25 +125,43 @@ describe('foldFilterGroupToSpecRules — incomplete rows are not persisted (#415
     });
 });
 
-describe('VALUELESS_FILTER_OPERATORS — parity with the builder’s own list', () => {
+/**
+ * This pin used to read `filter-builder.tsx` as TEXT and scrape the operator
+ * list out of `needsValueInput` with a regex, because the builder kept that
+ * list as an inline literal and there was nothing to import. objectui#4744
+ * gave it a name — `VALUELESS_FILTER_BUILDER_OPERATORS`, which `needsValueInput`
+ * is now defined as the complement OF — so the parity check reads the value
+ * itself. Same guarantee, minus a regex that goes quietly non-matching the day
+ * someone reformats the function it parses.
+ *
+ * What this file no longer has to assert is that the builder actually RENDERS
+ * no value input for each id: that is a fact about the component, and it is
+ * pinned where the component lives —
+ * `components/src/__tests__/filter-builder-valueless-operators.test.tsx`
+ * drives the real render for every member of the set.
+ */
+describe('VALUELESS_FILTER_OPERATORS — parity with the builder’s own set', () => {
     it('covers every operator for which the FilterBuilder renders no value input', () => {
-        const builderSrc = readFileSync(
-            path.join(
-                path.dirname(fileURLToPath(import.meta.url)),
-                '../../../components/src/custom/filter-builder.tsx',
-            ),
-            'utf8',
-        );
-        // `const needsValueInput = (operator: string) => { return ![...].includes(operator) }`
-        const match = builderSrc.match(/needsValueInput\s*=\s*\(operator: string\)\s*=>\s*\{\s*return\s*!\[([^\]]*)\]/);
-        expect(match, 'the builder’s needsValueInput list moved — re-point this parity check').not.toBeNull();
-        const builderValueless = [...match![1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-        expect(builderValueless.length).toBeGreaterThan(0);
-        for (const operator of builderValueless) {
+        expect(VALUELESS_FILTER_BUILDER_OPERATORS.size).toBeGreaterThan(0);
+        for (const operator of VALUELESS_FILTER_BUILDER_OPERATORS) {
             expect(
                 VALUELESS_FILTER_OPERATORS.has(operator),
                 `the builder renders no value input for "${operator}", so the fold must not drop it as incomplete`,
             ).toBe(true);
+        }
+    });
+
+    it('adds the canonical spec spellings the builder never sees', () => {
+        // The fold reads a stored `ViewFilterRule`, whose operator has been
+        // through `normalizeFilterOperator`; those spellings are this layer's
+        // own addition and belong to no dropdown.
+        for (const operator of ['is_empty', 'is_not_empty', 'is_null', 'is_not_null']) {
+            expect(VALUELESS_FILTER_OPERATORS.has(operator), operator).toBe(true);
+            expect(
+                VALUELESS_FILTER_BUILDER_OPERATORS.has(operator),
+                `"${operator}" is a canonical spec spelling, not a builder id — it must not `
+                    + 'have crept into the shared set',
+            ).toBe(false);
         }
     });
 });

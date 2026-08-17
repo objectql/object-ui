@@ -203,6 +203,24 @@ export function evalFieldPredicate(
  * `false` predicate result for required/readonly — but `visibleWhen` is
  * authoritative when present (so a field can be conditionally shown/hidden).
  *
+ * ## `statics.serverOwnedValue` — the one thing that outranks BOTH
+ *
+ * A CREATE form leaves a producer-owned control empty on purpose and omits the
+ * key, so the server resolves the declared runtime default (#4069). Required-
+ * ness is then not the client's question at all, and this is the single place
+ * that answers it: `required` resolves to `false` whatever `statics.required`
+ * says and whatever `requiredWhen` evaluates to.
+ *
+ * Both spellings had to land HERE, not in a gate a layer up. Since
+ * objectui#4201 the submit-time check and the required marker read one live
+ * verdict — this function's — so a suppression applied anywhere else would
+ * show a field without an asterisk and still refuse the submit, which is the
+ * exact two-layer disagreement #4201 removed. #4085 is the conditional half:
+ * `requiredWhen` resolving TRUE on a create form re-required a control the
+ * renderer deliberately left empty, with nothing the user could type to
+ * unblock it. See `isServerOwnedValue` in `../validation/server-owned-value.js`
+ * for who computes the fact and why the mode is the caller's to state.
+ *
  * @param fieldContext  Optional locator for failure warnings — e.g.
  *                      `"field 'amount'"`. The warning then reads
  *                      `visibleWhen of field 'amount' …`; without it, the rule
@@ -215,7 +233,7 @@ export function resolveFieldRuleState(
     requiredWhen?: FieldRulePredicate;
   },
   record: Record<string, unknown>,
-  statics: { required?: boolean; readonly?: boolean },
+  statics: { required?: boolean; readonly?: boolean; serverOwnedValue?: boolean },
   previous?: Record<string, unknown>,
   scope?: Record<string, unknown>,
   fieldContext?: string,
@@ -235,11 +253,18 @@ export function resolveFieldRuleState(
       ? evalFieldPredicate(rules.readonlyWhen, record, false, previous, scope, diag('readonlyWhen'))
       : false);
 
+  // Short-circuited, not evaluated-and-discarded: the verdict cannot depend on
+  // the predicate, so running it would only spend an engine call per field per
+  // render. A broken `requiredWhen` still warns wherever it decides something
+  // — the same object's EDIT form, and any create form where the field is not
+  // server-owned.
   const required =
-    statics.required === true ||
-    (rules.requiredWhen != null
-      ? evalFieldPredicate(rules.requiredWhen, record, false, previous, scope, diag('requiredWhen'))
-      : false);
+    statics.serverOwnedValue === true
+      ? false
+      : statics.required === true ||
+        (rules.requiredWhen != null
+          ? evalFieldPredicate(rules.requiredWhen, record, false, previous, scope, diag('requiredWhen'))
+          : false);
 
   return { visible, readonly, required };
 }

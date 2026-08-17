@@ -15,9 +15,18 @@
  */
 
 import { bench, describe } from 'vitest';
-import { ExpressionEvaluator } from '@object-ui/core';
-import { ComponentRegistry } from '@object-ui/core';
-import { contrastRatio, meetsContrastLevel, hexToHSL } from '@object-ui/core';
+// This package's own entry is imported RELATIVELY, not as `@object-ui/core`.
+// A package self-import resolves through the published `exports` map to
+// `dist/index.d.ts`, and `core:type-check` has no dependency edge on this
+// package's own build (turbo gives `type-check` `dependsOn: ["^build"]` — the
+// DEPENDENCIES' builds), so on a cold CI cache that artifact does not exist yet
+// and the specifier fails with TS2307. That is objectui#4801, and PR #4789 paid
+// for it once in `@object-ui/fields`. Here the failure was latent rather than
+// live — this file is in the build program, which keeps the root tsconfig's
+// `paths` mapping the name back to source — but a specifier that compiles only
+// because a path alias happens to cover it is one root-config edit from the
+// same TS2307. Mechanised by scripts/check-package-self-import.mjs.
+import { ExpressionEvaluator, ComponentRegistry, contrastRatio, meetsContrastLevel, hexToHSL } from '../index.js';
 
 describe('ExpressionEvaluator performance', () => {
   const evaluator = new ExpressionEvaluator({ data: { name: 'Alice', age: 30, active: true } });

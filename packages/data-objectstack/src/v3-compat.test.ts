@@ -1,229 +1,129 @@
 /**
- * v3.0.0 compatibility tests for @objectstack dependencies.
- * Validates that all integration modules work correctly with the spec.
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
-import { describe, it, expect } from 'vitest';
-import { validatePluginContract, generateContractManifest } from './contracts';
-import { IntegrationManager } from './integration';
-import { SecurityManager } from './security';
-import { createDefaultCanvasConfig, snapToGrid, calculateAutoLayout } from './studio';
 
-// The `Cloud namespace (replacing Hub)` block that used to open this file is
-// gone with its subject (objectui#4152). Its three cases constructed
-// `CloudOperations` against a client stub of `{}` and asserted that the results
-// had the right KEYS — which is precisely how the surface stayed green for as
-// long as it did: every method optional-chained into a `cloud` namespace no
-// released `@objectstack/client` has ever exported, so what the assertions were
-// reading was the fallback literal, not a deployment. The replacement is a
-// negative pin next door, `cloud-surface-retired-4152.pin.test.ts`, which fails
-// if the exports come back.
+/**
+ * This file used to be titled "v3.0.0 compatibility tests for @objectstack
+ * dependencies" and hold five blocks under a top-level `v3.0.0 Compatibility`
+ * describe: `Cloud namespace (replacing Hub)`, `Contracts module`,
+ * `Integration module`, `Security module`, `Studio module`. All five modules
+ * were `@objectstack/spec` v3.0.0-era code added under `index.ts`'s
+ * `// v3.0.0 Deep Integration modules` banner, and none of them tested
+ * compatibility with any v3 of anything — they exercised local, self-contained
+ * helpers (`CloudOperations.deploy`, `validatePluginContract`,
+ * `IntegrationManager.register`, `SecurityManager.generateCSPHeader`,
+ * `createDefaultCanvasConfig`) with no producer or consumer outside this
+ * package.
+ *
+ * `Cloud namespace (replacing Hub)` went first (objectui#4152 / PR #4239) —
+ * its `CloudOperations` fabricated success instead of failing when the
+ * `client.cloud` namespace it called into did not exist. The negative pin
+ * `cloud-surface-retired-4152.pin.test.ts` fails if that surface returns.
+ *
+ * The other four (`Contracts`, `Integration`, `Security`, `Studio`) followed
+ * under the same startup-focus reasoning, minus the fabrication limb —
+ * objectui#4241 measured zero consumers of any of them outside this package
+ * and retired `contracts.ts` / `integration.ts` / `security.ts` / `studio.ts`
+ * wholesale. `v3-deep-integration-retired-4241.pin.test.ts` is their negative
+ * pin.
+ *
+ * What is left below never depended on any of the five and does not claim a
+ * v3 of anything, so it keeps this file rather than moving.
+ *
+ * objectui#4712 — the surviving `PaginatedResult API` block asserted only on
+ * an inline object literal it constructed itself (`const result = {...};
+ * expect(result.total).toBe(10)`), with no import from `./index` or anywhere
+ * else. It could not fail in a way that signals anything about production
+ * code — real syntax, real `expect()` calls, zero coverage. Measured before
+ * fixing: `grep -rn "PaginatedResult"` under `packages/` finds no interface
+ * or export by that name anywhere in this repo; the real production shape it
+ * meant to describe is `QueryResult<T>` (`packages/types/src/data.ts`),
+ * returned by `ObjectStackAdapter.find()` via the private
+ * `normalizeQueryResult()` (`index.ts`) — which had ZERO coverage of its
+ * `total`/`hasMore`/`page`/`pageSize` computation anywhere else in this
+ * package (`queryDataset.test.ts` / `listViews.test.ts` exercise other
+ * fields of the adapter's return shape, never these). The block below now
+ * drives that real method through `ObjectStackAdapter.find()` with a mocked
+ * transport, so a change to the server-envelope parsing or the
+ * page/hasMore fallback logic turns it red.
+ */
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { ObjectStackAdapter, clearSharedDiscoveryCache } from './index';
 
-describe('v3.0.0 Compatibility', () => {
-  describe('Contracts module', () => {
-    it('should validate a valid plugin contract', () => {
-      const contract = {
-        name: 'my-plugin',
-        version: '1.0.0',
-        exports: [{ name: 'MyComponent', type: 'component' as const }],
-        permissions: ['data.read'],
-      };
-      const result = validatePluginContract(contract);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
+/** An adapter whose data-fetch response is fully controlled by the caller. */
+function makeAdapter(dataResponse: unknown) {
+  const fetchImpl = vi.fn(async (url: any) => {
+    const u = String(url);
+    if (u.includes('/api/v1/discovery')) {
+      return {
+        ok: true, status: 200, statusText: 'OK',
+        json: async () => ({ success: true, data: { version: 'v1', routes: {} } }),
+      } as any;
+    }
+    return { ok: true, status: 200, statusText: 'OK', json: async () => dataResponse } as any;
+  });
+  return new ObjectStackAdapter({
+    baseUrl: 'http://localhost:3000', token: 't', autoReconnect: false, fetch: fetchImpl as any,
+  });
+}
+
+describe('ObjectStackAdapter.find() pagination result (QueryResult: data/total/hasMore)', () => {
+  beforeEach(() => clearSharedDiscoveryCache());
+
+  it('normalizes the server records/total/hasMore envelope into QueryResult', async () => {
+    const adapter = makeAdapter({
+      success: true,
+      data: { object: 'account', records: [{ id: '1' }], total: 10, hasMore: true },
     });
 
-    it('should reject invalid plugin contract', () => {
-      const contract = {
-        name: '',
-        version: 'invalid',
-        exports: [],
-      };
-      const result = validatePluginContract(contract);
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-    });
+    const result = await adapter.find('account', { $top: 5 });
 
-    it('should generate contract manifest', () => {
-      const contract = {
-        name: 'test-plugin',
-        version: '2.0.0',
-        exports: [{ name: 'GridView', type: 'component' as const, description: 'A grid view' }],
-        permissions: ['data.read', 'data.write'],
-      };
-      const manifest = generateContractManifest(contract);
-      expect(manifest.$schema).toBeDefined();
-      expect(manifest.name).toBe('test-plugin');
-      expect(manifest.version).toBe('2.0.0');
-    });
+    expect(result.data).toHaveLength(1);
+    expect(result.total).toBe(10);
+    expect(result.hasMore).toBe(true);
+    expect(result.pageSize).toBe(5);
+    expect(result.page).toBe(1);
   });
 
-  describe('Integration module', () => {
-    it('should register and retrieve integrations', () => {
-      const manager = new IntegrationManager();
-      manager.register('slack-1', {
-        provider: 'slack',
-        enabled: true,
-        config: { webhookUrl: 'https://hooks.slack.com/test' },
-        triggers: [{ event: 'record.created' }],
-      });
-
-      const all = manager.getAll();
-      expect(all.size).toBe(1);
+  it('computes page from $skip/$top', async () => {
+    const adapter = makeAdapter({
+      success: true,
+      data: { object: 'account', records: [{ id: '3' }], total: 30, hasMore: true },
     });
 
-    it('should filter integrations by event', () => {
-      const manager = new IntegrationManager();
-      manager.register('webhook-1', {
-        provider: 'webhook',
-        enabled: true,
-        config: { url: 'https://example.com/hook', method: 'POST' },
-        triggers: [{ event: 'record.created' }],
-      });
-      manager.register('webhook-2', {
-        provider: 'webhook',
-        enabled: true,
-        config: { url: 'https://example.com/hook2', method: 'POST' },
-        triggers: [{ event: 'record.deleted' }],
-      });
+    const result = await adapter.find('account', { $skip: 20, $top: 10 });
 
-      const createMatches = manager.getForEvent('record.created');
-      expect(createMatches).toHaveLength(1);
-    });
-
-    it('should unregister integrations', () => {
-      const manager = new IntegrationManager();
-      manager.register('test', {
-        provider: 'webhook',
-        enabled: true,
-        config: { url: 'https://example.com', method: 'POST' },
-      });
-      manager.unregister('test');
-      expect(manager.getAll().size).toBe(0);
-    });
+    // normalizeQueryResult: page = floor($skip / $top) + 1
+    expect(result.page).toBe(3);
+    expect(result.pageSize).toBe(10);
   });
 
-  describe('Security module', () => {
-    it('should generate CSP header', () => {
-      const manager = new SecurityManager({
-        csp: {
-          scriptSrc: ["'self'", "'unsafe-inline'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'", 'https://api.example.com'],
-          fontSrc: ["'self'"],
-        },
-      });
-
-      const header = manager.generateCSPHeader();
-      expect(header).toContain("script-src 'self' 'unsafe-inline'");
-      expect(header).toContain("connect-src 'self' https://api.example.com");
+  it('falls back to a page-local hasMore estimate when the server omits it', async () => {
+    const adapter = makeAdapter({
+      success: true,
+      // A full page with no server-reported `hasMore`.
+      data: { object: 'account', records: [{ id: '1' }, { id: '2' }], total: 2 },
     });
 
-    it('should record and filter audit logs', () => {
-      const manager = new SecurityManager({
-        auditLog: {
-          enabled: true,
-          events: ['data.create', 'data.read', 'auth.login'],
-          destination: 'console',
-        },
-      });
+    const result = await adapter.find('account', { $top: 2 });
 
-      manager.recordAudit({ event: 'data.create', userId: 'user-1', resource: 'accounts' });
-      manager.recordAudit({ event: 'auth.login', userId: 'user-2' });
-      manager.recordAudit({ event: 'data.create', userId: 'user-1', resource: 'contacts' });
-
-      const allLogs = manager.getAuditLog();
-      expect(allLogs).toHaveLength(3);
-
-      const userLogs = manager.getAuditLog({ userId: 'user-1' });
-      expect(userLogs).toHaveLength(2);
-
-      const loginLogs = manager.getAuditLog({ event: 'auth.login' });
-      expect(loginLogs).toHaveLength(1);
-    });
-
-    it('should mask record data', () => {
-      const manager = new SecurityManager({
-        dataMasking: {
-          rules: [
-            { field: 'ssn', strategy: 'partial', visibleChars: 4 },
-            { field: 'password', strategy: 'redact' },
-            { field: 'email', strategy: 'full' },
-            { field: 'phone', strategy: 'partial', visibleChars: 3, exemptRoles: ['admin'] },
-          ],
-        },
-      });
-
-      const record = {
-        ssn: '123-45-6789',
-        password: 'secret123',
-        email: 'john@example.com',
-        phone: '555-1234',
-        name: 'John',
-      };
-      
-      const masked = manager.maskRecord(record);
-      expect(masked.ssn).toBe('123-*******');
-      expect(masked.password).toBe('[REDACTED]');
-      expect(masked.email).toBe('****************');
-      expect(masked.name).toBe('John'); // Not masked
-      
-      // Admin sees phone unmasked
-      const adminMasked = manager.maskRecord(record, ['admin']);
-      expect(adminMasked.phone).toBe('555-1234');
-    });
+    // records.length === $top ⇒ treated as "there may be more" — the
+    // fallback normalizeQueryResult uses when the server doesn't say.
+    expect(result.hasMore).toBe(true);
   });
 
-  describe('Studio module', () => {
-    it('should create default canvas config', () => {
-      const config = createDefaultCanvasConfig();
-      expect(config.width).toBe(1200);
-      expect(config.height).toBe(800);
-      expect(config.snapToGrid).toBe(true);
-      expect(config.zoom.min).toBe(0.25);
-      expect(config.zoom.max).toBe(3);
+  it('reports hasMore false for a short (non-full) page with no server hint', async () => {
+    const adapter = makeAdapter({
+      success: true,
+      data: { object: 'account', records: [{ id: '1' }], total: 1 },
     });
 
-    it('should create canvas config with overrides', () => {
-      const config = createDefaultCanvasConfig({ width: 1600, showMinimap: true });
-      expect(config.width).toBe(1600);
-      expect(config.showMinimap).toBe(true);
-      expect(config.height).toBe(800); // Default
-    });
+    const result = await adapter.find('account', { $top: 5 });
 
-    it('should snap positions to grid', () => {
-      expect(snapToGrid(13, 27, 8)).toEqual({ x: 16, y: 24 });
-      expect(snapToGrid(0, 0, 8)).toEqual({ x: 0, y: 0 });
-      expect(snapToGrid(4, 4, 8)).toEqual({ x: 8, y: 8 });
-    });
-
-    it('should calculate auto-layout positions', () => {
-      const items = [
-        { id: '1', width: 200, height: 150 },
-        { id: '2', width: 200, height: 100 },
-        { id: '3', width: 200, height: 200 },
-      ];
-      const positions = calculateAutoLayout(items, 1200);
-      expect(positions).toHaveLength(3);
-      expect(positions[0].x).toBe(40); // padding
-      expect(positions[0].y).toBe(40); // padding
-      expect(positions[1].x).toBeGreaterThan(positions[0].x);
-    });
-  });
-
-  describe('PaginatedResult API (records/total/hasMore)', () => {
-    it('should support v3.0.0 PaginatedResult fields', () => {
-      // Verify the QueryResult type supports records/total/hasMore
-      const result = {
-        data: [{ id: '1' }],
-        total: 10,
-        page: 1,
-        pageSize: 5,
-        hasMore: true,
-      };
-      expect(result.data).toHaveLength(1);
-      expect(result.total).toBe(10);
-      expect(result.hasMore).toBe(true);
-    });
+    expect(result.hasMore).toBe(false);
   });
 });

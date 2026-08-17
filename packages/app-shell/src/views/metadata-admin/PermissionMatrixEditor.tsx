@@ -113,8 +113,9 @@ interface ObjectSummary {
  * Is this item backed by a **code-package artifact**? (objectui#4518)
  *
  * The client-side mirror of the server's `isArtifactBacked`
- * (metadata-protocol `protocol.ts`), and byte-for-byte the same predicate
- * `ResourceEditPage:1332` already computes inline for its own two-tier gate.
+ * (metadata-protocol `protocol.ts`). It began as byte-for-byte the predicate
+ * `ResourceEditPage` computes for its own two-tier gate; the two are NO LONGER
+ * identical — see the divergence note at the end.
  *
  * A non-null `code` layer alone is NOT proof of a code package: a published
  * ORG item also surfaces its active version in `code`, tagged with the
@@ -129,6 +130,21 @@ interface ObjectSummary {
  * `layered?.code != null` does, it is the pre-#4518 behaviour, and a transient
  * read failure must not invent a lock. The cost is bounded and honest — the
  * save still round-trips to the server's own gate.
+ *
+ * ── Divergence from `ResourceEditPage` (objectui#4308) ────────────────────
+ * The sibling now ALSO excludes ADR-0010 `provenance === 'org'`. The sentinel
+ * this function tests holds only on the save path: boot-time rehydration of
+ * `sys_metadata` re-registers each row under its REAL package id, so a
+ * tenant's own item reads back with a code-looking `_packageId` and this
+ * predicate calls it an artifact. The framework hit the same thing and fixed
+ * it by asking provenance (`isTenantAuthored`, cloud#970).
+ *
+ * That gap is NOT reachable here today: the artifact tier is gated on
+ * `!packageId` (see `artifactTierApplies`), so under a package door — the
+ * writable-package case #4308 reports, and the one #4446 fixed for this
+ * editor — this function is never consulted. The env-door residue is filed on
+ * objectui#4526 together with that card's own over-lock. Adopt provenance here
+ * when #4526 is picked up, rather than re-copying the sibling's expression.
  */
 function isArtifactBackedLayer(layered: { code?: unknown } | null | undefined): boolean {
   const code = layered?.code;

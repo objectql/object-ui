@@ -184,30 +184,47 @@ Data-driven components (grids, tables, kanbans, charts) use the `bind` field:
 {
   "type": "data-table",
   "bind": "customers",
-  "props": {
-    "columns": [
-      { "name": "name", "label": "Name" },
-      { "name": "email", "label": "Email" }
-    ]
-  }
+  "columns": [
+    { "name": "name", "label": "Name" },
+    { "name": "email", "label": "Email" }
+  ]
 }
 ```
 
 Inside the component: `const data = useDataScope("customers")` resolves to the `customers` array from the dataSource.
 
-### Via expressions in `props`
+### Via expressions on the node
 
-Static data or computed values through the expression system:
+Computed values go through the expression system. `content` is the text key that
+is both expression-evaluated and read back by the renderer, and the provider's
+`dataSource` is reachable under the `data` root:
+
+```json
+{
+  "type": "card",
+  "title": "Total Customers",
+  "children": [
+    { "type": "text", "content": "${data.metrics.total} customers" }
+  ]
+}
+```
+
+A `statistic`'s `label` / `value` / `description` are read off the node but are
+**not** expression-evaluated, so give them values the host already resolved:
 
 ```json
 {
   "type": "statistic",
-  "props": {
-    "label": "Total Customers",
-    "value": "${metrics.total}"
-  }
+  "label": "Total Customers",
+  "value": "128",
+  "description": "+12 this week",
+  "trend": "up"
 }
 ```
+
+Do not reach for a `props` envelope to get an expression evaluated — values
+inside it are evaluated and then handed over as React props, which these
+renderers never read, so the component paints an empty frame.
 
 ### Via DataSource methods (in plugin code)
 

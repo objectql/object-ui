@@ -1,8 +1,9 @@
 import React from 'react';
-import { cn, Textarea, EmptyValue } from '@object-ui/components';
+import { cn, Textarea, EmptyValue, type FullscreenEditorAria } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/react';
 import { FullscreenFieldEditor } from './FullscreenFieldEditor';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps, type DomProps } from './toDomProps';
 
 /**
  * The rich-text editing surface, rendered by `RichTextField` in BOTH positions:
@@ -17,6 +18,9 @@ import { FieldWidgetComponentProps } from './types';
  *
  * `fullHeight` is the only difference between the two renderings: inline the
  * textarea is `rows`-sized, in the dialog it fills the available height.
+ *
+ * The `<Textarea>` below is this widget's ONE focusable control, so it is where
+ * the host's DOM pass-through has to land (objectui#4810) — see `domProps`.
  */
 function RichTextEditorSurface({
   value,
@@ -32,6 +36,8 @@ function RichTextEditorSurface({
   autoFocus,
   textareaTestId,
   overlay,
+  domProps,
+  editorAria,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -47,6 +53,38 @@ function RichTextEditorSurface({
   textareaTestId?: string;
   /** Absolutely-positioned children over the textarea (the expand affordance). */
   overlay?: React.ReactNode;
+  /**
+   * The host's DOM pass-through (objectui#4810), already filtered through the
+   * `toDomProps` whitelist by the caller — the field's `id`, the
+   * `aria-describedby` `<FormControl>`'s Slot minted, `name`, `tabIndex`, the
+   * focus handlers.
+   *
+   * Given to the INLINE surface only, and that is a statement about the dialog
+   * rather than an omission: the host id is unique per form item, so handing it
+   * to a second `<Textarea>` mounted at the same time would put two elements
+   * under one id and make the visible label's `for` ambiguous, and the ids the
+   * host's `aria-describedby` names sit OUTSIDE the dialog, which Radix
+   * `aria-hidden`s while the modal is open. Exactly the split `TextAreaField`
+   * makes for the same pair of surfaces.
+   */
+  domProps?: DomProps<FieldWidgetComponentProps<string>>;
+  /**
+   * The accessibility set `FullscreenFieldEditor` computes for the control it
+   * hosts — accessible name and validation state (objectui#4824 / #4832).
+   *
+   * The mirror image of `domProps`: given to the DIALOG rendering only, because
+   * only the dialog rendering has a name and a message node to be pointed at
+   * from inside the modal. The inline surface takes both from the host, through
+   * `domProps` and its own `error`.
+   *
+   * It is the dialog copy's SINGLE author of `aria-invalid`, which is why the
+   * dialog rendering below passes no `error`: this surface used to compute
+   * `aria-invalid={!!error}` from an `error` prop the dialog rendering never
+   * received, so it announced a literal `aria-invalid="false"` for a field the
+   * inline surface was announcing `true` for at the same moment — the sharper
+   * half of objectui#4824.
+   */
+  editorAria?: FullscreenEditorAria;
 }) {
   return (
     <div className={cn('space-y-2', fullHeight && 'flex flex-col h-full')}>
@@ -56,22 +94,44 @@ function RichTextEditorSurface({
       </div>
       <div className={cn('relative', fullHeight && 'flex-1 min-h-0')}>
         <Textarea
+          // BEFORE the spread, both of them, so a host that supplies either key
+          // wins and one that supplies neither still gets this surface's own
+          // value. After the spread they would be re-assigned `undefined` on
+          // the inline surface — which is how a pass-through silently drops a
+          // key it was handed.
+          autoFocus={autoFocus}
+          data-testid={textareaTestId}
+          {...domProps}
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
-          autoFocus={autoFocus}
           rows={fullHeight ? undefined : rows}
           // `text-base` in the dialog for the same reason `TextAreaField` uses
           // it there: sub-16px inputs make iOS Safari zoom on focus, which is
           // exactly wrong for a surface the user opened to get more room.
+          //
+          // After the spread because it COMPOSES the host's `className` (which
+          // reaches this component as the `className` prop) with the surface's
+          // own classes, rather than letting the raw host value replace them.
           className={cn(
             'font-mono',
             fullHeight ? 'text-base h-full min-h-full resize-none' : 'text-sm',
             className,
           )}
+          // After the spread, deliberately: `toDomProps` forwards the whole
+          // `aria-` family, so `<FormControl>`'s own `aria-invalid` arrives in
+          // `domProps` too. This widget reading `error` itself is one of
+          // objectui#3318's 17 PASS entries — keeping the read last is what
+          // keeps that entry passing instead of handing the state back to a
+          // host that may not have one.
           aria-invalid={!!error}
-          data-testid={textareaTestId}
+          // LAST, and only ever non-empty on the dialog rendering: inside the
+          // modal the primitive is the authority on both the name and the
+          // validation state, and its `aria-invalid` must win over the `!!error`
+          // above (which is the INLINE channel and is `false` there by
+          // construction). On the inline surface this spreads nothing.
+          {...editorAria}
         />
         {overlay}
       </div>
@@ -101,6 +161,23 @@ function RichTextEditorSurface({
  * tolerant fallback in one of them. The affordance and dialog themselves come
  * from the shared `FullscreenFieldEditor`, so one form-level setting keeps
  * producing one behaviour across both widgets.
+ *
+ * ## Host plumbing (objectui#4810)
+ *
+ * The editable branch had no `toDomProps` at all, so everything
+ * `<FormControl>`'s Radix `Slot` hands down — the field's `id`, the
+ * `aria-describedby` naming its `<FormDescription>` and `<FormMessage>` —
+ * arrived as props and landed on no element. Measured on a real form: the
+ * visible label's `for` pointed at an id nothing carried (`for=DANGLING`) and
+ * the rendered description had zero consumers, for all three registry keys
+ * (`markdown` / `html` / `richtext`) since they are this one widget.
+ *
+ * The fix is objectui#3318's standing recipe — `toDomProps(props)` spread onto
+ * the REAL focusable control, which here is the `<Textarea>` inside
+ * `RichTextEditorSurface`, never the wrapper `<div>`s (a non-focusable wrapper
+ * carrying the id would satisfy `document.getElementById` and still leave the
+ * label inert). Only the inline surface receives it; see `domProps` there for
+ * why the dialog's copy must not.
  */
 export function RichTextField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<string>) {
   const { t } = useObjectTranslation();
@@ -120,12 +197,19 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
   // Same single read as `TextAreaField`: the field metadata is the only
   // carrier, and this widget is the second consumer the flag always had.
   const showFullscreenButton = Boolean(richField?.mobile_fullscreen);
+
+  // The host plumbing, filtered by the declared whitelist (objectui#3291) so
+  // renderer-only props and authored field-config keys cannot become DOM
+  // attributes. Read the semantic props below off it rather than off `props`
+  // for the same reason `TextAreaField` does: one source, no chance of the
+  // spread and the read disagreeing.
+  const domProps = toDomProps(props);
   // Resolved once and given to BOTH renderings of the editor (objectui#3402) —
   // exactly like `formatLabel` / `hint` / `placeholder` below, and for the same
   // reason. Landing it on the inline surface alone left a disabled rich-text
   // field greyed out next to a live expand button whose dialog committed any
   // edit through `onCommit`. `disabled` also carries the form's `isSubmitting`.
-  const disabled = Boolean(props.disabled);
+  const disabled = Boolean(domProps.disabled);
 
   // Resolved once and handed to BOTH renderings of the editor, so the dialog
   // cannot drift into showing different copy than the inline surface.
@@ -145,7 +229,8 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
       rows={rows}
       disabled={readonly || disabled}
       error={error}
-      className={props.className}
+      className={domProps.className}
+      domProps={domProps}
       overlay={
         showFullscreenButton && (
           <FullscreenFieldEditor
@@ -154,8 +239,17 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
             label={richField?.label}
             testIdPrefix="richtext"
             disabled={disabled}
+            /*
+              The validation channel the dialog rendering never had
+              (objectui#4824). It is handed to the PRIMITIVE, not down to the
+              second `RichTextEditorSurface`, because the primitive is what
+              renders the message node the control points at — a node that must
+              live inside the modal, since the host's `<FormMessage>` is
+              `aria-hidden` for as long as this dialog is open.
+            */
+            error={error}
           >
-            {(draft, setDraft, editorDisabled) => (
+            {(draft, setDraft, editorDisabled, editorAria) => (
               <RichTextEditorSurface
                 value={draft}
                 onChange={setDraft}
@@ -166,6 +260,7 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
                 autoFocus
                 fullHeight
                 textareaTestId="richtext-fullscreen-input"
+                editorAria={editorAria}
               />
             )}
           </FullscreenFieldEditor>

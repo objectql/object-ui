@@ -44,6 +44,7 @@ import {
   Layers,
   Bot,
   User,
+  Building2,
   BookOpen,
   ExternalLink,
   Keyboard,
@@ -893,10 +894,34 @@ export function AppHeader({
                 <User className="mr-2 h-4 w-4" />
                 {t('user.profile', { defaultValue: 'Profile' })}
               </DropdownMenuItem>
-              {/* "My Organizations" moved to the global WorkspaceSwitcher in the
-                  header-left (switch + manage members live there now). Only the
-                  create-workspace shortcut stays here, so single-org users —
-                  whose switcher has no dropdown — can still create a second org. */}
+              {/*
+               * Workspace entries. The header-left WorkspaceSwitcher carries
+               * the same destinations, but it renders NOTHING below two orgs
+               * (`orgList.length <= 1` → null) — so for the single-org majority
+               * the avatar menu is the ONLY door to workspace management.
+               * Leaving just the create shortcut here is what shut every path
+               * to Members / Invitations / Organization settings for them
+               * (objectstack#8096): the picker at `/organizations` auto-skips
+               * with one org, and the switcher never appears.
+               *
+               * "My Workspaces" → `?manage=1`, which OrganizationsPage reads as
+               * "the user came here to MANAGE": multi-org users get the picker,
+               * a single-org user is deep-linked straight to that org's members
+               * page (there is no choice worth showing them). Deliberately NOT
+               * gated on `multiOrgDisabled` — that flag governs CREATING orgs;
+               * where self-service creation is off this entry is the only way
+               * in, so gating it there would re-close the door.
+               */}
+              {hasOrgSection && (
+                <DropdownMenuItem
+                  onClick={() => navigate('/organizations?manage=1')}
+                  className="cursor-pointer"
+                  data-testid="header-my-organizations"
+                >
+                  <Building2 className="mr-2 h-4 w-4" />
+                  {t('organizations.mine', { defaultValue: 'My Workspaces' })}
+                </DropdownMenuItem>
+              )}
               {hasOrgSection && !multiOrgDisabled && (
                 <DropdownMenuItem
                   onClick={() => navigate('/organizations?create=1')}

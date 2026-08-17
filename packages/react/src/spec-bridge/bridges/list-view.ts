@@ -188,8 +188,6 @@ export const bridgeListView: BridgeFn<ListViewSpec> = (
   if (spec.searchableFields) node.searchableFields = spec.searchableFields;
   if (spec.filterableFields) node.filterableFields = spec.filterableFields;
   if (spec.resizable != null) node.resizable = spec.resizable;
-  if (spec.striped != null) node.striped = spec.striped;
-  if (spec.bordered != null) node.bordered = spec.bordered;
   if (spec.navigation) node.navigation = spec.navigation;
   if (spec.kanban) node.kanban = spec.kanban;
   if (spec.calendar) node.calendar = spec.calendar;
@@ -201,7 +199,6 @@ export const bridgeListView: BridgeFn<ListViewSpec> = (
   if (spec.rowActions) node.rowActions = spec.rowActions;
   if (spec.bulkActions) node.bulkActions = spec.bulkActions;
   if (spec.bulkActionDefs) node.bulkActionDefs = spec.bulkActionDefs;
-  if (spec.virtualScroll != null) node.virtualScroll = spec.virtualScroll;
   if (spec.conditionalFormatting) node.conditionalFormatting = spec.conditionalFormatting;
   if (spec.inlineEdit != null) node.inlineEdit = spec.inlineEdit;
   if (spec.exportOptions) node.exportOptions = liftExportOptions(spec.exportOptions);

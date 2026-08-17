@@ -8,10 +8,20 @@
 
 import * as React from 'react';
 import { cn, Button } from '@object-ui/components';
-import { Paperclip, Upload, Trash2, Download, Loader2 } from 'lucide-react';
+import {
+  Paperclip,
+  Upload,
+  Trash2,
+  Download,
+  Loader2,
+  Lock,
+  AlertTriangle,
+  Ban,
+  RefreshCw,
+} from 'lucide-react';
 import { createObjectStackUploadAdapter } from '@object-ui/providers';
 import { createAuthenticatedFetch } from '@object-ui/auth';
-import { useObjectTranslation } from '@object-ui/react';
+import { useObjectTranslation, isPermissionError, classifyLoadError } from '@object-ui/react';
 
 /**
  * RecordAttachmentsPanel — generic record Attachments surface (#2727,
@@ -50,6 +60,62 @@ export interface RecordAttachmentsPanelProps {
   className?: string;
 }
 
+/**
+ * What the panel actually KNOWS about this record's `sys_attachment` list
+ * (#4684, #4693) — the five-way vocabulary the sibling surfaces settled on.
+ *
+ *   - `loading`         — the read is in flight (or has not been issued yet).
+ *                         The panel knows nothing and asserts nothing.
+ *   - `loaded`          — the read ANSWERED. Only in this state is
+ *                         `rows.length` a fact about the record, and only
+ *                         here may the panel say "No attachments yet".
+ *   - `denied`          — refused for AUTHORIZATION reasons (#4269 / PR
+ *                         #4685): 403 / `PERMISSION_DENIED` / `FORBIDDEN` /
+ *                         an RLS denial. The caller may not look; the
+ *                         record's contents are unknown.
+ *   - `api-unavailable` — refused because the OBJECT withholds the API
+ *                         entirely (#4693): `OBJECT_API_DISABLED` (404,
+ *                         `enable.apiEnabled: false`) or
+ *                         `OBJECT_API_METHOD_NOT_ALLOWED` (405, the
+ *                         operation is absent from `enable.apiMethods`).
+ *                         Both are pure functions of the object's metadata —
+ *                         no user, no session, no request body — so unlike
+ *                         `denied` this is not something any permission
+ *                         grant fixes, and unlike `unavailable` below no
+ *                         retry changes the answer either.
+ *   - `unavailable`     — the read FAILED for any other reason: a network
+ *                         failure (server unreachable, DNS, aborted
+ *                         request), a 5xx, or a 401 / `AUTH_REQUIRED` (an
+ *                         expired session is authentication, not
+ *                         authorization, so the `denied` predicate
+ *                         deliberately does not claim it). Also unknown, and
+ *                         — unlike `api-unavailable` — genuinely retryable.
+ *
+ * The split that matters is assert-vs-don't-assert. Before #4684 `denied` and
+ * `unavailable` both collapsed into `rows = []`, so a panel that never got an
+ * answer told the user "No attachments yet. Upload a file to get started." —
+ * an affirmative claim about the record's contents, made from no evidence,
+ * over a record that may hold thousands. The house rule this restores landed
+ * twice already as a bug fix: `HomeActionCenter` (#4235) may only say "You're
+ * all caught up" once the inbox has answered, and an unloadable app list
+ * (#4300) is UNKNOWN rather than "no default app".
+ *
+ * `api-unavailable` was split out of `unavailable` because the same
+ * assert-vs-don't-assert reasoning applies to the AFFORDANCE, not just the
+ * copy: `unavailable` offers a Retry because an outage or an expired session is
+ * exactly what a second attempt can fix, but `OBJECT_API_DISABLED` /
+ * `OBJECT_API_METHOD_NOT_ALLOWED` are retry-invariant — every retry of every
+ * persona re-fetches the identical refusal, so the button was the same wrong
+ * advice as "check your connection", just spelled as a control. Classified
+ * with `classifyLoadError` (`@object-ui/react`), the same "is this
+ * retry-invariant" verdict `ListView`'s error panel already renders for list
+ * views — `classifyLoadError` was lifted out of `ListView.tsx`'s module scope
+ * for exactly this reuse. `denied` and `unavailable` keep their pre-#4693
+ * meaning (`isPermissionError`, unchanged) — `api-unavailable` is the one new
+ * fork, checked before that split.
+ */
+type AttachmentListStatus = 'loading' | 'loaded' | 'denied' | 'api-unavailable' | 'unavailable';
+
 function formatSize(bytes?: number | null): string {
   if (bytes == null || !Number.isFinite(bytes)) return '';
   if (bytes < 1024) return `${bytes} B`;
@@ -66,9 +132,21 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
 }) => {
   const { t } = useObjectTranslation();
   const [rows, setRows] = React.useState<AttachmentRow[]>([]);
-  const [loading, setLoading] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  /**
+   * See {@link AttachmentListStatus}. Kept separate from `rows.length === 0`
+   * because the two say different things and only one of them is an assertion
+   * the panel is entitled to make: "No attachments yet" claims the record
+   * HOLDS nothing, while a refused or failed read says only that the panel
+   * does not know.
+   *
+   * Opens at `loading`, not `loaded`: before the effect below has run, the
+   * panel has issued no read at all, and a surface that has not read is not
+   * entitled to the empty state either (#4684). The guard in `refresh()`
+   * leaves it here on purpose — see the comment there.
+   */
+  const [status, setStatus] = React.useState<AttachmentListStatus>('loading');
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Same base-URL convention as RecordDetailView's raw API fetches: the
@@ -121,8 +199,15 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
   );
 
   const refresh = React.useCallback(async () => {
+    // No data source / no record yet: no read is ISSUED, so `status` stays at
+    // whatever it was — `loading` on first mount. Deliberately not forced to
+    // `loaded` (that would assert an empty record from zero evidence) and not
+    // to `unavailable` (nothing failed; there is no error to report and a
+    // Retry would have nothing to retry). Every dep here is in the callback's
+    // dependency list, so if one of them arrives later this effect re-runs on
+    // its own and the read happens then.
     if (!dataSource || !objectName || !recordId) return;
-    setLoading(true);
+    setStatus('loading');
     try {
       const res: any = await dataSource.find('sys_attachment', {
         $filter: { parent_object: objectName, parent_id: recordId },
@@ -131,12 +216,53 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
       });
       const items: AttachmentRow[] = Array.isArray(res) ? res : res?.data ?? [];
       setRows(items);
-    } catch {
-      // A 404 (table not provisioned on older stacks) is tolerated silently;
-      // the panel just stays empty.
+      // The read ANSWERED — only now is `rows.length === 0` a fact about the
+      // record rather than an absence of information, and only now may the
+      // empty state below speak.
+      setStatus('loaded');
+    } catch (err) {
       setRows([]);
-    } finally {
-      setLoading(false);
+      // The read did NOT answer. Which of the three unknown states applies
+      // turns on two questions, checked in order — is the object's API
+      // withheld entirely, and if not, is this caller forbidden?
+      //
+      // `api-unavailable` (#4693) is checked FIRST, on the CODE alone (via
+      // `classifyLoadError`, shared with `ListView`'s error panel):
+      // `OBJECT_API_DISABLED` (404) / `OBJECT_API_METHOD_NOT_ALLOWED` (405).
+      // Both are pure functions of the object's `enable` block — no user, no
+      // session — so no persona and no retry changes the answer, and it must
+      // run before the `denied` check below: a 404/405 carries no status this
+      // predicate would confuse with a real permission refusal, but checking
+      // order still matters for future codes that could overlap.
+      //
+      // `denied` (#4269 / PR #4685) uses the same house predicate the
+      // kanban/calendar/form surfaces branch on: HTTP 403,
+      // `PERMISSION_DENIED`/`FORBIDDEN`, or an RLS denial. It deliberately
+      // does NOT claim a 401 — an expired session is authentication, not
+      // authorization, and "you don't have access" is the wrong sentence for a
+      // user who only needs to sign in again.
+      //
+      // `unavailable` (#4684) takes everything else that reaches this catch:
+      // a network failure, a 5xx, a 401/`AUTH_REQUIRED`. Note what does NOT
+      // arrive here — the ObjectStack adapter's `find()` degrades a bare 404
+      // (collection absent on an older stack) to `{ data: [], total: 0 }`
+      // (data-objectstack `is404Error`, objectui#4408), so the "table not yet
+      // provisioned" case still resolves through the success path above and
+      // still renders the empty state. It never depended on this catch
+      // swallowing it.
+      //
+      // Nothing from the error is rendered in any of the three states — each
+      // shows its i18n sentence and nothing else. objectui#2532's failure mode
+      // (raw dump / status code / leaked row count) must stay absent, and
+      // `setError` is deliberately NOT called here: a failed LIST is a state
+      // of the panel, not an error banner about an action the user took.
+      setStatus(
+        classifyLoadError(err) === 'api-disabled'
+          ? 'api-unavailable'
+          : isPermissionError(err)
+            ? 'denied'
+            : 'unavailable',
+      );
     }
   }, [dataSource, objectName, recordId]);
 
@@ -253,28 +379,52 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
             <span className="text-xs text-muted-foreground">({rows.length})</span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => void handleFiles(e.target.files)}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={uploading}
-            onClick={() => inputRef.current?.click()}
-          >
-            {uploading ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <Upload className="h-4 w-4 mr-1" />
-            )}
-            {t('detail.uploadAttachment', { defaultValue: 'Upload' })}
-          </Button>
-        </div>
+        {/*
+          No Upload affordance under a denied list (#4269). The button was
+          previously unconditional — its only gate was `uploading` — so a
+          member the server had just refused was still invited to upload into
+          a record whose parent it cannot read, a click the `beforeInsert`
+          gate answers with 403 ATTACHMENT_PARENT_ACCESS.
+
+          `unavailable` withdraws it for the same reason one status over
+          (#4684): offering an upload against a list the panel could not even
+          reach is the same over-assertion as the empty state it replaces —
+          the panel is claiming an attach will work when it has no evidence
+          the server is reachable at all, and the upload's own three-step
+          presigned flow would fail on the same outage. Retry first; the
+          Upload returns with the answer.
+
+          `api-unavailable` withdraws it too (#4693), for a stronger reason
+          than either: the object's `enable` block refuses this operation for
+          every caller, so an upload attempt here is not merely unverified —
+          it is guaranteed to fail the same way the list read just did.
+
+          Still shown while `loading` and while `loaded`, exactly as before.
+        */}
+        {status !== 'denied' && status !== 'api-unavailable' && status !== 'unavailable' && (
+          <div className="flex items-center gap-2">
+            <input
+              ref={inputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => void handleFiles(e.target.files)}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={uploading}
+              onClick={() => inputRef.current?.click()}
+            >
+              {uploading ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-1" />
+              )}
+              {t('detail.uploadAttachment', { defaultValue: 'Upload' })}
+            </Button>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -283,12 +433,84 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
         </div>
       )}
 
-      {loading && rows.length === 0 ? (
+      {/*
+        The order of this chain IS the assertion discipline (#4235, #4300,
+        #4269, #4684): every state that means "the panel does not know" is
+        answered before `rows.length === 0` is allowed to mean "the record
+        holds nothing". `rows` is emptied on every failure, so any unknown
+        state reaching the empty branch would render the exact lie these
+        cards exist to remove.
+
+        `status === 'loading' && rows.length === 0` (not `status === 'loading'`
+        alone) is unchanged from the pre-#4684 shape: a refresh over an
+        already-populated list keeps showing that list instead of blanking it
+        to a spinner.
+      */}
+      {status === 'loading' && rows.length === 0 ? (
         <div className="px-4 py-6 text-sm text-muted-foreground flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin" />
           {t('detail.loadingAttachments', { defaultValue: 'Loading attachments…' })}
         </div>
+      ) : status === 'denied' ? (
+        // Checked BEFORE the empty state, and rendering only the i18n
+        // sentence: no status code, no server message, no row (#2532).
+        <div
+          className="px-4 py-6 text-sm text-muted-foreground flex items-center gap-2"
+          data-testid="record-attachments-denied"
+        >
+          <Lock className="h-4 w-4 shrink-0" />
+          {t('detail.attachmentsAccessDenied', {
+            defaultValue: "You don't have access to these attachments.",
+          })}
+        </div>
+      ) : status === 'api-unavailable' ? (
+        // `OBJECT_API_DISABLED` / `OBJECT_API_METHOD_NOT_ALLOWED` (#4693): a
+        // pure function of the object's `enable` block, not a permission and
+        // not an outage — no persona and no retry changes the answer. Like
+        // the other two failure states this renders ONLY the i18n sentence
+        // (#2532), and — unlike `unavailable` below — deliberately offers NO
+        // Retry: the button would re-fetch the identical refusal every time.
+        <div
+          className="px-4 py-6 text-sm text-muted-foreground flex items-center gap-2"
+          data-testid="record-attachments-api-unavailable"
+        >
+          <Ban className="h-4 w-4 shrink-0" />
+          {t('detail.attachmentsApiUnavailable', {
+            defaultValue: 'The attachments list is not available on this object.',
+          })}
+        </div>
+      ) : status === 'unavailable' ? (
+        // The read never answered (#4684): network failure, 5xx, or an expired
+        // session. Like the denied state above this renders ONLY the i18n
+        // sentence — no status code, no server message, no row count (#2532) —
+        // and, unlike it, offers a Retry: an outage and a lapsed session are
+        // both things a second attempt can genuinely fix.
+        //
+        // The Retry cannot double-fetch. `refresh()` sets `status` to
+        // `loading` synchronously and `rows` is already empty here, so the
+        // branch above wins on the very next render and this button — with the
+        // only handler that calls `refresh()` — unmounts for the duration of
+        // the read.
+        <div
+          className="px-4 py-6 text-sm text-muted-foreground flex flex-col items-start gap-3"
+          data-testid="record-attachments-unavailable"
+        >
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {t('detail.attachmentsLoadFailed', {
+              defaultValue: "We couldn't load the attachments for this record.",
+            })}
+          </div>
+          <Button variant="outline" size="sm" onClick={() => void refresh()}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            {t('detail.retryLoadAttachments', { defaultValue: 'Retry' })}
+          </Button>
+        </div>
       ) : rows.length === 0 ? (
+        // Reached only with `status === 'loaded'`: every other status is
+        // answered above. This is the one branch entitled to assert that the
+        // record holds nothing, because it is the only one standing on a read
+        // that came back — a genuine 200-with-zero-rows.
         <div className="px-4 py-6 text-sm text-muted-foreground">
           {t('detail.noAttachments', { defaultValue: 'No attachments yet. Upload a file to get started.' })}
         </div>

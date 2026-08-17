@@ -148,7 +148,7 @@ export function PublicFormsPage() {
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => { load(); }, []);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
 

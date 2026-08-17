@@ -18,9 +18,10 @@
  * <ModalForm> (what a lookup field's inline "create the referenced record"
  * passes).
  *
- * A STRING target — what `type: 'modal'` actions carry — is resolved through
- * {@link resolveModalTarget}: page first, then object. See that function for
- * why the order matters.
+ * A STRING target — what `type: 'modal'` actions carry — names a PAGE, and only
+ * a page; {@link resolveModalTarget} resolves it against the page metadata and
+ * REFUSES anything else (maintainer ruling, objectstack#6739). Opening an
+ * object's form from an action is what `type: 'form'` is for.
  *
  * Returns `{ modalHandler, modalElement, resolveModalTarget }`: pass
  * `modalHandler` as the ActionProvider `onModal`, render `modalElement` once in
@@ -50,6 +51,7 @@ import {
 import { SchemaRenderer, useMetadata } from '@object-ui/react';
 import { ModalForm } from '@object-ui/plugin-form';
 import { resolveFormViewLayout } from '../utils/recordFormNavigation';
+import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics';
 
 type Placement = 'center' | 'side' | 'bottom' | 'fullscreen';
 type ModalSize = 'sm' | 'default' | 'lg' | 'xl' | 'full';
@@ -62,17 +64,33 @@ export interface ModalDescriptor {
   description?: string;
   /** Arbitrary SchemaNode rendered inside the chosen container. */
   content?: any;
-  /** Back-compat: open an object form. */
+  /**
+   * Open an object form directly — a DESCRIPTOR-only key, never derived from a
+   * string target.
+   *
+   * Re-judged with the object-fallback retirement (objectstack#6739): the
+   * "Back-compat" label this carried was wrong, and keeping the key is not
+   * leniency. Its live and only producer is the lookup field's inline "create
+   * the referenced record" path, which hands the runner a fully-formed
+   * descriptor — `execute({ type: 'modal', modal: { objectName, mode } })` in
+   * `@object-ui/fields`' `LookupField` — where the object identity is known by
+   * the FIELD's `referenceTo`, not guessed from a name. Nothing about that is a
+   * modal action's `target`, so nothing about it is what the ruling retires.
+   *
+   * What DID retire is the inference: a string `target` can no longer become an
+   * `objectName`. An authored action that wants an object's form declares
+   * `type: 'form'`.
+   */
   objectName?: string;
   mode?: string;
   recordId?: string;
   fields?: any;
   /**
    * An UNRESOLVED string target, straight off a `type: 'modal'` action. It
-   * names a page or an object; which one is only knowable by asking the
+   * names a PAGE; whether that page exists is only knowable by asking the
    * metadata service, so `normalizeModalSchema` (pure) records the name here
    * and {@link resolveModalTarget} (async) turns it into a renderable
-   * descriptor. Never rendered directly.
+   * descriptor — or refuses. Never rendered directly.
    */
   targetName?: string;
 }
@@ -100,26 +118,19 @@ const SIDE_SIZE_CLASS: Partial<Record<ModalSize, string>> = {
  * modal/page name to open" — so reading it as an object name sent every
  * page-targeting modal action to `GET /meta/object/<page>`, which 400s, and the
  * dialog rendered <ModalForm>'s "Error loading form — Bad Request" instead of
- * the page (framework#3530). `resolveModalTarget` decides page-vs-object by
- * asking the metadata service.
+ * the page (framework#3530). `resolveModalTarget` then asks the metadata
+ * service whether a page of that name exists.
  *
- * The `create_`/`new_`/`add_`/`edit_`/`update_` prefix convention still yields
- * an object-form guess, but it is now only a FALLBACK: it rides alongside
- * `targetName` so a page actually named `create_opportunity` wins over the
- * object `opportunity` it would otherwise be parsed into.
+ * The `create_`/`new_`/`add_`/`edit_`/`update_` prefix convention RETIRED with
+ * the object fallback (maintainer ruling, objectstack#6739): a string target is
+ * a page name, whole, and is never parsed into a verb plus an object. The
+ * ruling explicitly declined the middle shape — keep the prefix, reject bare
+ * object names — because a name-shaped guess is exactly the authoring hazard
+ * the contract exists to remove: `create_opportunity` names the page
+ * `create_opportunity`, or it names nothing.
  */
 export function normalizeModalSchema(schema: any): ModalDescriptor {
-  if (typeof schema === 'string') {
-    const m = schema.match(/^(create|new|add|edit|update)_(.+)$/);
-    if (m) {
-      return {
-        targetName: schema,
-        objectName: m[2],
-        mode: m[1] === 'edit' || m[1] === 'update' ? 'edit' : 'create',
-      };
-    }
-    return { targetName: schema };
-  }
+  if (typeof schema === 'string') return { targetName: schema };
   if (schema && typeof schema === 'object') {
     // A bare SchemaNode (has `type` but isn't a modal descriptor) → render as content.
     if (schema.type && !schema.content && !schema.objectName && !schema.placement) {
@@ -151,16 +162,28 @@ export function useActionModal(dataSource?: any) {
    * Turn whatever the ActionRunner handed us into a descriptor this hook can
    * actually render, or `null` when the target names nothing renderable.
    *
-   * Resolution order for a string target is PAGE FIRST, then object, because
-   * that is what the spec says the name means — `type: 'modal'` documents
-   * `target` as "the modal/page name to open". Probing the object first would
-   * re-introduce framework#3530 in reverse for any app whose page and object
-   * share a name.
+   * A string target names a PAGE, and ONLY a page. That is what the spec says
+   * the name means — `type: 'modal'` documents `target` as "the modal/page name
+   * to open" — and the spec TSDoc (`packages/spec/src/ui/action.zod.ts`), the
+   * published docs (`content/docs/ui/actions.mdx`) and `defineStack`'s
+   * cross-reference walk (`packages/spec/src/stack.zod.ts`) all agree: the walk
+   * REJECTS a registered modal action whose target is not a declared page.
    *
-   * A `null` return is not an error by itself: the console runtimes read it as
-   * "this isn't a client-rendered modal" and fall through to the action's
-   * server-side handler, which is how a modal action whose target names a
-   * registered `engine.registerAction` handler still completes.
+   * This hook used to probe the object metadata after the page missed, so a
+   * target the build gate rejects still opened something at runtime. That
+   * divergence retires (maintainer ruling, objectstack#6739): a consumer that
+   * quietly serves what the contract refuses teaches the wrong shape and hides
+   * the authoring error until the gate catches it somewhere else. A non-page
+   * target is a REFUSAL now, and `modalHandler` names it and points at
+   * `type: 'form'`, which is the validated way to open an object's form.
+   *
+   * A `null` return means "no page of that name" — which every caller reports
+   * as an authoring error. It is NOT a server-dispatch fallthrough: a modal
+   * action has no server dispatch at all (the framework's
+   * `headlessActionTypeError` rejects `type: 'modal'` over REST with a 400), so
+   * objectstack#3959 removed that fallthrough from the console runtimes and
+   * objectui#3320 removed the copy in `RecordDetailView`. This TSDoc still
+   * described the pre-#3959 behaviour; corrected here.
    */
   const resolveModalTarget = useCallback(
     async (schema: any): Promise<ModalDescriptor | null> => {
@@ -172,27 +195,20 @@ export function useActionModal(dataSource?: any) {
       }
 
       const page = await getItem('page', targetName);
-      if (page) {
-        // Rendered exactly like PageView does it: the page item IS the schema
-        // node, with `type` naming the page kind ('record' | 'utility' | …).
-        return {
-          placement: d.placement ?? 'center',
-          size: d.size ?? 'xl',
-          title: d.title ?? (page as any).label ?? undefined,
-          description: d.description,
-          content: { ...(page as any), type: (page as any).type || 'page' },
-        };
+      if (!page) {
+        // No object probe: a modal target that is not a page is refused, not
+        // re-read as an object name (objectstack#6739).
+        return null;
       }
-
-      // Object fallback: the `create_x`/`edit_x` prefix guess first (it names a
-      // different object than the raw target), then the raw target itself.
-      for (const objectName of [d.objectName, targetName]) {
-        if (!objectName) continue;
-        if (await getItem('object', objectName)) {
-          return { ...d, targetName: undefined, objectName, mode: d.mode ?? 'create' };
-        }
-      }
-      return null;
+      // Rendered exactly like PageView does it: the page item IS the schema
+      // node, with `type` naming the page kind ('record' | 'utility' | …).
+      return {
+        placement: d.placement ?? 'center',
+        size: d.size ?? 'xl',
+        title: d.title ?? (page as any).label ?? undefined,
+        description: d.description,
+        content: { ...(page as any), type: (page as any).type || 'page' },
+      };
     },
     [getItem],
   );
@@ -202,12 +218,13 @@ export function useActionModal(dataSource?: any) {
       const d = await resolveModalTarget(schema);
       if (!d) {
         const name = normalizeModalSchema(schema).targetName;
-        return {
-          success: false,
-          error: name
-            ? `Modal target "${name}" matches no page or object — a modal action's \`target\` names the page to open.`
-            : 'Modal action has no target to open.',
-        };
+        // Wording lives in `utils/modalTargetDiagnostics` — the SAME source the
+        // console runtimes' `modalActionHandler` reads. This message was
+        // rewritten by PR #4764 while the two copies a console user actually
+        // reaches kept the pre-retirement text; objectui#4767 collapsed all
+        // three onto one constructor so the next contract change lands
+        // everywhere at once. Byte-identical to what #4764 settled on.
+        return { success: false, error: modalTargetRefusalMessage({ target: name }) };
       }
       return new Promise<ActionResult>((resolve) => {
         setState({ d, resolve });

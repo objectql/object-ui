@@ -78,9 +78,11 @@ interface FormViewSpec {
   groups?: FormSection[];
   /** Inline master-detail child collections. */
   subforms?: any[];
-  defaultSort?: any;
+  // `defaultSort` and `aria` are NOT declared here on purpose — see the
+  // retirement note above `bridgeFormView`'s trailing key copies (#3901/#3974).
+  // Re-adding either to this mirror is the first half of re-adding a read that
+  // can never fire.
   sharing?: any;
-  aria?: { ariaLabel?: string; ariaDescribedBy?: string; role?: string };
   submitBehavior?: any;
 }
 
@@ -185,12 +187,27 @@ export const bridgeFormView: BridgeFn<FormViewSpec> = (
     if (spec[key] != null) node[key] = spec[key];
   }
 
-  if (spec.defaultSort) node.defaultSort = spec.defaultSort;
   if (spec.submitBehavior) node.submitBehavior = spec.submitBehavior;
 
-  // P1.6 — i18n & ARIA
+  // P1.6 — sharing
   if (spec.sharing) node.sharing = spec.sharing;
-  if (spec.aria) node.aria = spec.aria;
+
+  // `defaultSort` (#3974) and `aria` (#3901) USED to be copied here. Both are
+  // `retiredKey()` tombstones on spec 17's FormViewSchema, so a FormView that
+  // parsed can never carry either — the guards were unreachable, and their
+  // shape invited the next reader to copy a dead pattern. Removed under the
+  // maintainer's 2026-08-11 enforce-or-remove ruling; measured dormant at BOTH
+  // ends before removal:
+  //   - producer: `FormViewSchema.safeParse` rejects both keys by name
+  //     (`form.defaultSort` / `form.aria` removed in the #3896 close-out).
+  //   - consumer: no form renderer reads either off the node — plugin-form
+  //     reads neither, and `SchemaRenderer`'s generic ARIA injection resolves
+  //     FLAT `ariaLabel`/`ariaDescribedBy`/`role` (SchemaRenderer.tsx:109-119),
+  //     never a nested `aria` object.
+  // The nested `aria` copy is still correct on the LIST bridge
+  // (`list-view.ts:214`), whose carrier stayed live and IS consumed at
+  // `plugin-list/src/ListView.tsx:2389-2392` — do not "align" the two.
+  // Pinned by `__tests__/FormViewRetiredKeys.test.ts`.
 
   return node;
 };

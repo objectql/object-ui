@@ -423,8 +423,13 @@ export function DashboardWidgetInspector({
         </div>
       )}
 
-      <Field id="widget-color" label={t('engine.inspector.widget.color', locale)}>
+      <Field id="widget-color" labelling="group" label={t('engine.inspector.widget.color', locale)}>
         <ColorVariantPicker
+          // The visible label above ("Color Variant") names the swatch group by
+          // IDREF, and is the only naming channel: the group carries no `id`
+          // for a `for` to aim at, because `role="radiogroup"` cannot be
+          // labelled that way (objectui#4010).
+          ariaLabelledBy={groupLabelId('widget-color')}
           value={widget.colorVariant ?? 'default'}
           onChange={(v) => patchWidget({ colorVariant: v as DashboardWidgetSchema['colorVariant'] })}
           disabled={readOnly}
@@ -493,18 +498,48 @@ export function DashboardWidgetInspector({
   );
 }
 
+/**
+ * The id a `labelling="group"` field's `<Label>` publishes for its group to
+ * reference. One function so the two halves of the IDREF — the label that emits
+ * it and the control that answers it — cannot drift apart into two literals.
+ */
+const groupLabelId = (id: string) => `${id}-label`;
+
 function Field({
   id,
   label,
+  labelling = 'control',
   children,
 }: {
   id: string;
   label: string;
+  /**
+   * How `label` is associated with the control (`ComponentMeta.labelling`'s
+   * vocabulary, objectui#3961/#4010):
+   *
+   *  - `'control'` (default) — the child is a LABELABLE element carrying this
+   *    same `id` (`Input id`, `SelectTrigger id`, `InspectorComboField id`), so
+   *    a plain `htmlFor` names it. Every other field in this panel is this.
+   *  - `'group'` — the child is a container (`role="radiogroup"`) that no
+   *    `<label for>` can name. The label publishes `groupLabelId(id)` instead
+   *    and the child answers `aria-labelledby`. The `for` is not merely
+   *    redundant here but must be ABSENT: aimed at a non-labelable element it
+   *    names nothing, and aimed at this panel's `id` (which such a child never
+   *    carries) it is a DANGLING IDREF — tooling reports an association that
+   *    resolves to nothing, which is worse than an unnamed control because it
+   *    reads as closed. That was objectui#4010's defect on `widget-color`.
+   */
+  labelling?: 'control' | 'group';
   children: React.ReactNode;
 }) {
+  const group = labelling === 'group';
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+      <Label
+        // Exactly one channel — never a `for` beside an `aria-labelledby`.
+        {...(group ? { id: groupLabelId(id) } : { htmlFor: id })}
+        className="text-xs font-medium text-muted-foreground"
+      >
         {label}
       </Label>
       {children}

@@ -88,13 +88,26 @@ const PACKS: Record<Lang, Array<[string, string]>> = Object.fromEntries(
 ) as Record<Lang, Array<[string, string]>>;
 
 /**
- * The 35 keys this pass converged: every key that held an ASCII ellipsis in at
- * least one of the ten packs on the commit before the fix. Pinned by name so the
- * scan below cannot go green by the keys quietly disappearing, and so the census
- * is readable next to the rule rather than only in the PR that made it.
+ * The keys this pass converged that the packs still define: every key that held
+ * an ASCII ellipsis in at least one of the ten packs on the commit before the
+ * fix, minus the ones later deleted outright. Pinned by name so the scan below
+ * cannot go green by the keys quietly disappearing, and so the census is
+ * readable next to the rule rather than only in the PR that made it.
  *
  * 312 pack values changed in all: 34 in `en` (33 trailing + the one mid-sentence
- * `collaboration.commentPlaceholder`) and 278 across the nine.
+ * `collaboration.commentPlaceholder`) and 278 across the nine. That historical
+ * count does not move when a converged key is later retired — only this pin does.
+ *
+ * The census was 35 keys at landing and is 33 today: `workflow.fromPlaceholder`
+ * and `workflow.toPlaceholder` went with the whole `workflow.*` namespace in
+ * objectui#4742, which deleted it as dead (no call site, no textual reference
+ * anywhere outside the packs, and its plausible consumer
+ * `packages/plugin-designer/src/ProcessDesigner.tsx` imports no translation hook
+ * at all). Their rows are deleted rather than swapped for live keys on purpose:
+ * this list is a census of which keys that pass actually touched, so naming a key
+ * it never converged would make the record say something untrue. A key that
+ * disappears WITHOUT this list being edited still fails, which is the guard
+ * working — deleting a row is a deliberate act, and this note is its receipt.
  */
 const CONVERGED_KEYS = [
   'appManagement.searchPlaceholder',
@@ -130,8 +143,6 @@ const CONVERGED_KEYS = [
   'table.search',
   'topbar.connection.connecting',
   'topbar.connection.reconnecting',
-  'workflow.fromPlaceholder',
-  'workflow.toPlaceholder',
 ] as const;
 
 describe('objectui#3878 — the ten packs spell the ellipsis U+2026 and only U+2026', () => {
@@ -159,11 +170,13 @@ describe('objectui#3878 — the ten packs spell the ellipsis U+2026 and only U+2
     ).toEqual([]);
   });
 
-  it('keeps an ellipsis in every pack for each of the 35 keys this pass converged', () => {
+  it('keeps an ellipsis in every pack for each converged key the packs still define', () => {
     // The complement of the rule above. Without it, deleting the ellipsis
     // outright would pass the ASCII scan — green because nothing is produced,
     // which is not the same fact as green because the copy is right.
-    expect(CONVERGED_KEYS).toHaveLength(35);
+    // 33, not the 35 this pass converged: see the census note on CONVERGED_KEYS
+    // for the two `workflow.*` rows objectui#4742 retired with the namespace.
+    expect(CONVERGED_KEYS).toHaveLength(33);
 
     const missing: string[] = [];
     for (const lang of LANGS) {

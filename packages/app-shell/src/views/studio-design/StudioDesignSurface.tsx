@@ -87,6 +87,7 @@ import {
 import { SourcePageEditor } from '../metadata-admin/previews/SourcePageEditor';
 import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError';
 import { loadPackageSurfaces } from './packageSurfaces';
+import { resolveSurface, findSurfaceInTree, type NavNode, type Surface } from './navSurface';
 import { useSurfaceDeepLink, resolveSurfaceDeepLink } from './useSurfaceDeepLink';
 import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from './skeletons';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
@@ -129,33 +130,6 @@ const PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> =
   { key: 'access', label: 'Access', Icon: Shield },
 ];
 
-interface Surface {
-  type: string;
-  name: string;
-  label: string;
-  /** Lucide icon name from the object's metadata (`icon` field); falls back per getIcon. */
-  icon?: string;
-}
-
-interface NavNode {
-  id?: string;
-  label?: string;
-  type?: string;
-  icon?: string;
-  children?: NavNode[];
-  pageName?: string;
-  page?: string;
-  objectName?: string;
-  object?: string;
-  dashboardName?: string;
-  dashboard?: string;
-  reportName?: string;
-  report?: string;
-  viewName?: string;
-  view?: string;
-  [k: string]: unknown;
-}
-
 const KIND_ICON: Record<string, LucideIcon> = {
   group: Folder,
   page: FileText,
@@ -163,52 +137,9 @@ const KIND_ICON: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
   report: BarChart3,
   view: Table2,
+  action: MousePointer2,
 };
 const navIcon = (type?: string): LucideIcon => KIND_ICON[type ?? ''] ?? Compass;
-
-/** Resolve a leaf nav node → the surface {type,name} it binds to. */
-function resolveSurface(node: NavNode): Surface | null {
-  const label = String(node.label ?? '');
-  switch (node.type) {
-    case 'page':
-      return node.pageName || node.page ? { type: 'page', name: String(node.pageName || node.page), label } : null;
-    case 'object':
-      return node.objectName || node.object
-        ? { type: 'object', name: String(node.objectName || node.object), label }
-        : null;
-    case 'dashboard':
-      return node.dashboardName || node.dashboard
-        ? { type: 'dashboard', name: String(node.dashboardName || node.dashboard), label }
-        : null;
-    case 'report':
-      return node.reportName || node.report
-        ? { type: 'report', name: String(node.reportName || node.report), label }
-        : null;
-    case 'view':
-      return node.viewName || node.view ? { type: 'view', name: String(node.viewName || node.view), label } : null;
-    default:
-      return null;
-  }
-}
-
-/**
- * Walk the nav tree for the leaf that binds to `{type,name}`, returning its
- * resolved Surface (carrying the node's label so the canvas title / highlight
- * match). Backs the `?surface=` deep-link restore — a shared URL only names
- * the target, so we re-derive the label from the live tree.
- */
-function findSurfaceInTree(nodes: NavNode[], target: { type: string; name: string }): Surface | null {
-  for (const node of nodes) {
-    if (node.type === 'group' || node.children?.length) {
-      const hit = findSurfaceInTree(node.children ?? [], target);
-      if (hit) return hit;
-    } else {
-      const s = resolveSurface(node);
-      if (s && s.type === target.type && s.name === target.name) return s;
-    }
-  }
-  return null;
-}
 
 /** Normalize the framework draft envelope `{ type, name, item }` → body | null. */
 function extractDraftBody(resp: unknown): Record<string, unknown> | null {
@@ -1027,7 +958,7 @@ function StudioNavItemInspector({
   );
 }
 
-function InterfacesPillar({
+export function InterfacesPillar({
   packageId,
   publishNonce = 0,
   draftNonce = 0,

@@ -144,8 +144,12 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
     { name: 'columns', label: 'engine.inspector.pageBlock.field.object-grid.columns', kind: 'field-list', objectFrom: 'self', objectProp: 'objectName' },
     // `{ literal: … }` — an example VALUE, not prose: see `PlaceholderSpec`.
     { name: 'pageSize', label: 'engine.inspector.pageBlock.field.object-grid.pageSize', kind: 'number', placeholder: { literal: '20' } },
-    { name: 'striped', label: 'engine.inspector.pageBlock.field.object-grid.striped', kind: 'boolean' },
-    { name: 'bordered', label: 'engine.inspector.pageBlock.field.object-grid.bordered', kind: 'boolean' },
+    // `striped` / `bordered` were curated here until objectui#4649. They failed
+    // the rule at the top of this file — "keep each field `name` aligned with
+    // the property name the corresponding renderer reads" — because ObjectGrid
+    // reads neither, and objectstack#7176 has since retired the upstream keys
+    // they mirrored. An inspector toggle is the loudest way to declare a key
+    // live, so it goes with the rest of the chain.
   ],
   'object-form': [
     { name: 'objectName', label: 'engine.inspector.pageBlock.field.object-form.objectName', kind: 'object-picker' },
@@ -353,7 +357,16 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
   'page:header': [
     { name: 'title', label: 'engine.inspector.pageBlock.field.page:header.title', kind: 'text' },
     { name: 'subtitle', label: 'engine.inspector.pageBlock.field.page:header.subtitle', kind: 'text' },
-    { name: 'icon', label: 'engine.inspector.pageBlock.field.page:header.icon', kind: 'text', placeholder: { key: 'engine.inspector.pageBlock.placeholder.page:header.icon' } },
+    // No `icon` field: `PageHeaderProps.icon` was retired from the spec in
+    // @objectstack/spec 17.0.0-rc.6 (objectstack#6946 / PR objectstack#7115,
+    // ADR-0087 D2, maintainer ruling 2026-08-09 route (c)). The canonical
+    // `page:header` renderer never read it — the header's identity is drawn by
+    // the record chrome (`recordChrome`) and each action carries its own `icon`
+    // — so before the retirement an authored value was silently dropped, and
+    // after it the platform rejects the key BY NAME. Offering the box here
+    // would let the designer author metadata that fails to parse, which is
+    // strictly worse than the silent drop it replaced. Pinned negatively in
+    // `__tests__/block-config.test.ts`. objectui#3829.
     { name: 'breadcrumb', label: 'engine.inspector.pageBlock.field.page:header.breadcrumb', kind: 'boolean' },
   ],
   'page:card': [

@@ -7,7 +7,7 @@
  */
 
 /**
- * Resource / Workload view (资源/工作负载视图).
+ * Resource / Workload view.
  *
  * A per-resource load histogram aligned to the same time columns the Gantt grid
  * uses. Each resource gets a row; each column draws a bar whose height ∝ the

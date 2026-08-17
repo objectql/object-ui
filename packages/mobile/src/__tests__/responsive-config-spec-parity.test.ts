@@ -53,14 +53,6 @@ import { describe, it, expect } from 'vitest';
 import { ResponsiveConfigSchema, type ResponsiveConfig } from '@objectstack/spec/ui';
 import type { SpecResponsiveConfig } from '../index';
 
-/* eslint-disable @typescript-eslint/no-unused-vars --
- * The pins below are compile-time assertions: `tsc` is their only consumer and
- * they are erased before anything runs, so "unused" is what a passing one looks
- * like. The repo's `no-unused-vars` ignores `^_` for ARGUMENTS only, which is
- * why `packages/types`' equivalent file carries the same warnings; scoping the
- * exemption to this file keeps it from becoming a repo-wide hole.
- */
-
 /* ── Type-level helpers ──────────────────────────────────────────────────── */
 
 /**
@@ -108,8 +100,6 @@ type _BreakpointVocabularyIsTheSchemaSix = Expect<
     'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
   >
 >;
-
-/* eslint-enable @typescript-eslint/no-unused-vars */
 
 /* ── Runtime half ────────────────────────────────────────────────────────── */
 

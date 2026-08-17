@@ -301,7 +301,13 @@ describe('DatasetWidget table — a LOCAL select dimension is localized (objectu
     );
 
     await waitFor(() => expect(rowCells(0)[0]).toBe('renewal risk'));
-    expect(requested).toEqual(['crm_opportunity']);
+    // Bare (objectui#4487): per the file header, this cell's RENDERED half is
+    // green in both directions ('renewal risk' either way, since the field
+    // carries no options to resolve) — it does not depend on the metadata
+    // read having resolved, or even having been issued yet, so the wait above
+    // is only incidentally ordered before the read. Wait on `requested`
+    // itself, not on the cell.
+    await waitFor(() => expect(requested).toEqual(['crm_opportunity']));
   });
 
   it('a drilled row still filters by the STORED value, AFTER the relabel', async () => {

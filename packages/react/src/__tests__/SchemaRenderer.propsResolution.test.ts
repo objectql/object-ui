@@ -52,7 +52,6 @@
  * deliberately never referenced, and a violation is a COMPILE error rather than
  * a use site. `no-unused-vars` has nothing to say about that here.
  */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { describe, it, expect } from 'vitest';
 import type { ComponentProps } from 'react';

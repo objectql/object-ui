@@ -16,11 +16,8 @@ const manifest = manifestFromConfigs([
   ] },
 ]);
 
-let passed = 0;
-const check = (name: string, fn: () => void) => {
+const check = (_name: string, fn: () => void) => {
   fn();
-  passed++;
-  console.log(`  ok  ${name}`);
 };
 
 check('compiles valid JSX → tree + requires + bindings', () => {
@@ -70,5 +67,3 @@ check('codegen emits a JSX.IntrinsicElements augmentation', () => {
   assert.ok(dts.includes('pageSize?: number;'));
   assert.ok(dts.includes('direction?: "row" | "col";'));
 });
-
-console.log(`\n${passed} checks passed.`);

@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveCascadingOptions, isValueStillOffered, isMissingForRequired } from '@object-ui/core';
+import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveCascadingOptions, CASCADE_OPTION_WIDGET_TYPES, EXPANDABLE_FIELD_TYPES, isValueStillOffered, isMissingForRequired, isServerOwnedValue } from '@object-ui/core';
 import type { FormSchema, FormField as FormFieldConfig, FormFieldTab, FormFieldPane, FieldValidationRules, FieldCondition, SelectOption } from '@object-ui/types';
 import { useForm } from 'react-hook-form';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '../../ui/form';
@@ -233,24 +233,71 @@ const BOOLEAN_WIDGET_TYPES = new Set([
 const resolveWidgetType = (f: any): string => f?.widget || f?.field?.widget || f?.type;
 
 const BUILTIN_FIELD_TYPES = new Set(['input', 'textarea', 'checkbox', 'switch', 'select']);
-const DATA_SOURCE_FIELD_TYPES = new Set([
-  // `capability-multiselect` was listed here until objectui#3308 retired the
-  // widget name (ADR-0049 enforce-or-remove): no producer stamped the hint and
-  // `field:capability-multiselect` was never registered on the live path, so the
-  // entry could never match a resolvable widget.
-  'lookup', 'master_detail', 'tree',
-  // Widget-hint pickers that resolve records / object catalogs and read sibling
-  // field values — they need both `dataSource` and `dependentValues` threaded.
+/**
+ * Widget-hint pickers that resolve records / object catalogs and read sibling
+ * field values — they need `dataSource` and `dependentValues` threaded exactly
+ * like a lookup does, but they are NOT declarable field types: they are reached
+ * only through a `widget:` hint (`widgetHintOnly: true` in
+ * `app-shell/src/utils/paramValueShape.ts`), so no object schema can produce a
+ * field whose `type` is one of them.
+ *
+ * This is the ONLY form-specific half of the data-source rule; the other half
+ * is the shared reference-bearing family — see {@link needsDataSourceWiring}.
+ *
+ * `capability-multiselect` was listed here until objectui#3308 retired the
+ * widget name (ADR-0049 enforce-or-remove): no producer stamped the hint and
+ * `field:capability-multiselect` was never registered on the live path, so the
+ * entry could never match a resolvable widget.
+ */
+const DATA_SOURCE_ONLY_WIDGET_TYPES = new Set([
   'object-ref', 'filter-condition', 'recipient-picker',
 ]);
+
+/**
+ * Whether this widget key receives `dataSource` / `dependentValues` /
+ * `dependsOnLabels` — i.e. whether the control it renders has to QUERY records
+ * to do its job.
+ *
+ * The reference-bearing half is not restated here: it is
+ * `EXPANDABLE_FIELD_TYPES`, the one relational-field family in
+ * `@object-ui/core` that the `$expand` builder and predicate-record projection
+ * already read. This renderer held a private copy of it
+ * (`DATA_SOURCE_FIELD_TYPES`) until objectui#4790, whose TSDoc on the core side
+ * claimed the two "mirror" each other; by then they had drifted apart in both
+ * directions — `user` only in core, the three picker names only here — and the
+ * gap was live, not theoretical: a `user` field got NONE of the three props.
+ * `dataSource` and `dependentValues` each have a `SchemaRendererContext`
+ * fallback inside the widget so the picker limped along, but `dependsOnLabels`
+ * has none, so a dependent user picker interpolated raw API names into its
+ * "select … first" hint — the very leak objectstack#5407 fixed for lookups.
+ * The widget contract has always named `user` among the types this renderer
+ * injects `dataSource` for (`fields/src/widgets/types.ts`).
+ *
+ * Members are WIDGET keys — `normalizeFieldType` output, the `field:` prefix
+ * stripped — and they coincide with the core set's schema-type spellings
+ * because `mapFieldTypeToFormType` maps each reference type onto a same-named
+ * widget id (`lookup` → `field:lookup`, `user` → `field:user`, …). The one
+ * exception is `tree`, which maps to `field:lookup` and so reaches this test as
+ * `lookup`; the `tree` member is therefore inert on the object-schema path and
+ * matches only a hand-authored `type: 'tree'`. It stays because the core set is
+ * defined over SCHEMA types, where `tree` is a real reference type.
+ */
+function needsDataSourceWiring(widgetType: string): boolean {
+  return (
+    EXPANDABLE_FIELD_TYPES.has(widgetType) ||
+    DATA_SOURCE_ONLY_WIDGET_TYPES.has(widgetType)
+  );
+}
 
 // Option fields (`select`/`radio`/`multiselect`/`checkboxes`) support per-option
 // `visibleWhen` cascading + `dependsOn` gating (#2284/#1583): the widget re-filters
 // its OFFERED set against the live form record (`record.country == 'cn'` …). They
 // take no `dataSource`, but they DO need the live `dependentValues` record —
 // without it a cascading select never sees its controlling field and stays
-// permanently gated on the "select the parent first" hint.
-const CASCADE_OPTION_FIELD_TYPES = new Set(['select', 'radio', 'multiselect', 'checkboxes']);
+// permanently gated on the "select the parent first" hint. The set itself is
+// `CASCADE_OPTION_WIDGET_TYPES`, imported from `@object-ui/core` above: this
+// form, the action dialog and the bulk dialog feed one evaluator and must read
+// one allow-table (objectui#4770 — until then each held a private copy).
 
 function stripRendererOnlyProps<T extends Record<string, any>>(props: T): T {
   const {
@@ -355,6 +402,146 @@ function resolveFieldLabelling(type: string): 'control' | 'group' {
     : 'control';
 }
 
+/**
+ * Does this type render a REGISTERED FIELD WIDGET (objectui#4788)?
+ *
+ * Mirrors `renderFieldComponent`'s resolution the same way
+ * `resolveFieldLabelling` mirrors it, and for the same reason: the answer
+ * decides whether the host wraps the output, so producer and consumer must not
+ * be able to disagree about which component actually renders.
+ *
+ *  - a builtin name is decided on the RAW type and never consults the registry;
+ *  - a bare name resolves through the `field:` namespace;
+ *  - a colon-qualified type resolves directly, and is a FIELD widget only when
+ *    it names the `field` namespace — the bare-name fallback (`alert`, `badge`,
+ *    the display `text` widget) implements the universal `schema` contract, not
+ *    `FieldWidgetComponentProps`, and is deliberately left alone.
+ */
+function resolvesToRegisteredFieldWidget(type: string): boolean {
+  if (BUILTIN_FIELD_TYPES.has(type)) return false;
+  if (type.includes(':')) {
+    return type.startsWith('field:') && !!ComponentRegistry.get(type);
+  }
+  return !!ComponentRegistry.get(`field:${type}`);
+}
+
+/**
+ * The container a READONLY registered field widget's output is wrapped in, so
+ * the field's visible label NAMES and its visible help text DESCRIBES the
+ * surface that replaced the control (objectui#4788, maintainer ruling of
+ * 2026-08-16 — option E of the measured option set).
+ *
+ * ## What was broken
+ *
+ * A widget's readonly branch renders a REPLACEMENT DISPLAY — a `mailto:` anchor,
+ * a formatted span, a chip row, a preview table — and returns before its
+ * `toDomProps` spread, so not one prop the host handed down reaches an element.
+ * Measured on `origin/main` at `1ef236e18`, a real form + bare registration, one
+ * field per row, `description` set, counting the elements whose
+ * `aria-describedby` names the rendered `<FormDescription>`:
+ *
+ * ```
+ *                       readonly                                      editable
+ * text      for=DANGLING hostIdEl=NONE consumers=0    for=RESOLVES-LABELABLE hostIdEl=input  consumers=1
+ * boolean   for=DANGLING hostIdEl=NONE consumers=0    for=RESOLVES-LABELABLE hostIdEl=switch consumers=1
+ * email     for=DANGLING hostIdEl=NONE consumers=0    for=RESOLVES-LABELABLE hostIdEl=input  consumers=1
+ * formula   for=DANGLING hostIdEl=NONE consumers=0    for=DANGLING           hostIdEl=NONE   consumers=0
+ * …(33 registered non-group-labelled types, every readonly row identical)
+ * ```
+ *
+ * `hostIdEl=NONE` is the load-bearing reading: in the readonly state the
+ * `…-form-item` id is on NO element in the document, so the visible label's
+ * `for` pointed at nothing and the readonly surface had no accessible name at
+ * all. That is a whole step worse than objectui#3990's family, where the label
+ * at least published an id nobody consumed.
+ *
+ * ## Why the host, and not the 33 widgets
+ *
+ * Every widget-side variant needs each author to remember one more spread, and
+ * the measurement showed exactly how such a fix goes silently wrong: an
+ * `aria-labelledby` on a role-less `span` / `div` names NOTHING (`generic`
+ * prohibits an author name), while `toHaveAccessibleName()` in jsdom answers
+ * PASS for it — a ghost fix that ships green tests. Landing the mechanism once,
+ * here, makes the 33 current widgets and any future third-party one correct by
+ * construction: there is no "remember to spread" entry point left.
+ *
+ * ## The shape
+ *
+ * `<FormControl>` is a Radix `Slot`, so it injects the field's `id` /
+ * `aria-describedby` / `aria-invalid` into THIS element instead of the widget's
+ * root, and the widget below renders exactly the markup it rendered before.
+ *
+ *  - `role="group"` — the same semantic claim objectui#3990 established for the
+ *    seven composite surfaces. It is what makes the name and the description
+ *    land at all, and it does not promise the interactivity `textbox` would.
+ *  - `aria-labelledby="<labelId> <hostId>"` — the label's id AND this element's
+ *    own. `group` is not a name-from-content role, so the self-reference is what
+ *    keeps the VALUE in the accessible name: an `email` field reads
+ *    `"Email user@example.com"` rather than dropping the address that is the
+ *    only thing on screen. (accname §2F: a node reached through
+ *    `aria-labelledby` is named from its contents whatever its role.)
+ *  - `aria-describedby` — forwarded as the Slot handed it down. A group is a
+ *    description carrier under ARIA 1.2 with no focusable control required,
+ *    which is the objectui#4005 reasoning applied to a second surface.
+ *  - `aria-invalid` — DROPPED. It is control-channel state: it reports what a
+ *    user's own editing may do wrong, to the element they would edit. A
+ *    readonly display cannot be edited and cannot be made invalid by the person
+ *    reading it. Same boundary objectui#3291 / objectui#3318 / objectui#4005
+ *    drew, pinned from both sides in the tests.
+ *
+ * `aria-required` never reaches here at all — it rides the widget props, exactly
+ * as before, for the same reason.
+ */
+type ReadonlyFieldGroupProps = {
+  /** The id `<FormLabel>` published in place of its `for`. */
+  labelId: string;
+  children: React.ReactNode;
+  /** Injected by `<FormControl>`'s Slot: the host control id (`…-form-item`). */
+  id?: string;
+  /** Injected by `<FormControl>`'s Slot: `<FormDescription>` (+ `<FormMessage>`). */
+  'aria-describedby'?: string;
+  /** Injected by `<FormControl>`'s Slot, and deliberately consumed here — see above. */
+  'aria-invalid'?: boolean | 'true' | 'false';
+};
+
+const ReadonlyFieldGroup = React.forwardRef<HTMLDivElement, ReadonlyFieldGroupProps>(
+  function ReadonlyFieldGroup(
+    { labelId, children, id, 'aria-describedby': describedBy, 'aria-invalid': _ariaInvalid },
+    ref,
+  ) {
+    return (
+      <div
+        ref={ref}
+        id={id}
+        role="group"
+        // The host id is appended to the label IDREF, not substituted for it:
+        // the field's name comes first and the rendered value follows. Falls
+        // back to the label alone if the Slot ever stops handing down an id,
+        // because half a name beats a reference to `"<labelId> undefined"`.
+        aria-labelledby={id ? `${labelId} ${id}` : labelId}
+        aria-describedby={describedBy}
+        // Stable locator for this DOM layer (ADR-0054 C4) so end-to-end specs
+        // and CSS have something to select that is not an a11y attribute.
+        data-slot="readonly-field-group"
+      >
+        {children}
+      </div>
+    );
+  },
+);
+ReadonlyFieldGroup.displayName = 'ReadonlyFieldGroup';
+
+/**
+ * Wrap `node` in {@link ReadonlyFieldGroup} when the host resolved a label id
+ * for it, and hand it back untouched otherwise — so every field that is NOT a
+ * readonly registered widget keeps the exact element tree it had, with
+ * `<FormControl>`'s Slot injecting straight into the widget as before.
+ */
+function withReadonlyHostGroup(labelId: string | undefined, node: React.ReactNode): React.ReactNode {
+  if (!labelId) return node;
+  return <ReadonlyFieldGroup labelId={labelId}>{node}</ReadonlyFieldGroup>;
+}
+
 function stripRegisteredFieldProps(type: string, props: RenderFieldProps): RenderFieldProps {
   const {
     dataSource,
@@ -393,13 +580,13 @@ function stripRegisteredFieldProps(type: string, props: RenderFieldProps): Rende
     // in the gate hint (objectstack#5407). Stripped for everything else for the
     // same reason `emptyHint` is — an unknown object prop reaching a DOM node
     // through a widget's `...props` spread is a React warning.
-    ...(DATA_SOURCE_FIELD_TYPES.has(normalizedType) ? { dataSource, dependentValues, dependsOnLabels } : {}),
+    ...(needsDataSourceWiring(normalizedType) ? { dataSource, dependentValues, dependsOnLabels } : {}),
     // The cascade option widgets own the gate hint's presentation, so they get
     // the computed `emptyHint` alongside the live record (objectui#3231). It is
     // stripped by default because every OTHER registered widget spreads its
     // leftover props onto a DOM node, where an unknown `emptyHint` attribute is
     // a React warning — hence an allow-list, not an unconditional pass-through.
-    ...(CASCADE_OPTION_FIELD_TYPES.has(normalizedType) ? { dependentValues, emptyHint } : {}),
+    ...(CASCADE_OPTION_WIDGET_TYPES.has(normalizedType) ? { dependentValues, emptyHint } : {}),
   };
 }
 
@@ -436,6 +623,7 @@ function FullscreenTextarea({
   label,
   readOnly,
   disabled,
+  error,
   ...rest
 }: {
   value?: string;
@@ -445,6 +633,18 @@ function FullscreenTextarea({
   label?: string;
   readOnly?: boolean;
   disabled?: boolean;
+  /**
+   * The field's validation message (objectui#4824). DECLARED, so it is not a
+   * passenger on `rest` — it must not reach the inline `<Textarea>` as a stray
+   * `error="…"` attribute, and the primitive needs it by name.
+   *
+   * Like `label` and `mobile_fullscreen`, it is read off the PRE-strip props at
+   * the call site: `stripRendererOnlyProps` discards `error` for the DOM,
+   * correctly, because the INLINE control gets its `aria-invalid` from
+   * `<FormControl>`'s Slot. The DIALOG's control is built from scratch and gets
+   * nothing from that Slot, which is the whole of objectui#4824.
+   */
+  error?: string;
   [key: string]: any;
 }) {
   // The inline control's own gate. `readOnly`/`disabled` are real attributes on
@@ -480,8 +680,9 @@ function FullscreenTextarea({
         testIdPrefix="form-textarea"
         readOnly={readOnly}
         disabled={disabled}
+        error={error}
       >
-        {(draft, setDraft, editorDisabled) => (
+        {(draft, setDraft, editorDisabled, editorAria) => (
           <Textarea
             autoFocus
             value={draft}
@@ -490,6 +691,16 @@ function FullscreenTextarea({
             className="h-full min-h-full resize-none text-base"
             disabled={editorDisabled}
             data-testid="form-textarea-fullscreen-input"
+            /*
+              Name + validation state, computed by the primitive and spread whole
+              (objectui#4824 / #4832). This control used to carry neither: no
+              `aria-invalid` at all, and an empty accessible name, while the
+              inline `<Textarea>` above announced both off `<FormControl>`'s
+              Slot. Spread rather than unpacked — this branch is not told which
+              ids it names, so it cannot point at the host's `<FormMessage>`,
+              which Radix `aria-hidden`s for as long as the dialog is open.
+            */
+            {...editorAria}
           />
         )}
       </FullscreenEditor>
@@ -661,8 +872,14 @@ ComponentRegistry.register('form',
         if (previousValues[k] !== undefined) out[k] = previousValues[k];
       }
       return out;
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fields, previousValues]);
+
+    // Is this an INSERT? Same signal the memo above documents and the read-only
+    // strip already gates on: `FormSchema.previousValues` is set by an
+    // edit-mode host only, and its ABSENCE is the declared "this is an insert"
+    // (objectui#3484). Read once here so the three rule-state call sites below
+    // cannot each answer the mode differently.
+    const isCreateForm = previousRecord === undefined;
 
     const ruleRecord = React.useMemo(() => {
       // Seed every declared field to `null` so a predicate referencing a field
@@ -716,7 +933,11 @@ ComponentRegistry.register('form',
             requiredWhen: (f as any).requiredWhen,
           },
           ruleRecord,
-          { required: !!f.required, readonly: (f as any).readonly === true },
+          {
+            required: !!f.required,
+            readonly: (f as any).readonly === true,
+            serverOwnedValue: isServerOwnedValue(f, isCreateForm),
+          },
           previousRecord,
           undefined,
           // Same locator as the render path (#5149). A failure here reports the
@@ -728,7 +949,7 @@ ComponentRegistry.register('form',
         if (st.readonly) locked.add(name);
       }
       return locked;
-    }, [fields, ruleRecord, previousRecord]);
+    }, [fields, ruleRecord, previousRecord, isCreateForm]);
 
     // When a field's CEL rule relaxes — it becomes hidden (visibleWhen FALSE) or
     // no longer required (requiredWhen FALSE) — clear any stale validation error
@@ -748,7 +969,11 @@ ComponentRegistry.register('form',
             requiredWhen: (f as any).requiredWhen,
           },
           ruleRecord,
-          { required: !!f.required, readonly: (f as any).readonly === true },
+          {
+            required: !!f.required,
+            readonly: (f as any).readonly === true,
+            serverOwnedValue: isServerOwnedValue(f, isCreateForm),
+          },
           previousRecord,
           undefined,
           `field '${name}'`,
@@ -906,13 +1131,19 @@ ComponentRegistry.register('form',
         const name = f?.name;
         if (!name) continue;
         const resolvedType = (f as any).widget || f.type;
-        if (
-          resolvedType !== 'select' &&
-          resolvedType !== 'radio' &&
-          resolvedType !== 'multiselect' &&
-          resolvedType !== 'checkboxes'
-        )
-          continue;
+        // `field:select` and `select` name the SAME field kind, so this clear
+        // must recognise both spellings — the object-form path
+        // (`mapFieldTypeToFormType`) emits the prefixed id, hand-written SDUI
+        // schemas the bare one. Comparing the RAW string recognised only the
+        // bare form, so every option field coming from an object schema fell
+        // out of this effect entirely: its parent could narrow the offered set
+        // and the stale value was never dropped, submitting the "china +
+        // california" pair this effect exists to prevent (objectui#4014).
+        // `normalizeFieldType` + the shared set is exactly what the render path
+        // below already does for `isOptionField` (objectui#3231) — the two
+        // readers of "is this an option field?" must not disagree.
+        if (typeof resolvedType !== 'string') continue;
+        if (!CASCADE_OPTION_WIDGET_TYPES.has(normalizeFieldType(resolvedType))) continue;
         const opts = (f as any).options as SelectOption[] | undefined;
         if (!opts || opts.length === 0) continue;
         const dependsOn = f.dependsOn;
@@ -1360,7 +1591,18 @@ ComponentRegistry.register('form',
       const ruleState = resolveFieldRuleState(
         { visibleWhen, readonlyWhen, requiredWhen },
         ruleRecord,
-        { required: staticRequired, readonly: staticReadonly === true },
+        {
+          required: staticRequired,
+          readonly: staticReadonly === true,
+          // A CREATE form leaves a producer-owned control empty on purpose and
+          // omits the key so the server resolves the declared runtime default
+          // (#4069). Nothing may then declare the field required — neither the
+          // static flag (which `@object-ui/plugin-form` already lowers at the
+          // producer) nor a `requiredWhen` predicate resolving TRUE against the
+          // live record, which used to re-require it here with nothing the user
+          // could type to unblock the submit (#4085).
+          serverOwnedValue: isServerOwnedValue(field, isCreateForm),
+        },
         previousRecord,
         undefined,
         `field '${name}'`,
@@ -1533,7 +1775,7 @@ ComponentRegistry.register('form',
       // (objectui#3231). `normalizeFieldType` is the same normalization
       // `stripRegisteredFieldProps` already applies a few lines down; the two
       // must agree on what a `select` is.
-      const isOptionField = CASCADE_OPTION_FIELD_TYPES.has(normalizeFieldType(resolvedType));
+      const isOptionField = CASCADE_OPTION_WIDGET_TYPES.has(normalizeFieldType(resolvedType));
       const rawOptions = (fieldProps as any).options as SelectOption[] | undefined;
       // Resolve gating + `visibleWhen` filtering through the shared
       // core helper so this pre-filter can't drift from the widgets'
@@ -1550,9 +1792,21 @@ ComponentRegistry.register('form',
       // interpolates the controlling fields' LABELS, a standalone widget its
       // raw metadata names — so the gate can never read differently depending
       // on which side produced it.
+      //
+      // That invariant held for the sentence but not for its `{{fields}}`
+      // slot, which each caller filled with a hardcoded separator — `' / '`
+      // here, `', '` in the lookup's own gate — so a field gated on two
+      // parents still read two ways (objectui#4026). The separator is a
+      // property of the locale, so all of them now read
+      // `validation.formInvalidJoiner`: the key objectstack#5407 added for the
+      // invalid-submit toast a few hundred lines up, which is the same class
+      // of truncated-name list, rather than a second gate-only twin that would
+      // reintroduce the divergence.
       const gatedHint = optionGroupGated
         ? t('fields.options.selectFirst', {
-            fields: dependsOnFields.map((fn) => fieldLabelByName[fn] || fn).join(' / '),
+            fields: dependsOnFields
+              .map((fn) => fieldLabelByName[fn] || fn)
+              .join(t('validation.formInvalidJoiner')),
           })
         : undefined;
 
@@ -1636,21 +1890,53 @@ ComponentRegistry.register('form',
       // the form schema has no owning object.
       const fieldTestId = `field:${schema.objectName ? `${schema.objectName}.` : ''}${name}`;
 
-      // Group-labelled widget (objectui#3961)? Then the visible label is
-      // associated by IDREF instead of `for`: it gets an `id`, the widget gets
-      // `aria-labelledby`. `undefined` on the single-control path, and every use
-      // below is a conditional spread, so that path emits not one changed
-      // attribute — no second naming channel for the widgets that never needed
-      // one (the #3290 / #3222 / #3952 rule: one fact, one author).
+      const groupLabelled = resolveFieldLabelling(resolvedType) === 'group';
+
+      // A READONLY registered field widget renders a replacement display in
+      // place of its control, and drops every prop the host handed down with it
+      // (objectui#4788). The host therefore wraps that output in a named group
+      // of its own — see {@link ReadonlyFieldGroup} for the measurement and the
+      // shape. Three gates, each carrying its own reason:
+      //
+      //  - `label`: with no visible label there is no naming channel to repair,
+      //    and a `role="group"` that nothing names is the inert pair this issue
+      //    exists to avoid. Standalone / label-less rendering therefore stays
+      //    byte-identical, exactly as `toHostGroupProps` keeps it;
+      //  - `!groupLabelled`: the seven group-labelled widgets already consume
+      //    the host's id / name / description themselves (objectui#3961 →
+      //    #3990 → #4005). Wrapping them too would nest a second group with the
+      //    same name and take the id off the surface those PRs put it on;
+      //  - a registered FIELD widget: the builtin branch renders a real control
+      //    inside `<FormControl>` in the readonly state too, so its label keeps
+      //    a `for` that resolves to a labelable element — measured, and left
+      //    alone.
+      const readonlyHostGroup =
+        readonly === true && !!label && !groupLabelled && resolvesToRegisteredFieldWidget(resolvedType);
+
+      // The visible label is associated by IDREF instead of `for` — it gets an
+      // `id`, and the surface that answers to it gets `aria-labelledby`. Two
+      // paths reach this shape: a group-labelled widget (objectui#3961), where
+      // the WIDGET answers, and a readonly registered widget (objectui#4788),
+      // where the host's own wrapper does. `undefined` everywhere else, and
+      // every use below is a conditional spread, so the single-control path
+      // emits not one changed attribute — no second naming channel for the
+      // fields that never needed one (the #3290 / #3222 / #3952 rule: one fact,
+      // one author).
       //
       // Whitespace is squeezed out of the field name because this id is consumed
       // as an `aria-labelledby` IDREF, and that attribute is a SPACE-SEPARATED
       // list: an id containing a space would silently resolve to two ids,
       // neither of which exists.
-      const groupLabelId =
-        label && resolveFieldLabelling(resolvedType) === 'group'
+      const hostLabelId =
+        label && (groupLabelled || readonlyHostGroup)
           ? `${labelIdPrefix}${String(name).replace(/\s+/g, '_')}-group-label`
           : undefined;
+
+      // The widget-facing half. Only the group-labelled path hands the IDREF
+      // DOWN to the widget: on the readonly path the wrapper is the named
+      // surface, and passing the same id to the widget as well would give one
+      // label two consumers — the double channel #3978 removed.
+      const groupLabelId = groupLabelled ? hostLabelId : undefined;
 
       return (
         <FormField
@@ -1675,7 +1961,12 @@ ComponentRegistry.register('form',
                   // `div` (or nothing at all) is inert HTML, and leaving it
                   // beside the `aria-labelledby` would give one label two
                   // association channels, one of which is broken.
-                  {...(groupLabelId ? { id: groupLabelId, htmlFor: undefined } : null)}
+                  //
+                  // A readonly registered widget (objectui#4788) reaches the
+                  // same shape through the host's own wrapper, and needs the
+                  // `for` gone for the same reason — it was measurably DANGLING
+                  // there, pointing at an id no element in the document carried.
+                  {...(hostLabelId ? { id: hostLabelId, htmlFor: undefined } : null)}
                 >
                   {label}
                   {required && (
@@ -1704,8 +1995,11 @@ ComponentRegistry.register('form',
                 </FormLabel>
               )}
               <FormControl>
-                {/* Render the actual field component based on resolved type */}
-                {renderFieldComponent(resolvedType, {
+                {/* Render the actual field component based on resolved type.
+                    A readonly registered widget's output goes inside the host's
+                    own named group (objectui#4788) — every other field is handed
+                    to `<FormControl>`'s Slot exactly as before. */}
+                {withReadonlyHostGroup(readonlyHostGroup ? hostLabelId : undefined, renderFieldComponent(resolvedType, {
                   ...fieldProps,
                   // Specialized fields need the raw metadata object. `.field`
                   // is the declared metadata slot (#3090 — never the spec
@@ -1816,7 +2110,7 @@ ComponentRegistry.register('form',
                   // Spread conditionally so the single-control path receives no
                   // such key at all: absent, not `undefined`.
                   ...(groupLabelId ? { 'aria-labelledby': groupLabelId } : null),
-                })}
+                }))}
               </FormControl>
               {description && (
                 <FormDescription>{description}</FormDescription>
@@ -2417,13 +2711,23 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       // the call site never forwarded a `label`, so the guard was defending
       // against something that never arrived, while every OTHER built-in
       // branch had no guard at all. Now the strip owns it for all branches.
-      const { mobile_fullscreen, label } = fieldProps as any;
+      //
+      // `error` rides the same way, and for the same reason (objectui#4824):
+      // `stripRendererOnlyProps` discards it because the INLINE control takes
+      // its `aria-invalid` from `<FormControl>`'s Slot and would only gain a
+      // stray `error="…"` attribute. The fullscreen DIALOG's control is built
+      // from scratch inside this branch, reaches no Slot, and so had no way to
+      // say the field had failed — measured announcing nothing at all while the
+      // inline control announced `aria-invalid="true"` for the same field. The
+      // primitive, not this branch, decides what to do with it.
+      const { mobile_fullscreen, label, error } = fieldProps as any;
       const rest = stripRendererOnlyProps(fieldProps);
       if (mobile_fullscreen) {
         return (
           <FullscreenTextarea
             placeholder={placeholder}
             label={label}
+            error={error}
             // `readonly` is destructured off `props` at the top of this
             // function, so — exactly like `label` and `mobile_fullscreen` — it
             // is NOT in `rest` and has to be forwarded by name (objectui#3400).

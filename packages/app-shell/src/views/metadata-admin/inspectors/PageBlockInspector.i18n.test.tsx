@@ -19,14 +19,35 @@
  * translation exists" but "this panel does not ask for one".
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PageSchema } from '@objectstack/spec/ui';
-import { PageBlockInspector } from './PageBlockInspector';
 import { t } from '../i18n';
+
+/**
+ * objectui#4697 — PageBlockInspector reaches `useObjectFields`/`useObjectOptions`
+ * unconditionally (ObjectPickerField, FieldPickerField, and the ConditionBuilder
+ * it mounts for `visibleWhen`), and both fire a mount-time fetch with no
+ * override. Under happy-dom with no server listening that is a real, failing
+ * network call (ECONNREFUSED noise) — harmless (both hooks degrade to an empty
+ * list on any transport error, the same end state this stub produces) but
+ * loud. A STABLE stub client (never a fresh object per call: the hooks' effects
+ * key off `[client, ...]`, so a new identity every render would re-fire them
+ * forever — see FlowReferenceField.lookup.test.tsx, the in-package precedent)
+ * short-circuits the fetch instead. No assertion in this file reads the
+ * fetched object list/fields.
+ */
+const state = vi.hoisted(() => ({
+  metadataClient: { get: vi.fn(async () => undefined), list: vi.fn(async () => [] as unknown[]) },
+}));
+vi.mock('../useMetadata', () => ({
+  useMetadataClient: () => state.metadataClient,
+}));
+
+import { PageBlockInspector } from './PageBlockInspector';
 
 afterEach(cleanup);
 
@@ -81,15 +102,22 @@ describe('PageBlockInspector PROPERTIES labels follow the locale (#3913)', () =>
   it('renders curated field labels in Chinese under zh-CN', () => {
     renderInspector(pageDraft('object-grid'), 'zh-CN');
 
-    // `object-grid`: object-picker + field-list + number + two booleans, i.e.
-    // four different `renderField` branches in one panel.
+    // `object-grid`: object-picker + field-list + number, i.e. three different
+    // `renderField` branches in one panel.
     expect(screen.getByText('对象')).toBeTruthy();
     expect(screen.getByText('列')).toBeTruthy();
     expect(screen.getByText('每页条数')).toBeTruthy();
-    expect(screen.getByText('斑马纹行')).toBeTruthy();
+    // The `boolean` branch is rendered from `page:card`, not from `object-grid`.
+    // It was covered here by `object-grid`'s `striped` / `bordered` toggles
+    // until objectui#4649 removed them (objectstack#7176 retired the keys they
+    // wrote, and no renderer ever read them). The branch still needs a panel,
+    // and `page:card.bordered` is the better one to spend it on: `containers.tsx`
+    // genuinely applies that prop, so this case can no longer be satisfied by a
+    // field nothing reads.
+    renderInspector(pageDraft('page:card'), 'zh-CN');
     expect(screen.getByText('显示边框')).toBeTruthy();
     // The English literals must be gone, not merely joined by Chinese ones.
-    expect(screen.queryByText('Striped rows')).toBeNull();
+    expect(screen.queryByText('Bordered')).toBeNull();
     expect(screen.queryByText('Page size')).toBeNull();
     expectNoRawKeys();
   });
@@ -100,7 +128,9 @@ describe('PageBlockInspector PROPERTIES labels follow the locale (#3913)', () =>
     expect(screen.getByText('Object')).toBeTruthy();
     expect(screen.getByText('Columns')).toBeTruthy();
     expect(screen.getByText('Page size')).toBeTruthy();
-    expect(screen.getByText('Striped rows')).toBeTruthy();
+    // Same substitution as the zh-CN case above — the `boolean` branch, on the
+    // block whose renderer actually reads the prop.
+    renderInspector(pageDraft('page:card'), 'en-US');
     expect(screen.getByText('Bordered')).toBeTruthy();
     expectNoRawKeys();
   });
@@ -289,7 +319,7 @@ describe("PageBlockInspector's own chrome follows the locale (#3963)", () => {
  * straight to the input.
  *
  * What makes this column different from the two before it is that translating
- * ALL of it would be wrong. Ten of the eighteen placeholders are example VALUES,
+ * ALL of it would be wrong. Ten of the seventeen placeholders are example VALUES,
  * and the assertions come in matching pairs: the prose ones must change with the
  * locale, the value ones must NOT. Both halves are pinned here because both are
  * regressions a reader could introduce while believing they were finishing the
@@ -299,7 +329,17 @@ describe("PageBlockInspector's own chrome follows the locale (#3963)", () => {
 describe('PageBlockInspector placeholders follow the locale — but only the prose ones (#3979)', () => {
   it('translates the text-field hint under an already-Chinese label', () => {
     // The issue's headline symptom: 「图标」 over a box hinting `lucide icon name`.
-    renderInspector(pageDraft('page:header'), 'zh-CN');
+    //
+    // Rendered from `record:alert`, not `page:header`. This pair used to use the
+    // header's own icon box until objectui#3829 removed it: @objectstack/spec
+    // 17.0.0 retired `PageHeaderProps.icon` (objectstack#6946 / PR
+    // objectstack#7115) because the canonical renderer never read it, so the
+    // field was offering authors a key the platform now rejects by name. Same
+    // move, same reason, as objectui#4649's re-point a few tests above —
+    // `record:alert.icon` reproduces the symptom exactly (a `text` field with a
+    // prose placeholder under a translated label) on a key the renderer really
+    // reads, so the case cannot be satisfied by a surface that should not exist.
+    renderInspector(pageDraft('record:alert'), 'zh-CN');
 
     expect(screen.getByText('图标')).toBeTruthy(); // #3913's half, still working
     expect(screen.getByPlaceholderText('lucide 图标名')).toBeTruthy();
@@ -311,7 +351,7 @@ describe('PageBlockInspector placeholders follow the locale — but only the pro
   it('renders the same panel in English under en-US, unchanged', () => {
     // en-US is the baseline: the new keys carry the exact literals the table
     // used to hold, so nothing an English admin sees may have moved.
-    renderInspector(pageDraft('page:header'), 'en-US');
+    renderInspector(pageDraft('record:alert'), 'en-US');
 
     expect(screen.getByPlaceholderText('lucide icon name')).toBeTruthy();
     expectNoRawKeyPlaceholders();

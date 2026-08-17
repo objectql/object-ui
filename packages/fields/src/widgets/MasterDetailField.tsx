@@ -41,9 +41,8 @@ export function MasterDetailField({
     onChange(items.filter(item => item.id !== id));
   };
 
-  const handleView = (item: MasterDetailValue) => {
+  const handleView = (_item: MasterDetailValue) => {
     // This would typically navigate to the detail view
-    console.log('View detail:', item);
   };
 
   if (readonly) {

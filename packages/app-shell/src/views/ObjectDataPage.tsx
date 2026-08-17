@@ -139,7 +139,9 @@ function foldUrlFilterTriplesToSpecRules(triples: FilterTriple[]): ViewFilterRul
     if (value !== undefined) rule.value = value;
     const parsed = ViewFilterRuleSchema.safeParse(rule);
     if (!parsed.success) {
-      console.debug(
+      // objectui#4029 — this is a real diagnostic (data silently dropped),
+      // not debug noise, so it goes through the allowed warn channel.
+      console.warn(
         `[ObjectDataPage] Dropped URL filter on "${field}" from the saved view:` +
           ` operator "${op}" has no canonical ViewFilterRule form.`,
       );

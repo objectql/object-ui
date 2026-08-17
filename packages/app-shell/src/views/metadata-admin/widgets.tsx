@@ -1788,6 +1788,26 @@ function ColorPickerWidget({ value, onChange, readOnly, schema, fieldSpec }: Wid
   if (enumOpts && enumOpts.length) {
     return (
       <ColorVariantPicker
+        // Self-owned name, not the host label's IDREF (objectui#4010).
+        //
+        // `MetadataField` renders `<Label htmlFor={id}>` above this widget and
+        // hands it the same `id`. That works for a labelable control — the free
+        // colour branch below is one — but this branch renders a
+        // `div[role="radiogroup"]`, which no `<label for>` can name. The host
+        // cannot publish an `id` for us to reference instead, because WHICH of
+        // these two branches renders is decided HERE, from `schema`/`fieldSpec`,
+        // after that label is already written; teaching the host to decide it
+        // needs a `labelling` declaration per widget (the shape
+        // `packages/components`' form renderer already has, objectui#3961) and
+        // is filed as objectui#4871 rather than guessed at here.
+        //
+        // So the group carries its own name, exactly as this file's other
+        // unassociated groups do (`FilterModeWidget`'s segmented radiogroup,
+        // and the free-colour `<input type="color">` below). The text is the
+        // host's own first-precedence label source so the two agree wherever set —
+        // WCAG 2.5.3 (Label in Name) is about the visible text, not a generic
+        // stand-in — falling back to this file's existing constant.
+        ariaLabel={fieldSpec?.label ?? (typeof schema?.title === 'string' ? schema.title : undefined) ?? 'Color'}
         value={value == null ? undefined : String(value)}
         onChange={(v) => onChange(v)}
         disabled={readOnly}
@@ -1848,24 +1868,48 @@ function ConditionWidget({ value, onChange, readOnly, context }: WidgetProps) {
 /* secret — write-only / masked credential input (encrypt-on-write fields)     */
 /* -------------------------------------------------------------------------- */
 
-/** Mirrors objectql\'s SECRET_MASK: a stored secret reads back as this, never plaintext. */
-export const SECRET_MASK = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+/**
+ * The ADR-0100 credential read mask: a stored secret reads back as this, never
+ * plaintext.
+ *
+ * Renamed off the bare `SECRET_MASK` (objectui#4650). This is the SAME constant
+ * `@objectstack/spec/data` exports under that name from 17.0.0 \u2014 the protocol
+ * moved it to `spec` (objectstack#7572) precisely so the engine's field-read
+ * path and the settings REST boundary stop each declaring a byte-identical
+ * literal bound by nothing but convention. objectui should therefore IMPORT it
+ * rather than declare it, which is what the #4043 doctrine asks for; that
+ * import cannot be written yet because this repo is still pinned to
+ * `^17.0.0-rc.6`, which does not export the name.
+ *
+ * So the copy stays for now, under a name that cannot be read as the spec's own
+ * definition, and the whole burn-down is this one line: when #4636 / PR #4639
+ * raises the pin, replace the literal with
+ * `export { SECRET_MASK as OBJECTUI_SECRET_MASK } from '@objectstack/spec/data'`
+ * (or re-export it plainly and drop this alias). Nothing outside this package
+ * reads it \u2014 `@object-ui/app-shell`'s barrel does not re-export it \u2014 so that
+ * swap is internal.
+ *
+ * The eight U+2022 BULLET characters are spelled out rather than computed, on
+ * the spec's own reasoning: a plain grep for the mask a client actually received
+ * has to find this declaration. Tripwire: `__tests__/spec-symbol-parity.test.ts`.
+ */
+export const OBJECTUI_SECRET_MASK = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
 
 /**
  * `secret` widget — a write-only credential input for `secret` field types (and
  * `format: 'password'` / `writeOnly` props). A stored secret reads back masked,
  * so the box starts empty with a "leave blank to keep" hint; typing replaces it,
  * a reveal toggle shows what you type, and Clear removes it. Emits the typed
- * value (new secret), `SECRET_MASK` (blank + existing = keep, a no-op on write),
+ * value (new secret), `OBJECTUI_SECRET_MASK` (blank + existing = keep, a no-op on write),
  * `null` (Clear), or `undefined` (blank + none).
  */
 function SecretWidget({ value, onChange, readOnly, schema, id }: WidgetProps) {
-  const stored = value === SECRET_MASK;
+  const stored = value === OBJECTUI_SECRET_MASK;
   const [reveal, setReveal] = React.useState(false);
   const [draft, setDraft] = React.useState<string>(stored || value == null ? '' : String(value));
   const update = (v: string) => {
     setDraft(v);
-    if (v === '') onChange(stored ? SECRET_MASK : undefined); // blank: keep if stored, else unset
+    if (v === '') onChange(stored ? OBJECTUI_SECRET_MASK : undefined); // blank: keep if stored, else unset
     else onChange(v);
   };
   return (

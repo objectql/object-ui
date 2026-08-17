@@ -2,7 +2,7 @@
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { WIDGETS, SECRET_MASK } from './widgets';
+import { WIDGETS, OBJECTUI_SECRET_MASK } from './widgets';
 
 afterEach(cleanup);
 
@@ -10,7 +10,7 @@ const Secret = WIDGETS['secret'];
 
 /**
  * `secret` widget — write-only/masked credential input for `secret` field types
- * and `format: 'password'` props. A stored secret reads back as SECRET_MASK, so
+ * and `format: 'password'` props. A stored secret reads back as OBJECTUI_SECRET_MASK, so
  * the box starts empty (keep-on-blank); typing replaces; Clear removes.
  */
 describe('secret widget', () => {
@@ -28,20 +28,20 @@ describe('secret widget', () => {
     expect(onChange).toHaveBeenLastCalledWith('hunter2');
   });
 
-  it('starts blank for a stored secret and keeps it (emits SECRET_MASK) when left blank', () => {
+  it('starts blank for a stored secret and keeps it (emits OBJECTUI_SECRET_MASK) when left blank', () => {
     const onChange = vi.fn();
-    render(<Secret value={SECRET_MASK} onChange={onChange} schema={{ type: 'string', format: 'password' }} />);
+    render(<Secret value={OBJECTUI_SECRET_MASK} onChange={onChange} schema={{ type: 'string', format: 'password' }} />);
     const input = screen.getByLabelText('Secret value') as HTMLInputElement;
     expect(input.value).toBe('');
     // type then clear back to blank → keep (no-op write)
     fireEvent.change(input, { target: { value: 'x' } });
     fireEvent.change(input, { target: { value: '' } });
-    expect(onChange).toHaveBeenLastCalledWith(SECRET_MASK);
+    expect(onChange).toHaveBeenLastCalledWith(OBJECTUI_SECRET_MASK);
   });
 
   it('exposes a Clear action for a stored secret that emits null', () => {
     const onChange = vi.fn();
-    render(<Secret value={SECRET_MASK} onChange={onChange} schema={{ type: 'string' }} />);
+    render(<Secret value={OBJECTUI_SECRET_MASK} onChange={onChange} schema={{ type: 'string' }} />);
     fireEvent.click(screen.getByText('Clear'));
     expect(onChange).toHaveBeenLastCalledWith(null);
   });

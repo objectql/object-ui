@@ -33,31 +33,51 @@ interface PageHeaderComponentProps extends React.HTMLAttributes<HTMLDivElement> 
   schema?: { children?: unknown[]; actions?: unknown[]; properties?: { actions?: unknown[] } };
   children?: React.ReactNode;         // Additional content (right-aligned slot)
   className?: string;                 // Additional CSS classes
-
-  // DEPRECATED: legacy alias of `subtitle`. Still read, but do not author it.
-  description?: string;
 }
 ```
 
 `subtitle` is the canonical key: `@objectstack/spec/ui`'s `PageHeaderProps` — the contract
-for the authored `page:header` node — declares `title / subtitle / icon / breadcrumb /
-actions / aria` and has no `description`. Both `title` and `subtitle` interpolate
-`{field.path}` tokens against the surrounding record context.
+for the authored `page:header` node — declares `title / subtitle / breadcrumb / actions /
+recordChrome / showStar / showCopyId / aria` and has no `description`. Both `title` and
+`subtitle` interpolate `{field.path}` tokens against the surrounding record context.
 
-`description` is a **legacy alias** of `subtitle`, kept only for pages authored before
-`subtitle` existed; `subtitle` wins when both are set.
+`icon` is deliberately **not** in that list, and the distinction matters because this page
+documents a React component while the spec governs an authored node. `PageHeaderProps.icon`
+was retired from `@objectstack/spec` (objectstack#6946, ADR-0087 D2): the canonical
+`page:header` renderer never read it, so an authored value used to be accepted and dropped,
+and the contract now rejects the key by name. On a canonical `page:header` node the
+header's identity comes from the record chrome (`recordChrome`, on by default) plus each
+action's own `icon`; `os migrate meta --from 16` rewrites stored sources.
 
-Upstream has already closed its half of this. The ADR-0087 D2 conversion entry
-`page-header-subtitle-alias` is **live** in protocol 17: the loader rewrites a header
-node's `properties.description` to `properties.subtitle` as the stack is loaded. An
-already-canonical `subtitle` still wins, and a `description` it shadows is left exactly
-as authored rather than the loader choosing between two different second lines.
+The `icon` prop listed above is this component's **own** capability, not that spec key.
+`PageHeader` from `@object-ui/layout` — registered as `page-header` and
+`layout:page-header` — really does draw it (a string resolves through `LazyIcon`, a React
+node renders as-is), which is why it stays on that registration's `inputs` and why the demo
+on this page writes `"icon": "users"` (objectui#3829). Do not carry the key over to a
+canonical `page:header` node: the same JSON renders here and fails to parse there.
 
-Retiring the prop on this side is tracked separately, in objectui#3789. The gate there is
-a measurement rather than a date: every path by which a `page-header` node reaches this
-renderer has to be shown to go through a loader that actually performs that rewrite. Until
-objectui#3789 lands, the prop stays and this renderer keeps reading it — and new pages
-write `subtitle`.
+`description` used to be a **legacy alias** of `subtitle` that this component read as
+well. It is **retired** (objectui#3789): the prop is gone and the renderer draws a
+secondary line only for `subtitle`.
+
+Nothing is lost by that, because the normalization moved upstream where it belongs. The
+ADR-0087 D2 conversion entry `page-header-subtitle-alias` is **live** in protocol 17: the
+loader rewrites a header node's `properties.description` to `properties.subtitle` as the
+stack is loaded, so a page stored with the old key still renders its second line. An
+already-canonical `subtitle` wins, and a `description` it shadows is left exactly as
+authored rather than the loader choosing between two different second lines.
+
+The retirement waited on a measurement rather than a date: every position a `page-header`
+node can occupy had to be shown to pass through that rewrite. It did not, at first — the
+conversion walk reached only `regions[].components[]`, leaving `slots.header` and
+container-nested headers unconverted (objectstack#6775). With that walk widened
+(objectstack#6776 for slots, PR #7034 for containers nested to any depth), all seven
+positions convert; `packages/layout/src/__tests__/page-header-subtitle-conversion-coverage.test.ts`
+re-measures them on every run against the spec build this repo consumes.
+
+If you are hand-feeding schema JSON to the renderer without going through an ObjectStack
+loader, write `subtitle` — that is the only spelling that renders on every path. Stored
+metadata is migrated in place by `os migrate meta`.
 
 `actions` is delegated to the `record:quick_actions` widget with
 `location: 'record_header'`, so authors get the standard toolbar (icons, overflow menu,
@@ -67,6 +87,52 @@ the right-aligned slot is `action` → React `children` → `actions` → schema
 `showBack` renders a back arrow that navigates one level up the URL. When omitted it
 defaults to `true` on record pages (a `recordId` in scope) that are not embedded in a
 drawer or modal, and `false` otherwise.
+
+## Gating a header action on a relation field
+
+Each header action's `visible` (and `hidden` / `disabled`) is a CEL predicate evaluated
+against the current record. The most common thing it is asked to express — "only the
+record's manager sees this button" — is written against a `lookup` / `master_detail` /
+`user` / `tree` field, and there is exactly one supported spelling for it:
+
+```yaml
+actions:
+  - name: escalate
+    label: Escalate
+    locations: [record_header]
+    visible: os.user.id == record.manager   # ✅ the relation IS its foreign key
+```
+
+**A relation field binds as the id the server stores, never as the record it points at.**
+That is true here regardless of whether this surface expanded the relation for display —
+the record page expands the relations it renders, and the predicate scope collapses them
+back before evaluating, so one predicate reaches one verdict on every surface and matches
+what the same expression means in a server-side rule.
+
+The consequence is that `record.manager.id` is **not** a second spelling of the same
+thing — it faults, because `record.manager` is a string:
+
+```yaml
+    visible: os.user.id == record.manager.id   # ❌ faults: no such key `id`
+```
+
+A predicate that faults is resolved **fail-closed** — the action is not rendered, because
+a precondition that could not be checked is not a precondition that passed. It is never
+resolved silently: the console carries one warning per broken predicate, naming the action
+and quoting the expression, for example:
+
+```plaintext
+[object-ui] A conditional predicate failed to evaluate (page:header action "escalate"
+visible) and was treated as its safe default: "os.user.id == record.manager.id".
+Reason: [runtime] No such key: id. Check the field names and CEL syntax.
+```
+
+An **empty** relation is not a fault: `record.manager` is `null`, the comparison is a
+clean `false`, and the action is simply hidden with nothing logged.
+
+The identity side of the comparison is `os.user` — the spec's canonical CEL identity
+scope, and the same one the server binds — with `current_user`, `user` and `ctx.user`
+available as aliases of it.
 
 ## Examples
 
@@ -169,8 +235,9 @@ The Page component includes built-in PageHeader support:
 
 Note that `description` here is **the Page component's own prop**, not the header's — it
 renders the page's prose under the page title and is a declared input of the `page`
-renderer. It is unrelated to the legacy `description` alias above; do not rename it to
-`subtitle`.
+renderer. It is unrelated to the `description` alias retired above: that one was a second
+spelling of the header's `subtitle`, this one is the `page` node's own live key. Do not
+rename it to `subtitle`, and do not assume objectui#3789 touched it.
 
 ## Complete Example
 

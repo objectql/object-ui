@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import http from 'node:http';
+import { EventEmitter } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
@@ -158,6 +159,107 @@ describe('fetchUrl — the response status is part of the contract', () => {
     };
     await expect(fetchUrl(url(), { get: http.get })).resolves.toEqual(entry);
   });
+});
+
+describe('fetchUrl — a request with no response ever times out (objectstack#5968 / objectui#4031)', () => {
+  /**
+   * A hung registry request used to have nothing bounding it: `https.get`
+   * only ever wired up `error` and `end`, and a black-holed connection fires
+   * neither. `--check` runs 46 of these in series, so one hang stalled the
+   * whole command until something outside the script (a CI job timeout, a
+   * person hitting Ctrl-C) gave up, with no line in the log naming which URL
+   * stuck.
+   *
+   * Two distinct network conditions produce that hang — a dropped SYN (the
+   * connection itself never completes) and a peer that completes the TCP
+   * handshake and then never writes a byte. Both are covered by the SAME
+   * `req.setTimeout` callback in `fetchUrl`, because Node arms that idle
+   * timer as soon as a socket is assigned to the request, before the
+   * handshake resolves — there is no separate "connecting" branch to test.
+   *
+   * Both are exercised below with a `get` double that mimics a `ClientRequest`
+   * stuck before its response ever arrives — same wiring (`setTimeout(ms, cb)`
+   * + `destroy(error)` + the request's own `error` listener) `fetchUrl`
+   * actually depends on, deterministic, and independent of real network
+   * timing.
+   *
+   * A REAL socket was used first, and deliberately is not the committed test:
+   * a raw `net` server that accepts the connection and never writes back
+   * (`http.get` injected as `get`) reproduces the hang correctly outside
+   * vitest — confirmed clean and fast (rejects in ~40-50ms against a 40ms
+   * `timeoutMs`, twice in a row, matching this file's cache/registry
+   * assertions) both as a standalone Node script and inside a `worker_threads`
+   * Worker, including while this shared container had a sibling agent's
+   * `pnpm --filter @object-ui/console^... build` pegging multiple cores. The
+   * SAME code, run through Vitest's `threads` pool under that same load,
+   * reliably failed to observe the timeout at all — not slow, genuinely
+   * silent for the full 20s `it()` bound, reproducing identically with
+   * `-t` isolating the one test and with `--maxWorkers=1`. That is a
+   * Vitest-threads-pool-under-contention interaction with the real socket
+   * timer, not a defect in `fetchUrl`: this repo's own flaky-test discipline
+   * (AGENTS.md, "flaky 测试") is explicit that widening a budget to paper
+   * over a race is the wrong fix, and here even a 20s budget did not turn a
+   * genuine non-event into a passing one. A real socket cannot honestly be
+   * asserted on on this platform without that risk, so the committed
+   * coverage stays on the double above (see also `fetchRegistry propagates
+   * timeoutMs`, same shape, one level up the call stack) plus the manual
+   * verification recorded here and in the PR description.
+   */
+
+  it('rejects, naming the URL, when the connection itself never completes', async () => {
+    // Models a dropped SYN, and equally the "TCP connects, then the peer
+    // never writes a byte" case (from `fetchUrl`'s perspective the two are
+    // indistinguishable: neither ever invokes the response callback) — see
+    // describe-level comment for why a real socket isn't used here.
+    const neverConnects = (_reqUrl: string, _cb: unknown) => {
+      const req = new EventEmitter() as EventEmitter & {
+        setTimeout: (ms: number, cb: () => void) => void;
+        destroy: (err: Error) => void;
+      };
+      req.setTimeout = (ms, cb) => {
+        setTimeout(cb, ms);
+      };
+      req.destroy = (err) => {
+        req.emit('error', err);
+      };
+      return req;
+    };
+
+    const stuckUrl = 'http://192.0.2.1/r/styles/default/button.json';
+    await expect(
+      fetchUrl(stuckUrl, { get: neverConnects as unknown as typeof http.get, timeoutMs: 200 }),
+    ).rejects.toThrow(/shadcn-sync: registry request timed out after 200ms: /);
+    await expect(
+      fetchUrl(stuckUrl, { get: neverConnects as unknown as typeof http.get, timeoutMs: 200 }),
+    ).rejects.toThrow(stuckUrl);
+  }, 20_000);
+
+  it('does not fire on a request that responds well inside timeoutMs (no false positives)', async () => {
+    respond = respondJson(REGISTRY_ENTRY);
+    await expect(fetchUrl(url(), { get: http.get, timeoutMs: 2000 })).resolves.toEqual(REGISTRY_ENTRY);
+  });
+
+  it('fetchRegistry propagates timeoutMs through to fetchUrl and writes nothing to the cache on a hang', async () => {
+    const neverConnects = (_reqUrl: string, _cb: unknown) => {
+      const req = new EventEmitter() as EventEmitter & {
+        setTimeout: (ms: number, cb: () => void) => void;
+        destroy: (err: Error) => void;
+      };
+      req.setTimeout = (ms, cb) => {
+        setTimeout(cb, ms);
+      };
+      req.destroy = (err) => {
+        req.emit('error', err);
+      };
+      return req;
+    };
+
+    await expect(
+      registry('button', { get: neverConnects as unknown as typeof http.get, allowCache: true, timeoutMs: 200 }),
+    ).rejects.toThrow(/registry request timed out after 200ms/);
+    expect(await readCacheDir()).toEqual([]);
+    expect(cacheStats.failures).toBe(1);
+  }, 20_000);
 });
 
 describe('isRegistryEntry — what is allowed onto disk', () => {

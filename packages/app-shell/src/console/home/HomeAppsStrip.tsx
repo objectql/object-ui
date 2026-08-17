@@ -54,12 +54,22 @@ export function HomeAppsStrip({
   onOpen,
   onBrowseMarketplace,
   isAdmin,
+  canAuthorMetadata = true,
 }: {
   apps: any[];
   favorites: FavoriteItem[];
   onOpen: (app: any) => void;
   onBrowseMarketplace: () => void;
   isAdmin: boolean;
+  /**
+   * [objectstack#8270] Whether the session holds the ADR-0066
+   * `manage_metadata` capability. Installing a marketplace template is metadata
+   * authoring, so on a deployment that withholds the capability (the EE hosted
+   * posture) this entry point is withheld with the rest of them — Home renders
+   * the reason once, above. Defaults to `true` so the only behaviour change is
+   * for hosts that pass the gate explicitly.
+   */
+  canAuthorMetadata?: boolean;
 }) {
   const { t } = useObjectTranslation();
   const { appLabel } = useObjectLabel();
@@ -87,7 +97,7 @@ export function HomeAppsStrip({
           {t('home.yourApps', { defaultValue: 'Your apps' })}
         </h2>
         <span className="text-sm text-muted-foreground">{ordered.length}</span>
-        {isAdmin && (
+        {isAdmin && canAuthorMetadata && (
           <Button
             variant="ghost"
             size="sm"

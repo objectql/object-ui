@@ -1,6 +1,7 @@
 {
-  "type": "div",
-  "className": "w-full max-w-6xl mx-auto",
+  "type": "container",
+  "maxWidth": "6xl",
+  "padding": 0,
   "children": [
     {
       "type": "div",
@@ -19,8 +20,12 @@
       ]
     },
     {
-      "type": "div",
-      "className": "grid md:grid-cols-3 gap-8",
+      "type": "grid",
+      "columns": {
+        "xs": 1,
+        "md": 3
+      },
+      "gap": 8,
       "children": [
         {
           "type": "card",
@@ -30,8 +35,11 @@
               "spacing": 3,
               "children": [
                 {
-                  "type": "div",
-                  "className": "h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center",
+                  "type": "flex",
+                  "justify": "center",
+                  "align": "center",
+                  "gap": 0,
+                  "className": "h-12 w-12 rounded-lg bg-primary/10",
                   "children": [
                     {
                       "type": "icon",
@@ -62,8 +70,11 @@
               "spacing": 3,
               "children": [
                 {
-                  "type": "div",
-                  "className": "h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center",
+                  "type": "flex",
+                  "justify": "center",
+                  "align": "center",
+                  "gap": 0,
+                  "className": "h-12 w-12 rounded-lg bg-primary/10",
                   "children": [
                     {
                       "type": "icon",
@@ -94,8 +105,11 @@
               "spacing": 3,
               "children": [
                 {
-                  "type": "div",
-                  "className": "h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center",
+                  "type": "flex",
+                  "justify": "center",
+                  "align": "center",
+                  "gap": 0,
+                  "className": "h-12 w-12 rounded-lg bg-primary/10",
                   "children": [
                     {
                       "type": "icon",
@@ -126,8 +140,11 @@
               "spacing": 3,
               "children": [
                 {
-                  "type": "div",
-                  "className": "h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center",
+                  "type": "flex",
+                  "justify": "center",
+                  "align": "center",
+                  "gap": 0,
+                  "className": "h-12 w-12 rounded-lg bg-primary/10",
                   "children": [
                     {
                       "type": "icon",
@@ -158,8 +175,11 @@
               "spacing": 3,
               "children": [
                 {
-                  "type": "div",
-                  "className": "h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center",
+                  "type": "flex",
+                  "justify": "center",
+                  "align": "center",
+                  "gap": 0,
+                  "className": "h-12 w-12 rounded-lg bg-primary/10",
                   "children": [
                     {
                       "type": "icon",
@@ -190,8 +210,11 @@
               "spacing": 3,
               "children": [
                 {
-                  "type": "div",
-                  "className": "h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center",
+                  "type": "flex",
+                  "justify": "center",
+                  "align": "center",
+                  "gap": 0,
+                  "className": "h-12 w-12 rounded-lg bg-primary/10",
                   "children": [
                     {
                       "type": "icon",

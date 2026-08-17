@@ -66,12 +66,15 @@ export function CheckboxesField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options, gated]);
 
-  // The host's group label has to be consumed on EVERY surface this widget can
-  // render, not only the editable one (objectui#3990): both branches below
-  // return before the editable container's `groupDomProps` spread, which is how
-  // a field-level `readonly: true` and a zero-option list ended up with a
-  // published label id and no consumer at all. See `toHostGroupProps`.
-  const hostGroupProps = toHostGroupProps(props);
+  // The host's group label — and its help text (objectui#4005) — have to be
+  // consumed on EVERY surface this widget can render, not only the editable one
+  // (objectui#3990): both branches below return before the editable container's
+  // `groupDomProps` spread, which is how a field-level `readonly: true` and a
+  // zero-option list ended up with a published label id and a published
+  // description id and no consumer at all. Neither surface renders a checkbox,
+  // so neither has anywhere else to put the description. See
+  // `toHostGroupProps`.
+  const hostGroupProps = toHostGroupProps(props, 'instead-of-the-inputs');
 
   if (readonly) {
     // The readonly display of a checkbox set is the set of CHECKED labels — a

@@ -86,6 +86,8 @@ vi.mock('@object-ui/permissions', async (importOriginal) => {
 });
 
 import { ObjectGrid } from '../ObjectGrid';
+import { __clearRecordCrudVerdictCache } from '../hooks/useRecordCrudVerdicts';
+import { installExplainDouble } from './explainDouble';
 import { registerAllFields } from '@object-ui/fields';
 import { ActionProvider, SchemaRendererProvider } from '@object-ui/react';
 
@@ -185,8 +187,15 @@ beforeEach(() => {
   state.permUpdate = true;
   state.permDelete = true;
   state.noProvider = false;
+  // [#4296] This file's grids carry an objectName and rows with ids, so each
+  // render batches a record-level explain probe. Answer it from a double
+  // instead of the network (objectui#3339 / PR #4105). It answers `visible:
+  // true` for every row, so the OBJECT-level matrix below — which is what this
+  // file pins — is measured with the record layer contributing nothing.
+  __clearRecordCrudVerdictCache();
+  installExplainDouble();
 });
-afterEach(() => { cleanup(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('ObjectGrid row CRUD vs the effective API operation set (#3720)', () => {
   // The exact matrix from the issue: A baseline, B the bug, C control group.

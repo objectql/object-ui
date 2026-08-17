@@ -15,6 +15,9 @@ The Toggle Group component allows users to toggle between multiple options.
 
 ## With Labels
 
+The third item sets `disabled: true`, which the renderer forwards to that toggle
+only — the rest of the group stays interactive.
+
 <SchemaExample id="components-disclosure-toggle-group/with-labels" />
 
 ## Schema
@@ -22,13 +25,13 @@ The Toggle Group component allows users to toggle between multiple options.
 ```plaintext
 interface ToggleGroupItem {
   value: string;
-  icon?: string;
-  label?: string;
+  label: string;
+  disabled?: boolean;             // Disables this item only
 }
 
 interface ToggleGroupSchema {
   type: 'toggle-group';
-  type: 'single' | 'multiple';    // Selection mode
+  selectionType?: 'single' | 'multiple';  // Selection mode
   items: ToggleGroupItem[];       // Toggle items
   value?: string | string[];      // Selected value(s)
   variant?: 'default' | 'outline';

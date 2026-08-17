@@ -5,18 +5,29 @@ description: "Expandable content sections"
 
 ## Examples
 
+The second item sets `disabled: true`, which the renderer forwards to that item
+only — the rest of the accordion stays interactive.
+
   <SchemaExample id="components-disclosure-accordion/basic-accordion" />
 
 ## Schema
 
 ```plaintext
+interface AccordionItem {
+  value: string;                        // Unique item identifier
+  title: string;                        // Item title/trigger
+  content: SchemaNode | SchemaNode[];   // Item content
+  disabled?: boolean;                   // Disables this item only
+}
+
 interface AccordionSchema {
   type: 'accordion';
-  items: Array<{
-    title: string;
-    content: string | SchemaNode;
-  }>;
-  defaultOpen?: number[];
-  multiple?: boolean;
+  items: AccordionItem[];
+  accordionType?: 'single' | 'multiple';    // Selection mode; default 'single'
+  collapsible?: boolean;                    // Whether items can be collapsed; default true
+  defaultValue?: string | string[];         // Default expanded item value(s)
+  value?: string | string[];                // Controlled expanded item value(s)
+  onValueChange?: (value: string | string[]) => void;
+  variant?: 'default' | 'bordered' | 'separated';  // default 'default'
 }
 ```

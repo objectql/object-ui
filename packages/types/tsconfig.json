@@ -4,7 +4,7 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "declaration": true,
-    "declarationMap": true,
+    "declarationMap": false,
     "composite": true,
     "noEmit": false,
     "lib": ["ES2020", "DOM"],

@@ -1,0 +1,79 @@
+name: Doc Component Types
+
+# Why this is its own workflow instead of a step in `ci.yml` or `lint.yml`: the
+# defect this gate exists for arrives in a DOCS-ONLY pull request, and that is
+# precisely the shape both of those workflows skip. `ci.yml`'s `type-check` job
+# decides whether to run its expensive steps with a `git diff` that excludes
+# `content/**`, `'**/*.md'`, `docs/**` and `apps/site/**` — so a PR that edits
+# only `content/docs/**.mdx` reports the context and runs none of the gates
+# inside it. A gate against a wrong `type` in a teaching snippet, wired there,
+# would be blind to every change that can introduce one.
+#
+# This is the fifth instance of the shape in this repo and the reasoning is
+# borrowed, not invented: `docs-links.yml`'s header records the link check
+# spending #3213 to #3448 inside `ci.yml`'s `docs` job, unable to see the one
+# class of PR most likely to break a link; `control-bytes.yml`'s header names the
+# consequence — a gate that cannot see a markdown-only change "rebuilds the hole
+# it exists to close". `changeset-guard.yml` and `skills-paths.yml` are the third
+# and fourth.
+#
+# Hence: no `paths` and no `paths-ignore` here, deliberately.
+# `scripts/__tests__/check-doc-component-types.test.ts` fails if either is ever
+# added, and fails too if a second workflow starts running the same script — one
+# gate, one home.
+#
+# It needs no install and no build. The script reads the checkout with `node:fs`
+# only: 143 mdx files for the snippets, and the `packages/` + `apps/` sources for
+# the registered-key universe it compares them against. A few seconds. Keep it
+# that way if you add checks to it — the moment this needs `pnpm install` it
+# stops being cheap enough to run unfiltered, and the filter is the hole.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  # Merge queue (objectui#3523 — see `ci.yml`'s trigger block for the full note
+  # and the measurements behind it). A required check that does not report on a
+  # queue build stalls the queue until the ruleset's 60-minute timeout fails it,
+  # so an unfiltered gate that could become required subscribes here from the
+  # start. `types:` is named although `checks_requested` is currently the only
+  # activity type GitHub defines for `merge_group`.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: doc-component-types-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  doc-component-types:
+    name: Doc Component Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+
+      # A `type` string in a `content/docs/**.mdx` code block is not rendered,
+      # not parsed and not compared against anything, so a snippet can name a
+      # component that does not exist and every check in the repo stays green —
+      # while a reader who copies it gets the renderer's red "Unknown component
+      # type" panel (OBJUI-001). That defect landed three times before this gate
+      # (objectui#4786 `stats-card`, objectui#4796 `plugin:grid` and
+      # `plugin:map`), each found by a human probe. The catalog side has had the
+      # equivalent ratchet since objectui#4616
+      # (`examples/schema-catalog/test/catalog-gallery-render.test.tsx`); this is
+      # the missing half. Reads the checkout and nothing else, so no install.
+      - name: Check documented component types against the registry
+        run: node scripts/check-doc-component-types.mjs

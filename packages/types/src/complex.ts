@@ -674,7 +674,7 @@ export interface DashboardWidgetLayout {
  * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
  */
 export interface DashboardWidgetSchema
-  extends Omit<Partial<SpecDashboardWidget>, 'type' | 'options' | 'chartConfig' | 'filter' | 'responsive'> {
+  extends Omit<Partial<SpecDashboardWidget>, 'type' | 'options' | 'chartConfig' | 'filter'> {
   // `id`, `title`, `description`, `colorVariant`, `dataset`, `dimensions`,
   // `values`, `filterBindings`, `requiresObject`, `requiresService`,
   // `compareTo`, … all flow in from the spec through the `extends` above — do
@@ -689,6 +689,17 @@ export interface DashboardWidgetSchema
   // panel kept producing `actionUrl` until objectstack#7129. A dashboard
   // widget's click-through affordance lives in `header.actions[]`, whose own
   // `actionUrl` is unrelated and still live.
+  //
+  // `responsive` inherits the same way, from a SEPARATE retirement:
+  // @objectstack/spec 17.0.0-rc.6 (objectstack#4876, ADR-0049 D2) — so its
+  // tombstone message differs from the four above. It was re-typed `any` here
+  // on the stated grounds that "the renderer reads a per-breakpoint record";
+  // objectui#3173's measurement found zero `widget.responsive` read points in
+  // the whole repo and zero authored occurrences in either corpus, so that
+  // premise was false and the override only made TS accept a key the Zod twin
+  // already refused. The shared `ResponsiveConfig` shape is NOT gone — it
+  // stays live on `page.components[].responsive`, which `useResponsiveConfig`
+  // really does read.
   // Pinned by `__tests__/report-chart-query-spec-parity.test.ts`.
   /** Component schema (legacy format) — objectui-only, no spec counterpart. */
   component?: SchemaNode;
@@ -709,12 +720,6 @@ export interface DashboardWidgetSchema
    * FilterNode array here, not the spec's `FilterCondition` envelope.
    */
   filter?: any;
-  /**
-   * Responsive configuration per breakpoint. Kept `any` — the renderer reads a
-   * per-breakpoint record, which the spec's single `responsive` object does not
-   * model; converging the two is deferred.
-   */
-  responsive?: any;
   /**
    * Enable search input for table-type widgets. objectui-only — no spec counterpart.
    * @default false

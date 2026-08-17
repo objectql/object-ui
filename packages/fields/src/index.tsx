@@ -231,9 +231,15 @@ function useLookupName(
         if (typeof (dataSource as any).findOne === 'function') {
           record = await (dataSource as any).findOne(referenceTo, value);
         } else {
+          // Top-level `$top`, not `{ options: { $top: 1 } }` (objectui#4025):
+          // `options` is not a `QueryParams` key and no adapter reads it. Here
+          // the nesting was harmless — the filter is primary-key equality, so
+          // the answer is at most one row with or without a cap — but it is the
+          // same spelling that cost `object-kanban` its row cap, and leaving one
+          // live instance in the repo is what makes the next one look precedented.
           const result = await (dataSource as any).find(referenceTo, {
             $filter: { id: value },
-            options: { $top: 1 },
+            $top: 1,
           });
           const records: any[] = Array.isArray(result)
             ? result
@@ -2072,11 +2078,23 @@ export function LocationCellRenderer({ value }: CellRendererProps): React.ReactE
  * is never silently swallowed by the fix.
  */
 export function AddressCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  // Part order follows the reader's display locale (objectui#4028). This is
+  // the SAME `formatAddress` the input widget's readonly branch calls, and
+  // that shared definition is the whole point of objectui#4037 — so passing
+  // the locale on only one of the two callers would re-open exactly the drift
+  // that change closed: one stored address, largest-first in a readonly form
+  // and US-ordered in the grid cell next to it. Measured on this branch, not
+  // assumed: `formatAddress` has these two callers and no others.
+  //
+  // `useDisplayLocale()` is the same resolver every other locale-aware cell
+  // renderer in this file already uses, and it is provider-safe (it resolves
+  // to `'en'` — the unchanged small-to-large order — with nothing mounted).
+  const locale = useDisplayLocale();
   if (value == null || value === '') return <EmptyValue />;
   // A plain string address (some apps store one) is already display-ready.
   if (typeof value === 'string') return <TruncatedText text={value} className="text-sm" />;
   if (typeof value === 'object' && !Array.isArray(value)) {
-    const formatted = formatAddress(value as AddressValue);
+    const formatted = formatAddress(value as AddressValue, locale);
     if (formatted) return <TruncatedText text={formatted} className="text-sm" />;
     // An object carrying no recognized part: `{}` reads as empty, while
     // `{ foo: 1 }` keeps its JSON so real data is never hidden.
@@ -2467,6 +2485,19 @@ export function resolveFormWidgetType(fieldType: string): string {
   const mapped = mapFieldTypeToFormType(fieldType).replace(/^field:/, '');
   return fieldWidgetMap[mapped] ? mapped : 'text';
 }
+
+/**
+ * The widget keys that must be fed the live record (`dependentValues`) so their
+ * offered option set can be re-resolved per option `visibleWhen` / `dependsOn`.
+ *
+ * Defined in `@object-ui/core`, next to `resolveCascadingOptions` — the
+ * evaluator that reads the record — and re-exported here because this is the
+ * package whose {@link resolveFormWidgetType} produces the keys the set is
+ * keyed on: a consumer resolving a widget key finds the allow-table in the
+ * same place. One definition, two doorways; never a second copy (objectui#4770,
+ * which converged the three private copies that preceded it).
+ */
+export { CASCADE_OPTION_WIDGET_TYPES } from '@object-ui/core';
 
 /** Cache so each widget type creates one lazy component (and one chunk request). */
 const lazyFieldWidgets = new Map<string, React.ComponentType<any>>();

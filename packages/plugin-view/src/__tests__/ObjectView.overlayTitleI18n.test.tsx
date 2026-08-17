@@ -46,12 +46,13 @@
  */
 
 import React from 'react';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { I18nProvider } from '@object-ui/i18n';
 import type { DataSource } from '@object-ui/types';
 import { ObjectView } from '../ObjectView';
+import { installExplainDouble } from './explainDouble';
 
 const rows = [{ id: '1', name: 'Alice' }];
 
@@ -93,7 +94,15 @@ async function openSplitPanel() {
   fireEvent.click(cell);
 }
 
-afterEach(() => cleanup());
+// objectui#4688 — ObjectGrid batches a record-level explain probe for the
+// rows on screen; with no host `apiFetch` here it would otherwise escape to
+// the real network under happy-dom. See `explainDouble.ts`.
+beforeEach(() => installExplainDouble());
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('ObjectView split-mode detail heading (objectui#3459)', () => {
   it('renders the object label in English under an en session', async () => {

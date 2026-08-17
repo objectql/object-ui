@@ -22,6 +22,12 @@ import {
 import { AlertTriangle, CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import { getLazyFieldWidget } from '@object-ui/fields';
+// The shared allow-table of widgets that are fed the dialog's own in-progress
+// values as their record — one definition for this dialog, the single-record
+// action dialog and the object form (objectui#4770). Its TSDoc carries the
+// rationale (including the unruled picker-family boundary, objectui#4771) that
+// used to be repeated in each of the three copies.
+import { CASCADE_OPTION_WIDGET_TYPES } from '@object-ui/core';
 import type { BulkActionDef, BulkActionParam } from '@object-ui/types';
 import { useBulkExecutor, type BulkExecutorOptions, type BulkResult } from '../hooks/useBulkExecutor';
 import { hasMultiValueShape, type MultiValueFieldDef } from '../hooks/multiValueFields';
@@ -360,6 +366,11 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
                 param={p}
                 multiple={isParamMultiple(p)}
                 value={values[p.name]}
+                // The WHOLE in-progress record, not only this row's value: an
+                // option widget's per-option `visibleWhen` is resolved against
+                // it, so a sibling param's value can narrow this param's
+                // offered list (objectui#4757).
+                values={values}
                 dataSource={dataSource}
                 onChange={(v) => setValues(prev => ({ ...prev, [p.name]: v }))}
               />
@@ -560,6 +571,13 @@ interface ParamFieldProps {
   onChange: (v: unknown) => void;
   /** Threaded into picker widgets (lookup/user) for candidate search. */
   dataSource: BulkActionDialogProps['dataSource'];
+  /**
+   * ALL of the dialog's in-progress param values — not just this row's. They
+   * are the record an option widget resolves its per-option `visibleWhen`
+   * against (objectui#4757, the bulk landing site of objectui#3765's Option B
+   * ruling); see {@link CASCADE_OPTION_WIDGET_TYPES}.
+   */
+  values: Record<string, unknown>;
 }
 
 /**
@@ -571,7 +589,7 @@ interface ParamFieldProps {
  * PeoplePicker. Widgets stay lazy behind `<Suspense>` so opening a dialog only
  * loads the widgets its params actually use.
  */
-const ParamField: React.FC<ParamFieldProps> = ({ param, multiple, value, onChange, dataSource }) => {
+const ParamField: React.FC<ParamFieldProps> = ({ param, multiple, value, onChange, dataSource, values }) => {
   const id = `bulk-param-${param.name}`;
   const field = useMemo(() => bulkParamToField(param, multiple), [param, multiple]);
   // getLazyFieldWidget caches per type, and the useMemo keeps the reference
@@ -580,6 +598,28 @@ const ParamField: React.FC<ParamFieldProps> = ({ param, multiple, value, onChang
   // Only picker widgets receive the dataSource — the simple widgets spread
   // unknown props toward the DOM.
   const dataSourceProps = fieldNeedsDataSource(field) ? { dataSource } : {};
+  // The dialog's own in-progress values ARE the record its option predicates
+  // are resolved against (objectui#4757 — the bulk landing site of the ruling
+  // taken on objectui#3765, "the dialog is a small form", implemented for the
+  // single-record dialog in PR objectui#4756). Until this prop existed the bulk
+  // dialog passed nothing, so `useCascadingOptions` fell through its chain
+  // (`dependentValues ?? ctx.formValues ?? ctx.data ?? {}`) to whatever record
+  // the HOST GRID PAGE happened to publish — and a `visibleWhen` written
+  // against a sibling PARAM could never see the value the user had just picked
+  // in this same dialog. The shared evaluator is untouched: it already reads
+  // that chain; this is the supply half that was missing.
+  //
+  // Bulk is where the ruling costs least, which is why it needed no separate
+  // decision. An action dialog over N selected rows has NO single row record to
+  // compete with — `rows` is a selection, and no per-row scope was ever offered
+  // to these predicates — so "the dialog's values are the record" is not a
+  // choice between two records here; it is the only record there has ever been.
+  // A predicate naming a column the dialog has no param for (`record.owner_id`)
+  // stays unresolvable, which `resolveVisibleOptions` fails OPEN: the option is
+  // offered, never wrongly hidden.
+  const cascadeProps = CASCADE_OPTION_WIDGET_TYPES.has(field.type)
+    ? { dependentValues: values }
+    : {};
 
   return (
     <div className="space-y-1.5">
@@ -615,6 +655,7 @@ const ParamField: React.FC<ParamFieldProps> = ({ param, multiple, value, onChang
           // matching `ActionParamDialog`.
           aria-required={param.required || undefined}
           {...dataSourceProps}
+          {...cascadeProps}
         />
       </Suspense>
       {param.help && <p className="text-[11px] text-muted-foreground">{param.help}</p>}

@@ -129,11 +129,14 @@ export interface BaseFieldMetadata {
    */
   depends_on?: string[];
   
-  /**
-   * Field index for database optimization
+  /*
+   * There is deliberately no `indexed` here (objectui#4679). The ObjectStack
+   * spec has no field-level index flag: it built no index (objectstack#2377
+   * removed it) and `FieldSchema.safeParse` now rejects the key by name, so
+   * any producer that authored it produced a save-blocking 422. Declare the
+   * index on the object instead — `indexes: [{ name, fields, unique }]`.
    */
-  indexed?: boolean;
-  
+
   /**
    * Field is unique constraint
    */
@@ -625,14 +628,24 @@ export interface VectorFieldMetadata extends BaseFieldMetadata {
    * Vector dimensions (e.g., 768 for BERT, 1536 for OpenAI)
    */
   dimensions?: number;
-  /**
-   * Distance metric for similarity search
+  /*
+   * There is deliberately no `distance_metric` here (objectui#4687). It was
+   * never a `FieldSchema` key: the installed `@objectstack/spec`'s vector
+   * field shape declares no metric-spelling key at all (`dimensions` is the
+   * only vector-specific key it recognizes), and `FieldSchema.safeParse`
+   * rejects `distance_metric` by name (`unrecognized_keys`) with no
+   * alias/rename entry pointing anywhere else. It had zero readers and zero
+   * writers repo-wide, so there was no capability to preserve by renaming —
+   * only a dead declaration to remove.
    */
-  distance_metric?: 'cosine' | 'euclidean' | 'dot_product';
-  /**
-   * Whether to index for similarity search
+  /*
+   * There is deliberately no `indexed` here (objectui#4679, objectui#4687).
+   * The ObjectStack spec has no field-level index flag: it built no index
+   * (objectstack#2377 removed it) and `FieldSchema.safeParse` now rejects the
+   * key by name, so any producer that authored it produced a save-blocking
+   * 422. Declare the index on the object instead — `indexes: [{ name,
+   * fields, unique }]`.
    */
-  indexed?: boolean;
   /**
    * Normalization strategy
    */

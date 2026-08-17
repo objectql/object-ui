@@ -39,7 +39,7 @@ import type {
   ResultDialogHandler,
   ToastHandler,
 } from '@object-ui/core';
-import { actionErrorDetail, isRecordScopedAction } from '@object-ui/core';
+import { actionErrorDetail, isRecordScopedAction, resolveRecordIdParamSeed } from '@object-ui/core';
 import { useActionModal } from './useActionModal';
 import { ActionConfirmDialog, type ConfirmDialogState } from '../views/ActionConfirmDialog';
 import { ActionParamDialog, type ParamDialogState } from '../views/ActionParamDialog';
@@ -51,6 +51,7 @@ import { entitlementDialogFromError, type EntitlementDialogSpec } from '../envir
 import { resolvePageVarTokens } from '../utils/resolvePageVarTokens';
 import { interpretFlowResponse } from '../utils/flowResponse';
 import { createConsoleServerActionHandler } from '../utils/consoleServerAction';
+import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics';
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User', isPlatformAdmin: false };
 
@@ -127,8 +128,15 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   const { dataSource, objects, objectName, onRefresh } = opts;
   const navigate = useNavigate();
   const { user, activeOrganization } = useAuth();
-  // [ADR-0066 D4] System capabilities for the action capability gate (fail-open
-  // when no PermissionProvider is mounted — usePermissions returns []).
+  // [ADR-0066 D4] System capabilities for the action capability gate. Forwarded
+  // AS-IS below (no `?? []`) — `undefined` here means either no
+  // PermissionProvider is mounted, or the backend never reported
+  // `systemPermissions` at all (a deployment predating ADR-0066), and
+  // `ActionEngine`'s own `Array.isArray(held)` check already fails OPEN on
+  // that (framework#3923). Defaulting it to `[]` here used to silently
+  // collapse "unknown" into "holds nothing" and gate every
+  // `requiredPermissions` action closed on exactly the deployments this
+  // doctrine exists to protect (objectui#4656).
   const { systemPermissions } = usePermissions();
   const { fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel, actionDescription, actionResultDialog } = useObjectLabel();
   // Entitlement 403s render as a dialog, not a toast — its copy is localized
@@ -235,8 +243,8 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel]);
 
   const currentUser = user
-    ? { id: user.id, name: user.name, avatar: user.image, isPlatformAdmin: (user as any)?.isPlatformAdmin ?? false, systemPermissions: systemPermissions ?? [] }
-    : { ...FALLBACK_USER, systemPermissions: systemPermissions ?? [] };
+    ? { id: user.id, name: user.name, avatar: user.image, isPlatformAdmin: (user as any)?.isPlatformAdmin ?? false, systemPermissions }
+    : { ...FALLBACK_USER, systemPermissions };
 
   const toastHandler = useCallback<ToastHandler>((message, options) => {
     if (options?.type === 'error') { toast.error(message); return; }
@@ -319,11 +327,18 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
           }
         }
 
-        if (rowRecord && action.recordIdParam) {
-          const rowField = action.recordIdField || 'id';
-          const rowValue = rowRecord[rowField];
-          if (rowValue != null) body[action.recordIdParam] = rowValue;
-        }
+        // Seed the declared `recordIdParam` from the row — or REFUSE
+        // (objectstack#8018). The read used to be `if (rowValue != null)` with a
+        // silent `else`, so a row that could not supply the key sent the request
+        // anyway, minus the parameter naming the record. A backend that reads a
+        // missing selector as "match nothing" then answers success for having
+        // changed nothing, and the user is told the action worked. Refusing is
+        // the contract-first answer (AGENTS.md #0.1): an under-specified request
+        // is rejected at the producer, not sent and hoped about. `error` here is
+        // what makes the runner toast it (see the entitlement note below).
+        const seed = resolveRecordIdParamSeed(action, rowRecord);
+        if (seed.error) return { success: false, error: seed.error };
+        if (seed.value !== undefined) body[action.recordIdParam!] = seed.value;
 
         const isAuthOrgEndpoint = /\/api\/v1\/auth\//.test(resolvedTarget);
         if (isAuthOrgEndpoint && !body.organizationId && activeOrganization?.id) {
@@ -574,6 +589,15 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
    * An unresolvable target is now reported as what it is. To collect input and
    * then run server-side, declare `type: 'script'` with `params`: the runner
    * collects the same dialog and the handler runs with those values.
+   *
+   * The refusal WORDING is built by `utils/modalTargetDiagnostics`, shared with
+   * `RecordDetailView.modalActionHandler` and `useActionModal.modalHandler`.
+   * All three used to spell it here, and drifted: PR #4764 retired the object
+   * fallback and rewrote only `useActionModal`'s copy, leaving this one — the
+   * one console users actually read — saying the target names "no page or
+   * object" and never mentioning `type: 'form'`, the replacement the
+   * retirement handed authors (objectui#4767). Change the contract there, not
+   * here.
    */
   const modalActionHandler = useCallback(async (action: ActionDef, _context?: ActionContext): Promise<ActionResult> => {
     const schema = (action as any).modal ?? action.target ?? (action as any).params?.schema;
@@ -581,10 +605,11 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     if (descriptor) return modalHandler(descriptor);
     return {
       success: false,
-      error:
-        `Action "${action.name}" is type:'modal' but its target ` +
-        `${schema != null ? `"${String(schema)}" ` : ''}names no page or object to open. ` +
-        `Point it at a page, or use type:'script' with params to collect input and run a handler.`,
+      error: modalTargetRefusalMessage({
+        actionName: action.name,
+        target: schema,
+        serverHandlerHint: true,
+      }),
     };
   }, [resolveModalTarget, modalHandler]);
 

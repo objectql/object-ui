@@ -1,21 +1,24 @@
 /**
- * Shift segmentation (班次/排班) for the Gantt — pure, side-effect-free helpers.
+ * Shift segmentation (shift bands / rostering) for the Gantt — pure,
+ * side-effect-free helpers.
  *
- * A factory's day is split into named time bands (白班 08:00–20:00, 夜班
- * 20:00–次日08:00). The Gantt is positioned in continuous milliseconds, so a
- * band is just a recurring time window; this module turns a declarative config
- * into a normalized model the renderer can lay columns and snap drags against.
+ * A factory's day is split into named time bands (day shift 08:00–20:00, night
+ * shift 20:00–08:00 the next day). The Gantt is positioned in continuous
+ * milliseconds, so a band is just a recurring time window; this module turns a
+ * declarative config into a normalized model the renderer can lay columns and
+ * snap drags against.
  *
  * Two ideas make cross-midnight shifts a non-problem:
  *
- *   - **Shift-day (排班日):** the "day" column does NOT start at calendar
+ *   - **Shift-day:** the "day" column does NOT start at calendar
  *     midnight but at the configured `dayStart` (e.g. 08:00) and runs a full 24h
  *     to the next `dayStart`. A night shift that crosses 00:00 therefore sits
  *     wholly inside one shift-day column instead of straddling two date cells.
  *
  *   - **Attribution by start:** a record belongs to the shift-day that contains
- *     its START instant. The 夜班 starting 6/4 20:00 belongs to 6/4 even though
- *     it ends 6/5 08:00. {@link shiftDayStart} / {@link bandAt} encode this.
+ *     its START instant. A night shift starting 6/4 20:00 belongs to 6/4 even
+ *     though it ends 6/5 08:00. {@link shiftDayStart} / {@link bandAt} encode
+ *     this.
  *
  * Bands are laid out by *cumulative duration* from `dayStart`, never by absolute
  * clock math, so a band whose `end` < `start` (crosses midnight) needs no
@@ -30,7 +33,7 @@ const MINS_PER_DAY = 24 * 60;
 export interface ShiftBandConfig {
   /** Stable identifier (e.g. 'day' / 'night'); defaults to `band{index}`. */
   key?: string;
-  /** Display label (白班 / 夜班) — already localized by the caller. */
+  /** Display label ('Day shift' / 'Night shift') — already localized by the caller. */
   label: string;
   /** Band start, 'HH:mm' (24h). */
   start: string;
@@ -44,13 +47,13 @@ export interface ShiftBandConfig {
 export interface ShiftSegmentsConfig {
   /**
    * Clock time the shift-day begins, 'HH:mm'. The day column starts here and
-   * runs 24h. Defaults to '00:00' (calendar day). For 8点交接 set '08:00'.
+   * runs 24h. Defaults to '00:00' (calendar day). For an 08:00 handover set '08:00'.
    */
   dayStart?: string;
   /** Ordered bands covering the 24h shift-day, beginning at `dayStart`. */
   bands: ShiftBandConfig[];
   /**
-   * Draw the dashed calendar-midnight (日历午夜 0:00) cue inside cross-midnight
+   * Draw the dashed calendar-midnight (00:00) cue inside cross-midnight
    * bands. Defaults to `true`; set `false` to hide it.
    */
   showMidnight?: boolean;
@@ -131,8 +134,8 @@ export function shiftDayStart(date: Date, dayStartMin: number): Date {
 /**
  * The band a START instant falls into, by cumulative duration from its
  * shift-day start. Used both to tint/label columns and to derive the band of a
- * record (the 夜班/白班 of `startDateField`). Returns null only for an empty
- * model.
+ * record (the night/day band of `startDateField`). Returns null only for an
+ * empty model.
  */
 export function bandAt(date: Date, seg: NormShiftSegments): NormShiftBand | null {
   if (seg.bands.length === 0) return null;

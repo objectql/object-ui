@@ -18,8 +18,6 @@ let previewProvider: PreviewProvider | undefined;
  * Extension activation entry point
  */
 export function activate(context: vscode.ExtensionContext) {
-  console.log('Object UI extension is now active!');
-
   // Initialize providers
   const schemaValidator = new SchemaValidator();
   const completionProvider = new CompletionProvider();

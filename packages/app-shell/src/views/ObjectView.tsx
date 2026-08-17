@@ -449,9 +449,11 @@ export function buildViewTabs({
 }): Array<Record<string, any> & { id: string }> {
     const viewList = Object.entries(definedViews || {}).map(([key, value]: [string, any]) => {
         const override = viewOverrides[key];
-        // Override wins per-key — saved overrides represent user preferences
-        // (density, column widths, etc.) that should shadow the embedded
-        // definition — but NOT over the tab's identity.
+        // Override wins per-key — saved overrides represent org-wide shared
+        // view settings (density, column widths, etc. — objectstack#7494's
+        // ruling: this store has no per-user scope, so "personal" is not an
+        // accurate description of what it persists) that should shadow the
+        // embedded definition — but NOT over the tab's identity.
         return viewEntry(key, value, override, {
             type: (override?.type) || value?.type || 'grid',
         });
@@ -687,6 +689,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // network write.
     const persistTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
     const persistPending = useRef<Record<string, Record<string, any>>>({});
+    // `persistViewPatch` is defined (and its `useCallback` deps evaluated)
+    // BEFORE `savedViews` state exists below — closing over it directly in
+    // the dependency array would read it in its temporal dead zone. Mirror
+    // it into a ref on every render instead (same pattern as
+    // `identityPolicyRef` above), read only from inside the callback body.
+    const savedViewsRef = useRef<any[]>([]);
     const persistViewPatch = useCallback(
         (viewIdLocal: string, baseViewDef: Record<string, any>, patch: Record<string, any>) => {
             if (!dataSource?.updateViewConfig || !objectName || !viewIdLocal) return;
@@ -700,11 +708,26 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 const merged = persistPending.current[viewIdLocal] || {};
                 delete persistPending.current[viewIdLocal];
                 delete persistTimers.current[viewIdLocal];
+                // A toolbar toggle fires through this ONE path for BOTH a
+                // system view (no overlay row yet) and a genuinely saved
+                // view — `baseViewDef` is the active tab either way, and
+                // nothing upstream of here branches on which. Tell the
+                // adapter which case this is via the SAME classification the
+                // switcher's own readonly gate and its five mutating
+                // handlers already use (`isSavedViewId`), rather than
+                // leaving it to (re-)infer from the write's shape: writing
+                // this as an unconditional personalization-overlay marker
+                // (objectui#4227) would flag the saved view's OWN row and
+                // make `listViews()` exclude it on the very next read — the
+                // user's own view would vanish from the switcher after they
+                // merely toggled its density (objectui#4227 follow-up,
+                // PM review on PR #4713).
+                const targetIsSavedView = isSavedViewId(savedViewsRef.current, viewIdLocal);
                 Promise.resolve(
                     dataSource.updateViewConfig(objectName, viewIdLocal, {
                         ...baseViewDef,
                         ...merged,
-                    })
+                    }, { isSavedView: targetIsSavedView })
                 ).catch((err: any) => {
                     console.error('[ObjectView] Failed to persist view config:', err);
                 });
@@ -949,6 +972,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // into `views` so the ViewTabBar renders them alongside metadata-defined
     // listViews.
     const [savedViews, setSavedViews] = useState<any[]>([]);
+    savedViewsRef.current = savedViews;
     useEffect(() => {
         let cancelled = false;
         if (!objectName) {
@@ -992,8 +1016,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
 
     // Persisted per-view config overrides (e.g. density toggle). Saved
     // separately from `objectDef.listViews` (the embedded definition) via
-    // `dataSource.updateViewConfig` and read back here so toggle preferences
-    // survive a hard reload. Keyed by viewId → partial view config to merge.
+    // `dataSource.updateViewConfig` and read back here so the toggle state
+    // survives a hard reload. Org-wide shared settings (objectstack#7494's
+    // ruling), not a per-user preference. Keyed by viewId → partial view
+    // config to merge.
     //
     // Reading strategy (batch first, per-view fallback) lives in the exported
     // `loadViewOverrides` above so it can be pinned directly — see its doc for
@@ -1697,10 +1723,13 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             // Propagate appearance/view-config properties for live preview
             rowHeight: viewDef.rowHeight ?? listSchema.rowHeight,
             densityMode: viewDef.densityMode ?? listSchema.densityMode,
-            // Hydrate persisted user preferences so they survive reload
-            // (Airtable-style per-view personal config). All four below go
-            // through the same persistViewPatch helper which debounces and
-            // batches concurrent toggles.
+            // Hydrate the persisted view settings so they survive reload
+            // (Airtable-style toolbar config — objectstack#7494's ruling:
+            // ORG-WIDE shared, not a per-user preference; a true per-user
+            // scope is a parked v18 direction, not something to fake
+            // client-side). All four below go through the same
+            // persistViewPatch helper which debounces and batches concurrent
+            // toggles.
             sort: (viewDef as any).sort ?? listSchema.sort,
             // The ONE place this view's effective filter is computed (#2890).
             // It used to be computed twice — once here as `filter` for the child
@@ -1763,8 +1792,6 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             },
             allowExport: viewDef.allowExport ?? listSchema.allowExport,
             exportOptions: viewDef.allowExport === false ? undefined : (viewDef.exportOptions ?? listSchema.exportOptions),
-            striped: viewDef.striped ?? listSchema.striped,
-            bordered: viewDef.bordered ?? listSchema.bordered,
             color: viewDef.color ?? listSchema.color,
             // Propagate view-config properties (Bug 4 / items 14-22)
             wrapHeaders: viewDef.wrapHeaders ?? listSchema.wrapHeaders,
@@ -1835,7 +1862,6 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             })(),
             showRecordCount: viewDef.showRecordCount ?? listSchema.showRecordCount,
             allowPrinting: viewDef.allowPrinting ?? listSchema.allowPrinting,
-            virtualScroll: viewDef.virtualScroll ?? listSchema.virtualScroll,
             emptyState:
                 viewEmptyState(
                     objectDef.name,

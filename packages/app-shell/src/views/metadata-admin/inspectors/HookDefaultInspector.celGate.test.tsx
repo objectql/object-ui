@@ -21,6 +21,18 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { HookSchema } from '@objectstack/spec/data';
 
+// objectui#4697 — HookDefaultInspector calls useObjectOptions() unconditionally
+// (the "Object(s) this hook fires on" picker) even though every fixture here
+// uses `object: '*'` and never renders the picker's options. Stub the shared
+// client so that mount-time fetch doesn't escape to the real network; see
+// PageBlockInspector.i18n.test.tsx for the full mechanism.
+const state = vi.hoisted(() => ({
+  metadataClient: { get: vi.fn(async () => undefined), list: vi.fn(async () => [] as unknown[]) },
+}));
+vi.mock('../useMetadata', () => ({
+  useMetadataClient: () => state.metadataClient,
+}));
+
 import { HookDefaultInspector } from './HookDefaultInspector';
 import { __setCelFormulaLoader } from '../celAuthoring';
 

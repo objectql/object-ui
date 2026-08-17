@@ -181,10 +181,16 @@
  *        the interpolation data from when it is present, making the top-level
  *        names not interpolation at all. Today the repo has none of these; the
  *        abstention is what stops the first one becoming a false red.
- *      - RESERVED names are removed from BOTH sides before comparing, not just
- *        from the call site's. `count` is the reason: it is an i18next control
- *        option AND the value of a `{{count}}` hole, so subtracting it from one
- *        side only would report every counted string as unfilled.
+ *      - RESERVED names are removed from the call site's own option names ONLY
+ *        when judging **inert**, and kept for **unfilled** (objectui#4206).
+ *        `count` is the reason both directions need a different answer: it is
+ *        an i18next control option AND the value of a `{{count}}` hole, so
+ *        dropping it before judging `inert` keeps a passed `count` from
+ *        reading as an inert argument, while KEEPING it for `unfilled` lets
+ *        the rule tell "passed `count`" apart from "passed nothing" and still
+ *        catch a real `{{count}}` miss (objectui#4157) — dropping it from both
+ *        directions, as the rule did before #4206, made `unfilled`
+ *        structurally unable to ever contain `count`, whether filled or not.
  *
  *    Nested `t()` inside the options object is not a special case here and must
  *    not become one: the arguments of an inner call are not properties of the
@@ -315,8 +321,17 @@ export const PROBE_FLAG_NAMES = /I18N_PROBE_FLAG|__ouiLabelProbe/;
 
 /**
  * i18next option names that CONTROL the lookup rather than fill a hole
- * (objectui#3845). Subtracted from both sides of the interpolation comparison —
- * see the header for why `count` in particular must leave the hole set too.
+ * (objectui#3845). `interpolationOptions()` reports a call site's option names
+ * RAW, this set unfiltered — the filtering happens at the comparison, PER
+ * DIRECTION (objectui#4206), and the two directions want opposite answers:
+ * subtracted from the call site's names when judging `inert` (a reserved name
+ * like `count`, i18next's plural selector, must never itself be called inert),
+ * but left IN when judging `unfilled` (a call site that DOES pass `count` must
+ * still be recognised as having filled a `{{count}}` hole — `count` is also
+ * its own hole's name, and dropping it from both directions, as the rule did
+ * before #4206, made `unfilled` structurally unable to ever contain `count`,
+ * hiding real misses like objectui#4157). See the header (class 4) for the
+ * worked example.
  *
  * `replace` is absent on purpose: it does not merely fail to be interpolation
  * data, it REDIRECTS where the data comes from, so a call site carrying one is
@@ -368,34 +383,24 @@ export const RESERVED_OPTION_NAMES = new Set([
  *
  * i18next leaves an unmatched `{{name}}` in the output verbatim, which is what
  * makes a second substitution stage possible at all: the string travels through
- * `t()` with its hole intact and the component fills it afterwards. That is a
- * deliberate design here, not an oversight — the sister label three lines away
- * in `apps/console/src/pages/auth/ForgotPasswordPage.tsx` spells the same
- * pattern with SINGLE braces (`Resend in {seconds}s`) precisely to stay out of
- * i18next's way, and the inconsistency between the two spellings is filed as
- * objectui#4135.
+ * `t()` with its hole intact and the component fills it afterwards. That used
+ * to require this registry, because a call-site-filled `{{hole}}` is otherwise
+ * indistinguishable from an i18next hole somebody forgot to pass an argument
+ * for — `auth.forgotPassword.successDescription` was the one entry, exempted
+ * from the `unfilled` check while `ForgotPasswordForm.tsx` filled it downstream.
  *
- * The listed hole names are removed from the hole set, so the `unfilled`
- * direction stays silent — and the `inert` direction keeps judging them, which
- * is the direction that matters here: passing `email` to `t()` would let
- * i18next consume the hole, `ForgotPasswordForm`'s `includes('{{email}}')`
- * guard would then miss, and its fallback branch would append the address a
- * SECOND time. So for these keys the argument must not be passed, and the gate
- * still says so.
+ * objectui#4135's 2026-08-11 maintainer ruling retired that entry by fixing the
+ * ambiguity at its source instead of fencing it: a hole filled downstream of
+ * `t()` is now ALWAYS spelled with SINGLE braces (`{x}`), which sits outside
+ * i18next's `{{…}}` syntax and is therefore invisible to `holesOf()` — safe by
+ * construction, no exemption needed. `resendOtpCountdownText`'s `{seconds}`
+ * (`apps/console/src/pages/auth/ForgotPasswordPage.tsx`) was already this
+ * shape; `successDescription` now matches it. The registry mechanism stays in
+ * place, empty, for the day a future case genuinely cannot avoid a
+ * double-brace hole filled outside i18next — the self-test below still checks
+ * every entry it holds, whatever that count is.
  */
-export const EXTERNALLY_INTERPOLATED_HOLES = [
-  {
-    key: 'auth.forgotPassword.successDescription',
-    holes: ['email'],
-    filledBy: 'packages/auth/src/ForgotPasswordForm.tsx',
-    marker: "successDescription.replace('{{email}}', email)",
-    reason:
-      'the label is a PROP of `ForgotPasswordForm`, which substitutes the address itself ' +
-      'once the form knows it — the call site cannot, because it renders before the user ' +
-      'has typed anything. All ten packs carry the hole, so this is the shape in every ' +
-      'language, not an en-only quirk.',
-  },
-];
+export const EXTERNALLY_INTERPOLATED_HOLES = [];
 
 /**
  * The interpolation names an `en` value has holes for (objectui#3845).
@@ -785,9 +790,14 @@ function inlineDefaultValue(node, source) {
 /**
  * The interpolation option names a call site passes (objectui#3845).
  *
- * `{ readable: true, names }`  — the full name set, reserved names already
- *                                removed. An empty set is a real answer: it says
- *                                this call passes nothing to interpolate.
+ * `{ readable: true, names }`  — the full name set, RESERVED NAMES INCLUDED
+ *                                (objectui#4206 — the caller decides whether to
+ *                                filter, and which direction to filter it for;
+ *                                doing it here would make it impossible to tell
+ *                                "passed `count`" from "passed nothing" once a
+ *                                key doubles as a hole name). An empty set is a
+ *                                real answer: it says this call passes nothing
+ *                                to interpolate.
  * `{ readable: false }`        — the name set is not statically knowable, so the
  *                                rule abstains rather than guessing at it.
  *
@@ -818,7 +828,9 @@ function interpolationOptions(node, source) {
 
   for (const property of object.properties) {
     if (ts.isShorthandPropertyAssignment(property)) {
-      if (!RESERVED_OPTION_NAMES.has(property.name.text)) names.add(property.name.text);
+      // Reserved names are NOT filtered here (objectui#4206) — see the doc
+      // comment above.
+      names.add(property.name.text);
       continue;
     }
     // A spread, a method, an accessor: the name set is open, so do not judge it.
@@ -836,7 +848,8 @@ function interpolationOptions(node, source) {
     // i18next reads interpolation data OUT of `replace` when it is present, so
     // the top-level names stop being the answer to this question entirely.
     if (name === 'replace') return { readable: false };
-    if (RESERVED_OPTION_NAMES.has(name)) continue;
+    // Reserved names are NOT filtered here (objectui#4206) — see the doc
+    // comment above.
     names.add(name);
   }
   return { readable: true, names };
@@ -898,7 +911,8 @@ function staticHead(argument) {
 // ── the analysis ─────────────────────────────────────────────────────────────
 
 /**
- * @returns {{ findings: Array, counters: Record<string, number>, enKeyCount: number }}
+ * @returns {{ findings: Array, counters: Record<string, number>, enKeyCount: number,
+ *   referencedKeys: Set<string>, referencedBranches: Set<string>, dynamicHeads: Set<string> }}
  */
 export function analyze(root) {
   const { leaves, branches, values } = collectEnKeys(root);
@@ -914,6 +928,21 @@ export function analyze(root) {
   const externallyFilled = new Map(
     EXTERNALLY_INTERPOLATED_HOLES.map((entry) => [entry.key, new Set(entry.holes)]),
   );
+
+  // Reverse-sweep bookkeeping (objectui#4658): every literal key a PACK call
+  // site asks for (`referencedKeys` — plural suffixes included, so a base key
+  // that resolves through `_one`/`_other` marks the suffixed leaf as live
+  // too), every branch consumed wholesale via `returnObjects: true`
+  // (`referencedBranches` — every leaf under it is live), and the static head
+  // of every dynamic/template key (`dynamicHeads` — any leaf sharing that
+  // prefix is a possible runtime target, so it counts as live). Populated by
+  // this SAME walk, not a second parse, so the two directions of "does this
+  // key have a call site" can never drift apart from each other. Unused by
+  // this gate's own findings/counters; `scripts/check-i18n-dead-keys.mjs` is
+  // the consumer.
+  const referencedKeys = new Set();
+  const referencedBranches = new Set();
+  const dynamicHeads = new Set();
 
   const findings = [];
   const counters = {
@@ -1056,6 +1085,13 @@ export function analyze(root) {
             counters.literalKeys += 1;
             if (resolvesLeaf(key) || (returnsObjects && branches.has(key))) counters.resolvedKeys += 1;
             else findings.push({ reason: 'missing-key', ...at, detail: key });
+            // Reverse-sweep bookkeeping — see the comment where these Sets are
+            // declared. Recorded for every literal key regardless of whether it
+            // resolves: a typo'd key referencing nothing in `en` cannot mark any
+            // pack leaf live anyway, so there is nothing to guard here.
+            referencedKeys.add(key);
+            for (const suffix of PLURAL_SUFFIXES) referencedKeys.add(key + suffix);
+            if (returnsObjects && branches.has(key)) referencedBranches.add(key);
           }
 
           // objectui#3810 — the inline default is dead code the moment the key
@@ -1099,10 +1135,18 @@ export function analyze(root) {
               counters.opaqueOptions += 1;
             } else {
               const downstream = externallyFilled.get(key) ?? new Set();
-              const holes = new Set(
-                [...holesOf(enValue)].filter((hole) => !RESERVED_OPTION_NAMES.has(hole) && !downstream.has(hole)),
-              );
-              const inert = [...options.names].filter((option) => !holes.has(option)).sort();
+              const holes = new Set([...holesOf(enValue)].filter((hole) => !downstream.has(hole)));
+              // objectui#4206 — the reservation applies PER DIRECTION, not to a
+              // shared set on either side. `count` is legitimate to PASS without
+              // a visible `{{count}}` hole (i18next's plural selector), so
+              // `namesForInert` drops it — a reserved option can never itself be
+              // called inert. It stays IN the raw `options.names` used for
+              // `unfilled`, because that direction needs to know whether `count`
+              // was actually passed: dropping it there too (as before #4206)
+              // made a real `{{count}}` miss (objectui#4157) indistinguishable
+              // from a call site that filled it.
+              const namesForInert = new Set([...options.names].filter((name) => !RESERVED_OPTION_NAMES.has(name)));
+              const inert = [...namesForInert].filter((option) => !holes.has(option)).sort();
               const unfilled = [...holes].filter((hole) => !options.names.has(hole)).sort();
               counters.judgedInterpolation += 1;
               if (inert.length > 0 || unfilled.length > 0) {
@@ -1149,6 +1193,11 @@ export function analyze(root) {
             if (head && !headMatches(head)) {
               findings.push({ reason: 'missing-prefix', ...at, detail: head });
             }
+            // Reverse-sweep bookkeeping: a leaf sharing this prefix is a
+            // possible runtime target of the substitution, so it is live —
+            // recorded even when `head` matches nothing today, which is
+            // harmless (nothing in `en` starts with it either).
+            if (head) dynamicHeads.add(head);
           }
         }
       }
@@ -1157,7 +1206,7 @@ export function analyze(root) {
     visit(source);
   }
 
-  return { findings, counters, enKeyCount: leaves.size };
+  return { findings, counters, enKeyCount: leaves.size, referencedKeys, referencedBranches, dynamicHeads };
 }
 
 // ── baseline ─────────────────────────────────────────────────────────────────

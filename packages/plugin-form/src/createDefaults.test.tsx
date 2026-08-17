@@ -622,3 +622,234 @@ describe('one classifier, two consumers (#4069)', () => {
     expect(isRequiredInForm(undefined, true)).toBe(false);
   });
 });
+
+/**
+ * The CONDITIONAL half: `requiredWhen` + a runtime `defaultValue` (#4085).
+ *
+ * #4069 ruled the STATIC spelling — a create form does not enforce `required`
+ * on a field whose value the producer resolves at insert. `requiredWhen` is
+ * resolved one layer downstream, in the form renderer, against the LIVE record
+ * (`resolveFieldRuleState`), so it survived that fix untouched: a predicate
+ * resolving TRUE on a create form re-required a control the renderer
+ * deliberately leaves empty, and the submit was refused with nothing sensible
+ * for the user to type. Ruled 2026-08-11 (#4085): in CREATE mode the two
+ * spellings behave identically on a producer-owned field, because `NOW()` /
+ * `current_user` resolve at insert regardless of the state the predicate names.
+ *
+ * This is the issue's own "Reproduce" recipe: the #4069 fixture with one
+ * field's `required: true` swapped for a `requiredWhen` that resolves TRUE.
+ *
+ * Four directions, the same three boundaries #4069 pinned plus the one this
+ * card adds:
+ *
+ *   1. create + predicate TRUE + runtime default  → submit SUCCEEDS, key ABSENT
+ *   2. create + predicate TRUE + NO default       → still refused (the contrast
+ *      that proves the suppression is targeted, not "create forms don't
+ *      validate")
+ *   3. EDIT + predicate TRUE + runtime default    → still enforced. The token
+ *      was resolved at insert; blanking the column now is a real removal
+ *   4. the required MARKER tracks the same verdict — display and validation
+ *      read ONE `resolveFieldRuleState` result (#4201), so a suppressed field
+ *      may never show an asterisk it will not enforce
+ */
+
+/** Resolves TRUE on the fixture below, in both create and edit mode. */
+const WHEN_SCHEDULED = "record.status == 'scheduled'";
+
+/** The #4069 runtime shapes again, conditionally required instead of statically. */
+const CONDITIONAL_RUNTIME_FIELDS = RUNTIME_FIELDS.map((f) => ({ ...f, name: `cw_${f.name}` }));
+
+/**
+ * `status` carries a STATIC literal default so a create form opens with the
+ * predicate already TRUE — the deadlock state, reached without the user
+ * touching anything.
+ *
+ * `plan` is conditionally required with NO default: the control the user
+ * genuinely must fill, and the contrast that proves the suppression reads the
+ * declared default rather than the mode alone.
+ */
+const CONDITIONAL_OBJECT_SCHEMA = {
+  name: 'reminder',
+  fields: {
+    status: { type: 'text', label: 'Status', defaultValue: 'scheduled' },
+    plan: { type: 'text', label: 'Plan', requiredWhen: WHEN_SCHEDULED },
+    ...Object.fromEntries(
+      CONDITIONAL_RUNTIME_FIELDS.map((f) => [
+        f.name,
+        { type: 'text', label: f.what, requiredWhen: WHEN_SCHEDULED, defaultValue: f.defaultValue },
+      ]),
+    ),
+  },
+};
+
+const CONDITIONAL_SECTIONS = [
+  {
+    name: 'basics',
+    label: 'Basics',
+    fields: ['status', 'plan', ...CONDITIONAL_RUNTIME_FIELDS.map((f) => f.name)],
+  },
+];
+
+describe.each(CONTAINERS)('%s — `requiredWhen` + runtime `defaultValue` on create (#4085)', (_name, Container, formType) => {
+  const renderConditional = (ds: any, extra: Record<string, unknown> = {}) =>
+    render(
+      <Container
+        schema={{
+          type: 'object-form',
+          formType,
+          objectName: 'reminder',
+          mode: 'create',
+          open: true,
+          sections: CONDITIONAL_SECTIONS,
+          ...extra,
+        } as any}
+        dataSource={ds}
+      />,
+    );
+
+  it('submits with the conditionally-required runtime-default fields left empty, and OMITS them', async () => {
+    const ds = makeDS(CONDITIONAL_OBJECT_SCHEMA);
+    renderConditional(ds);
+
+    const plan = await awaitField('plan');
+    fireEvent.change(plan, { target: { value: 'ring the bell' } });
+    // The predicate is TRUE the whole time — `status` opened seeded.
+    expect(fieldInput('status')?.value).toBe('scheduled');
+    submit();
+
+    // Before this change the submit was refused here: `resolveFieldRuleState`
+    // re-required every `cw_*` control from the live record, over the top of
+    // the static suppression #4084 had already applied.
+    await waitFor(() => expect(ds.create).toHaveBeenCalled());
+    const payload = ds.create.mock.calls[0][1];
+    expect(payload).toMatchObject({ plan: 'ring the bell' });
+    for (const f of CONDITIONAL_RUNTIME_FIELDS) expect(payload).not.toHaveProperty(f.name);
+  });
+
+  it('drops the required marker on them, so the star and the submit agree', async () => {
+    const ds = makeDS(CONDITIONAL_OBJECT_SCHEMA);
+    renderConditional(ds);
+
+    await awaitField('plan');
+    // The predicate holds for every field alike; only the producer-owned ones
+    // lose the rule — and they lose the marker with it, because both read one
+    // verdict (#4201).
+    await waitFor(() => expect(marksRequired('plan')).toBe(true));
+    for (const f of CONDITIONAL_RUNTIME_FIELDS) expect(marksRequired(f.name)).toBe(false);
+  });
+
+  it('still refuses a conditionally-required field that declares NO default', async () => {
+    const ds = makeDS(CONDITIONAL_OBJECT_SCHEMA);
+    renderConditional(ds);
+
+    await awaitField('plan'); // left empty on purpose
+    submit();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(ds.create).not.toHaveBeenCalled();
+  });
+
+  it('submits a value the user DOES type into a conditionally-required runtime-default field', async () => {
+    const ds = makeDS(CONDITIONAL_OBJECT_SCHEMA);
+    renderConditional(ds);
+
+    const plan = await awaitField('plan');
+    fireEvent.change(plan, { target: { value: 'ring the bell' } });
+    const target = CONDITIONAL_RUNTIME_FIELDS[0].name;
+    const typed = await awaitField(target);
+    fireEvent.change(typed, { target: { value: 'typed by hand' } });
+    submit();
+
+    await waitFor(() => expect(ds.create).toHaveBeenCalled());
+    // What is suppressed is the "must not be empty" rule, never the field.
+    expect(ds.create.mock.calls[0][1]).toMatchObject({
+      plan: 'ring the bell',
+      [target]: 'typed by hand',
+    });
+  });
+
+  it('leaves EDIT mode alone — `requiredWhen` still enforces on a persisted row', async () => {
+    const stored: Record<string, unknown> = { id: 'r1', status: 'scheduled', plan: 'ring the bell' };
+    for (const f of CONDITIONAL_RUNTIME_FIELDS) stored[f.name] = 'resolved at insert';
+    const ds = makeDS(CONDITIONAL_OBJECT_SCHEMA, stored);
+    render(
+      <Container
+        schema={{
+          type: 'object-form',
+          formType,
+          objectName: 'reminder',
+          mode: 'edit',
+          recordId: 'r1',
+          open: true,
+          sections: CONDITIONAL_SECTIONS,
+        } as any}
+        dataSource={ds}
+      />,
+    );
+
+    const target = CONDITIONAL_RUNTIME_FIELDS[0].name;
+    const el = await waitFor(() => {
+      const input = fieldInput(target);
+      if (input?.value !== 'resolved at insert') throw new Error('record not loaded yet');
+      return input;
+    });
+    // Defaults do not re-apply to an existing record, so the predicate means
+    // exactly what it says here: the marker stays and the blank is refused.
+    expect(marksRequired(target)).toBe(true);
+
+    fireEvent.change(el, { target: { value: '' } });
+    submit();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(ds.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('ObjectForm — `requiredWhen` + runtime `defaultValue` on create (#4085)', () => {
+  // The flat container builds its fields on its own path (no sections), so the
+  // conditional rule is pinned here too rather than assumed from the table.
+  it('submits with the conditionally-required runtime-default fields left empty, and OMITS them', async () => {
+    const ds = makeDS(CONDITIONAL_OBJECT_SCHEMA);
+    render(
+      <ObjectForm
+        schema={{ type: 'object-form', objectName: 'reminder', mode: 'create' } as any}
+        dataSource={ds}
+      />,
+    );
+
+    const plan = await awaitField('plan');
+    fireEvent.change(plan, { target: { value: 'ring the bell' } });
+    submit();
+
+    await waitFor(() => expect(ds.create).toHaveBeenCalled());
+    const payload = ds.create.mock.calls[0][1];
+    expect(payload).toMatchObject({ plan: 'ring the bell' });
+    for (const f of CONDITIONAL_RUNTIME_FIELDS) expect(payload).not.toHaveProperty(f.name);
+  });
+
+  it('leaves EDIT mode alone', async () => {
+    const stored: Record<string, unknown> = { id: 'r1', status: 'scheduled', plan: 'ring the bell' };
+    for (const f of CONDITIONAL_RUNTIME_FIELDS) stored[f.name] = 'resolved at insert';
+    const ds = makeDS(CONDITIONAL_OBJECT_SCHEMA, stored);
+    render(
+      <ObjectForm
+        schema={{ type: 'object-form', objectName: 'reminder', mode: 'edit', recordId: 'r1' } as any}
+        dataSource={ds}
+      />,
+    );
+
+    const target = CONDITIONAL_RUNTIME_FIELDS[0].name;
+    const el = await waitFor(() => {
+      const input = fieldInput(target);
+      if (input?.value !== 'resolved at insert') throw new Error('record not loaded yet');
+      return input;
+    });
+    expect(marksRequired(target)).toBe(true);
+
+    fireEvent.change(el, { target: { value: '' } });
+    submit();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(ds.update).not.toHaveBeenCalled();
+  });
+});

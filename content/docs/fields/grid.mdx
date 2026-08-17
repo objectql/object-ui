@@ -175,20 +175,20 @@ For advanced grid features, use the grid plugin (`@object-ui/plugin-grid`):
 { type: 'grid', name: 'items', columns: [...] }
 
 // Advanced grid with full features (requires plugin)
+// Keys sit on the node — a `props` envelope is never read by the renderer
 {
-  type: 'plugin:grid',
-  bind: 'items',
-  props: {
-    columns: [...],
-    editable: true,      // Plugin feature: inline editing
-    sortable: true,      // Plugin feature: column sorting
-    filterable: true,    // Plugin feature: filtering
-    pagination: { pageSize: 20 }  // Plugin feature: pagination
-  }
+  type: 'object-grid',   // the registered type name — there is no `plugin:grid`
+  bind: 'items',         // resolves the array from the surrounding data scope
+  columns: [             // spec `ListColumn[]` — each entry is keyed by `field`
+    { field: 'product', label: 'Product' },
+    { field: 'quantity', label: 'Quantity', sortable: false }
+  ],
+  editable: true,               // Plugin feature: inline cell editing
+  pagination: { pageSize: 20 }  // Plugin feature: pagination
 }
 ```
 
-**Note**: Features like `editable`, `sortable`, `filterable`, and advanced `pagination` are provided by the `@object-ui/plugin-grid` package, not the basic grid field.
+**Note**: `editable` and `pagination` are read off the node by `@object-ui/plugin-grid`, not by the basic grid field. Sorting and search are **not** node keys: column sorting is on by default and is turned off per column (`{ field, sortable: false }`), and there is no node-level `filterable` — a grid that fetches its own rows declares its query with `objectName` plus `filter` / `sort`.
 
 ## Use Cases
 

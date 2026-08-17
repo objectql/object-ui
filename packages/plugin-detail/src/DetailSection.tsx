@@ -435,7 +435,6 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     setVisibleCount(vsBatchSize);
     const timer = setTimeout(() => setVisibleCount(undefined), VS_REVEAL_DELAY);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vsEnabled, layoutFields.length, vsBatchSize]);
 
   // Hide entire section when all fields are empty AND the user has not asked to

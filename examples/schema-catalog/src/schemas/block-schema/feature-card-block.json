@@ -8,8 +8,11 @@
       "className": "items-center text-center p-4",
       "children": [
         {
-          "type": "div",
-          "className": "w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center",
+          "type": "flex",
+          "justify": "center",
+          "align": "center",
+          "gap": 0,
+          "className": "w-12 h-12 rounded-lg bg-primary/10",
           "children": [
             {
               "type": "icon",

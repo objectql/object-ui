@@ -17,7 +17,7 @@
  *
  * The renderer used to end in `< ObjectCalendar schema={bound} … {...props} />`,
  * where `props` was everything `SchemaRenderer` hands a registered widget.
- * `ObjectCalendarProps` declares eight callbacks and a `locale`, so an authored
+ * `ObjectCalendarComponentProps` declares eight callbacks and a `locale`, so an authored
  * value under any of those names landed on the declared prop — and an SDUI
  * author writing JSON can never produce a function. The card measured three
  * user-reachable failures, all pinned below:

@@ -72,6 +72,24 @@
  * **per record**. The predicates are returned untouched as
  * `editPredicates` / `deletePredicates` for the row renderer to evaluate
  * (they never affect the object-level `canEdit` / `canDelete` verdict).
+ *
+ * On top of all of the above sits one more layer, applied PER ROW rather than
+ * per object and therefore resolved by {@link resolveRowRecordCrudAffordance}
+ * rather than here:
+ *
+ *       e. [#4296] the RECORD-level verdict — the explain engine's answer for
+ *          this one row (`security/explain` with `recordIds`, batched per page
+ *          by `./hooks/useRecordCrudVerdicts`).
+ *
+ * Layers (d) and (e) answer different questions for the same reason (c) and (d)
+ * do. `allowEdit` is the principal's verdict on the OBJECT; `writeScope`, the
+ * sharing model and RLS narrow it per row, so layer (d) fails OPEN for every
+ * record the principal does not own — a user with a legitimately broad object
+ * grant saw Edit/Delete on every row they could read, and the server answered
+ * 403 on the ones it does not own. The record detail header has ANDed the
+ * record-level verdict since objectstack#3821; the row kebab now runs the same
+ * judgement against the same engine, so one screen no longer carries two
+ * opposite answers to "may this user write THIS record".
  */
 
 import { resolveEffectiveCrudAffordances, type RowCrudPredicates, type UserActionOverride } from '@object-ui/core';
@@ -157,4 +175,36 @@ export function resolveRowCrudAffordances(opts: {
     editPredicates: canEdit ? aff.editPredicates : undefined,
     deletePredicates: canDelete ? aff.deletePredicates : undefined,
   };
+}
+
+/**
+ * [#4296] Layer (e): narrow ONE row's Edit/Delete affordance by the
+ * RECORD-level verdict, on top of the object-level answer this module's
+ * {@link resolveRowCrudAffordances} resolved.
+ *
+ * An INTERSECTION like every layer above it: a record-level grant cannot
+ * re-open what the bucket, `userActions`, the effective operation set or the
+ * principal's object permission closed. It only ever removes.
+ *
+ * `recordVerdict === undefined` means the record-grained answer is UNKNOWN —
+ * the batch verdict has not arrived yet, the endpoint failed or is absent, the
+ * row carries no id, or the response did not answer this row. Unknown leaves
+ * the object verdict untouched, i.e. renders exactly what this list rendered
+ * before layer (e) existed. That direction is deliberate and pinned: the server
+ * is the authority and already fail-closes with a 403, so an over-hidden row
+ * would cost a permitted user a capability they have, which is strictly worse
+ * than the wasted click this layer removes. It is the same `!== false` posture
+ * layer (d) takes for an absent `permissionUpdate` / `permissionDelete`, and
+ * the same fail-open posture `useRecordEditable` takes on the detail header.
+ *
+ * @param objectVerdict `canEdit` / `canDelete` for the object, from
+ *   {@link resolveRowCrudAffordances}.
+ * @param recordVerdict this row's `decision.records[i].visible`, or `undefined`
+ *   when no record-grained answer is available for it.
+ */
+export function resolveRowRecordCrudAffordance(
+  objectVerdict: boolean | undefined,
+  recordVerdict: boolean | undefined,
+): boolean {
+  return !!objectVerdict && recordVerdict !== false;
 }

@@ -33,7 +33,6 @@ const evalCode = (code: string, scope: Scope): unknown => {
   const { default: _d, import: imports, ...rest } = scope as Scope & { import?: Scope };
   const finalScope: Scope = { React, require: createRequire(imports), ...rest };
   const keys = Object.keys(finalScope);
-  // eslint-disable-next-line no-new-func
   return new Function(...keys, code)(...keys.map((k) => finalScope[k]));
 };
 

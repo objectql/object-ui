@@ -5,6 +5,24 @@
  * The whole point of this section is the line-count delta — keep both
  * snippets honest (no cheating by omitting imports, no padding the
  * React side with formatting).
+ *
+ * The JSON side must stay COPY-RUNNABLE, because "an AI agent can author this"
+ * is the claim the panel makes (objectui#4786). Two ways it stopped being true
+ * before, both measured through a real SchemaRenderer:
+ *
+ *  - `"type": "stats-card"` is registered by nothing in the repo, so every one
+ *    of the four children painted the registry's OBJUI-001 "Unknown component
+ *    type" panel. It is now `statistic`, which `@object-ui/components`
+ *    registers and which reads `label` / `value` / `description` / `icon`.
+ *  - the keys were wrapped in a `props` envelope. `SchemaRenderer` spreads
+ *    `schema.props` as React props instead of merging it into the node, and the
+ *    renderers read `schema.*` — so the envelope rendered an empty card and
+ *    leaked into the DOM as `props="[object Object]"` (same defect class as the
+ *    `cols` fix in objectui#4011 / PR #4785).
+ *
+ * `OBJECTUI_LINES` feeds `REDUCTION_PCT`, shown on the page as "N lines" and
+ * "X% less code" — keep this snippet at 18 lines so a correctness fix never
+ * silently moves the marketing number (the constraint PR #4785 established).
  */
 
 const REACT_CODE = `import {
@@ -53,20 +71,20 @@ export function StatsCards() {
 
 const OBJECTUI_CODE = `{
   "type": "grid",
-  "props": { "cols": { "md": 2, "lg": 4 }, "gap": 4 },
+  "columns": { "xs": 1, "md": 2, "lg": 4 }, "gap": 4,
   "children": [
-    { "type": "stats-card", "props": { "title": "Total Revenue",
-      "value": "$45,231.89", "change": "+20.1% from last month",
-      "icon": "dollar-sign" } },
-    { "type": "stats-card", "props": { "title": "Subscriptions",
-      "value": "+2,350", "change": "+180.1% from last month",
-      "icon": "users" } },
-    { "type": "stats-card", "props": { "title": "Sales",
-      "value": "+12,234", "change": "+19% from last month",
-      "icon": "credit-card" } },
-    { "type": "stats-card", "props": { "title": "Active Now",
-      "value": "+573", "change": "+201 since last hour",
-      "icon": "activity" } }
+    { "type": "statistic", "label": "Total Revenue",
+      "value": "$45,231.89", "description": "+20.1% from last month",
+      "icon": "dollar-sign" },
+    { "type": "statistic", "label": "Subscriptions",
+      "value": "+2,350", "description": "+180.1% from last month",
+      "icon": "users" },
+    { "type": "statistic", "label": "Sales",
+      "value": "+12,234", "description": "+19% from last month",
+      "icon": "credit-card" },
+    { "type": "statistic", "label": "Active Now",
+      "value": "+573", "description": "+201 since last hour",
+      "icon": "activity" }
   ]
 }`;
 

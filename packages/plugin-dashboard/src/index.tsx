@@ -24,6 +24,15 @@ import { DrillDownDrawer } from './DrillDownDrawer';
 
 export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, ObjectMetricWidget, PivotTable, ObjectPivotTable, ObjectDataTable, DashboardConfigPanel, WidgetConfigPanel, DashboardWithConfig, DrillDownDrawer };
 export type { WidgetConfigPanelProps } from './WidgetConfigPanel';
+// objectui#4748 — the config sidebar's provider-less English, exported for the
+// same reason the sibling plugins export theirs: a defaults map that disagrees
+// with the `en` pack renders two labels for one control, and the assertion that
+// it does not needs to be able to import it.
+export {
+  CONFIG_PANEL_DEFAULT_TRANSLATIONS,
+  useConfigPanelTranslation,
+  type ConfigPanelTranslate,
+} from './useConfigPanelTranslation';
 export type {
   WidgetDatasetCatalogEntry,
   WidgetDatasetDimension,
@@ -150,6 +159,20 @@ ComponentRegistry.register(
         { name: 'label', type: 'string', label: 'Label' },
         { name: 'aggregate', type: 'object', label: 'Aggregate', description: 'Aggregation config: { field, function, groupBy }' },
         { name: 'icon', type: 'string', label: 'Icon (Lucide name)' },
+        { name: 'description', type: 'string', label: 'Description', description: 'Helper text rendered under the value.' },
+        { name: 'title', type: 'string', label: 'Drill-down Title', description: 'Heading of the drill-down panel. Defaults to `label` — set it only when the records list wants a different name from the tile.' },
+        { name: 'filter', type: 'array', label: 'Filter', description: 'Criteria the aggregation is scoped by. The same filter narrows the drill-down list, so the number and the records behind it always agree.' },
+        { name: 'colorVariant', type: 'enum', label: 'Color Variant', enum: ['default', 'blue', 'teal', 'orange', 'purple', 'success', 'warning', 'danger'], description: 'Colour of the icon container. Semantic, not decorative: `success` / `warning` / `danger` should track what the number means.' },
+        { name: 'variant', type: 'enum', label: 'Layout Variant', enum: ['card', 'bare'], description: '`card` draws the tile’s own surface; `bare` drops it, for a metric already sitting inside a card.' },
+        { name: 'format', type: 'string', label: 'Number Format', description: 'Numeral-style format pattern, e.g. `0,0`, `$0,0`, `0%`. Use `currency` instead of hard-coding a currency symbol here.' },
+        { name: 'currency', type: 'string', label: 'Currency Code', description: 'ISO 4217 code, e.g. `USD`. Enables locale-aware currency formatting of the value.' },
+        { name: 'prefix', type: 'string', label: 'Prefix', description: 'Static text placed before the formatted value.' },
+        { name: 'suffix', type: 'string', label: 'Suffix', description: 'Static text placed after the formatted value.' },
+        { name: 'invert', type: 'boolean', label: 'Invert', description: 'Display `1 - value` — for gauges whose good direction is down, such as error rate shown as uptime.' },
+        { name: 'fallbackValue', type: 'string', label: 'Fallback Value', description: 'Value shown when no data source resolves. For static/demo tiles; a bound metric should not need it.' },
+        { name: 'trend', type: 'object', label: 'Trend', description: 'Static trend badge: `{ value, label, direction }`. Use `compareTo` instead when the trend should be computed from data.' },
+        { name: 'compareTo', type: 'object', label: 'Compare To', description: 'Period-over-period comparison, `{ kind: "previousPeriod" }` or `{ kind: "previousYear" }` — the computed alternative to a static `trend`.' },
+        { name: 'drillDown', type: 'object', label: 'Drill Down', description: 'Click-through config that opens the records behind the number.' },
     ],
     defaultProps: {
       label: 'Metric',

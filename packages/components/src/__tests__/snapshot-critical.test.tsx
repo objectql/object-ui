@@ -17,6 +17,19 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import React from 'react';
+// This package's own entry is imported RELATIVELY, not as
+// `@object-ui/components`. A package self-import resolves through the published
+// `exports` map to `dist/index.d.ts`, and `components:type-check` has no
+// dependency edge on this package's own build (turbo gives `type-check`
+// `dependsOn: ["^build"]` — the DEPENDENCIES' builds), so on a cold CI cache
+// that artifact does not exist yet and the specifier fails with TS2307
+// (objectui#4801; PR #4789 paid for it once in `@object-ui/fields`).
+// `tsconfig.test.json` used to carry a `paths` entry redirecting the name back
+// to `src/index.ts` for exactly this reason; the relative specifier states the
+// same thing in the file that means it, so that workaround is gone. Both
+// spellings resolve to this source either way — the repo-root vitest config
+// aliases the package name to `src` as well — so the snapshots are over the same
+// modules. Mechanised by scripts/check-package-self-import.mjs.
 import {
   Alert,
   AlertTitle,
@@ -51,7 +64,7 @@ import {
   BreadcrumbSeparator,
   Separator,
   Skeleton,
-} from '@object-ui/components';
+} from '../index';
 
 // ─── Alert Snapshots ────────────────────────────────────────────────────
 

@@ -8,8 +8,10 @@
       "className": "divide-y",
       "children": [
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -34,8 +36,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -60,8 +64,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -86,8 +92,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -112,8 +120,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -138,8 +148,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -164,8 +176,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -190,8 +204,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -216,8 +232,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -242,8 +260,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -268,8 +288,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -294,8 +316,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -320,8 +344,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -346,8 +372,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -372,8 +400,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -398,8 +428,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -424,8 +456,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -450,8 +484,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -476,8 +512,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",
@@ -502,8 +540,10 @@
           ]
         },
         {
-          "type": "div",
-          "className": "p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3",
+          "type": "flex",
+          "align": "center",
+          "gap": 3,
+          "className": "p-3 hover:bg-slate-50 cursor-pointer",
           "children": [
             {
               "type": "text",

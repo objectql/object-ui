@@ -57,13 +57,19 @@ export interface OptionsEmptyStateProps {
    * The host label's IDREF plumbing, when this box is the whole rendered surface
    * of a group-labelled field (objectui#3990) — a `checkboxes` / `radio` /
    * `multiselect` whose option list came back empty renders NOTHING but this
-   * box, so the visible label named zero elements until it landed here.
+   * box, so the visible label named zero elements until it landed here. Its
+   * help text described zero elements for the same reason, which is why the
+   * callers ask `toHostGroupProps` for the `'instead-of-the-inputs'` surface:
+   * there is no option control in this state to announce the description on
+   * (objectui#4005).
    *
-   * A closed three-key type rather than an open props tail: only `id`,
-   * `aria-labelledby` and the `role` that makes them meaningful may reach this
-   * element, and reopening a spread is what objectui#3291 exists to prevent.
-   * Absent for the single `SelectField` — it is not group-labelled, its label
-   * still uses a plain `for`, and it must keep emitting no such attributes.
+   * A closed type rather than an open props tail: only `id`, `aria-labelledby`,
+   * `aria-describedby` and the `role` that makes them meaningful may reach this
+   * element, and reopening a spread is what objectui#3291 exists to prevent —
+   * `aria-invalid` / `aria-required` are control-channel state and stay off this
+   * surface. Absent for the single `SelectField` — it is not group-labelled, its
+   * label still uses a plain `for`, and it must keep emitting no such
+   * attributes.
    */
   hostGroupProps?: HostGroupProps;
 }
@@ -79,10 +85,17 @@ export function OptionsEmptyState({
   const { t } = useFieldTranslation();
   // The host's hint when it computed one; otherwise this widget's own copy,
   // translated. Never an English literal — that was the reported defect.
+  // The joiner between the controlling-field names is read from the locale
+  // pack, not hardcoded (objectui#4026). This site and the form renderer's
+  // `gatedHint` are the two callers of the SAME `fields.options.selectFirst`
+  // sentence, so a separator baked into either one is enough to make the
+  // shared sentence read two ways.
   const hint =
     emptyHint ||
     (gated
-      ? t('fields.options.selectFirst', { fields: dependsOnFields.join(' / ') })
+      ? t('fields.options.selectFirst', {
+          fields: dependsOnFields.join(t('validation.formInvalidJoiner')),
+        })
       : t('fields.options.empty'));
   return (
     <div

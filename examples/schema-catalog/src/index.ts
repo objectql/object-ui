@@ -1,3 +1,15 @@
+/*
+ * GENERATED FILE — DO NOT EDIT BY HAND.
+ *
+ * Rebuild with `pnpm --filter @object-ui/example-schema-catalog regenerate`
+ * (scripts/regenerate-catalog-index.py). Every hand edit to this file is
+ * discarded by the next person who runs it.
+ *
+ * To add an example: drop src/schemas/<category>/<slug>.json, then regenerate.
+ * To give it a real title/description/tags: add an entry to
+ * src/catalog-meta.json — that file is the hand-curated one, and the
+ * generator only ever reads it.
+ */
 import type { Example, ExampleMeta } from './types.js';
 
 import actions_action_button_variants from './schemas/actions/action-button-variants.json' with { type: 'json' };
@@ -433,9 +445,6 @@ export type { Example, ExampleMeta } from './types.js';
  *   - The docs site's <SchemaExample id="..." /> MDX component
  *   - The smoke test that mounts every example
  *   - AI agents performing few-shot retrieval
- *
- * To add an example: drop a JSON file under src/schemas/<cat>/<slug>.json,
- * then re-run `python3 scripts/regenerate-catalog-index.py`.
  */
 const REGISTRY: Record<string, Example> = {
   'actions/action-button-variants': {
@@ -3925,15 +3934,6 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: plugin_dashboard_e_commerce_dashboard,
   },
-  'plugin-dashboard/support-dashboard': {
-    id: 'plugin-dashboard/support-dashboard',
-    meta: {
-      title: "Support Dashboard",
-      description: "",
-      category: 'plugin-dashboard',
-    },
-    schema: plugin_dashboard_support_dashboard,
-  },
   'plugin-dashboard/filtered-dashboard': {
     id: 'plugin-dashboard/filtered-dashboard',
     meta: {
@@ -3987,6 +3987,15 @@ const REGISTRY: Record<string, Example> = {
       category: 'plugin-dashboard',
     },
     schema: plugin_dashboard_filtered_dashboard_target_widgets,
+  },
+  'plugin-dashboard/support-dashboard': {
+    id: 'plugin-dashboard/support-dashboard',
+    meta: {
+      title: "Support Dashboard",
+      description: "",
+      category: 'plugin-dashboard',
+    },
+    schema: plugin_dashboard_support_dashboard,
   },
   'plugin-editor/javascript-editor': {
     id: 'plugin-editor/javascript-editor',

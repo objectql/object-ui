@@ -23,5 +23,4 @@ export function buildArtifacts(outDir: string): void {
   writeFileSync(`${outDir}/sdui.manifest.json`, JSON.stringify(manifest, null, 2));
   writeFileSync(`${outDir}/sdui-intrinsics.d.ts`, generateDts(manifest));
   writeFileSync(`${outDir}/sdui-blocks.md`, generateBlockList(manifest));
-  console.log(`wrote ${Object.keys(manifest.components).length} public blocks -> ${outDir}`);
 }

@@ -49,17 +49,19 @@
     // Drop the root tsconfig's source-tree `paths` so `@object-ui/*` and
     // `@objectstack/spec` resolve through the workspace dependency's built
     // `.d.ts` instead of pulling sibling sources in as program inputs (TS6059).
-    // The single entry kept is this package's OWN name: `snapshot-critical.test.tsx`
-    // imports it the way a consumer would, and an empty `paths` sends that
-    // through the package `exports` to `dist/index.d.ts` — an artifact
-    // `type-check` must not depend on, since turbo makes it wait on `^build`
-    // (the DEPENDENCIES' builds), not on this package's own. The repo-root
-    // vitest config aliases the same specifier to `src`, so this resolves the
-    // import to exactly what the test runs against.
-    "baseUrl": ".",
-    "paths": {
-      "@object-ui/components": ["src/index.ts"]
-    }
+    //
+    // This used to keep one entry — this package's OWN name — because
+    // `snapshot-critical.test.tsx` spelled its import `@object-ui/components`,
+    // and an empty `paths` sends that through the package `exports` to
+    // `dist/index.d.ts`: an artifact `type-check` must not depend on, since
+    // turbo makes it wait on `^build` (the DEPENDENCIES' builds), not on this
+    // package's own. objectui#4801 removed the entry by removing its cause — the
+    // test imports `../index` now, which is the same module by a specifier that
+    // needs no redirection. Keeping the mapping instead would have left the
+    // workaround standing in for the fix, and left the next self-import in this
+    // package silently covered. `scripts/check-package-self-import.mjs` is what
+    // makes that a mechanical rule rather than a note here.
+    "paths": {}
   },
   // `src/**/*.d.ts` picks up `src/global.d.ts`, whose ambient declarations the
   // test files rely on.

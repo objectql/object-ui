@@ -6,11 +6,12 @@
 
 ### Fields That ARE Evaluated
 
-SchemaRenderer evaluates these fields automatically:
+SchemaRenderer evaluates these fields automatically. **Evaluated is not the
+same as read** — see "Rule: Keys Live on the Node" below for the second gate a
+value must clear before it reaches the screen.
 
 | Field | Evaluation Type | Return Type | Example |
 |---|---|---|---|
-| `props.*` | Template (`${}`) | Preserves original type | `"props": { "count": "${items.length}" }` → number |
 | `content` | Template (`${}`) | string | `"content": "Total: ${data.total}"` |
 | `hidden` | Condition | boolean | `"hidden": "${data.role !== 'admin'}"` |
 | `hiddenOn` | Condition | boolean | `"hiddenOn": "data.status === 'draft'"` |
@@ -18,6 +19,7 @@ SchemaRenderer evaluates these fields automatically:
 | `visibleOn` | Condition | boolean | `"visibleOn": "data.permissions.canView"` |
 | `disabled` | Condition | boolean | `"disabled": "${form.isSubmitting}"` |
 | `disabledOn` | Condition | boolean | `"disabledOn": "!data.hasPermission"` |
+| `props.*` | Template (`${}`) | Preserves original type | Evaluated, then spread as **React props** — a `ui:*` / `page:*` renderer reads `schema.*` and never sees the result. Consumed only by `element:*` components. |
 
 **Precedence rule:** `visible` takes priority over `hidden`.
 
@@ -25,10 +27,12 @@ SchemaRenderer evaluates these fields automatically:
 
 These top-level schema fields are passed as raw strings:
 
-- `value` — use `props.value` instead
-- `label` — use `props.label` instead
-- `description` — use `props.description` instead
-- `title` — use `props.title` instead
+- `value`, `label`, `description`, `title` — read by the renderers, but never
+  template-evaluated. **Do not "move them to `props`"** to make an expression
+  work: under `props` they are evaluated and then discarded, so the component
+  paints an empty frame instead. Resolve the value in the host before handing
+  the schema to `SchemaRenderer`, or carry it on a `text` node's `content`,
+  which is the one text key that is both evaluated and read.
 - `className` — always a static Tailwind class string
 - `id` — always a static string
 - `type` — component type identifier
@@ -42,7 +46,8 @@ Every UI component node MUST follow this shape:
 interface UIComponent {
   type: string;              // Required: component type identifier
   id?: string;               // Optional: unique identifier
-  props?: Record<string, any>; // Optional: component properties
+  props?: Record<string, any>; // Optional: element:* config envelope — NOT a
+                               // general bag. See "Rule: Keys Live on the Node".
   bind?: string;             // Optional: data binding path
   className?: string;        // Optional: Tailwind CSS classes
   hidden?: string;           // Optional: visibility expression
@@ -52,6 +57,39 @@ interface UIComponent {
 }
 ```
 
+## Rule: Keys Live on the Node, Not in a `props` Envelope
+
+Every `ui:*` / `page:*` renderer reads its configuration off the node —
+`schema.title`, `schema.content`, `schema.value`, `schema.columns`.
+`SchemaRenderer` does **not** merge `schema.props` into the node; it spreads it
+as React props (`packages/react/src/SchemaRenderer.tsx`), which those renderers
+ignore. A key parked under `props` is therefore silently dropped: the component
+renders an empty frame, and the envelope itself lands in the DOM as the invalid
+attribute `props="[object Object]"`.
+
+**❌ WRONG — renders an empty card:**
+```json
+{
+  "type": "card",
+  "props": { "title": "Customer Summary" }
+}
+```
+
+**✅ CORRECT:**
+```json
+{
+  "type": "card",
+  "title": "Customer Summary"
+}
+```
+
+**The one exception is the `element:*` namespace.** Those components read their
+config out of `properties` / `props` by design (`readProps` in
+`packages/components/src/renderers/basic/elements.tsx`), so
+`{ "type": "element:text", "properties": { "content": "Hi" } }` is correct and
+the same keys on the node would be ignored. Match the envelope to the
+namespace; do not apply either shape everywhere.
+
 ## Rule: No Schema Property Invention
 
 **❌ FORBIDDEN:** Adding custom properties not defined in `@objectstack/spec`.
@@ -59,7 +97,7 @@ interface UIComponent {
 **Example violation:**
 ```json
 {
-  "type": "grid",
+  "type": "data-table",
   "fields": [...],  // ❌ spec uses "columns"
   "customProp": "value"  // ❌ not in spec
 }
@@ -68,10 +106,8 @@ interface UIComponent {
 **✅ CORRECT:**
 ```json
 {
-  "type": "grid",
-  "props": {
-    "columns": [...]  // ✅ follows spec
-  }
+  "type": "data-table",
+  "columns": [...]  // ✅ declared by DataTableSchema, read off the node
 }
 ```
 
@@ -93,9 +129,7 @@ The `bind` field is NOT expression-evaluated. It's a path string resolved by `us
 {
   "type": "data-table",
   "bind": "customers",  // Resolved as dataSource.customers
-  "props": {
-    "columns": [...]
-  }
+  "columns": [...]
 }
 ```
 
@@ -153,16 +187,29 @@ param support ⊇ form support).
 
 ## Rule: Layout Responsiveness
 
-Layout components must support responsive properties:
+`grid` declares its column count as `columns` — either a number, or a
+breakpoint object keyed `xs` / `sm` / `md` / `lg` / `xl` (`GridSchema` in
+`packages/types/src/layout.ts`):
 
 ```json
 {
   "type": "grid",
-  "props": {
-    "cols": { "sm": 1, "md": 2, "lg": 4 }  // ✅ Responsive config
-  }
+  "columns": { "xs": 1, "md": 2, "lg": 4 },
+  "gap": 4
 }
 ```
+
+`xs` is the base breakpoint; omit it and the base falls back to one column.
+A bare `"columns": 4` already gets a mobile-first ramp (1 column, 2 at `sm`,
+4 at `md`), so reach for the object form only when you need the breakpoints
+spelled out.
+
+**❌ DO NOT** spell it `cols` — no schema, renderer or registry declares that
+key, so the value is dropped on the floor and the grid renders a flat two
+columns at *every* breakpoint (objectui#4001).
+**❌ DO NOT** wrap layout keys in a `props` envelope. `columns` / `gap` /
+`className` are read off the node itself; under `props` they are never read
+and the same silent two-column fallback appears.
 
 ## Rule: Expression Security
 

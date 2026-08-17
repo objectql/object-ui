@@ -115,7 +115,6 @@ export class PreviewErrorBoundary extends React.Component<
     return { error };
   }
   componentDidCatch(error: Error) {
-    // eslint-disable-next-line no-console
     console.error('[MetadataPreview] render failed', error);
   }
   render() {

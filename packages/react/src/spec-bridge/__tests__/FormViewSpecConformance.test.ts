@@ -12,9 +12,17 @@
  * The bridge must never silently drop `@objectstack/spec` FormViewSchema
  * configuration: every serializable spec key is either mapped onto the
  * `object-form` node or explicitly listed in IGNORED_SPEC_KEYS with a reason.
- * The fixture below carries every top-level FormViewSchema key (spec 14.6.0 /
- * 15.0.0 — identical key sets), so a newly-added spec key that the bridge
- * ignores will fail the completeness assertion when the fixture is updated.
+ * The fixture below carries top-level FormViewSchema keys, so a newly-added
+ * spec key that the bridge ignores will fail the completeness assertion when
+ * the fixture is updated.
+ *
+ * `defaultSort` and `aria` were dropped from this fixture (#3974 / #3901): spec
+ * 17 retired both on the FORM carrier, so they are no longer keys this fixture
+ * can claim — `FormViewSchema.safeParse` now rejects them by name. Keeping them
+ * here would have asserted the bridge carries configuration the contract
+ * refuses. They are NOT in IGNORED_SPEC_KEYS either: that list means "a real
+ * spec key we deliberately do not copy", and these are not spec keys any more.
+ * Their removal is pinned by `FormViewRetiredKeys.test.ts`.
  */
 import { describe, it, expect } from 'vitest';
 import { SpecBridge } from '../SpecBridge';
@@ -25,7 +33,7 @@ const IGNORED_SPEC_KEYS: Record<string, string> = {
   groups: 'legacy alias of sections — normalized into node.sections',
 };
 
-/** Every top-level serializable key of spec FormViewSchema (14.6.0 / 15.0.0). */
+/** Top-level serializable keys of spec FormViewSchema the bridge must carry. */
 const FULL_SPEC_FORM_VIEW = {
   type: 'wizard',
   layout: 'grid',
@@ -77,10 +85,8 @@ const FULL_SPEC_FORM_VIEW = {
     },
   ],
   subforms: [{ childObject: 'opportunity_line_item', amountField: 'amount' }],
-  defaultSort: [{ field: 'name', order: 'asc' }],
   sharing: { visibility: 'team' },
   submitBehavior: { kind: 'redirect', url: '/done' },
-  aria: { ariaLabel: 'Opportunity form', role: 'form' },
 };
 
 describe('FormView spec conformance (#2545)', () => {

@@ -594,18 +594,6 @@ export interface ObjectGridSchema extends BaseSchema {
    * Allows users to drag columns to reorder
    */
   reorderableColumns?: boolean;
-  
-  /**
-   * Striped row styling
-   * Alternating row background colors
-   */
-  striped?: boolean;
-  
-  /**
-   * Show borders
-   * Display borders around cells
-   */
-  bordered?: boolean;
 
   /**
    * Show column type icons (T / Tag / Calendar / Hash) in column headers.
@@ -864,13 +852,6 @@ export interface ObjectGridSchema extends BaseSchema {
    * Supports both ObjectUI field/operator/value rules and Spec expression-based { condition, style } rules.
    */
   conditionalFormatting?: ConditionalFormattingRule[];
-
-  /**
-   * Enable virtual scrolling for large datasets.
-   * Aligned with @objectstack/spec ListViewSchema.virtualScroll.
-   * @default false
-   */
-  virtualScroll?: boolean;
 
   /**
    * Row action identifiers (action names from ActionSchema).
@@ -1632,12 +1613,6 @@ export interface NamedListView {
   /** Allow data export @default undefined */
   allowExport?: boolean;
 
-  /** Show alternating row colors @default false */
-  striped?: boolean;
-
-  /** Show cell borders @default false */
-  bordered?: boolean;
-
   /** Color field for row/card coloring */
   color?: string;
 
@@ -1750,9 +1725,6 @@ export interface NamedListView {
 
   /** Allow printing the view @default false */
   allowPrinting?: boolean;
-
-  /** Enable virtual scrolling for large datasets @default false */
-  virtualScroll?: boolean;
 
   /** Empty state configuration */
   emptyState?: {

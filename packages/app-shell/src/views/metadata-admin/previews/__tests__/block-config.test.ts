@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { ACTION_LOCATIONS, PageComponentType, RecordDetailsProps } from '@objectstack/spec/ui';
+import {
+  ACTION_LOCATIONS,
+  PageComponentType,
+  PageHeaderProps,
+  RecordDetailsProps,
+} from '@objectstack/spec/ui';
 import { BLOCK_CONFIG, blockHasConfig, type PlaceholderSpec } from '../block-config';
 import { BLOCK_TYPE_META, PALETTE_EXCLUSIONS } from '../block-types';
 import { t } from '../../i18n';
@@ -281,5 +286,83 @@ describe('page palette ↔ spec PageComponentType coverage', () => {
       expect(t(key, 'en-US')).toBe(key);
       expect(t(key, 'zh-CN')).toBe(key);
     });
+  });
+});
+
+/**
+ * `page:header.icon` — the designer field that outlived the spec key (#3829).
+ *
+ * The same shape as the `global_nav` removal above, and it is here because
+ * BLOCK_CONFIG is a PUBLISH FACE with no parity gate of its own: nothing in
+ * this repo diffs the designer's field set against `ComponentPropsMap`, so a
+ * field can go on offering a key the contract has retired and every derived
+ * check stays green. This file is the substitute, per key.
+ *
+ * What was wrong: `PageHeaderProps.icon` was retired in @objectstack/spec
+ * 17.0.0 (objectstack#6946 / PR objectstack#7115, ADR-0087 D2, maintainer
+ * ruling 2026-08-09 route (c)) because no renderer ever read it — the canonical
+ * `page:header` draws its identity from the record chrome (`recordChrome`) and
+ * per-action `icon`s. The retirement's own prescription said "zero producers",
+ * and for `page:card.actions` that was true; for this key it was not. The
+ * designer kept offering an icon box for the canonical `page:header`, so an
+ * author (an AI author especially) filled it in and the platform — which used
+ * to drop the value silently — now rejects the whole node BY NAME. A retirement
+ * that leaves its producer standing makes the failure worse, not better.
+ *
+ * The `layout:page-header` ALIAS keeps its own `icon` input, deliberately: that
+ * is a different renderer with a real read point, and it is guarded separately
+ * in `packages/layout/src/__tests__/page-header-authorable-keys.test.tsx`. The
+ * two are opposite read facts about two renderers, not an inconsistency.
+ */
+describe('page:header `icon` — the designer field retired with the spec key (#3829)', () => {
+  const fieldNames = () => BLOCK_CONFIG['page:header'].map((f) => f.name);
+
+  // POSITIVE half, for the reason the location dropdown states: without it the
+  // negative pin below passes just as happily on a deleted panel.
+  it('still offers the canonical header fields the renderer does implement', () => {
+    expect(fieldNames()).toEqual(['title', 'subtitle', 'breadcrumb']);
+  });
+
+  it('does NOT offer the retired `icon` field', () => {
+    expect(fieldNames().length, 'field list is empty — the pin would be vacuous').toBeGreaterThan(0);
+    expect(fieldNames()).not.toContain('icon');
+  });
+
+  // Why `Object.keys(shape)` cannot be the test, and why this pin exists at all.
+  // ADR-0087 D2 retirement REPLACES the member with `z.never()` rather than
+  // deleting it, so `icon` is STILL a key of the shape: every "is it declared?"
+  // check reads green while the parser rejects every value by name. The
+  // criterion is therefore the unwrapped member's type — the same one
+  // objectui#3809 converges on repo-wide.
+  it('the spec tombstones `icon` rather than deleting it', () => {
+    const shape = (PageHeaderProps as unknown as { shape: Record<string, unknown> }).shape;
+    const memberType = (key: string): string | undefined => {
+      const member = shape[key] as { unwrap?: () => unknown } | undefined;
+      const inner = (typeof member?.unwrap === 'function' ? member.unwrap() : member) as
+        | { _def?: { type?: string }; def?: { type?: string } }
+        | undefined;
+      return inner?._def?.type ?? inner?.def?.type;
+    };
+    expect(Object.keys(shape)).toContain('icon');
+    expect(memberType('icon')).toBe('never');
+    // Non-vacuity for the probe itself: a Zod-internals change that made every
+    // member read `'never'` would make the line above meaningless, and a live
+    // key is the only thing that can tell the difference.
+    expect(memberType('title')).not.toBe('never');
+    expect(memberType('title')).toBeTruthy();
+  });
+
+  // The i18n side, exactly as the retired option above: a key kept past its
+  // field is dead vocabulary the next author reads as a live surface, so BOTH
+  // locale tables lost the label and its placeholder. `t()` returns the key
+  // unchanged on a miss, which is precisely "this locale has no translation".
+  it('has no leftover translation for the retired field in either locale', () => {
+    for (const key of [
+      'engine.inspector.pageBlock.field.page:header.icon',
+      'engine.inspector.pageBlock.placeholder.page:header.icon',
+    ]) {
+      expect(t(key, 'en-US')).toBe(key);
+      expect(t(key, 'zh-CN')).toBe(key);
+    }
   });
 });

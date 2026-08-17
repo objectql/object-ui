@@ -154,6 +154,69 @@ describe('resolveFieldRuleState', () => {
   });
 });
 
+/**
+ * `statics.serverOwnedValue` — the create-mode suppression (#4069 / #4085).
+ *
+ * A CREATE form leaves a producer-owned control empty on purpose and omits the
+ * key so `ObjectQL.applyFieldDefaults` resolves the declared runtime default.
+ * Required-ness is then not the client's question, and THIS is the single place
+ * that answers it: the static flag and the `requiredWhen` predicate both yield.
+ * Pinned here, at the evaluator, because since objectui#4201 the submit-time
+ * check and the required marker read one verdict — a suppression applied a
+ * layer up would show a field without an asterisk and still refuse the submit.
+ */
+describe('resolveFieldRuleState — a server-owned value outranks every required rule (#4085)', () => {
+  const REQUIRED_WHEN = "record.status == 'scheduled'";
+  const TRUE_RECORD = { status: 'scheduled' };
+
+  it('suppresses a requiredWhen that resolves TRUE', () => {
+    const s = resolveFieldRuleState({ requiredWhen: REQUIRED_WHEN }, TRUE_RECORD, {
+      serverOwnedValue: true,
+    });
+    expect(s.required).toBe(false);
+  });
+
+  it('suppresses the static flag too — the two spellings behave identically', () => {
+    const s = resolveFieldRuleState({}, TRUE_RECORD, { required: true, serverOwnedValue: true });
+    expect(s.required).toBe(false);
+  });
+
+  it('suppresses both at once', () => {
+    const s = resolveFieldRuleState({ requiredWhen: REQUIRED_WHEN }, TRUE_RECORD, {
+      required: true,
+      serverOwnedValue: true,
+    });
+    expect(s.required).toBe(false);
+  });
+
+  it('leaves visibility and readonly alone — it is the required rule that yields', () => {
+    const s = resolveFieldRuleState(
+      { visibleWhen: REQUIRED_WHEN, readonlyWhen: REQUIRED_WHEN, requiredWhen: REQUIRED_WHEN },
+      TRUE_RECORD,
+      { serverOwnedValue: true },
+    );
+    expect(s.visible).toBe(true);
+    expect(s.readonly).toBe(true);
+    expect(s.required).toBe(false);
+  });
+
+  it('does nothing when the field is not server-owned — the EDIT-mode boundary', () => {
+    // `isServerOwnedValue` returns false for every edit form, so this is the
+    // shape an edit-mode caller passes: the predicate decides, as authored.
+    for (const statics of [{ serverOwnedValue: false }, {}]) {
+      const s = resolveFieldRuleState({ requiredWhen: REQUIRED_WHEN }, TRUE_RECORD, statics);
+      expect(s.required).toBe(true);
+    }
+  });
+
+  it('omitting the member preserves the prior behaviour — callers that never state the fact are unaffected', () => {
+    expect(resolveFieldRuleState({}, {}, { required: true }).required).toBe(true);
+    expect(
+      resolveFieldRuleState({ requiredWhen: REQUIRED_WHEN }, { status: 'draft' }, {}).required,
+    ).toBe(false);
+  });
+});
+
 describe('failure diagnostics — loud fail-open (objectstack#5149, appeal 2)', () => {
   // Every test uses a UNIQUE predicate text: the once-per-predicate dedupe is
   // module-level on purpose (it must survive re-renders), so a text reused

@@ -24,9 +24,9 @@ pnpm add @object-ui/layout
 ## Registration
 
 Importing this package registers its component keys (`page-header`, `page:card`,
-`app-shell`, `responsive-grid`, `navigation-renderer`, `app-schema-renderer`) on
-the `ComponentRegistry` as a module load side effect, so the side-effect-only
-import is enough:
+`responsive-grid`, `navigation-renderer`, `app-schema-renderer`) on the
+`ComponentRegistry` as a module load side effect, so the side-effect-only import
+is enough:
 
 ```typescript
 import '@object-ui/layout';
@@ -43,29 +43,60 @@ prefer to register explicitly.
 
 ### AppShell
 
-Complete application shell with header, sidebar, and main content area.
+Complete application shell with a top navbar, a sidebar, and a main content area.
 
 ```typescript
 import { AppShell } from '@object-ui/layout';
 
 <AppShell
-  header={<div>Header Content</div>}
+  navbar={<div>Navbar Content</div>}
   sidebar={<div>Sidebar Content</div>}
 >
   <div>Main Content</div>
 </AppShell>
 ```
 
+The top bar's content goes in `navbar`. `AppShell` renders the `<header>`
+element itself (`src/AppShell.tsx:248`) and `{navbar}` is the only thing that
+fills it (`:249`) — there is no `header` prop. This example used to pass one
+(objectui#4817), and because the component destructures a fixed key list with
+**no rest element** (`:233-241`), the node was built and then dropped on the
+floor: copied verbatim, the snippet rendered an empty top bar and said nothing.
+
+Like `SidebarNav` below, `AppShell` is composed in JSX and is **not** on the
+`ComponentRegistry`: four of its seven props are `React.ReactNode` slots that no
+JSON document can fill, so the `app-shell` key was retired in objectui#4841 and
+`{ "type": "app-shell" }` now reports `Unknown component type`. When the whole
+shell has to come from metadata, the key for that is `app-schema-renderer`.
+
+#### `AppShellProps`
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `children` | `React.ReactNode` | — (required) | Main content, rendered inside the `<main>` element. |
+| `navbar` | `React.ReactNode` | — | Top bar content. `AppShell` supplies the sticky `<header>` around it, so pass only what goes inside. |
+| `sidebar` | `React.ReactNode` | — | Left sidebar node, rendered as a flex sibling of the content. Pass `SidebarNav`, or your own node. |
+| `rightRail` | `React.ReactNode` | — | Optional right-side rail. It reflows the content beside it rather than overlaying it (ADR-0057 P3a); absent → unchanged single-pane layout. |
+| `className` | `string` | — | Tailwind overrides for the `<main>` content element — **not** for the outer container. |
+| `defaultOpen` | `boolean` | `true` | Initial open state of the underlying Shadcn `SidebarProvider`. |
+| `branding` | `AppShellBranding` | — | App branding, applied by `useAppShellBranding`: `primaryColor` / `accentColor` become CSS custom properties on the document root (re-derived for dark mode), `favicon` sets the icon link's `href`, and `title` sets `document.title`. |
+
 ### PageHeader
 
-Page title block with an optional description, used at the top of a page's
+Page title block with an optional subtitle, used at the top of a page's
 content area.
 
 ```typescript
 import { PageHeader } from '@object-ui/layout';
 
-<PageHeader title="Dashboard" description="View your metrics" />
+<PageHeader title="Dashboard" subtitle="View your metrics" />
 ```
+
+`subtitle` is the only spelling for the secondary line — it is the key
+`@objectstack/spec/ui`'s `PageHeaderProps` declares. The legacy `description`
+alias this component used to read as well was retired in objectui#3789; stored
+metadata still carrying it is rewritten to `subtitle` at load time by the
+ADR-0087 D2 conversion `page-header-subtitle-alias`.
 
 > **Rendering a whole `page` node?** That belongs to `PageRenderer` in
 > `@object-ui/components`, which is what the `page` component key resolves to —
@@ -78,16 +109,90 @@ import { PageHeader } from '@object-ui/layout';
 Navigation sidebar component with React Router integration.
 
 ```typescript
-import { SidebarNav } from '@object-ui/layout';
+import { SidebarNav, type NavItem } from '@object-ui/layout';
+import { Home, Settings, Users } from 'lucide-react';
 
-const navItems = [
-  { label: 'Dashboard', path: '/dashboard', icon: 'home' },
-  { label: 'Users', path: '/users', icon: 'users' },
-  { label: 'Settings', path: '/settings', icon: 'settings' }
+const navItems: NavItem[] = [
+  { title: 'Dashboard', href: '/dashboard', icon: Home },
+  { title: 'Users', href: '/users', icon: Users },
+  { title: 'Settings', href: '/settings', icon: Settings },
 ];
 
 <SidebarNav items={navItems} />
 ```
+
+An item's label is `title` and its target is `href` — and `icon` is a **component**,
+not an icon name: it is rendered as `<item.icon />` (`src/SidebarNav.tsx:60`, `:109`),
+so pass the imported Lucide component itself. This example used to be written with
+`label` / `path` / `icon: 'home'`, none of which `NavItem` declares (objectui#3999);
+copied as-is it produced rows with no label at all, a `NavLink` whose `to` was
+`undefined`, and the string `'home'` handed to React as an unknown lowercase tag.
+Annotating the array as `NavItem[]` is what turns that whole class of typo back into
+a compile error where it is written, instead of a blank sidebar at runtime.
+
+#### `SidebarNavProps`
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `items` | `NavItem[] \| NavGroup[]` | — (required) | Flat item list, or grouped sections. The array must be homogeneous: only the **first** element is probed to decide which of the two it is. |
+| `title` | `string` | `'Application'` | Section label shown above a flat `NavItem[]`. Ignored when `items` is a `NavGroup[]` — each group prints its own `label`. |
+| `className` | `string` | — | Tailwind overrides, forwarded to the root `Sidebar`. |
+| `collapsible` | `'offcanvas' \| 'icon' \| 'none'` | `'icon'` | Collapse behaviour of the underlying Shadcn `Sidebar`. |
+| `searchEnabled` | `boolean` | `false` | Renders a search box that filters items by `title` (an item also survives when one of its `children` matches). |
+| `searchPlaceholder` | `string` | `'Search…'` | Placeholder for that search box. |
+
+#### `NavItem`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `title` | `string` | — (required) | The visible label, and what search matches against. |
+| `href` | `string` | — (required) | `NavLink` target; also the React key, so keep it unique within its list. Active state is `pathname === href`. |
+| `icon` | `React.ComponentType<{ className?: string }>` | — | The icon **component** (e.g. `Home` from `lucide-react`), not its name. |
+| `badge` | `string \| number` | — | Trailing badge content. Rendered whenever it is not `null`/`undefined`, so `0` shows. |
+| `badgeVariant` | `'default' \| 'destructive' \| 'outline'` | `'default'` | Badge styling. |
+| `children` | `NavItem[]` | — | Nested sub-items. A non-empty list turns the row into a collapsible group: the parent's own `href` is then no longer a link, only the children are. |
+
+#### `NavGroup`
+
+| Key | Type | Description |
+| --- | --- | --- |
+| `label` | `string` | Section heading printed above the group. |
+| `items` | `NavItem[]` | The group's items — same `NavItem` shape as above, nesting included. |
+
+```typescript
+import { SidebarNav, type NavGroup } from '@object-ui/layout';
+import { FolderOpen, Home, Settings } from 'lucide-react';
+
+const navGroups: NavGroup[] = [
+  {
+    label: 'Workspace',
+    items: [
+      { title: 'Dashboard', href: '/dashboard', icon: Home },
+      {
+        title: 'Projects',
+        href: '/projects',
+        icon: FolderOpen,
+        badge: 3,
+        children: [
+          { title: 'Active', href: '/projects/active' },
+          { title: 'Archived', href: '/projects/archived', badge: 'WIP', badgeVariant: 'outline' },
+        ],
+      },
+    ],
+  },
+  {
+    label: 'System',
+    items: [{ title: 'Settings', href: '/settings', icon: Settings }],
+  },
+];
+
+<SidebarNav items={navGroups} searchEnabled />
+```
+
+Note that `SidebarNav` is a plain React component: unlike the keys listed under
+[Registration](#registration) it is **not** on the `ComponentRegistry`, so it is
+composed in JSX rather than authored as a JSON node. Full guide:
+[SidebarNav docs](https://www.objectui.org/docs/layout/sidebar-nav).
 
 ## Usage with React Router
 
@@ -96,17 +201,18 @@ The layout components are designed to work seamlessly with React Router:
 ```typescript
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AppShell, SidebarNav } from '@object-ui/layout';
+import { Home, Users } from 'lucide-react';
 
 function App() {
   return (
     <BrowserRouter>
       <AppShell
-        header={<div className="p-4">My App</div>}
+        navbar={<div className="p-4">My App</div>}
         sidebar={
           <SidebarNav
             items={[
-              { label: 'Dashboard', path: '/', icon: 'home' },
-              { label: 'Users', path: '/users', icon: 'users' }
+              { title: 'Dashboard', href: '/', icon: Home },
+              { title: 'Users', href: '/users', icon: Users },
             ]}
           />
         }
@@ -123,15 +229,18 @@ function App() {
 
 ## Customization
 
-All components accept `className` prop for Tailwind customization:
+`AppShell` takes a single `className`, and it lands on the `<main>` content
+element (`src/AppShell.tsx:256`) rather than on the outer container. There is no
+per-slot `headerClassName` / `sidebarClassName` — the navbar and the sidebar are
+nodes **you** build, so style them where you build them:
 
 ```typescript
 <AppShell
   className="bg-gray-50"
-  headerClassName="border-b"
-  sidebarClassName="bg-white shadow-lg"
+  navbar={<div className="border-b px-4">My App</div>}
+  sidebar={<div className="bg-white shadow-lg">Sidebar Content</div>}
 >
-  {children}
+  <div>Main Content</div>
 </AppShell>
 ```
 

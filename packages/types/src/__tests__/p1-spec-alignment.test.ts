@@ -11,6 +11,10 @@
  * Tests for all P1 sub-items: ListView, FormView, Dashboard, Page, Record Components, i18n/ARIA
  */
 import { describe, it, expect } from 'vitest';
+// The one runtime import in this otherwise type-only file: the retirement pin
+// below has to read a zod shape, because the TS interfaces here inherit
+// `BaseSchema`'s `[key: string]: any` and cannot reject a key.
+import { ObjectGridSchema as ObjectGridZodSchema } from '../zod/index.zod';
 import type {
   // P1.1 ListView types
   ListViewSchema,
@@ -60,13 +64,39 @@ describe('P1.1 ListView Spec Alignment', () => {
     expect(schema.batchActions).toHaveLength(1);
   });
 
-  it('should accept virtualScroll boolean', () => {
-    const schema: ListViewSchema = {
-      type: 'list-view',
-      objectName: 'Account',
-      virtualScroll: true,
-    };
-    expect(schema.virtualScroll).toBe(true);
+  // objectstack#7176 (maintainer-ruled 2026-08-10) retired `striped`,
+  // `bordered` and `virtualScroll` from the spec's list view after measuring
+  // every objectui reader as pass-through — the value was relayed and no
+  // renderer ever applied it. objectui#4649 took the chain out. An acceptance
+  // case for `virtualScroll` stood here; it is replaced rather than deleted,
+  // because the risk this file guards against is a well-meaning re-add.
+  //
+  // Asserted on objectui's OWN types (`ObjectGridSchema`, `NamedListView`) on
+  // purpose. Those are objectui-owned, so the claim is pin-independent and
+  // holds on the rc.6 pin and on GA alike. The spec-derived `ListViewSchema`
+  // could not carry it: on rc.6 the three still exist upstream and ride in
+  // through the by-reference spec-field import (see `objectql.zod.ts`), so
+  // "absent from ListViewSchema" is simply false today. That import is also
+  // what makes an objectui-side assertion unnecessary there — on the GA bump
+  // the spec's own `retiredKey()` tombstones arrive with it and do the
+  // rejecting, which is the protocol's job, not this repo's.
+  // Asserted against the ZOD ObjectGrid schema, not the TS interface, and that
+  // is forced rather than stylistic: `ObjectGridSchema` extends `BaseSchema`,
+  // which carries `[key: string]: any` for type-specific extensions, so no
+  // interface in that family can reject an excess key. Measured — the
+  // `@ts-expect-error` first written here failed as TS2578 "unused directive",
+  // i.e. the type still admitted `virtualScroll` and always would have. The
+  // zod shape is the surface that can actually say no, and it is objectui's
+  // own, so the claim holds on the rc.6 pin and on GA alike.
+  it('should no longer declare the retired keys on the ObjectGrid zod schema', () => {
+    const declared = Object.keys(ObjectGridZodSchema.shape);
+
+    expect(declared).not.toContain('striped');
+    expect(declared).not.toContain('bordered');
+    expect(declared).not.toContain('virtualScroll');
+    // Anchors the read: a renamed or restructured shape would otherwise make
+    // the three absences vacuously true.
+    expect(declared).toContain('resizable');
   });
 
   it('should accept showRecordCount and allowPrinting', () => {
@@ -157,13 +187,11 @@ describe('P1.1 ListView Spec Alignment', () => {
         { condition: '${data.amount > 10000}', style: { backgroundColor: '#fee2e2' } },
       ],
       emptyState: { title: 'No Records', message: 'Create your first account', icon: 'Database' },
-      virtualScroll: true,
       rowSpecActions: ['edit', 'delete'],
       bulkSpecActions: ['delete', 'export'],
     };
     expect(schema.conditionalFormatting).toHaveLength(1);
     expect(schema.emptyState?.title).toBe('No Records');
-    expect(schema.virtualScroll).toBe(true);
     expect(schema.rowSpecActions).toEqual(['edit', 'delete']);
   });
 
@@ -620,17 +648,34 @@ describe('NamedListView toolbar and display properties', () => {
     expect(view.showFilters).toBe(false);
   });
 
-  it('should accept striped, bordered, color on NamedListView', () => {
+  it('should accept color on NamedListView', () => {
     const view: import('../index').NamedListView = {
       label: 'Styled View',
       type: 'kanban',
-      striped: true,
-      bordered: true,
       color: 'status',
     };
-    expect(view.striped).toBe(true);
-    expect(view.bordered).toBe(true);
     expect(view.color).toBe('status');
+  });
+
+  // The other half of the retirement pinned above — `striped` / `bordered` came
+  // off `NamedListView` with the same chain (objectstack#7176 / objectui#4649).
+  // A stored view definition may still carry them; nothing reads them, and the
+  // type no longer admits them.
+  it('should no longer declare the retired striped / bordered keys on NamedListView', () => {
+    const view: import('../index').NamedListView = {
+      label: 'Styled View',
+      type: 'kanban',
+      // @ts-expect-error - striped is retired (objectstack#7176)
+      striped: true,
+    };
+    const bordered: import('../index').NamedListView = {
+      label: 'Styled View',
+      type: 'kanban',
+      // @ts-expect-error - bordered is retired (objectstack#7176)
+      bordered: true,
+    };
+    expect(view.label).toBe('Styled View');
+    expect(bordered.label).toBe('Styled View');
   });
 
   it('should accept showSearch, showSort, showFilters, color on ListViewSchema', () => {

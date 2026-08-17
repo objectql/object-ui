@@ -54,29 +54,10 @@ import {
   Separator,
 } from '@object-ui/components';
 import { RefreshCw, Search, X, AlertCircle, ScrollText } from 'lucide-react';
+import { ACTION_OPTIONS, ACTION_VARIANT } from './auditLogActions';
 
 const SERVER_URL = (import.meta.env.VITE_SERVER_URL || '').replace(/\/$/, '');
 const API_BASE = `${SERVER_URL}/api/v1`;
-
-const ACTION_OPTIONS = [
-  'create', 'update', 'delete', 'restore',
-  'login', 'logout',
-  'permission_change', 'config_change',
-  'export', 'import',
-] as const;
-
-const ACTION_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  create: 'default',
-  update: 'secondary',
-  delete: 'destructive',
-  restore: 'outline',
-  login: 'outline',
-  logout: 'outline',
-  permission_change: 'secondary',
-  config_change: 'secondary',
-  export: 'outline',
-  import: 'outline',
-};
 
 interface AuditRow {
   id: string;

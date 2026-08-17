@@ -7,8 +7,9 @@
  */
 
 /**
- * End-to-end: a group-labelled field's visible label names the widget's surface
- * in EVERY state it renders — not only the editable one (objectui#3990).
+ * End-to-end: a group-labelled field's visible label names — and its visible
+ * help text describes — the widget's surface in EVERY state it renders, not
+ * only the editable one (objectui#3990, objectui#4005).
  *
  * The residual of objectui#3961 / #3975. Those two moved the association from an
  * inert `<label for>` to the WAI-ARIA group pattern (the label publishes its own
@@ -50,13 +51,58 @@
  * editable e2e for exactly those two, and the last describe block pins that the
  * editable answers are untouched.
  *
+ * ## The description was the other half of the same defect (objectui#4005)
+ *
+ * #3990 landed the NAME and deliberately stopped there, because at the time the
+ * readonly surfaces had no role and an `aria-describedby` on a role-less
+ * `div` / `span` is as inert as the `aria-labelledby` was. Giving them
+ * `role="group"` retired that reason — a group is a description carrier under
+ * ARIA 1.2 with no focusable control required — but the help text stayed
+ * unconsumed. Measured on `origin/main` at `c25222758`, a real form, one field
+ * per row, counting the elements whose `aria-describedby` names the rendered
+ * `<FormDescription>`:
+ *
+ * ```
+ *                                    descEl  consumers  consumerTags
+ * address      editable   desc=YES   SET         1      [input]
+ * address      readonly   desc=YES   SET         0      []
+ * geolocation  editable   desc=YES   SET         1      [input]
+ * geolocation  readonly   desc=YES   SET         0      []
+ * checkboxes   editable   desc=YES   SET         1      [div[group]]
+ * checkboxes   readonly   desc=YES   SET         0      []
+ * radio        editable   desc=YES   SET         1      [div[radiogroup]]
+ * radio        readonly   desc=YES   SET         0      []
+ * rating       editable   desc=YES   SET         1      [div[group]]
+ * rating       readonly   desc=YES   SET         0      []
+ * file         editable   desc=YES   SET         1      [div[button]]
+ * file         readonly   desc=YES   SET         0      []
+ * multiselect  editable   desc=YES   SET         1      [div[group]]
+ * multiselect  readonly   desc=YES   SET         0      []
+ * ```
+ *
+ * All seven render the `<FormDescription>` in the readonly state — none is
+ * exempt for want of one — and all seven left it referenced by nothing. The
+ * `describes` block below is that table's 0 turning into 1; the boundary block
+ * after it pins the OTHER direction, that gaining the description gained
+ * nothing else (`aria-invalid` / `aria-required` are control-channel state and
+ * a readonly display is not a control — objectui#3291 / objectui#3318).
+ *
+ * The built-in branch is measured, not assumed, and it has no defect of this
+ * kind: `input` / `textarea` / `checkbox` / `switch` / `select` render a real
+ * control inside `<FormControl>` in the readonly state too, so the Slot's
+ * `aria-describedby` lands on it and the reading is `consumers=1` either way.
+ * (The comparison row in #4005's issue body reads `consumers=0` for a builtin;
+ * it was measured on `type: 'text'`, which is neither a `BUILTIN_FIELD_TYPES`
+ * member nor registered in a bare-registration setup, so that field rendered no
+ * control at all. The issue flagged the row as noise; this is the re-measure.)
+ *
  * The widgets are registered raw rather than through `registerAllFields()`, whose
  * `React.lazy` loaders put an unbounded module load inside a bounded `findBy`
  * window — this repo's known flake generator (AGENTS.md 测试纪律, objectui#3010).
  */
 
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ComponentRegistry } from '@object-ui/core';
 // Module scope: pulls in the form renderer's registration side effect.
@@ -175,7 +221,7 @@ function labelTargets(): Array<{ forId: string; resolves: boolean; labelable: bo
 
 function fieldConfig(
   type: string,
-  opts: { readonly?: boolean; zeroOptions?: boolean } = {},
+  opts: { readonly?: boolean; zeroOptions?: boolean; description?: string; required?: boolean } = {},
 ): Record<string, unknown> {
   const config: any = { name: `f_${type}`, label: `Group Label ${type}`, type };
   if ((OPTION_TYPES as readonly string[]).includes(type)) {
@@ -185,23 +231,51 @@ function fieldConfig(
   // `mode: 'view'`, which renders a different (detail) path and was already
   // naming its group correctly.
   if (opts.readonly) config.readonly = true;
+  if (opts.description) config.description = opts.description;
+  if (opts.required) config.required = true;
   return config;
 }
 
 /** The real form renderer hosting one field — the #3990 reproduction. */
-function renderForm(fields: any[], defaultValues: Record<string, unknown> = {}) {
+function renderForm(
+  fields: any[],
+  defaultValues: Record<string, unknown> = {},
+  opts: { showSubmit?: boolean } = {},
+) {
   const Form = ComponentRegistry.get('form')!;
   return render(
     <Form
       schema={{
         type: 'form',
         mode: 'create',
-        showSubmit: false,
+        showSubmit: !!opts.showSubmit,
+        submitLabel: 'Create',
         showCancel: false,
         defaultValues,
         fields,
       }}
     />,
+  );
+}
+
+/** The `<FormDescription>` the host renders for `description`, or null. */
+const descriptionEl = (): HTMLElement | null =>
+  document.querySelector('[id$="-form-item-description"]');
+
+/**
+ * Every element whose `aria-describedby` NAMES `id` — the measurement #4005 is
+ * about, read from the DOM rather than through a query helper.
+ *
+ * Deliberately not `getAllByLabelText` / `toHaveAccessibleDescription` alone:
+ * this has to count CONSUMERS, and the failure being pinned is a count of zero
+ * against a description element that renders perfectly well. An accessible-name
+ * query would answer "no match" for both "nobody references it" and "the
+ * reference resolves to nothing", and the token list matters too — after a
+ * failed validation the same attribute carries the message id as well.
+ */
+function describedbyConsumers(id: string): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('[aria-describedby]')).filter((el) =>
+    (el.getAttribute('aria-describedby') ?? '').split(/\s+/).includes(id),
   );
 }
 
@@ -265,18 +339,27 @@ describe('a READONLY group-labelled field is named by its host label (objectui#3
     expect(labelTargets().filter((l) => !l.resolves || !l.labelable)).toEqual([]);
   });
 
-  it.each(TYPES)('%s: the readonly surface takes the two whole-field keys ONLY', (type) => {
-    // The narrow pair is deliberate (`toHostGroupProps`): a readonly display has
-    // no focusable control, so control-only plumbing must not ride along. `name`
-    // is the one that would be a DOM leak of the objectui#3291 class — it is
-    // legal on form controls only, and these surfaces are `div` / `span`.
-    renderForm([{ ...fieldConfig(type, { readonly: true }), description: 'Some help' }], {
+  it.each(TYPES)('%s: the readonly surface takes the three whole-field keys ONLY', (type) => {
+    // The narrow set is deliberate (`toHostGroupProps`): the field's NAME, its
+    // DESCRIPTION, and the `role` that lets a non-control surface carry either.
+    // Nothing else. `name` is the one that would be a DOM leak of the
+    // objectui#3291 class — it is legal on form controls only, and these
+    // surfaces are `div` / `span`.
+    //
+    // Both halves are asserted here so neither can pass vacuously: an
+    // implementation that emits nothing at all would satisfy the three
+    // `not.toHaveAttribute`s on their own.
+    renderForm([fieldConfig(type, { readonly: true, description: 'Some help' })], {
       [`f_${type}`]: VALUES[type],
     });
 
     const named = screen.getByRole('group', { name: `Group Label ${type}` });
+    expect(named).toHaveAttribute('id');
+    expect(named).toHaveAttribute('aria-labelledby');
+    expect(named).toHaveAttribute('aria-describedby');
     expect(named).not.toHaveAttribute('name');
     expect(named).not.toHaveAttribute('aria-invalid');
+    expect(named).not.toHaveAttribute('aria-required');
   });
 
   it('all seven readonly in ONE form: each is named exactly once', () => {
@@ -291,6 +374,147 @@ describe('a READONLY group-labelled field is named by its host label (objectui#3
   });
 });
 
+describe('a READONLY group-labelled field is DESCRIBED by its host help text (objectui#4005)', () => {
+  it.each(TYPES)('%s: the description has exactly one consumer, and it is the named group', (type) => {
+    renderForm([fieldConfig(type, { readonly: true, description: 'Some help' })], {
+      [`f_${type}`]: VALUES[type],
+    });
+
+    // The `<FormDescription>` renders in the readonly state for all seven —
+    // that was never the defect, and a widget whose readonly shape omitted it
+    // would have to be exempted here rather than silently pass.
+    const desc = descriptionEl();
+    expect(desc).not.toBeNull();
+    expect(desc).toHaveTextContent('Some help');
+
+    // 0 before this fix, 1 after — the whole issue, in one number.
+    const consumers = describedbyConsumers(desc!.id);
+    expect(consumers).toHaveLength(1);
+    expect(consumers[0]).toBe(screen.getByRole('group', { name: `Group Label ${type}` }));
+    // The same association read the way assistive tech resolves it.
+    expect(consumers[0]).toHaveAccessibleDescription('Some help');
+  });
+
+  it.each(TYPES)('%s: the description lands on the SAME element as the name', (type) => {
+    // Name and description must not drift onto two different elements: the one
+    // the host handed its id to is the field's surface, and both belong to it.
+    renderForm([fieldConfig(type, { readonly: true, description: 'Some help' })], {
+      [`f_${type}`]: VALUES[type],
+    });
+
+    const named = screen.getByRole('group', { name: `Group Label ${type}` });
+    expect(named.getAttribute('id')).toMatch(/-form-item$/);
+    expect(named.getAttribute('aria-describedby')).toBe(descriptionEl()!.id);
+  });
+
+  it.each(TYPES)('%s: readonly with NO value describes the placeholder surface too', (type) => {
+    // `EmptyValue` is the same surface with nothing in it. Its own
+    // `aria-label` ("No value") is the NAME channel and is outranked by
+    // `aria-labelledby`; the description is a separate channel and must arrive
+    // on it just the same.
+    renderForm([fieldConfig(type, { readonly: true, description: 'Some help' })]);
+
+    const consumers = describedbyConsumers(descriptionEl()!.id);
+    expect(consumers).toHaveLength(1);
+    expect(consumers[0]).toBe(screen.getByRole('group', { name: `Group Label ${type}` }));
+  });
+
+  it('all seven readonly in ONE form: each description has exactly one consumer', () => {
+    const fields = TYPES.map((type) => fieldConfig(type, { readonly: true, description: 'Some help' }));
+    const values = Object.fromEntries(TYPES.map((type) => [`f_${type}`, VALUES[type]]));
+    renderForm(fields, values);
+
+    const descriptions = Array.from(
+      document.querySelectorAll<HTMLElement>('[id$="-form-item-description"]'),
+    );
+    expect(descriptions).toHaveLength(TYPES.length);
+    // Per description, not in aggregate: one field consuming another's id would
+    // keep a total count right while both associations are wrong.
+    for (const desc of descriptions) {
+      expect(describedbyConsumers(desc.id)).toHaveLength(1);
+    }
+  });
+});
+
+describe('the readonly surface gains the description and NOTHING else (objectui#3291 / #3318)', () => {
+  // The boundary, pinned from both sides. `aria-invalid` / `aria-required` are
+  // CONTROL-channel state: they report what a user's editing may do wrong, to
+  // the element they would edit. A readonly display cannot be edited, so
+  // neither may appear on it — in any circumstance, including the two that
+  // would produce them on an editable control.
+
+  it.each(TYPES)('%s: a REQUIRED readonly field is described, never aria-required', (type) => {
+    renderForm([fieldConfig(type, { readonly: true, required: true, description: 'Some help' })], {
+      [`f_${type}`]: VALUES[type],
+    });
+
+    const named = screen.getByRole('group', { name: `Group Label ${type}` });
+    expect(named).toHaveAttribute('aria-describedby', descriptionEl()!.id);
+    expect(named).not.toHaveAttribute('aria-required');
+    expect(named).not.toHaveAttribute('aria-invalid');
+  });
+
+  it.each(TYPES)('%s: a FAILED validation still puts no aria-invalid on it', async (type) => {
+    // Measured as reachable, not presumed: a readonly `required` field with no
+    // value really is validated on submit and really does render its
+    // `<FormMessage>`, so this is the live invalid state rather than a
+    // hypothetical one.
+    renderForm([fieldConfig(type, { readonly: true, required: true, description: 'Some help' })], {}, {
+      showSubmit: true,
+    });
+
+    expect(screen.getByRole('group', { name: `Group Label ${type}` })).not.toHaveAttribute(
+      'aria-invalid',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /create/i }));
+    const message = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>('[id$="-form-item-message"]');
+      if (!el) throw new Error('no validation message rendered');
+      return el;
+    });
+
+    // Re-queried after the re-render rather than reusing the pre-submit
+    // reference, so the assertion cannot read a detached node's stale attributes.
+    const named = screen.getByRole('group', { name: `Group Label ${type}` });
+    // `<FormControl>`'s Slot widens `aria-describedby` to "description message"
+    // once there is an error, and the readonly surface forwards that verbatim —
+    // the same value the editable control would carry. What it must NOT gain is
+    // the state channel.
+    expect(named.getAttribute('aria-describedby')?.split(/\s+/)).toEqual([
+      descriptionEl()!.id,
+      message.id,
+    ]);
+    expect(named).not.toHaveAttribute('aria-invalid');
+    expect(named).not.toHaveAttribute('aria-required');
+  });
+
+  it.each(TYPES)('%s: a readonly field with NO description answers as the editable one does', (type) => {
+    // Honest pin, not an aspiration: `<FormControl>`'s Slot emits the
+    // description IDREF unconditionally, so a field without a `description`
+    // hands EVERY control — builtin, single-control widget, and now this
+    // readonly surface — a reference to an element that never rendered.
+    // Measured on `origin/main` at `c25222758`, `desc=NO`: all seven
+    // group-labelled widgets plus builtin `input` and `email` already carried
+    // exactly one such reference on their editable control. The readonly
+    // surface answering the same way is parity; it is NOT this issue's defect
+    // (an unresolvable IDREF is inert for assistive tech, while an unconsumed
+    // description is simply lost), and pinning it here is what would make a
+    // later change to that unconditional emission visible.
+    renderForm([fieldConfig(type, { readonly: true })], { [`f_${type}`]: VALUES[type] });
+
+    expect(descriptionEl()).toBeNull();
+    const named = screen.getByRole('group', { name: `Group Label ${type}` });
+    const describedby = named.getAttribute('aria-describedby');
+    expect(describedby).toMatch(/-form-item-description$/);
+    expect(document.getElementById(describedby!)).toBeNull();
+    // Which is the point: an IDREF resolving to nothing contributes no
+    // accessible description, so the surface announces exactly what it did
+    // before this change.
+    expect(named).not.toHaveAccessibleDescription();
+  });
+});
+
 describe('a ZERO-OPTION group-labelled field is named by its host label (objectui#3990)', () => {
   it.each(OPTION_TYPES)('%s: the unfillable-options box is the named group', (type) => {
     renderForm([fieldConfig(type, { zeroOptions: true })]);
@@ -302,6 +526,23 @@ describe('a ZERO-OPTION group-labelled field is named by its host label (objectu
     expect(named[0]).toBe(screen.getByTestId(`${type}-empty-f_${type}`));
     expect(named[0].getAttribute('id')).toMatch(/-form-item$/);
     expect(screen.getAllByLabelText(`Group Label ${type}`)).toEqual(named);
+  });
+
+  it.each(OPTION_TYPES)('%s: the unfillable-options box is also DESCRIBED (objectui#4005)', (type) => {
+    // Same surface, same reasoning: this box is everything the field renders in
+    // this state, so there is no option control anywhere for the help text to
+    // be announced on. It asks `toHostGroupProps` for the same
+    // `'instead-of-the-inputs'` answer the readonly branches do.
+    renderForm([fieldConfig(type, { zeroOptions: true, description: 'Some help' })]);
+
+    const box = screen.getByTestId(`${type}-empty-f_${type}`);
+    const consumers = describedbyConsumers(descriptionEl()!.id);
+    expect(consumers).toEqual([box]);
+    expect(box).toHaveAccessibleDescription('Some help');
+    // The boundary holds here too.
+    expect(box).not.toHaveAttribute('aria-invalid');
+    expect(box).not.toHaveAttribute('aria-required');
+    expect(box).not.toHaveAttribute('name');
   });
 
   it.each(OPTION_TYPES)('%s: readonly wins over zero options, and is still named', (type) => {
@@ -330,6 +571,33 @@ describe('the editable answers are untouched (objectui#3961 / #3975 regression)'
     renderForm([fieldConfig(type, { readonly: true })], { [`f_${type}`]: VALUES[type] });
     expect(screen.getAllByRole('group', { name: `Group Label ${type}` })).toHaveLength(1);
   });
+
+  it.each(TYPES)('%s: editable still has exactly ONE description consumer', (type) => {
+    // The regression #4005 could most easily have caused. `address` and
+    // `geolocation` spread the SAME helper's result on their editable
+    // container, so a `toHostGroupProps` that always emitted
+    // `aria-describedby` would have described the container as well as the
+    // sub-input inside it — the help text announced twice, which is the double
+    // channel objectui#3290 removed from the required marker and objectui#3318
+    // refused for this one. The `'above-the-inputs'` argument at those two call
+    // sites is the only thing preventing it.
+    renderForm([fieldConfig(type, { description: 'Some help' })], { [`f_${type}`]: VALUES[type] });
+
+    expect(describedbyConsumers(descriptionEl()!.id)).toHaveLength(1);
+  });
+
+  it.each(['address', 'geolocation'])(
+    '%s: the editable CONTAINER stays undescribed, the sub-input keeps it',
+    (type) => {
+      renderForm([fieldConfig(type, { description: 'Some help' })], { [`f_${type}`]: VALUES[type] });
+
+      const container = screen.getByRole('group', { name: `Group Label ${type}` });
+      expect(container).not.toHaveAttribute('aria-describedby');
+      const [consumer] = describedbyConsumers(descriptionEl()!.id);
+      expect(consumer.tagName.toLowerCase()).toBe('input');
+      expect(container.contains(consumer)).toBe(true);
+    },
+  );
 });
 
 describe('STANDALONE readonly widgets are unchanged (objectui#3990)', () => {
@@ -357,6 +625,28 @@ describe('STANDALONE readonly widgets are unchanged (objectui#3990)', () => {
     expect(screen.queryAllByRole('group')).toHaveLength(0);
     expect(document.querySelector('[aria-labelledby]')).toBeNull();
     expect(document.querySelector('[id]')).toBeNull();
+  });
+
+  it.each(TYPES)('%s: no description channel either (objectui#4005)', (type) => {
+    const Widget = WIDGETS[type];
+    render(
+      <Widget
+        value={VALUES[type]}
+        onChange={() => {}}
+        readonly
+        field={{
+          name: type,
+          label: `Group Label ${type}`,
+          type,
+          ...((OPTION_TYPES as readonly string[]).includes(type) ? { options: OPTIONS } : null),
+        }}
+      />,
+    );
+
+    // No host, so no IDREF was handed down and none may be invented: the third
+    // key is `undefined` exactly like the first two, React emits no attribute,
+    // and this markup stays byte-identical to what it was.
+    expect(document.querySelector('[aria-describedby]')).toBeNull();
   });
 
   it.each(TYPES)('%s: no value, still nothing emitted', (type) => {

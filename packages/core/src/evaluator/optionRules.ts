@@ -156,3 +156,64 @@ export function resolveCascadingOptions<T extends OptionLike>(
   const options = gated ? [] : resolveVisibleOptions(rawOptions, record, scope);
   return { options, gated, dependsOnFields };
 }
+
+/**
+ * Widget keys whose OFFERED option set is re-resolved against a live record by
+ * {@link resolveCascadingOptions} — i.e. the allow-list of widgets a surface
+ * must thread its live record to (`dependentValues`). Each of their options may
+ * carry a `visibleWhen` predicate read against `record.*`, and the field may
+ * declare a `dependsOn` gate (ADR-0058 / objectui#2284 / objectui#1583).
+ * Without the record a cascading select never sees its controlling field and
+ * stays permanently gated on the "select the parent first" hint.
+ *
+ * ## One definition, three surfaces (objectui#4770)
+ *
+ * Three surfaces feed this one evaluator, and each carried its own private copy
+ * of these four keys until this constant existed — with no gate able to notice
+ * them drifting apart on what "the record" means:
+ *
+ * - the object form — `CASCADE_OPTION_FIELD_TYPES` in
+ *   `components/src/renderers/form/form.tsx` (the original);
+ * - the single-record action dialog — `CASCADE_OPTION_WIDGET_TYPES` in
+ *   `app-shell/src/views/ActionParamDialog.tsx` (objectui#3765 / PR #4756);
+ * - the bulk action dialog — the same name in
+ *   `plugin-grid/src/components/BulkActionDialog.tsx` (objectui#4757 / PR #4763).
+ *
+ * The set lives in `@object-ui/core`, next to the evaluator it describes,
+ * because core is the one package all three already depend on — the form layer
+ * cannot reach `@object-ui/fields` (that dependency runs the other way). Same
+ * shape and same reason as `EXPANDABLE_FIELD_TYPES` in
+ * `core/src/utils/expand-fields.ts`, the in-repo precedent for a form-layer
+ * allow-table more than one surface reads. `@object-ui/fields` re-exports it
+ * next to `resolveFormWidgetType` for discoverability — a re-export, never a
+ * second definition.
+ *
+ * ## An ALLOW-LIST, not a blanket pass-through
+ *
+ * `dependentValues` is also the channel two widget-hint pickers read a specific
+ * SIBLING KEY from (`filter-condition` reads `object_name`, `recipient-picker`
+ * reads `recipient_type`), and the lookup family filters its query by it. All
+ * three surfaces above agree today in NOT feeding those from action / bulk
+ * dialog params, but that is a different wiring question from the one ruled
+ * here and it has never been decided either way. Stated here so the three
+ * copies of the statement become one — the boundary itself stays open:
+ * objectui#4771.
+ *
+ * ## Normalization stays with the consumer
+ *
+ * The members are WIDGET keys — `resolveFormWidgetType` output in the two
+ * dialogs, `normalizeFieldType` output (the `field:` prefix stripped) in the
+ * form — not authored `type` spellings. Each consumer keeps its own
+ * normalization; the two normalizations agree on these four members, which is
+ * what makes one shared set safe to read from both.
+ *
+ * `select` + `multiple: true` is not listed separately: `SelectField` delegates
+ * to `MultiSelectField` with the whole prop object, so the key it resolves
+ * under (`select`) is the one that must carry the record.
+ */
+export const CASCADE_OPTION_WIDGET_TYPES: ReadonlySet<string> = new Set([
+  'select',
+  'multiselect',
+  'radio',
+  'checkboxes',
+]);

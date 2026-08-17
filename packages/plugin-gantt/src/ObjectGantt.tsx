@@ -40,7 +40,13 @@ import {
   AlertDialogTitle,
   cn,
 } from '@object-ui/components';
-import { extractRecords, buildExpandFields, getRecordDisplayName, resolveDataSource } from '@object-ui/core';
+import {
+  extractRecords,
+  buildExpandFields,
+  convertSortToQueryParams,
+  getRecordDisplayName,
+  resolveDataSource,
+} from '@object-ui/core';
 import {
   getSemanticColorName,
   getSemanticHex,
@@ -59,7 +65,7 @@ import { normalizeShiftSegments, type ShiftSegmentsConfig } from './shifts';
 import { useGanttTranslation } from './useGanttTranslation';
 
 /**
- * One quick-filter dimension (快速筛选维度). Generic by design: the page configures
+ * One quick-filter dimension. Generic by design: the page configures
  * which record fields become filter dropdowns; the plugin resolves each one's
  * options from the object schema (select options / lookup reference records) so
  * no business field names are baked into the (MIT) plugin.
@@ -71,7 +77,7 @@ export interface QuickFilterDef {
   label?: string;
   /**
    * Explicit option override. Highest priority — use for fixed enums that are
-   * not modeled as select options (e.g. 派工类别). Plain strings become
+   * not modeled as select options (e.g. a work-order category). Plain strings become
    * value === label; objects allow a distinct display label.
    */
   options?: Array<string | { value: string | number; label?: string }>;
@@ -86,66 +92,68 @@ type GanttConfigEx = GanttConfig & {
   /**
    * Record field whose value maps onto a node kind (see {@link normalizeTaskType}):
    * `task` / `summary` (project/phase) / `milestone` / `group`. `group` (or
-   * `folder`) renders a pure tree header with NO bar — for 项目/产品 style levels
-   * that only group, never schedule.
+   * `folder`) renders a pure tree header with NO bar — for project / product
+   * style levels that only group, never schedule.
    */
   typeField?: string;
   /**
-   * Record field marking a node as view-only / 仅查看 (truthy → locked). A locked
+   * Record field marking a node as view-only (truthy → locked). A locked
    * row's bar can't be dragged/resized, its progress can't be dragged, no
    * dependency can be drawn from it, and its inline-edit / context-menu
    * edit+delete are hidden — but clicking it (open drawer / jump) still works.
    * Independent of the global `readOnly`; use to freeze individual levels (e.g.
-   * 派工单) while siblings stay editable. Maps to {@link GanttTask.locked}.
+   * work orders) while siblings stay editable. Maps to {@link GanttTask.locked}.
    */
   lockField?: string;
   /**
-   * Record field carrying the row's OBJECT API NAME (行级对象名). Mixed-object
+   * Record field carrying the row's OBJECT API NAME. Mixed-object
    * trees (an `api` provider composing parent-object rows with child-object rows)
    * need the detail drawer and its full-page link to follow each row's REAL
-   * object — otherwise a child row's 「→」 builds a URL under the view's bound
+   * object — otherwise a child row's `→` link builds a URL under the view's bound
    * object and 404s. Empty/missing value → falls back to the bound object.
    */
   objectField?: string;
   /**
-   * How a summary bar's span is computed (汇总条区间). `'children'` (default)
+   * How a summary bar's span is computed. `'children'` (default)
    * rolls the bar up from its children — min start / max end / duration-weighted
    * progress — and IGNORES the record's own dates. `'self'` renders the bar from
-   * the record's OWN start/end/progress (自身日期为准), falling back to rollup
+   * the record's OWN start/end/progress, falling back to rollup
    * only for records without dates (e.g. pure grouping levels). Use `'self'`
-   * when the parent's schedule is authoritative — e.g. 排班计划 whose 派工单
-   * children are locked history: under rollup, dragging the plan persists its
-   * own dates but the bar snaps back to the children's extent on refetch.
+   * when the parent's schedule is authoritative — e.g. a shift plan whose
+   * work-order children are locked history: under rollup, dragging the plan
+   * persists its own dates but the bar snaps back to the children's extent on
+   * refetch.
    */
   summaryExtent?: 'children' | 'self';
   /**
-   * Auto-collapse tree nodes at/below this 0-indexed depth on first render
-   * (默认折叠). Roots are depth 0. Every node at depth `>= defaultCollapsedDepth`
+   * Auto-collapse tree nodes at/below this 0-indexed depth on first render.
+   * Roots are depth 0. Every node at depth `>= defaultCollapsedDepth`
    * with children starts folded; the user can still expand them. Example: a
-   * 项目→产品→排产计划→派工单 tree uses `defaultCollapsedDepth: 2` so every 排产计划
-   * (and its 派工单) starts collapsed. Forwarded to {@link GanttView}.
+   * project→product→production-plan→work-order tree uses
+   * `defaultCollapsedDepth: 2` so every production plan (and its work orders)
+   * starts collapsed. Forwarded to {@link GanttView}.
    */
   defaultCollapsedDepth?: number;
   /** Baseline (planned) start/end fields → planned-vs-actual reference bars. */
   baselineStartField?: string;
   baselineEndField?: string;
   /**
-   * Record field carrying a per-task alert stroke color (逐任务预警描边):any CSS
-   * color or semantic palette name (red/orange/…). When present the bar keeps
-   * its fill but gets an outline + halo in that color — e.g. 超期红、临期橙,
-   * typically a server-computed alert field. Empty/null → no stroke. Maps to
-   * {@link GanttTask.borderColor}.
+   * Record field carrying a per-task alert stroke color: any CSS color or
+   * semantic palette name (red/orange/…). When present the bar keeps its fill
+   * but gets an outline + halo in that color — e.g. red for overdue, orange for
+   * due-soon — typically a server-computed alert field. Empty/null → no stroke.
+   * Maps to {@link GanttTask.borderColor}.
    */
   borderColorField?: string;
   /**
-   * Dynamic Group by (动态 Group by). When set, leaf tasks are bucketed by this
+   * Dynamic Group by. When set, leaf tasks are bucketed by this
    * field and rendered under one synthesized summary row per distinct value
    * (replacing the parent hierarchy). Select options / lookups resolve to their
    * display label, matching list/kanban grouping.
    */
   groupByField?: string;
   /**
-   * Resource / Workload view (资源/工作负载视图). When true, the chart renders a
+   * Resource / Workload view. When true, the chart renders a
    * per-resource load histogram instead of the timeline grid: each task loads
    * its `assigneeField` resource by `effortField` units (default 1) over its
    * span, and any column whose summed load exceeds `capacity` is flagged as
@@ -157,7 +165,7 @@ type GanttConfigEx = GanttConfig & {
   /** Per-resource capacity ceiling (default 1). Loads above this flag overload. */
   capacity?: number;
   /**
-   * Quick filters (快速筛选). A row of multi-select dropdowns rendered above the
+   * Quick filters. A row of multi-select dropdowns rendered above the
    * chart; each narrows the visible task bars by one dimension. Options resolve
    * from the object schema (select options or lookup reference records) so the
    * lists are the full domain, not just values present in the current data.
@@ -172,28 +180,28 @@ type GanttConfigEx = GanttConfig & {
   /**
    * Whether the backing store persists dependency link TYPES (fs/ss/ff/sf).
    * Default true. Set false when dependencies are bare predecessor ids
-   * (仅存紧前 id) — the link menu hides the type switcher (a switch would be
+   * (predecessor ids only) — the link menu hides the type switcher (a switch would be
    * silently reverted on refetch) and drag-created links are always FS.
    * Forwarded to {@link GanttView}.
    */
   dependencyTypes?: boolean;
   /**
-   * Business time zone (业务时区), IANA name like 'Asia/Shanghai'. Renders the
+   * Business time zone, IANA name like 'Asia/Shanghai'. Renders the
    * chart's calendar — shift bands, day columns, snapping, today line, date
    * labels — in this zone's wall time for every viewer, instead of the
-   * browser's zone (which misplaces 班次 for viewers elsewhere). Persisted
+   * browser's zone (which misplaces shift bands for viewers elsewhere). Persisted
    * data stays real instants. Forwarded to {@link GanttView}.
    */
   timeZone?: string;
   /**
-   * Base name for exported PNG/PDF files (导出文件名), e.g. the view's display
+   * Base name for exported PNG/PDF files, e.g. the view's display
    * label — the host's view schema often reaches this component stripped of
    * `label`, so views declare it here. Falls back to the object schema label,
    * then the object API name. A timestamp suffix is always appended.
    */
   exportFileName?: string;
   /**
-   * Per-interaction switches (交互开关): `move` / `resize` / `progress` / `link`,
+   * Per-interaction switches: `move` / `resize` / `progress` / `link`,
    * each defaulting to true. Metadata-drivable so a view can e.g. allow bar
    * moves but pin durations (`{ resize: false }`) or keep the dependency UI
    * read-only (`{ link: false }`). They only narrow what `readOnly` / row locks
@@ -201,14 +209,15 @@ type GanttConfigEx = GanttConfig & {
    */
   interactions?: GanttInteractions;
   /**
-   * Shift segmentation (班次/排班分段). When set, the day-mode timeline splits each
-   * 排班日 (shift-day, starting at `dayStart`) into the configured bands (白班 |
-   * 夜班…): a two-tier header (date over band), per-band column tints, and
+   * Shift segmentation. When set, the day-mode timeline splits each shift-day
+   * (starting at `dayStart`) into the configured bands (day | night | …):
+   * a two-tier header (date over band), per-band column tints, and
    * drag/resize snapping to band boundaries. Pure config data — no shift concept
-   * is hardcoded. Off by default → existing gantts are unchanged. Example:
+   * is hardcoded. `label` is display text the caller has already localized.
+   * Off by default → existing gantts are unchanged. Example:
    * `{ dayStart: '08:00', bands: [
-   *     { key: 'day', label: '白班', start: '08:00', end: '20:00' },
-   *     { key: 'night', label: '夜班', start: '20:00', end: '08:00' } ] }`.
+   *     { key: 'day', label: 'Day shift', start: '08:00', end: '20:00' },
+   *     { key: 'night', label: 'Night shift', start: '20:00', end: '08:00' } ] }`.
    */
   timeSegments?: ShiftSegmentsConfig;
 };
@@ -218,8 +227,8 @@ export function normalizeTaskType(raw: unknown): GanttTaskType | undefined {
   if (raw == null) return undefined;
   const key = String(raw).toLowerCase().trim();
   if (key === 'milestone') return 'milestone';
-  // Pure grouping header (无条): a tree node with no timeline bar. Use for
-  // 项目/产品 style levels that只分组、不排期.
+  // Pure grouping header: a tree node with no timeline bar. Use for
+  // project / product style levels that only group, never schedule.
   if (key === 'group' || key === 'folder') return 'group';
   if (key === 'summary' || key === 'project' || key === 'phase') return 'summary';
   if (key === 'task') return 'task';
@@ -307,33 +316,6 @@ function getDataConfig(schema: ObjectGridSchema): ViewData | null {
   }
   
   return null;
-}
-
-/**
- * Helper to convert sort config to QueryParams format
- */
-function convertSortToQueryParams(sort: string | any[] | undefined): Record<string, 'asc' | 'desc'> | undefined {
-  if (!sort) return undefined;
-  
-  // If it's a string like "name desc"
-  if (typeof sort === 'string') {
-    const parts = sort.split(' ');
-    const field = parts[0];
-    const order = (parts[1]?.toLowerCase() === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc';
-    return { [field]: order };
-  }
-  
-  // If it's an array of SortConfig objects
-  if (Array.isArray(sort)) {
-    return sort.reduce((acc, item) => {
-      if (item.field && item.order) {
-        acc[item.field] = item.order;
-      }
-      return acc;
-    }, {} as Record<string, 'asc' | 'desc'>);
-  }
-  
-  return undefined;
 }
 
 /**
@@ -435,9 +417,10 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   const displayLocale = useDisplayLocale();
   const { t } = useGanttTranslation();
 
-  // Surface write-back failures (拖拽/连线/删除/行内编辑) as an error toast —
-  // silent revert alone leaves the user wondering why nothing stuck (#2473).
-  // The server's own message (e.g. 403「仅管理责任人可修改该排班计划」) leads;
+  // Surface write-back failures (drag / link / delete / inline edit) as an error
+  // toast — silent revert alone leaves the user wondering why nothing stuck (#2473).
+  // The server's own message (e.g. a 403 "only the managing owner may modify
+  // this shift plan") leads;
   // the generic i18n text is the fallback.
   const notifyWriteError = useCallback((err: unknown) => {
     toast.error(t('gantt.writeFailed'), {
@@ -480,7 +463,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // Load (and re-load) data through the resolved adapter. `silent: true`
   // re-reads the source WITHOUT flipping `loading`, so GanttView stays mounted
   // and keeps its scroll/collapse state — used by the write-readback below and
-  // the toolbar refresh button (写后回读 / 手动刷新, #2436 第 6/7 项). Concurrent
+  // the toolbar refresh button (write-readback / manual refresh, #2436 items 6
+  // and 7). Concurrent
   // reloads are sequenced: only the newest request may commit its result,
   // so a slow earlier response can't clobber a fresher one.
   const [refreshing, setRefreshing] = useState(false);
@@ -565,7 +549,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     // Fallback value→label maps from the view's quickFilters config. When the
     // data comes from an `api` provider there is no object schema, so select
     // fields have no option defs — but the same view often declares the exact
-    // label pairs as quick-filter options (e.g. status: completed→已完成).
+    // label pairs as quick-filter options (e.g. status: completed → "Completed").
     // Reuse them so the tooltip shows display labels, not raw machine values.
     const quickFilterLabels = new Map<string, Map<string, string>>();
     for (const qf of quickFilters ?? []) {
@@ -695,8 +679,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           // Multi-value lookup / multiselect: a populated relation array is
           // [{name},{name}] — also `typeof 'object'`, but with no
           // name/label/title/id of its own. Map each element to its display
-          // value (scalars pass through) and join, so e.g. 执行责任人 renders
-          // the assignees instead of collapsing to '—'.
+          // value (scalars pass through) and join, so e.g. an "assigned owners"
+          // lookup renders the assignees instead of collapsing to '—'.
           if (Array.isArray(value)) {
             const parts = value
               .map((el) => {
@@ -726,7 +710,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         if (!fieldName) continue;
         const explicitLabel = typeof entry === 'object' ? entry.label : undefined;
         const raw = resolvePath(record, fieldName);
-        // Per-level tooltips (悬浮分层字段): mixed trees list the UNION of every
+        // Per-level tooltips: mixed trees list the UNION of every
         // level's fields here; a row omits the ones that don't apply to it, so
         // an absent value must drop the line, not render a placeholder dash.
         if (raw == null || raw === '' || (Array.isArray(raw) && raw.length === 0)) continue;
@@ -762,7 +746,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           if (name) color = getSemanticHex(name);
         }
       }
-      // Alert stroke (预警描边): semantic palette names map to their hex;
+      // Alert stroke: semantic palette names map to their hex;
       // anything else (hex, css color) passes through untouched.
       const borderColorRaw = borderColorField ? record[borderColorField] : undefined;
       const borderColor =
@@ -805,7 +789,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     // untouched, and the tooltip would keep its pre-resolution rendering.
   }, [data, ganttConfig, objectSchema, displayLocale, tenantCurrency]);
 
-  // Dynamic Group by accessor (动态 Group by). Resolves each task's grouping
+  // Dynamic Group by accessor. Resolves each task's grouping
   // value off its backing record, mapping select options / lookups to their
   // display label — the same value story as list/kanban grouping. Returns null
   // for empty values so those tasks fall into GanttView's "ungrouped" bucket.
@@ -848,7 +832,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     };
   }, [ganttConfig?.groupByField, objectSchema]);
 
-  // Resource / Workload view (资源/工作负载视图). `assigneeAccessor` buckets each
+  // Resource / Workload view. `assigneeAccessor` buckets each
   // task by its resource field (select option / lookup → display label, same as
   // grouping); `effortAccessor` reads the per-task load (default 1). Both read
   // off the backing record so the histogram reflects the real assignment data.
@@ -912,7 +896,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     };
   }, [schema]);
 
-  // Shift segmentation (班次分段). Normalize the declarative `timeSegments` config
+  // Shift segmentation. Normalize the declarative `timeSegments` config
   // once into the model GanttView lays band columns / snaps drags against. null
   // (no/invalid config) leaves the timeline an ordinary day axis.
   const shiftSegments = useMemo(
@@ -920,7 +904,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     [ganttConfig?.timeSegments],
   );
 
-  // ── Quick filters (快速筛选) ─────────────────────────────────────────────
+  // ── Quick filters ────────────────────────────────────────────────────────
   // Resolve each task's value for a filter dimension into a stable key. Lookups
   // resolve to the embedded record's id (matching the lookup option values);
   // scalars / select values use their string form. Mirrors the grouping key
@@ -982,7 +966,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   }, [JSON.stringify(quickFilterDefs), dataSource, objectSchema]);
 
   // Resolve the final option list per dimension, by priority:
-  //   1. explicit `options` on the def (fixed enums like 派工类别)
+  //   1. explicit `options` on the def (fixed enums like a work-order category)
   //   2. select/enum field options from the object schema (full domain)
   //   3. fetched lookup reference records (full domain, async above)
   //   4. distinct values present in the loaded data (fallback)
@@ -1031,7 +1015,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     });
   }, [quickFilterDefs, objectSchema, lookupOptions, data, resolveFilterKey]);
 
-  // 保存布局 covers the quick-filter chips too: GanttView persists its own
+  // `saveLayout` covers the quick-filter chips too: GanttView persists its own
   // snapshot under persistLayoutKey and fires onLayoutChange; the chips live up
   // here, so they get a sibling localStorage key and restore on mount.
   const persistLayoutKey =
@@ -1071,7 +1055,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // row opened under the bound object's route otherwise builds a 404 URL.
   // deriveRecordPageHref needs the routed object's segment in the current path
   // (a foreign row object never appears there), so derive from the routed
-  // object and swap the segment. Used by the drawer's 整页 link.
+  // object and swap the segment. Used by the drawer's full-page link.
   // With objectField configured, a row without a value is a synthetic group
   // header composed by the endpoint (its id isn't a real record id) — no
   // detail page or drawer exists for it.
@@ -1227,7 +1211,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         await effectiveDataSource.update(resource, String(recordId), patch);
         // Read back so server-computed fields (parent rollups, alert
         // colors, recalculated durations) refresh — the optimistic patch
-        // only knows what the client wrote (#2436 第 6 项).
+        // only knows what the client wrote (#2436 item 6).
         void reload({ silent: true });
       } catch (err) {
         console.error('[ObjectGantt] Failed to persist task update:', err);
@@ -1272,7 +1256,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       );
       try {
         await effectiveDataSource.update(resource, String(targetId), { [depField]: nextValue });
-        void reload({ silent: true }); // 写后回读 — see handleTaskUpdateDefault
+        void reload({ silent: true }); // write-readback — see handleTaskUpdateDefault
       } catch (err) {
         console.error('[ObjectGantt] Failed to persist dependency:', err);
         setData(prevSnapshot); // revert
@@ -1282,7 +1266,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     [ganttConfig, effectiveDataSource, resource, data, reload, notifyWriteError],
   );
 
-  // Persist a created/updated dependency (依赖增 + 类型选择): upsert the source
+  // Persist a created/updated dependency (create + link type): upsert the source
   // (predecessor) id onto the target record's dependencies field with the given
   // link type. Re-invoking with a different type updates that link's type.
   const handleDependencyCreate = useCallback(
@@ -1310,7 +1294,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     [ganttConfig, data, persistDependencies],
   );
 
-  // Persist a removed dependency (依赖删): drop the source id from the target
+  // Persist a removed dependency (delete): drop the source id from the target
   // record's dependencies field. Optimistic with revert, same as create.
   const handleDependencyDelete = useCallback(
     async (source: GanttTask, target: GanttTask) => {
@@ -1373,7 +1357,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       const ok = await effectiveDataSource.delete(resource, String(recordId));
       if (ok === false) throw new Error(t('gantt.writeFailed'));
       setPendingDelete(null);
-      void reload({ silent: true }); // 写后回读 — parent rollups shrink after a child delete
+      void reload({ silent: true }); // write-readback — parent rollups shrink after a child delete
     } catch (err) {
       console.error('[ObjectGantt] Failed to delete:', err);
       setData(prevSnapshot); // revert
@@ -1448,8 +1432,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       {/* Fill the host's flex cell instead of guessing with a viewport calc:
           `100vh - 200px` overshoots whenever the chrome above (tabs, toolbar,
           quick filters) exceeds 200px, and the overflow-hidden host then CLIPS
-          the pane's bottom edge — swallowing the horizontal scrollbar
-          (水平滚动条被裁掉). flex-1/min-h-0 tracks the real available height;
+          the pane's bottom edge — swallowing the horizontal scrollbar.
+          flex-1/min-h-0 tracks the real available height;
           the min-h keeps standalone embeds (no sized parent) usable. */}
       <div className="flex-1 min-h-[420px]">
         {ganttConfig?.resourceView && assigneeAccessor ? (
@@ -1496,7 +1480,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           timeZone={ganttConfig?.timeZone}
           onBeforeTaskUpdate={onBeforeTaskUpdate}
           exportFileName={
-            // Explicit view config first (排班计划甘特图) — the host strips
+            // Explicit view config first (e.g. "Shift Plan Gantt") — the host strips
             // `label` off the schema it hands us — then the bound object's
             // label, then its API name.
             String(
@@ -1577,7 +1561,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
                   ? { ...r, [field]: value }
                   : r,
               ));
-              void reload({ silent: true }); // 写后回读 — see handleTaskUpdateDefault
+              void reload({ silent: true }); // write-readback — see handleTaskUpdateDefault
             }}
             onDelete={recLocked ? undefined : async () => {
               if (!effectiveDataSource?.delete) return;

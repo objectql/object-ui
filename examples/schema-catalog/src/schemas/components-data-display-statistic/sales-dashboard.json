@@ -1,6 +1,8 @@
 {
-  "type": "div",
-  "className": "max-w-4xl",
+  "type": "container",
+  "maxWidth": "4xl",
+  "centered": false,
+  "padding": 0,
   "children": [
     {
       "type": "text",

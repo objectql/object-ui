@@ -37,6 +37,20 @@
  * more machinery than the defect is worth). Follow it when adding a value; the
  * designer renders inside the console shell, so a `...` here lands on the same
  * screen as a `…` from the packs.
+ *
+ * ## The same posture, recorded on the i18n conventions side (objectui#4662)
+ *
+ * Everything above is this file's own account of why it exists.
+ * `packages/i18n/README.md`, section "Scope — the `engine.*` carve-out", states
+ * it from the pack system's end, where a reader looking for the translation
+ * conventions finds it, and adds the two facts this header does not spell out:
+ * only `en` and `zh` are covered, so the other eight shipped locales render
+ * English on these screens; and the i18n gates cannot see it by construction
+ * (key parity compares pack against pack, and `scripts/check-i18n-call-site-keys.mjs`
+ * skips this module by declaration). It also carries the condition for
+ * reopening the question, which is deliberately narrow: a stated demand for an
+ * admin console in a language other than `en` or `zh` — not a general wish for
+ * broader locale coverage. Keep the two records in step when either moves.
  */
 
 import { useObjectTranslation } from '@object-ui/i18n';
@@ -523,8 +537,6 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.field.object-grid.objectName': 'Object',
   'engine.inspector.pageBlock.field.object-grid.columns': 'Columns',
   'engine.inspector.pageBlock.field.object-grid.pageSize': 'Page size',
-  'engine.inspector.pageBlock.field.object-grid.striped': 'Striped rows',
-  'engine.inspector.pageBlock.field.object-grid.bordered': 'Bordered',
   'engine.inspector.pageBlock.field.object-form.objectName': 'Object',
   'engine.inspector.pageBlock.field.object-form.mode': 'Mode',
   'engine.inspector.pageBlock.option.mode.create': 'Create',
@@ -628,8 +640,11 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.field.element:button.action': 'Action',
   'engine.inspector.pageBlock.field.page:header.title': 'Title',
   'engine.inspector.pageBlock.field.page:header.subtitle': 'Subtitle',
-  'engine.inspector.pageBlock.field.page:header.icon': 'Icon',
-  'engine.inspector.pageBlock.placeholder.page:header.icon': 'lucide icon name',
+  // `…field.page:header.icon` and its placeholder retired with the spec key
+  // itself (objectstack#6946 / PR objectstack#7115, @objectstack/spec
+  // 17.0.0-rc.6). Their only reader was the canonical `page:header` icon field
+  // removed from `previews/block-config.ts`; a key kept past its field is dead
+  // vocabulary that the next author reads as a live surface. objectui#3829.
   'engine.inspector.pageBlock.field.page:header.breadcrumb': 'Show breadcrumb',
   'engine.inspector.pageBlock.field.page:card.title': 'Title',
   'engine.inspector.pageBlock.field.page:card.bordered': 'Bordered',
@@ -1004,6 +1019,11 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.packages.create.submit': 'Create package',
   'engine.packages.create.failed': 'Failed to create package',
   'engine.packages.create.exists': 'A package with this id already exists.',
+  // objectstack#8270 — the server refuses package writes without the ADR-0066
+  // `manage_metadata` capability, and its refusal is an English sentence that
+  // reached a zh console verbatim. Deployments that withhold the capability do
+  // so deliberately, so this states the posture rather than inviting a retry.
+  'engine.packages.noCapability': 'You do not have permission to manage packages in this workspace — it requires the “Manage Metadata” permission.',
   'engine.packages.form.basics': 'Basics',
   'engine.packages.form.advanced': 'Advanced',
   'engine.packages.form.namespace': 'Namespace',
@@ -1261,7 +1281,6 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'designer.field.description': 'Description',
   'designer.field.readonly': 'Read-only',
   'designer.field.hidden': 'Hidden',
-  'designer.field.indexed': 'Indexed',
   'designer.field.externalId': 'External ID',
   'designer.field.trackHistory': 'Track history',
   'designer.field.placeholder': 'Placeholder',
@@ -2275,8 +2294,6 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.field.object-grid.objectName': '对象',
   'engine.inspector.pageBlock.field.object-grid.columns': '列',
   'engine.inspector.pageBlock.field.object-grid.pageSize': '每页条数',
-  'engine.inspector.pageBlock.field.object-grid.striped': '斑马纹行',
-  'engine.inspector.pageBlock.field.object-grid.bordered': '显示边框',
   'engine.inspector.pageBlock.field.object-form.objectName': '对象',
   'engine.inspector.pageBlock.field.object-form.mode': '模式',
   'engine.inspector.pageBlock.option.mode.create': '新建',
@@ -2380,8 +2397,9 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.field.element:button.action': '动作',
   'engine.inspector.pageBlock.field.page:header.title': '标题',
   'engine.inspector.pageBlock.field.page:header.subtitle': '副标题',
-  'engine.inspector.pageBlock.field.page:header.icon': '图标',
-  'engine.inspector.pageBlock.placeholder.page:header.icon': 'lucide 图标名',
+  // `…field.page:header.icon` and its placeholder retired with the spec key —
+  // see the matching note in the `en` table above. Removed from BOTH tables in
+  // the same edit so the two key sets stay identical.
   'engine.inspector.pageBlock.field.page:header.breadcrumb': '显示面包屑',
   'engine.inspector.pageBlock.field.page:card.title': '标题',
   'engine.inspector.pageBlock.field.page:card.bordered': '显示边框',
@@ -2791,6 +2809,8 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.packages.create.submit': '创建软件包',
   'engine.packages.create.failed': '创建软件包失败',
   'engine.packages.create.exists': '已存在相同 ID 的软件包。',
+  // objectstack#8270 — 这条正是在 zh 控制台里显示为英文原文的服务端拒绝信息。
+  'engine.packages.noCapability': '你没有在此工作区管理软件包的权限 — 该操作需要「管理元数据」权限。',
   'engine.packages.form.basics': '基本信息',
   'engine.packages.form.advanced': '高级',
   'engine.packages.form.namespace': '命名空间',
@@ -3038,7 +3058,6 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'designer.field.description': '描述',
   'designer.field.readonly': '只读',
   'designer.field.hidden': '隐藏',
-  'designer.field.indexed': '索引',
   'designer.field.externalId': '外部 ID',
   'designer.field.trackHistory': '记录历史',
   'designer.field.placeholder': '占位符',

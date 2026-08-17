@@ -36,6 +36,10 @@ import { describe, it, expect } from 'vitest';
 // eslint.config.js (#3090).
 // eslint-disable-next-line no-restricted-imports
 import { FormFieldSchema as SpecFormFieldSchema } from '@objectstack/spec/ui';
+// Not restricted, and not a layer violation: `ComponentPropsMap` is read ONLY
+// as the marker of which spec line is installed (see the GA-pending block
+// below), never for a form field's shape.
+import { ComponentPropsMap } from '@objectstack/spec/ui';
 import { mapFieldTypeToFormType } from '@object-ui/fields';
 import { normalizeSectionField } from './sectionFields';
 
@@ -115,24 +119,72 @@ const TABLE: Record<string, (f: (def: Record<string, unknown>) => any) => void> 
 };
 
 /** Spec keys the normalizer deliberately does not carry, each with a reason.
- * Empty today — add entries here (never silently) when the spec grows a key
- * that genuinely has no runtime destination. */
-const EXEMPT: Record<string, string> = {};
+ * Add entries here (never silently) when the spec grows a key that genuinely
+ * has no runtime destination — and state WHY there is none, since "no row yet"
+ * and "no destination" are the two things this list must keep apart. */
+const EXEMPT: Record<string, string> = {
+  publicPicker:
+    "A server-side authorization opt-in, not a presentation delta: it gates objectstack's public-lookup route (`GET /forms/:slug/lookup/:field` answers only for a field whose form declaration carries it, `403 LOOKUP_NOT_PUBLIC` otherwise, objectstack#7467), and the public-form resolve route strips undeclared lookup fields from the rendered sections. `normalizeSectionField` builds the runtime widget config for an in-app authenticated form and has NO destination for it — zero read points repo-wide (`grep -rn publicPicker packages/ apps/` is empty) — so mapping it anywhere would invent a client-side meaning for a capability only the server enforces. Reasoned exemption ruled on objectui#4648 (delegated ruling item 5, 2026-08-15); it becomes an implementation card if objectui ever renders anonymous public forms.",
+};
+
+/**
+ * EXEMPT keys the installed spec is allowed not to declare yet.
+ *
+ * `publicPicker` arrives in `@objectstack/spec` 17.0.0 GA; this repo is pinned
+ * to `^17.0.0-rc.6`, which has no such key, so on the current pin the entry
+ * describes nothing and both checks below would read it as stale. Pinned as a
+ * SET, not a blanket "skip anything the spec lacks", so exactly one entry may
+ * be dormant and a typo in any other still fails.
+ */
+const GA_PENDING_EXEMPT = ['publicPicker'];
 
 describe('normalizeSectionField covers the spec FormFieldSchema key set', () => {
   // `.strict().transform()` wraps the object in a ZodPipe; `.in` is the
   // strict object carrying the authoring shape.
   const specKeys = Object.keys((SpecFormFieldSchema as any).in.shape).sort();
 
+  /** A GA-pending exemption the installed spec does not declare yet. */
+  const isDormant = (key: string) => GA_PENDING_EXEMPT.includes(key) && !specKeys.includes(key);
+
   it('has a behavioral row (or an exemption with a reason) for every spec key', () => {
-    const covered = [...Object.keys(TABLE), ...Object.keys(EXEMPT)].sort();
+    const covered = [
+      ...Object.keys(TABLE),
+      ...Object.keys(EXEMPT).filter((key) => !isDormant(key)),
+    ].sort();
     expect(covered).toEqual(specKeys);
   });
 
   it('has no stale rows for keys the spec has retired', () => {
     for (const key of [...Object.keys(TABLE), ...Object.keys(EXEMPT)]) {
+      if (isDormant(key)) continue; // pre-GA pin: the key is not there to be stale
       expect(specKeys, `'${key}' is no longer a spec FormField key`).toContain(key);
     }
+  });
+
+  it('every GA-pending exemption is a real entry, and arms with the installed spec', () => {
+    // Non-vacuity for the pending set: an entry named here but absent from
+    // EXEMPT licenses nothing while reading as a decision, and a key that stays
+    // dormant on a GA tree is an exemption covering nothing at all.
+    expect(GA_PENDING_EXEMPT.length).toBeGreaterThan(0);
+    const specCarriesGaElements = 'object-form' in ComponentPropsMap;
+    for (const key of GA_PENDING_EXEMPT) {
+      expect(Object.keys(EXEMPT), `'${key}' is pinned as GA-pending but has no entry`).toContain(key);
+      // The spec ships no version constant, so GA is read off the element set
+      // it carries — `object-form` is the forms-side member of the four blocks
+      // 17.0.0 added (objectui#4648).
+      expect(isDormant(key), `'${key}' dormancy disagrees with the installed spec`).toBe(
+        !specCarriesGaElements,
+      );
+    }
+  });
+
+  it('every exemption states a reason and cites a tracking issue', () => {
+    // Same discipline as the repo-wide gate in apps/console: an exemption
+    // without an owner is a permanent allowlist entry with extra steps.
+    const unjustified = Object.entries(EXEMPT)
+      .filter(([, reason]) => !/#\d+/.test(reason))
+      .map(([key]) => key);
+    expect(unjustified).toEqual([]);
   });
 
   for (const [key, assertRow] of Object.entries(TABLE)) {

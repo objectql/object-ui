@@ -153,6 +153,17 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
           testIdPrefix="textarea"
           disabled={disabled}
           /*
+            The same `error` the inline control turns into `aria-invalid`
+            (objectui#3222), handed to the dialog so its control can say the
+            same thing (objectui#4824). Before this the dialog's textarea
+            carried no `aria-invalid` at all: the field was invalid, the inline
+            control said so, and the surface the user was actually typing into
+            said nothing. The primitive — not this widget — decides what the
+            dialog does with it, so both long-text widgets and the built-in
+            branch cannot answer it three different ways again.
+          */
+          error={error}
+          /*
             The FULLSCREEN surface's counter (objectui#3417). This slot used to
             render a bare `{n}/{max}` span: no accessible name, no association
             with the dialog's textarea, nothing `aria-live`. A screen reader
@@ -181,7 +192,7 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
             ) : null
           }
         >
-          {(draft, setDraft, editorDisabled) => (
+          {(draft, setDraft, editorDisabled, editorAria) => (
             <Textarea
               autoFocus
               value={draft}
@@ -189,6 +200,19 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
               disabled={editorDisabled}
               maxLength={maxLength}
               placeholder={textareaField?.placeholder}
+              /*
+                Name + validation state, computed by `FullscreenFieldEditor` and
+                spread whole (objectui#4824 / #4832). Spread rather than
+                unpacked: this widget is not told which ids it names, so it
+                cannot name a node outside the dialog — the ⛔ shortcut of
+                pointing at the host's `<FormMessage>`, which Radix
+                `aria-hidden`s for the entire time the dialog is open.
+
+                It carries no `aria-describedby`, so it composes with — rather
+                than overwrites — the character-count description assigned
+                below.
+              */
+              {...editorAria}
               /*
                 Assigned, not appended — and that is a statement about THIS
                 element, not a relaxation of the rule above. The inline control

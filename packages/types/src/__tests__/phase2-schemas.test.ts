@@ -745,7 +745,16 @@ describe('ListViewSchema userFilters Zod Validation', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should validate ListViewSchema with showSearch/showSort/showFilters/striped/bordered/color', () => {
+  // `striped` / `bordered` were part of this fixture until objectui#4649.
+  // They are not objectui's keys to assert: `ListViewSchema` takes them from
+  // the spec by reference, so this case was really pinning the SPEC pin's
+  // vocabulary — and objectstack#7176 retired all three. Left in, the fixture
+  // would flip red the moment the pin moves to GA, where the keys are
+  // `retiredKey()` tombstones that reject. Trimmed to the keys objectui does
+  // own, the case still covers what it was written for (the local `show*` /
+  // `color` extends); the retirement itself is pinned in
+  // `p1-spec-alignment.test.ts` on objectui's own types.
+  it('should validate ListViewSchema with showSearch/showSort/showFilters/color', () => {
     const schema = {
       type: 'list-view',
       objectName: 'accounts',
@@ -753,8 +762,6 @@ describe('ListViewSchema userFilters Zod Validation', () => {
       showSearch: true,
       showSort: false,
       showFilters: true,
-      striped: true,
-      bordered: false,
       color: 'status',
     };
     const result = ListViewSchema.safeParse(schema);
@@ -763,8 +770,6 @@ describe('ListViewSchema userFilters Zod Validation', () => {
       expect(result.data.showSearch).toBe(true);
       expect(result.data.showSort).toBe(false);
       expect(result.data.showFilters).toBe(true);
-      expect(result.data.striped).toBe(true);
-      expect(result.data.bordered).toBe(false);
       expect(result.data.color).toBe('status');
     }
   });

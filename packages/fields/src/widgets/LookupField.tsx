@@ -294,11 +294,23 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
    * not merely an untranslated word. The host form supplies the name→label map
    * (`dependsOnLabels`); a name it doesn't cover falls back to itself, so a
    * standalone widget with no host renders exactly what it did before.
+   *
+   * The separator between the names is a LOCALE property, not a code constant
+   * (objectui#4026, the mechanism objectstack#5407 established for the
+   * invalid-submit toast). It used to be a hardcoded `', '` here while the
+   * form renderer's copy of this same gate hardcoded `' / '`, so one shared
+   * sentence read two different ways depending on which side produced it —
+   * and under zh/ja both spellings were wrong for the script. Every caller of
+   * the gate sentence now reads `validation.formInvalidJoiner`, the one
+   * already-shipped key for exactly this kind of truncated-name list.
    */
   const dependsOnLabelsProp = props.dependsOnLabels;
   const dependsOnFieldsText = useMemo(
-    () => dependsOn.map((d) => dependsOnLabelsProp?.[d.field] || d.field).join(', '),
-    [dependsOn, dependsOnLabelsProp],
+    () =>
+      dependsOn
+        .map((d) => dependsOnLabelsProp?.[d.field] || d.field)
+        .join(t('validation.formInvalidJoiner')),
+    [dependsOn, dependsOnLabelsProp, t],
   );
 
   // Resolve dependent field values from explicit prop or SchemaRendererContext.data

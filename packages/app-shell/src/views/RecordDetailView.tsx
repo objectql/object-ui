@@ -15,7 +15,7 @@ import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
 import { ActionProvider, useObjectTranslation, useObjectLabel, useActionTextLocalizer, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, InlineEditProvider, useGlobalUndo, useDataInvalidation, notifyDataChanged, useRowPredicate } from '@object-ui/react';
-import { buildExpandFields, userActionPredicates } from '@object-ui/core';
+import { buildExpandFields, resolveRecordIdParamSeed, userActionPredicates } from '@object-ui/core';
 import { toast } from 'sonner';
 import { useRecordPresence, PresenceAvatars } from '@object-ui/collaboration';
 import { Database, ChevronLeft } from 'lucide-react';
@@ -34,6 +34,7 @@ import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync';
 import { RECORD_DETAIL_TAB_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
 import { resolveActionParams } from '../utils/resolveActionParams';
 import { createConsoleServerActionHandler } from '../utils/consoleServerAction';
+import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics';
 import { interpretFlowResponse } from '../utils/flowResponse';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
 // Audit provenance renders as the one-line <RecordMetaFooter>; the other
@@ -103,11 +104,22 @@ const FALLBACK_USER = { id: 'current-user', name: 'Demo User' };
  * `requiredPermissions` — the button rendered, and only the server's 403 stopped
  * it (and only for platform action routes at that).
  *
- * The `permissionsLoaded` gate keeps the two states apart: `usePermissions()`
- * returns `[]` both for "holds no capabilities" and for "no PermissionProvider /
- * still resolving". Forwarding the latter as `[]` would flip the gate fail-CLOSED
- * and hide gated actions in a standalone embed, so it stays `undefined` until the
- * answer is real.
+ * The `permissionsLoaded` gate keeps "no answer yet" apart from "an answer,
+ * whatever it is": while `!permissionsLoaded` (no PermissionProvider mounted,
+ * or still resolving), `systemPermissions` is omitted entirely so the engine's
+ * own fail-open applies. Forwarding `[]` in that window would flip the gate
+ * fail-CLOSED and hide gated actions in a standalone embed.
+ *
+ * [objectui#4656] Once loaded, `systemPermissions` is forwarded AS-IS,
+ * `undefined` included — it is NOT collapsed to `[]`. `MePermissionsProvider`
+ * now preserves the distinction the engine already keys off: `undefined`
+ * means the backend never reported `systemPermissions` at all (a deployment
+ * predating ADR-0066), which is exactly the "unknown" case the engine's own
+ * `Array.isArray(held)` check fails OPEN on — not "holds nothing". Defaulting
+ * it to `[]` here would silently re-introduce the same collapse at this one
+ * call site and gate every `record_header` / `record_more` action closed on
+ * such a deployment. A REPORTED empty array still forwards as `[]` and gates
+ * strictly, unchanged.
  */
 export function resolveActionUser(
   user: { id: string; name: string; image?: string } | null | undefined,
@@ -118,7 +130,7 @@ export function resolveActionUser(
     ? { id: user.id, name: user.name, avatar: user.image }
     : FALLBACK_USER;
   return permissionsLoaded
-    ? { ...identity, systemPermissions: systemPermissions ?? [] }
+    ? { ...identity, systemPermissions }
     : identity;
 }
 
@@ -615,10 +627,31 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         const body: Record<string, any> = wrap ? { [wrap]: params } : { ...params };
 
         if (action.recordIdParam) {
-          const rowField = (action as any).recordIdField || 'id';
-          const rowValue = rowRecord?.[rowField] ?? (action as any).recordId
-            ?? (!action.objectName || action.objectName === objectName ? (pageRecord as any)?.[rowField] : undefined);
-          if (rowValue != null) body[action.recordIdParam] = rowValue;
+          const rowField = action.recordIdField || 'id';
+          // This site has two sources resolveRecordIdParamSeed doesn't know
+          // about — a literal `recordId` override (not a declared ActionDef
+          // field; nothing in this repo's metadata sets it today, hence the
+          // cast) and the same page-record fallback `interpolationRecord`
+          // above uses for `record_header` actions dispatched with no
+          // `rowRecord`. Preserve that priority (row -> override ->
+          // page record) and let the helper decide — and word — the
+          // refusal only once every source has been tried, instead of the
+          // silent drop this call site used to fall back to
+          // (objectstack#8018, objectui#4669).
+          const recordIdOverride = (action as { recordId?: unknown }).recordId;
+          const rowHasValue = !!rowRecord && rowRecord[rowField] != null;
+          if (!rowHasValue && recordIdOverride != null) {
+            body[action.recordIdParam] = recordIdOverride;
+          } else {
+            const seedRecord: Record<string, any> | undefined = rowHasValue
+              ? rowRecord
+              : ((!action.objectName || action.objectName === objectName
+                  ? (pageRecord as Record<string, any> | undefined)
+                  : undefined) ?? rowRecord);
+            const seed = resolveRecordIdParamSeed(action, seedRecord);
+            if (seed.error) return { success: false, error: seed.error };
+            if (seed.value !== undefined) body[action.recordIdParam] = seed.value;
+          }
         }
 
         // better-auth org endpoints resolve the session's active org; pass it
@@ -824,8 +857,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   /**
    * `type: 'modal'` dispatch — same rule as the shared console runtime (see
    * `useConsoleActionRuntime.modalActionHandler`): CLIENT-SIDE ONLY. The
-   * action's `target` names the page (or object form) to open; rendering it is
-   * the whole of what a modal action does.
+   * action's `target` names the PAGE to open — only a page, since the object
+   * fallback retired (maintainer ruling on objectstack#6739, PR #4764);
+   * rendering it is the whole of what a modal action does.
    *
    * [objectstack#3959 / objectui#3320] This used to fall through to
    * `serverActionHandler` when the target resolved to neither a page nor an
@@ -839,6 +873,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
    * reported as what it is. To collect input and then run server-side, declare
    * `type: 'script'` with `params`: the runner collects the same dialog and
    * the handler runs with those values.
+   *
+   * The refusal WORDING is built by `utils/modalTargetDiagnostics`, shared with
+   * `useConsoleActionRuntime.modalActionHandler` and
+   * `useActionModal.modalHandler` — see that module for why three hand-written
+   * copies of one contract did not survive contact with PR #4764
+   * (objectui#4767). Change the contract there, not here.
    */
   const modalActionHandler = useCallback(async (action: ActionDef) => {
     const schema = (action as any).modal ?? action.target ?? (action as any).params?.schema;
@@ -846,10 +886,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     if (descriptor) return modalHandler(descriptor);
     return {
       success: false,
-      error:
-        `Action "${action.name}" is type:'modal' but its target ` +
-        `${schema != null ? `"${String(schema)}" ` : ''}names no page or object to open. ` +
-        `Point it at a page, or use type:'script' with params to collect input and run a handler.`,
+      error: modalTargetRefusalMessage({
+        actionName: action.name,
+        target: schema,
+        serverHandlerHint: true,
+      }),
     };
   }, [resolveModalTarget, modalHandler]);
 
@@ -1924,7 +1965,6 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         },
       }),
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   // `approvals.requests` / `approvals.pendingRequest` are in the deps for the
   // Approvals tab payload (#3461) — the tab's node carries the live rows, and
   // the panel's headline is the pending one. (The decision actions no longer

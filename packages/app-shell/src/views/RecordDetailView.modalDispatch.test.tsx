@@ -119,6 +119,7 @@ vi.mock('@object-ui/react', async (importOriginal) => {
 
 import { MetadataCtx } from '@object-ui/react';
 import { RecordDetailView } from './RecordDetailView';
+import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics';
 
 const OBJECT_NAME = 'crm_call';
 const RECORD_ID = 'rec-call-1';
@@ -260,6 +261,16 @@ describe("RecordDetailView modal dispatch — CLIENT-SIDE ONLY (objectstack#3959
     // the same copy the shared runtime reports, so the two surfaces cannot
     // drift apart silently again.
     expect(String(r.error)).toContain('log_call');
-    expect(String(r.error)).toMatch(/type:'script' with params/);
+    expect(String(r.error)).toMatch(/`type: 'script'` with `params`/);
+    // objectui#4767 — "cannot drift apart silently again" was aspirational
+    // until now: the two copies were hand-written, and PR #4764's object-
+    // fallback retirement reached only `useActionModal`'s. This one kept
+    // "names no page or object" and never named `type: 'form'`, the validated
+    // way to open an object's form. Same constructor, byte for byte.
+    expect(String(r.error)).toContain("type: 'form'");
+    expect(String(r.error)).not.toMatch(/or object/);
+    expect(String(r.error)).toBe(
+      modalTargetRefusalMessage({ actionName: 'log_call', target: 'log_call', serverHandlerHint: true }),
+    );
   });
 });

@@ -252,8 +252,10 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     expect(found, `„…" mismatches:\n${found.join('\n')}`).toEqual([]);
     // 45 at objectui#3876's landing, 47 once objectui#3920 gave
     // `grid.import.savedMappingHint` / `savedMappingPreviewNote` German quotes,
-    // 50 once objectui#3919 germanised the three `approvalsInbox` values.
-    expect(okSpans, 'correctly paired spans').toBe(50);
+    // 50 once objectui#3919 germanised the three `approvalsInbox` values,
+    // 51 once objectstack#8270 added `home.build.noCapability`, which names the
+    // withheld „Metadaten verwalten“ permission in the gate's reason line.
+    expect(okSpans, 'correctly paired spans').toBe(51);
   });
 
   it('keeps the count identity that replaces the card’s count(„) === count(“)', () => {
@@ -264,11 +266,12 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
 
     // 45 / 47 / 2 at objectui#3876's landing; 47 / 47 / 0 after objectui#3920
     // translated the two English values; 50 / 50 / 0 after objectui#3919 gave the
-    // three `approvalsInbox` values German quotes. See the header for why the
+    // three `approvalsInbox` values German quotes; 51 / 51 / 0 after
+    // objectstack#8270 added `home.build.noCapability`. See the header for why the
     // naive equality was false on the file #3876 left behind — and note that it is
     // now true for a *different* reason (rdq went to zero), which is why the
     // identity below is asserted as arithmetic rather than as `close === open`.
-    expect({ open, close, rdq }).toEqual({ open: 50, close: 50, rdq: 0 });
+    expect({ open, close, rdq }).toEqual({ open: 51, close: 51, rdq: 0 });
     // The durable shape: every „ closed by a “, every surplus “ an English
     // opener answered by a ”. Survived translating the two English values.
     expect(close).toBe(open + rdq);

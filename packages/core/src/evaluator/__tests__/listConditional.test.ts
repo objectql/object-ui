@@ -455,3 +455,114 @@ describe('evalRowPredicate — relation fields', () => {
     });
   });
 });
+
+/**
+ * objectui#4640 — `rowless`: a surface with NO ROW keeps the host scope's own
+ * `record` / `data`.
+ *
+ * The default above is the right rule for a row surface and exactly the wrong
+ * one for a surface that has no row: pinning then writes an EMPTY `record` /
+ * `data` over the host's real ones, and every `record.*` predicate faults with
+ * "No such key". "This surface has no row of its own" and "this surface's row
+ * is empty" are different facts, and only the second is entitled to shadow the
+ * scope — the same distinction `usePredicateRecordContext` makes on the binding
+ * side (objectui#4075). The first caller is `ActionParamDialog`'s param
+ * `visible` gate, whose scope IS the host predicate scope, `data` and all.
+ */
+describe('evalRowPredicate — rowless (objectui#4640)', () => {
+  const HOST = { record: { tag: 'HOST' }, data: { tag: 'HOST' }, features: { on: true } };
+
+  it("leaves the host scope's own `record` / `data` standing", () => {
+    expect(evalRowPredicate("record.tag == 'HOST'", null, { scope: HOST, rowless: true })).toBe(true);
+    expect(evalRowPredicate("data.tag == 'HOST'", null, { scope: HOST, rowless: true })).toBe(true);
+    // …on the legacy path too — one answer per value, not one per dialect.
+    expect(evalRowPredicate("record.tag === 'HOST'", null, { scope: HOST, rowless: true })).toBe(true);
+    expect(evalRowPredicate("data.tag === 'HOST'", null, { scope: HOST, rowless: true })).toBe(true);
+  });
+
+  it('is what stops those predicates from faulting into the fallback', () => {
+    // The reverse of the case above, and the reason the option exists: without
+    // it the empty row shadows the host's `record`, the predicate faults, and
+    // the caller silently gets its fallback instead of a verdict.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(
+        evalRowPredicate("record.tag == 'HOST'", null, {
+          scope: HOST,
+          fallback: true,
+          warnOnError: true,
+          label: 'shadowed',
+        }),
+      ).toBe(true); // ← the FALLBACK, not a verdict …
+      expect(String(warn.mock.calls[0][0])).toContain('No such key');
+      warn.mockClear();
+      // … and with `rowless` the same call reaches the real verdict, quietly.
+      expect(
+        evalRowPredicate("record.tag == 'NOPE'", null, {
+          scope: HOST,
+          fallback: true,
+          rowless: true,
+          warnOnError: true,
+          label: 'shadowed',
+        }),
+      ).toBe(false);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('keeps the rest of the host scope bound, and the blank/absent rules intact', () => {
+    expect(evalRowPredicate('features.on == true', null, { scope: HOST, rowless: true })).toBe(true);
+    expect(evalRowPredicate(null, null, { scope: HOST, rowless: true, fallback: true })).toBe(true);
+    expect(evalRowPredicate('   ', null, { scope: HOST, rowless: true, fallback: true })).toBe(true);
+  });
+
+  it('does not disturb the row-surface default (no `rowless`, row still wins)', () => {
+    expect(evalRowPredicate("record.tag == 'ROW'", { tag: 'ROW' }, { scope: HOST })).toBe(true);
+    expect(evalRowPredicate("record.tag == 'HOST'", { tag: 'ROW' }, { scope: HOST })).toBe(false);
+  });
+});
+
+/**
+ * objectui#4640 — a faulting ENVELOPE reports its own source.
+ *
+ * `source` is `undefined` for an envelope by design (it drives dialect routing,
+ * and an envelope is never routed to the legacy engine), and the fault report
+ * used to reuse it — so every faulting envelope printed the literal
+ * "(expression)" instead of the predicate, and, since the warn-once key is
+ * (label, source), the FIRST faulting envelope under a label silenced every
+ * other one. The envelope is what `@objectstack/spec`'s `ExpressionInputSchema`
+ * normalizes every authored predicate into, so this was the likeliest shape in
+ * served metadata and the least diagnosable one.
+ */
+describe("evalRowPredicate — the fault report quotes an envelope's source (objectui#4640)", () => {
+  it('names each broken envelope, instead of collapsing them into "(expression)"', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const opts = { warnOnError: true, label: 'one label', fallback: false } as const;
+      expect(evalRowPredicate({ dialect: 'cel', source: 'env_a_4640 ] (' }, {}, opts)).toBe(false);
+      expect(evalRowPredicate({ dialect: 'cel', source: 'env_b_4640 ] (' }, {}, opts)).toBe(false);
+
+      const lines = warn.mock.calls.map((c) => String(c[0]));
+      expect(lines).toHaveLength(2);
+      expect(lines[0]).toContain('env_a_4640 ] (');
+      expect(lines[1]).toContain('env_b_4640 ] (');
+      expect(lines.some((l) => l.includes('(expression)'))).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('still warns once per (label, predicate)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const pred = { dialect: 'cel', source: 'env_once_4640 ] (' } as const;
+      evalRowPredicate(pred, {}, { warnOnError: true, label: 'L' });
+      evalRowPredicate(pred, {}, { warnOnError: true, label: 'L' });
+      expect(warn.mock.calls).toHaveLength(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});

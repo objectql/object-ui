@@ -83,17 +83,22 @@ Use responsive column configurations in grid layouts:
 ```json
 {
   "type": "grid",
-  "props": {
-    "cols": { "sm": 1, "md": 2, "lg": 4 }
-  },
+  "columns": { "xs": 1, "md": 2, "lg": 4 },
+  "gap": 4,
   "children": [
-    { "type": "card", "props": { "title": "KPI 1" } },
-    { "type": "card", "props": { "title": "KPI 2" } },
-    { "type": "card", "props": { "title": "KPI 3" } },
-    { "type": "card", "props": { "title": "KPI 4" } }
+    { "type": "card", "title": "KPI 1" },
+    { "type": "card", "title": "KPI 2" },
+    { "type": "card", "title": "KPI 3" },
+    { "type": "card", "title": "KPI 4" }
   ]
 }
 ```
+
+`columns` takes a number or a breakpoint object (`xs` / `sm` / `md` / `lg` /
+`xl`), with `xs` as the base — the schema above renders
+`grid-cols-1 md:grid-cols-2 lg:grid-cols-4`. Keys belong on the node, not in a
+`props` wrapper: `"props": { "cols": … }` leaves both the columns *and* the card
+titles unread (objectui#4001).
 
 ## Mobile-first Tailwind classes in schemas
 

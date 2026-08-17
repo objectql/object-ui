@@ -30,6 +30,7 @@ one has its own section below.
 | `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `skills-paths.yml` | Skill Guide Path Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a path stated in a `skills/` guide does not exist |
+| `doc-component-types.yml` | Doc Component Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `content/docs/**.mdx` snippet teaches a `type` nothing registers |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -41,6 +42,7 @@ one has its own section below.
 | `stale.yml` | Stale Issues & PRs | Daily cron `0 0 * * *`; manual | n/a |
 | `shadcn-check.yml` | Check Shadcn Components | Weekly cron `0 9 * * 1`; manual | n/a |
 | `check-links.yml` | Check Links | Weekly cron `17 4 * * 0`; manual | n/a — reports, never gates |
+| `published-dist-gate.yml` | Published Dist Tooling Scan | Nightly cron `41 3 * * *`; push to `main` touching the gate; manual | No — the blocking copy runs on the publish path, not here |
 
 The path filters explain most "why did nothing run on my PR?" questions:
 
@@ -169,7 +171,7 @@ it green — which is how two of `type-check`'s gates came to be missing from th
 | Job key | Appears as | What it runs | When |
 |---|---|---|---|
 | `changeset-check` | Changeset Fixed Group Check | `scripts/check-changeset-fixed.mjs` — every workspace package must be in the changeset `fixed` group or explicitly ignored. It checks group *membership*; it does **not** check whether the PR added a changeset. | Every run |
-| `type-check` | Type Check | `scripts/check-type-check-coverage.mjs`, then `pnpm check:phantom-deps`, then `pnpm check:spec-symbols`, then `pnpm check:action-forward-parity`, then `pnpm check:i18n-keys`, then `pnpm check:i18n-drift`, then `pnpm type-check:scripts`, then `pnpm type-check`, then `pnpm type-check:vitest-setup`. The coverage guard runs first because turbo silently skips packages that have no `type-check` script, so a package without one would otherwise read as passing (#2911). `pnpm check:phantom-deps` fails when a released package imports a bare specifier its own `package.json` does not declare — a *phantom dependency*, invisible locally because the workspace root's `devDependencies` sit on the upward resolution path from every package directory and on no consumer's, so `require.resolve('react', { paths: ['packages/core/src'] })` succeeds while `@object-ui/core` declares react in no field at all ([#4394](https://github.com/objectstack-ai/objectui/issues/4394)). `pnpm check:action-forward-parity` fails when an action renderer's forward whitelist drops a key the action runtime reads — the class that shipped six times one key at a time, each time green, because the key parses and publishes while the payload is dropped one hop before the runner ([#4050](https://github.com/objectstack-ai/objectui/issues/4050)). The two locale gates sit in the middle because both parse the sources with `typescript`: they need the install and nothing built. `pnpm check:i18n-keys` fails when a `t()` call site asks for a key the `en` pack does not define ([#3530](https://github.com/objectstack-ai/objectui/issues/3530)); `pnpm check:i18n-drift` fails when a change to an `en` string is not accompanied by the nine translation packs ([#3650](https://github.com/objectstack-ai/objectui/issues/3650)), and it is why this job's checkout sets `fetch-depth: 0` — it diffs against the merge base, which a depth-1 clone cannot resolve. `pnpm type-check:scripts` (`tsconfig.scripts.json`) covers `scripts/**/*.ts`, which `pnpm type-check` cannot reach at all — `scripts/` has no package.json, so turbo never walks it, and the coverage guard decides coverage per *package*. Until [#3494](https://github.com/objectstack-ai/objectui/issues/3494) that left the pin tests in `scripts/__tests__/` — including the one pinning this very page — compiled by nothing. `pnpm type-check:vitest-setup` (`tsconfig.vitest-setup.json`) closes the same gap for the four repo-root `vitest.setup.*` files, uncovered until [#3515](https://github.com/objectstack-ai/objectui/issues/3515); it runs *last*, after `pnpm type-check`, because `vitest.setup.dom.tsx` side-effect-imports four `@object-ui/*` packages and resolves them through the declarations that turbo's `^build` produces. | Every run; on a PR the steps short-circuit when only ignored paths changed |
+| `type-check` | Type Check | `scripts/check-type-check-coverage.mjs`, then `pnpm check:phantom-deps`, then `pnpm check:self-import`, then `pnpm check:spec-symbols`, then `pnpm check:action-forward-parity`, then `pnpm check:i18n-keys`, then `pnpm check:i18n-drift`, then `pnpm type-check:scripts`, then `pnpm type-check`, then `pnpm type-check:vitest-setup`. The coverage guard runs first because turbo silently skips packages that have no `type-check` script, so a package without one would otherwise read as passing (#2911). `pnpm check:phantom-deps` fails when a released package imports a bare specifier its own `package.json` does not declare — a *phantom dependency*, invisible locally because the workspace root's `devDependencies` sit on the upward resolution path from every package directory and on no consumer's, so `require.resolve('react', { paths: ['packages/core/src'] })` succeeds while `@object-ui/core` declares react in no field at all ([#4394](https://github.com/objectstack-ai/objectui/issues/4394)). `pnpm check:self-import` runs next because it reuses that gate's parser: it fails when a file inside a package names its OWN package, a specifier that resolves through the package's `exports` map to `dist/` while `type-check` waits on `^build` — the *dependencies'* builds, never the package's own — so on a cold cache the declarations do not exist yet and the file fails with `TS2307`. Locally it is always green, because every local workflow builds before it type-checks and leaves a `dist/` behind; PR #4789's first run was red on exactly one such line ([#4801](https://github.com/objectstack-ai/objectui/issues/4801)). `pnpm check:action-forward-parity` fails when an action renderer's forward whitelist drops a key the action runtime reads — the class that shipped six times one key at a time, each time green, because the key parses and publishes while the payload is dropped one hop before the runner ([#4050](https://github.com/objectstack-ai/objectui/issues/4050)). The two locale gates sit in the middle because both parse the sources with `typescript`: they need the install and nothing built. `pnpm check:i18n-keys` fails when a `t()` call site asks for a key the `en` pack does not define ([#3530](https://github.com/objectstack-ai/objectui/issues/3530)); `pnpm check:i18n-drift` fails when a change to an `en` string is not accompanied by the nine translation packs ([#3650](https://github.com/objectstack-ai/objectui/issues/3650)), and it is why this job's checkout sets `fetch-depth: 0` — it diffs against the merge base, which a depth-1 clone cannot resolve. `pnpm type-check:scripts` (`tsconfig.scripts.json`) covers `scripts/**/*.ts`, which `pnpm type-check` cannot reach at all — `scripts/` has no package.json, so turbo never walks it, and the coverage guard decides coverage per *package*. Until [#3494](https://github.com/objectstack-ai/objectui/issues/3494) that left the pin tests in `scripts/__tests__/` — including the one pinning this very page — compiled by nothing. `pnpm type-check:vitest-setup` (`tsconfig.vitest-setup.json`) closes the same gap for the four repo-root `vitest.setup.*` files, uncovered until [#3515](https://github.com/objectstack-ai/objectui/issues/3515); it runs *last*, after `pnpm type-check`, because `vitest.setup.dom.tsx` side-effect-imports four `@object-ui/*` packages and resolves them through the declarations that turbo's `^build` produces. | Every run; on a PR the steps short-circuit when only ignored paths changed |
 | `test` | Test (shard N/4) | `pnpm test --shard=N/4` across a 4-runner matrix with `fail-fast: false`, so every shard reports its own failures. No coverage instrumentation — v8 adds 40–100% overhead. | Pull requests and merge-queue builds (everything but `push`); steps short-circuit on a PR that changed only ignored paths |
 | `test-coverage` | Test (coverage) | One unsharded `pnpm test:coverage`, uploaded to Codecov. Nothing blocks on it, which is why it is not sharded. | **Push only** |
 | `e2e` | Build & E2E | Builds the console with `vite build` (`VITE_BASE_PATH=/console/`), verifies the artifact, then `pnpm test:e2e --project=chromium`. Uploads the Playwright report on failure. | Every run; on a PR the steps short-circuit when only ignored paths changed |
@@ -537,6 +539,57 @@ the sentence's whole point is that the path does not exist. Run it locally with
 `pnpm check:skills-paths`, or `node scripts/check-skills-paths.mjs --list` to see every candidate and
 how it was classified.
 
+## Documented Component Types (`doc-component-types.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**, and here the reason is sharper than in the three sections above. `ci.yml`'s
+`type-check` job decides whether to run its gates with a `git diff` that *excludes* `content/**`, so
+a pull request editing only `content/docs/**.mdx` reports that context and runs nothing inside it —
+and a docs-only pull request is exactly the change that introduces the defect this gate exists for.
+It appears in the checks list as **Doc Component Type Check**.
+
+Runs `scripts/check-doc-component-types.mjs`, which reads every fenced code block under
+`content/docs/**` and asks, of each `type` string literal in one, whether the repository registers a
+component under that name.
+
+**Why the teaching surface needed its own ratchet.** The catalog side has had one since
+[#4616](https://github.com/objectstack-ai/objectui/issues/4616):
+`examples/schema-catalog/test/catalog-gallery-render.test.tsx` renders every catalog entry and fails
+if any paints the registry's `Unknown component type` panel (OBJUI-001). A snippet in the docs is
+rendered by nothing, parsed by nothing and compared against nothing, so it could name any string at
+all and every check stayed green — while a reader who copied it got the red panel. The same defect
+landed three times that way, each found by a human probe:
+[#4786](https://github.com/objectstack-ai/objectui/issues/4786) taught `stats-card`, and
+[#4796](https://github.com/objectstack-ai/objectui/issues/4796) taught `plugin:grid` and
+`plugin:map` (the registered names are `object-grid` and `object-map`).
+
+**Where the key list comes from.** Nowhere — it is derived from the `ComponentRegistry.register(…)`
+and `registerLazy(…)` calls themselves on every run, including the loop forms and two helpers that
+register from a collection, with `namespace` and `skipFallback` read out of each call's own balanced
+argument span. There is no hard-coded enumeration to drift, and no build step, which is what keeps
+the whole run to a checkout plus one `node` call. A registration whose key the derivation cannot
+resolve **fails the gate** rather than being skipped: a key silently missing from the universe turns
+*correct* documentation red, which is the failure mode that gets gates deleted.
+
+**How a snippet is judged.** `type` is not one vocabulary in these pages — measured across 143 files
+and 558 literals, the corpus spells action schemas, block schemas, theme and report schemas, field
+and JSON-Schema data types, validation rules and navigation items all under the same key. A
+structural discriminator was built and rejected on measurement (a TypeScript annotation reads exactly
+like an object key to a brace tracker, and `items` carries navigation entries on one page and
+renderable children on another, so any global rule is a silent false green somewhere). So the rule is
+flat: every literal is a candidate component key, and a value outside the derived universe must be
+**declared** in the script's `DOC_TYPE_EXEMPTIONS` — keyed by (file, value), with a written reason
+naming the vocabulary it really belongs to. A whole-file exemption is deliberately not offered:
+`blocks/block-schema.mdx` carries `type: 'block'` and `type: 'div'` in the same document.
+
+Entries are re-derived per run, so one whose page stopped spelling that type fails as a stale
+exemption rather than quietly widening the hole.
+
+**If it fails:** it prints every `file:line — type '<value>'` with the offending source line. Either
+spell the registered key (`grep -rn "ComponentRegistry.register(" packages/` for the real name), or —
+if the value belongs to another vocabulary — add the declaration with its reason. Run it locally with
+`pnpm check:doc-types`.
+
 ## Link Checking (`check-links.yml`)
 
 **Trigger:** Weekly cron (`17 4 * * 0` — Sundays, off the top of the hour, when the scheduled-run
@@ -593,6 +646,39 @@ Uses [Changesets](https://github.com/changesets/changesets) for automated versio
 2. Bumps package versions.
 3. Publishes to npm.
 4. Configures a pnpm-lock.yaml merge driver to prevent lock file conflicts.
+
+Step 3 runs `pnpm changeset:publish`, and that script is
+`node scripts/check-published-dist-tooling.mjs && changeset publish` — the **blocking** copy of
+the Published Dist Gate above. A published package whose `dist/` carries tooling material stops
+the publish before a single tarball reaches npm, which is where that defect actually costs
+anything ([#4846](https://github.com/objectstack-ai/objectui/issues/4846)).
+
+### Published Dist Gate (`published-dist-gate.yml`)
+
+**Trigger:** Nightly cron `41 3 * * *`; push to `main` that touches the gate script or this
+workflow; manual. **It carries no `pull_request` trigger, on purpose.**
+
+No published package's build output may contain tooling material — `__tests__/`, `__mocks__/`,
+`__benchmarks__/`, `*.test.*`, `*.spec.*`, `*.bench.*`, `*.stories.*`. The gate is
+`scripts/check-published-dist-tooling.mjs` (`pnpm check:published-dist`); it builds every
+published package itself, then reads each one's tarball file list from `npm pack --dry-run`.
+
+Three things about it are easy to get wrong and are written down in the script's own header
+([#4846](https://github.com/objectstack-ai/objectui/issues/4846)):
+
+- **The criterion has to be artifact-level.** The cheap static version — "no build tsconfig
+  program may contain a tooling file" — was measured and reds five packages that emit nothing
+  wrong, because a tooling file in a *checking* program is correct and only a tooling file in an
+  *emitting* program is a defect. Acting on it would mean moving tests out of type programs,
+  which is the mirror of what
+  [#4006](https://github.com/objectstack-ai/objectui/issues/4006) taught.
+- **It must never pass vacuously.** A published package that contributes no build output is a
+  finding (`no-build-output`), not a skip, and a failed build is a failure rather than a green
+  run with nothing to look at.
+- **It is deliberately not a PR gate.** The criterion needs a full-repo build and this repository
+  has none per PR: `ci.yml`'s **Build & E2E** builds only `@object-ui/console`, and **Type
+  Check** gets only the dependency closure from turbo's `dependsOn: ["^build"]`, so leaf packages
+  are never built there. The blocking copy runs on the publish path instead — see below.
 
 ### Changeset Guard (`changeset-guard.yml`)
 
