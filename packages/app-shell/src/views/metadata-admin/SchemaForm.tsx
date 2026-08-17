@@ -712,6 +712,12 @@ export interface SchemaFormProps {
   /** JSONSchema for the root object. */
   schema: JsonSchema | undefined;
   /**
+   * Ancestor id path this form is nested under — set ONLY by the recursive
+   * render inside {@link FieldControl} (objectui#5062). A top-level form leaves
+   * it undefined, which is what keeps top-level ids spelled `mdf-{field}`.
+   */
+  idPath?: string;
+  /**
    * Optional FormView layout (sections, tabs, widget hints, visibleOn)
    * shipped by the framework alongside `schema`. When present, fields
    * are grouped into sections and visibility predicates are honoured.
@@ -750,6 +756,7 @@ export function SchemaForm({
   readOnly = false,
   createMode = false,
   widgetContext,
+  idPath,
 }: SchemaFormProps) {
   // Live app locale (follows the i18next language, not just the browser) —
   // hoisted above the no-schema early return so the hook order is stable.
@@ -833,6 +840,7 @@ export function SchemaForm({
         <SectionedSchemaForm
           form={form}
           props={props}
+          idPath={idPath}
           required={required}
           hiddenFields={hiddenFields}
           issuesByPath={issuesByPath}
@@ -861,6 +869,7 @@ export function SchemaForm({
         <FieldRow
           key={key}
           name={key}
+          idPath={idPath}
           schema={props[key]}
           value={(v as Record<string, unknown>)[key]}
           required={required.includes(key)}
@@ -895,6 +904,7 @@ function SectionedSchemaForm({
   readOnly,
   createMode,
   widgetContext,
+  idPath,
   onChange,
 }: {
   form: FormViewSpec;
@@ -906,6 +916,8 @@ function SectionedSchemaForm({
   readOnly?: boolean;
   createMode?: boolean;
   widgetContext?: WidgetContext;
+  /** Ancestor id path, forwarded from the hosting `SchemaForm` (#5062). */
+  idPath?: string;
   onChange: (key: string, val: unknown) => void;
 }) {
   const locale = useMetadataLocale();
@@ -958,6 +970,7 @@ function SectionedSchemaForm({
               >
                 <FieldRow
                   name={f.field}
+                  idPath={idPath}
                   schema={{
                     ...propSchema,
                     ...(f.label ? { title: f.label } : {}),
@@ -1073,10 +1086,48 @@ function SectionedSchemaForm({
   return <div className="space-y-4">{sections.map(renderSection)}</div>;
 }
 
+/* ----- id scoping (objectui#5062) ----------------------------------------- */
+
+/**
+ * Extend an ancestor id path with one more segment.
+ *
+ * DOM ids in this form are derived from the field's PATH, not from its local
+ * name: `FieldRow` is called recursively (composite sub-rows, repeater card
+ * rows, record items, the recursive `SchemaForm`), and two same-named
+ * sub-fields under different parents used to build the same id
+ * (`mdf-field` twice). A duplicate id is not a cosmetic problem here — a
+ * `<label for>` resolves to the FIRST match in the document, so the second
+ * field's label named and focused the first field's control: an association
+ * that is present, closed-looking to tooling, and cross-wired (objectui#5062;
+ * same failure class as the fixed-id collision objectui#3343 fixed in
+ * `packages/fields`).
+ *
+ * A TOP-LEVEL field passes no parent and keeps its historical `mdf-{field}`
+ * id — the selector surface the metadata-admin tests read stays exactly as it
+ * was; only nested rows gain a prefix.
+ *
+ * Segments are machine names (schema property / form-spec field names) and
+ * numeric row indices — the same class of input the flat `mdf-{field}` id
+ * already carried, so the ids stay derivable from the data path and
+ * whitespace-free for identifier-shaped names. Runtime user input is
+ * deliberately NOT a segment: a `record` item contributes its INDEX, never its
+ * author-typed key, which may contain spaces that an `aria-labelledby` IDREF
+ * would tokenize into two references.
+ */
+function joinIdPath(parent: string | undefined, segment: string | number): string {
+  return parent ? `${parent}.${segment}` : String(segment);
+}
+
+/** The host DOM id for a field at `path` — the `mdf-` namespace, path-scoped. */
+function fieldHostId(path: string): string {
+  return `mdf-${path}`;
+}
+
 /* ----- inner field row ---------------------------------------------------- */
 
 function FieldRow({
   name,
+  idPath,
   schema,
   value,
   required,
@@ -1088,6 +1139,14 @@ function FieldRow({
   onChange,
 }: {
   name: string;
+  /**
+   * The path of this row's ANCESTOR field, or undefined at the top level
+   * (objectui#5062). Each recursion point knows its own segment: a composite
+   * passes its own path, a repeater card row appends the row index, a record
+   * item appends the item index, and the recursive `SchemaForm` forwards the
+   * path of the field that hosts it.
+   */
+  idPath?: string;
   schema: JsonSchema;
   value: unknown;
   required: boolean;
@@ -1109,7 +1168,10 @@ function FieldRow({
   const description =
     (fieldSpec?.helpText as string | undefined) ||
     translateSchemaFieldHelp(name, schema?.description as string | undefined, locale);
-  const id = `mdf-${name}`;
+  // This row's own path — its id, and the ancestor path every nested row this
+  // field renders builds on (objectui#5062).
+  const path = joinIdPath(idPath, name);
+  const id = fieldHostId(path);
 
   // Auto-infer widget from fieldSpec.type or schema
   let widget = inferWidget(fieldSpec, schema);
@@ -1164,8 +1226,9 @@ function FieldRow({
   //    the id onto the radiogroup instead).
   const labelling = faceLabelling(face);
   const groupLabelled = labelling === 'group';
-  // Whitespace-free by construction (`mdf-` + a field name), and consumed as an
-  // `aria-labelledby` IDREF — a space in it would silently resolve to two ids.
+  // Whitespace-free by construction (`mdf-` + a dotted path of field names and
+  // row indices — see `joinIdPath`), and consumed as an `aria-labelledby`
+  // IDREF: a space in it would silently resolve to two ids.
   const labelId = groupLabelled ? `${id}-label` : undefined;
   // Exactly one of these two reaches the widget, ever.
   const channel = groupLabelled
@@ -1205,6 +1268,7 @@ function FieldRow({
           id={channel.id}
           ariaLabelledBy={channel.ariaLabelledBy}
           fieldName={name}
+          idPath={path}
           schema={schema}
           value={value}
           onChange={onChange}
@@ -1238,6 +1302,7 @@ function FieldRow({
         id={channel.id}
         ariaLabelledBy={channel.ariaLabelledBy}
         fieldName={name}
+        idPath={path}
         schema={schema}
         value={value}
         onChange={onChange}
@@ -1263,6 +1328,7 @@ function FieldControl({
   id,
   ariaLabelledBy,
   fieldName,
+  idPath,
   schema,
   value,
   onChange,
@@ -1284,6 +1350,12 @@ function FieldControl({
   ariaLabelledBy?: string;
   /** Machine field name — keys enum-option localization (e.g. flow `type`). */
   fieldName?: string;
+  /**
+   * The PATH of the field this control renders (objectui#5062) — the ancestor
+   * path for every nested row the structured faces below render. Distinct from
+   * `fieldName`, which is the local segment and keys localization only.
+   */
+  idPath?: string;
   schema: JsonSchema;
   value: unknown;
   onChange: (v: unknown) => void;
@@ -1322,6 +1394,7 @@ function FieldControl({
         widgetContext={widgetContext}
         fieldSpec={fieldSpec}
         ariaLabelledBy={ariaLabelledBy}
+        idPath={idPath}
         onChange={onChange}
       />
     );
@@ -1348,6 +1421,7 @@ function FieldControl({
         widgetContext={widgetContext}
         widget={fieldSpec?.widget}
         ariaLabelledBy={ariaLabelledBy}
+        idPath={idPath}
         onChange={onChange}
       />
     );
@@ -1371,6 +1445,7 @@ function FieldControl({
         keyField={(fieldSpec as any)?.keyField}
         formData={formData}
         ariaLabelledBy={ariaLabelledBy}
+        idPath={idPath}
         onChange={onChange}
       />
     );
@@ -1417,6 +1492,7 @@ function FieldControl({
           onChange={(v) => onChange(v)}
           readOnly={readOnly}
           widgetContext={widgetContext}
+          idPath={idPath}
         />
       </div>
     );
@@ -1434,6 +1510,7 @@ function FieldControl({
         widgetContext={widgetContext}
         widget={fieldSpec?.widget}
         ariaLabelledBy={ariaLabelledBy}
+        idPath={idPath}
         onChange={onChange}
       />
     );
@@ -1690,6 +1767,7 @@ function CompositeField({
   widgetContext,
   fieldSpec,
   ariaLabelledBy,
+  idPath,
   onChange,
 }: {
   value: unknown;
@@ -1704,6 +1782,8 @@ function CompositeField({
    * here is addressed by a SUB-field's own label.
    */
   ariaLabelledBy?: string;
+  /** This composite's own path — the ancestor path of its sub-rows (#5062). */
+  idPath?: string;
   onChange: (v: unknown) => void;
 }) {
   const obj = (value && typeof value === 'object' && !Array.isArray(value))
@@ -1717,6 +1797,7 @@ function CompositeField({
       <FieldRow
         key={spec.field}
         name={spec.field}
+        idPath={idPath}
         schema={subSchema}
         value={obj[spec.field]}
         required={Boolean(spec.required)}
@@ -1770,6 +1851,7 @@ function RepeaterField({
   widgetContext,
   widget,
   ariaLabelledBy,
+  idPath,
   onChange,
 }: {
   value: unknown;
@@ -1784,6 +1866,12 @@ function RepeaterField({
    * that label themselves, so the name belongs on the list, not on a control.
    */
   ariaLabelledBy?: string;
+  /**
+   * This repeater's own path. Each ROW appends its index to it, so two rows —
+   * and two repeaters carrying the same sub-field names — cannot build the same
+   * id (objectui#5062).
+   */
+  idPath?: string;
   onChange: (v: unknown) => void;
 }) {
   const locale = useMetadataLocale();
@@ -1911,6 +1999,7 @@ function RepeaterField({
                     <FieldRow
                       key={s.field}
                       name={s.field}
+                      idPath={joinIdPath(idPath, idx)}
                       schema={sub}
                       value={row?.[s.field]}
                       required={Boolean(s.required)}
@@ -1964,6 +2053,7 @@ function RecordField({
   keyField,
   formData,
   ariaLabelledBy,
+  idPath,
   onChange,
 }: {
   value: unknown;
@@ -1978,6 +2068,12 @@ function RecordField({
    * declaration holds in BOTH of this face's shapes.
    */
   ariaLabelledBy?: string;
+  /**
+   * This record field's own path. Each item appends its INDEX in display order
+   * — never its author-typed key, which is runtime user input and may contain
+   * whitespace an IDREF would tokenize (objectui#5062, `joinIdPath`).
+   */
+  idPath?: string;
   keyField?: {
     field?: string;
     label?: string;
@@ -2117,7 +2213,7 @@ function RecordField({
           {t('engine.list.empty', locale)}
         </div>
       )}
-      {entries.map(([key, row]) => {
+      {entries.map(([key, row], idx) => {
         const isOpen = openKey === key;
         const summary = specs
           .map((s) => row?.[s.field])
@@ -2180,6 +2276,7 @@ function RecordField({
               <div className="p-3 space-y-3">
                 <FieldRow
                   name={keyProp}
+                  idPath={joinIdPath(idPath, idx)}
                   schema={{ type: 'string' }}
                   value={key}
                   required
@@ -2197,6 +2294,7 @@ function RecordField({
                     <FieldRow
                       key={s.field}
                       name={s.field}
+                      idPath={joinIdPath(idPath, idx)}
                       schema={sub}
                       value={row?.[s.field]}
                       required={Boolean(s.required)}
