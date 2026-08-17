@@ -25,12 +25,27 @@
  * reference-integrity family owns that. Point 2's "when the redirect is built"
  * and point 3's consumption are runtime, and this module is where they happen.
  *
+ * ## Both layers ask the same question here (objectui#4990)
+ *
+ * "The spec enforces point 1 at the authoring door" is only true of a door that
+ * ASKS it. This repo ships one — the console's Public Forms dialog — and it
+ * enforced exactly one of the seven refusal families (empty), writing the other
+ * six into view metadata unexamined. So the parse below is exported as
+ * {@link checkSubmitRedirectUrl} and called there at save time: one parse, two
+ * callers, one spelling of a security rule. The author now reads the spec's
+ * prescription at the moment they can still fix the value, and the submitter
+ * never meets a destination the door let past.
+ *
+ * The door needs the verdict on the string alone — there is no record at
+ * authoring time — which is why the shape check and the substitution are
+ * separate exports rather than one function with an optional scope.
+ *
  * ## The shape verdict is the spec's, not a copy of it
  *
  * `@objectstack/spec` does not export its URL check as a function, but it does
  * export the schema the check lives in, so the verdict here is produced by
  * PARSING the smallest form view that carries this behavior. That costs one
- * parse per submit and buys the property that matters: there is no second
+ * parse per submit or save and buys the property that matters: there is no second
  * spelling of a security rule in this repo to drift from the first. When the
  * ruling widens — it says an allowlist of absolute origins "waits for measured
  * demand" — the console follows the pin with no edit here, which is the same
@@ -42,12 +57,8 @@
  * objectui#4074/#4588/#4592): a hand copy passes every value comparison right
  * up to the release that moves the original.
  *
- * Parsing a MINIMAL view is load-bearing, not laziness. A whole stored
- * `FormView` refuses on any unrelated key the strict schema does not know, and
- * a redirect must not be refused because some other part of the metadata
- * drifted. The question asked here is narrow — "is this url a value the
- * contract allows?" — so only that value is submitted for judgement, and only
- * issues on that value's path are read back.
+ * That the parsed view is a MINIMAL one is load-bearing, not laziness — see
+ * {@link checkSubmitRedirectUrl}, which is where the parse lives.
  *
  * Neither the import nor the parse is new ground in this repo, which is worth
  * knowing before weighing the cost:
@@ -124,6 +135,56 @@ interface SubmitRedirectRefused {
 export type SubmitRedirectVerdict = SubmitRedirectAccepted | SubmitRedirectRefused;
 
 /**
+ * The contract's verdict on one authored `url`, before any substitution: `url`
+ * is the value the schema accepted, and the refused arm is the same
+ * author-facing prose the renderer quotes.
+ */
+export type SubmitRedirectUrlVerdict = { ok: true; url: string } | SubmitRedirectRefused;
+
+/**
+ * Ask the contract whether an authored `submitBehavior.url` is a value it
+ * accepts, and get its own prescription back when it is not.
+ *
+ * This is the shape half of the ruling — the half that needs only the string —
+ * so it is what an authoring door calls before writing the value, and what
+ * {@link resolveSubmitRedirect} calls before substituting into it.
+ *
+ * Parsing a MINIMAL view is load-bearing, not laziness. A whole stored
+ * `FormView` refuses on any unrelated key the strict schema does not know, and
+ * neither a redirect nor a save dialog must be refused because some other part
+ * of the metadata drifted. The question asked here is narrow — "is this url a
+ * value the contract allows?" — so only that value is submitted for judgement,
+ * and only issues on that value's path are read back.
+ */
+export function checkSubmitRedirectUrl(url: string): SubmitRedirectUrlVerdict {
+  const parsed = FormViewSchema.safeParse({ submitBehavior: { kind: 'redirect', url } });
+
+  if (!parsed.success) {
+    // Only this value was submitted for judgement, so an issue on its path is
+    // the answer; the two fallbacks exist so a refusal is never silent, not
+    // because either is expected to be reached.
+    const onUrl = parsed.error.issues.find(
+      (issue) => issue.path[0] === 'submitBehavior' && issue.path[1] === 'url',
+    );
+    return {
+      ok: false,
+      refusal:
+        onUrl?.message
+        ?? parsed.error.issues[0]?.message
+        ?? `\`submitBehavior.url\` is not a value this contract accepts: ${JSON.stringify(url)}.`,
+    };
+  }
+
+  // Read the value back off the parse rather than reusing the input: the schema
+  // is the authority on what it accepted, so if it ever normalises the string
+  // both callers follow without a second edit. Today the two are identical —
+  // the key is a plain string with a refinement, deliberately, so that what is
+  // saved and what reaches the renderer stay the string the author wrote.
+  const behavior = parsed.data.submitBehavior;
+  return { ok: true, url: behavior?.kind === 'redirect' ? behavior.url : url };
+}
+
+/**
  * The string form of a record value inside a URL.
  *
  * Scalars only, and that is not a shortcut: the ruling accepts a FLAT field
@@ -179,33 +240,10 @@ export function resolveSubmitRedirect(
   url: string,
   record: Record<string, unknown>,
 ): SubmitRedirectVerdict {
-  const parsed = FormViewSchema.safeParse({ submitBehavior: { kind: 'redirect', url } });
+  const verdict = checkSubmitRedirectUrl(url);
+  if (!verdict.ok) return verdict;
 
-  if (!parsed.success) {
-    // Only this value was submitted for judgement, so an issue on its path is
-    // the answer; the two fallbacks exist so a refusal is never silent, not
-    // because either is expected to be reached.
-    const onUrl = parsed.error.issues.find(
-      (issue) => issue.path[0] === 'submitBehavior' && issue.path[1] === 'url',
-    );
-    return {
-      ok: false,
-      refusal:
-        onUrl?.message
-        ?? parsed.error.issues[0]?.message
-        ?? `\`submitBehavior.url\` is not a value this contract accepts: ${JSON.stringify(url)}.`,
-    };
-  }
-
-  // Read the value back off the parse rather than reusing the input: the schema
-  // is the authority on what it accepted, so if it ever normalises the string
-  // this follows without a second edit. Today the two are identical — the key
-  // is a plain string with a refinement, deliberately, so that what reaches
-  // this renderer stays the string the author wrote.
-  const behavior = parsed.data.submitBehavior;
-  const accepted = behavior?.kind === 'redirect' ? behavior.url : url;
-
-  const path = accepted.replace(RECORD_TOKEN_RE, (_token, field: string) =>
+  const path = verdict.url.replace(RECORD_TOKEN_RE, (_token, field: string) =>
     encodeURIComponent(urlValue(record[field])),
   );
 

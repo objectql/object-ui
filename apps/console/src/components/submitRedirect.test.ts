@@ -58,7 +58,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { FormViewSchema } from '@objectstack/spec/ui';
-import { resolveSubmitRedirect } from './submitRedirect';
+import { checkSubmitRedirectUrl, resolveSubmitRedirect } from './submitRedirect';
 
 /**
  * The contract's verdict on one authored value — the same minimal parse the
@@ -67,6 +67,21 @@ import { resolveSubmitRedirect } from './submitRedirect';
  */
 function specAccepts(url: string): boolean {
   return FormViewSchema.safeParse({ submitBehavior: { kind: 'redirect', url } }).success;
+}
+
+/**
+ * The contract's own prescription for a value it refuses, read off the same
+ * parse. Used to pin message PROVENANCE rather than message wording: a reworded
+ * spec keeps these tests green, a hand-written copy in either caller does not.
+ */
+function specRefusalMessage(url: string): string {
+  const parsed = FormViewSchema.safeParse({ submitBehavior: { kind: 'redirect', url } });
+  if (parsed.success) throw new Error(`fixture is IN contract, not out of it: ${url}`);
+  const onUrl = parsed.error.issues.find(
+    (issue) => issue.path[0] === 'submitBehavior' && issue.path[1] === 'url',
+  );
+  if (!onUrl) throw new Error(`the schema refused ${url} on some other path`);
+  return onUrl.message;
 }
 
 /** Values the ruling allows: rooted, relative, optionally interpolated. */
@@ -224,6 +239,43 @@ describe('interpolation — the consumer’s half of the ruling', () => {
       if (!verdict.ok) continue;
       expect(verdict.path).not.toContain('{');
       expect(verdict.path).not.toContain('}');
+    }
+  });
+});
+
+/**
+ * `checkSubmitRedirectUrl` — the shape half of the ruling, exported for the
+ * authoring door (objectui#4990).
+ *
+ * The console's Public Forms dialog validated one of the seven families and
+ * saved the rest into view metadata unexamined. It now calls this, so the
+ * property under test is not "the door has a rule" but "the door and the
+ * renderer cannot hold different opinions about a value, because there is one
+ * parse". That is what a second hand-written copy in the dialog would take away
+ * while passing every value comparison until the spec moved.
+ */
+describe('the authoring door asks the same question (#4990)', () => {
+  it.each(IN_CONTRACT)('accepts %j, handing back the value the schema accepted', (url) => {
+    expect(checkSubmitRedirectUrl(url)).toEqual({ ok: true, url });
+  });
+
+  it.each(OUT_OF_CONTRACT)('refuses %s with the spec’s own prescription', (_label, url) => {
+    // Direction first: the contract itself rejects this value, so the refusal
+    // below is the contract's and not this module's private opinion.
+    expect(specAccepts(url)).toBe(false);
+
+    const verdict = checkSubmitRedirectUrl(url);
+    expect(verdict.ok).toBe(false);
+    if (verdict.ok) return;
+    expect(verdict.refusal).toBe(specRefusalMessage(url));
+  });
+
+  it('never disagrees with the renderer about a value', () => {
+    for (const url of [...IN_CONTRACT, ...OUT_OF_CONTRACT.map(([, u]) => u)]) {
+      const door = checkSubmitRedirectUrl(url);
+      const renderer = resolveSubmitRedirect(url, { id: 'x', slug: 's', status: 'open' });
+      expect(door.ok).toBe(renderer.ok);
+      if (!door.ok && !renderer.ok) expect(door.refusal).toBe(renderer.refusal);
     }
   });
 });

@@ -6,6 +6,29 @@
  * Console is not project-scoped, so there is no `useParams().package`, no
  * `<Link>` to the legacy metadata editor, and no `useMetadataHmr` polling —
  * refresh is driven by the explicit Refresh button.
+ *
+ * ## The redirect field is an authoring door, so it states the contract
+ *
+ * `submitBehavior.url` is ruled relative-only (objectstack#7496, landed by
+ * objectstack#7657 in the `@objectstack/spec` 17.0.0 GA pin this repo installs),
+ * and the spec refuses seven families of value with an author-facing
+ * prescription for each. This dialog used to enforce one of them — non-empty —
+ * and save the rest into view metadata unexamined (objectui#4990), so an admin
+ * could type `https://example.com/thanks`, or `javascript:alert(1)`, and be
+ * told nothing.
+ *
+ * `checkSubmitRedirectUrl` (from the renderer's own `submitRedirect`) is asked
+ * instead, at save time, and its refusal — the spec's prose, verbatim — is shown
+ * next to the field. That reuse is the point: a hand-written mirror of the seven
+ * families here is exactly the shape `scripts/check-spec-symbol-derivation.mjs`
+ * exists to discourage, and it would be a second spelling of a security rule
+ * that passes every value comparison right up to the release that moves the
+ * original. The door and the renderer now refuse identically because they are
+ * one parse.
+ *
+ * `thank-you`'s `title` / `message` stay unvalidated deliberately: the spec
+ * declares both as free-form strings, so there is no contract for a door to
+ * state.
  */
 
 import { useEffect, useState } from 'react';
@@ -35,6 +58,7 @@ import {
 } from '@object-ui/components';
 import { Copy, ExternalLink, FormInput, RefreshCw, Code2, Link2, Settings2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import { checkSubmitRedirectUrl } from '../../components/submitRedirect';
 
 interface PublicFormRow {
   name: string;
@@ -84,6 +108,13 @@ export function PublicFormsPage() {
   const [editBehaviorTitle, setEditBehaviorTitle] = useState('');
   const [editBehaviorMessage, setEditBehaviorMessage] = useState('');
   const [editBehaviorUrl, setEditBehaviorUrl] = useState('');
+  /**
+   * The contract's refusal for the value currently in the Redirect URL field,
+   * or null while there is nothing to say. Set only by a save attempt — typing
+   * clears it, so the author is corrected once, at the moment they asked to
+   * commit, rather than nagged mid-keystroke.
+   */
+  const [editUrlRefusal, setEditUrlRefusal] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -209,6 +240,7 @@ export function PublicFormsPage() {
     setEditBehaviorTitle(sb?.title ?? '');
     setEditBehaviorMessage(sb?.message ?? '');
     setEditBehaviorUrl(sb?.url ?? '');
+    setEditUrlRefusal(null);
     setEditOpen(true);
   };
 
@@ -219,6 +251,7 @@ export function PublicFormsPage() {
       toast.error('Invalid slug');
       return;
     }
+    setEditUrlRefusal(null);
     let submitBehavior: any;
     switch (editBehavior) {
       case 'thank-you':
@@ -226,13 +259,20 @@ export function PublicFormsPage() {
         if (editBehaviorTitle) submitBehavior.title = editBehaviorTitle;
         if (editBehaviorMessage) submitBehavior.message = editBehaviorMessage;
         break;
-      case 'redirect':
-        if (!editBehaviorUrl) {
-          toast.error('Redirect URL is required');
+      case 'redirect': {
+        // The contract's verdict, not this dialog's: empty is one of the seven
+        // families the spec refuses, so it comes back through here too rather
+        // than keeping a local `required` message that says less.
+        const verdict = checkSubmitRedirectUrl(editBehaviorUrl);
+        if (!verdict.ok) {
+          setEditUrlRefusal(verdict.refusal);
           return;
         }
-        submitBehavior = { kind: 'redirect', url: editBehaviorUrl };
+        // The value the schema accepted, so a future normalisation in the spec
+        // is what gets saved — the same read-back the renderer does.
+        submitBehavior = { kind: 'redirect', url: verdict.url };
         break;
+      }
       case 'continue':
       case 'next-record':
         submitBehavior = { kind: editBehavior };
@@ -480,7 +520,10 @@ export function PublicFormsPage() {
                 id="edit-behavior"
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
                 value={editBehavior}
-                onChange={(e) => setEditBehavior(e.target.value as any)}
+                onChange={(e) => {
+                  setEditBehavior(e.target.value as any);
+                  setEditUrlRefusal(null);
+                }}
               >
                 <option value="thank-you">Show a thank-you panel</option>
                 <option value="redirect">Redirect to a URL</option>
@@ -513,13 +556,39 @@ export function PublicFormsPage() {
             {editBehavior === 'redirect' && (
               <div className="space-y-1.5">
                 <Label htmlFor="edit-url">Redirect URL</Label>
+                {/*
+                  Not `type="url"`: that type's own notion of valid is an
+                  ABSOLUTE URL, which is the one thing this key refuses, so it
+                  pulled the author the wrong way — as did the former
+                  `https://example.com/thanks` placeholder.
+                */}
                 <Input
                   id="edit-url"
-                  type="url"
-                  placeholder="https://example.com/thanks"
+                  type="text"
+                  placeholder="/thanks"
                   value={editBehaviorUrl}
-                  onChange={(e) => setEditBehaviorUrl(e.target.value)}
+                  onChange={(e) => {
+                    setEditBehaviorUrl(e.target.value);
+                    setEditUrlRefusal(null);
+                  }}
+                  aria-invalid={editUrlRefusal ? true : undefined}
+                  aria-describedby={editUrlRefusal ? 'edit-url-refusal' : 'edit-url-hint'}
                 />
+                {editUrlRefusal ? (
+                  <p
+                    id="edit-url-refusal"
+                    role="alert"
+                    className="text-xs text-destructive"
+                  >
+                    {editUrlRefusal}
+                  </p>
+                ) : (
+                  <p id="edit-url-hint" className="text-xs text-muted-foreground">
+                    An in-app path, starting with <code>/</code> — interpolate a field of
+                    the submitted record as <code>{'{{record.field_name}}'}</code>. To send
+                    the browser out of the app, use an app navigation item instead.
+                  </p>
+                )}
               </div>
             )}
           </div>
