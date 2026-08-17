@@ -222,7 +222,12 @@ callback above.
 
 ### Export
 
-Export reports in multiple formats:
+Every format exporter takes the **report schema first and the rows second** —
+`(report: ReportComponentSchema, data: any[], config?: ReportExportConfig)`. The
+schema is where the exporter reads the columns (`report.fields`) and the download
+name (`config.filename`, else `report.title`) from; there is **no filename
+parameter**. All five return `void` synchronously — they trigger a browser
+download — so there is nothing to `await`:
 
 ```tsx
 import {
@@ -233,24 +238,75 @@ import {
   exportAsPDF,
   exportAsExcel,
 } from '@object-ui/plugin-report';
+import type { ReportComponentSchema } from '@object-ui/types';
 
-await exportAsCSV(reportData, 'sales-report.csv');
-await exportAsPDF(reportData, 'sales-report.pdf');
-await exportAsExcel(reportData, 'sales-report.xlsx');
+const report: ReportComponentSchema = {
+  type: 'report',
+  title: 'Sales Report',
+  fields: [
+    { name: 'account', label: 'Account' },
+    { name: 'amount', label: 'Amount', type: 'currency', aggregation: 'sum' },
+  ],
+};
+const rows = [{ account: 'Acme', amount: 12000 }];
+
+exportAsCSV(report, rows); // downloads "Sales Report.csv"
+exportAsJSON(report, rows); // "Sales Report.json"
+exportAsHTML(report, rows); // "Sales Report.html"
+exportAsPDF(report, rows); // opens a print window; falls back to .html if blocked
+exportAsExcel(report, rows, { format: 'excel', filename: 'sales-2026-q1.tsv' });
+
+// `exportReport` is the router — the format comes FIRST, then the same triple.
+exportReport('csv', report, rows);
 ```
+
+`exportAsExcel` writes a BOM-prefixed **TSV** that Excel opens, so its default
+name is `report.title` + `.tsv`, not `.xlsx`. `config.includeHeaders: false` drops the
+header row; `orientation` / `pageSize` apply to the HTML and PDF paths only.
 
 ### Live Export
 
-Export with real-time data and Excel formulas:
+`exportWithLiveData` fetches the rows itself, so `dataSource` and `resource` are
+**required** in `LiveExportOptions` — an options object carrying only `format`
+does not compile. It is the one `async` export function, resolving to a
+`LiveExportResult`:
 
 ```tsx
-import { exportWithLiveData, exportExcelWithFormulas } from '@object-ui/plugin-report';
+import { exportWithLiveData } from '@object-ui/plugin-report';
 
-await exportWithLiveData(reportConfig, { format: 'pdf' });
-await exportExcelWithFormulas(reportConfig, {
-  columns: [{ field: 'total', formula: 'SUM(B2:B100)' }],
+// `myAdapter` is a host-provided DataSource (see @object-ui/data-*).
+const result = await exportWithLiveData(report, {
+  dataSource: myAdapter,
+  resource: 'orders',
+  format: 'pdf',
+});
+// -> { success: true, recordCount: 42, format: 'pdf' }
+```
+
+The format falls back to `report.defaultExportFormat`, then `'pdf'`. Failures are
+returned, not thrown: `{ success: false, recordCount: 0, format, error }`.
+
+`exportExcelWithFormulas` is a separate, synchronous three-parameter function —
+`(report, data, options)` — with the column list inside the third argument. A
+column is `{ name, header, width?, numberFormat?, formula? }`: `name` is the key
+read off each row (there is no `field` key), `header` is required, and a `formula`
+is a template in which the `{ROW}` placeholder is replaced by that row's
+spreadsheet line number:
+
+```tsx
+import { exportExcelWithFormulas } from '@object-ui/plugin-report';
+
+exportExcelWithFormulas(report, rows, {
+  columns: [
+    { name: 'amount', header: 'Amount', numberFormat: '#,##0.00' },
+    { name: 'total', header: 'Total', formula: '=B{ROW}*C{ROW}' },
+  ],
+  includeAggregationRow: true,
 });
 ```
+
+Omitting `columns` derives them from `report.fields`. `includeAggregationRow`
+appends a totals row built from each field's `aggregation`.
 
 ### Scheduled export
 
