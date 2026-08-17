@@ -61,9 +61,9 @@
  * Either channel alone identifies today's tombstones (measured: all eight in
  * `@objectstack/spec@17.0.0`'s `ComponentPropsMap` satisfy both — the same eight
  * the preceding `17.0.0-rc.6` carried), so the OR is not about coverage — it is
- * about which channel a future change breaks. A Zod internals rework can
- * silence (1) without touching the contract; a
- * tombstone hand-written without `retiredKey()` silences (2). Recognition that
+ * about which channel a future change breaks. A Zod internals rework can silence
+ * (1) without touching the contract; a tombstone hand-written without
+ * `retiredKey()` silences (2). Recognition that
  * needs both would go quietly permissive on either event, and "quietly
  * permissive" is the failure this module was written to end. Callers that want
  * to know the channels AGREE — a drift pin worth having — ask
@@ -159,20 +159,45 @@ export function shapeMemberTypeName(schema: unknown, key: string): string | unde
 }
 
 /**
- * The description carried by one member, read BEFORE unwrapping.
+ * Both channels' verdicts on ONE already-resolved member.
  *
- * `retiredKey()` applies `.describe()` last — after `.optional()` — so the
- * marker sits on the outer optional wrapper, not on the inner `never`. Reading
- * the unwrapped node here would find nothing and silently disarm the
- * descriptive channel.
+ * Takes the member rather than `(schema, key)` so the bulk functions below can
+ * resolve the shape once and walk it, instead of re-resolving per key inside a
+ * predicate — which for a `lazySchema()` entry means re-running the thunk for
+ * every key it declares. That is the AGENTS.md §测试纪律 note about whole-set
+ * computations inside `.filter()` (`all-locales-key-parity`, 7.51s to 25ms),
+ * applied before it can bite.
+ *
+ * The description is read from the member AS GIVEN, not from the unwrapped inner
+ * type: `retiredKey()` applies `.describe()` last, after `.optional()`, so the
+ * marker sits on the outer optional wrapper. Unwrapping first would find nothing
+ * and silently disarm the descriptive channel.
  */
-function memberDescription(schema: unknown, key: string): string | undefined {
-  const shape = resolvePropsShape(schema);
-  if (!shape) return undefined;
-  const node = shape[key] as MemberNode | undefined;
+function memberEvidence(member: unknown): { typedNever: boolean; describedRemoved: boolean } {
+  const node = member as MemberNode | undefined;
+  const inner = unwrapMember(member);
+  const type = inner?._def?.type ?? inner?.def?.type;
   const description = node?.description ?? node?.def?.description ?? node?._def?.description;
-  return typeof description === 'string' ? description : undefined;
+  return {
+    typedNever: type === 'never',
+    describedRemoved:
+      typeof description === 'string' && description.startsWith(RETIRED_DESCRIPTION_PREFIX),
+  };
 }
+
+/**
+ * The verdict, in ONE place — the OR every export below routes through.
+ *
+ * Deliberately not re-spelled at each call site, and the reason is a mutation
+ * test rather than tidiness: while the single-key predicate and the bulk
+ * partition each carried their own `typedNever || describedRemoved`, disabling
+ * recognition in one left the other still narrowing — so a mutation could
+ * silence half the judge while the consuming gates' premise pins stayed green.
+ * One choke point means any change to what counts as a tombstone moves every
+ * consumer at once, which is what those pins exist to detect.
+ */
+const isTombstone = (evidence: { typedNever: boolean; describedRemoved: boolean }): boolean =>
+  evidence.typedNever || evidence.describedRemoved;
 
 /**
  * What each recognition channel says about one key — the evidence, unreduced.
@@ -192,13 +217,10 @@ export function tombstoneEvidence(
   key: string,
 ): { listed: boolean; typedNever: boolean; describedRemoved: boolean } {
   const shape = resolvePropsShape(schema);
-  const listed = Boolean(shape) && Object.prototype.hasOwnProperty.call(shape, key);
-  if (!listed) return { listed: false, typedNever: false, describedRemoved: false };
-  return {
-    listed: true,
-    typedNever: shapeMemberTypeName(schema, key) === 'never',
-    describedRemoved: (memberDescription(schema, key) ?? '').startsWith(RETIRED_DESCRIPTION_PREFIX),
-  };
+  if (!shape || !Object.prototype.hasOwnProperty.call(shape, key)) {
+    return { listed: false, typedNever: false, describedRemoved: false };
+  }
+  return { listed: true, ...memberEvidence(shape[key]) };
 }
 
 /**
@@ -208,13 +230,23 @@ export function tombstoneEvidence(
  * `listedShapeKeys` is the question to ask about that.
  */
 export function isShapeKeyTombstoned(schema: unknown, key: string): boolean {
-  const { typedNever, describedRemoved } = tombstoneEvidence(schema, key);
-  return typedNever || describedRemoved;
+  return isTombstone(tombstoneEvidence(schema, key));
+}
+
+/** One pass over the shape, splitting its keys by the tombstone verdict. */
+function partitionShapeKeys(schema: unknown): { authorable: string[]; tombstoned: string[] } {
+  const shape = resolvePropsShape(schema);
+  const authorable: string[] = [];
+  const tombstoned: string[] = [];
+  for (const [key, member] of Object.entries(shape ?? {})) {
+    (isTombstone(memberEvidence(member)) ? tombstoned : authorable).push(key);
+  }
+  return { authorable, tombstoned };
 }
 
 /** The listed keys that are tombstones — what the narrowing below removes. */
 export function tombstonedShapeKeys(schema: unknown): string[] {
-  return listedShapeKeys(schema).filter((key) => isShapeKeyTombstoned(schema, key));
+  return partitionShapeKeys(schema).tombstoned;
 }
 
 /**
@@ -224,5 +256,5 @@ export function tombstonedShapeKeys(schema: unknown): string[] {
  * in BOTH subtraction directions — publish-side and discoverability-side alike.
  */
 export function authorableShapeKeys(schema: unknown): string[] {
-  return listedShapeKeys(schema).filter((key) => !isShapeKeyTombstoned(schema, key));
+  return partitionShapeKeys(schema).authorable;
 }
