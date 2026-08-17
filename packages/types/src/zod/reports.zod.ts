@@ -37,6 +37,17 @@ export const ReportAggregationTypeSchema = z.enum(['sum', 'avg', 'min', 'max', '
 
 /**
  * Report Field Schema
+ *
+ * `type` accepted `'owner'` until objectui#4814 retired that field-type
+ * spelling (ruling A′) and objectui#4914 carried the shrink onto the published
+ * contract twins. This enum is the RUNTIME half of that contract: while it
+ * still listed the word, a published validator answered "legal" for a spelling
+ * `@object-ui/fields` answers with a tombstone refusal — the declared ≠
+ * enforced shape ADR-0049 targets. It moves in lockstep with its TS twin
+ * `ReportField['type']` (`packages/types/src/reports.ts`); the two report
+ * faces are never split. Report an owner column as `{ type: 'user', name:
+ * 'owner' }` — the field NAME carries the ownership meaning, the type carries
+ * the rendering.
  */
 export const ReportFieldSchema = z.object({
   name: z.string().describe('Field name/identifier'),
@@ -46,7 +57,7 @@ export const ReportFieldSchema = z.object({
       'string', 'text', 'number', 'date', 'datetime', 'time', 'boolean',
       'select', 'multi_select', 'status', 'lookup', 'reference', 'master_detail',
       'email', 'url', 'phone', 'currency', 'percent',
-      'image', 'file', 'user', 'owner',
+      'image', 'file', 'user',
       'richtext', 'html', 'markdown', 'json', 'tags',
     ])
     .optional()

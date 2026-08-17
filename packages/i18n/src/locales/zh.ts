@@ -865,6 +865,8 @@ const zh = {
     writeStrippedTitle: '已保存，但部分字段未生效',
     writeStrippedReadonly: '以下字段为只读，未生效：{{fields}}',
     writeStrippedByState: '以下字段在记录当前状态下不可编辑，未生效：{{fields}}',
+    writeStrippedPrimaryKey: '以下字段是记录的标识符，保存时无法修改，未生效：{{fields}}',
+    writeStrippedUnknownReason: '以下字段未被服务端写入：{{fields}}',
     approvalPendingEditable: '审批中 · 可编辑',
     approvalPendingTooltip: '该记录有待审批的请求，但当前审批节点仍允许编辑',
     approvalProgress: '审批 — 已通过 {{got}} / 共需 {{need}}',

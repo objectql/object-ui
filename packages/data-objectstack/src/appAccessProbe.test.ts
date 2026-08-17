@@ -10,9 +10,11 @@
  * objectui#4252 — an app the session may not open must be distinguishable from
  * an app that is not there.
  *
- * `GET /api/v1/meta/apps` is filtered per session server-side
- * (`filterAppForUser`), so those two conditions are byte-identical in the list:
- * both are simply absent. The maintainer ruling (2026-08-12) put the
+ * The app LIST is the generic metadata list route `GET /api/v1/meta/:type`
+ * requested with the singular type segment `app`, and the server filters it per
+ * session in `filterAppForUser` (`packages/rest/src/rest-server.ts`), so those
+ * two conditions are byte-identical in the list: both are simply absent. The
+ * maintainer ruling (2026-08-12) put the
  * distinction on the BY-NAME route instead of flagging the list — the
  * enumeration surface is not widened past what a by-name probe already implies
  * — and objectstack#8013 (PR #8135) shipped it:

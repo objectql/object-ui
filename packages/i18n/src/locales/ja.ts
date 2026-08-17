@@ -969,6 +969,8 @@ const ja = {
     writeStrippedTitle: "保存しました（一部の項目は反映されていません）",
     writeStrippedReadonly: "次の項目は読み取り専用のため反映されませんでした: {{fields}}",
     writeStrippedByState: "次の項目はこのレコードの現在の状態では編集できないため反映されませんでした: {{fields}}",
+    writeStrippedPrimaryKey: "次の項目はレコードの識別子で、保存では変更できないため反映されませんでした: {{fields}}",
+    writeStrippedUnknownReason: "次の項目はサーバーで反映されませんでした: {{fields}}",
     approvalPendingEditable: "承認中 · 編集可能",
     approvalPendingTooltip: "このレコードには承認待ちのリクエストがありますが、このステップでは編集できます",
     approvalProgress: "承認 — {{need}} 件中 {{got}} 件",

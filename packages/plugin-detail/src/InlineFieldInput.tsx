@@ -27,6 +27,8 @@ import {
   mapFieldTypeToFormType,
   FORM_FIELD_TYPES,
   coerceToSafeValue,
+  RETIRED_FIELD_TYPES,
+  RetiredFieldTombstone,
 } from '@object-ui/fields';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
 import { TEXTUAL_REF_FALLBACK_TYPES } from './fieldEnrichment';
@@ -103,8 +105,28 @@ export const INLINE_ROUTED_FIELD_TYPES = new Set<string>([
   'date', 'datetime',
   // Structured composites (#4216 / #4222)
   'address', 'location', 'geolocation',
-  // Relational pickers
-  'lookup', 'master_detail', 'tree', 'user', 'owner',
+  // Relational pickers.
+  //
+  // `owner` sat beside `user` until objectui#4914 removed it (the fast-follow
+  // to objectui#4814's ruling A′, which retired the spelling). Unlike the dead
+  // predicate branches that retirement left behind, this set is consulted at
+  // runtime against whatever type a STORED field actually carries — so while
+  // `owner` was a member, a field still typed `owner` got a working person
+  // picker in inline edit while the record FORM rendered the tombstone
+  // refusal: two edit surfaces disagreeing about one field, which is worse
+  // than either uniform outcome.
+  //
+  // Deleting the member ALONE would have changed nothing an author could see —
+  // measured, not assumed. The delegation tail at the bottom of this component
+  // asks `hasFieldEditWidget`, and the fields package still answers `true` for
+  // `owner` (`EDIT_WIDGETS` maps it to `UserField`,
+  // `packages/fields/src/FieldEditWidget.tsx` — a residual face #4914 does not
+  // enumerate, filed separately). So the type would have reached the SAME
+  // person picker by the delegation road instead of the routing road. That is
+  // why this removal moves in lockstep with the retired-spelling refusal at
+  // the top of `InlineFieldInput`, which runs before both roads: the refusal
+  // is what actually changes the behavior, and the two are never split.
+  'lookup', 'master_detail', 'tree', 'user',
   // Binary / attachment — the detail page's exemption from the shared
   // exclusion (#4228): a row can host an upload widget, a grid cell cannot.
   'image', 'avatar', 'signature', 'file', 'video', 'audio',
@@ -226,6 +248,31 @@ export const InlineFieldInput: React.FC<InlineFieldInputProps> = ({
   if (editWidget === 'permission-facet-link') {
     return <PermissionFacetLink value={value} field={field as any} />;
   }
+  // A RETIRED field-type spelling meets the SAME loud refusal here that the
+  // record form gives it (objectui#4914, fast-follow to #4814's ruling A′).
+  //
+  // This is the branch that makes the two edit surfaces agree. The form path
+  // resolves `type: 'owner'` through `ComponentRegistry.get('field:owner')`,
+  // which the fields package answers with `RetiredFieldTombstone` — a visible
+  // refusal naming the migration, plus a console prescription deduped once per
+  // spelling. Inline edit reaches no registry at all — it routes by type and
+  // then delegates — so without this branch it answers a retired spelling on
+  // its own, and BOTH of its answers are a working person picker: the routing
+  // road while `owner` was in `INLINE_ROUTED_FIELD_TYPES`, and the delegation
+  // road afterwards, because `hasFieldEditWidget('owner')` is still true
+  // (`EDIT_WIDGETS` maps it to `UserField`). Removing the set member is
+  // therefore not by itself a behavior change; this branch is.
+  // `RetiredFieldTombstone` reports through the same once-per-spelling seam as
+  // the form, so an inline-edited retired field logs the prescription once,
+  // not once per row entered.
+  //
+  // Keyed on the TYPE and placed after the widget-hint branch, mirroring the
+  // form's own precedence (an explicit `widget` hint resolves before the
+  // mapped type). The table is read live from `@object-ui/fields`, never
+  // copied — a future retirement is covered here the day it lands.
+  if (typeof editType === 'string' && RETIRED_FIELD_TYPES[editType]) {
+    return <RetiredFieldTombstone field={field} />;
+  }
   // Picklist → real Select widget so users see localized option labels and
   // can't free-type invalid values. A `multiple` picklist (spec canon: `select`
   // + `multiple: true`; `multiselect` is the widget-level alias) selects
@@ -287,7 +334,13 @@ export const InlineFieldInput: React.FC<InlineFieldInputProps> = ({
   // to re-fetch the referenced record just to recover the name the record
   // page's `populate=` already delivered. `extractLookupId` stays exported for
   // write-side callers that need the bare id.
-  const isUserRef = editType === 'user' || editType === 'owner';
+  //
+  // `|| editType === 'owner'` stood here until objectui#4914 removed it — the
+  // second half of the same lockstep as the `INLINE_ROUTED_FIELD_TYPES`
+  // membership above (both faces were measured together on objectui#4814's
+  // patch round). A retired spelling never reaches this line now: the refusal
+  // at the top of the component answers it first.
+  const isUserRef = editType === 'user';
   const isLookupRef =
     editType === 'lookup' ||
     editType === 'master_detail' ||

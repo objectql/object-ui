@@ -1,61 +1,75 @@
 # Shadcn Components Synchronization
 
-This directory contains tools for keeping ObjectUI components in sync with Shadcn UI.
+How ObjectUI keeps its Shadcn UI primitives in sync with the upstream registry.
 
 ## Files
 
-- `shadcn-components.json` - Component manifest tracking Shadcn components and custom ObjectUI components
-- `shadcn-sync.js` - Automated sync script (requires network access to ui.shadcn.com)
+Paths are repo-relative — the tooling does **not** live in this directory:
+
+- `packages/components/shadcn-components.json` - the component manifest: what is
+  tracked, what may be re-fetched from the registry, and what must not be
+- `scripts/shadcn-sync.js` - the sync script (repo root); every `pnpm shadcn:*`
+  script below is a thin wrapper over it
+- `scripts/shadcn-local-patches.mjs` - local edits declared as data and
+  re-applied after every update, so they survive a sync instead of depending on
+  someone remembering them at review time
 
 ## Component Categories
 
-### Shadcn Components (46)
+`shadcn-components.json` sorts every tracked component into one of two objects,
+and `shadcn-sync.js` reads that split to decide what an update may overwrite:
 
-These components come from Shadcn UI and can be updated from the registry:
+- **`components`** - fetched from the registry. `pnpm shadcn:update <name>` pulls
+  upstream and rewrites the local file.
+- **`customComponents`** - never fetched. `pnpm shadcn:update` and
+  `pnpm shadcn:update-all` skip these. Entries carrying `movedToPlugin` now live
+  in their own `@object-ui/plugin-*` package.
 
-**Form Controls:**
-- input, textarea, select, checkbox, radio-group, switch, form, label, input-otp
+**Membership is data, not prose.** This page deliberately does not reproduce
+either list. The manifest is the only source of truth, and
 
-**Layout:**
-- card, tabs, accordion, separator, scroll-area, resizable
+```bash
+pnpm shadcn:list
+```
 
-**Overlays:**
-- dialog, popover, tooltip, hover-card, sheet, drawer, alert-dialog
+prints both categories - with each custom entry's stated reason - straight out of
+the manifest. It reads no network, so it works offline and cannot be stale.
 
-**Navigation:**
-- button, breadcrumb, navigation-menu, dropdown-menu, context-menu, menubar, pagination
+Restating the names here is precisely what let this page contradict the manifest
+about three of them (objectui#3881), including one where following the page
+performed a build-breaking action. The one list that survives below survives
+because getting it wrong breaks the build, and it is held to the manifest by
+`src/__tests__/readme-shadcn-sync-categories.test.ts`.
 
-**Data Display:**
-- table, avatar, badge, skeleton, progress, slider
+### Diverged components - re-syncing breaks the build
 
-**Feedback:**
-- alert, toast, sonner
+Some `customComponents` entries are not "custom by origin" at all. They began as
+Shadcn components and were hand-migrated past a breaking upstream change, so the
+version upstream still ships **cannot compile here**. The manifest marks each one
+with a `divergedFrom` URL and states the reason; the local file's own header
+repeats it.
 
-**Advanced:**
-- command, carousel, sidebar, collapsible, calendar, aspect-ratio, toggle, toggle-group
+Currently diverged:
 
-### Custom ObjectUI Components (14)
+- `resizable`
 
-These are custom to ObjectUI and should NOT be auto-updated:
-
-- `button-group` - Button group wrapper
-- `calendar-view` - Full calendar implementation
-- `chatbot` - Chatbot UI interface
-- `combobox` - Combined select/input component
-- `date-picker` - Date picker with calendar
-- `empty` - Empty state component
-- `field` - Form field wrapper with validation
-- `filter-builder` - Advanced query builder
-- `input-group` - Input with prefix/suffix
-- `item` - Generic item display
-- `kbd` - Keyboard shortcut display
-- `spinner` - Loading spinner
-- `timeline` - Timeline/activity feed
-- `toaster` - Toast notification manager
+Do not move one of these back into `components` because it looks like it belongs
+there - that is the mistake this page used to invite. Move it back only after
+upstream regenerates for the major version this repo actually installs, and prove
+it with a real build first.
 
 ## Usage
 
+### Offline (reads the manifest only)
+
+```bash
+# List both categories, with each custom entry's reason
+pnpm shadcn:list
+```
+
 ### Automated Sync (Requires Internet)
+
+These reach `ui.shadcn.com`:
 
 ```bash
 # Check component status
@@ -69,9 +83,6 @@ pnpm shadcn:update-all
 
 # Show diff for a component
 pnpm shadcn:diff button
-
-# List all components
-pnpm shadcn:list
 ```
 
 ### Manual Sync Process

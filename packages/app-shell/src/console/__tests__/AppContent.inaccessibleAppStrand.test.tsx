@@ -14,8 +14,10 @@
  * workspace's single visible app (`setup`) still decides the landing after the
  * switch. The user therefore arrives at `/apps/setup`.
  *
- * `GET /api/v1/meta/apps` is already filtered PER SESSION server-side
- * (`filterAppForUser`, `packages/rest/src/rest-server.ts` — see
+ * That list is the generic metadata list route `GET /api/v1/meta/:type`
+ * requested with the singular type segment `app` — the same one the
+ * `sessionStorage` key above mirrors — and the server already filters it PER
+ * SESSION (`filterAppForUser`, `packages/rest/src/rest-server.ts` — see
  * objectstack#8013), so for a `member` with no app access the settled list is
  * EMPTY. In `AppContent` that means: `isSetupRoute` ⇒ `requestedAppMissing` is
  * false ⇒ the pseudo-route fallback finds no `launcherApps[0]` ⇒ `activeApp` is

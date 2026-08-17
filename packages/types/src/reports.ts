@@ -79,6 +79,15 @@ export interface ReportField {
    * When the report is bound to an object (`objectName`), the runtime should
    * auto-hydrate this from the corresponding ObjectField so authors don't
    * need to repeat type metadata.
+   *
+   * `'owner'` was a member until objectui#4814 retired that field-type
+   * spelling (ruling A′), carried onto the published twins by objectui#4914.
+   * This union is the `.d.ts` half of the contract — while it listed the word,
+   * editor autocomplete offered a spelling the renderer refuses with a
+   * tombstone. It moves in lockstep with its runtime twin
+   * `ReportFieldSchema.type` (`packages/types/src/zod/reports.zod.ts`); the two
+   * report faces are never split. Write an owner column as
+   * `{ type: 'user', name: 'owner' }`.
    */
   type?:
     | 'string'
@@ -102,7 +111,6 @@ export interface ReportField {
     | 'image'
     | 'file'
     | 'user'
-    | 'owner'
     | 'richtext'
     | 'html'
     | 'markdown'

@@ -6,9 +6,12 @@
  *
  * ## The measured defect
  *
- * `GET /api/v1/meta/apps` is filtered per session server-side
- * (`filterAppForUser`), so an app withheld by `requiredPermissions` and an app
- * that does not exist were byte-identical to the console: both simply absent
+ * The console reads its app list from the generic metadata list route
+ * `GET /api/v1/meta/:type` with the singular type segment `app`, and the server
+ * filters that list per session in `filterAppForUser`
+ * (`packages/rest/src/rest-server.ts`), so an app withheld by
+ * `requiredPermissions` and an app that does not exist were byte-identical to
+ * the console: both simply absent
  * from the list. `AppContent`'s `requestedAppMissing` branch therefore rendered
  * its only copy for an absent app — "This app is not available yet — it may
  * still be publishing. Try again in a moment." — over a PERMANENT authorization

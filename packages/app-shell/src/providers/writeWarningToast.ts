@@ -15,7 +15,11 @@
  * @module providers/writeWarningToast
  */
 
-import type { ObjectStackAdapter, WriteWarningEvent } from '@object-ui/data-objectstack';
+import type {
+  DroppedFieldsEvent,
+  ObjectStackAdapter,
+  WriteWarningEvent,
+} from '@object-ui/data-objectstack';
 
 /** i18next's `t`, narrowed to what this module uses. */
 export type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
@@ -69,14 +73,103 @@ async function resolveFieldLabels(
 }
 
 /**
+ * One description line, given the translator and the already-labelled field list.
+ *
+ * Every implementation below re-annotates `t: TranslateFn` even though this type
+ * already infers it. That is not noise: `scripts/check-i18n-call-site-keys.mjs`
+ * decides whether a `t(...)` call is a real translator from the ANNOTATION on the
+ * binding (`TRANSLATOR_TYPE`), and an inferred parameter reads as "not a
+ * translator" — which silently drops these keys out of the en-pack resolution,
+ * the inline-`defaultValue` comparison and the interpolation-parity check. The
+ * wording table is exactly the code that gate needs to be watching.
+ */
+type StrippedLine = (t: TranslateFn, fields: string) => string;
+
+/**
+ * The sentence each strip reason gets — EXHAUSTIVE over
+ * `DroppedFieldsEvent['reason']` by construction (objectui#3935).
+ *
+ * This was a two-way conditional on `readonly_when` whose other arm said
+ * "Read-only". That arm never meant "readonly"; it meant "everything that is not
+ * `readonly_when`", so every reason the write path gained afterwards was
+ * announced to the user as a read-only lock — sending them after a permission
+ * problem that does not exist. `primary_key` (objectstack#6437) is not a
+ * hypothetical: the spec pin this package builds against already carries it.
+ *
+ * A `Record` keyed by the union is what finally delivers the guarantee that
+ * re-exporting THE spec type was for (see `DroppedFieldsEvent`'s own comment in
+ * `data-objectstack`): the next reason added upstream fails `type-check` HERE,
+ * unworded, whereas the conditional would have compiled forever. It is the same
+ * shape the framework side of this seam uses (`service-automation`'s
+ * `DROPPED_REASON_LABEL`), and the shape the spec's own schema comment asks every
+ * consumer that branches on `reason` to use.
+ */
+const STRIPPED_LINE: Record<DroppedFieldsEvent['reason'], StrippedLine> = {
+  readonly: (t: TranslateFn, fields: string) =>
+    t('detail.writeStrippedReadonly', {
+      fields,
+      defaultValue: 'Read-only, so it did not take effect: {{fields}}',
+    }),
+  readonly_when: (t: TranslateFn, fields: string) =>
+    t('detail.writeStrippedByState', {
+      fields,
+      defaultValue:
+        "Not editable in this record's current state, so it did not take effect: {{fields}}",
+    }),
+  primary_key: (t: TranslateFn, fields: string) =>
+    t('detail.writeStrippedPrimaryKey', {
+      fields,
+      defaultValue:
+        "The record's identifier cannot be changed by a save, so it did not take effect: {{fields}}",
+    }),
+};
+
+/**
+ * What to say for a reason THIS bundle's spec pin has never heard of.
+ *
+ * A real runtime state rather than a limb the types already ruled out: the
+ * adapter's `notifyDroppedFields` reads `reason` structurally off the wire and
+ * asserts the entry into `DroppedFieldsEvent` without ever checking the value
+ * against the spec enum, so a server running ahead of the bundle's pin delivers
+ * one the table above cannot possibly have an arm for. Both of the other
+ * dispositions are worse: indexing blindly would throw inside an `async`
+ * function the adapter invokes as `void emitWriteWarning(...)`, so the rejection
+ * goes unhandled and the user loses the whole toast INCLUDING the reasons that
+ * did resolve; borrowing a known arm would make exactly the false claim this
+ * card exists to delete. So name the fields and claim nothing about the cause —
+ * version skew is the one case where "we cannot say why" is the true answer.
+ */
+const strippedLineUnknownReason: StrippedLine = (t: TranslateFn, fields: string) =>
+  t('detail.writeStrippedUnknownReason', {
+    fields,
+    defaultValue: 'Not applied by the server: {{fields}}',
+  });
+
+/**
+ * Resolve one reason to its sentence.
+ *
+ * The PARAMETER carries the spec union — that is what makes {@link STRIPPED_LINE}
+ * exhaustive-checked at its declaration above. The LOOKUP is done through a
+ * widened view of the same table, because the runtime value may sit outside that
+ * union (see {@link strippedLineUnknownReason}); the `undefined` this branch
+ * handles is therefore reachable, not dead.
+ */
+function lineFor(reason: DroppedFieldsEvent['reason']): StrippedLine {
+  const known: Partial<Record<string, StrippedLine>> = STRIPPED_LINE;
+  return known[reason] ?? strippedLineUnknownReason;
+}
+
+/**
  * Announce a write-warning. The write SUCCEEDED — some caller-supplied fields
  * were legally stripped, so we tell the user rather than let it pass silently.
  *
- * The REASON decides the wording (#3794). `readonly_when` is not "this field is
- * read-only" — the field is editable in other states and the form rendered it
- * as an ordinary input; what happened is that THIS record's current state locks
- * it. Saying "read-only" there sends the user looking for a permission problem
- * that doesn't exist.
+ * The REASON decides the wording (#3794), via the exhaustive {@link STRIPPED_LINE}
+ * table. `readonly_when` is not "this field is read-only" — the field is editable
+ * in other states and the form rendered it as an ordinary input; what happened is
+ * that THIS record's current state locks it. Saying "read-only" there sends the
+ * user looking for a permission problem that doesn't exist, and the same is true
+ * of every later reason the old two-way conditional swept into that wording
+ * (objectui#3935).
  *
  * The wording ACKNOWLEDGES the save (objectui#3484 point B). This message lands
  * next to the save surface's own "Updated" toast, and the pair used to read as
@@ -94,7 +187,7 @@ export async function emitWriteWarning(
   fieldLabel: FieldLabelFn,
   sink: WriteWarningSink,
 ): Promise<void> {
-  const byReason = new Map<string, string[]>();
+  const byReason = new Map<DroppedFieldsEvent['reason'], string[]>();
   for (const d of ev.droppedFields) {
     const seen = byReason.get(d.reason) ?? [];
     for (const f of d.fields) if (!seen.includes(f)) seen.push(f);
@@ -110,18 +203,7 @@ export async function emitWriteWarning(
   for (const [reason, fields] of byReason) {
     if (fields.length === 0) continue;
     const list = fields.map(labelOf).join(', ');
-    lines.push(
-      reason === 'readonly_when'
-        ? t('detail.writeStrippedByState', {
-            fields: list,
-            defaultValue:
-              "Not editable in this record's current state, so it did not take effect: {{fields}}",
-          })
-        : t('detail.writeStrippedReadonly', {
-            fields: list,
-            defaultValue: 'Read-only, so it did not take effect: {{fields}}',
-          }),
-    );
+    lines.push(lineFor(reason)(t, list));
   }
   if (lines.length === 0) return;
   sink.warning(

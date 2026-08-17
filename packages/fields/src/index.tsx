@@ -2630,6 +2630,13 @@ const FIELD_TYPES_GROUP_LABELLED = new Set([
   'file',
   // objectui#3975 — the residual after #3961's six, same shape as `checkboxes`.
   'multiselect',
+  // objectui#3318 — two more of `file`'s shape, not composites:
+  //  - `slider`'s one control is Radix's `span[role="slider"]` thumb;
+  //  - `signature`'s drawing surface is a `<canvas>`.
+  // Neither is one of HTML's labelable elements, so a host `for` can only
+  // dangle at it; both must be named by IDREF instead.
+  'slider',
+  'signature',
 ]);
 
 export function registerField(fieldType: string): void {
