@@ -19,7 +19,9 @@
  *     by `guide-layout-sidebar-nav-doc.test.ts` (objectui#4840);
  *   - `src/index.ts` itself — the keys' existence — held by
  *     `app-shell-not-a-component-key.test.tsx` (objectui#4841, one key) and
- *     `side-effects-manifest.test.ts` (a count FLOOR, not a census);
+ *     the repo-level `scripts/__tests__/side-effects-declaration-consistency.test.ts`
+ *     (a count FLOOR, not a census — objectui#3943 converged the former
+ *     `side-effects-manifest.test.ts` into it);
  *   - this README's `## Registration` paragraph — nothing.
  *
  * The asymmetry was measured, not theorised. objectui#4841 deregistered
@@ -89,7 +91,8 @@
  * The reader below is this repo's fourth copy of the same three-line
  * `ComponentRegistry.register` regex (the others are in
  * `guide-layout-sidebar-nav-doc.test.ts`, `app-shell-not-a-component-key.test.tsx`
- * and `side-effects-manifest.test.ts`). Extracting a shared helper is raised as a
+ * and `scripts/__tests__/side-effects-declaration-consistency.test.ts`).
+ * Extracting a shared helper is raised as a
  * side option on objectui#4860 and is deliberately NOT taken here: it would edit
  * three pin files to serve one, and each of those files is self-contained on
  * purpose — a pin that imports its own reader from a shared module can be

@@ -141,12 +141,24 @@ describe('a package name that is not a module edge is not a finding', () => {
     // Named rather than left to the repo-wide green assertion, because these are
     // the files a regex-based rewrite of this gate would break first, and the
     // breakage would read as a real finding.
-    for (const file of [
-      'packages/i18n/src/__tests__/perm-home-namespace-3546.test.tsx',
-      'packages/layout/src/__tests__/side-effects-manifest.test.ts',
-    ]) {
+    // The layout specimen used to be `side-effects-manifest.test.ts`, whose
+    // `SPECIFIER` constant held `'@object-ui/layout'`. objectui#3943 converged
+    // that package-scoped pin into the repo-level
+    // `side-effects-declaration-consistency.test.ts`, and with it gone NO file
+    // under `packages/layout/src` carries the literal any more — so re-pointing
+    // this entry at the new file would be wrong twice over: it lives outside
+    // any package, and a file outside a package cannot import itself.
+    //
+    // Replaced rather than dropped, and with a JSDoc specimen from production
+    // source rather than another test, which is the stronger case: a regex
+    // rewrite of this gate breaks on a documented `import … from '@object-ui/core'`
+    // example exactly as it would on a test constant.
+    const specimens: Record<string, string> = {
+      'packages/i18n/src/__tests__/perm-home-namespace-3546.test.tsx': '@object-ui/i18n',
+      'packages/core/src/utils/freeze-schema.ts': '@object-ui/core',
+    };
+    for (const [file, owner] of Object.entries(specimens)) {
       const body = fs.readFileSync(path.join(repoRoot, file), 'utf8');
-      const owner = file.startsWith('packages/i18n') ? '@object-ui/i18n' : '@object-ui/layout';
       expect(body, `${file} no longer carries the literal this pin is about`).toContain(`'${owner}'`);
     }
     expect((analyze(repoRoot, { exemptions: {} }).findings as Finding[]).map((f) => f.file)).toEqual([]);
