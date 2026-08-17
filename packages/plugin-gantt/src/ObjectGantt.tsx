@@ -120,8 +120,9 @@ type GanttConfigEx = GanttConfig & {
    * the record's OWN start/end/progress, falling back to rollup
    * only for records without dates (e.g. pure grouping levels). Use `'self'`
    * when the parent's schedule is authoritative — e.g. a shift plan whose
-   * work-order children are locked history: under rollup, dragging the plan persists its
-   * own dates but the bar snaps back to the children's extent on refetch.
+   * work-order children are locked history: under rollup, dragging the plan
+   * persists its own dates but the bar snaps back to the children's extent on
+   * refetch.
    */
   summaryExtent?: 'children' | 'self';
   /**
@@ -137,12 +138,11 @@ type GanttConfigEx = GanttConfig & {
   baselineStartField?: string;
   baselineEndField?: string;
   /**
-   * Record field carrying a per-task alert stroke color: any CSS
-   * color or semantic palette name (red/orange/…). When present the bar keeps
-   * its fill but gets an outline + halo in that color — e.g. red for overdue,
-   * orange for due-soon —
-   * typically a server-computed alert field. Empty/null → no stroke. Maps to
-   * {@link GanttTask.borderColor}.
+   * Record field carrying a per-task alert stroke color: any CSS color or
+   * semantic palette name (red/orange/…). When present the bar keeps its fill
+   * but gets an outline + halo in that color — e.g. red for overdue, orange for
+   * due-soon — typically a server-computed alert field. Empty/null → no stroke.
+   * Maps to {@link GanttTask.borderColor}.
    */
   borderColorField?: string;
   /**

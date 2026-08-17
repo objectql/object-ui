@@ -49,8 +49,8 @@ const COLUMN_WIDTH = 100; // Time column width
 // grip is only a few px, but pointer synthesis in headless browsers quantizes the
 // click coordinate, so a click aimed at the edge routinely lands a pixel or two
 // inside the bar body — starting a MOVE instead of a resize (unstable hit
-// detection). Treating a
-// full-height band at each end as a resize edge makes the hit deterministic.
+// detection). Treating a full-height band at each end as a resize edge makes
+// the hit deterministic.
 const RESIZE_EDGE_PX = 8;
 
 /**
@@ -382,7 +382,7 @@ export interface GanttViewProps {
    */
   autoSchedule?: boolean
   /**
-   * After a bar drag/resize, validate the move against dependency constraints
+   * After a bar drag/resize, validate the move against dependency constraints.
    * If the new position would violate a link — the task moved
    * earlier than a predecessor allows, or its move pushes successors past their
    * constraints — a confirmation prompts to "Auto-reschedule"
@@ -3156,14 +3156,13 @@ export function GanttView({
         }
         /* The timeline's NATIVE scrollbars are fully hidden — both axes are
            replaced by the self-drawn bars (horizontal at the bottom, vertical
-           on the right). Styling the
-           native bar is a dead end: overlay-scrollbar engines (macOS "show
-           while scrolling", embedded Chromium) ignore ::-webkit-scrollbar
-           theming yet still flash their own auto-hiding bar on scroll, which
-           doubled up with the self-drawn one (two visible scrollbars).
-           scrollbar-width:none
-           is honored by overlay engines too; the ::-webkit rule covers older
-           WebKit. Wheel/trackpad/programmatic scrolling is unaffected. */
+           on the right). Styling the native bar is a dead end: overlay-scrollbar
+           engines (macOS "show while scrolling", embedded Chromium) ignore
+           ::-webkit-scrollbar theming yet still flash their own auto-hiding bar
+           on scroll, which doubled up with the self-drawn one (two visible
+           scrollbars). scrollbar-width:none is honored by overlay engines too;
+           the ::-webkit rule covers older WebKit. Wheel/trackpad/programmatic
+           scrolling is unaffected. */
         [data-testid="gantt-timeline"] { scrollbar-width: none; }
         [data-testid="gantt-timeline"]::-webkit-scrollbar { display: none; width: 0; height: 0; }
         /* The task-list pane scrolls in lockstep with the timeline, so its own
