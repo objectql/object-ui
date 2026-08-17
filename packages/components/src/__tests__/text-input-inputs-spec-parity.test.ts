@@ -49,6 +49,29 @@ const inputNames = () => inputs().map((i) => i.name);
 const input = (name: string) => inputs().find((i) => i.name === name);
 const defaultValueDescription = () => input('defaultValue')?.description ?? '';
 
+/**
+ * Does the installed spec REFUSE an undeclared top-level key, or drop it in
+ * silence? (objectui#4910, measured on both pins.)
+ *
+ * `@objectstack/spec` 17.0.0 GA flipped the `element:*` props schemas from
+ * strip mode to strict under objectstack#4001 batch A, so an undeclared prop
+ * now raises `unrecognized_keys` with a named message; the pinned
+ * `17.0.0-rc.6` still drops it in silence. The VERDICT under test is identical
+ * either way — an undeclared key is not an authoring surface, which is the
+ * whole reason "the declared key survives the parse" says anything — but the
+ * EVIDENCE differs, and asserting the wrong one turns this file red for a
+ * reason that has nothing to do with what it guards.
+ *
+ * Probed behaviourally rather than off a version string: the strictness IS the
+ * fact this file cares about, a probe cannot go stale against a pin it never
+ * reads, and the probe key is a name no spec would ever declare. Same shape as
+ * `recordHighlightsInputs.spec-parity.test.ts`, which took this disposition
+ * first (objectui#4648 / PR #4671).
+ */
+const specRefusesUnknownTopLevelKeys = !ElementTextInputPropsSchema.safeParse({
+  __objectui_4910_probe__: true,
+} as never).success;
+
 describe('element:text_input — registry inputs vs @objectstack/spec', () => {
   it('is registered with a non-empty `inputs` surface', () => {
     expect(config()).toBeDefined();
@@ -68,20 +91,49 @@ describe('element:text_input — registry inputs vs @objectstack/spec', () => {
 
   it('publishes `defaultValue`, which the renderer has read all along', () => {
     // A KEY-reachability claim, so the criterion is that the key SURVIVES the
-    // parse — not that the parse succeeds. This props schema is a strip-mode
-    // `z.object`, so an UNDECLARED key parses green too and is simply absent from
-    // `data` afterwards; asserting `success` alone would prove nothing at all.
+    // parse — not that the parse succeeds. Neither refusal mode makes
+    // `success === true` proof on its own: under rc.6's strip mode an
+    // UNDECLARED key parses green as well, and under GA's strict mode a green
+    // parse only reports that no undeclared key was present. Survival is the
+    // claim on both pins.
     expect(specTopLevelKeys()).toContain('defaultValue');
     const parsed = ElementTextInputPropsSchema.safeParse({ defaultValue: 'acme' });
     expect(parsed.success).toBe(true);
     expect(parsed.data?.defaultValue).toBe('acme');
 
-    // The contrast that makes the criterion meaningful: same green parse, key
-    // gone, no diagnostic. That is what `defaultValue` looked like to every
-    // manifest consumer before it was declared here.
-    const undeclared = ElementTextInputPropsSchema.safeParse({ notASpecKey: 1 } as never);
-    expect(undeclared.success).toBe(true);
-    expect(Object.keys(undeclared.data ?? {})).not.toContain('notASpecKey');
+    // The contrast that makes the criterion meaningful: the SAME payload plus a
+    // key the spec does not declare. Two contract spellings, one verdict — the
+    // undeclared key never becomes authoring surface (see
+    // `specRefusesUnknownTopLevelKeys`). Carrying `defaultValue` alongside is
+    // load-bearing rather than tidy: it is what makes either arm attributable
+    // to `notASpecKey` instead of to the declared key having gone bad, and the
+    // green parse asserted just above is what proves the base is valid.
+    const undeclared = ElementTextInputPropsSchema.safeParse({
+      defaultValue: 'acme',
+      notASpecKey: 1,
+    } as never);
+
+    if (specRefusesUnknownTopLevelKeys) {
+      // 17.0.0 GA: a loud refusal, and the STRONGER guarantee — the author now
+      // gets told. Asserted as an envelope (the code AND the key it names)
+      // because a bare "it failed" would be satisfied just as well by a
+      // rejection of `defaultValue`, the half that has to stay valid.
+      expect(undeclared.success).toBe(false);
+      expect(undeclared.error?.issues.map((i) => i.code)).toContain('unrecognized_keys');
+      const refused = undeclared.error?.issues.flatMap(
+        (i) => (i as unknown as { keys?: string[] }).keys ?? [],
+      );
+      expect(refused).toContain('notASpecKey');
+      expect(refused).not.toContain('defaultValue');
+    } else {
+      // The pinned rc.6: same green parse, key gone, no diagnostic. That is
+      // what `defaultValue` looked like to every manifest consumer before it
+      // was declared here — and the silent-drop harm objectstack#4001 batch A
+      // retired.
+      expect(undeclared.success).toBe(true);
+      expect(Object.keys(undeclared.data ?? {})).not.toContain('notASpecKey');
+      expect(undeclared.data?.defaultValue).toBe('acme');
+    }
 
     expect(inputNames()).toContain('defaultValue');
     expect(defaultValueDescription()).not.toBe('');
