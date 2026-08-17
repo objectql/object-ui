@@ -40,11 +40,24 @@
  * Module-scope imports, not `beforeAll` (AGENTS.md §测试纪律): the specimens
  * resolve through registration side-effects, and paying that at import time
  * keeps it out of every test/hook timeout budget.
+ *
+ * ## Specimens 6 and 7 — objectui#4970
+ *
+ * `element:text.content` and `element:button.label` are the same shape and were
+ * measured during #3832's implementation, after the ruling had already fixed its
+ * scope at "the five measured specimens" — so they were filed separately rather
+ * than folded in, and land here in their own `describe` below. Their arms are
+ * derived from the spec's own verdicts rather than restated, which is the
+ * discipline `text-input-inputs-spec-parity.test.ts` adopted for the fifth
+ * specimen: the gap #3832 closed is EXPRESSIVENESS, and whether a declared arm
+ * matches the contract is nobody's gate (objectui#4971), so per-key derivation
+ * is what stands in for one.
  */
 import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
 import { manifestFromConfigs, validateTree } from '@object-ui/sdui-parser';
 import type { Diagnostic, SchemaElement } from '@object-ui/sdui-parser';
+import { ElementButtonPropsSchema, ElementTextPropsSchema } from '@objectstack/spec/ui';
 import '@object-ui/components';
 import '../register-plugins';
 
@@ -71,6 +84,40 @@ const declaredArms = (type: string, input: string): string[] => {
   const declared = manifest.components[type]?.inputs.find((i) => i.name === input)?.type;
   return Array.isArray(declared) ? declared : [declared as string];
 };
+
+/**
+ * One representative value per coarse arm, in the vocabulary `checkType`'s
+ * `armAccepts` uses (`packages/sdui-parser/src/validate.ts`).
+ *
+ * `['Account']` earns its place: the `'object'` arm accepts a non-null non-array
+ * object and nothing else, so an array is the value that tells "declares the
+ * object arm" apart from "stopped checking non-primitives".
+ */
+const COARSE_ARM_PROBES: ReadonlyArray<readonly [string, unknown]> = [
+  ['string', 'Account'],
+  ['object', I18N_MAP],
+  ['number', 42],
+  ['boolean', true],
+  ['array', ['Account']],
+];
+
+type SpecPropsSchema = { safeParse: (value: unknown) => { success: boolean } };
+
+/**
+ * The coarse arms a spec props schema ACCEPTS for one key — derived from the
+ * schema's own verdicts, not read off its Zod internals and not restated here
+ * (objectui#4970).
+ *
+ * Restating them would pin the declaration and leave the fact the declaration
+ * exists FOR — that the arms are the ones the contract accepts — unmeasured,
+ * which is the disposition `text-input-inputs-spec-parity.test.ts` took for the
+ * fifth specimen. Derived, either side moving turns the comparison red: a spec
+ * release that drops an arm, or a declaration that grows one the spec rejects.
+ */
+const specAcceptedArms = (schema: SpecPropsSchema, key: string): string[] =>
+  COARSE_ARM_PROBES.filter(([, value]) => schema.safeParse({ [key]: value }).success).map(
+    ([arm]) => arm,
+  );
 
 describe('objectui#3832 — the five measured specimens declare their real unions', () => {
   it('every specimen block is registered (reachability before absence)', () => {
@@ -182,5 +229,89 @@ describe('objectui#3832 — the five measured specimens declare their real union
     expect(codesFor({ type: 'element:record_picker', emptyText: I18N_MAP })).toContain(
       'type-mismatch',
     );
+  });
+});
+
+/**
+ * objectui#4970 — specimens 6 and 7, the two the #3832 table missed.
+ *
+ * Same contradiction, same evidence: both keys are `required: true`, both blocks
+ * are in `PUBLIC_BLOCKS` (`packages/core/src/registry/public-blocks.ts:89` /
+ * `:91`) so they reach `sdui.manifest.json` and `sdui-intrinsics.d.ts`, both
+ * descriptions tell the author to write an inline translation map, and both
+ * renderers resolve one (`elements.tsx`, `pickLocalized` at the `content` and
+ * `label` read sites). Only the declared arm disagreed.
+ *
+ * Controls are paired per specimen for the reason the #3832 block states above,
+ * and they are not decoration: reverting `checkType`'s any-arm logic leaves the
+ * positives vacuously green — the array-valued `type` falls into the old
+ * `switch`'s `default: return null` and the prop produces nothing at all — so the
+ * controls are the only half that moves.
+ */
+describe('objectui#4970 — element:text.content / element:button.label declare their real unions', () => {
+  it('both specimen blocks are registered (reachability before absence)', () => {
+    // Without this, an unregistered or renamed block satisfies every
+    // "no type-mismatch" assertion below by never being validated at all —
+    // an absent block reports `unknown-component`, a different code, and the
+    // filters here are per-code by design.
+    for (const type of ['element:text', 'element:button']) {
+      expect(manifest.components[type], `${type} is not registered`).toBeDefined();
+    }
+  });
+
+  it('the installed spec accepts the string and inline-map arms on both keys, and no others', () => {
+    // Guards the derivation before anything is compared against it: a schema
+    // that rejected every probe (a renamed key, a new sibling required key)
+    // would return `[]` and make the two comparisons below agree vacuously.
+    //
+    // Measured on the `@objectstack/spec` 17.0.0 GA pin, which is what makes
+    // these arms honest rather than copied from the issue — #4970's own table
+    // was measured at the 17.0.0-rc.6 pin, and the answer had to be re-taken
+    // before the declarations moved.
+    expect(specAcceptedArms(ElementTextPropsSchema, 'content')).toEqual(['string', 'object']);
+    expect(specAcceptedArms(ElementButtonPropsSchema, 'label')).toEqual(['string', 'object']);
+  });
+
+  it('`element:text.content` accepts the inline translation map', () => {
+    expect([...declaredArms('element:text', 'content')].sort()).toEqual(
+      [...specAcceptedArms(ElementTextPropsSchema, 'content')].sort(),
+    );
+
+    expect(
+      diagnose({ type: 'element:text', content: I18N_MAP }).filter(
+        (d) => d.code === 'type-mismatch',
+      ),
+    ).toEqual([]);
+
+    // …and the plain-string arm keeps validating clean (that half must not move).
+    expect(
+      diagnose({ type: 'element:text', content: 'Account' }).filter(
+        (d) => d.code === 'type-mismatch',
+      ),
+    ).toEqual([]);
+
+    // CONTROL — values matching NEITHER arm are still reported. The spec refuses
+    // both (measured above), so the gate must too.
+    expect(codesFor({ type: 'element:text', content: 42 })).toContain('type-mismatch');
+    expect(codesFor({ type: 'element:text', content: ['Account'] })).toContain('type-mismatch');
+  });
+
+  it('`element:button.label` accepts the inline translation map', () => {
+    expect([...declaredArms('element:button', 'label')].sort()).toEqual(
+      [...specAcceptedArms(ElementButtonPropsSchema, 'label')].sort(),
+    );
+
+    expect(
+      diagnose({ type: 'element:button', label: I18N_MAP }).filter(
+        (d) => d.code === 'type-mismatch',
+      ),
+    ).toEqual([]);
+    expect(
+      diagnose({ type: 'element:button', label: 'Save' }).filter((d) => d.code === 'type-mismatch'),
+    ).toEqual([]);
+
+    // CONTROL
+    expect(codesFor({ type: 'element:button', label: true })).toContain('type-mismatch');
+    expect(codesFor({ type: 'element:button', label: ['Save'] })).toContain('type-mismatch');
   });
 });

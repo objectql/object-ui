@@ -106,7 +106,15 @@ ComponentRegistry.register('text', ElementTextRenderer, {
   label: 'Text',
   category: 'content',
   inputs: [
-    { name: 'content', type: 'string', label: 'Content', required: true, description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    // Two arms, because the contract has two (objectui#3832 mechanism,
+    // objectui#4970 specimen). The spec accepts a plain string OR an inline
+    // translation map here — measured against `ComponentPropsMap['element:text']`
+    // on the 17.0.0 GA pin, where `content` is `string | Record< string, string >`
+    // — and the renderer resolves the map form through `pickLocalized` at the read
+    // site above. While this said `type: 'string'` the manifest gate reported
+    // `type-mismatch` on the map form, which is the shape this input's own
+    // description teaches the author to write.
+    { name: 'content', type: ['string', 'object'], label: 'Content', required: true, description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
     { name: 'variant', type: 'enum', label: 'Variant', enum: ['heading', 'subheading', 'body', 'caption'], defaultValue: 'body' },
     { name: 'align', type: 'enum', label: 'Align', enum: ['left', 'center', 'right'], defaultValue: 'left' },
   ],
@@ -316,7 +324,11 @@ ComponentRegistry.register('button', ElementButtonRenderer, {
   // and gates on visible/enabled predicates. This one carries an inline
   // ActionDef — the standalone-page button.
   inputs: [
-    { name: 'label', type: 'string', label: 'Label', required: true, description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    // Two arms, on the same evidence as `element:text.content` above
+    // (objectui#4970): `ComponentPropsMap['element:button'].label` is
+    // `string | Record< string, string >` on the 17.0.0 GA pin, and the rendered
+    // label goes through `pickLocalized`.
+    { name: 'label', type: ['string', 'object'], label: 'Label', required: true, description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
     { name: 'action', type: 'object', label: 'Action', description: 'Inline ActionDef executed on click (url / navigation / api / script / modal / flow); omitted → renders inert' },
     { name: 'variant', type: 'enum', label: 'Variant', enum: ['primary', 'secondary', 'danger', 'ghost', 'link'], defaultValue: 'primary' },
     { name: 'size', type: 'enum', label: 'Size', enum: ['small', 'medium', 'large'], defaultValue: 'medium' },

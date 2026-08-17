@@ -56,15 +56,33 @@ import {
 import { Alert, AlertTitle, AlertDescription, Button, cn, LazyIcon } from '@object-ui/components';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ActionDef } from '@object-ui/core';
+// The spec's INLINE locale-map form (`string | Record< string, string >`), bound
+// by reference rather than re-spelled — same import and same spelling as
+// `BaseSchema.label` / `.description` in `packages/types/src/base.ts`, which
+// carry this identical fact. NOT the KEYED `{ key, defaultValue }` vocabulary:
+// the read sites below resolve through `pickLocalized`, whose input is the
+// inline map.
+import type { I18nLabel } from '@objectstack/spec/ui';
 
 type Severity = 'info' | 'warning' | 'error' | 'success';
 
+/**
+ * Local (unexported) prop shape for the renderer below.
+ *
+ * `title` / `body` accept the inline locale map as well as a plain string
+ * (objectui#4970): both are read through `pickLocalized` further down, and the
+ * block's published authoring surface declares the two arms
+ * (`plugin-detail/src/index.tsx`, `type: ['string', 'object']` since
+ * objectui#3832). While these said `string`, this file was the last place in the
+ * package still claiming the map form was not accepted here — the
+ * declaration-narrower-than-the-renderer family of objectui#4581.
+ */
 interface RecordAlertProps {
   schema?: {
     properties?: {
       severity?: Severity;
-      title?: string;
-      body?: string;
+      title?: string | I18nLabel;
+      body?: string | I18nLabel;
       visible?: any;
       icon?: string;
       action?: { actionName: string; label?: string; variant?: string };
@@ -73,8 +91,8 @@ interface RecordAlertProps {
     };
     // Legacy: support flat properties too (mirrors element:text convention).
     severity?: Severity;
-    title?: string;
-    body?: string;
+    title?: string | I18nLabel;
+    body?: string | I18nLabel;
     visible?: any;
     icon?: string;
     action?: { actionName: string; label?: string; variant?: string };
