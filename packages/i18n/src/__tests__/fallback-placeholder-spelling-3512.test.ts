@@ -78,15 +78,37 @@
  * Two neighbours were measured and deliberately left out:
  *
  *   - **Inline `t(key, { defaultValue })`.** `fallbackT` does read it (the
- *     objectui#3865 chain step), and 1195 such literals carry 0 violations
- *     today. Left out because it is a call-site option rather than a copy TABLE
- *     — the two surfaces this card was scoped to — and because
- *     `check:i18n-keys`' `default-value-drift` class already pins each one
- *     byte-identical to its `en` row, which surface 1 gates. Recorded as a
- *     coverage boundary rather than silently assumed.
+ *     objectui#3865 chain step), and 0 of them violate the rule today. Left out
+ *     because it is a call-site OPTION rather than a copy table — the two
+ *     surfaces this card was scoped to — and because `check:i18n-keys`'
+ *     `default-value-drift` class already pins 906 of its 909 literal inline
+ *     defaults byte-identical to their `en` row, which surface 1 gates. The
+ *     residual is those 3 "not comparable" plus 62 computed ones: recorded as a
+ *     coverage boundary, and filed, rather than silently assumed covered.
  *   - **`ConcurrentUpdateDialog.tsx`'s `.split('{{field}}')`.** A hard-coded
  *     needle CONSUMING a pack value, not a table of its own — surface 1 covers
  *     the value it splits.
+ *
+ * ## Division of labour with the three existing i18n gates
+ *
+ * All four read the same packs, and each is blind to what this one owns:
+ *
+ *   - `scripts/check-i18n-call-site-keys.mjs` — its `holesOf()` deliberately
+ *     reads THROUGH all four dialects when extracting a hole's NAME (`{{n, number}}`
+ *     yields `n`, `{{- html}}` yields `html`, `{{user.name}}` yields `user`), so
+ *     that an argument-parity verdict survives one appearing. It tolerates; it
+ *     never rejects — and its own comment records the measurement this file turns
+ *     into a rule: "all 84 distinct holes in `en` are bare names". This gate is
+ *     the enforcement half of that sentence.
+ *   - `all-locales-key-parity.test.ts` — pack vs pack, and RELATIVE: its shape
+ *     regex is `\{\{\w+\}\}`, which does not match `{{ name }}` at all. A
+ *     spelling introduced in `en` and its nine translations together is
+ *     shape-equal in that comparison, hence green. This file judges a pack
+ *     against the fallback's grammar in ABSOLUTE terms, which is the only way
+ *     that case is reachable.
+ *   - `scripts/check-i18n-en-drift.mjs` — fires on an `en` value CHANGING. A
+ *     value authored with a spaced placeholder on day one never changes, so it
+ *     is invisible there by construction.
  *
  * ## Why this file lives in `@object-ui/i18n` when two of its surfaces do not
  *
