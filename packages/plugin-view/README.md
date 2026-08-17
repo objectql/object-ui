@@ -35,15 +35,94 @@ const schema = {
 };
 ```
 
-### Manual Registration
+### What the side-effect import registers
+
+Registration is *only* a side effect of importing the package — the single
+`import '@object-ui/plugin-view'` above is the whole of it. There is no
+components map to iterate over: importing the entry point runs the
+`ComponentRegistry.register(...)` calls in `src/index.tsx`, which claim these
+schema types:
+
+| Schema `type` | Namespaced key | Renderer |
+| --- | --- | --- |
+| `object-view` | `plugin-view:object-view` | `ObjectViewRenderer` |
+| `view` | `plugin-view:view` | `ObjectViewRenderer` (alias of `object-view`) |
+| `view-switcher` | `view:view-switcher` | `ViewSwitcher` |
+| `filter-ui` | `view:filter-ui` | `FilterUI` |
+| `sort-ui` | `view:sort-ui` | `SortUI` |
+| `shared-view-link` | `view:shared-view-link` | `SharedViewLink` |
+| `view:simple` | `plugin-view:view:simple` | `SimpleViewRenderer` (container) |
+
+Both spellings resolve — `register` stores the namespaced key *and* a bare-`type`
+fallback (`packages/core/src/registry/Registry.ts:195,240`). Note the namespaces
+are not uniform: `object-view` / `view` / `view:simple` register under
+`plugin-view`, the four control components under `view`.
+
+`ObjectViewRenderer` is a thin internal wrapper — it pulls `dataSource` off the
+renderer context and hands the schema to `ObjectView`. It is not exported,
+because `ObjectView` itself takes `dataSource` as a **required prop**, not as a
+schema key.
+
+### Public exports
+
+The package exports components, helpers and their types — not a registry map:
 
 ```typescript
-import { viewComponents } from '@object-ui/plugin-view';
-import { ComponentRegistry } from '@object-ui/core';
+import {
+  ObjectView, // ObjectQL-integrated view: list + integrated create/edit
+  ViewSwitcher, // registered renderer for `view-switcher`
+  FilterUI, // registered renderer for `filter-ui`
+  SortUI, // registered renderer for `sort-ui`
+  SharedViewLink, // registered renderer for `shared-view-link`
+  ViewTabBar, // horizontal strip of saved-view tabs
+  ManageViewsDialog, // sortable dialog over every saved view
+  deriveRecordSurface, // record schema -> drawer / modal / page surface
+  deriveRecordFlowSurface,
+  deriveOverlaySize,
+  overlayWidthFor,
+  RECORD_SURFACE_PAGE_THRESHOLD,
+  deriveFieldOptions, // object fields -> picker options
+  toFilterGroup, // filter rules -> FilterGroup
+  toSortItems, // sort config -> SortItem[]
+  VIEW_TYPE_LABELS,
+  VIEW_TYPE_OPTIONS,
+  isImageLikeField,
+  isGeoLikeField,
+  pickPreferredField,
+  KANBAN_GROUP_PREFERRED,
+  PRIMARY_DATE_PREFERRED,
+  END_DATE_PREFERRED,
+  TITLE_PREFERRED,
+} from '@object-ui/plugin-view';
 
-// Register view components
-Object.entries(viewComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
+import type {
+  ObjectViewProps,
+  ViewSwitcherProps,
+  FilterUIProps,
+  SortUIProps,
+  SharedViewLinkProps,
+  ViewTabBarProps,
+  ViewTabItem,
+  AvailableViewType,
+  ManageViewsDialogProps,
+  RecordSurface,
+  RecordFlow,
+  RecordFlowContainer,
+  RecordFlowSurface,
+  OverlaySize,
+  FieldOption,
+} from '@object-ui/plugin-view';
+```
+
+To serve one of these components under a registry key of your own, register the
+exported component under that key:
+
+```typescript
+import { ComponentRegistry } from '@object-ui/core';
+import { ViewSwitcher } from '@object-ui/plugin-view';
+
+ComponentRegistry.register('my-switcher', ViewSwitcher, {
+  namespace: 'my-app',
 });
 ```
 
@@ -333,14 +412,28 @@ const schema = {
 
 ## TypeScript Support
 
+This package's type export surface is the seven `*Props` types plus the
+record-surface and field-option types listed under "Public exports" — it ships
+**no schema types**. The authored `type: 'object-view'` node is typed by
+`@object-ui/types`, which this package imports (`src/ObjectView.tsx`) without
+re-exporting, so import it from there:
+
+| Import from `@object-ui/types` | What it types |
+| --- | --- |
+| `ObjectViewSchema` | the whole `type: 'object-view'` node — `objectName` (required), `title`, `description`, `layout`, `defaultViewType`, `listViews`, `defaultListView`, `navigation`, `table`, `form`, `searchableFields`, `filterableFields`, `show*`, `operations`, `onNavigate`, `viewTabBar`, `viewActions` |
+| `NamedListView` | one entry of `listViews` |
+| `ViewNavigationConfig` | `navigation` — row/item click behaviour |
+| `ViewTabBarConfig` | `viewTabBar` — tab-bar UX (inline add, overflow, indicators) |
+
 ```typescript
-import type { ObjectViewSchema } from '@object-ui/plugin-view';
+import type { ObjectViewSchema } from '@object-ui/types';
 
 const userView: ObjectViewSchema = {
   type: 'object-view',
-  object: 'users',
-  viewMode: 'grid',
-  fields: ['name', 'email', 'role']
+  objectName: 'users',
+  defaultViewType: 'grid',
+  // Displayed columns are grid configuration, inherited from ObjectGridSchema.
+  table: { columns: ['name', 'email', 'role'] },
 };
 ```
 
