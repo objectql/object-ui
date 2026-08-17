@@ -22,7 +22,7 @@ const ds: any = {
   batchTransaction: vi.fn(),
 };
 
-const subforms = [{ childObject: 'expense_line', relationshipField: 'claim', title: 'Lines', columns: [{ field: 'amount', type: 'number' }] }];
+const subforms = [{ childObject: 'expense_line', relationshipField: 'claim', title: 'Lines', columns: [{ name: 'amount', type: 'number' }] }];
 
 beforeEach(() => vi.clearAllMocks());
 

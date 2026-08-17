@@ -827,8 +827,8 @@ describe('Complex & Relationship Widgets', () => {
 
     describe('GridField', () => {
         const columns = [
-            { field: 'name', label: 'Name' },
-            { field: 'age', label: 'Age', type: 'number' }
+            { name: 'name', label: 'Name' },
+            { name: 'age', label: 'Age', type: 'number' }
         ];
         const data = [
             { name: 'Alice', age: 30 },

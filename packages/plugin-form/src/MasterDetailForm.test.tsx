@@ -159,7 +159,7 @@ describe('MasterDetailForm — non-atomic fallback (emulation via runBatchTransa
     mode: 'create',
     fields: ['ref'],
     details: [
-      { childObject: 'po_line', relationshipField: 'po', columns: [{ field: 'qty', label: 'Qty', type: 'number' }] },
+      { childObject: 'po_line', relationshipField: 'po', columns: [{ name: 'qty', label: 'Qty', type: 'number' }] },
     ],
   } as any;
 
@@ -241,8 +241,8 @@ describe('MasterDetailForm — parent-scoped line rules ("paid invoice → lock 
         childObject: 'inv_line',
         relationshipField: 'inv',
         columns: [
-          { field: 'product', label: 'Product', type: 'text' },
-          { field: 'qty', label: 'Qty', type: 'number', readonlyWhen: "parent.status == 'paid'" },
+          { name: 'product', label: 'Product', type: 'text' },
+          { name: 'qty', label: 'Qty', type: 'number', readonlyWhen: "parent.status == 'paid'" },
         ],
       },
     ],

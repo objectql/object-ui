@@ -10,9 +10,9 @@ export const DevLookup: React.FC = () => {
   const [rows, setRows] = React.useState<Record<string, any>[]>([{}, {}]);
   const field = {
     columns: [
-      { field: 'account', label: 'Account', type: 'lookup', reference: 'showcase_account', displayField: 'name' },
-      { field: 'note', label: 'Note', type: 'text' },
-      { field: 'amount', label: 'Amount', type: 'currency' },
+      { name: 'account', label: 'Account', type: 'lookup', reference: 'showcase_account', displayField: 'name' },
+      { name: 'note', label: 'Note', type: 'text' },
+      { name: 'amount', label: 'Amount', type: 'currency' },
     ],
     total_field: 'amount',
   } as any;

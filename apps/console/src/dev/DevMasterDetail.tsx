@@ -23,9 +23,9 @@ const schema = {
       amountField: 'amount',
       totalField: 'total_amount',
       columns: [
-        { field: 'expense_date', label: 'Date', type: 'date' },
+        { name: 'expense_date', label: 'Date', type: 'date' },
         {
-          field: 'category',
+          name: 'category',
           label: 'Category',
           type: 'select',
           options: [
@@ -39,9 +39,9 @@ const schema = {
             { label: 'Other', value: 'other' },
           ],
         },
-        { field: 'description', label: 'Description', type: 'text' },
-        { field: 'merchant_vendor', label: 'Merchant', type: 'text' },
-        { field: 'amount', label: 'Amount', type: 'currency' },
+        { name: 'description', label: 'Description', type: 'text' },
+        { name: 'merchant_vendor', label: 'Merchant', type: 'text' },
+        { name: 'amount', label: 'Amount', type: 'currency' },
       ],
     },
   ],

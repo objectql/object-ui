@@ -32,7 +32,7 @@ import { toDateInputValue, toDateTimeInputValue, fromDateTimeInputValue } from '
  * engine behind the master-detail subform (see ADR-0001).
  *
  * Column config (a subset of `GridColumnDefinition`):
- *   { field, label?, type?, options?, width?, required?, prefix?, step? }
+ *   { name, label?, type?, options?, width?, required?, prefix?, step? }
  *   type ∈ 'text' | 'number' | 'currency' | 'date' | 'datetime' | 'time'
  *        | 'select' | 'lookup' | 'file'
  *
@@ -41,7 +41,17 @@ import { toDateInputValue, toDateTimeInputValue, fromDateTimeInputValue } from '
  */
 
 export interface GridColumn {
-  field: string;
+  /**
+   * The column's field name — the key it reads and writes on each row object.
+   *
+   * Spelled `name`, exactly as the declared `GridColumnDefinition`
+   * (`@object-ui/types`) and the grid docs page say (objectui#3951). This
+   * widget used to read a divergent `field` key, so metadata authored against
+   * the published type rendered every cell empty plus a React key warning.
+   * There is deliberately NO `col.field ?? col.name` alias: one spelling, at
+   * the producer — AGENTS.md #0.1.
+   */
+  name: string;
   label?: string;
   /**
    * Cell control + read/write adapter for the column.
@@ -246,12 +256,12 @@ export function evalArith(expr: string, row: Row): number | null {
  * it is unit-testable independent of the picker UI.
  */
 export function lookupAutofillPatch(columns: GridColumn[], col: GridColumn, record: any): Row {
-  const patch: Row = { [col.field]: record?.value ?? record?.id ?? record?._id };
+  const patch: Row = { [col.name]: record?.value ?? record?.id ?? record?._id };
   if (col.autofill !== false && record && typeof record === 'object') {
     for (const other of columns) {
-      if (other.field === col.field || other.computed || other.type === 'lookup') continue;
-      const v = record[other.field];
-      if (v !== undefined && v !== null && v !== '') patch[other.field] = v;
+      if (other.name === col.name || other.computed || other.type === 'lookup') continue;
+      const v = record[other.name];
+      if (v !== undefined && v !== null && v !== '') patch[other.name] = v;
     }
   }
   return patch;
@@ -263,9 +273,9 @@ export function computeRow(columns: GridColumn[], row: Row): Row {
   const next = { ...row };
   for (const c of computedCols) {
     const v = evalArith(c.expr!, next);
-    if (v === null) { next[c.field] = null; continue; }
+    if (v === null) { next[c.name] = null; continue; }
     const scale = c.scale ?? (c.type === 'currency' ? 2 : undefined);
-    next[c.field] = scale != null ? Number(v.toFixed(scale)) : v;
+    next[c.name] = scale != null ? Number(v.toFixed(scale)) : v;
   }
   return next;
 }
@@ -427,7 +437,7 @@ export function GridField({
   const [extraShown, setExtraShown] = React.useState<Set<string>>(() => new Set());
   const optionalColumns = allColumns.filter((c) => c.defaultHidden && !c.required);
   const columns: GridColumn[] = allColumns.filter(
-    (c) => !c.defaultHidden || c.required || extraShown.has(c.field),
+    (c) => !c.defaultHidden || c.required || extraShown.has(c.name),
   );
   const toggleColumn = useCallback((fieldName: string) => {
     setExtraShown((prev) => {
@@ -465,7 +475,7 @@ export function GridField({
 
   const blankRow = useCallback((): Row => {
     const blank: Row = {};
-    for (const c of columns) blank[c.field] = null;
+    for (const c of columns) blank[c.name] = null;
     return blank;
   }, [columns]);
 
@@ -489,7 +499,7 @@ export function GridField({
   );
 
   const applyCell = useCallback(
-    (rowIdx: number, field: string, value: any) => applyPatch(rowIdx, { [field]: value }),
+    (rowIdx: number, columnName: string, value: any) => applyPatch(rowIdx, { [columnName]: value }),
     [applyPatch],
   );
 
@@ -509,13 +519,13 @@ export function GridField({
 
   /** Set a cell to an already-typed value (lookup ids, etc.) without coercion. */
   const setCellValue = useCallback(
-    (rowIdx: number, field: string, value: any) => applyCell(rowIdx, field, value),
+    (rowIdx: number, columnName: string, value: any) => applyCell(rowIdx, columnName, value),
     [applyCell],
   );
 
   const setCell = useCallback(
     (rowIdx: number, col: GridColumn, raw: string) => {
-      applyCell(rowIdx, col.field, coerce(col.type, raw));
+      applyCell(rowIdx, col.name, coerce(col.type, raw));
     },
     [applyCell],
   );
@@ -594,7 +604,7 @@ export function GridField({
   const total = showTotal ? sumColumn(rows, totalField!) : 0;
   // Align the running total under the column it sums (not blindly under the
   // last column). The label sits right-aligned immediately to its left.
-  const totalColIndex = showTotal ? Math.max(0, columns.findIndex((c) => c.field === totalField)) : -1;
+  const totalColIndex = showTotal ? Math.max(0, columns.findIndex((c) => c.name === totalField)) : -1;
 
   // Column chooser — reveal/hide the optional (default-hidden) columns. Only
   // rendered when there are optional columns to manage.
@@ -621,19 +631,19 @@ export function GridField({
         <div className="px-1 pb-1.5 text-xs font-medium text-muted-foreground">Optional columns</div>
         <div className="max-h-64 space-y-0.5 overflow-y-auto">
           {optionalColumns.map((c) => {
-            const id = `col-toggle-${c.field}`;
+            const id = `col-toggle-${c.name}`;
             return (
               <Label
-                key={c.field}
+                key={c.name}
                 htmlFor={id}
                 className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 text-sm font-normal hover:bg-muted"
               >
                 <Checkbox
                   id={id}
-                  checked={extraShown.has(c.field)}
-                  onCheckedChange={() => toggleColumn(c.field)}
+                  checked={extraShown.has(c.name)}
+                  onCheckedChange={() => toggleColumn(c.name)}
                 />
-                <span className="truncate">{c.label || c.field}</span>
+                <span className="truncate">{c.label || c.name}</span>
               </Label>
             );
           })}
@@ -656,14 +666,14 @@ export function GridField({
               )}
               {columns.map((c) => (
                 <th
-                  key={c.field}
+                  key={c.name}
                   style={{ minWidth: minWidthFor(c) }}
                   className={cn(
                     'px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap',
                     isNumeric(c.type) ? 'text-right' : 'text-left',
                   )}
                 >
-                  {c.label || c.field}
+                  {c.label || c.name}
                 </th>
               ))}
             </tr>
@@ -686,12 +696,12 @@ export function GridField({
                   )}
                   {columns.map((c) => (
                     <td
-                      key={c.field}
+                      key={c.name}
                       className={cn('px-3 py-2 text-foreground', isNumeric(c.type) && 'text-right tabular-nums')}
                     >
-                      {c.type === 'lookup' && row[c.field] != null && row[c.field] !== '' ? (
+                      {c.type === 'lookup' && row[c.name] != null && row[c.name] !== '' ? (
                         <LookupField
-                          value={row[c.field]}
+                          value={row[c.name]}
                           onChange={() => {}}
                           readonly
                           field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField } as any}
@@ -702,9 +712,9 @@ export function GridField({
                         // for a date, and for a datetime it would ALSO have been
                         // wrong to render as a bare day (objectui#3569). Now that
                         // the three types are distinct, each formats as itself.
-                        displayText(c, row[c.field], displayLocale)
-                      ) : row[c.field] != null && row[c.field] !== '' ? (
-                        String(row[c.field])
+                        displayText(c, row[c.name], displayLocale)
+                      ) : row[c.name] != null && row[c.name] !== '' ? (
+                        String(row[c.name])
                       ) : (
                         '—'
                       )}
@@ -749,7 +759,7 @@ export function GridField({
   /** Cell content: read-only display (list mode / computed columns) or an
    *  editable borderless control (spreadsheet feel). */
   const renderCellInput = (c: GridColumn, colIdx: number, rowIdx: number, row: Row) => {
-    const val = row?.[c.field];
+    const val = row?.[c.name];
     // A readonlyWhen-TRUE cell is locked: treat like the form-wide `disabled`.
     const locked = disabled || cellRules(c, row).readonly;
     // List (form-factor) mode → read-only at-a-glance display.
@@ -772,7 +782,7 @@ export function GridField({
         <span
           className={cn('block px-2 text-sm tabular-nums', isNumeric(c.type) ? 'text-right' : 'text-left', (val == null || val === '') ? 'text-muted-foreground' : 'text-foreground')}
           title="Computed"
-          data-computed={c.field}
+          data-computed={c.name}
         >
           {displayText(c, val, displayLocale)}
         </span>
@@ -782,7 +792,7 @@ export function GridField({
       return (
         <LookupField
           value={val}
-          onChange={(v: any) => setCellValue(rowIdx, c.field, v)}
+          onChange={(v: any) => setCellValue(rowIdx, c.name, v)}
           onSelectRecord={(rec: any) => applyLookupSelection(rowIdx, c, rec)}
           compact
           field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField, multiple: c.multiple, options: c.options, placeholder: '—' } as any}
@@ -796,11 +806,11 @@ export function GridField({
       return (
         <FileCell
           value={val}
-          onChange={(v: any) => setCellValue(rowIdx, c.field, v)}
+          onChange={(v: any) => setCellValue(rowIdx, c.name, v)}
           multiple={c.multiple}
           accept={Array.isArray(c.accept) && c.accept.length > 0 ? c.accept.join(',') : undefined}
           disabled={locked}
-          aria-label={c.label || c.field}
+          aria-label={c.label || c.name}
           data-cell={`${rowIdx}-${colIdx}`}
         />
       );
@@ -808,7 +818,7 @@ export function GridField({
     if (c.type === 'select') {
       return (
         <Select value={val != null ? String(val) : ''} onValueChange={(v) => setCell(rowIdx, c, v)} disabled={locked}>
-          <SelectTrigger className="h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus:ring-1 focus:ring-ring/60" aria-label={c.label || c.field}>
+          <SelectTrigger className="h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus:ring-1 focus:ring-ring/60" aria-label={c.label || c.name}>
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -844,7 +854,7 @@ export function GridField({
                     : 'text'
           }
           step={isNumeric(c.type) ? c.step ?? 'any' : undefined}
-          aria-label={c.label || c.field}
+          aria-label={c.label || c.name}
           // A temporal cell holding the API's ISO shape (`2026-06-17T14:30:00.000Z`)
           // is SILENTLY rejected by the native control — the attribute lands in
           // the DOM but `input.value` reads back `''` and the cell paints empty
@@ -884,14 +894,14 @@ export function GridField({
               )}
               {columns.map((c) => (
                 <th
-                  key={c.field}
+                  key={c.name}
                   className={cn(
                     'px-2 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap',
                     isNumeric(c.type) ? 'text-right' : 'text-left',
                   )}
                   style={widthStyle(c)}
                 >
-                  {c.label || c.field}
+                  {c.label || c.name}
                   {c.required && !c.computed && <span className="text-destructive"> *</span>}
                 </th>
               ))}
@@ -952,13 +962,13 @@ export function GridField({
                       // "required" verdict honors a column's `requiredWhen` CEL
                       // rule (B2), evaluated against the row + parent header.
                       const required = cellRules(c, row).required;
-                      const invalid = !isGhost && !isList && required && !c.computed && (row[c.field] == null || row[c.field] === '');
+                      const invalid = !isGhost && !isList && required && !c.computed && (row[c.name] == null || row[c.name] === '');
                       return (
                         <td
-                          key={c.field}
+                          key={c.name}
                           aria-invalid={invalid || undefined}
-                          title={invalid ? `${c.label || c.field} is required` : undefined}
-                          data-testid={invalid ? `line-items-invalid-${rowIdx}-${c.field}` : undefined}
+                          title={invalid ? `${c.label || c.name} is required` : undefined}
+                          data-testid={invalid ? `line-items-invalid-${rowIdx}-${c.name}` : undefined}
                           className={cn(
                             'border-r border-border/40 px-1 py-0.5 align-middle last:border-r-0',
                             isList && 'px-2 py-1.5',

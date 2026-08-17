@@ -43,7 +43,7 @@ const HOT_VIEW = {
   pagination: { pageSize: 7 },
 };
 
-const COLUMNS = [{ field: 'qty', label: 'Qty', type: 'number' as const }];
+const COLUMNS = [{ name: 'qty', label: 'Qty', type: 'number' as const }];
 
 function makeAdapter(listViews: Record<string, unknown> = { hot: HOT_VIEW }) {
   return {
@@ -173,7 +173,7 @@ describe('record:line_items — parent scope AND the authored criteria (objectst
     expect(params.$top).toBe(3);
 
     // And the editable grid still keeps the authored GridColumn list — a view's
-    // bare field names would arrive with no `field`/`type` and render
+    // bare field names would arrive with no `name`/`type` and render
     // header-less, type-less cells. Wrong SHAPE, not merely a wider answer.
     await waitFor(() => expect(headerTexts(container)).toContain('Qty'));
     expect(headerTexts(container).join('|')).not.toContain('price');

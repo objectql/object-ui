@@ -287,9 +287,9 @@ import { LineItemsPanel } from './LineItemsPanel';
  *    must name a field ON the bound child object. Rebinding `object` without
  *    updating it is an authoring error the panel cannot paper over.
  *  - `columns` is NOT a field-name projection here. It is `GridColumn[]`
- *    (`{ field, type, options, computed, expr, … }`) driving an EDITABLE grid; a
+ *    (`{ name, type, options, computed, expr, … }`) driving an EDITABLE grid; a
  *    saved view's column list would arrive as bare names and render a grid of
- *    column definitions with no `field`. Wrong shape, not merely a wider answer.
+ *    column definitions with no `name`. Wrong shape, not merely a wider answer.
  *
  * So a `view` named on this block now contributes its filter, sort and page size
  * to the child query (and an unresolvable name still reports instead of silently

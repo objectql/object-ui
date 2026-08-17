@@ -187,8 +187,8 @@ describe('zh session — every date branch renders Chinese (objectui#4468)', () 
   it('the sub-grid read-only table', () => {
     const temporalField = {
       columns: [
-        { field: 'merchant', label: 'Merchant', type: 'text' as const },
-        { field: 'incurred_on', label: 'Incurred On', type: 'date' as const },
+        { name: 'merchant', label: 'Merchant', type: 'text' as const },
+        { name: 'incurred_on', label: 'Incurred On', type: 'date' as const },
       ],
     } as any;
     renderSession(

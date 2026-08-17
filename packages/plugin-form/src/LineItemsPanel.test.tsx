@@ -28,7 +28,7 @@ const schema = {
   parentId: 'p1',
   amountField: 'amount',
   totalField: 'total_amount',
-  columns: [{ field: 'amount', label: 'Amount', type: 'number' }],
+  columns: [{ name: 'amount', label: 'Amount', type: 'number' }],
 } as any;
 
 function renderPanel(ds: any) {

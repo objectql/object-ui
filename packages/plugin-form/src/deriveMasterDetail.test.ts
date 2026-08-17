@@ -70,7 +70,7 @@ describe('findRelationshipField', () => {
 describe('deriveColumns', () => {
   it('derives editable columns, skipping system/audit/FK/non-editable fields', () => {
     const cols = deriveColumns(taskSchema, { relationshipField: 'project' });
-    const names = cols.map((c) => c.field);
+    const names = cols.map((c) => c.name);
     expect(names).toEqual(['title', 'status', 'estimate_hours', 'budget', 'due_date', 'assignee']);
     // id (system), created_at (audit), project (FK), health (formula) excluded
     expect(names).not.toContain('id');
@@ -81,7 +81,7 @@ describe('deriveColumns', () => {
 
   it('carries type, options, required and lookup reference through', () => {
     const cols = deriveColumns(taskSchema, { relationshipField: 'project' });
-    const byName = Object.fromEntries(cols.map((c) => [c.field, c]));
+    const byName = Object.fromEntries(cols.map((c) => [c.name, c]));
     expect(byName.title).toMatchObject({ type: 'text', label: 'Title', required: true });
     expect(byName.status).toMatchObject({ type: 'select', options: [{ label: 'To Do', value: 'todo' }, { label: 'Done', value: 'done' }] });
     expect(byName.estimate_hours.type).toBe('number');
@@ -102,7 +102,7 @@ describe('deriveColumns', () => {
         memo: { type: 'text', label: 'Memo', conditionalRequired: 'record.qty >= 1' },
       },
     };
-    const byName = Object.fromEntries(deriveColumns(schema, { relationshipField: 'parent' }).map((c) => [c.field, c]));
+    const byName = Object.fromEntries(deriveColumns(schema, { relationshipField: 'parent' }).map((c) => [c.name, c]));
     expect(byName.qty.readonlyWhen).toBe("parent.status == 'paid'");
     expect(byName.note.requiredWhen).toBe('record.qty >= 100');
     expect(byName.memo.requiredWhen).toBeUndefined();
@@ -118,7 +118,7 @@ describe('deriveColumns', () => {
         photo: { type: 'image', label: 'Photo' },
       },
     };
-    const byName = Object.fromEntries(deriveColumns(schema, { relationshipField: 'expense' }).map((c) => [c.field, c]));
+    const byName = Object.fromEntries(deriveColumns(schema, { relationshipField: 'expense' }).map((c) => [c.name, c]));
     expect(byName.receipt).toMatchObject({ type: 'file', multiple: true, accept: ['image/*', '.pdf'] });
     // Image fields restrict the picker to images when no accept list is declared.
     expect(byName.photo).toMatchObject({ type: 'file', accept: ['image/*'] });
@@ -145,7 +145,7 @@ describe('deriveColumns curation (column budget)', () => {
     },
   };
 
-  const visible = (cols: any[]) => cols.filter((c) => !c.defaultHidden).map((c) => c.field);
+  const visible = (cols: any[]) => cols.filter((c) => !c.defaultHidden).map((c) => c.name);
 
   it('returns ALL columns — none dropped — and defaults a focused 6 visible', () => {
     const cols = deriveColumns(wideSchema, { relationshipField: 'parent' });
@@ -162,14 +162,14 @@ describe('deriveColumns curation (column budget)', () => {
 
   it('collapses low-signal text columns into the chooser (hidden, not dropped)', () => {
     const cols = deriveColumns(wideSchema, { relationshipField: 'parent' });
-    const byName = Object.fromEntries(cols.map((c) => [c.field, c]));
+    const byName = Object.fromEntries(cols.map((c) => [c.name, c]));
     expect(byName.notes).toBeDefined();
     expect(byName.notes.defaultHidden).toBe(true);
     expect(byName.labels.defaultHidden).toBe(true);
   });
 
   it('preserves schema order (including hidden columns)', () => {
-    const names = deriveColumns(wideSchema, { relationshipField: 'parent' }).map((c) => c.field);
+    const names = deriveColumns(wideSchema, { relationshipField: 'parent' }).map((c) => c.name);
     const sorted = [...names].sort(
       (a, b) => Object.keys(wideSchema.fields).indexOf(a) - Object.keys(wideSchema.fields).indexOf(b),
     );
@@ -198,7 +198,7 @@ describe('deriveColumns curation (column budget)', () => {
     };
     const cols = deriveColumns(reqHeavy, { relationshipField: 'parent' });
     expect(visible(cols)).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g']); // 7 required visible
-    expect(cols.find((c) => c.field === 'h')?.defaultHidden).toBe(true); // non-required collapsed
+    expect(cols.find((c) => c.name === 'h')?.defaultHidden).toBe(true); // non-required collapsed
     expect(cols.length).toBe(8); // nothing dropped
   });
 });
@@ -241,19 +241,19 @@ describe('deriveFormFields (per-row expand form)', () => {
 });
 
 describe('hydrateColumns (fill types on bare author columns)', () => {
-  it('infers each bare {field,label} column\'s widget type from the child schema', () => {
+  it('infers each bare {name,label} column\'s widget type from the child schema', () => {
     const cols = hydrateColumns(
       [
-        { field: 'title', label: 'Title' },
-        { field: 'status', label: 'Status' },
-        { field: 'estimate_hours', label: 'Est' },
-        { field: 'budget', label: 'Budget' },
-        { field: 'due_date', label: 'Due' },
-        { field: 'assignee', label: 'Owner' },
+        { name: 'title', label: 'Title' },
+        { name: 'status', label: 'Status' },
+        { name: 'estimate_hours', label: 'Est' },
+        { name: 'budget', label: 'Budget' },
+        { name: 'due_date', label: 'Due' },
+        { name: 'assignee', label: 'Owner' },
       ] as any,
       taskSchema,
     );
-    const byName = Object.fromEntries(cols.map((c) => [c.field, c]));
+    const byName = Object.fromEntries(cols.map((c) => [c.name, c]));
     expect(byName.title.type).toBe('text');
     expect(byName.status).toMatchObject({ type: 'select', options: [{ label: 'To Do', value: 'todo' }, { label: 'Done', value: 'done' }] });
     expect(byName.estimate_hours.type).toBe('number');
@@ -264,10 +264,10 @@ describe('hydrateColumns (fill types on bare author columns)', () => {
 
   it('preserves the author\'s column set, order and labels', () => {
     const cols = hydrateColumns(
-      [{ field: 'due_date', label: '合同时间' }, { field: 'status', label: 'Status' }] as any,
+      [{ name: 'due_date', label: '合同时间' }, { name: 'status', label: 'Status' }] as any,
       taskSchema,
     );
-    expect(cols.map((c) => c.field)).toEqual(['due_date', 'status']); // order kept, no extra columns
+    expect(cols.map((c) => c.name)).toEqual(['due_date', 'status']); // order kept, no extra columns
     expect(cols[0].label).toBe('合同时间'); // author label kept, not schema's "Due Date"
   });
 
@@ -279,14 +279,14 @@ describe('hydrateColumns (fill types on bare author columns)', () => {
         photo: { type: 'image', label: 'Photo' },
       },
     };
-    const cols = hydrateColumns([{ field: 'receipt' }, { field: 'photo' }] as any, schema);
+    const cols = hydrateColumns([{ name: 'receipt' }, { name: 'photo' }] as any, schema);
     expect(cols[0]).toMatchObject({ type: 'file', multiple: true, accept: ['.pdf'] });
     expect(cols[1]).toMatchObject({ type: 'file', accept: ['image/*'] });
   });
 
   it('never overrides an explicit type the author already set', () => {
     const cols = hydrateColumns(
-      [{ field: 'status', label: 'Status', type: 'text' }] as any,
+      [{ name: 'status', label: 'Status', type: 'text' }] as any,
       taskSchema,
     );
     expect(cols[0].type).toBe('text'); // author wins — not upgraded to select
@@ -294,12 +294,12 @@ describe('hydrateColumns (fill types on bare author columns)', () => {
   });
 
   it('leaves a column untouched when its field is absent from the schema', () => {
-    const cols = hydrateColumns([{ field: 'ghost', label: 'Ghost' }] as any, taskSchema);
+    const cols = hydrateColumns([{ name: 'ghost', label: 'Ghost' }] as any, taskSchema);
     expect(cols[0].type).toBeUndefined(); // unknown field → grid falls back to text
   });
 
   it('is a no-op without a schema or columns', () => {
-    expect(hydrateColumns([{ field: 'x' }] as any, undefined)).toEqual([{ field: 'x' }]);
+    expect(hydrateColumns([{ name: 'x' }] as any, undefined)).toEqual([{ name: 'x' }]);
     expect(hydrateColumns(undefined, taskSchema)).toEqual([]);
   });
 });
@@ -308,12 +308,12 @@ describe('deriveDetail hydrates explicit-but-untyped override columns', () => {
   it('fills widget types on bare author columns instead of passing them through raw', () => {
     const d = deriveDetail('showcase_task', taskSchema, 'showcase_project', {
       relationshipField: 'project',
-      columns: [{ field: 'status', label: 'Status' }, { field: 'due_date', label: 'Due' }] as any,
+      columns: [{ name: 'status', label: 'Status' }, { name: 'due_date', label: 'Due' }] as any,
     });
-    const byName = Object.fromEntries(d.columns.map((c) => [c.field, c]));
+    const byName = Object.fromEntries(d.columns.map((c) => [c.name, c]));
     expect(byName.status.type).toBe('select');
     expect(byName.due_date.type).toBe('date');
-    expect(d.columns.map((c) => c.field)).toEqual(['status', 'due_date']); // author set kept
+    expect(d.columns.map((c) => c.name)).toEqual(['status', 'due_date']); // author set kept
   });
 });
 
@@ -377,7 +377,7 @@ describe('deriveDetail', () => {
   it('resolves relationshipField + columns + amountField from the child schema', () => {
     const d = deriveDetail('showcase_task', taskSchema, 'showcase_project');
     expect(d.relationshipField).toBe('project');
-    expect(d.columns.map((c) => c.field)).toContain('estimate_hours');
+    expect(d.columns.map((c) => c.name)).toContain('estimate_hours');
     // The running total prefers the (last) currency column over a raw number
     // like hours — a line-grid footer is almost always a money total.
     expect(d.amountField).toBe('budget');
@@ -395,7 +395,7 @@ describe('deriveDetail', () => {
       },
     };
     const d = deriveDetail('inv_line', lineSchema, 'inv');
-    const amountCol = d.columns.find((c) => c.field === 'amount')!;
+    const amountCol = d.columns.find((c) => c.name === 'amount')!;
     expect(amountCol.computed).toBe(true);
     expect(amountCol.expr).toBe('record.quantity * record.unit_price');
     expect(amountCol.required).toBe(false); // computed → never user-required
@@ -413,15 +413,15 @@ describe('deriveDetail', () => {
     };
     const d = deriveDetail('inv_line', lineSchema, 'inv');
     expect(d.sortField).toBe('position');
-    expect(d.columns.map((c) => c.field)).not.toContain('position'); // not user-edited
+    expect(d.columns.map((c) => c.name)).not.toContain('position'); // not user-edited
     expect(d.formFields).not.toContain('position');
-    expect(d.columns.map((c) => c.field)).toEqual(['product', 'quantity']);
+    expect(d.columns.map((c) => c.name)).toEqual(['product', 'quantity']);
   });
 
   it('honors explicit overrides over derived values', () => {
     const d = deriveDetail('showcase_task', taskSchema, 'showcase_project', {
       relationshipField: 'project',
-      columns: [{ field: 'title', type: 'text' }],
+      columns: [{ name: 'title', type: 'text' }],
       amountField: 'budget',
     });
     expect(d.columns).toHaveLength(1);

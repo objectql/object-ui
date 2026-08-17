@@ -182,19 +182,19 @@ function fillPriority(col: GridColumn): number {
 function curateColumns(cols: GridColumn[], max: number): GridColumn[] {
   if (max <= 0 || cols.length <= max) return cols;
   const visible = new Set<string>();
-  const primary = cols.find((c) => NAME_LIKE_FIELDS.includes(c.field)) ?? cols[0];
-  if (primary) visible.add(primary.field);
-  for (const c of cols) if (c.required) visible.add(c.field); // required is always visible
+  const primary = cols.find((c) => NAME_LIKE_FIELDS.includes(c.name)) ?? cols[0];
+  if (primary) visible.add(primary.name);
+  for (const c of cols) if (c.required) visible.add(c.name); // required is always visible
   const remaining = cols
     .map((c, i) => ({ c, i }))
-    .filter(({ c }) => !visible.has(c.field))
+    .filter(({ c }) => !visible.has(c.name))
     .sort((a, b) => fillPriority(a.c) - fillPriority(b.c) || a.i - b.i);
   for (const { c } of remaining) {
     if (visible.size >= max) break;
-    visible.add(c.field);
+    visible.add(c.name);
   }
   // Keep every column; collapse the overflow into the chooser.
-  return cols.map((c) => (visible.has(c.field) ? c : { ...c, defaultHidden: true }));
+  return cols.map((c) => (visible.has(c.name) ? c : { ...c, defaultHidden: true }));
 }
 
 /**
@@ -218,7 +218,7 @@ export function deriveColumns(
     if (d?.system || d?.readonly || d?.hidden) continue;
     if (NON_EDITABLE_TYPES.has(d?.type)) continue;
     const col: GridColumn = {
-      field: name,
+      name,
       label: d?.label || name,
       type: fieldTypeToColumnType(d?.type),
       required: !!d?.required,
@@ -254,7 +254,7 @@ export function deriveColumns(
 /**
  * Fill in missing widget metadata on author-supplied grid columns from the
  * child object's field definitions. A view often lists columns as bare
- * `{ field, label }` (the common, ergonomic authoring form) — without a `type`
+ * `{ name, label }` (the common, ergonomic authoring form) — without a `type`
  * those cells fall back to a plain text `<Input>`, so a lookup, date, number or
  * picklist field silently renders as free text. This resolves each such
  * column's `type` (plus `options` / `reference` / computed `expr`) from the
@@ -271,11 +271,11 @@ export function hydrateColumns(
   if (!cols.length || !fields || typeof fields !== 'object') return cols;
   return cols.map((col) => {
     if (col.type) return col; // explicit type — respect the author's choice
-    const d = (fields as any)[col.field];
+    const d = (fields as any)[col.name];
     if (!d) return col; // unknown field — leave as-is (grid falls back to text)
     const type = fieldTypeToColumnType(d?.type);
     const next: GridColumn = { ...col, type };
-    if (next.label == null) next.label = d?.label || col.field;
+    if (next.label == null) next.label = d?.label || col.name;
     if (next.required == null) next.required = !!d?.required;
     const options = optionsFor(d);
     if (type === 'select' && options && !next.options) next.options = options;
@@ -395,12 +395,12 @@ function pickAmountField(columns: GridColumn[]): string | undefined {
   const numeric = columns.filter((c) => c.type === 'number' || c.type === 'currency');
   if (numeric.length === 0) return undefined;
   const computed = numeric.find((c) => c.computed);
-  if (computed) return computed.field;
-  const named = numeric.find((c) => AMOUNT_LIKE_FIELDS.includes(c.field));
-  if (named) return named.field;
+  if (computed) return computed.name;
+  const named = numeric.find((c) => AMOUNT_LIKE_FIELDS.includes(c.name));
+  if (named) return named.name;
   const lastCurrency = [...numeric].reverse().find((c) => c.type === 'currency');
-  if (lastCurrency) return lastCurrency.field;
-  return numeric[numeric.length - 1].field;
+  if (lastCurrency) return lastCurrency.name;
+  return numeric[numeric.length - 1].name;
 }
 
 export interface DerivedDetail {

@@ -192,7 +192,7 @@ describe('attachInlineSubforms — relationship-level inlineEdit', () => {
   it('lets an explicit form.subforms entry override the derived one', () => {
     const withExplicit = objects.map((o) =>
       o.name === 'invoice'
-        ? { ...o, form: { type: 'simple', subforms: [{ childObject: 'invoice_line', columns: [{ field: 'amount' }] }] } }
+        ? { ...o, form: { type: 'simple', subforms: [{ childObject: 'invoice_line', columns: [{ name: 'amount' }] }] } }
         : o,
     );
     const out = attachInlineSubforms(withExplicit);

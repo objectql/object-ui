@@ -318,7 +318,7 @@ describe('ObjectForm Integration', () => {
                     mode: 'create',
                     subforms: [
                         { childObject: 'test_line', relationshipField: 'parent', title: 'Lines',
-                          columns: [{ field: 'qty', type: 'number' }] },
+                          columns: [{ name: 'qty', type: 'number' }] },
                     ],
                 } as any}
                 dataSource={ds}

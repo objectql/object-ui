@@ -317,7 +317,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
   // A detail can be configured with just `{ childObject }` — the relationship
   // FK and grid columns are then derived from the child object's metadata
   // (DataSource.getObjectSchema). We also resolve when columns are hand-authored
-  // as bare `{ field, label }` (no `type`): those need their widget type
+  // as bare `{ name, label }` (no `type`): those need their widget type
   // hydrated from the child schema, else every cell falls back to a text input.
   const needsDerive = rawDetails.some(
     (d) => !d.relationshipField || !d.columns?.length || d.columns.some((c) => !c.type),

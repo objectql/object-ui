@@ -5,8 +5,8 @@ import { UploadProvider } from '@object-ui/providers';
 import { GridField, LineItemsField, sumColumn, lookupAutofillPatch } from './GridField';
 
 const columns = [
-  { field: 'description', label: 'Description', type: 'text' as const },
-  { field: 'amount', label: 'Amount', type: 'currency' as const },
+  { name: 'description', label: 'Description', type: 'text' as const },
+  { name: 'amount', label: 'Amount', type: 'currency' as const },
 ];
 
 const field = { columns, total_field: 'amount' } as any;
@@ -33,9 +33,9 @@ describe('GridField / LineItemsField — editable line items', () => {
   describe('column chooser (defaultHidden columns)', () => {
     const withHidden = {
       columns: [
-        { field: 'title', label: 'Title', type: 'text' as const, required: true },
-        { field: 'amount', label: 'Amount', type: 'currency' as const },
-        { field: 'notes', label: 'Notes', type: 'text' as const, defaultHidden: true },
+        { name: 'title', label: 'Title', type: 'text' as const, required: true },
+        { name: 'amount', label: 'Amount', type: 'currency' as const },
+        { name: 'notes', label: 'Notes', type: 'text' as const, defaultHidden: true },
       ],
     } as any;
 
@@ -63,8 +63,8 @@ describe('GridField / LineItemsField — editable line items', () => {
   describe('list mode (displayMode="list" — form-factor for fat children)', () => {
     const listField = {
       columns: [
-        { field: 'title', label: 'Title', type: 'text' as const, required: true },
-        { field: 'status', label: 'Status', type: 'select' as const, options: [{ label: 'To Do', value: 'todo' }] },
+        { name: 'title', label: 'Title', type: 'text' as const, required: true },
+        { name: 'status', label: 'Status', type: 'select' as const, options: [{ label: 'To Do', value: 'todo' }] },
       ],
     } as any;
 
@@ -126,8 +126,8 @@ describe('GridField / LineItemsField — editable line items', () => {
   describe('date columns echo the stored value (#3566)', () => {
     const dateField = {
       columns: [
-        { field: 'description', label: 'Description', type: 'text' as const },
-        { field: 'incurred_on', label: 'Incurred On', type: 'date' as const },
+        { name: 'description', label: 'Description', type: 'text' as const },
+        { name: 'incurred_on', label: 'Incurred On', type: 'date' as const },
       ],
     } as any;
 
@@ -195,10 +195,10 @@ describe('GridField / LineItemsField — editable line items', () => {
 
     const temporalField = {
       columns: [
-        { field: 'merchant', label: 'Merchant', type: 'text' as const },
-        { field: 'incurred_on', label: 'Incurred On', type: 'date' as const },
-        { field: 'incurred_at', label: 'Incurred At', type: 'datetime' as const },
-        { field: 'started_at', label: 'Started At', type: 'time' as const },
+        { name: 'merchant', label: 'Merchant', type: 'text' as const },
+        { name: 'incurred_on', label: 'Incurred On', type: 'date' as const },
+        { name: 'incurred_at', label: 'Incurred At', type: 'datetime' as const },
+        { name: 'started_at', label: 'Started At', type: 'time' as const },
       ],
     } as any;
 
@@ -363,10 +363,10 @@ describe('GridField / LineItemsField — editable line items', () => {
   describe('computed columns (amount = qty × unit_price)', () => {
     const computedField = {
       columns: [
-        { field: 'product', label: 'Product', type: 'text' as const },
-        { field: 'quantity', label: 'Qty', type: 'number' as const },
-        { field: 'unit_price', label: 'Unit Price', type: 'currency' as const },
-        { field: 'amount', label: 'Amount', type: 'currency' as const, computed: true, expr: 'record.quantity * record.unit_price', scale: 2 },
+        { name: 'product', label: 'Product', type: 'text' as const },
+        { name: 'quantity', label: 'Qty', type: 'number' as const },
+        { name: 'unit_price', label: 'Unit Price', type: 'currency' as const },
+        { name: 'amount', label: 'Amount', type: 'currency' as const, computed: true, expr: 'record.quantity * record.unit_price', scale: 2 },
       ],
       total_field: 'amount',
     } as any;
@@ -442,11 +442,11 @@ describe('GridField / LineItemsField — editable line items', () => {
 
   describe('lookupAutofillPatch (item typeahead auto-fill)', () => {
     const cols = [
-      { field: 'product', type: 'lookup' as const, reference: 'product' },
-      { field: 'description', type: 'text' as const },
-      { field: 'quantity', type: 'number' as const },
-      { field: 'unit_price', type: 'currency' as const },
-      { field: 'amount', type: 'currency' as const, computed: true, expr: 'record.quantity * record.unit_price' },
+      { name: 'product', type: 'lookup' as const, reference: 'product' },
+      { name: 'description', type: 'text' as const },
+      { name: 'quantity', type: 'number' as const },
+      { name: 'unit_price', type: 'currency' as const },
+      { name: 'amount', type: 'currency' as const, computed: true, expr: 'record.quantity * record.unit_price' },
     ];
     const product = { value: 'p1', label: 'Widget A', name: 'Widget A', description: 'Standard widget', unit_price: 29.99, sku: 'WIDGET-A' };
 
@@ -476,7 +476,7 @@ describe('GridField / LineItemsField — editable line items', () => {
     });
 
     it('flags a required, empty cell on a real row (not the ghost row)', () => {
-      const reqField = { columns: [{ field: 'description', label: 'Description', type: 'text' as const, required: true }] } as any;
+      const reqField = { columns: [{ name: 'description', label: 'Description', type: 'text' as const, required: true }] } as any;
       render(<GridField value={[{ description: '' }]} onChange={() => {}} field={reqField} />);
       // The data row's required-empty cell is flagged...
       expect(screen.getByTestId('line-items-invalid-0-description')).toBeTruthy();
@@ -488,8 +488,8 @@ describe('GridField / LineItemsField — editable line items', () => {
   describe('file columns (upload in a grid cell — #2360)', () => {
     const fileField = {
       columns: [
-        { field: 'description', label: 'Description', type: 'text' as const },
-        { field: 'receipt', label: 'Receipt', type: 'file' as const },
+        { name: 'description', label: 'Description', type: 'text' as const },
+        { name: 'receipt', label: 'Receipt', type: 'file' as const },
       ],
     } as any;
 
@@ -546,7 +546,7 @@ describe('GridField / LineItemsField — editable line items', () => {
 
     it('passes the column accept list to the native picker', () => {
       const withAccept = {
-        columns: [{ field: 'receipt', label: 'Receipt', type: 'file' as const, accept: ['image/*', '.pdf'] }],
+        columns: [{ name: 'receipt', label: 'Receipt', type: 'file' as const, accept: ['image/*', '.pdf'] }],
       } as any;
       render(<GridField value={[]} onChange={() => {}} field={withAccept} />);
       const input = document.querySelector('input[type="file"]') as HTMLInputElement;
@@ -574,9 +574,9 @@ describe('GridField / LineItemsField — editable line items', () => {
   describe('parent-scoped conditional rules (B2 follow-up — "paid invoice → lock lines")', () => {
     const lockField = {
       columns: [
-        { field: 'product', label: 'Product', type: 'text' as const },
-        { field: 'qty', label: 'Qty', type: 'number' as const, readonlyWhen: "parent.status == 'paid'" },
-        { field: 'unit_price', label: 'Unit Price', type: 'currency' as const, readonlyWhen: "parent.status == 'paid'" },
+        { name: 'product', label: 'Product', type: 'text' as const },
+        { name: 'qty', label: 'Qty', type: 'number' as const, readonlyWhen: "parent.status == 'paid'" },
+        { name: 'unit_price', label: 'Unit Price', type: 'currency' as const, readonlyWhen: "parent.status == 'paid'" },
       ],
     } as any;
 
@@ -611,9 +611,9 @@ describe('GridField / LineItemsField — editable line items', () => {
     it('re-evaluates per row, mixing the parent header with row data', () => {
       const rowRule = {
         columns: [
-          { field: 'qty', label: 'Qty', type: 'number' as const },
+          { name: 'qty', label: 'Qty', type: 'number' as const },
           // Locks only when the header is paid AND this row is already invoiced.
-          { field: 'note', label: 'Note', type: 'text' as const, readonlyWhen: "parent.status == 'paid' && record.invoiced == true" },
+          { name: 'note', label: 'Note', type: 'text' as const, readonlyWhen: "parent.status == 'paid' && record.invoiced == true" },
         ],
       } as any;
       render(

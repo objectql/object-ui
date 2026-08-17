@@ -47,7 +47,7 @@ const DETAILS = [
     childObject: 'invoice_line',
     relationshipField: 'invoice',
     title: 'Invoice lines',
-    columns: [{ field: 'qty', type: 'number' as const }],
+    columns: [{ name: 'qty', type: 'number' as const }],
   },
 ];
 

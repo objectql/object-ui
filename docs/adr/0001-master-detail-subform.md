@@ -135,11 +135,13 @@ the dormant `GridFieldMetadata` type promised.
 - Read-only mode renders the same table without inputs (replaces the
   `"N rows"` stub) — this is the **view** half of the requirement.
 
-Column config (reuses the existing `GridColumnDefinition` shape):
+Column config (reuses the existing `GridColumnDefinition` shape — keyed by
+`name`, as that type declares; the examples here said `field` until
+objectui#3951 aligned the renderer to the declared spelling):
 
 ```ts
 {
-  field: 'amount',
+  name: 'amount',
   label: 'Amount',
   type: 'currency',        // text | number | currency | select | date | lookup
   options?: [...],         // for select
@@ -187,10 +189,10 @@ slot) can drop in the children grid bound to the current record:
     "relationshipField": "expense_claim",
     "totalField": "total_amount",
     "columns": [
-      { "field": "expense_date", "type": "date" },
-      { "field": "category", "type": "lookup", "reference": "expense_category" },
-      { "field": "description", "type": "text" },
-      { "field": "amount", "type": "currency" }
+      { "name": "expense_date", "type": "date" },
+      { "name": "category", "type": "lookup", "reference": "expense_category" },
+      { "name": "description", "type": "text" },
+      { "name": "amount", "type": "currency" }
     ]
   }
 }
