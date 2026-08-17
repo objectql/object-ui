@@ -239,10 +239,14 @@ describe('inline-edit type coverage — every type has exactly one decision (#42
       // to document. The retirement itself is pinned in one place —
       // `packages/fields/src/__tests__/owner-retired.test.tsx`.
       //
-      // Note this snapshot is derived from `ALL_TYPES`, not from
-      // `INLINE_ROUTED_FIELD_TYPES`, which still lists `'owner'`
-      // (`InlineFieldInput.tsx`). That member is now unreachable through this
-      // guard and is tracked in #4914, not forced away here.
+      // This snapshot is derived from `ALL_TYPES`, not from
+      // `INLINE_ROUTED_FIELD_TYPES`, so it could not see that the set itself
+      // still listed `'owner'` — a member consulted at runtime against a
+      // STORED field's type, which is why it was a live inconsistency rather
+      // than dead code. objectui#4914 removed it and gave inline edit the same
+      // loud refusal the form gives; that disposition is pinned by
+      // `InlineFieldInput.retiredFieldType.test.tsx`, which also asserts no
+      // retired spelling can re-enter this set.
       routed: [
         'address', 'audio', 'avatar', 'boolean', 'currency', 'date', 'datetime',
         'file', 'geolocation', 'image', 'location', 'lookup', 'master_detail',

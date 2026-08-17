@@ -578,16 +578,28 @@ export interface AutoNumberFieldMetadata extends BaseFieldMetadata {
 }
 
 /**
- * User/Owner field metadata
+ * User field metadata — a lookup specialized to `sys_user`, rendered by the
+ * person picker.
+ *
+ * `type` offered `'user' | 'owner'` until objectui#4814 retired the `owner`
+ * spelling (ruling A′), carried onto the published twins by objectui#4914.
+ * `owner` was a synonym with zero behavioral delta (both resolved to the SAME
+ * `UserField` widget) and was never a member of `@objectstack/spec`'s closed
+ * `FieldType`, so no object schema could declare it. While it survived here,
+ * published `.d.ts` autocomplete kept offering a word `@object-ui/fields`
+ * answers with a tombstone refusal. The record-owner idiom survives verbatim
+ * as `{ type: 'user', name: 'owner' }` — the field NAME carries the ownership
+ * meaning, the type carries the widget. The interface keeps its name: it
+ * describes the person-picker family, not the retired spelling.
  */
 export interface UserFieldMetadata extends BaseFieldMetadata {
-  type: 'user' | 'owner';
+  type: 'user';
   multiple?: boolean;
 
   /**
    * Picker UI variant.
    * - `'search'` — the search-first PeoplePicker (rich rows + selection tray).
-   *   Default for `user`/`owner` fields.
+   *   Default for `user` fields.
    * - `'default'` — the classic table-based record-picker dialog.
    */
   picker?: 'search' | 'default';
