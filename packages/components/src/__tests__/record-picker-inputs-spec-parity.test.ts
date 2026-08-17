@@ -174,10 +174,10 @@ describe('element:record_picker — registry inputs vs @objectstack/spec', () =>
   });
 
   it('the coarse `object` type costs nothing here — it accepts exactly what the spec accepts', () => {
-    // The `element:text_input.defaultValue` sibling had to name a narrowing in
-    // prose, because `ComponentInput.type` is one coarse control kind and the
-    // spec's type there is the union `string | number` (objectui#3832). This key
-    // is the case where the two agree exactly: `checkType`'s `'object'` arm in
+    // The `element:text_input.defaultValue` sibling declares TWO arms, because
+    // the spec's type there is the union `string | number` (objectui#3832). This
+    // key is the case where one arm agrees with the contract exactly:
+    // `checkType`'s `'object'` arm in
     // `sdui-parser/src/validate.ts` passes a non-null non-array object and warns
     // `type-mismatch` on everything else — the same partition `safeParse` draws
     // above. Asserted through the real validator, not by reading its source, so

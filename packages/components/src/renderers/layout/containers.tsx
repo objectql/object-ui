@@ -750,7 +750,13 @@ ComponentRegistry.register('card', PageCardRenderer, {
   category: 'layout',
   isContainer: true,
   inputs: [
-    { name: 'title', type: 'string', label: 'Title', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    // Two arms, because the contract has two (objectui#3832): the spec's
+    // `PageCardProps.title` accepts a plain string OR an inline translation map,
+    // and the renderer resolves both (`pickLocalized` at the read site above).
+    // While this said `type: 'string'` the manifest gate reported
+    // `type-mismatch` on the map form — the shape this input's own description
+    // teaches — so the block contradicted itself on a write it recommended.
+    { name: 'title', type: ['string', 'object'], label: 'Title', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
     { name: 'bordered', type: 'boolean', label: 'Bordered', defaultValue: true },
     // The card's content slot, respelled from `body` to `children`
     // (objectui#4027). One slot, one spelling: objectstack#5775 (PR #6281)
@@ -1687,8 +1693,15 @@ ComponentRegistry.register('header', PageHeaderRenderer, {
   // pass-through, and the host-injected `RecordContext.headerSystemActions`
   // is not authored here at all.
   inputs: [
-    { name: 'title', type: 'string', label: 'Title', description: 'Supports {field} interpolation and inline translation maps; falls back to the record title' },
-    { name: 'subtitle', type: 'string', label: 'Subtitle', description: 'Same interpolation as Title' },
+    // Both carry two arms (objectui#3832). The spec accepts a plain string or an
+    // inline translation map on each — measured against
+    // `ComponentPropsMap['page:header']` at rc.6, where the union is
+    // string-or-record — and the renderer resolves the map form through
+    // `pickLocalized` before interpolating. The single `'string'` arm they used
+    // to declare is what made the manifest gate warn `type-mismatch` on the very
+    // map form this description tells the author to write.
+    { name: 'title', type: ['string', 'object'], label: 'Title', description: 'Supports {field} interpolation and inline translation maps; falls back to the record title' },
+    { name: 'subtitle', type: ['string', 'object'], label: 'Subtitle', description: 'Same interpolation as Title' },
     { name: 'actions', type: 'array', label: 'Actions', description: 'Action buttons rendered in the header, before any host-injected system actions' },
     { name: 'breadcrumb', type: 'boolean', label: 'Breadcrumb', defaultValue: true },
     { name: 'recordChrome', type: 'boolean', label: 'Record Chrome', defaultValue: true, description: 'Set false for the bare h1 header on non-record pages' },

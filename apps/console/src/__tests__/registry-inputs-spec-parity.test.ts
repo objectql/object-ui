@@ -107,9 +107,14 @@
  *     `record:details.sections`, `record:highlights.fields` and
  *     `record:related_list.add` publish their members in prose and are pinned by
  *     per-block tests next to their renderers. PR #3795's open question;
- *   - types. `ComponentInput.type` is one coarse control kind and cannot spell a
- *     spec union, so a key can be in perfect NAME parity while publishing a
- *     narrower type than the contract accepts (objectui#3832);
+ *   - types. This gate compares key NAMES only, so a key can be in perfect name
+ *     parity while publishing a type the contract does not match — narrower, or
+ *     (since objectui#3832 gave `ComponentInput.type` the array form) wider by an
+ *     arm the spec rejects. The expressiveness half of that gap is closed: a
+ *     union key can now declare its real arms, and the five specimens do. The
+ *     COMPARISON half is not, and is nobody's check yet — each of those five is
+ *     pinned against the spec's verdicts by a per-block test next to its
+ *     renderer, which is per-block discipline, not a gate;
  *   - `retiredKey()` tombstones. `Object.keys(shape)` still contains a key the
  *     spec rejects BY NAME, and the two directions then fail opposite ways —
  *     forward reads the tombstone as "accepted" and goes falsely GREEN, reverse

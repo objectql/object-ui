@@ -139,18 +139,39 @@ describe('element:text_input — registry inputs vs @objectstack/spec', () => {
     expect(defaultValueDescription()).not.toBe('');
   });
 
-  it('names the number arm the coarse `type` cannot express', () => {
-    // The spec's type is the union `string | number`; `ComponentInput.type` is one
-    // coarse control kind, so `'string'` is a real narrowing —
-    // `sdui-parser`'s `checkType` warns `type-mismatch` on `defaultValue={42}`,
-    // which the spec accepts. The narrowing is not the thing being asserted (it
-    // is a `ComponentInput` limit, tracked as objectui#3832); what is asserted is
-    // that the description does not hide it, so an author reaching for a numeric
-    // default knows the key takes one and knows why the warning appears.
-    expect(ElementTextInputPropsSchema.safeParse({ defaultValue: 42 }).success).toBe(true);
-    expect(ElementTextInputPropsSchema.safeParse({ defaultValue: true } as never).success).toBe(false);
+  it('DECLARES both arms of the spec union, and only those arms', () => {
+    // Replaced rather than re-spelled (objectui#3832). This assertion used to
+    // read `input('defaultValue')?.type).toBe('string')` and its comment
+    // explained the narrowing that made it true: the spec's type is the union
+    // `string | number`, `ComponentInput.type` held one coarse kind, so the
+    // declaration picked an arm and named the other in prose while the manifest
+    // gate warned `type-mismatch` on `defaultValue={42}` — a value the spec
+    // accepts. Re-pointing that assertion at the new value would have pinned the
+    // declaration and left the FACT it existed for — the two must be the same
+    // two — unmeasured, so both halves are derived from the spec at runtime
+    // instead.
+    //
+    // The arms are compared as a SET against the spec's own verdicts: each arm
+    // must be a shape the spec accepts, and each shape the spec accepts must
+    // have an arm. That is what makes this red if either side moves — a spec
+    // that drops the number arm, or a declaration that adds an arm the spec
+    // rejects (the `'object'` inline-translation arm its neighbours carry is the
+    // live temptation, and the spec refuses it here).
+    const accepts = (value: unknown) =>
+      ElementTextInputPropsSchema.safeParse({ defaultValue: value } as never).success;
 
-    expect(input('defaultValue')?.type).toBe('string');
+    expect(accepts('acme')).toBe(true);
+    expect(accepts(42)).toBe(true);
+    expect(accepts(true)).toBe(false);
+    expect(accepts({ en: 'acme', 'zh-CN': '安客' })).toBe(false);
+
+    const declared = input('defaultValue')?.type;
+    const arms = Array.isArray(declared) ? declared : [declared];
+    expect([...arms].sort()).toEqual(['number', 'string']);
+
+    // The description still names the number arm. It is no longer carrying a
+    // narrowing the type could not express, but "string or number" is what an
+    // author reads before they read a manifest, and the two must not drift.
     expect(defaultValueDescription()).toMatch(/number/);
   });
 

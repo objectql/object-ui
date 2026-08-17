@@ -16,6 +16,8 @@
  * @packageDocumentation
  */
 
+import type { ComponentInputControlType } from './base.js';
+
 /**
  * Plugin Scope Interface
  * 
@@ -166,10 +168,21 @@ export interface ComponentMeta {
 
 /**
  * Component input definition
+ *
+ * The plugin-scoped twin of `base.ts`' {@link ComponentInput}. The arm
+ * vocabulary is IMPORTED from there rather than re-spelled (objectui#3832):
+ * the two interfaces already have to move together, and a second copy of the
+ * eleven literals is the copy that drifts — the hazard objectui#4580's ruling
+ * settled by re-exporting one declaration instead of restating it.
  */
 export interface ComponentInput {
   name: string;
-  type: 'string' | 'number' | 'boolean' | 'enum' | 'array' | 'object' | 'color' | 'date' | 'code' | 'file' | 'slot';
+  /**
+   * Input control type — one coarse kind, or an array of them for a union key.
+   * Semantics, the array form's rules and why it exists: see
+   * `ComponentInput.type` in `base.ts`.
+   */
+  type: ComponentInputControlType | ComponentInputControlType[];
   label?: string;
   defaultValue?: any;
   required?: boolean;

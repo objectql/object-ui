@@ -6,14 +6,31 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { ComponentInputControlType } from '@object-ui/types';
 import type { SchemaNode } from '../types/index.js';
 import { PUBLIC_BLOCKS } from './public-blocks.js';
 
 export type ComponentRenderer<T = any> = T;
 
+/**
+ * What a registration DECLARES about one authorable prop.
+ *
+ * This is the declaration the component registrations themselves import, so it
+ * is the one an author's manifest is ultimately built from. It is structurally
+ * the third copy of `ComponentInput` (the others live in the types package's
+ * `base.ts` and `plugin-scope.ts`); the arm vocabulary of `type` is imported
+ * from there rather than re-spelled, so the union widening of objectui#3832
+ * cannot land on two of the three and drift.
+ */
 export type ComponentInput = {
   name: string;
-  type: 'string' | 'number' | 'boolean' | 'enum' | 'array' | 'object' | 'color' | 'date' | 'code' | 'file' | 'slot';
+  /**
+   * Input control type — one coarse kind, or an array of them when the key's
+   * contract is a union (objectui#3832). A value passes the manifest gate when
+   * ANY declared arm accepts it; a value matching none is still reported. Full
+   * semantics: `ComponentInput.type` in the types package's `base.ts`.
+   */
+  type: ComponentInputControlType | ComponentInputControlType[];
   label?: string;
   defaultValue?: any;
   required?: boolean;
