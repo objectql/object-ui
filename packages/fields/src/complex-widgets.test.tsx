@@ -745,16 +745,16 @@ describe('Complex & Relationship Widgets', () => {
             expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
         });
 
-        it('owner field resolves an expanded-object value inline', () => {
-            render(
-                <FieldEditWidget
-                    field={{ name: 'owner', type: 'owner' } as any}
-                    value={{ id: 'u2', name: 'Grace Hopper' }}
-                    onChange={vi.fn()}
-                />
-            );
-            expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
-        });
+        // An `owner field resolves an expanded-object value inline` case stood
+        // here until objectui#4931. It is REPLACED rather than re-spelled: it
+        // asserted that `type: 'owner'` reaches the person picker through
+        // `FieldEditWidget`, which is precisely the delegation road that card
+        // closed (objectui#4814 retired the spelling; this seam kept answering
+        // for it). The value-shape contract it was covering is unchanged and
+        // still pinned by the `user` case directly above — same widget, same
+        // expanded-object resolution. The retired spelling's own disposition
+        // (no control, plus the once-per-spelling prescription) is pinned in
+        // `__tests__/FieldEditWidget.retiredFieldType.test.tsx`.
 
         it('resolves a JSON-encoded external-id reference string without a bogus fetch', () => {
             render(
