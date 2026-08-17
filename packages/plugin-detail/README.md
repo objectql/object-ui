@@ -202,12 +202,17 @@ reads the collection size from `QueryResult.total` (falling back to a
 `hasMore` estimate), so large child tables never ship wholesale to the
 browser. A user column sort becomes a server `$orderby` (ordering stays
 global across pages), and the node's `sort` prop seeds the initial order.
-Because that `$orderby` names a flat field, a **relational column**
-(`lookup` / `master_detail` / `user` / `tree`) would order the collection by the
-stored foreign-key id while its cells show related-record names — so on the
-windowed path those columns offer no sort button at all. In client mode the
-sort key is the label this list already resolved for the cell, so the button
-stays and orders by that name.
+Because that `$orderby` names a flat field, two kinds of column cannot survive
+the trip. A **relational column** (`lookup` / `master_detail` / `user` / `tree`)
+would order the collection by the stored foreign-key id while its cells show
+related-record names (`objectui#3096`); a **`formula` column** has no
+materialized column to order by at all — silently unordered rows under a `200`
+before `objectstack#6994`, a `400 INVALID_SORT` after it (`objectui#3950`). So on
+the windowed path neither offers a sort affordance, at either of this card's two
+sort entry points: the embedded table's column headers, and the button row a
+`list` card keeps because it has no headers. In client mode the sort key is the
+value the cell shows — the label this list already resolved, the formula result
+the server hydrated — so the affordance stays and orders by that.
 Passing `data` directly keeps the historical client-side slicing, and typing
 in the opt-in filter box temporarily falls back to the full-fetch client
 pipeline (the contains-filter sweeps every field, which no generic server

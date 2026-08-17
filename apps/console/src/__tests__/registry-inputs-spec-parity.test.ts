@@ -98,8 +98,8 @@
  * exemption red, so the list cannot rot into a permanent allowlist.
  *
  * LIMIT — worth knowing before trusting a pass. This gate compares TOP-LEVEL
- * KEY NAMES and nothing else. Three things it therefore cannot see, all of them
- * real and all filed:
+ * KEY NAMES and nothing else. Two things it therefore cannot see, both real and
+ * both filed:
  *
  *   - member shapes. An `inputs` entry of type `array`/`object` declares no
  *     member shape (`ComponentInput` has no slot for one), so a drifted key
@@ -114,22 +114,43 @@
  *     union key can now declare its real arms, and the five specimens do. The
  *     COMPARISON half is not, and is nobody's check yet — each of those five is
  *     pinned against the spec's verdicts by a per-block test next to its
- *     renderer, which is per-block discipline, not a gate;
- *   - `retiredKey()` tombstones. `Object.keys(shape)` still contains a key the
- *     spec rejects BY NAME, and the two directions then fail opposite ways —
- *     forward reads the tombstone as "accepted" and goes falsely GREEN, reverse
- *     reads it as "declared" and would demand the block publish it, going
- *     falsely RED. Dormant today (zero tombstones in the pinned rc.5) and fixed
- *     in one place — narrowing `specTopLevelKeys` — for both directions at once:
- *     objectui#3809. Until then the reverse direction's exemptions for the
- *     `element:record_picker` trio are what absorb the red, and they say so.
+ *     renderer, which is per-block discipline, not a gate.
  *
  * A pass means the top-level key names are in parity, nothing more.
+ *
+ * `retiredKey()` TOMBSTONES USED TO BE THE THIRD — CLOSED, objectui#3809.
+ * ADR-0087 D2 retirement replaces a member with `z.never().optional()` instead
+ * of deleting it, so raw `Object.keys(shape)` reported a key the spec rejects BY
+ * NAME as though the contract accepted it. Both directions read that one set,
+ * and they failed OPPOSITE ways on it: forward went falsely GREEN on a block
+ * publishing a retired key, reverse went falsely RED demanding that a block
+ * publish one. `specTopLevelKeys` now subtracts tombstones, which is the single
+ * point that fixes both, and the derivation's own premise — that a retirement
+ * KEEPS the member — is asserted rather than assumed (`the tombstone premise
+ * still holds`), so the day upstream starts deleting keys outright this filter
+ * is judged dead code instead of silently narrowing nothing.
+ *
+ * The blind spot was NOT dormant by the time it was fixed, which is worth
+ * recording because the issue was filed believing it was. It was written against
+ * `@objectstack/spec@17.0.0-rc.5`, where `ComponentPropsMap` carried no
+ * tombstone at all; the rc.6 pin (objectui#4167) brought EIGHT, the 17.0.0 GA
+ * pin (objectui#4636 / PR objectui#4639) carries the same eight, and the reverse
+ * direction's red was live from rc.6 onward — absorbed, key by key, by the eight
+ * `UNPUBLISHED_EXEMPTIONS` entries that named this issue as the only thing that
+ * could resolve them. Those eight are deleted with this change; the pin below
+ * (`the eight tombstoned keys are recognised, not exempted`) is what keeps their
+ * deletion from being quietly undone by re-exempting a key instead.
  */
 
 import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
 import { ComponentPropsMap } from '@objectstack/spec/ui';
+import {
+  authorableShapeKeys,
+  isShapeKeyTombstoned,
+  listedShapeKeys,
+  tombstonedShapeKeys,
+} from '@object-ui/test-support';
 
 // The two graphs whose registrations this file reads, at module scope rather
 // than in a hook: their cold transform is billed to the import phase, which has
@@ -137,21 +158,48 @@ import { ComponentPropsMap } from '@objectstack/spec/ui';
 import '@object-ui/components';
 import '../register-plugins';
 
+/** This block's spec props schema, or `undefined` when this pin has none. */
+const specSchema = (type: string): unknown => (ComponentPropsMap as Record<string, unknown>)[type];
+
 /**
- * Top-level keys `ComponentPropsMap[type]` accepts.
+ * Top-level keys `ComponentPropsMap[type]` ACCEPTS — tombstones excluded
+ * (objectui#3809).
  *
- * Reads `.shape` through the same two spellings PR #3795's single-block version
- * uses, so a `lazySchema()`-wrapped entry (every `element:*`) and a plain
- * `z.object` both resolve. Zod-internals access is confined to this function.
+ * This one function is where both directions of this file get their notion of
+ * "the contract's authoring surface", which is why narrowing it here fixes two
+ * opposite defects at once. It used to be raw `Object.keys(shape)`, and an
+ * ADR-0087 D2 retirement does not delete the key — it replaces the member with
+ * `z.never().optional()` — so a key the spec rejects BY NAME kept answering
+ * "declared". Forward that reads as GREEN on a block publishing a retired key;
+ * reverse it reads as RED demanding a block publish one. Same set, opposite
+ * failures.
+ *
+ * The judgement itself lives in `@object-ui/test-support` rather than here: it
+ * had been hand-written four times across this repo's gates, the copies had
+ * already drifted (two structural-only, one absent — this file), and the shared
+ * one is calibrated once against what the contract's own `safeParse` rejects
+ * (`spec-tombstones.test.ts`). Zod-internals access now happens in exactly one
+ * module repo-wide.
  */
 function specTopLevelKeys(type: string): string[] {
-  const schema = (ComponentPropsMap as Record<string, unknown>)[type] as
-    | { shape?: unknown; _def?: { shape?: unknown } }
-    | undefined;
-  const shape = schema?.shape ?? schema?._def?.shape;
-  const resolved = typeof shape === 'function' ? (shape as () => object)() : shape;
-  return resolved && typeof resolved === 'object' ? Object.keys(resolved) : [];
+  return authorableShapeKeys(specSchema(type));
 }
+
+/**
+ * Every top-level key the schema still LISTS — tombstones INCLUDED.
+ *
+ * Deliberately kept alongside the narrowed set, because two questions in this
+ * file are about the RELEASE rather than about the authoring surface, and a
+ * retired key must answer YES to them: "did this pin ever carry the key at all"
+ * (`isDormantOnThisPin`) and "is the tombstone premise still true"
+ * (`the tombstone premise still holds` below). Using the narrowed set for
+ * either would be the same conflation in a new place — a retired key would read
+ * as a key the pin never had.
+ */
+const specListedKeys = (type: string): string[] => listedShapeKeys(specSchema(type));
+
+/** The listed top-level keys this block's spec schema rejects by name. */
+const specTombstonedKeys = (type: string): string[] => tombstonedShapeKeys(specSchema(type));
 
 /** Declared input names for a registered block, or `null` when not registered. */
 function declaredInputs(type: string): string[] | null {
@@ -397,148 +445,97 @@ const OFF_SPEC_EXEMPTIONS: Record<string, string> = {};
  *     configuration the platform silently drops (the objectui#3797 direction, in
  *     reverse) — the choice between wiring it and declaring it with a KNOWN GAP
  *     is a contract decision, not an implementation detail;
- *   - the spec rejects it by name upstream already and only a stale pin still
- *     lists it;
+ *   - the installed pin does not declare the key yet, so declaring the input
+ *     would fail this file's own forward direction today;
  *   - the key is out of the dispatched scope of the change that added this gate,
  *     and its own issue owns it.
+ *
+ * ONE CLASS IS GONE, and it is worth knowing which, because it used to be the
+ * biggest: "the spec rejects this key by name upstream already". A key the spec
+ * REJECTS needs no exemption at all since objectui#3809 — it leaves the accepted
+ * set on its own, so nothing demands it and nothing has to license not
+ * publishing it. Eight entries of that class were harvested (see the comment at
+ * the top of the map). An entry whose reason reduces to "upstream retired it" is
+ * therefore the one thing that may never be ADDED here again: it would go
+ * dangling-and-stale in the same run that wrote it.
  *
  * Every reason cites an issue, which `references a tracking issue` asserts.
  * Verified against renderer read sites at objectui `origin/main` @ `c25222758`
  * with `@objectstack/spec@17.0.0-rc.6` — not assumed from the spec's wording.
- * (The four `…-rc.5` mentions left in the entries below are the stale-pin
- * entries' own prose and belong to their issues, not to this header.)
  */
 const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
-  // ── page:header.icon / page:card.actions — retired upstream (2 keys) ───────
-  // These two used to be a MENU: objectui#3829 filed them as a three-way fork
-  // (wire them; declare them with a KNOWN GAP per the
-  // `record:activity.showSubscriptionToggle` precedent; retire them upstream)
-  // and this entry listed all three so no implementing agent would guess. The
-  // fork is closed. The maintainer ruled route (c) on 2026-08-09 —
-  // zero producers, zero consumers, zero demand — and objectstack#6946 /
-  // PR objectstack#7115 executed it: both keys are ADR-0087 D2 tombstones in
-  // `@objectstack/spec` 17.0.0, live on the rc.6 this repo installs. So the
-  // class here is no longer B (undecided) but the same one as
-  // `record:details.layout` below: the spec rejects the key BY NAME, and the
-  // reverse direction demands it anyway because the tombstone is still a member
-  // of the shape.
-  //
-  // Read the upstream prescriptions before touching either key — they say what
-  // replaces it, which is why neither is coming back. A header's identity is
-  // drawn by the record chrome (`recordChrome`, on by default) plus each
-  // action's own `icon`; a card's buttons are authored as components in
-  // `children` or `footer` (`element:button`, `record:quick_actions`).
-  //
-  // DO NOT DELETE THESE TWO ENTRIES YET, and the reason is the one this file
-  // already writes out twice above: D2 retirement REPLACES the member with
-  // `z.never()` rather than deleting it, so `Object.keys(shape)` still reports
-  // both keys as declared and `carries no stale unpublished-key exemption`
-  // still needs the cover. They resolve when objectui#3809's tombstone
-  // recognition narrows `specTopLevelKeys` — not on a pin bump, and not by
-  // declaring the inputs.
-  //
-  // The objectui half of route (c) is otherwise complete (objectui#3829).
-  // `page:card.actions` had no producer at all; `page:header.icon` had exactly
-  // one — the metadata-admin designer's BLOCK_CONFIG field for the CANONICAL
-  // `page:header`, which kept offering authors an icon box whose value rc.6
-  // rejects by name — and it was removed with its two i18n keys in the same
-  // change that rewrote these entries. The `layout:page-header` ALIAS keeps its
-  // `icon` input deliberately: that is a different renderer with a real read
-  // point (`packages/layout/src/PageHeader.tsx`), so the two are opposite facts,
-  // not an inconsistency.
-  'page:header.icon':
-    'Retired upstream by objectstack#6946 / PR objectstack#7115 (ADR-0087 D2 tombstone) — PageHeaderRenderer never had a read point: `icon` inside containers.tsx:973-1677 is only ever per-action (`action.icon`, :1428/:1472) or a nav item (:641/:816), and the spec now rejects the key by name, prescribing the record chrome plus per-action icons instead. Unlike the stale-pin entries below this one is LIVE at @objectstack/spec@17.0.0-rc.6: the tombstone stays in `Object.keys(shape)`, so the reverse direction demands a key the contract refuses. Resolves via objectui#3809 tombstone recognition, not by declaring the input — objectui#3829.',
-  'page:card.actions':
-    'Retired upstream by objectstack#6946 / PR objectstack#7115 (ADR-0087 D2 tombstone) — PageCardRenderer (containers.tsx:703-745) builds its card from title/body/children/footer and never had an actions area, and the spec now rejects the key by name, prescribing buttons authored as components in `children` or `footer` (`element:button`, `record:quick_actions`). Unlike the stale-pin entries below this one is LIVE at @objectstack/spec@17.0.0-rc.6: the tombstone stays in `Object.keys(shape)`, so the reverse direction demands a key the contract refuses. Resolves via objectui#3809 tombstone recognition, not by declaring the input — objectui#3829.',
-
-  // ── page:tabs.type — the carrier collision, from the other side ────────────
-  // The mirror image of the `page:tabs.tabStyle` exemption in
-  // `OFF_SPEC_EXEMPTIONS` above, and the same single fact seen twice: the spec
-  // spells this concept `type`, the flat SDUI carrier cannot express it (a flat
-  // node is `{ type: 'page:tabs', … }` where `type` is the dispatch tag, and
-  // `SchemaRenderer.tsx:251-270` deliberately refuses to hoist
-  // `properties.type`), and `validate.ts` lists `'type'` in `BASE_PROPS` so it
-  // is skipped as a base prop and could not be validated as an input even if
-  // declared. Publishing it would advertise a key this repo's own parser cannot
-  // check, on a spelling the carrier cannot carry. Convergence is upstream.
-  'page:tabs.type':
-    "Spec's spelling of the tabStyle concept; unpublishable in the flat carrier (`type` is the dispatch key, SchemaRenderer.tsx:251-270) and unvalidatable as an input (validate.ts BASE_PROPS). The renderer does read it when it survives as `properties.type` (containers.tsx:381). Upstream contract decision: objectstack#6776.",
-
-  // ── element:record_picker — retired upstream, stale pin only (3 keys) ──────
-  // objectstack#5775 (ADR-0087 D2) turned these three into `retiredKey()`
-  // tombstones, converging on the `labelField` / `valueField` this renderer
-  // actually reads (`renderers/basic/record-picker.tsx:80-81`). Declaring a key
-  // the spec has retired is the objectui#3797 direction again.
-  //
-  // TWO THINGS THE PIN BUMP WILL DO HERE, and objectui#3808 got the first of
-  // them wrong, so it is written out:
-  //   1. these three do NOT vanish from `Object.keys(shape)`. ADR-0087 D2
-  //      retirement REPLACES the entry with `z.never().optional()`, it does not
-  //      delete it — so they stay "declared" to this gate and these exemptions
-  //      stay live rather than going stale. They resolve when objectui#3809's
-  //      tombstone recognition narrows `specTopLevelKeys`, not when the pin
-  //      moves;
-  //   2. `sort` / `limit` / `emptyText` — which #5775 ADDS and this renderer
-  //      already reads (`record-picker.tsx:79/80` and `:170`) — become brand-new
-  //      A-class gaps, and this gate will go RED demanding them. That red is
-  //      correct and wanted: it is the pin bump's own reminder to declare them,
-  //      the way `record:details.hideFields` was declared here.
-  'element:record_picker.displayField':
-    'Retired upstream by objectstack#5775 (ADR-0087 D2 tombstone, converging on the `labelField` this renderer reads); declaring it would publish a key the spec rejects by name. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
-  'element:record_picker.searchFields':
-    'Retired upstream by objectstack#5775 (ADR-0087 D2 tombstone); declaring it would publish a key the spec rejects by name. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
-  'element:record_picker.multiple':
-    'Retired upstream by objectstack#5775 (ADR-0087 D2 tombstone); declaring it would publish a key the spec rejects by name. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
-
-  // ── page:card.body — retired upstream, stale pin only (1 key) ─────────────
-  // The fourth ADR-0087 D2 tombstone from the same upstream issue as the three
-  // above, and it withdraws here for the same reason: objectstack#5775
-  // (PR objectstack#6281) replaced `PageCardProps.body` with `children`, the
-  // spelling every other container uses and the one this renderer reads
-  // (`containers.tsx`, `schema?.body ?? schema?.children`). Continuing to
-  // publish `body` was objectui#4027 — a designer teaching a key the contract
-  // rejects by name.
-  //
-  // The renderer's `body` READ deliberately survives the declaration's removal:
-  // documents stored under the old contract keep rendering until the ADR-0087 D2
-  // conversion rewrites the key at load time. A back-compat read is not an
-  // authoring surface, so it does not belong in `inputs` — the same split the
-  // `page-header-subtitle-alias` sequencing already established in
-  // `packages/layout`.
-  //
-  // Like the record_picker trio, this entry does NOT go stale when the pin
-  // moves: D2 retirement replaces the entry with `z.never().optional()` rather
-  // than deleting it, so `Object.keys(shape)` still reports `body` as declared.
-  // It resolves when objectui#3809's tombstone recognition narrows
-  // `specTopLevelKeys`.
-  'page:card.body':
-    'Retired upstream by objectstack#5775 / PR objectstack#6281 (ADR-0087 D2 tombstone, converging on the `children` this renderer reads and now publishes); declaring it would publish a key the spec rejects by name — objectui#4027. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
-
-  // ── record:details.layout — retired upstream AND withdrawn here (1 key) ───
-  // The fifth D2 tombstone, and the first one whose objectui half has actually
-  // landed — so it is here for a DIFFERENT reason than the four above, and the
-  // difference is worth reading before treating it as more of the same.
-  //
-  // Those four are stale-pin cover: the key is still published in this repo and
-  // the entry says "the pin predates the retirement". This one is the opposite.
-  // objectui#3818 DELETED the `record:details` `layout` input (the spec's
-  // `auto` | `custom` semantics were never implemented — the renderer's only
-  // read tested `inline` | `compact`, values the schema never permitted, so both
-  // legal values took the same branch and the key selected nothing), which is
-  // exactly what this gate's forward direction wants. The entry exists because
-  // the REVERSE direction then demands the key back: `specTopLevelKeys` reads
-  // raw `Object.keys(shape)`, the ADR-0087 D2 tombstone is still an entry in
-  // that shape, and so a key the spec rejects by name reads as "declared, and
-  // you failed to publish it".
-  //
-  // That is objectui#3809's blind spot seen from the other side — it predicted a
-  // false GREEN in the forward direction, and this is the same root cause
-  // producing a false RED in the reverse one. Both vanish together when #3809
-  // narrows `specTopLevelKeys` to non-tombstone members; this entry then goes
-  // stale and `carries no stale unpublished-key exemption` will name it, along
-  // with the four above. Do not resolve it by re-adding the input.
-  'record:details.layout':
-    'Retired upstream by objectstack#6946 (ADR-0087 D2 tombstone) and withdrawn here by objectui#3818 — its published `auto` | `custom` semantics were never implemented, and the spec now rejects the key by name, so publishing it again would teach a key the contract refuses. Unlike the stale-pin entries above this one is live at @objectstack/spec@17.0.0-rc.6: the tombstone stays in `Object.keys(shape)`, so the reverse direction demands a key the forward direction forbids. Resolves via objectui#3809 tombstone recognition, not by declaring the input.',
+  /*
+   * EIGHT TOMBSTONE ENTRIES HARVESTED HERE — objectui#3809, and they were
+   * designed to die exactly this way.
+   *
+   * `page:header.icon`, `page:card.actions`, `page:tabs.type`,
+   * `element:record_picker.displayField` / `.searchFields` / `.multiple`,
+   * `page:card.body` and `record:details.layout`. Every one of them existed for
+   * the same reason, said so in its own words, and named this issue as the only
+   * thing that could resolve it: the key is an ADR-0087 D2 tombstone — retired
+   * upstream, and STILL a member of the spec's shape, because D2 retirement
+   * replaces the member with `z.never().optional()` rather than deleting it. So
+   * the reverse direction, reading raw `Object.keys(shape)`, demanded that this
+   * repo publish a key the contract rejects by name, and each entry was cover
+   * for that false red.
+   *
+   * They are not deleted by hand-picking. `specTopLevelKeys` now subtracts
+   * tombstones, and the two checks that police this list did the rest: the key
+   * is no longer in the accepted set, so `every unpublished-key exemption names a
+   * key the spec really declares` reports each as DANGLING, and
+   * `carries no stale unpublished-key exemption` reports each as STALE. Both
+   * name all eight. Deleting them is the only way to get green, which is the
+   * discipline this file's header promises working end to end.
+   *
+   * THE FIVE UPSTREAM RETIREMENTS these eight came from, kept for the reader who
+   * needs to know why none of the keys is coming back — the prescriptions are
+   * upstream's, not this repo's:
+   *
+   *   - objectstack#5775 / PR objectstack#6281 — the `element:record_picker`
+   *     trio converges on `labelField` / `valueField` (which this renderer reads
+   *     and this repo publishes); `PageCardProps.body` converges on `children`,
+   *     the spelling every other container uses and the one `page:card` now
+   *     publishes (objectui#4027);
+   *   - objectstack#6946 / PR objectstack#7115 — `page:header.icon` (a header's
+   *     identity is the record chrome plus each action's own icon),
+   *     `page:card.actions` (buttons are authored as components in `children` or
+   *     `footer`), and `record:details.layout` (withdrawn here by objectui#3818:
+   *     its published `auto` | `custom` semantics were never implemented);
+   *   - objectstack#6776 — `page:tabs.type`. This one resolves DIFFERENTLY from
+   *     its own entry's prediction, and the difference is worth a sentence. The
+   *     entry read it as a live spec key that the flat SDUI carrier cannot
+   *     express (a node is `{ type: 'page:tabs', … }`, where `type` is the
+   *     dispatch tag, and `validate.ts` lists `'type'` in `BASE_PROPS`), and
+   *     called convergence "upstream". Upstream converged: it retired the `type`
+   *     spelling in favour of `tabStyle`, which this repo already publishes. So
+   *     the carrier collision is not tolerated any more, it is gone — the
+   *     contract now has one spelling, and it is the publishable one.
+   *
+   * Renderer READS of these keys are untouched and stay untouched. A stored
+   * document written against the old contract keeps rendering until an ADR-0087
+   * D2 conversion rewrites it at load time; a back-compat read is not an
+   * authoring surface, so it never belonged in `inputs` (the split
+   * `page-header-subtitle-alias` established in `packages/layout`). This harvest
+   * withdraws EXEMPTIONS, not capability.
+   *
+   * WHAT HAPPENS AT THE NEXT PIN BUMP, so nobody reads the next red as a
+   * regression: the mechanism is now self-clearing. A key upstream retires after
+   * this change enters the shape as a tombstone, leaves the accepted set on
+   * arrival, and any exemption covering it goes dangling-and-stale in the same
+   * run — no issue needed, no filter to remember. Two of the entries still below
+   * are already queued for it: objectstack `origin/main` tombstones
+   * `targetVariable` on BOTH `element:text_input` and `element:record_picker`
+   * (measured on `main` @ `23abe2782`; both keys are still LIVE in the installed
+   * 17.0.0, whose tombstone set is the same eight rc.6 carried), so the pin that
+   * carries those retirements will name both entries here. Deleting them is
+   * the fix — objectui#3834's "should we publish an intent-only key" question is
+   * answered upstream by then, in the negative.
+   *
+   * DO NOT resolve a tombstone red by declaring the input. That publishes a key
+   * the contract rejects by name and fails the forward direction immediately;
+   * the two directions of this file are a vice on exactly that move, which is
+   * why one of them could not be fixed without the other.
+   */
 
   // `element:record_picker.filter` was the ninth entry here — a real A-class gap
   // that fell out of objectui#3808's three-class triage, exempted only because it
@@ -712,11 +709,20 @@ const splitExemptionKey = (exemptionKey: string): [string, string] => {
  * Is this a GA-pending entry the installed spec does not carry? Such an entry
  * is judged by neither the dangling nor the stale check — both of those ask
  * questions about a key that does not exist on this pin.
+ *
+ * `specListedKeys`, NOT the narrowed accepted set, and the difference is the one
+ * objectui#3809 is about (see that function's own note). Dormancy is a question
+ * about the RELEASE: does this pin know the key at all? A tombstone answers YES
+ * — the release knows it and refuses it — so an exemption covering a retired key
+ * must stay LIVE and be reported as dangling-and-stale, which is what forces its
+ * deletion. Asking the narrowed set here would call every future retirement
+ * "dormant" and hand a retired key's exemption a permanent hiding place, which
+ * is the same blind spot one layer down.
  */
 const isDormantOnThisPin = (exemptionKey: string): boolean => {
   if (!GA_PENDING_UNPUBLISHED_KEYS.includes(exemptionKey)) return false;
   const [type, specKey] = splitExemptionKey(exemptionKey);
-  return !specTopLevelKeys(type).includes(specKey);
+  return !specListedKeys(type).includes(specKey);
 };
 
 /*
@@ -794,6 +800,55 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
       expect(covered, `${type} no longer declares inputs`).toContain(type);
       expect(specTopLevelKeys(type), `${type} regressed to an empty spec shape`).toContain('children');
     }
+  });
+
+  it('the tombstone premise still holds — a retired key stays IN the shape', () => {
+    // THE PREMISE, asserted rather than assumed (objectui#3809). Every tombstone
+    // filter in this file — in BOTH directions, since they share one accepted
+    // set — is built on one property of ADR-0087 D2: retirement REPLACES the
+    // member with `z.never().optional()` and leaves the entry listed. If
+    // upstream ever retires by DELETING the key instead, the filter stops
+    // narrowing anything and every assertion here goes on passing. That is dead
+    // code nobody can see, and it is the failure mode objectui#3809's own text
+    // warned about before the fix existed.
+    //
+    // So the shape of this assertion is deliberate: it is not "tombstones are
+    // handled correctly", it is "there is still something for the handling to
+    // do". A red here does not mean the gate is wrong; it means the premise
+    // expired, and the filter plus this test plus the harvest comment above are
+    // all now archaeology to be removed together.
+    const listedButRejected = covered.flatMap((type) =>
+      specTombstonedKeys(type).map((key) => `${type}.${key}`),
+    );
+    expect(
+      listedButRejected.length,
+      'no covered block lists a tombstoned key: either this pin predates every ADR-0087 D2 ' +
+        'retirement, or upstream now DELETES retired keys — in which case the tombstone ' +
+        'narrowing in `specTopLevelKeys` is dead code and must be removed, not kept',
+    ).toBeGreaterThan(0);
+
+    // …and the narrowing is not a no-op, per block. `listed` must strictly
+    // exceed `accepted` exactly where a tombstone was found — the third way this
+    // could rot is a judge that reports tombstones while the subtraction quietly
+    // stops using its answer.
+    for (const type of covered) {
+      const tombstoned = specTombstonedKeys(type);
+      if (tombstoned.length === 0) continue;
+      expect(specListedKeys(type).length, `${type} accepted set did not narrow`).toBeGreaterThan(
+        specTopLevelKeys(type).length,
+      );
+      for (const key of tombstoned) {
+        expect(specListedKeys(type), `${type}.${key} is not even listed`).toContain(key);
+        expect(specTopLevelKeys(type), `${type}.${key} survived the narrowing`).not.toContain(key);
+      }
+    }
+
+    // Non-vacuity for the judge itself, in the direction the loops above cannot
+    // reach: a probe that answered "tombstone" for EVERYTHING would satisfy all
+    // of them. `page:card.title` is live contract and this repo publishes it, so
+    // it is the control.
+    expect(isShapeKeyTombstoned(specSchema('page:card'), 'title')).toBe(false);
+    expect(specTopLevelKeys('page:card')).toContain('title');
   });
 
   it.each(covered)('%s declares no top-level input the spec does not accept', (type) => {
@@ -1012,10 +1067,13 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
 
   it('carries no stale unpublished-key exemption — a published key must lose its entry', () => {
     // Keeps the reverse list from rotting the same way. An entry goes stale when
-    // the block declares the input (objectui#3829/#3830/#3834 landing) or when
-    // the spec genuinely deletes the key — note that ADR-0087 D2 retirement is
-    // NOT a deletion, so the `element:record_picker` trio does not go stale on
-    // the pin bump; objectui#3809 is what resolves those.
+    // the block declares the input (objectui#3829/#3830/#3834 landing), when the
+    // spec genuinely deletes the key, or — since objectui#3809 — when the spec
+    // RETIRES it: a tombstone leaves the accepted set, so the reverse direction
+    // stops demanding the key and any entry covering it stops describing
+    // anything. That last arm is what harvested the eight entries named in the
+    // comment above, and it is why no future retirement needs an issue of its
+    // own to clean up after it.
     const stale = Object.keys(UNPUBLISHED_EXEMPTIONS)
       .filter((key) => !isDormantOnThisPin(key))
       .filter((key) => {
@@ -1023,6 +1081,75 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
         return !undiscoverableSpecKeys(type).includes(specKey);
       });
     expect(stale).toEqual([]);
+  });
+
+  it('the eight tombstoned keys are recognised, not exempted — and not published either', () => {
+    // The pin the harvest leaves behind (objectui#3809). Deleting eight
+    // exemptions is only half the change: the derived assertions above would go
+    // green just as readily if a future edit RE-EXEMPTED one of these keys, or
+    // if the tombstone narrowing stopped working and the entry came back to
+    // absorb the red again. Both moves restore the exact state this issue
+    // existed to end, and neither shows up as a failure anywhere else — which is
+    // the same reason the `#3808 / #3830` and `rc.6 record_picker` pins next door
+    // are written by name.
+    //
+    // Five upstream retirements, eight keys, several facts each. The list is
+    // pin-dependent by construction and that is the point: it is the measurement
+    // (`@objectstack/spec@17.0.0`, and the same eight on the rc.6 that preceded
+    // it — this change was verified on both), so a pin that un-retires one of
+    // them fails HERE, naming the key, instead of resurfacing as an unexplained
+    // red in a derived loop.
+    const HARVESTED: Array<[string, string]> = [
+      ['element:record_picker', 'displayField'],
+      ['element:record_picker', 'multiple'],
+      ['element:record_picker', 'searchFields'],
+      ['page:card', 'actions'],
+      ['page:card', 'body'],
+      ['page:header', 'icon'],
+      ['page:tabs', 'type'],
+      ['record:details', 'layout'],
+    ];
+
+    for (const [type, key] of HARVESTED) {
+      // Still LISTED: the release knows the key. This is the assertion that
+      // distinguishes "retired" from "this pin never had it", and without it the
+      // three below would pass just as well on a key that simply does not exist.
+      expect(specListedKeys(type), `${type} no longer lists ${key} at all`).toContain(key);
+      expect(
+        isShapeKeyTombstoned(specSchema(type), key),
+        `${type}.${key} is listed but no longer reads as a tombstone — did upstream un-retire it?`,
+      ).toBe(true);
+      // Not demanded by the reverse direction any more, which is what made the
+      // exemption unnecessary…
+      expect(
+        undiscoverableSpecKeys(type),
+        `${type}.${key} is being demanded again; the narrowing is not being applied`,
+      ).not.toContain(key);
+      // …and not covered by one either.
+      expect(
+        Object.keys(UNPUBLISHED_EXEMPTIONS),
+        `${type}.${key} is exempted again — a tombstone needs no cover`,
+      ).not.toContain(`${type}.${key}`);
+      // The other resolution the two directions exist to forbid: publishing the
+      // key. The forward direction would red on it, but stating it here is what
+      // makes THIS test the one place a reader learns both halves.
+      expect(
+        declaredInputs(type) ?? [],
+        `${type} publishes ${key}, a key the contract rejects by name`,
+      ).not.toContain(key);
+    }
+
+    // Completeness, derived rather than restated: no OTHER tombstoned key on a
+    // covered block may carry an exemption. An entry for one would be dangling
+    // (the checks above name it), but this states the rule positively so the
+    // next retirement is not resolved by writing an entry that then has to be
+    // harvested a second time.
+    const exemptedTombstones = covered.flatMap((type) =>
+      specTombstonedKeys(type)
+        .filter((key) => Object.keys(UNPUBLISHED_EXEMPTIONS).includes(`${type}.${key}`))
+        .map((key) => `${type}.${key}`),
+    );
+    expect(exemptedTombstones).toEqual([]);
   });
 
   it('the five A-class keys objectui#3808 / #3830 declared are discoverable, block by block', () => {

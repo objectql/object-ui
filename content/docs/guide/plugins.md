@@ -398,8 +398,9 @@ export default defineConfig({
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "typescript": "^5.0.0",
-    "vite": "^5.0.0"
+    "@vitejs/plugin-react": "^6.0.5",
+    "typescript": "^6.0.3",
+    "vite": "^8.2.1"
   }
 }
 ```
