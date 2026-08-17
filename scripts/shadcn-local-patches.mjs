@@ -168,6 +168,20 @@ const sidebarCookieReadPatches = [
 ];
 
 /**
+ * Upstream's thumb class list, spelled exactly once.
+ *
+ * The delivery patch below has to name it twice — the single-line element it
+ * matches and the expanded element it writes back — and a list this long is
+ * precisely the kind of string that drifts one character between two copies. One
+ * spelling means the anchor and its replacement cannot disagree, the same reason
+ * SIDEBAR_COOKIE_NAME is passed into the sidebar patch rather than retyped.
+ */
+const UPSTREAM_THUMB_CLASSNAME =
+  'block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background ' +
+  'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ' +
+  'focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
+
+/**
  * The slider thumb pass-through patch (objectui#3318).
  *
  * A Radix slider's focusable control is the THUMB (`span[role="slider"]`,
@@ -209,20 +223,6 @@ const sidebarCookieReadPatches = [
  *
  * @type {LocalPatch[]}
  */
-/**
- * Upstream's thumb class list, spelled exactly once.
- *
- * The delivery patch has to name it twice — the single-line element it matches
- * and the expanded element it writes back — and a list this long is precisely
- * the kind of string that drifts one character between two copies. One spelling
- * means the anchor and its replacement cannot disagree, the same reason
- * SIDEBAR_COOKIE_NAME is passed into the sidebar patch rather than retyped.
- */
-const UPSTREAM_THUMB_CLASSNAME =
-  'block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background ' +
-  'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ' +
-  'focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
-
 const sliderThumbPassThroughPatches = [
   {
     id: 'slider-thumb-import',
