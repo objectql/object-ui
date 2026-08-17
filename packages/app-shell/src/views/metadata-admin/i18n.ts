@@ -938,6 +938,10 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.form.removeRow': 'Remove row',
   'engine.form.dragToReorder': 'Drag to reorder',
   'engine.form.arrayPlaceholder': 'comma, separated, values',
+  // Accessible name for the hex mirror beside the native colour picker. The
+  // picker itself is named by the field's visible label (objectui#4871); this
+  // second input edits the same value and needs a name of its own.
+  'engine.form.colorHex': 'Hex value',
   'engine.form.loadingObjects': 'Loading objects…',
   'engine.form.noObjects': 'object_name (no objects detected)',
   'engine.form.selectObject': 'Select object…',
@@ -2728,6 +2732,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.form.removeRow': '删除行',
   'engine.form.dragToReorder': '拖动排序',
   'engine.form.arrayPlaceholder': '用逗号分隔多个值',
+  'engine.form.colorHex': '十六进制值',
   'engine.form.loadingObjects': '正在加载对象…',
   'engine.form.noObjects': 'object_name（未检测到对象）',
   'engine.form.selectObject': '选择对象…',

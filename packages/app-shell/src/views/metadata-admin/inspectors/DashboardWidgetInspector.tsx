@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from '@object-ui/components';
 import type { DashboardWidgetSchema } from '@object-ui/types';
-import { resolveDashboardFilterDefs, type DashboardFilterDef } from '@object-ui/core';
+import { resolveDashboardFilterDefs, type DashboardFilterDef, type ComponentMeta } from '@object-ui/core';
 import type { MetadataInspectorProps } from '../inspector-registry';
 import { t, tFormat } from '../i18n';
 // The spec's `I18nLabel` resolver (new in @objectstack/spec 17.0.0-rc.6),
@@ -528,8 +528,17 @@ function Field({
    *    carries) it is a DANGLING IDREF — tooling reports an association that
    *    resolves to nothing, which is worse than an unnamed control because it
    *    reads as closed. That was objectui#4010's defect on `widget-color`.
+   *
+   * DERIVED from the repo-wide vocabulary, not a restatement of it: the 2026-08-17
+   * ruling (objectui#4857 + objectui#4871) made `ComponentMeta['labelling']` the
+   * single answer to "how does a host learn what a widget will render" and
+   * forbade host-local variants. `'display'` is excluded because this panel has
+   * no such field — every one of its children is an editable control or a
+   * container of them — and because it has no display CHANNEL to route one to;
+   * introducing one is a compile error here rather than a silent degradation.
+   * Re-spell a member in `packages/core` and this type stops compiling.
    */
-  labelling?: 'control' | 'group';
+  labelling?: Exclude<NonNullable<ComponentMeta['labelling']>, 'display'>;
   children: React.ReactNode;
 }) {
   const group = labelling === 'group';

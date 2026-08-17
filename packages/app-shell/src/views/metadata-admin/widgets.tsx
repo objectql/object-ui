@@ -41,6 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@object-ui/components';
+import type { ComponentMeta } from '@object-ui/core';
 import { ChevronDown, ChevronsUpDown, ChevronUp, Eye, EyeOff, Plus, Search, Trash2 } from 'lucide-react';
 import { iconNames } from 'lucide-react/dynamic.mjs';
 import { toast } from 'sonner';
@@ -99,7 +100,26 @@ export interface WidgetContext {
 }
 
 export interface WidgetProps {
+  /**
+   * The host field id, handed down ONLY to a widget declared
+   * `labelling: 'control'` in {@link WIDGET_LABELLING} — the host's
+   * `<Label htmlFor>` points at it, so the widget must put it on the LABELABLE
+   * element that is the field's primary control (objectui#4871).
+   *
+   * A `'group'` widget receives `undefined` here on purpose: `<label for>` is
+   * inert on a container, and taking the id anyway would make the IDREF resolve
+   * while still naming nobody — the cosmetic half-fix objectui#4010 refused.
+   */
   id?: string;
+  /**
+   * The host label's own `id`, handed down ONLY to a widget declared
+   * `labelling: 'group'`. The widget answers it with `aria-labelledby` on the
+   * surface that IS the field (a `role="group"` / `role="radiogroup"`
+   * container), which is the one naming channel that works on a non-labelable
+   * element. `undefined` for `'control'` widgets — one label, one channel
+   * (objectui#3978).
+   */
+  ariaLabelledBy?: string;
   schema: Record<string, any>;
   value: unknown;
   onChange: (v: unknown) => void;
@@ -552,6 +572,7 @@ function MasterDetailWidget({
   onChange,
   readOnly,
   context,
+  ariaLabelledBy,
 }: WidgetProps) {
   const locale = useMetadataLocale();
   // Unwrap anyOf/oneOf: pick the first array-of-object branch.
@@ -574,7 +595,11 @@ function MasterDetailWidget({
   if (cols.length === 0) {
     // Falls back to JSON if the array items aren't a typed object.
     return (
-      <div className="rounded border border-dashed border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-700 dark:text-amber-300">
+      <div
+        role="group"
+        aria-labelledby={ariaLabelledBy}
+        className="rounded border border-dashed border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-700 dark:text-amber-300"
+      >
         {t('engine.form.masterDetailSchemaError', locale)}
       </div>
     );
@@ -595,7 +620,11 @@ function MasterDetailWidget({
   }
 
   return (
-    <div className="space-y-2">
+    // A table of per-cell inputs plus row actions — a composite, so the host's
+    // visible label names this container by IDREF (objectui#4871). Same shape
+    // and same reason as `grid`'s `labelling: 'group'` in packages/fields
+    // (objectui#4857): no `<label for>` can reach a table.
+    <div className="space-y-2" role="group" aria-labelledby={ariaLabelledBy}>
       <div className="overflow-x-auto rounded border border-border/40">
         <table className="w-full text-sm">
           <thead className="bg-muted/40">
@@ -860,7 +889,7 @@ function humanizeOption(v: string): string {
  * free-text tag input the generic array renderer fell back to — the author
  * picks from the real allowed values instead of typing (and mistyping) them.
  */
-function MultiSelectWidget({ value, onChange, readOnly, schema, fieldSpec }: WidgetProps) {
+function MultiSelectWidget({ value, onChange, readOnly, schema, fieldSpec, ariaLabelledBy }: WidgetProps) {
   // Prefer explicit form options; else the JSON Schema enum on the items.
   const options: Array<{ label: string; value: string }> = React.useMemo(() => {
     if (Array.isArray(fieldSpec?.options) && fieldSpec!.options!.length) {
@@ -892,11 +921,22 @@ function MultiSelectWidget({ value, onChange, readOnly, schema, fieldSpec }: Wid
   if (options.length === 0) {
     // No known option set — degrade to the comma-tag editor so the field
     // is still editable rather than rendering an empty box.
-    return <StringTagsWidget value={value} onChange={onChange} readOnly={readOnly} schema={schema} fieldSpec={fieldSpec} />;
+    //
+    // The degradation stays INSIDE this widget's named group rather than
+    // handing the tag editor the host id: the declaration
+    // (`multiselect: 'group'`) is read by the host BEFORE the option list is
+    // known, so a fallback that changed naming channel would be exactly the
+    // runtime self-selection objectui#4871 removed from `color-picker`. The
+    // group is named; the tag input inside it is a sub-control.
+    return (
+      <div role="group" aria-labelledby={ariaLabelledBy}>
+        <StringTagsWidget value={value} onChange={onChange} readOnly={readOnly} schema={schema} fieldSpec={fieldSpec} />
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-wrap gap-1.5" role="group">
+    <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby={ariaLabelledBy}>
       {options.map((o) => {
         const on = selected.includes(o.value);
         return (
@@ -1061,7 +1101,7 @@ function ViewRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) 
  * `yAxisFields`, `searchableFields`, …). Preserves order; supports reorder
  * and removal; values outside the catalog are retained.
  */
-function FieldRefMultiWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
+function FieldRefMultiWidget({ value, onChange, readOnly, context, ariaLabelledBy }: WidgetProps) {
   const locale = useMetadataLocale();
   const fields = context?.objectFields ?? [];
   const selected: string[] = Array.isArray(value)
@@ -1089,7 +1129,13 @@ function FieldRefMultiWidget({ id, value, onChange, readOnly, context }: WidgetP
   };
 
   return (
-    <div className="space-y-2">
+    // An ORDERED SET, not a single control: reorder/remove buttons per chip plus
+    // an auxiliary "add" picker. Measured for objectui#4871's ledger — the add
+    // picker (the only element that ever carried the host id) is gated behind
+    // `!readOnly`, so a `control` declaration was true in the editable state and
+    // DANGLING in the read-only one. A declaration that is conditionally true is
+    // the shape the #4871 ruling removed, so the whole set is the named surface.
+    <div className="space-y-2" role="group" aria-labelledby={ariaLabelledBy}>
       {selected.length > 0 && (
         <div className="space-y-1">
           {selected.map((name, i) => (
@@ -1137,7 +1183,11 @@ function FieldRefMultiWidget({ id, value, onChange, readOnly, context }: WidgetP
       )}
       {!readOnly && (
         <Select value="" onValueChange={add} disabled={remaining.length === 0}>
-          <SelectTrigger id={id}>
+          {/* No host id here: the group above is the named surface, and an id
+              on this auxiliary trigger would make the host's `for` resolve to
+              "add a field" — a label click would open the picker rather than
+              name the set (objectui#4871, the #4857 `grid` reading). */}
+          <SelectTrigger aria-label={t('engine.form.addField', locale)}>
             <SelectValue
               placeholder={
                 fields.length
@@ -1368,7 +1418,7 @@ const FILTER_MODES: Array<{ key: 'none' | UFMode; label: string }> = [
 const slugifyTabName = (s: string): string =>
   (s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'tab';
 
-function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
+function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }: WidgetProps) {
   const uf = (value && typeof value === 'object' ? value : undefined) as UFValue | undefined;
   const mode: 'none' | UFElement = uf?.element ?? (uf ? 'dropdown' : 'none');
   const objectFields = context?.objectFields ?? [];
@@ -1445,7 +1495,11 @@ function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
   const setShowAllRecords = (c: boolean) => onChange({ ...(uf ?? {}), element: 'tabs', showAllRecords: c });
 
   return (
-    <div className="space-y-3">
+    // The host's visible label names this whole editor (mode choice + the field
+    // / tab pickers that follow), by IDREF — objectui#4871. The inner
+    // radiogroup keeps its OWN name: it is a sub-choice ("which element"), not
+    // the field, and the two names are about different things.
+    <div className="space-y-3" role="group" aria-labelledby={ariaLabelledBy}>
       {/* Segmented mode selector */}
       <div className="inline-flex rounded-md border border-input bg-background p-0.5" role="radiogroup" aria-label="Filter element">
         {FILTER_MODES.map((m) => {
@@ -1608,7 +1662,7 @@ function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
 /* This makes "buttons = object actions" correct-by-construction (the picker  */
 /* only offers actions the object actually defines).                          */
 /* -------------------------------------------------------------------------- */
-function ActionMultiWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
+function ActionMultiWidget({ value, onChange, readOnly, context, ariaLabelledBy }: WidgetProps) {
   const actions = context?.objectActions ?? [];
   const selected: string[] = Array.isArray(value)
     ? value.map(String)
@@ -1629,7 +1683,10 @@ function ActionMultiWidget({ id, value, onChange, readOnly, context }: WidgetPro
   };
 
   return (
-    <div className="space-y-2" data-testid="action-multi">
+    // Same ordered-set shape as {@link FieldRefMultiWidget}, and the same
+    // measured reason for `labelling: 'group'` (objectui#4871): the add trigger
+    // that used to carry the host id disappears in the read-only state.
+    <div className="space-y-2" data-testid="action-multi" role="group" aria-labelledby={ariaLabelledBy}>
       {selected.length > 0 && (
         <div className="space-y-1">
           {selected.map((name, i) => (
@@ -1651,7 +1708,8 @@ function ActionMultiWidget({ id, value, onChange, readOnly, context }: WidgetPro
       )}
       {!readOnly && (
         <Select value="" onValueChange={add} disabled={remaining.length === 0}>
-          <SelectTrigger id={id} data-testid="action-multi-add">
+          {/* No host id — see {@link FieldRefMultiWidget}'s add trigger. */}
+          <SelectTrigger data-testid="action-multi-add" aria-label="Add action button">
             <SelectValue placeholder={actions.length ? (remaining.length ? '+ Add action button…' : 'All actions added') : 'Bind a source object to pick actions'} />
           </SelectTrigger>
           <SelectContent>
@@ -1703,11 +1761,19 @@ const SPEC_TO_FB: Record<string, string> = {
 
 interface FilterRuleLite { field: string; operator: string; value?: unknown }
 
-function FilterBuilderField({ value, onChange, fields, readOnly }: {
+function FilterBuilderField({ value, onChange, fields, readOnly, id }: {
   value?: FilterRuleLite[];
   onChange: (rules: FilterRuleLite[]) => void;
   fields: Array<{ name: string; label?: string; type?: string }>;
   readOnly?: boolean;
+  /**
+   * Host field id, forwarded onto the trigger BUTTON — a labelable element, so
+   * the host's `<label for>` reaches it (objectui#4871). Only the standalone
+   * `filter-builder` widget passes one; the in-widget call site inside
+   * {@link FilterModeWidget}'s tab editor is a sub-control of a group and
+   * carries its own name instead.
+   */
+  id?: string;
 }) {
   // The metadata-admin `t` above is a static engine-string table; refusal
   // copy lives in the shared console locale packs, so it resolves through the
@@ -1745,7 +1811,7 @@ function FilterBuilderField({ value, onChange, fields, readOnly }: {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" disabled={readOnly}
+        <Button id={id} variant="outline" size="sm" disabled={readOnly}
           className="h-8 w-full justify-between text-xs font-normal" data-testid="filter-builder-trigger">
           <span className="truncate text-left">{summary || <span className="text-muted-foreground">+ Add filter…</span>}</span>
           <ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
@@ -1762,9 +1828,13 @@ function FilterBuilderField({ value, onChange, fields, readOnly }: {
   );
 }
 
-function FilterBuilderWidget({ value, onChange, readOnly, context }: WidgetProps) {
+function FilterBuilderWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
   return (
+    // The whole face is ONE labelable element — a popover trigger `<button>` —
+    // so this stays on the plain `<label for>` channel and simply stops dropping
+    // the id the host hands down (objectui#4871: measured DANGLING before).
     <FilterBuilderField
+      id={id}
       value={value as FilterRuleLite[] | undefined}
       onChange={(rules) => onChange(rules.length ? rules : undefined)}
       fields={context?.objectFields ?? []}
@@ -1774,64 +1844,114 @@ function FilterBuilderWidget({ value, onChange, readOnly, context }: WidgetProps
 }
 
 /* -------------------------------------------------------------------------- */
-/* color-picker — semantic swatch row (enum) or native hex input (free color) */
+/* color-picker / color-input — TWO registrations, picked by the HOST         */
 /* -------------------------------------------------------------------------- */
 
-function ColorPickerWidget({ value, onChange, readOnly, schema, fieldSpec }: WidgetProps) {
-  const enumOpts: Array<{ value: string; label?: string }> | null =
-    Array.isArray(fieldSpec?.options) && fieldSpec!.options!.length
-      ? fieldSpec!.options!.map((o) => ({ value: o.value, label: o.label }))
-      : Array.isArray(schema?.enum)
-        ? (schema!.enum as unknown[]).filter((v): v is string => typeof v === 'string').map((v) => ({ value: v }))
-        : null;
-
-  if (enumOpts && enumOpts.length) {
-    return (
-      <ColorVariantPicker
-        // Self-owned name, not the host label's IDREF (objectui#4010).
-        //
-        // `MetadataField` renders `<Label htmlFor={id}>` above this widget and
-        // hands it the same `id`. That works for a labelable control — the free
-        // colour branch below is one — but this branch renders a
-        // `div[role="radiogroup"]`, which no `<label for>` can name. The host
-        // cannot publish an `id` for us to reference instead, because WHICH of
-        // these two branches renders is decided HERE, from `schema`/`fieldSpec`,
-        // after that label is already written; teaching the host to decide it
-        // needs a `labelling` declaration per widget (the shape
-        // `packages/components`' form renderer already has, objectui#3961) and
-        // is filed as objectui#4871 rather than guessed at here.
-        //
-        // So the group carries its own name, exactly as this file's other
-        // unassociated groups do (`FilterModeWidget`'s segmented radiogroup,
-        // and the free-colour `<input type="color">` below). The text is the
-        // host's own first-precedence label source so the two agree wherever set —
-        // WCAG 2.5.3 (Label in Name) is about the visible text, not a generic
-        // stand-in — falling back to this file's existing constant.
-        ariaLabel={fieldSpec?.label ?? (typeof schema?.title === 'string' ? schema.title : undefined) ?? 'Color'}
-        value={value == null ? undefined : String(value)}
-        onChange={(v) => onChange(v)}
-        disabled={readOnly}
-        options={enumOpts}
-      />
-    );
+/**
+ * The semantic palette a colour field declares, or an EMPTY array when it
+ * declares none (objectui#4871).
+ *
+ * This is the split point of what used to be one `color-picker` widget with a
+ * runtime `if`. Both the host — which must know, BEFORE it writes the label,
+ * whether this field renders a `radiogroup` or a labelable input — and the
+ * widgets themselves read the palette through this one function, so producer
+ * and consumer cannot disagree about which surface will render. (Same discipline
+ * `packages/components`' `resolveFieldLabelling` follows against
+ * `renderFieldComponent`.)
+ */
+export function colorPaletteOptions(
+  schema: Record<string, unknown> | undefined,
+  fieldSpec: WidgetProps['fieldSpec'],
+): Array<{ value: string; label?: string }> {
+  if (Array.isArray(fieldSpec?.options) && fieldSpec!.options!.length) {
+    return fieldSpec!.options!.map((o) => ({ value: o.value, label: o.label }));
   }
+  if (Array.isArray(schema?.enum)) {
+    return (schema!.enum as unknown[])
+      .filter((v): v is string => typeof v === 'string')
+      .map((v) => ({ value: v }));
+  }
+  return [];
+}
 
-  // Free color → native picker + hex text.
+/**
+ * Which of the two colour registrations a field resolves to — `'color-picker'`
+ * (a declared palette ⇒ swatch `radiogroup`) or `'color-input'` (free colour ⇒
+ * native picker).
+ *
+ * The maintainer ruling of 2026-08-17 (objectui#4871, point 4) split the single
+ * conditional registration precisely so this choice happens in the HOST, from
+ * the schema, ahead of the label — passing both naming channels down for the
+ * widget to pick at runtime would have re-introduced the inference the ruling
+ * removes.
+ */
+export function resolveColorWidgetKey(
+  schema: Record<string, unknown> | undefined,
+  fieldSpec: WidgetProps['fieldSpec'],
+): 'color-picker' | 'color-input' {
+  return colorPaletteOptions(schema, fieldSpec).length > 0 ? 'color-picker' : 'color-input';
+}
+
+/**
+ * `color-picker` — a declared palette, rendered as a swatch `radiogroup`.
+ * `labelling: 'group'`: `role="radiogroup"` is a container, so the host's label
+ * publishes an id and this surface answers it by IDREF (objectui#4010 named the
+ * group; objectui#4871 is what finally removed the host's dangling `for`).
+ */
+function ColorSwatchGroupWidget({ value, onChange, readOnly, schema, fieldSpec, ariaLabelledBy }: WidgetProps) {
+  // Exactly one naming channel, chosen by which one the caller can supply
+  // (`ColorVariantPickerNaming` makes that a type-level XOR, objectui#4010):
+  // `SchemaForm` publishes a label id and takes the IDREF arm; a caller that
+  // renders this widget standalone — with no visible label in a position to
+  // publish an id — falls to the self-owned name, kept equal to the visible
+  // text wherever there is one (WCAG 2.5.3).
+  const naming = ariaLabelledBy
+    ? ({ ariaLabelledBy } as const)
+    : ({
+        ariaLabel:
+          fieldSpec?.label ?? (typeof schema?.title === 'string' ? schema.title : undefined) ?? 'Color',
+      } as const);
+  return (
+    <ColorVariantPicker
+      {...naming}
+      value={value == null ? undefined : String(value)}
+      onChange={(v) => onChange(v)}
+      disabled={readOnly}
+      options={colorPaletteOptions(schema, fieldSpec)}
+    />
+  );
+}
+
+/**
+ * `color-input` — free colour, rendered as the native picker plus a hex mirror.
+ * `labelling: 'control'`: `input[type="color"]` IS a labelable element and is
+ * the field's primary control, so it takes the host id and the plain
+ * `<label for>` names it. The hex box beside it edits the same value and carries
+ * its own name — before objectui#4871 it had none at all.
+ */
+function ColorInputWidget({ id, value, onChange, readOnly }: WidgetProps) {
+  const locale = useMetadataLocale();
   const v = value == null ? '' : String(value);
   return (
     <div className="flex items-center gap-2">
       <input
+        id={id}
         type="color"
         value={/^#([0-9a-f]{6})$/i.test(v) ? v : '#000000'}
         disabled={readOnly}
         onChange={(e) => onChange(e.target.value)}
         className="h-8 w-10 shrink-0 rounded border border-input bg-background p-0.5 disabled:opacity-60"
-        aria-label="Color"
+        // No `aria-label` beside the host's `<label for>`: an `aria-label` WINS
+        // the accessible-name computation, so keeping the old constant here
+        // would have overridden the field's visible label with "Color" — one
+        // label, two channels, the broken one louder (objectui#3978).
+        aria-label={id ? undefined : 'Color'}
       />
       <Input
         value={v}
         placeholder="#RRGGBB"
         disabled={readOnly}
+        aria-label={t('engine.form.colorHex', locale)}
         onChange={(e) => onChange(e.target.value || undefined)}
         className="h-8 text-sm font-mono"
       />
@@ -1853,14 +1973,20 @@ function ColorPickerWidget({ value, onChange, readOnly, schema, fieldSpec }: Wid
  * pair is shape-preserving, so the plain-`string` predicate fields this widget
  * also serves keep round-tripping as strings.
  */
-function ConditionWidget({ value, onChange, readOnly, context }: WidgetProps) {
+function ConditionWidget({ value, onChange, readOnly, context, ariaLabelledBy }: WidgetProps) {
   return (
-    <ConditionBuilder
-      value={expressionSource(value)}
-      onCommit={(cel) => onChange(writeExpressionSource(value, cel))}
-      fields={context?.objectFields}
-      disabled={readOnly}
-    />
+    // `ConditionBuilder` is a multi-control composite (field / operator / value
+    // rows plus add-condition buttons) shared with the curated inspectors, so
+    // the naming wrapper lives HERE — the widget owns the host contract, the
+    // shared builder stays host-agnostic (objectui#4871).
+    <div role="group" aria-labelledby={ariaLabelledBy}>
+      <ConditionBuilder
+        value={expressionSource(value)}
+        onCommit={(cel) => onChange(writeExpressionSource(value, cel))}
+        fields={context?.objectFields}
+        disabled={readOnly}
+      />
+    </div>
   );
 }
 
@@ -1923,7 +2049,14 @@ function SecretWidget({ value, onChange, readOnly, schema, id }: WidgetProps) {
         placeholder={stored ? (schema?.description ? '•••••••• set — type to replace' : '•••••••• set — leave blank to keep') : (typeof schema?.description === 'string' ? '' : 'Enter a value')}
         onChange={(e) => update(e.target.value)}
         className="h-8 text-sm font-mono"
-        aria-label="Secret value"
+        // Same single-channel rule as `color-input`'s picker (objectui#4871):
+        // this widget declares `labelling: 'control'`, so when the host hands
+        // down an `id` its `<label for>` is the naming channel — and an
+        // `aria-label` here WINS the accessible-name computation, which had the
+        // visible field label ("API Key", "Client Secret") replaced by the
+        // constant "Secret value" on every SchemaForm render. Kept only for a
+        // caller that renders this widget with no host label at all.
+        aria-label={id ? undefined : 'Secret value'}
       />
       <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={readOnly} aria-label={reveal ? 'Hide value' : 'Reveal value'} onClick={() => setReveal((r) => !r)}>
         {reveal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -1949,7 +2082,7 @@ function SecretWidget({ value, onChange, readOnly, schema, id }: WidgetProps) {
  * that changes fields per driver, but it is generic: any "pick X → these
  * settings" pattern can reuse it by populating `dynamicSchemas`.
  */
-function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, context }: WidgetProps) {
+function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, context, ariaLabelledBy }: WidgetProps) {
   const dep = Array.isArray(fieldSpec?.dependsOn) ? fieldSpec!.dependsOn![0] : fieldSpec?.dependsOn;
   const depVal = dep ? (formData?.[dep] as string | undefined) : undefined;
   const sub = depVal != null ? context?.dynamicSchemas?.[String(depVal)] : undefined;
@@ -1963,14 +2096,26 @@ function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, c
   };
 
   if (!depVal) {
-    return <p className="text-xs text-muted-foreground">Select {dep ?? 'an option'} to configure.</p>;
+    // Every branch answers the host's IDREF, so the field's visible label owns
+    // this surface in each of its three states (objectui#4871) — a group named
+    // in one state and anonymous in another is the conditional shape the #4871
+    // ruling removed.
+    return (
+      <div role="group" aria-labelledby={ariaLabelledBy} className="text-xs text-muted-foreground">
+        Select {dep ?? 'an option'} to configure.
+      </div>
+    );
   }
   if (!sub || Object.keys(props).length === 0) {
-    return <p className="text-xs text-muted-foreground">No configuration needed for "{String(depVal)}".</p>;
+    return (
+      <div role="group" aria-labelledby={ariaLabelledBy} className="text-xs text-muted-foreground">
+        No configuration needed for "{String(depVal)}".
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-2 rounded-md border border-border/60 p-3">
+    <div className="space-y-2 rounded-md border border-border/60 p-3" role="group" aria-labelledby={ariaLabelledBy}>
       {Object.entries(props).map(([key, p]) => {
         const label = (p as any)?.title || key;
         const cur = cfg[key];
@@ -1979,7 +2124,10 @@ function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, c
           return (
             <div key={key} className="flex items-center justify-between gap-2">
               <Label className="text-xs">{label}</Label>
-              <Switch checked={Boolean(cur)} disabled={readOnly} onCheckedChange={(c) => setKey(key, c)} />
+              {/* Sub-controls of a `labelling: 'group'` widget carry their OWN
+                  names (objectui#4857's composite rule) — this one was the last
+                  anonymous control inside the group. */}
+              <Switch aria-label={label} checked={Boolean(cur)} disabled={readOnly} onCheckedChange={(c) => setKey(key, c)} />
             </div>
           );
         }
@@ -2023,7 +2171,12 @@ function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, c
   );
 }
 
-export const WIDGETS: Record<string, WidgetRenderer> = {
+// `satisfies` (not a `Record<string, …>` annotation) so the KEY SET survives as
+// a literal union — that union is what makes `WIDGET_LABELLING` below exhaustive
+// BY CONSTRUCTION: adding a widget here without deciding how the host's label
+// reaches it is a compile error, not a silent fall-through to the dangling-`for`
+// path (objectui#4871, the registry gate ruled jointly with objectui#4857).
+export const WIDGETS = {
   'ref:object': RefObjectWidget,
   'ref:component': RefComponentWidget,
   'filter-mode': FilterModeWidget,
@@ -2035,7 +2188,8 @@ export const WIDGETS: Record<string, WidgetRenderer> = {
   'filter-builder': FilterBuilderWidget,
   'view-ref': ViewRefWidget,
   'icon': IconPickerWidget,
-  'color-picker': ColorPickerWidget,
+  'color-picker': ColorSwatchGroupWidget,
+  'color-input': ColorInputWidget,
   'condition': ConditionWidget,
   'master-detail': MasterDetailWidget,
   'string-tags': StringTagsWidget,
@@ -2043,7 +2197,102 @@ export const WIDGETS: Record<string, WidgetRenderer> = {
   'code': CodeWidget,
   'secret': SecretWidget,
   'dynamic-config': DynamicConfigWidget,
+} satisfies Record<string, WidgetRenderer>;
+
+/** Every key of {@link WIDGETS}, as a literal union. */
+export type RegisteredWidgetKey = keyof typeof WIDGETS;
+
+/**
+ * The labelling vocabulary this host implements, DERIVED from the repo-wide
+ * declaration type rather than restated (`ComponentMeta['labelling']`,
+ * objectui#3961 → #4857 → #4871's joint ruling: no host may keep a local
+ * variant of it).
+ *
+ * `'display'` is excluded on a MEASURED basis, not an editorial one: every one
+ * of this registry's widgets is an editable control or an editable composite —
+ * none is the "pure display in every state" case `'display'` names, so this host
+ * has no display CHANNEL to route one to. Excluding it here means adding such a
+ * widget is a compile error at the declaration, pointing at the host that must
+ * grow the `#4788` wrapper first — instead of a `'display'` declaration silently
+ * degrading to the group channel and naming nothing (a widget declared
+ * `'display'` spreads no props, so an `aria-labelledby` handed to it lands
+ * nowhere). Deriving by `Exclude` keeps the vocabulary single-sourced: rename or
+ * re-spell a member in `packages/core` and this stops compiling.
+ */
+export type WidgetLabelling = Exclude<NonNullable<ComponentMeta['labelling']>, 'display'>;
+
+/**
+ * How the HOST's visible label reaches each registered widget — the reviewed
+ * table that replaced seventeen scattered per-widget judgements (objectui#4871,
+ * maintainer ruling of 2026-08-17, point 1: ledger first, then declare).
+ *
+ * Measured on real `SchemaForm` renders at `167ec42e7`, both states, three
+ * columns per widget: does the host `for` RESOLVE and to a LABELABLE element /
+ * is the rendered face labelable at all / does the group have an accessible
+ * name. The ledger is in the PR body; the three readings that decided a
+ * classification are called out on the widgets themselves.
+ *
+ * ## `'control'` — the host's `<label for>` reaches a real labelable element
+ *
+ * The widget puts `id` on the ONE labelable element that is the field's primary
+ * control, in EVERY branch it can render (loading, empty-catalog, read-only).
+ * Auxiliary affordances beside it — a chip's remove button, a reveal toggle —
+ * keep their own names; they are not what the field's label names. "In every
+ * branch" is the load-bearing half: `field-multi` and `action-multi` look like
+ * this in the editable state and were measured DANGLING in the read-only one,
+ * which is why they are NOT here.
+ *
+ * ## `'group'` — no `<label for>` can reach it; the WIDGET answers by IDREF
+ *
+ * Two shapes, one declaration, exactly as `packages/fields`' own table splits
+ * them (objectui#4857):
+ *
+ *  - real composites — `filter-mode` (mode radiogroup + field/tab pickers),
+ *    `master-detail` (a table of per-cell inputs), `condition` (predicate rows),
+ *    `dynamic-config` (a driver-shaped sub-form), `field-multi` / `action-multi`
+ *    (an ordered set with reorder/remove buttons plus an auxiliary add picker);
+ *  - single non-labelable surfaces — `color-picker`'s `div[role="radiogroup"]`,
+ *    `multiselect`'s `div[role="group"]` of checkbox buttons, and `code`, whose
+ *    only focusable is Monaco's internal textarea that this widget never renders.
+ *
+ * The host publishes its label's `id`, drops the `for` (inert on a container,
+ * and a second broken channel beside a working one — objectui#3978/#4010), and
+ * hands the id down as `ariaLabelledBy`; the widget puts it on the surface that
+ * IS the field.
+ */
+export const WIDGET_LABELLING: Record<RegisteredWidgetKey, WidgetLabelling> = {
+  'ref:object': 'control',
+  'ref:component': 'control',
+  'filter-mode': 'group',
+  'object-selector': 'control',
+  'field-selector': 'control',
+  'field-ref': 'control',
+  'field-multi': 'group',
+  'action-multi': 'group',
+  'filter-builder': 'control',
+  'view-ref': 'control',
+  'icon': 'control',
+  'color-picker': 'group',
+  'color-input': 'control',
+  'condition': 'group',
+  'master-detail': 'group',
+  'string-tags': 'control',
+  'multiselect': 'group',
+  'code': 'group',
+  'secret': 'control',
+  'dynamic-config': 'group',
 };
+
+/**
+ * The declared labelling of a widget key, for the host's channel decision.
+ * An UNREGISTERED key (a passthrough hint, a third-party name) resolves to
+ * `'control'` — byte for byte what `MetadataField` emitted before the
+ * declaration existed.
+ */
+export function widgetLabelling(widget: string | undefined): WidgetLabelling {
+  if (!widget) return 'control';
+  return WIDGET_LABELLING[widget as RegisteredWidgetKey] ?? 'control';
+}
 
 /* -------------------------------------------------------------------------- */
 /* CodeWidget — Monaco editor for `type: 'code'` fields                       */
@@ -2076,11 +2325,15 @@ export function CodeWidget({
   onChange,
   readOnly,
   fieldSpec,
+  ariaLabelledBy,
 }: WidgetProps) {
   const language = inferCodeLanguage(fieldSpec, schema);
   const stringValue = typeof value === 'string' ? value : (value == null ? '' : String(value));
   return (
-    <div className="rounded-md border border-border/50 overflow-hidden">
+    // The editor's own focusable is Monaco's internal textarea — this widget
+    // never renders it and cannot put the host id on it, so a `<label for>` can
+    // never reach the editing surface. Named by IDREF instead (objectui#4871).
+    <div className="rounded-md border border-border/50 overflow-hidden" role="group" aria-labelledby={ariaLabelledBy}>
       <div className="flex items-center justify-between px-2 py-1 bg-muted/40 border-b border-border/30 text-[10px] font-mono text-muted-foreground">
         <span>{language}</span>
         {readOnly && <span>read-only</span>}

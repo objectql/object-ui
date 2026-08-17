@@ -56,7 +56,14 @@ import {
   CollapsibleContent,
 } from '@object-ui/components';
 import { evaluatePredicate } from './predicate';
-import { WIDGETS, type WidgetContext } from './widgets';
+import {
+  WIDGETS,
+  widgetLabelling,
+  resolveColorWidgetKey,
+  type RegisteredWidgetKey,
+  type WidgetContext,
+  type WidgetRenderer,
+} from './widgets';
 import { useMetadataLocale, t, tFormat, translateValidationMessage, translateEnumOption, translateSchemaFieldLabel, translateSchemaFieldHelp } from './i18n';
 
 type JsonSchema = Record<string, any>;
@@ -347,6 +354,35 @@ const CONDITION_FIELD_NAMES = new Set(['visible', 'hidden', 'disabled', 'visible
  * `disabled` / `visibleOn` / `condition` / `*When`) so it renders the no-code
  * condition builder instead of a raw expression text box. String-only, no enum.
  */
+/**
+ * Resolve a CONDITIONAL widget name to the concrete registration that will
+ * render (objectui#4871, maintainer ruling point 4).
+ *
+ * `color-picker` used to be one registry entry that chose between a swatch
+ * `radiogroup` and a labelable `input[type="color"]` at RUNTIME, from
+ * `schema`/`fieldSpec` — i.e. AFTER `MetadataField` had already written
+ * `<Label htmlFor>`, which is exactly why the host could not know which naming
+ * channel to emit. The two surfaces are two registrations now, and this
+ * function is where the host picks between them: from the schema, BEFORE the
+ * label. `resolveColorWidgetKey` lives beside the widgets and is what both of
+ * them read their palette through, so host and widget cannot disagree.
+ *
+ * Runs on the AUTHORED name too, not only the inferred one: a spec that pins
+ * `widget: 'color-picker'` on a free-colour field must still land on the
+ * registration that actually renders, or the declaration would describe a
+ * different surface than the one on screen.
+ */
+function resolveRegisteredWidget(
+  widget: string | undefined,
+  schema: JsonSchema | undefined,
+  fieldSpec: FormFieldSpec | undefined,
+): string | undefined {
+  if (widget === 'color-picker' || widget === 'color-input') {
+    return resolveColorWidgetKey(schema, fieldSpec);
+  }
+  return widget;
+}
+
 function detectConditionWidget(name: string, schema: JsonSchema | undefined): string | undefined {
   if (Array.isArray(schema?.enum)) return undefined;
   const isString =
@@ -913,6 +949,35 @@ function FieldRow({
     }
   }
 
+  // Which registration will actually render, decided BEFORE the label so the
+  // declaration below describes the surface the user gets (objectui#4871).
+  widget = resolveRegisteredWidget(widget, schema, fieldSpec);
+
+  // How this field's visible label must reach what the widget renders — the
+  // widget's own DECLARATION, never an inference from the DOM it happens to
+  // produce (objectui#4871, the vocabulary of `ComponentMeta.labelling`).
+  //
+  //  - `'control'` — the widget puts this `id` on a labelable element, so the
+  //    label associates the plain way, `<label for>` → id. Unchanged path;
+  //    every non-registered widget name resolves here too.
+  //  - `'group'` — no `<label for>` can reach the surface. The label publishes
+  //    its OWN id, the widget answers `aria-labelledby`, and the `for` is
+  //    DROPPED: aimed at a container it activates nothing and names nothing,
+  //    and leaving it beside the working channel is one label with two
+  //    associations, one of them broken (the `form.tsx` `labelling: 'group'`
+  //    branch, objectui#3961/#3978, and objectui#4010's refusal to relocate
+  //    the id onto the radiogroup instead).
+  const labelling = widgetLabelling(widget);
+  const groupLabelled = labelling === 'group';
+  // Whitespace-free by construction (`mdf-` + a field name), and consumed as an
+  // `aria-labelledby` IDREF — a space in it would silently resolve to two ids.
+  const labelId = groupLabelled ? `${id}-label` : undefined;
+  // Exactly one of these two reaches the widget, ever.
+  const channel = groupLabelled
+    ? { id: undefined, ariaLabelledBy: labelId }
+    : { id, ariaLabelledBy: undefined };
+  const labelAssociation = groupLabelled ? { id: labelId } : { htmlFor: id };
+
   // Booleans with a schema default are never *missing* — don't show the
   // required asterisk (which would otherwise lie about user obligation).
   const isBoolean = schema?.type === 'boolean' || widget === 'switch';
@@ -930,7 +995,7 @@ function FieldRow({
     return (
       <div className="flex items-start justify-between gap-3 py-1.5">
         <div className="min-w-0 flex-1">
-          <Label htmlFor={id} className="text-sm font-medium cursor-pointer">
+          <Label {...labelAssociation} className="text-sm font-medium cursor-pointer">
             {label}
             {showRequiredStar && <span className="text-destructive ml-0.5">*</span>}
           </Label>
@@ -942,7 +1007,8 @@ function FieldRow({
           ))}
         </div>
         <FieldControl
-          id={id}
+          id={channel.id}
+          ariaLabelledBy={channel.ariaLabelledBy}
           fieldName={name}
           schema={schema}
           value={value}
@@ -960,7 +1026,7 @@ function FieldRow({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <Label htmlFor={id} className="text-sm font-medium">
+        <Label {...labelAssociation} className="text-sm font-medium">
           {label}
           {showRequiredStar && <span className="text-destructive ml-0.5">*</span>}
           {!labelMatchesName && (
@@ -974,7 +1040,8 @@ function FieldRow({
         </Label>
       </div>
       <FieldControl
-        id={id}
+        id={channel.id}
+        ariaLabelledBy={channel.ariaLabelledBy}
         fieldName={name}
         schema={schema}
         value={value}
@@ -999,6 +1066,7 @@ function FieldRow({
 
 function FieldControl({
   id,
+  ariaLabelledBy,
   fieldName,
   schema,
   value,
@@ -1009,7 +1077,16 @@ function FieldControl({
   widgetContext,
   formData,
 }: {
-  id: string;
+  /**
+   * The host field id — present only on the `labelling: 'control'` channel,
+   * `undefined` on the `'group'` one (objectui#4871). Every builtin branch below
+   * renders a labelable element, so they all spread it unconditionally; a group
+   * declaration can only come from a REGISTERED widget, and that branch returns
+   * before them.
+   */
+  id?: string;
+  /** The host label's id, on the `'group'` channel only. */
+  ariaLabelledBy?: string;
   /** Machine field name — keys enum-option localization (e.g. flow `type`). */
   fieldName?: string;
   schema: JsonSchema;
@@ -1096,11 +1173,14 @@ function FieldControl({
   // Widget hint takes precedence: try the registry first, then the
   // passthrough hint list, then fall back to JSON with an inline hint.
   if (widget) {
-    const Renderer = WIDGETS[widget];
+    const Renderer = WIDGETS[widget as RegisteredWidgetKey] as WidgetRenderer | undefined;
     if (Renderer) {
       return (
         <Renderer
+          // Exactly one of these is defined, decided by the widget's own
+          // `labelling` declaration in `MetadataField` (objectui#4871).
           id={id}
+          ariaLabelledBy={ariaLabelledBy}
           schema={schema}
           value={value}
           onChange={onChange}
@@ -1742,9 +1822,13 @@ function RecordField({
   // Delegate to a registered widget if the form spec asked for one
   // explicitly (e.g. `widget: 'airtable'`). The widget owns the entire UI.
   if (widget) {
-    const Renderer = WIDGETS[widget];
+    const Renderer = WIDGETS[widget as RegisteredWidgetKey] as WidgetRenderer | undefined;
     if (Renderer) {
       return (
+        // Neither naming channel is handed down here: this delegation is nested
+        // INSIDE a `record` field that already rendered its own label above, and
+        // the widget replaces the record editor rather than being that field's
+        // control. Unchanged by objectui#4871 — measured and left alone.
         <Renderer
           schema={schema}
           value={value}
