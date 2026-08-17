@@ -4576,6 +4576,7 @@ export type {
   MetadataError,
   MetadataValidationIssue,
   MetadataLayered,
+  MetadataOverlayScope,
   MetadataReference,
   MetadataDiagnostics,
   MetadataDiagnosticsOptions,

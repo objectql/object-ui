@@ -54,6 +54,9 @@
  */
 
 import { useObjectTranslation } from '@object-ui/i18n';
+// Type-only (erased at build): the overlay-scope label table below is keyed by
+// the spec's enum rather than by hand — see `LAYER_SCOPE_ZH`.
+import type { MetadataOverlayScope } from '@object-ui/data-objectstack';
 
 export type SupportedLocale = 'en-US' | 'zh-CN';
 
@@ -4103,6 +4106,25 @@ export function translateFlowMeta(
 }
 
 /**
+ * zh-CN labels for the overlay-scope vocabulary, keyed by the spec's own enum.
+ *
+ * The key type is `@objectstack/spec`'s `GetMetaItemLayeredResponseSchema`
+ * `overlayScope` union, reached through `MetadataOverlayScope` — so the day the
+ * spec adds a scope this record stops compiling and names the label that is
+ * missing, instead of the badge silently shipping a raw English value. That
+ * silent path is objectui#4982: `overlayScope` reached the badge untranslated
+ * while the only two values it can hold had no entry in the table below.
+ *
+ * Deliberately zh-only, like every other group here — `translateConsoleValue`
+ * returns the raw value for the other nine locale packs by existing design, and
+ * whether to extend it is a separate decision, not a rider on this fix.
+ */
+const LAYER_SCOPE_ZH: Record<NonNullable<MetadataOverlayScope>, string> = {
+  org: '组织',
+  env: '环境',
+};
+
+/**
  * zh-CN labels for the metadata-editor side panels' raw enum-ish values —
  * History operation badges, Audit operation/outcome/lock-state, and the Layered
  * diff tab badges. Shared by every metadata type (not flow-specific). English
@@ -4122,7 +4144,14 @@ const CONSOLE_VALUE_ZH: Record<string, Record<string, string>> = {
   },
   outcome: { allowed: '允许', denied: '拒绝', forced: '强制' },
   lock: { draft: '草稿', locked: '已锁定', published: '已发布', none: '无' },
-  layer: { artifact: '工件', none: '无', merged: '合并', set: '已设', overlay: '覆盖' },
+  layer: {
+    artifact: '工件',
+    none: '无',
+    merged: '合并',
+    set: '已设',
+    overlay: '覆盖',
+    ...LAYER_SCOPE_ZH,
+  },
 };
 
 /** Localized label for a metadata-editor side-panel value (English = raw). */

@@ -32,7 +32,10 @@
  * type, mirroring the framework's "single Zod source per type" rule.
  */
 
-import type { RuntimeAuthoringIssue } from '@objectstack/spec/api';
+import type {
+  GetMetaItemLayeredResponse,
+  RuntimeAuthoringIssue,
+} from '@objectstack/spec/api';
 
 /**
  * One advisory finding the framework's runtime authoring gate produced for a
@@ -240,6 +243,29 @@ export interface MetadataDeleteOptions extends MetadataClientSaveOptions {
 }
 
 /**
+ * Which layer an overlay was saved at — `'org'` for a tenant overlay, `'env'`
+ * for an environment-level one, `null` exactly when `overlay` is null.
+ *
+ * DERIVED from `@objectstack/spec`, not restated: the vocabulary lives once, in
+ * `GetMetaItemLayeredResponseSchema`'s `overlayScope`
+ * (`z.enum(['org', 'env']).nullable()`), and this alias indexes the published
+ * response type so a scope the spec adds arrives here with no edit. Restating
+ * the union locally is the fork `scripts/check-spec-symbol-derivation.mjs`
+ * exists to reject, and the mirror-image mistake — a consumer re-spelling a
+ * producer's enum — is what this field carried until objectui#4982.
+ *
+ * What it carried: `string | null`, under a comment naming the vocabulary as
+ * `organization | environment | package`. Not one of those three spellings is a
+ * value the producer emits (`metadata-protocol`'s two assignment sites write
+ * `'org'` / `'env'`); the schema rejects all three by name, and `package` is
+ * not a scope this field has ever had. Because the declared type was `string`
+ * the compiler had no opinion, so the wrong comment was the only description of
+ * the vocabulary — a planted premise rather than stale prose, and the reason
+ * the Studio's layer badge shipped the raw value straight to screen.
+ */
+export type MetadataOverlayScope = GetMetaItemLayeredResponse['overlayScope'];
+
+/**
  * Layered view of a metadata item — the body of
  * `GET /meta/:type/:name/layers` (`GetMetaItemLayeredResponseSchema`).
  *
@@ -252,8 +278,11 @@ export interface MetadataLayered<T = unknown> {
   code: T | null;
   /** Org/environment overlay (just the saved delta or full overlay row). */
   overlay: T | null;
-  /** Overlay scope (`organization` | `environment` | `package` | null). */
-  overlayScope: string | null;
+  /**
+   * Which layer {@link MetadataLayered.overlay} came from, or null when there
+   * is no overlay. Spec-derived — see {@link MetadataOverlayScope}.
+   */
+  overlayScope: MetadataOverlayScope;
   /** Merged effective view — what the runtime actually sees. */
   effective: T | null;
   /**
