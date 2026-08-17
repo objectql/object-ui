@@ -75,23 +75,27 @@
  *     measured 73 `*.test.d.ts` files landing in the published `dist/` of
  *     `@object-ui/fields` and `@object-ui/plugin-editor`, and three packages
  *     (`fields`, `types`, `data-objectstack`) listed `src` in `files`, so their
- *     tarballs carried the test SOURCES too. Two of the three no longer do:
+ *     tarballs carried the test SOURCES too. None of the three do anymore.
  *     objectui#4847 dropped `src` from `data-objectstack`'s `files` (43 source
- *     files, 38 of them tests, left that tarball) and objectui#4856 dropped it
- *     from `fields`' (173 source files, 97 of them tests). Only `types` still
- *     lists it, and there the entry is load-bearing rather than leftover,
- *     because it builds with a bare `tsc` under the root's `declarationMap` /
- *     `sourceMap` and no `inlineSources`, so its shipped `dist/*.d.ts.map` name
- *     `../src/*.ts` with no embedded content — dropping `src` there would leave
- *     published maps pointing at files the tarball no longer carries. `fields`
- *     was measurably NOT that shape, which is why the two were split rather than
- *     fixed together: its declarations come from `vite-plugin-dts`, and a clean
- *     rebuild emits zero `.map` files and zero `sourceMappingURL` comments, so
- *     nothing in its `dist` referred back to `src` at all. That is a real defect
- *     where it is one, and it is already filed; it is not this gate's, because
- *     nothing resolves those files and so no install of them can fail. Stated
- *     here rather than glossed, because "the build excludes tests" is the
- *     plausible-sounding version of this paragraph and it is not what the
+ *     files, 38 of them tests, left that tarball); objectui#4856 dropped it
+ *     from `fields`' (173 source files, 97 of them tests) after a clean rebuild
+ *     measured zero `.map` files and zero `sourceMappingURL` comments in its
+ *     `vite-plugin-dts` output, so nothing in its `dist` referred back to `src`
+ *     at all. `types` was the holdout: it builds with a bare `tsc`, and until
+ *     objectui#4851 its `tsconfig.json` set `declarationMap: true` with no
+ *     `inlineSources`, so its shipped `dist/*.d.ts.map` named `../src/*.ts`
+ *     with no embedded content — dropping `src` from `files` while that was
+ *     still true would have left published maps pointing at files the tarball
+ *     no longer carried. objectui#4851 closed the gap at the source instead of
+ *     leaving the exception standing: `declarationMap` is now `false`, a clean
+ *     rebuild confirmed zero `.map` files, zero `sourceMappingURL` comments,
+ *     and zero `../src` references in `dist`, and only then did `src` come out
+ *     of `files`. Go-to-source for `@object-ui/types` consumers now resolves
+ *     to the `.d.ts`, not the original `.ts` — a deliberate, near-zero-pull
+ *     trade for a pure-types package whose declarations are near-isomorphic to
+ *     their source, made explicitly rather than left as a silent regression.
+ *     Stated here rather than glossed, because "the build excludes tests" is
+ *     the plausible-sounding version of this paragraph and it is not what the
  *     repository measures.
  *
  * The root allowance is a decision, not an oversight, and it is worth stating

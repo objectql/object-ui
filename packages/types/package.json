@@ -56,10 +56,9 @@
   },
   "files": [
     "dist",
-    "src",
     "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc",
