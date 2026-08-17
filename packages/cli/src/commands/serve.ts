@@ -13,6 +13,7 @@ import { join, resolve, relative } from 'path';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
 import { scanPagesDirectory, createTempAppWithRouting, createTempApp, parseSchemaFile, type RouteInfo } from '../utils/app-generator.js';
+import { isWorkspaceRoot, prepareWorkspaceTempApp } from '../utils/workspace-vite.js';
 
 interface ServeOptions {
   port: string;
@@ -79,20 +80,35 @@ export async function serve(schemaPath: string, options: ServeOptions) {
   }
 
   // Install dependencies
-  console.log(chalk.blue('📦 Installing dependencies...'));
-  console.log(chalk.dim('  This may take a moment on first run...'));
-  try {
-    execSync('npm install --silent --prefer-offline', { 
-      cwd: tmpDir, 
-      stdio: 'inherit',
-    });
-    console.log(chalk.green('✓ Dependencies installed'));
-  } catch {
-    throw new Error('Failed to install dependencies. Please check your internet connection and try again.');
+  const isMonorepo = isWorkspaceRoot(cwd);
+
+  if (isMonorepo) {
+    console.log(chalk.blue('📦 Detected monorepo - using root node_modules'));
+  } else {
+    console.log(chalk.blue('📦 Installing dependencies...'));
+    console.log(chalk.dim('  This may take a moment on first run...'));
+    try {
+      execSync('npm install --silent --prefer-offline', {
+        cwd: tmpDir,
+        stdio: 'inherit',
+      });
+      console.log(chalk.green('✓ Dependencies installed'));
+    } catch {
+      throw new Error('Failed to install dependencies. Please check your internet connection and try again.');
+    }
   }
 
   console.log(chalk.green('✓ Schema loaded successfully'));
   console.log(chalk.blue('🚀 Starting development server...\n'));
+
+  // Everything the temp app needs to resolve platform packages from workspace
+  // source — the alias table, and the PostCSS pipeline that replaces the
+  // generated config file. Shared with `dev` and `build` so the three cannot
+  // drift apart (objectui#3890); see `utils/workspace-vite.ts`.
+  if (isMonorepo) {
+    console.log(chalk.blue('📦 Detected monorepo - configuring workspace aliases'));
+  }
+  const workspaceConfig = isMonorepo ? await prepareWorkspaceTempApp(cwd, tmpDir) : {};
 
   // Create Vite config
   const viteConfig = {
@@ -101,8 +117,13 @@ export async function serve(schemaPath: string, options: ServeOptions) {
       port: parseInt(options.port),
       host: options.host,
       open: true,
+      fs: {
+        // Allow serving the workspace sources the aliases point at
+        allow: [cwd],
+      },
     },
     plugins: [react()],
+    ...workspaceConfig,
   };
 
   // Create Vite server

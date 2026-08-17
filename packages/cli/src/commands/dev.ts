@@ -8,62 +8,17 @@
 
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
-import { existsSync, mkdirSync, unlinkSync, statSync } from 'fs';
+import { existsSync, mkdirSync, statSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
-import { createRequire } from 'module';
 import { scanPagesDirectory, createTempAppWithRouting, createTempApp, parseSchemaFile, type RouteInfo } from '../utils/app-generator.js';
+import { isWorkspaceRoot, prepareWorkspaceTempApp } from '../utils/workspace-vite.js';
 
 interface DevOptions {
   port: string;
   host: string;
   open?: boolean;
-}
-
-/**
- * The PostCSS plugins the workspace-local temp app is served with.
- *
- * Inside a workspace the generated app installs nothing (it resolves everything
- * by hoisting) and its own `postcss.config.js` is removed, so this is the only
- * thing that compiles its stylesheet. Two things about it are deliberate:
- *
- * 1. **`@tailwindcss/postcss`, not `tailwindcss`.** Tailwind 4 moved the PostCSS
- *    plugin into its own package; calling `tailwindcss()` as a plugin — which
- *    this did until objectui#3852, passing it the generated
- *    `tailwind.config.js` — hits a shim whose only job is to throw ("It looks
- *    like you're trying to use `tailwindcss` directly as a PostCSS plugin"). The
- *    config-file argument goes away with it: v4 is CSS-first and the generated
- *    `src/index.css` carries its own `@source`/`@theme` (see `app-generator.ts`).
- * 2. **Resolved from this CLI, and loud when it cannot be.** Both plugins are
- *    declared by `@object-ui/cli` itself, so a bare `import` finds them wherever
- *    the CLI is installed — rather than depending on what the invoking project
- *    happens to hoist (this repo's root declares `tailwindcss` but NOT
- *    `@tailwindcss/postcss`, so resolving from the cwd cannot work here at all).
- *    A failure throws with the reason attached: the previous `catch` warned one
- *    yellow line and served the app with no stylesheet, which is exactly how a
- *    dead CSS pipeline stayed unnoticed long enough to be filed as
- *    objectui#3852.
- */
-async function loadTempAppPostcssPlugins(): Promise<unknown[]> {
-  try {
-    const [tailwindPostcss, autoprefixer] = await Promise.all([
-      import('@tailwindcss/postcss'),
-      import('autoprefixer')
-    ]);
-    return [tailwindPostcss.default(), autoprefixer.default()];
-  } catch (error) {
-    // The caught error's message is inlined below. We can't pass it as the
-    // `Error` `cause` option because this package targets ES2020, whose lib
-    // types the 1-arg `Error` constructor only; hence the scoped disable.
-    // eslint-disable-next-line preserve-caught-error
-    throw new Error(
-      `Failed to load the Tailwind CSS PostCSS pipeline: ${error instanceof Error ? error.message : error}\n` +
-        `  Both '@tailwindcss/postcss' and 'autoprefixer' are dependencies of @object-ui/cli — a\n` +
-        `  broken install of the CLI is the likeliest cause; reinstall it and try again.\n` +
-        `  (Refusing to start unstyled: that failure is silent in the browser.)`
-    );
-  }
 }
 
 export async function dev(schemaPath: string, options: DevOptions) {
@@ -119,8 +74,6 @@ export async function dev(schemaPath: string, options: DevOptions) {
      }
   }
 
-  const require = createRequire(join(cwd, 'package.json'));
-  
   let routes: RouteInfo[] = [];
   let schema: unknown = null;
   let useFileSystemRouting = false;
@@ -171,8 +124,8 @@ export async function dev(schemaPath: string, options: DevOptions) {
 
 
   // Install dependencies
-  const isMonorepo = existsSync(join(cwd, 'pnpm-workspace.yaml'));
-  
+  const isMonorepo = isWorkspaceRoot(cwd);
+
   if (isMonorepo) {
     console.log(chalk.blue('📦 Detected monorepo - using root node_modules'));
   } else {
@@ -192,6 +145,15 @@ export async function dev(schemaPath: string, options: DevOptions) {
   console.log(chalk.green('✓ Schema loaded successfully'));
   console.log(chalk.blue('🚀 Starting development server...\n'));
 
+  // Everything the temp app needs to resolve platform packages from workspace
+  // source — the alias table, and the PostCSS pipeline that replaces the
+  // generated config file. Shared with `serve` and `build` so the three cannot
+  // drift apart (objectui#3890); see `utils/workspace-vite.ts`.
+  if (isMonorepo) {
+    console.log(chalk.blue('📦 Detected monorepo - configuring workspace aliases'));
+  }
+  const workspaceConfig = isMonorepo ? await prepareWorkspaceTempApp(cwd, tmpDir) : {};
+
   // Create Vite config
   const viteConfig: any = {
     root: tmpDir,
@@ -204,60 +166,9 @@ export async function dev(schemaPath: string, options: DevOptions) {
         allow: [cwd],
       }
     },
-    resolve: {
-      alias: {}
-    },
     plugins: [react()],
+    ...workspaceConfig,
   };
-
-  if (isMonorepo) {
-    console.log(chalk.blue('📦 Detected monorepo - configuring workspace aliases'));
-    
-    // Remove postcss.config.js: the programmatic `css.postcss` below takes over
-    // (an inline config makes Vite skip config-file discovery entirely), and the
-    // generated file names `@tailwindcss/postcss` — a package the temp app never
-    // installs inside a workspace, and one this repo's root does not declare
-    // either, so leaving the file for a later Vite pass to find would only
-    // reintroduce an unresolvable plugin.
-    const postcssPath = join(tmpDir, 'postcss.config.js');
-    if (existsSync(postcssPath)) {
-      unlinkSync(postcssPath);
-    }
-
-    // Add aliases for workspace packages
-    viteConfig.resolve.alias = {
-      '@object-ui/react': join(cwd, 'packages/react/src/index.ts'),
-      '@object-ui/components': join(cwd, 'packages/components/src/index.ts'),
-      '@object-ui/core': join(cwd, 'packages/core/src/index.ts'),
-      '@object-ui/types': join(cwd, 'packages/types/src/index.ts'),
-      '@object-ui/plugin-charts': join(cwd, 'packages/plugin-charts/src/index.tsx'),
-      '@object-ui/plugin-editor': join(cwd, 'packages/plugin-editor/src/index.tsx'),
-      '@object-ui/plugin-kanban': join(cwd, 'packages/plugin-kanban/src/index.tsx'),
-      '@object-ui/plugin-markdown': join(cwd, 'packages/plugin-markdown/src/index.tsx'),
-      '@object-ui/plugin-form': join(cwd, 'packages/plugin-form/src/index.tsx'),
-      '@object-ui/plugin-grid': join(cwd, 'packages/plugin-grid/src/index.tsx'),
-      '@object-ui/plugin-view': join(cwd, 'packages/plugin-view/src/index.tsx'),
-    };
-
-    // Fix: Resolve lucide-react from components package to avoid "dependency not found" in temp app
-    try {
-      // Trying to find lucide-react in the components' node_modules or hoist
-      // checking specifically in packages/components context
-      const lucidePath = require.resolve('lucide-react', { paths: [join(cwd, 'packages/components')] });
-      // We might get the cjs entry, but for aliasing usually fine. 
-      // Better yet, if we can find the package root, but require.resolve gives file.
-      // Let's just use what require.resolve gives.
-      viteConfig.resolve.alias['lucide-react'] = lucidePath;
-    } catch (e) {
-      console.warn('⚠️ Could not resolve lucide-react automatically:', e);
-    }
-    
-    // Debug aliases
-    // console.log('Aliases:', viteConfig.resolve.alias);
-
-    // Configure PostCSS programmatically — see `loadTempAppPostcssPlugins`.
-    viteConfig.css = { postcss: { plugins: await loadTempAppPostcssPlugins() } };
-  }
 
   // Create Vite server
   const server = await createServer(viteConfig);

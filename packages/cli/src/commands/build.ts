@@ -13,6 +13,7 @@ import { join, resolve } from 'path';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
 import { scanPagesDirectory, createTempAppWithRouting, createTempApp, parseSchemaFile, type RouteInfo } from '../utils/app-generator.js';
+import { isWorkspaceRoot, prepareWorkspaceTempApp } from '../utils/workspace-vite.js';
 
 interface BuildOptions {
   outDir?: string;
@@ -81,16 +82,31 @@ export async function buildApp(schemaPath: string, options: BuildOptions) {
   }
 
   // Install dependencies
-  console.log(chalk.blue('📦 Installing dependencies...'));
-  try {
-    execSync('npm install --silent --prefer-offline', { 
-      cwd: tmpDir, 
-      stdio: 'pipe',
-    });
-    console.log(chalk.green('✓ Dependencies installed'));
-  } catch {
-    throw new Error('Failed to install dependencies. Please check your internet connection and try again.');
+  const isMonorepo = isWorkspaceRoot(cwd);
+
+  if (isMonorepo) {
+    console.log(chalk.blue('📦 Detected monorepo - using root node_modules'));
+  } else {
+    console.log(chalk.blue('📦 Installing dependencies...'));
+    try {
+      execSync('npm install --silent --prefer-offline', {
+        cwd: tmpDir,
+        stdio: 'pipe',
+      });
+      console.log(chalk.green('✓ Dependencies installed'));
+    } catch {
+      throw new Error('Failed to install dependencies. Please check your internet connection and try again.');
+    }
   }
+
+  // Everything the temp app needs to resolve platform packages from workspace
+  // source — the alias table, and the PostCSS pipeline that replaces the
+  // generated config file. Shared with `dev` and `serve` so the three cannot
+  // drift apart (objectui#3890); see `utils/workspace-vite.ts`.
+  if (isMonorepo) {
+    console.log(chalk.blue('📦 Detected monorepo - configuring workspace aliases'));
+  }
+  const workspaceConfig = isMonorepo ? await prepareWorkspaceTempApp(cwd, tmpDir) : {};
 
   console.log(chalk.blue('⚙️  Building with Vite...'));
   console.log();
@@ -112,6 +128,7 @@ export async function buildApp(schemaPath: string, options: BuildOptions) {
       },
       plugins: [react()],
       logLevel: 'info',
+      ...workspaceConfig,
     });
 
     // Copy built files to output directory
