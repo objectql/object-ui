@@ -144,12 +144,20 @@ function urlValue(value: unknown): string {
  * ## Why substitution cannot widen the destination
  *
  * Every interpolated value goes through `encodeURIComponent`, which escapes the
- * two characters that could add structure — `/` and `:` — along with `?`, `#`
- * and the rest. So a field carrying an address, a traversal, or a space becomes
- * one opaque segment or query value: a token is a VALUE in the path, never a
- * way to add path structure, and a record's contents can never turn a path the
- * contract accepted into one it would not. `submitRedirect.test.ts` pins that
- * by re-parsing the emitted string with the same schema.
+ * characters that could add structure — `/` and `:`, along with `?`, `#` and the
+ * rest. So a field carrying an address, a traversal, or a space becomes one
+ * opaque segment or query value: a token is a VALUE in the path, never a way to
+ * add path structure.
+ *
+ * This escape carries the whole weight of that property, and re-parsing the
+ * result would NOT be enough on its own — measured, not assumed. Interpolated
+ * raw, `/t/{{record.slug}}` with an address in `slug` becomes
+ * `/t/https://evil.example/steal`, which still starts with `/` and carries no
+ * leading scheme: a spec-VALID relative path pointing somewhere the author never
+ * wrote. Relative-only is a rule about where a path starts, so it has nothing to
+ * say about structure injected further along. `submitRedirect.test.ts` therefore
+ * pins both halves — the emitted string re-parses green, AND the escaped value is
+ * present in it.
  */
 export function resolveSubmitRedirect(
   url: string,

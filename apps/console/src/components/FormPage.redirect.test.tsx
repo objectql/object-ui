@@ -13,20 +13,26 @@
  * navigation mechanism runs, and what the submitter sees when the destination is
  * out of contract.
  *
- * ## Reverse verification — the direction, predicted before running it
+ * ## Reverse verification — predicted first, then measured
  *
- * 1. Restoring the browser-level navigation on the authored string turns
- *    `lands inside the shell` and `substitutes the id …` RED: the router's
- *    location never moves, so the destination route never renders. (jsdom does
- *    not navigate either, which is exactly why the old line's mount bug was
- *    invisible to every test — the assertion had to be "the shell moved", not
- *    "assign was called".)
- * 2. Deleting the refusal and following the authored value turns
- *    `refuses an absolute destination …` RED — no error on screen, and the
- *    router stays put with nothing explaining why.
- * 3. The in-contract relative cases stay GREEN across both mutations in the one
- *    sense that matters for a change detector: they are the control, and if a
- *    mutation makes THEM pass differently the mutation broke something else.
+ * 1. **Restoring the browser-level navigation** on the authored string: 7 of the
+ *    8 tests here go RED — all five navigation cases (the router's location never
+ *    moves, so the destination route never renders) and both refusals. The one
+ *    that stays green is `documents what the browser-level form would have
+ *    resolved to`, which asserts a fact about URL resolution rather than about
+ *    this component. The whole of `submitRedirect.test.ts` also stays green: that
+ *    mutation kills the CALL SITE, leaving the module correct and unused, which
+ *    is precisely why the mechanism has to be pinned here.
+ *    (jsdom does not actually navigate either — which is how the old line's mount
+ *    bug stayed invisible to every test. The assertion had to be "the shell
+ *    moved", never "a full-page navigation was attempted".)
+ * 2. **Deleting the refusal** and following the authored value: exactly the two
+ *    refusal tests go RED, the six in-contract cases stay green. A narrow,
+ *    non-overlapping change detector.
+ * 3. **Deleting the escape** in the helper: `escapes a server-side value into one
+ *    path segment` and `interpolates from the submitted values …` go RED here,
+ *    alongside eight in the unit file. See that file's docblock for why the
+ *    schema oracle alone does not catch every unescaped value.
  *
  * ## Why the basename is on the harness rather than in one test
  *
@@ -37,7 +43,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';

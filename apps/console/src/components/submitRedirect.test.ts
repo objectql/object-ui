@@ -17,22 +17,39 @@
  *
  * The strong pin is `emits a path the contract still accepts`: ruling point 2
  * requires every interpolated value to be URL-escaped when the redirect is
- * built, and the sharpest statement of "escaped enough" is that the string this
- * module EMITS, hostile record values and all, is itself a value the contract
- * would accept. The oracle judges the output, not just the input.
+ * built, so the oracle is turned on the OUTPUT — whatever this module emits,
+ * hostile record values and all, must still be a value the contract would
+ * accept.
  *
- * ## Reverse verification — the direction, predicted before running it
+ * ## Reverse verification — measured, and NOT what the obvious reading predicts
  *
- * Deleting the escape (interpolating the raw value) turns
- * `emits a path the contract still accepts` RED — a field carrying an address
- * makes the emitted string absolute, which the schema refuses — while every
- * accept/refuse verdict test stays green, because their inputs are unchanged.
- * That is the honest split: the parity suites guard the verdict, and only the
- * emitted-value pin guards the escape.
+ * Deleting the escape (interpolating the raw value) turns 10 tests red across
+ * this file and `FormPage.redirect.test.tsx`, and WHICH assertion catches each
+ * value is the part worth writing down, because re-parsing the emitted string is
+ * necessary and **not sufficient**:
+ *
+ *   - the schema oracle catches only values whose raw form breaks the ruled shape
+ *     ANYWHERE in the string — a backslash, whitespace, a control character. Those
+ *     checks are not anchored to the start, so they still fire mid-path.
+ *   - an address or a script scheme is NOT caught by it. Raw-interpolated,
+ *     `/t/{{record.slug}}` becomes `/t/https://evil.example/steal`, which starts
+ *     with `/` and carries no leading scheme — a perfectly spec-valid relative
+ *     path that goes somewhere the author did not write. Only
+ *     `toContain(encodeURIComponent(hostile))` sees that: the harm is injected
+ *     path STRUCTURE, and relative-only has nothing to say about it.
+ *   - a brace pair in the record trips the unresolved-interpolation backstop
+ *     instead, refusing rather than emitting a token-bearing URL.
+ *
+ * So the two assertions in that block are not belt-and-braces; they cover
+ * disjoint halves of "escaped enough", and dropping the second one would leave
+ * the escape pinned only for the values the contract happens to reject twice.
  *
  * Deleting the whole parse and returning the url verbatim inverts the refusal
  * suite: every out-of-contract case goes red at once, which is the change
- * detector for this module's reason to exist.
+ * detector for this module's reason to exist. Deleting the CALL SITE instead
+ * (restoring the browser-level navigation in `FormPage`) leaves this entire file
+ * green — the module would simply be unused — which is why the mechanism is
+ * pinned next to the rendered page and not here.
  *
  * Control characters below are written as escape sequences on purpose — a raw
  * one makes the whole file read as binary to grep, and this repo has paid for
