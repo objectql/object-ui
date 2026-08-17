@@ -151,8 +151,12 @@ describe('a package name that is not a module edge is not a finding', () => {
     //
     // Replaced rather than dropped, and with a JSDoc specimen from production
     // source rather than another test, which is the stronger case: a regex
-    // rewrite of this gate breaks on a documented `import … from '@object-ui/core'`
-    // example exactly as it would on a test constant.
+    // rewrite of this gate breaks on a documented import example that quotes
+    // its own package name exactly as it would on a test constant.
+    //
+    // (Spelled without the quoted specifier on purpose. `scripts-type-check.test.ts`
+    // greps every file in the scripts tsconfig program for that literal shape and
+    // cannot tell a comment from an import — see objectui#4902.)
     const specimens: Record<string, string> = {
       'packages/i18n/src/__tests__/perm-home-namespace-3546.test.tsx': '@object-ui/i18n',
       'packages/core/src/utils/freeze-schema.ts': '@object-ui/core',

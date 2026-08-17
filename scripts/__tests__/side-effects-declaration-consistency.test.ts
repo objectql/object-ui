@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import ts from 'typescript';
 import { build } from 'vite';
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -335,7 +336,10 @@ function resolvableEntryPaths(pkg: DeclaringPackage): string[] {
   const walk = (node: unknown): void => {
     if (node === null || node === undefined) return;
     if (typeof node === 'string') {
-      if (node.startsWith('./') || !node.includes('/')) found.add(normalize(node));
+      // Only a relative target names a file in this package; a bare specifier
+      // is a re-export of a dependency and is that package's manifest's
+      // problem, not this one's.
+      if (node.startsWith('./')) found.add(normalize(node));
       return;
     }
     if (typeof node !== 'object') return;
@@ -359,9 +363,48 @@ function resolvableEntryPaths(pkg: DeclaringPackage): string[] {
   return [...found].filter((p) => !p.includes('*')).sort();
 }
 
-/** Entry forms that are source files in this tree (as opposed to build output). */
+/**
+ * Every path git has in its index. Fails loudly if git is not usable: returning
+ * an empty set would make every entry look like build output, which quietly
+ * SHRINKS what this gate examines.
+ */
+function gitTrackedPaths(): Set<string> {
+  const result = spawnSync('git', ['ls-files', '-z'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024 * 64,
+  });
+  if (result.status !== 0) {
+    throw new Error(
+      `\`git ls-files\` failed in ${repoRoot} (status ${result.status}): ${result.stderr}\n` +
+        'This guard separates source from build output using git, so it fails closed rather than ' +
+        'passing over an unknown tree.',
+    );
+  }
+  return new Set(result.stdout.split('\0').filter(Boolean));
+}
+
+const trackedPaths = gitTrackedPaths();
+
+/**
+ * Whether an entry form is SOURCE in this repo, as opposed to build output.
+ *
+ * Keyed on git's index rather than on `fs.existsSync`, and the difference is the
+ * whole point: `dist/index.js` exists in a built tree and not in a fresh clone,
+ * so an existence check answers differently depending on whether anyone has run
+ * a build. That is not hypothetical here — `packages/layout/dist` was populated
+ * by a `turbo type-check` run (which `dependsOn: ^build`) while this gate was
+ * being written, which would have flipped `dist/index.js` into the statically
+ * scanned population on one machine and not another.
+ *
+ * `package-files-exist.test.ts` learned the same lesson the same way in
+ * objectui#4059: its producibility check was first written against `onDisk` and
+ * passed on the very state it exists to reject, because a local build had
+ * already put the file there. Git's index does not move when you run
+ * `pnpm build`.
+ */
 const isSourceEntry = (pkg: DeclaringPackage, entry: string): boolean =>
-  fs.existsSync(path.join(repoRoot, pkg.dir, entry));
+  trackedPaths.has(path.posix.join(pkg.dir, entry));
 
 /* -------------------------------------------------------------------------- */
 /* The static scan: top-level statements that reach OUT of the module.          */
