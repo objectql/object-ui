@@ -7,6 +7,7 @@
  */
 
 import { ComponentRegistry } from '@object-ui/core';
+import { isHtmlTierNode } from '@object-ui/sdui-parser';
 import type { DivSchema } from '@object-ui/types';
 import { renderChildren } from '../../lib/utils';
 import { forwardRef } from 'react';
@@ -38,19 +39,47 @@ function warnDeprecatedOnce(type: string, message: string): void {
   console.warn(message);
 }
 
+/**
+ * The notice, including WHICH AUTHORING SURFACE it is about.
+ *
+ * Scope is part of the message, not decoration. This type is deprecated on the
+ * JSON surface and simultaneously a permanent, first-class tag of the
+ * `kind:'html'` tier — an author there writes the plain box tag and our own
+ * parser maps it straight through, and no other spelling exists for them to
+ * migrate to. A notice that says the type is deprecated FULL STOP is therefore
+ * false for one of its two readers, and it was the reader who could do nothing
+ * about it who kept receiving it (objectui#4000).
+ *
+ * The migration guidance below is byte-for-byte what it was: this issue narrows
+ * WHO is told, it does not water down WHAT they are told.
+ */
+const DIV_DEPRECATION_NOTICE =
+  '[ObjectUI] The "div" component is deprecated for JSON-authored pages. Please use Shadcn components instead:\n' +
+  '  - For containers: use "card", "flex", or semantic layout components\n' +
+  '  - For simple wrappers: use layout components like "container", "stack", or "grid"\n' +
+  '  This applies to JSON-authored nodes. In a kind:\'html\' page the tag is part of that tier\'s own\n' +
+  '  vocabulary, is compiled straight through, and is not reported here.\n' +
+  'See documentation at https://www.objectui.org/docs/components for alternatives.';
+
 // Index signature on the parameter annotation, not on the `forwardRef` type
 // argument — mechanism note on `action:bar` (objectui#4422), pinned by
 // `__tests__/forwardref-props-annotation.guard.test.ts`.
 const DivRenderer = forwardRef<HTMLDivElement, { schema: DivSchema; className?: string }>(
   ({ schema, className, ...props }: { schema: DivSchema; className?: string; [key: string]: any }, ref) => {
-    // Deprecation warning (once per module load — see warnDeprecatedOnce)
-    warnDeprecatedOnce(
-      'div',
-      '[ObjectUI] The "div" component is deprecated. Please use Shadcn components instead:\n' +
-      '  - For containers: use "card", "flex", or semantic layout components\n' +
-      '  - For simple wrappers: use layout components like "container", "stack", or "grid"\n' +
-      'See documentation at https://www.objectui.org/docs/components for alternatives.'
-    );
+    // Deprecation notice — JSON-authored nodes only (objectui#4000), once per
+    // module load (objectui#3965, see warnDeprecatedOnce).
+    //
+    // ORDER, same discipline as the production early-return inside
+    // warnDeprecatedOnce: the exemption is checked BEFORE the seen-set is
+    // marked. An html-tier node rendering first must not latch the guard, or it
+    // would swallow the notice a JSON-authored node earns later on the same
+    // page — silencing exactly the reader this notice is for.
+    //
+    // The test is provenance, established by the producer (the parser stamps
+    // what it emits), not a guess about the node's shape here.
+    if (!isHtmlTierNode(schema)) {
+      warnDeprecatedOnce('div', DIV_DEPRECATION_NOTICE);
+    }
 
     // Extract designer-related props
     const { 

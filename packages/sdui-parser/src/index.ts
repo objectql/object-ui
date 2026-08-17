@@ -8,6 +8,7 @@
 
 export * from './types.js';
 export { parseJsx, interpretBrace } from './parse.js';
+export { HTML_TIER_NODE, isHtmlTierNode, markHtmlTierNode } from './provenance.js';
 export { validateTree } from './validate.js';
 export { generateDts, propsName, generateBlockList } from './codegen.js';
 export type { CodegenOptions } from './codegen.js';

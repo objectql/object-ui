@@ -15,6 +15,7 @@
  */
 
 import type { Diagnostic, ParseOptions, ParseResult, SchemaElement, SchemaNode } from './types.js';
+import { markHtmlTierNode } from './provenance.js';
 
 /** Event handlers and raw-HTML injection are never allowed (parse ≠ execute). */
 const EVENT_ATTR = /^on[A-Z]/;
@@ -82,7 +83,15 @@ class Parser {
       this.error('unterminated-open-tag', `Unterminated <${tag}> open tag`, start, tag);
     }
 
-    const node: SchemaElement = { type: tag, ...props };
+    // Stamp html-tier provenance at the point of production (objectui#4000).
+    // Renderers whose type carries authoring advice aimed at the JSON surface
+    // read this to tell "the author wrote a tag in OUR tier, and there is no
+    // other spelling available to them" apart from "the author wrote this type
+    // in JSON, where the advice applies". Symbol-keyed, so it is invisible to
+    // JSON, to the DOM, and to anything an authored document could forge — see
+    // provenance.ts. Values reached through a braced attribute are NOT marked:
+    // that JSON was written by hand, and the JSON surface's advice does apply.
+    const node: SchemaElement = markHtmlTierNode({ type: tag, ...props });
     if (children && children.length) node.children = children;
     return node;
   }
