@@ -21,7 +21,7 @@ import {
   Separator,
 } from '@object-ui/components';
 import { useAuth } from '@object-ui/auth';
-import type { AuthInvitation } from '@object-ui/auth';
+import type { AuthInvitation, AuthInvitationStatus } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, Copy, Check, X, Mail } from 'lucide-react';
 import { toast } from 'sonner';
@@ -33,7 +33,18 @@ import { resolveOrgErrorMessage } from '../orgErrorMessage';
 
 type StatusFilter = 'all' | 'pending' | 'accepted' | 'rejected' | 'canceled';
 
-function statusBadgeVariant(status: string): 'outline' | 'default' | 'destructive' | 'secondary' {
+/**
+ * Badge variant per status. Exhaustive over `AuthInvitationStatus` on purpose —
+ * there is no `default:` arm any more (objectui#3879).
+ *
+ * The arm used to return `'secondary'` for anything unrecognized, which is how an
+ * unexpected status reached the badge looking deliberate. The union is closed and
+ * enforced at the auth client's wire boundary now, so a fifth member cannot
+ * arrive at runtime — and if better-auth ever adds one, this switch stops
+ * covering the parameter type and fails the type-check gate, which is exactly the
+ * moment a human should decide what colour it is.
+ */
+function statusBadgeVariant(status: AuthInvitationStatus): 'outline' | 'default' | 'destructive' {
   switch (status) {
     case 'pending':
       return 'outline';
@@ -42,8 +53,6 @@ function statusBadgeVariant(status: string): 'outline' | 'default' | 'destructiv
     case 'rejected':
     case 'canceled':
       return 'destructive';
-    default:
-      return 'secondary';
   }
 }
 

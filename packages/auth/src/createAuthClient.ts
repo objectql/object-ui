@@ -12,6 +12,7 @@ import type {
   AuthClient, AuthClientConfig, AuthUser, AuthClientSession, SignInCredentials, SignUpData,
   AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions,
 } from './types';
+import { AUTH_INVITATION_STATUSES, isAuthInvitationStatus } from './invitation-status';
 
 const TOKEN_STORAGE_KEY = 'auth-session-token';
 
@@ -130,6 +131,41 @@ function toAuthError(
   ) as Error & { code?: string };
   if (error.code) err.code = error.code;
   return err;
+}
+
+/**
+ * The wire boundary for invitations (objectui#3879).
+ *
+ * better-auth's client hands these routes back as `any`, so `as AuthInvitation`
+ * was a claim nothing checked — and with `status` narrowed to a closed union,
+ * an unchecked cast would make that union a comment again the day a backend
+ * stored a fifth value. This is the ONE place the claim is verified.
+ *
+ * It fails LOUDLY, naming the offending value, rather than degrading: a status
+ * outside better-auth's own `InvitationStatus` is a producer defect, and the
+ * alternatives all hide it — a neutral badge label renders it as UI copy in ten
+ * packs (the objectui#3879 symptom), and dropping the row deletes an invitation
+ * from an administrative ledger without saying so. Both call paths already
+ * render a rejection with a retry (`InvitationsPage`, `AcceptInvitationPage`),
+ * so the throw lands on a designed surface; `resolveOrgErrorMessage` shows the
+ * sentence verbatim, which is that module's own stated preference over
+ * swallowing an error.
+ */
+function asAuthInvitation(raw: unknown, method: string): AuthInvitation {
+  const status = (raw as { status?: unknown } | null | undefined)?.status;
+  if (!isAuthInvitationStatus(status)) {
+    throw new Error(
+      `${method}: unexpected invitation status ${JSON.stringify(status)} — ` +
+        `expected one of ${AUTH_INVITATION_STATUSES.join(' | ')}`,
+    );
+  }
+  return raw as AuthInvitation;
+}
+
+/** Same boundary, per row, for the list-returning invitation routes. */
+function asAuthInvitations(raw: unknown, method: string): AuthInvitation[] {
+  const rows = Array.isArray(raw) ? (raw as unknown[]) : [];
+  return rows.map((row) => asAuthInvitation(row, method));
 }
 
 /**
@@ -848,7 +884,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         ...(inviteData.positions?.length ? { positions: inviteData.positions } : {}),
       });
       if (error) throw toAuthError(error, 'Failed to invite member');
-      return data as unknown as AuthInvitation;
+      return asAuthInvitation(data, 'inviteMember');
     },
 
     async removeMember(removeData: { organizationId: string; memberIdOrUserId: string }): Promise<void> {
@@ -898,7 +934,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         query: { organizationId: orgId },
       });
       if (error) throw toAuthError(error, 'Failed to list invitations');
-      return (data ?? []) as AuthInvitation[];
+      return asAuthInvitations(data, 'listInvitations');
     },
 
     async cancelInvitation(invitationId: string): Promise<void> {
@@ -911,7 +947,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         query: { id: invitationId },
       });
       if (error) throw toAuthError(error, 'Failed to load invitation');
-      return data as unknown as AuthInvitation;
+      return asAuthInvitation(data, 'getInvitation');
     },
 
     async acceptInvitation(invitationId: string): Promise<void> {
@@ -927,7 +963,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
     async listUserInvitations(): Promise<AuthInvitation[]> {
       const { data, error } = await (betterAuth as any).organization.listUserInvitations();
       if (error) throw toAuthError(error, 'Failed to list invitations');
-      return (data ?? []) as AuthInvitation[];
+      return asAuthInvitations(data, 'listUserInvitations');
     },
   };
 }
