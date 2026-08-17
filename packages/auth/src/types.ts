@@ -13,6 +13,7 @@ import type {
   DelegableAdminScope,
 } from '@objectstack/spec/contracts';
 import type { TenancyPosture } from '@objectstack/spec/security';
+import type { AuthInvitationStatus } from './invitation-status';
 
 /**
  * Authentication types for @object-ui/auth
@@ -451,8 +452,16 @@ export interface AuthInvitation {
   email: string;
   /** Role to be granted upon acceptance */
   role: string;
-  /** Status: 'pending' | 'accepted' | 'rejected' | 'canceled' */
-  status: string;
+  /**
+   * Lifecycle status, as the CLOSED set better-auth stores.
+   *
+   * Was an open `string` with the four members living in this comment, which
+   * left every consumer to be liberal about the fifth value that comment could
+   * not forbid (objectui#3879). The union is `AuthInvitationStatus` now, and
+   * `createAuthClient` narrows the wire value onto it at the boundary — so a
+   * screen reading this field can switch on it exhaustively.
+   */
+  status: AuthInvitationStatus;
   /** Expiration timestamp */
   expiresAt?: string;
   /** ID of the inviting user */

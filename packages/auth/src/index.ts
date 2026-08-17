@@ -55,6 +55,16 @@ export {
   type OrgRole,
 } from './org-roles';
 
+// Invitation lifecycle vocabulary — a CLOSED set of four, bound to better-auth's
+// own `InvitationStatus` so it cannot drift, plus the narrowing guard the wire
+// boundary uses. Exported because a screen switching on `AuthInvitation.status`
+// needs the union by name (objectui#3879).
+export {
+  AUTH_INVITATION_STATUSES,
+  isAuthInvitationStatus,
+  type AuthInvitationStatus,
+} from './invitation-status';
+
 // Shared auth form primitives — exposed so consumers can build custom forms
 // that match the look of LoginForm / RegisterForm / ForgotPasswordForm.
 export {

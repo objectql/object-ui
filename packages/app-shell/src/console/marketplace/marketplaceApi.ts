@@ -132,7 +132,19 @@ export interface MarketplacePackageDetail extends MarketplacePackageSummary {
  */
 export type { PluginPermissions } from '@objectstack/spec/kernel';
 
-import type { PluginPermissions } from '@objectstack/spec/kernel';
+/**
+ * Trust / isolation tier a plugin runs under (ADR-0025 §3.6).
+ *
+ * Owned by `@objectstack/spec/kernel`'s `PluginRuntimeSchema`
+ * (`z.enum(['node', 'sandbox', 'worker'])`) — the same reasoning as
+ * `PluginPermissions` above, and the same defect one field over: this was
+ * declared `string` here, i.e. looser than the contract the producer validates
+ * against, and the looseness leaked a raw wire value onto the trust-tier badge
+ * of the panel that grants code execution (objectui#3846).
+ */
+export type { PluginRuntime } from '@objectstack/spec/kernel';
+
+import type { PluginPermissions, PluginRuntime } from '@objectstack/spec/kernel';
 
 export interface MarketplacePackageVersion {
   id: string;
@@ -153,8 +165,8 @@ export interface MarketplacePackageVersion {
   artifact_kind?: string;
   /** True when this version carries executable code (a `plugin` artifact). */
   contains_code?: boolean;
-  /** Trust tier the plugin runs under: 'node' | 'sandbox' | 'worker'. */
-  runtime?: string;
+  /** Trust tier the plugin runs under — the spec's closed three-member enum. */
+  runtime?: PluginRuntime;
   /** Dependency packaging: 'bundled' | 'manifest-deps'. */
   packaging?: string;
   /** Structured permission set the plugin asks the installer to grant. */

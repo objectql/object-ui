@@ -65,10 +65,49 @@ import dragged into the bundle.
   the prior record only when an object actually declares conditional fields
   (`needsPriorRecord`).
 - A predicate that fails to evaluate is **fail-open** and logged (a broken rule
-  must never block a legitimate write).
+  must never block a legitimate write) — **except** a `readonlyWhen` whose fault
+  is an unbound scope root, which has been fail-CLOSED since objectstack#4889.
+  See the next subsection; this bullet used to state the policy unconditionally
+  and that is no longer true.
 - `visibleWhen` is **not** a server concept — visibility is purely a client UX
   affordance. The server's `requiredWhen` / `readonlyWhen` are the real guards,
   so hiding a field client-side never weakens enforcement.
+
+### The one fail-CLOSED fault (objectstack#4889)
+
+The exception is narrow, and worth stating in full because its symptom is
+silent. A `readonlyWhen` predicate can fault because it names a scope ROOT this
+write never bound — `parent.status == 'paid'` evaluated where no master-detail
+header was resolved. That is not a broken predicate; it is a supported construct
+the evaluation site could not answer, and answering "not locked" writes a field
+the author declared frozen. So the server takes the conservative branch:
+`isReadonlyWhenLocked` logs `… treating the field as LOCKED`, resolves the field
+to locked, and `stripReadonlyWhenFields` — with its bulk twin
+`stripReadonlyWhenFieldsMulti` — deletes the key from the UPDATE payload. The
+incoming change is dropped exactly as a TRUE predicate's would be, and reported
+on the write response as a `droppedFields` entry with `reason: 'readonly_when'`.
+Enforcement belongs on the server — *server enforces, client is courtesy*, the
+rule the framework cites throughout its rule-validator, its lint diagnostics and
+its QA runner as **ADR-0057 D10** (that is the **framework's** ADR numbering;
+this repo's own ADR-0057, `0057-console-ai-chat-one-conversation-docked.md`, is
+an unrelated document) — and a declared lock that failed open would leave
+enforcement in the courtesy layer instead.
+
+Everything else keeps the fail-open policy, deliberately:
+
+- **Every other `readonlyWhen` fault** — undeclared key, null overload, parse
+  error — logs `… failed to evaluate — change allowed through` and lets the
+  change land. The two faults are told apart by the engine's own error text (it
+  reports an unknown variable, naming the root, for the unbound case, versus a
+  missing key / an overload / a parse fault for the rest), not by guessing.
+- **`requiredWhen` carries no such carve-out.** objectstack#4977 bound the same
+  `parent` scope for it — so the requirement is now enforced where this ADR says
+  it is, on insert, single-id update and bulk — but deliberately kept the
+  fail-open *semantics*: an unevaluable requirement, an unresolvable header
+  included, is logged and skipped, and the write proceeds. Rejecting a write
+  because a header was momentarily unreadable is a louder failure than refusing
+  one field.
+- **`visibleWhen`** is never evaluated server-side at all, per the bullet above.
 
 ## Client enforcement (objectui)
 
@@ -101,7 +140,21 @@ merged record.
 
 `evalFieldPredicate`'s fallbacks are chosen so a fault is *safe*: `true` for
 visibility (don't hide content on error), `false` for required/readonly (don't
-block submit or lock a field on error) — the same posture as the server.
+block submit or lock a field on error) — the same posture as the server for
+every fault but one.
+
+**The one place the two ends point in opposite directions.** For the
+unbound-root `readonlyWhen` fault above the server locks the field and the
+client keeps it editable, deliberately: by the same *server enforces, client is
+courtesy* reasoning that makes the server the authority, the courtesy layer does
+not get to guess "locked" and grey out a field the server might have accepted. The consequence is worth knowing
+before debugging it, because nothing about it looks like a failure: the form
+renders the field editable, the user edits it, the save reports SUCCESS, and the
+new value never lands. That trail leads to the SERVER-side lock — its `… treating
+the field as LOCKED` warning and the write response's `droppedFields` — not to
+the client predicate, which returned exactly what it was asked for. The
+narrowing is recorded on the client helper's own module head too
+(`packages/core/src/evaluator/fieldRules.ts`, objectui#3828).
 
 **Amendment (objectstack#5149, appeal 2).** Fail-open is now **loud**: a
 predicate that cannot be evaluated (parse error, unbound identifier, engine
