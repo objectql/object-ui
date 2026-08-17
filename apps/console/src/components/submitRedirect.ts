@@ -49,6 +49,22 @@
  * contract allows?" — so only that value is submitted for judgement, and only
  * issues on that value's path are read back.
  *
+ * Neither the import nor the parse is new ground in this repo, which is worth
+ * knowing before weighing the cost:
+ *
+ *  - `@object-ui/app-shell` already validates authored metadata drafts on the
+ *    client against these same schemas and surfaces their issue messages
+ *    (`views/metadata-admin/clientValidation.ts`), so "ask the spec at the
+ *    consumer" is the established pattern rather than a new one here.
+ *  - the bundle cost is nil, measured: `@objectstack/spec` is already in the
+ *    console's `vendor-objectstack` chunk (`vite.config.ts` names it a manual
+ *    chunk group) because app-shell — a core console dependency — imports
+ *    `@objectstack/spec/ui` at runtime in several modules. This import adds a
+ *    reference to a module the bundle already carries. That is also why it is a
+ *    static import rather than the lazy one `clientValidation` uses: there is
+ *    no chunk to defer, and making it lazy would only force this function to be
+ *    async on the submit path.
+ *
  * ## Why the accepted value is an in-app route
  *
  * A ruled-relative path IS a route in this shell, and objectui#4190 was filed
