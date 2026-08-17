@@ -58,22 +58,58 @@ npm install @object-ui/plugin-view
 
 ## Usage
 
-### Auto-registration (Side-effect Import)
+### Registration is a side effect of the import
 
 ```plaintext
 import '@object-ui/plugin-view';
 ```
 
-### Manual Registration
+That single import is the whole of registration — there is no components map to
+iterate over. Importing the entry runs the seven `ComponentRegistry.register(...)`
+calls in `packages/plugin-view/src/index.tsx`, which claim exactly these schema
+types:
+
+| Namespaced key | Bare-name fallback | Renderer behind it |
+| --- | --- | --- |
+| `plugin-view:object-view` | `object-view` | `ObjectViewRenderer` — list plus integrated create / edit |
+| `plugin-view:view` | `view` | the same renderer, registered as an alias |
+| `plugin-view:view:simple` | `view:simple` | `SimpleViewRenderer` — container-only view |
+| `view:view-switcher` | `view-switcher` | `ViewSwitcher` |
+| `view:filter-ui` | `filter-ui` | `FilterUI` |
+| `view:sort-ui` | `sort-ui` | `SortUI` |
+| `view:shared-view-link` | `shared-view-link` | `SharedViewLink` |
+
+Both spellings resolve here: `ComponentRegistry.register` publishes
+`namespace:type` and, unless the call passes `skipFallback: true`, the bare
+`type` as a back-compat fallback (`packages/core/src/registry/Registry.ts:194`,
+fallback at `:226`). No call in this package sets `skipFallback`. Note the
+namespaces are not uniform — `object-view`, `view` and `view:simple` register
+under `plugin-view`, the four control components under `view`.
+
+`ObjectViewRenderer` and `SimpleViewRenderer` are internal wrappers and are not
+exported: the wrapper resolves `dataSource` from the renderer context and hands
+the schema to `ObjectView`, which takes `dataSource` as a required prop rather
+than as a schema key.
+
+### Registering a component under your own key
+
+To serve one of this package's components under a key of your own, register the
+exported component — that is what a manual registration is here:
 
 ```plaintext
-import { viewComponents } from '@object-ui/plugin-view';
 import { ComponentRegistry } from '@object-ui/core';
+import { ViewSwitcher } from '@object-ui/plugin-view';
 
-Object.entries(viewComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
-});
+ComponentRegistry.register('my-switcher', ViewSwitcher, { namespace: 'my-app' });
 ```
+
+`ObjectView`, `ViewSwitcher`, `FilterUI`, `SortUI`, `SharedViewLink`,
+`ViewTabBar` and `ManageViewsDialog` are on the package's export surface,
+alongside the derivation helpers (`deriveRecordSurface`, `deriveFieldOptions`,
+`toFilterGroup`, `toSortItems`, …) and the component prop types
+(`ObjectViewProps`, `ViewSwitcherProps`, …). There is no aggregate map among
+them, and no schema types — the authored `object-view` node is typed by
+`@object-ui/types`.
 
 ## Examples
 
