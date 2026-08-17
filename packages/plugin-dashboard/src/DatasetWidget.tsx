@@ -58,8 +58,12 @@ import {
   pivotDimensionValue,
   pivotCellKey,
   compareToTrendLabelKey,
+  // The authored half of the same split — moved to core beside `buildChartSeries`
+  // so this widget and the report's embedded chart lower one vocabulary once
+  // (objectui#4877). Re-exported below under their original names.
+  chartConfigPresentation,
+  mergeAuthoredPresentation,
   type ChartSegmentClickEvent,
-  type ChartSeriesBinding,
   type CompareToConfig,
   type DatasetResultField,
   type DatasetDrillRange,
@@ -369,289 +373,27 @@ const CHART_TYPE_MAP: Record<string, string> = {
 };
 
 /**
- * Lower a dashboard widget's declared `chartConfig` (spec `ChartConfigSchema` —
- * the same shape a report block and a react `<ObjectChart>` parse) onto the
- * chart schema this widget hands to the renderer.
+ * The authored chart CHROME and the series/axis presentation merge, both of
+ * which now live in `@object-ui/core`'s `chart-presentation` beside
+ * `buildChartSeries` — the derivation they are merged onto (objectui#4877).
  *
- * ## Why this is a whitelist and not a spread
+ * They were written here (#3135 → objectstack#7016 → #4229) and moved when the
+ * report renderer's embedded chart turned out to need the SAME merge over the
+ * same spec keys: `ReportChartSchema` and `ChartConfigSchema` declare one
+ * vocabulary, and a second copy of the split beside this one is precisely the
+ * duplication objectui#4389 filed as a defect. The doctrine — the two
+ * admission criteria, the data/presentation ruling, why `aria` stays
+ * unforwarded — travelled with the code; see that module's header.
  *
- * Until #3135 NONE of `chartConfig` reached the renderer: this widget read
- * `options` and nothing else, so an author who wrote `showLegend: false` still
- * got a legend and one who wrote `true` only got one because "on" is the
- * renderer's default. #3135 lowered that single flag and left the rest declared
- * and inert. objectstack#7016 lowers the rest of the keys that are actually
- * DELIVERED, admitting a key only when both of these hold:
- *
- *  1. **The chart block draws it end to end on this path.** `{ type: 'chart' }`
- *     resolves to `ChartRenderer` → `AdvancedChartImpl`, which draws
- *     `title`/`subtitle` in its ChartFrame, turns `description` into the chart
- *     container's `role="img"` + `aria-label`, applies `height` as that
- *     container's inline height, reads `colors` as the positional palette,
- *     prints `showDataLabels` as a Recharts `LabelList`, draws `annotations` as
- *     ReferenceLine/ReferenceArea and honours `interaction` as the tooltip
- *     toggle plus `Brush`. Forwarding a key the renderer ignores would only
- *     move declared-but-not-delivered one layer down, which is the failure this
- *     change exists to remove.
- *  2. **It does not fight the dataset derivation.** `type` stays out: the
- *     widget's own `type` already picks the family through `CHART_TYPE_MAP`,
- *     which is the dataset path's chart-family channel.
- *
- * ## Where `xAxis` / `yAxis` / `series` go — the ruled split (#4229)
- *
- * Those three used to be refused here under the same criterion 2, on the
- * grounds that they are "DERIVED from the dataset selection". That belief was
- * **half right, and the half it got wrong silently dropped authored intent**:
- * a widget authoring the spec's own combo shape — `series[].type` plus
- * `series[].yAxis: 'left'|'right'` and two `yAxis` entries — rendered as
- * grouped bars on one axis, because the per-series mark and the axis binding
- * never left this function (#4229, measured in the DOM: 2 bars / 0 lines / 1
- * axis where 1 bar + 1 line + 2 axes were authored).
- *
- * The ruling: **the dataset owns DATA, the author owns PRESENTATION.**
- *
- *  - **Data (derived, never forwarded)** — series MEMBERSHIP (which columns
- *    become series, which rows, which buckets) and the column each binding
- *    reads. Concretely: `buildChartSeries`'s `dataKey`s, `xAxisKey`, and the
- *    spec's two binding keys `series[].name` and `ChartAxis.field`.
- *  - **Presentation (authored, merged forward)** — everything else on those
- *    same objects: `series[].type` (the per-series mark), `series[].yAxis`
- *    (which axis it binds to), `label`/`color`/`stack`/`variant`/`dashArray`/
- *    `opacity`, and the axis definitions' `title`/`format`/`min`/`max`/
- *    `stepSize`/`showGridLines`/`position`/`logarithmic`.
- *
- * This is #2880's S2 rule — dual axes are `yAxis[].position` plus
- * `series[].yAxis`, and a combo assigns its axes by EXPLICIT binding first,
- * falling back to the per-series-type guess only where the author bound
- * nothing — extended from `ObjectChart` (where PR #2883 landed it) to the
- * dataset path, which never carried it over. {@link mergeAuthoredPresentation}
- * is the ONE place that merge happens; see it for the match rule and for why
- * membership is safe.
- *
- * `aria` is the one declared key with **no reader at all** on this path:
- * `AdvancedChartImpl` has no `aria` prop, and `SchemaRenderer`'s ARIA injection
- * reads the FLAT `ariaLabel`/`ariaDescribedBy`/`role`, never a nested `aria`
- * object. It is therefore left unforwarded on purpose (criterion 1) and
- * reported back to objectstack#5175's narrowing half rather than papered over
- * with a dashboard-only flattening that would also collide with the accessible
- * name `description` already sets.
- *
- * @param raw the widget's `chartConfig` as authored (anything, incl. absent)
- * @param fieldCategoryColors per-category colours resolved from the category
- *   dimension's own select/lookup option colours, merged UNDER an explicit
- *   author map (see the `colors` note below)
- * @returns only the keys that resolved, so the caller can spread it over the
- *   derived chart schema and every undeclared key keeps the renderer's default
+ * Re-exported under their original names so this module's public surface is
+ * unchanged.
  */
-export function chartConfigPresentation(
-  raw: unknown,
-  fieldCategoryColors?: Record<string, string> | null,
-): Record<string, unknown> {
-  const config: Record<string, unknown> =
-    raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
-  const out: Record<string, unknown> = {};
-
-  const text = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
-
-  if (typeof config.showLegend === 'boolean') out.showLegend = config.showLegend;
-  if (typeof config.showDataLabels === 'boolean') out.showDataLabels = config.showDataLabels;
-  const title = text(config.title);
-  if (title) out.title = title;
-  const subtitle = text(config.subtitle);
-  if (subtitle) out.subtitle = subtitle;
-  const description = text(config.description);
-  if (description) out.description = description;
-  // A non-positive height would collapse the plot; the container default is the
-  // more honest answer than an invisible chart.
-  if (typeof config.height === 'number' && Number.isFinite(config.height) && config.height > 0) {
-    out.height = config.height;
-  }
-  if (Array.isArray(config.annotations) && config.annotations.length > 0) out.annotations = config.annotations;
-  if (config.interaction && typeof config.interaction === 'object' && !Array.isArray(config.interaction)) {
-    out.interaction = config.interaction;
-  }
-
-  // `colors` is overloaded kanban-style — and the two arms reach the renderer
-  // through two DIFFERENT props, so the split has to happen here (the react
-  // tier's ObjectChart splits it the same way): a `string[]` is the positional
-  // palette (`colors`), a `{ value: color }` record is an explicit per-category
-  // map (`categoryColors`). The author's map is merged OVER the dimension
-  // field's own option colours, which is the precedence the spec field comment
-  // states ("a value→color map — and a select/lookup dimension's option colors
-  // — take precedence over the positional palette per category").
-  const palette = Array.isArray(config.colors)
-    ? config.colors.filter((c): c is string => typeof c === 'string' && !!c)
-    : undefined;
-  if (palette?.length) out.colors = palette;
-  const authorCategoryColors =
-    config.colors && typeof config.colors === 'object' && !Array.isArray(config.colors)
-      ? (config.colors as Record<string, string>)
-      : undefined;
-  if (fieldCategoryColors || authorCategoryColors) {
-    out.categoryColors = { ...(fieldCategoryColors ?? {}), ...(authorCategoryColors ?? {}) };
-  }
-
-  return out;
-}
-
-/** Authored spec `ChartSeries` presentation, in the renderer's internal spelling. */
-export interface AuthoredSeriesPresentation {
-  label?: string;
-  /** Spec `ChartSeries.type`, narrowed — see {@link seriesPresentation}. */
-  chartType?: 'bar' | 'line' | 'area';
-  yAxis?: 'left' | 'right';
-  color?: string;
-  stack?: string;
-  variant?: 'primary' | 'comparison';
-  dashArray?: string;
-  opacity?: number;
-}
-
-/** A derived series binding with the author's presentation merged onto it. */
-export type MergedChartSeries = ChartSeriesBinding & AuthoredSeriesPresentation;
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  !!v && typeof v === 'object' && !Array.isArray(v);
-
-/**
- * An i18n label is a plain string or a `{ en, zh-CN, … }` record; charts render
- * a string. Same pick `normalizeChartSchema` makes, so a label reads the same
- * on both paths.
- */
-function labelText(v: unknown): string | undefined {
-  if (typeof v === 'string' && v) return v;
-  if (isRecord(v)) {
-    const first = Object.values(v).find((x) => typeof x === 'string' && x);
-    return first as string | undefined;
-  }
-  return undefined;
-}
-
-/**
- * One authored `ChartSeries`, minus its `name` — i.e. everything about it that
- * is presentation rather than membership.
- *
- * `type` is narrowed to the three families that COMPOSE on one cartesian plot,
- * because this array reaches the renderer already speaking the internal shape
- * (`ChartRenderer` forwards a `dataKey`-shaped array untouched, so
- * `normalizeChartSchema`'s own identical narrowing never sees it). Without the
- * narrowing a `type: 'pie'` would not merely be inert — it would count as a
- * family disagreement in `effectiveChartFamily`, flip the whole chart into a
- * combo, and then draw that series as a bar anyway.
- */
-function seriesPresentation(raw: Record<string, unknown>): AuthoredSeriesPresentation {
-  const out: AuthoredSeriesPresentation = {};
-  const family = raw.type;
-  if (family === 'bar' || family === 'line' || family === 'area') out.chartType = family;
-  if (raw.yAxis === 'left' || raw.yAxis === 'right') out.yAxis = raw.yAxis;
-  const label = labelText(raw.label);
-  if (label) out.label = label;
-  if (typeof raw.color === 'string' && raw.color) out.color = raw.color;
-  if (typeof raw.stack === 'string' && raw.stack) out.stack = raw.stack;
-  if (raw.variant === 'primary' || raw.variant === 'comparison') out.variant = raw.variant;
-  if (typeof raw.dashArray === 'string' && raw.dashArray) out.dashArray = raw.dashArray;
-  if (typeof raw.opacity === 'number' && Number.isFinite(raw.opacity)) out.opacity = raw.opacity;
-  return out;
-}
-
-/**
- * One authored `ChartAxis`, minus its `field` — the axis's presentation.
- *
- * `field` is the one DATA key on an axis (it names the plotted column), and
- * dropping it here is what keeps membership with the dataset **structurally**
- * rather than by a guard: `normalizeChartSchema` synthesises series out of
- * `yAxis[].field` when a chart declares no series, so a forwarded `field`
- * would be a live membership channel on an empty selection. With it gone the
- * axis carries scale and chrome only, and the count of entries — which is what
- * turns on the secondary axis (`yAxes.length > 1`) — survives, including for
- * an entry that declares nothing but its own existence.
- *
- * Keys the renderer does not read on a given axis are dropped by
- * `normalizeChartSchema`, the ONE normalization layer (#2880 S1): today it
- * keeps `format`/`title`/`showGridLines` on the x-axis and the full set on the
- * y-axes. That narrowing is deliberately NOT mirrored here — a second copy
- * would drift from the renderer's real capability the moment it grew.
- */
-function axisPresentation(raw: unknown): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  if (!isRecord(raw)) return out;
-  const title = labelText(raw.title);
-  if (title) out.title = title;
-  if (typeof raw.format === 'string' && raw.format) out.format = raw.format;
-  if (typeof raw.min === 'number' && Number.isFinite(raw.min)) out.min = raw.min;
-  if (typeof raw.max === 'number' && Number.isFinite(raw.max)) out.max = raw.max;
-  if (typeof raw.stepSize === 'number' && Number.isFinite(raw.stepSize) && raw.stepSize > 0) {
-    out.stepSize = raw.stepSize;
-  }
-  if (typeof raw.showGridLines === 'boolean') out.showGridLines = raw.showGridLines;
-  if (raw.position === 'left' || raw.position === 'right' || raw.position === 'top' || raw.position === 'bottom') {
-    out.position = raw.position;
-  }
-  if (typeof raw.logarithmic === 'boolean') out.logarithmic = raw.logarithmic;
-  return out;
-}
-
-/**
- * Merge the authored `chartConfig`'s PRESENTATION onto the series and axes the
- * dataset selection derived — the one place that happens (#4229).
- *
- * The match rule is **by name/key**: an authored `series[].name` is paired with
- * the derived binding whose `dataKey` it equals, and the pairing decides
- * nothing but presentation:
- *
- *  - an authored entry naming a measure that is NOT in the dataset selection is
- *    **ignored** — membership belongs to the dataset, so an author cannot add,
- *    remove or re-point a series from `chartConfig`;
- *  - a derived series with no authored entry keeps the family default, so every
- *    dashboard that never wrote `chartConfig.series` renders byte-for-byte as
- *    before;
- *  - where both exist the **explicit binding wins** (#2880 S2), which is the
- *    whole point: `type: 'line'` + `yAxis: 'right'` is how the spec says "this
- *    measure is a line on the secondary axis".
- *
- * Matching on `name` only is deliberate: `name` is the spec's authorable key
- * for a series (`dataKey` is a declared ALIAS of it, resolved where the
- * metadata is parsed), so reading a second spelling here would fossilize a
- * dialect this renderer has no business accepting (AGENTS.md #0.1).
- *
- * @param derived the bindings `buildChartSeries` produced from the selection
- * @param raw the widget's `chartConfig` as authored (anything, incl. absent)
- * @returns the merged series, plus the presentation-only axes to spread onto
- *   the chart schema (absent when the author declared none)
- */
-export function mergeAuthoredPresentation(
-  derived: ChartSeriesBinding[],
-  raw: unknown,
-): { series: MergedChartSeries[]; axes: Record<string, unknown> } {
-  const config: Record<string, unknown> = isRecord(raw) ? raw : {};
-
-  const authored = new Map<string, Record<string, unknown>>();
-  for (const entry of Array.isArray(config.series) ? config.series : []) {
-    if (!isRecord(entry)) continue;
-    const name = typeof entry.name === 'string' ? entry.name : undefined;
-    // First entry wins for a duplicated name — a later one cannot silently
-    // reconfigure a series the author already described.
-    if (name && !authored.has(name)) authored.set(name, entry);
-  }
-  const series: MergedChartSeries[] = derived.map((s) => {
-    const entry = authored.get(s.dataKey);
-    return entry ? { ...s, ...seriesPresentation(entry) } : s;
-  });
-
-  const axes: Record<string, unknown> = {};
-  const xAxis = axisPresentation(config.xAxis);
-  if (Object.keys(xAxis).length > 0) axes.xAxis = xAxis;
-  // The COUNT of y-axis entries is itself presentation — it is what declares a
-  // secondary axis — so every declared entry keeps its slot even when it
-  // carries nothing but `field` (which is data and does not travel).
-  const yAxisRaw = Array.isArray(config.yAxis)
-    ? config.yAxis
-    : config.yAxis !== undefined
-      ? [config.yAxis]
-      : [];
-  if (yAxisRaw.length > 0) axes.yAxis = yAxisRaw.map(axisPresentation);
-
-  return { series, axes };
-}
+export {
+  chartConfigPresentation,
+  mergeAuthoredPresentation,
+  type AuthoredSeriesPresentation,
+  type MergedChartSeries,
+} from '@object-ui/core';
 
 export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource: unknown }) {
   const datasetName = String(widget?.dataset ?? '');

@@ -65,6 +65,17 @@ import {
   buildDatasetFieldHelpers,
   buildDatasetDrillFilter,
   relabelDimensions,
+  // The dataset→chart derivation the dashboard and the chart view have always
+  // used, adopted here by objectui#4878: it is where the whole null-category
+  // family lives (#4466 / #4497 / #4673 / #4500 / #4508), so routing through it
+  // INHERITS those fixes instead of re-deriving them on a third surface.
+  buildChartSeries,
+  // The authored half of objectui#4229's data/presentation split (objectui#4877).
+  // `mergeAuthoredSeries` — not `mergeAuthoredPresentation` — because a report's
+  // `chart.xAxis`/`chart.yAxis` are bare dimension/measure NAME strings, i.e.
+  // pure data on this surface; see the call site.
+  chartConfigPresentation,
+  mergeAuthoredSeries,
   pivotBucketId,
   pivotDimensionValue,
   pivotCellKey,
@@ -683,6 +694,24 @@ function authoredSeriesLabel(series: unknown, measure: string, language: string 
  * chart plugin isn't loaded, or the chart is incomplete, we render nothing and
  * let the grouped table stand alone. Before this, a dataset-bound report's
  * `chart` config was authorable in Studio but never rendered anywhere.
+ *
+ * ## What reaches the chart component (objectui#4877 / objectui#4878)
+ *
+ * This slot forwarded exactly six keys — `chartType`, `data`, `height`,
+ * `isAnimationActive`, `series`, `xAxisKey` — which made it the one dataset
+ * chart surface that shared neither half of the ruled split:
+ *
+ *  - the DATA half now routes through `buildChartSeries` (objectui#4878), so the
+ *    null-category family it owns is inherited rather than re-derived; the rows
+ *    used to reach the renderer with a raw null category, which draws no mark;
+ *  - the PRESENTATION half now routes through `chartConfigPresentation` +
+ *    `mergeAuthoredSeries` (objectui#4877), so the chrome and per-series keys
+ *    `ReportChartSchema` declares stop being inert metadata. `showLegend: false`
+ *    was the sharpest of those: dropped, it read as absent, and absent means the
+ *    legend is ON — the author's explicit value inverted in effect.
+ *
+ * Both helpers live in `@object-ui/core` beside each other, which is what keeps
+ * this surface and the dashboard widget lowering ONE vocabulary once.
  */
 function DatasetReportChart({
   dataset,
@@ -723,6 +752,13 @@ function DatasetReportChart({
   );
   const ChartComponent = useRegistryComponent('chart');
   const { fieldLabel } = useSafeFieldLabel();
+  // objectui#4878 — the null-category bucket's LABEL. `@object-ui/core` is
+  // React-free and cannot read the locale bundle, so `buildChartSeries` falls
+  // back to the English `NULL_CATEGORY_LABEL`; the resolved string has to come
+  // from HERE, the layer that holds the provider (objectui#4500 made exactly
+  // this division on the dashboard, and ObjectChart makes it too). Without it a
+  // zh console would draw the bar — and label it `(None)`.
+  const tt = useSafeTranslate();
   // objectui#4575 — the single-value metric below is a MEASURE like any other
   // and follows the display locale. (The series charts render their own labels
   // through the chart component, not through `formatMeasure`.)
@@ -812,6 +848,72 @@ function DatasetReportChart({
   // (the grouped table beneath still shows the exact numbers).
   if (!ChartComponent) return null;
 
+  // ── The DATA half: derived from the selection, never authored (#4229) ─────
+  //
+  // objectui#4878 — the rows and the series binding come from the SHARED
+  // derivation every other dataset chart surface uses. This path used to hand
+  // `relabelDimensions(state.rows, …)` straight to the renderer, which is the
+  // pre-#4466 answer: a null dimension value reached the chart raw and drew NO
+  // MARK, so the report silently understated its own data (#4466 measured the
+  // dominant group vanishing while the y-axis still accommodated it). Every
+  // property of that family — the bucket itself (#4466), its localized label
+  // (#4500), and the identity that keeps a stored `'(None)'` apart from the
+  // null group (#4508) — is a property of `buildChartSeries`, so it arrives
+  // here by inheritance rather than by a third re-derivation.
+  //
+  // The selection is exactly one dimension × one measure, so this takes the
+  // helper's single-dimension branch and returns ONE series; the pivot branch
+  // (2+ dimensions) is unreachable from a report chart, whose schema declares a
+  // single `xAxis`/`yAxis` pair.
+  const { data: chartData, xAxisKey, series: derivedSeries } = buildChartSeries(
+    relabelDimensions(state.rows, dimensionLabels),
+    [xAxis],
+    [yAxis],
+    state.fields,
+    { nullCategoryLabel: tt('chart.nullCategory', '(None)') },
+  );
+
+  // ── The PRESENTATION half: authored, merged forward (#4229) ──────────────
+  //
+  // objectui#4877 — `ReportChartSchema` declares per-series `color`/`stack`/
+  // `type`/`yAxis`/`dashArray`/`opacity`/`variant`, and this path forwarded
+  // none of them. `mergeAuthoredSeries` is the same merge the dashboard makes
+  // over the same spec shape, matched by `series[].name` → derived `dataKey`,
+  // so membership stays with the dataset: an entry naming a measure this chart
+  // does not plot is ignored.
+  //
+  // Deliberately NOT `mergeAuthoredPresentation`: that entry point also reads
+  // `xAxis`/`yAxis` as spec `ChartAxis` OBJECTS, and on THIS surface they are
+  // bare dimension/measure name strings — the selection itself. Feeding them to
+  // it would return `axes.yAxis = [{}]`, one empty entry, and the COUNT of
+  // y-axis entries is what declares a secondary axis. The series-only entry
+  // point makes that unreachable by construction rather than by a guard.
+  const authoredSeries = mergeAuthoredSeries(derivedSeries, chart.series);
+  // #4020's three-level display name OUTRANKS both of the labels above: the
+  // derivation's `fields[].label` (level ② without the i18n field-label
+  // convention `headerLabel` applies) and `mergeAuthoredSeries`' own pick,
+  // which resolves an `{ en, 'zh-CN' }` label first-string-wins because core
+  // holds no provider — the very thing that would paint English on a zh
+  // console. `measureLabel` already resolved ① through `pickLocalized` and ②
+  // through `headerLabel`, so it wins outright.
+  const chartSeries = authoredSeries.map((s) =>
+    s.dataKey === yAxis ? { ...s, label: measureLabel } : s,
+  );
+
+  // The authored CHROME — `showLegend`, `showDataLabels`, `colors`, `subtitle`,
+  // `description`, `annotations`, `interaction`, `height` — lowered by the same
+  // whitelist the dashboard uses (objectui#4877). `showLegend: false` was not
+  // merely dropped before but INVERTED in effect: `AdvancedChartImpl` computes
+  // `legendVisible = showLegend !== false`, so an absent value means the legend
+  // is on and the author's explicit `false` drew one anyway.
+  //
+  // `title` is dropped from the result on purpose: this renderer paints the
+  // report chart's title itself, as the `h3` below, and forwarding it as well
+  // would draw a SECOND one inside the chart's own frame. `aria` is not lowered
+  // by the whitelist at all — nothing on this path reads it (see that helper's
+  // header for the ruling and where it is tracked).
+  const { title: _chartOwnTitle, ...chrome } = chartConfigPresentation(chart);
+
   return (
     <div className="rounded-md border bg-card p-3" data-testid="dataset-report-chart">
       {title ? <h3 className="mb-2 text-sm font-semibold">{title}</h3> : null}
@@ -819,19 +921,23 @@ function DatasetReportChart({
       <ChartComponent
         schema={{
           chartType: plan.chartType,
-          data: relabelDimensions(state.rows, dimensionLabels),
-          xAxisKey: xAxis,
+          data: chartData,
+          xAxisKey,
           // One series, carrying its display name. `ChartRenderer` turns a
           // series `label` into `config[dataKey].label`, which is the single
           // input the legend, the mark's tooltip name and the single-value
           // caption all read — so legend and tooltip follow this by
           // construction rather than by a second resolution.
-          series: [{ dataKey: yAxis, label: measureLabel }],
-          height: typeof chart.height === 'number' ? chart.height : 280,
+          series: chartSeries,
+          // The default plot height, kept beneath the spread so an authored
+          // `height` wins. A non-positive one never reaches here (the whitelist
+          // drops it), which leaves this default rather than an invisible plot.
+          height: 280,
           // Render deterministically (no rAF entrance animation): reports are
           // often viewed in a background tab or exported, where an animated
           // chart freezes at frame 0 (pie/donut would show no ring).
           isAnimationActive: false,
+          ...chrome,
         }}
       />
     </div>

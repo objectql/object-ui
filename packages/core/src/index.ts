@@ -59,6 +59,10 @@ export * from './utils/dashboard-filters.js';
 export * from './utils/merge-filters.js';
 export * from './utils/compare-to.js';
 export * from './utils/chart-series.js';
+// The AUTHORED half of a dataset-bound chart (objectui#4229's data/presentation
+// split), shared by the dashboard widget and the report's embedded chart so the
+// same spec keys are lowered identically on both (objectui#4877).
+export * from './utils/chart-presentation.js';
 // The ONE number-display formatter (objectui#4033) — grouping policy, display
 // locale and the percent convention. It lived in `@object-ui/i18n` until
 // objectui#4576; it is pure, and living above `core` was what kept
