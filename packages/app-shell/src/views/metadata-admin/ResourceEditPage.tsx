@@ -996,6 +996,49 @@ function MetadataResourceEditPageImpl({
     && (layered.code as { _packageId?: string } | null)?._packageId !== 'sys_metadata'
     && layered?.provenance !== 'org';
 
+  // ── objectui#4886 — ONE verdict decides the reset/delete verb ──────────
+  //
+  // Which verb the destructive control carries is a server question, and the
+  // server already answers it: `resolveLockState` computes
+  // `resettable = artifactBacked` and ships it on the layered envelope. This
+  // page used to re-derive that answer TWICE, differently — the render side
+  // asked `isArtifactItem`, `doReset()` asked `layered?.code != null` — and
+  // the two disagree for a published org-own item, whose `code` layer is a
+  // rehydrated `sys_metadata` row: the button rendered `Trash2` /
+  // "Delete" and then executed the reset branch (refetch, stay on the page)
+  // after asking "Reset overlay for …?". A button that said delete, asked
+  // reset, and did reset.
+  //
+  // Honest tri-state. `resettable` is `boolean | undefined`:
+  //   • `true`      — a package baseline exists behind the overlay, so
+  //                   "Reset overlay" is the truthful verb: peel the overlay,
+  //                   the code default remains, stay on the page.
+  //   • `false`     — nothing to reset TO. The entry IS its `sys_metadata`
+  //                   row, so the DELETE the button issues removes it
+  //                   outright: `deleteMetaItem` hard-deletes the row, writes
+  //                   a `delete` tombstone, and retires the item's registry
+  //                   entry because no layer under it can serve the name. The
+  //                   server says so in its own receipt for exactly this
+  //                   population — `Deleted <type> '<name>' — it no longer
+  //                   exists.`, as against `… reset to artifact default.` for
+  //                   the backed one. "Delete" is the honest verb and the
+  //                   confirm dialog is the consent gate — the maintainer's
+  //                   2026-08-17 ruling on this card.
+  //   • `undefined` — the server has NO OPINION (pre-ADR-0010 envelope, or a
+  //                   transport that drops the flag). The old
+  //                   `layered?.resettable !== false` read collapsed this into
+  //                   `true`, i.e. it promised a baseline that may not exist.
+  //                   We do not guess in the server's name: fall back to this
+  //                   page's own conservative tier (`isArtifactItem`), which
+  //                   is exactly what the render side already used before this
+  //                   change — so a legacy server keeps its legacy rendering,
+  //                   and render + confirm + execute still read ONE value.
+  //
+  // `??` (not `||`) on purpose: `false` from the server is an ANSWER, and must
+  // not fall through to the client heuristic.
+  const resettableVerdict: boolean | undefined = layered?.resettable;
+  const isResetSemantic = !createMode && (resettableVerdict ?? isArtifactItem);
+
   // Auto-enable design mode for designer-capable types. We do this once
   // per (type,name) navigation so the user lands in the productive
   // state instead of having to click "Edit". Truly read-only types
@@ -1259,13 +1302,18 @@ function MetadataResourceEditPageImpl({
   }
 
   async function doReset() {
-    // Two semantics:
-    //   - artifact-backed item: "Reset overlay" — keep the code default.
-    //   - DB-only item: "Delete" — the item disappears entirely (no
-    //     artifact baseline to fall back to). Navigate back to the list
-    //     since the current URL no longer refers to anything.
-    const itemIsArtifact = !createMode && layered?.code != null;
-    const confirmKey = itemIsArtifact
+    // Two semantics, ONE verdict — see `isResetSemantic` above. Both this
+    // handler and the button that triggers it read that single value, so the
+    // icon, the `title`, the confirm text and the branch taken here can no
+    // longer disagree about the same entry (objectui#4886). The wire call is
+    // the same `DELETE /meta/:type/:name` either way; what differs is what
+    // the server does with it and therefore what we must tell the user:
+    //   - baseline present: the overlay row is dropped and the code default
+    //     is what remains → "Reset overlay", refetch layered, stay put.
+    //   - no baseline: the overlay row IS the entry, so the same DELETE
+    //     destroys it → "Delete", and the current URL no longer refers to
+    //     anything, so navigate back to the list.
+    const confirmKey = isResetSemantic
       ? 'engine.edit.resetConfirm'
       : 'engine.edit.deleteConfirm';
     if (!confirm(tFormat(confirmKey, locale, { type, name: name ?? '' }))) {
@@ -1275,7 +1323,7 @@ function MetadataResourceEditPageImpl({
     setError(null);
     try {
       await client.reset(type, name);
-      if (itemIsArtifact) {
+      if (isResetSemantic) {
         const lay = await client.layered<any>(type, name);
         setLayered(lay);
         const fresh = (lay.effective ?? lay.code ?? {}) as Record<string, unknown>;
@@ -1379,8 +1427,14 @@ function MetadataResourceEditPageImpl({
   // ADR-0010 — server-computed lock flags. undefined means "no opinion"
   // (older server / non-lockable item) → preserve legacy behaviour.
   const lockEditable = layered?.editable !== false;
+  // `deletable` is the lock gate for BOTH verbs, not just the delete one:
+  // reset and delete are the same `DELETE /meta/:type/:name` call, and the
+  // server gates it once, through `evaluateLockForDelete` (`assertLockAllowsDelete`
+  // runs on every `deleteMetaItem`, artifact-backed or not). `resettable` is
+  // NOT a permission — it is `artifactBacked`, i.e. "is there a baseline to
+  // reset to", which is why it now drives the VERB (`isResetSemantic`) and no
+  // longer doubles as the button's lock gate (objectui#4886).
   const lockDeletable = layered?.deletable !== false;
-  const lockResettable = layered?.resettable !== false;
   const lockReason = layered?.lockReason;
   const isLocked = layered?.lock && layered.lock !== 'none';
   const canWriteByType = createMode
@@ -1700,23 +1754,24 @@ function MetadataResourceEditPageImpl({
           )}
         </div>
       )}
-      {!createMode && canWrite && layered?.overlay && (isArtifactItem ? lockResettable : lockDeletable) && (
+      {!createMode && canWrite && layered?.overlay && lockDeletable && (
         <Button
           variant="ghost"
           size="sm"
           onClick={doReset}
           disabled={saving}
+          data-testid="reset-or-delete-button"
           title={
-            isArtifactItem
+            isResetSemantic
               ? t('engine.edit.reset', locale)
               : t('engine.edit.delete', locale)
           }
           className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
         >
-          {isArtifactItem ? (
-            <RotateCcw className="h-3.5 w-3.5" />
+          {isResetSemantic ? (
+            <RotateCcw className="h-3.5 w-3.5" data-testid="reset-icon" />
           ) : (
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-3.5 w-3.5" data-testid="delete-icon" />
           )}
         </Button>
       )}
