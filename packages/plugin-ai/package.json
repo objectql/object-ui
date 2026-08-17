@@ -35,11 +35,11 @@
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.29.0",
+    "lucide-react": "^1.31.0",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.2.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "^6.0.5",

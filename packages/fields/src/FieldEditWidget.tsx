@@ -46,7 +46,30 @@ import { CodeField } from './widgets/CodeField';
 import { QRCodeField } from './widgets/QRCodeField';
 // The FORM's spec-alias table (`json` → `field:code`, `tree` → `field:lookup`,
 // …) — inline resolution reuses it so spec spellings get the form's decision.
-import { mapFieldTypeToFormType } from './field-type-alias';
+// `RETIRED_FIELD_TYPES` / `reportRetiredFieldType` come from the same module on
+// purpose: it is the live retirement table (objectui#4814), and importing it
+// from here — rather than from the `./index` barrel, which re-exports this
+// file — keeps the module graph acyclic, exactly as the alias import already
+// does (see the note at index.tsx's `mapFieldTypeToFormType` re-export).
+import {
+  mapFieldTypeToFormType,
+  RETIRED_FIELD_TYPES,
+  reportRetiredFieldType,
+} from './field-type-alias';
+
+/**
+ * True when a spelling has been RETIRED by this renderer (objectui#4814's
+ * tombstone table, read live — never copied).
+ *
+ * Quantified over the whole table rather than written per spelling, which is
+ * the point: the next retirement closes every seam in this file the day it
+ * lands in `RETIRED_FIELD_TYPES`, instead of leaving a delegation road open
+ * until someone notices it (objectui#4931 — which is how `owner` survived
+ * #4814 here).
+ */
+function isRetiredFieldType(type: string): boolean {
+  return Object.prototype.hasOwnProperty.call(RETIRED_FIELD_TYPES, type);
+}
 
 /**
  * Field types that edit in place with a dedicated widget. Keyed by the raw
@@ -82,7 +105,17 @@ const EDIT_WIDGETS: Record<string, React.ComponentType<FieldWidgetComponentProps
   lookup: LookupField,
   master_detail: LookupField,
   user: UserField,
-  owner: UserField,
+  // `owner: UserField` sat here — pointing at the very same widget `user`
+  // resolves to — until objectui#4931 removed it, closing the last road by
+  // which objectui#4814's retirement could be bypassed. Membership in THIS
+  // table is what made `resolveInlineEditType` return the spelling unchanged
+  // (it short-circuits on `type in EDIT_WIDGETS`), so the alias table was never
+  // consulted and the retirement never applied: `hasFieldEditWidget('owner')`
+  // answered `true` and every host built on this seam still offered a working
+  // person picker while the record form answered the same field with a
+  // tombstone refusal. Do not re-add it — and note that re-adding it alone
+  // would no longer resurrect the picker, because the retirement gate below
+  // is keyed on the retirement table, not on this map's keys.
   // Structured-value editors — same widgets the form uses.
   color: ColorField,
   address: AddressField,
@@ -145,9 +178,25 @@ function resolveInlineEditType(type: string): string {
   return mapFieldTypeToFormType(type).replace(/^field:/, '');
 }
 
-/** True when a field type has a dedicated in-place edit widget. */
+/**
+ * True when a field type has a dedicated in-place edit widget.
+ *
+ * A RETIRED spelling answers `false` unconditionally, ahead of every table
+ * lookup (objectui#4931). This is the gate the retirement was missing: hosts
+ * ask this question to decide whether to hand a cell to {@link FieldEditWidget},
+ * and while it answered `true` for a retired spelling the whole tombstone was
+ * bypassable by delegation — the grid's inline cell editor rendered a working
+ * person picker for a field the record form refuses.
+ *
+ * Keyed on the retirement TABLE rather than on the raw `type`, and checked
+ * BEFORE `resolveInlineEditType`, so it holds even if a future retired spelling
+ * is still (or again) a key of {@link EDIT_WIDGETS} — closing the class, not
+ * one spelling.
+ */
 export function hasFieldEditWidget(type: string | undefined): boolean {
-  return !!type && resolveInlineEditType(type) in EDIT_WIDGETS;
+  if (!type) return false;
+  if (isRetiredFieldType(type)) return false;
+  return resolveInlineEditType(type) in EDIT_WIDGETS;
 }
 
 /**
@@ -157,17 +206,48 @@ export function hasFieldEditWidget(type: string | undefined): boolean {
  * text editor is exactly the corruption path the exclusion exists to close.
  */
 export function isInlineExcludedFieldType(type: string | undefined): boolean {
-  return !!type && INLINE_EXCLUDED_FIELD_TYPES.has(resolveInlineEditType(type));
+  if (!type) return false;
+  // A RETIRED spelling is excluded from inline editing (objectui#4931).
+  //
+  // This is the half that decides what the grid actually DOES once
+  // `hasFieldEditWidget` starts answering `false`, and without it the fix would
+  // trade one silent failure for another. `ObjectGrid` marks a column
+  // `editable: false` exactly when `isFieldInlineEditable` is false (which
+  // consults this predicate) — otherwise the column stays editable, the cell
+  // editor asks `hasFieldEditWidget`, gets `false`, returns `null`, and
+  // DataTable falls back to its built-in PLAIN TEXT input. For a stored
+  // person-reference that input displays the coerced value and writes a bare
+  // string straight back over it. So the retirement routes the cell to the
+  // grid's normal read-only path — the same disposition `password`, `formula`
+  // and `composite` get, and for the same reason: a text box here is a
+  // value-corruption path, not a graceful degradation.
+  //
+  // Deliberately a predicate-level answer and NOT a membership in
+  // `INLINE_EXCLUDED_FIELD_TYPES`: that set is documented as the types this
+  // renderer *chose* not to edit in place and is asserted to contain only
+  // renderable form types, which a retired spelling is precisely not. The
+  // predicate already diverges from raw set membership for the alias-resolved
+  // spellings (`composite` → `object`, `video` → `file`), so answering on
+  // behalf of the retirement table is the established shape here.
+  if (isRetiredFieldType(type)) return true;
+  return INLINE_EXCLUDED_FIELD_TYPES.has(resolveInlineEditType(type));
 }
 
 /**
- * Relational picker widgets (lookup / master_detail / user / owner) render best
- * in a grid cell as a single-line, borderless trigger — so the selected
- * record's NAME shows inside the trigger instead of a chip stacked above a
- * separate "Select…" button (which double-stacks and wastes the row height).
- * This mirrors how the line-item grid (`GridField`) renders its lookup cells.
+ * Relational picker widgets (lookup / master_detail / user) render best in a
+ * grid cell as a single-line, borderless trigger — so the selected record's
+ * NAME shows inside the trigger instead of a chip stacked above a separate
+ * "Select…" button (which double-stacks and wastes the row height). This
+ * mirrors how the line-item grid (`GridField`) renders its lookup cells.
+ *
+ * `owner` was listed here (objectui#4914 item 11) until objectui#4931 dropped
+ * it in the same stroke as the routing-table key above. Purely cosmetic on its
+ * own — it only ever added `compact` to a widget that is no longer reached —
+ * but it is removed rather than left to rot, because a retired spelling
+ * lingering in a sizing set is how the next reader concludes the type is still
+ * live here.
  */
-const COMPACT_EDIT_TYPES = new Set<string>(['lookup', 'master_detail', 'user', 'owner']);
+const COMPACT_EDIT_TYPES = new Set<string>(['lookup', 'master_detail', 'user']);
 
 /**
  * Render the dedicated edit widget for a field's type — the SAME control the
@@ -188,6 +268,29 @@ export function FieldEditWidget({
   readonly,
   autoFocus,
 }: FieldWidgetComponentProps<any>): React.ReactElement | null {
+  // A RETIRED spelling never reaches a widget here, whatever the tables say,
+  // and it says so out loud (objectui#4931). This branch is for the caller that
+  // ignores `hasFieldEditWidget` and calls this component directly: without it
+  // such a host would still be handed the person picker for a field the record
+  // form refuses, which is the exact contradiction #4814's tombstone exists to
+  // end.
+  //
+  // The loud half is the once-per-spelling console prescription, not a rendered
+  // alert, and that is deliberate: this component's hosts are CELL-sized (the
+  // grid's inline editor, the kanban required-fields dialog), and #4814 settled
+  // the same question the same way for the read path — "there is no visible
+  // alert a table CELL can carry without wrecking the row". The visible refusal
+  // is the record form's job, and `RetiredFieldTombstone` is what it renders.
+  //
+  // Returning `null` is this function's documented contract for "no dedicated
+  // widget", not a new fallback invented here — and every in-repo host is
+  // already routed away from that path by the two predicates above
+  // (`hasFieldEditWidget` → false, `isInlineExcludedFieldType` → true), so the
+  // grid marks the column read-only instead of opening a plain text box.
+  if (field?.type && isRetiredFieldType(field.type)) {
+    reportRetiredFieldType(field.type);
+    return null;
+  }
   const resolved = field?.type ? resolveInlineEditType(field.type) : undefined;
   const Widget = resolved ? EDIT_WIDGETS[resolved] : undefined;
   if (!Widget) return null;
