@@ -91,7 +91,10 @@ export function paramToField(param: ActionParamDef): Record<string, any> {
     field.widget = 'checkbox';
   }
 
-  if (LOOKUP_WIDGET_TYPES.has(type) || type === 'user' || type === 'owner') {
+  // `|| type === 'owner'` stood here until objectui#4814 retired that spelling
+  // (ruling A′). It moves in lockstep with plugin-grid's `bulkParamToField`
+  // twin — the two param faces are never split.
+  if (LOOKUP_WIDGET_TYPES.has(type) || type === 'user') {
     Object.assign(field, {
       reference_to: param.referenceTo,
       display_field: param.displayField,

@@ -164,9 +164,14 @@ export type FieldWidgetComponentProps<T = any> = {
 
   /**
    * DataSource for widgets that query records (lookup / user / object-ref /
-   * recipient-picker / grid). Injected by the form renderer for the field
-   * types that need it, and passed directly by inline-edit hosts. Option
-   * widgets destructure it purely to keep it off their DOM spread.
+   * recipient-picker). Injected by the form renderer for the field types that
+   * need it, and passed directly by inline-edit hosts. Option widgets
+   * destructure it purely to keep it off their DOM spread.
+   *
+   * `grid` was listed here with zero consumers (objectui#4814): `GridField.tsx`
+   * never reads `dataSource`, and no data-source table has ever contained the
+   * key, so the claim described a wiring that did not exist. `owner` is absent
+   * for a different reason — the spelling itself is retired (same card).
    *
    * Left structural (`unknown`): `@object-ui/fields` must not depend on a
    * concrete adapter — every consumer narrows it itself.

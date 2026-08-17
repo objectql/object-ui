@@ -24,7 +24,7 @@ interface FilterField {
     | 'date' | 'datetime' | 'time'
     | 'boolean'
     | 'select' | 'status'
-    | 'lookup' | 'master_detail' | 'user' | 'owner'; // Field type
+    | 'lookup' | 'master_detail' | 'user'; // Field type
   options?: Array<{ value: string; label: string }>;  // Static options (select-like)
   // Lookup-like fields without `options` render a remote-search picker that
   // queries the configured DataSource. The metadata below describes how to

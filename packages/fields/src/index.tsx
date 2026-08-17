@@ -2111,7 +2111,15 @@ export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> 
   if (fieldRegistry.has(fieldType)) {
     return fieldRegistry.get(fieldType)!;
   }
-  
+
+  // 1b. A RETIRED spelling reaching the read path says a stored column is still
+  //     typed with a name this renderer no longer honours. There is no visible
+  //     alert a table CELL can carry without wrecking the row, so the console
+  //     prescription is the loud half here (once per spelling —
+  //     `reportRetiredFieldType`), and the cell degrades to text deliberately
+  //     rather than by omission (objectui#4814).
+  reportRetiredFieldType(fieldType);
+
   // 2. Fallback to standard mappings if not overridden
   const standardMap: Record<string, React.FC<CellRendererProps>> = {
     text: TextCellRenderer,
@@ -2154,7 +2162,6 @@ export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> 
     summary: FormulaCellRenderer,
     auto_number: TextCellRenderer,
     user: UserCellRenderer,
-    owner: UserCellRenderer,
     password: () => <span>••••••</span>,
     secret: () => <span>••••••</span>,
     location: LocationCellRenderer,
@@ -2187,7 +2194,9 @@ registerFieldRenderer('master_detail', LookupCellRenderer);
 registerFieldRenderer('select', SelectCellRenderer);
 registerFieldRenderer('status', SelectCellRenderer);
 registerFieldRenderer('user', UserCellRenderer);
-registerFieldRenderer('owner', UserCellRenderer);
+// `owner` was registered here to the same UserCellRenderer until objectui#4814
+// retired the spelling — see the TOMBSTONE below. `getCellRenderer('owner')`
+// now reports the prescription and falls to the text cell.
 
 // Register getCellRenderer in the bridge so RecordPickerDialog can access it
 // via LookupField without circular imports.
@@ -2200,6 +2209,8 @@ setCellRendererResolver(getCellRenderer);
 // FieldEditWidget can resolve spec aliases without importing this barrel.
 export { mapFieldTypeToFormType } from './field-type-alias';
 import { mapFieldTypeToFormType } from './field-type-alias';
+export { RETIRED_FIELD_TYPES, reportRetiredFieldType, resetRetiredFieldTypeReports } from './field-type-alias';
+import { RETIRED_FIELD_TYPES, reportRetiredFieldType } from './field-type-alias';
 
 /**
  * Formats file size in bytes to human-readable string
@@ -2430,10 +2441,12 @@ const fieldWidgetMap: Record<string, () => Promise<{ default: React.ComponentTyp
   'summary': () => import('./widgets/SummaryField').then(m => ({ default: m.SummaryField })),
   'auto_number': () => import('./widgets/AutoNumberField').then(m => ({ default: m.AutoNumberField })),
   
-  // User fields
+  // User fields. `owner` pointed at this same UserField until objectui#4814
+  // retired it (see the TOMBSTONE near `registerAllFields`) — do not re-add it
+  // here: membership in this map is what makes a name a renderable field type
+  // (`FORM_FIELD_TYPES` is its key set).
   'user': () => import('./widgets/UserField').then(m => ({ default: m.UserField })),
-  'owner': () => import('./widgets/UserField').then(m => ({ default: m.UserField })),
-  
+
   // Complex data types
   'object': () => import('./widgets/ObjectField').then(m => ({ default: m.ObjectField })),
   'vector': () => import('./widgets/VectorField').then(m => ({ default: m.VectorField })),
@@ -2482,6 +2495,11 @@ export const FORM_FIELD_TYPES: readonly string[] = Object.freeze(Object.keys(fie
  */
 export function resolveFormWidgetType(fieldType: string): string {
   if (fieldWidgetMap[fieldType]) return fieldType;
+  // A retired spelling resolves to ITSELF, not to `text`: the registry holds a
+  // tombstone widget under that key which refuses visibly, so every host built
+  // on this seam (the app-shell `ActionParamDialog`, the bulk dialog) reports
+  // the retirement instead of silently rendering an input (objectui#4814).
+  if (RETIRED_FIELD_TYPES[fieldType]) return fieldType;
   const mapped = mapFieldTypeToFormType(fieldType).replace(/^field:/, '');
   return fieldWidgetMap[mapped] ? mapped : 'text';
 }
@@ -2512,6 +2530,10 @@ const lazyFieldWidgets = new Map<string, React.ComponentType<any>>();
  */
 export function getLazyFieldWidget(fieldType: string): React.ComponentType<any> {
   const key = resolveFormWidgetType(fieldType);
+  // A retired key has no loader in `fieldWidgetMap` by construction, so it is
+  // answered with the tombstone before the lazy path (which would otherwise
+  // call `React.lazy(undefined)`).
+  if (RETIRED_FIELD_TYPES[key]) return RetiredFieldTombstone;
   let Widget = lazyFieldWidgets.get(key);
   if (!Widget) {
     Widget = React.lazy(fieldWidgetMap[key]);
@@ -2644,9 +2666,52 @@ export function registerField(fieldType: string): void {
  * // Register all fields at once
  * registerAllFields();
  */
+/**
+ * The widget a RETIRED field-type spelling renders (objectui#4814).
+ *
+ * Shape borrowed from the form renderer's spec-vocabulary boundary (#3090),
+ * which is this repo's settled answer to "an authored entry this renderer
+ * cannot honour": an inline alert that NAMES the offending entry, plus a
+ * `console.error` whose text doubles as the fix instruction. Nothing is thrown
+ * — one retired field must not take down the rest of a record form — but
+ * nothing is silently substituted either, which is the whole point: the author
+ * sees a refusal where they expected an input, not a text box that looks like
+ * it worked.
+ */
+export const RetiredFieldTombstone: React.FC<Record<string, any>> = (props) => {
+  const spelling: string =
+    props?.field?.type ?? props?.schema?.type ?? props?.type ?? 'unknown';
+  const prescription =
+    RETIRED_FIELD_TYPES[spelling] ??
+    `[object-ui] Field type \`${spelling}\` was retired.`;
+  React.useEffect(() => {
+    reportRetiredFieldType(spelling);
+  }, [spelling]);
+  return (
+    <div
+      role="alert"
+      data-testid="field-retired-tombstone"
+      data-retired-field-type={spelling}
+      className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+    >
+      {prescription}
+    </div>
+  );
+};
+
 export function registerAllFields(): void {
   Object.keys(fieldWidgetMap).forEach(fieldType => {
     registerField(fieldType);
+  });
+  // Retired spellings are registered LAST and only under the `field:` namespace
+  // (`skipFallback` — a tombstone must not claim the bare global name). This is
+  // what makes `widget: 'field:owner'` and a hand-written `type: 'owner'` land
+  // on a visible refusal instead of falling through to the form's text input.
+  Object.keys(RETIRED_FIELD_TYPES).forEach(fieldType => {
+    ComponentRegistry.register(fieldType, RetiredFieldTombstone, {
+      namespace: 'field',
+      skipFallback: true,
+    });
   });
 }
 
@@ -2681,6 +2746,34 @@ export function registerAllFields(): void {
 // widget NAME stays retired — do not add it to `fieldWidgetMap`.
 // `CapabilityMultiSelectField` itself lives on as a plain component, imported and
 // rendered directly by Studio's `PermissionMatrixEditor` (ADR-0056 P2's design).
+//
+// TOMBSTONE (objectui#4814, ruling A′, ADR-0049 enforce-or-remove) — the field
+// type `owner` and its widget key `field:owner`. Both pointed at `UserField`,
+// the SAME widget `user` resolves to, so the word carried zero behavioral delta;
+// and `owner` is absent from `@objectstack/spec`'s closed 48-member `FieldType`,
+// so no object schema could declare it — it was reachable only through
+// hand-written SDUI. Three code faces had already drifted apart on this one
+// word: the form's data-source rule excluded it, plugin-grid's bulk dialog
+// included it, and app-shell's `paramToField` included it — which is the
+// standing evidence that a second spelling for one concept is a drift channel,
+// not a convenience.
+//
+// The retirement is LOUD, not silent, and that distinction is the ruling's
+// point. `mapFieldTypeToFormType`'s `|| 'field:text'` tail and
+// `resolveFormWidgetType`'s `: 'text'` tail would each have handed a retired
+// `owner` field a working plain text input, with no gate anywhere turning red —
+// an AI author copying `type: 'owner'` out of a stale doc would have shipped a
+// text box believing it shipped a person picker. So `owner` resolves to
+// `RetiredFieldTombstone` (a visible refusal) and `reportRetiredFieldType`
+// writes the migration to the console. This is also the designed answer to the
+// one surface this retirement could not measure: the `cloud` repo was never
+// scanned (no credentials in the measuring session), so any consumer living
+// there fails loudly and nameably instead of degrading in silence.
+//
+// Do not re-add `owner` to `fieldWidgetMap` or to `field-type-alias`'s live
+// `typeMap`. The surviving idiom is `{ type: 'user', name: 'owner' }` — the
+// field NAME carries ownership meaning, the type carries the widget.
+// `UserField` and `UserCellRenderer` are untouched; only the synonym is gone.
 
 export * from './widgets/types';
 // File field value shapes (ObjectStack ADR-0104 D3 wave 2) — the single

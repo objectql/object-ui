@@ -13,7 +13,11 @@ The User Field component provides a user selector for assigning users or owners 
 
 <SchemaExample id="fields-user/multiple-user-selection" />
 
-## Owner Field
+## Read-Only Record Owner
+
+A record-owner field is a plain `user` field whose NAME carries the ownership
+meaning — there is no separate owner type. Marking it `readonly` is what makes
+it display-only.
 
 <SchemaExample id="fields-user/record-owner-read-only" />
 
@@ -21,7 +25,7 @@ The User Field component provides a user selector for assigning users or owners 
 
 ```plaintext
 interface UserFieldSchema {
-  type: 'user' | 'owner';
+  type: 'user';
   name: string;                  // Field name/ID
   label?: string;                // Field label
   value?: User | User[];         // Selected user(s)
@@ -45,8 +49,18 @@ interface User {
 
 ## User vs Owner
 
-- **User Field**: Selectable user field for assignments, team members, etc.
-- **Owner Field**: Typically read-only, automatically set to the record creator
+Both are the same field **type**. What differs is the field's name and whether
+it is writable:
+
+- **Assignment field**: a selectable `user` field for assignees, team members, etc.
+- **Owner field**: a `user` field named `owner`, typically `readonly` and
+  defaulted to the record creator.
+
+There is no `owner` field type. It existed as a synonym until objectui#4814
+retired it (it resolved to the very same widget, and it was never a member of
+`@objectstack/spec`'s `FieldType`). Authoring `type: 'owner'` now renders a
+visible refusal naming this migration rather than silently falling back to a
+text input. Write `{ type: 'user', name: 'owner' }` instead.
 
 ## Display Features
 
@@ -68,7 +82,7 @@ import { UserCellRenderer } from '@object-ui/fields';
 
 ## How it works
 
-`user` / `owner` fields are a **lookup specialized to the framework's `sys_user`
+`user` fields are a **lookup specialized to the framework's `sys_user`
 object** — there is no custom user API to wire up. The `UserField` widget
 delegates to the shared lookup picker with the reference fixed to `sys_user`,
 reusing the same debounced search, record-picker dialog and id resolution as any
@@ -88,9 +102,9 @@ No custom user-management integration is required when a `dataSource` is present
 Common permission configurations:
 
 ```plaintext
-// Record owner only
+// Record owner only — a `user` field whose NAME carries the ownership meaning
 {
-  type: 'owner',
+  type: 'user',
   name: 'owner',
   label: 'Owner',
   readonly: true,

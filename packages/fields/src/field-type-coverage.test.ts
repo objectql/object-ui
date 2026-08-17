@@ -45,7 +45,12 @@ const CELL_RENDERER_TYPES = [
   'file', 'video', 'audio', 'image', 'avatar', 'signature',
   'markdown', 'html', 'richtext',
   'location', 'geolocation', 'address', 'color', 'json',
-  'formula', 'summary', 'user', 'owner',
+  // `owner` was listed here (asserting a dedicated cell renderer) until
+  // objectui#4814 retired the spelling. Its retirement is pinned by
+  // `__tests__/owner-retired.test.tsx`, which asserts the OPPOSITE — the text
+  // cell plus a console prescription — so the fact is stated in exactly one
+  // place rather than half-stated in two.
+  'formula', 'summary', 'user',
 ];
 
 describe('field-type renderer coverage (regression guard)', () => {

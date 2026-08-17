@@ -39,8 +39,16 @@ const BULK_PARAM_TYPE_ALIASES: Record<string, string> = {
 /** Widget keys that render the record-picker family and need a reference target. */
 const LOOKUP_WIDGET_TYPES = new Set(['lookup', 'master_detail']);
 
-/** Widget keys that render the person-picker family (target defaults to sys_user). */
-const USER_WIDGET_TYPES = new Set(['user', 'owner']);
+/**
+ * Widget keys that render the person-picker family (target defaults to sys_user).
+ *
+ * `owner` was a member until objectui#4814 retired the spelling (ruling A′): it
+ * was a synonym for `user` resolving to the same widget, and this set was one of
+ * the three code faces that had drifted apart on the word. It moves in lockstep
+ * with app-shell's `paramToField` — the twin this file mirrors — so the two
+ * param surfaces can never disagree about it again.
+ */
+const USER_WIDGET_TYPES = new Set(['user']);
 
 /** Widget keys whose widget must be handed the grid's DataSource explicitly. */
 const DATA_SOURCE_WIDGET_TYPES = new Set([...LOOKUP_WIDGET_TYPES, ...USER_WIDGET_TYPES]);

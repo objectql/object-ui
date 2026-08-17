@@ -6,7 +6,7 @@
     {
       "name": "record_owner",
       "label": "Owner",
-      "type": "owner",
+      "type": "user",
       "readonly": true
     }
   ]

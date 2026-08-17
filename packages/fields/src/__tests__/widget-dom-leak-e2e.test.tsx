@@ -186,7 +186,9 @@ const WIDGETS: Record<string, ComponentType<any>> = {
   summary: SummaryField,
   auto_number: AutoNumberField,
   user: UserField,
-  owner: UserField,
+  // `owner: UserField` sat here until objectui#4814 retired the spelling. The
+  // tombstone that replaced it spreads no author props onto the DOM, so it has
+  // no leak surface to scan.
   object: ObjectField,
   vector: VectorField,
   grid: GridField,

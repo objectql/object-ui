@@ -134,7 +134,9 @@ const WIDGETS: Record<string, ComponentType<any>> = {
   summary: SummaryField,
   auto_number: AutoNumberField,
   user: UserField,
-  owner: UserField,
+  // `owner: UserField` sat here until objectui#4814 retired the spelling. The
+  // tombstone that replaced it is not a field widget and renders no control, so
+  // it has no `aria-invalid` surface to scan.
   object: ObjectField,
   vector: VectorField,
   grid: GridField,

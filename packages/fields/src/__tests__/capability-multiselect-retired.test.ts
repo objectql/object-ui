@@ -65,7 +65,11 @@ const RETAINED_FIELD_KEYS = [
   'currency', 'percent', 'password', 'markdown', 'html', 'lookup', 'master_detail',
   'file', 'image', 'location',
   'formula', 'summary', 'auto_number',
-  'user', 'owner',
+  // `owner` sat beside `user` here until objectui#4814 retired that spelling
+  // too. It is NOT simply dropped from the floor: `owner-retired.test.tsx`
+  // asserts `field:owner` now resolves to the tombstone widget, so the key's
+  // disposition is still pinned — by the card that owns it.
+  'user',
   'object', 'vector', 'grid',
   'color', 'slider', 'rating', 'code', 'avatar', 'address', 'geolocation',
   'signature', 'qrcode',
@@ -90,7 +94,7 @@ describe('capability-multiselect widget retirement (objectui#3308)', () => {
         `field:${key} must survive the retirement`,
       ).toBeTruthy();
     }
-    expect(RETAINED_FIELD_KEYS).toHaveLength(38);
+    expect(RETAINED_FIELD_KEYS).toHaveLength(37);
   });
 
   it('has no second registration path left to shadow the live one (objectui#3910)', async () => {

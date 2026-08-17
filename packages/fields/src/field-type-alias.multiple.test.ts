@@ -67,7 +67,11 @@ describe('select carries its arity in the widget id (objectui#3986)', () => {
    * their widget id, and with it their `labelling` declaration, is correct for
    * either arity. Moving them would point at widgets that do not exist.
    */
-  const UNMOVED_MULTI_CAPABLE = ['lookup', 'master_detail', 'user', 'owner', 'file', 'image', 'radio'] as const;
+  // `owner` was listed here beside `user` until objectui#4814 retired the
+  // spelling. It is dropped rather than kept-and-passing: the assertion would
+  // still be green (both arities reach the tombstone), but it would be pinning
+  // the arity behaviour of a REFUSAL, which says nothing about this override.
+  const UNMOVED_MULTI_CAPABLE = ['lookup', 'master_detail', 'user', 'file', 'image', 'radio'] as const;
 
   it.each(UNMOVED_MULTI_CAPABLE)('%s resolves identically with and without multiple', (type) => {
     expect(mapFieldTypeToFormType(type, { multiple: true })).toBe(mapFieldTypeToFormType(type));
