@@ -74,8 +74,13 @@ import { isComputedFieldType, isInlineExcludedDetailFieldType } from '../fieldEn
  * reaches a widget through the alias table — `toggle`, `progress`, `json`,
  * `composite`, `autonumber`, `secret`, `video` — which is precisely the set
  * that fell through the switch in #2942 and again here. The spec enum misses
- * the form-only keys (`owner`, `object`, `grid`, `geolocation`, the
- * widget-hint pickers).
+ * the form-only keys (`object`, `grid`, `geolocation`, the widget-hint
+ * pickers).
+ *
+ * `owner` was named here as a form-only key until objectui#4814 retired the
+ * spelling. It is now in NEITHER set — gone from `FORM_FIELD_TYPES`, and never
+ * a member of the spec enum, which is the card's own premise — so it leaves
+ * this universe entirely rather than moving between buckets.
  */
 const specTypes: string[] = Array.isArray((FieldType as { options?: readonly string[] }).options)
   ? [...(FieldType as { options: readonly string[] }).options]
@@ -228,10 +233,20 @@ describe('inline-edit type coverage — every type has exactly one decision (#42
         'recipient-picker', 'record', 'repeater', 'richtext', 'secret',
         'summary', 'vector',
       ],
+      // `owner` stood between `number` and `percent` until objectui#4814
+      // retired the spelling. It is NOT re-bucketed here: it left `ALL_TYPES`
+      // altogether (see the universe note above), so there is no decision left
+      // to document. The retirement itself is pinned in one place —
+      // `packages/fields/src/__tests__/owner-retired.test.tsx`.
+      //
+      // Note this snapshot is derived from `ALL_TYPES`, not from
+      // `INLINE_ROUTED_FIELD_TYPES`, which still lists `'owner'`
+      // (`InlineFieldInput.tsx`). That member is now unreachable through this
+      // guard and is tracked in #4914, not forced away here.
       routed: [
         'address', 'audio', 'avatar', 'boolean', 'currency', 'date', 'datetime',
         'file', 'geolocation', 'image', 'location', 'lookup', 'master_detail',
-        'multiselect', 'number', 'owner', 'percent', 'select', 'signature',
+        'multiselect', 'number', 'percent', 'select', 'signature',
         'tree', 'user', 'video',
       ],
       delegated: ['checkboxes', 'code', 'color', 'json', 'progress', 'qrcode', 'radio', 'rating', 'slider', 'tags', 'time', 'toggle'],
