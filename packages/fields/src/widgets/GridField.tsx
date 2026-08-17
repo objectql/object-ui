@@ -48,8 +48,13 @@ export interface GridColumn {
    * (`@object-ui/types`) and the grid docs page say (objectui#3951). This
    * widget used to read a divergent `field` key, so metadata authored against
    * the published type rendered every cell empty plus a React key warning.
-   * There is deliberately NO `col.field ?? col.name` alias: one spelling, at
-   * the producer — AGENTS.md #0.1.
+   * There is deliberately no tolerant alias bridging the retired spelling to
+   * this one: a single spelling, enforced at the producer — AGENTS.md #0.1.
+   *
+   * (Wording note: do not restate that rule as an alternation expression over
+   * the two key names. `column-identity.ratchet.test.ts` (objectui#3104) scans
+   * these files line by line and cannot tell prose from code, so spelling the
+   * shape out here registers as a new dual read and fails the gate.)
    */
   name: string;
   label?: string;
