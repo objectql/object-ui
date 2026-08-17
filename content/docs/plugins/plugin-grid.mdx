@@ -34,33 +34,78 @@ npm install @object-ui/plugin-grid
 
 ### Grid
 
-```plaintext
+A grid node is an `ObjectGridSchema`: one required `objectName`, plus keys drawn
+from the list this plugin **declares** as its authoring surface
+(`GRID_QUERY_INPUTS`, `packages/plugin-grid/src/index.tsx`) — the same list that
+feeds the designer panel and the generated `sdui-intrinsics.d.ts`, so what is
+authorable here is what the renderer reads.
+
+```json
 {
-  type: 'grid',
-  columns: GridColumn[],
-  data?: any[],
-  sortable?: boolean,
-  filterable?: boolean,
-  pagination?: boolean | PaginationConfig,
-  selectable?: boolean,
-  onRowClick?: (row) => void,
-  className?: string
+  "type": "object-grid",
+  "objectName": "users",
+  "columns": ["name", "email"],
+  "sort": [{ "field": "created", "order": "desc" }],
+  "pagination": { "pageSize": 20 }
 }
 ```
+
+Note the `type`. It is `object-grid` (or `view:grid`), **never `grid`** — bare
+`grid` is the CSS Grid *layout container* from `@object-ui/components`, whose
+`columns` is a column **count**. See [Registration](#registration-is-a-side-effect-of-the-import)
+below for why this plugin deliberately does not claim it.
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `objectName` | `string` (**required**) | The object queried. There is no `object`. |
+| `columns` | `string[] \| ListColumn[]` | Field names or column objects — see below. |
+| `label` | `I18nLabel` | Table caption and export file title. |
+| `filter` | `ViewFilterRule[]` | Baked into the query, lowered to `$filter`. |
+| `sort` | `[{ field, order }]` | Initial order; a header click replaces it. |
+| `pagination` | `PaginationConfig` | `{ pageSize?, pageSizeOptions? }` — **strict**, and its presence is what enables paging. |
+| `searchableFields` | `string[]` | A non-empty list is what puts the search box in the toolbar. |
+| `data` | `ViewData` | Inline rows that bypass the object query — see [Inline data](#inline-data). |
+| `selection` | `SelectionConfig` | `{ type: 'none' \| 'single' \| 'multiple' }`. |
+| `rowActions` / `bulkActions` | `string[]` | **Names** of actions, not inline definitions. |
+| `editable` / `singleClickEdit` | `boolean` | Inline editing — see [Inline Editing](#inline-editing). |
+| `navigation` | `NavigationConfig` | What a row click does: `{ mode: 'page' \| 'drawer' \| 'modal' \| 'split' \| 'none', … }`. |
+| `operations` | `object` | Toggles the built-in CRUD/export/import affordances, e.g. `{ delete: false }`. |
+| `rowHeight`, `frozenColumns`, `resizable`, `reorderableColumns`, `showColumnTypeIcons`, `rowColor`, `conditionalFormatting`, `grouping`, `aggregations`, `exportOptions`, `className` | | The rest of the declared surface. |
+
+**There is no `sortable`, `filterable`, `onRowClick`, `onSelectionChange`,
+`onCellChange`, `onRowSave`, `onBatchSave` or `object` on this schema.** The two
+booleans do not exist at all; the five `on*` names are **component props**
+(`ObjectGridComponentProps`), which no metadata document can carry — see
+[Row callbacks are component props](#row-callbacks-are-component-props).
 
 ### Column Definition
 
-```plaintext
-interface GridColumn {
-  header: string;
-  accessorKey: string;
-  sortable?: boolean;
-  filterable?: boolean;
-  width?: number | string;
-  align?: 'left' | 'center' | 'right';
-  cell?: (value, row) => ReactNode;
-}
-```
+A column is either a **field name** (`"name"`) or a `ListColumn` object.
+`ListColumn` is declared by `@objectstack/spec/ui` (`ListColumnSchema`) and
+re-exported from `@object-ui/types`; it is the type of `ObjectGridSchema`'s
+`columns`, so it is the same column vocabulary the saved-view metadata uses.
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `field` | `string` (**required**) | The field this column reads. There is no `accessorKey`. |
+| `label` | `string \| Record<string, string>` | Header text, or an inline locale map. There is no `header`. |
+| `width` | `number` | Column width in pixels. |
+| `align` | `'left' \| 'center' \| 'right'` | Cell alignment. |
+| `hidden` | `boolean` | Hidden by default, revealable in the column chooser. |
+| `sortable` | `boolean` | Allow sorting on this column. |
+| `resizable` | `boolean` | Allow dragging this column's width. |
+| `wrap` | `boolean` | Wrap long cell text instead of eliding it. |
+| `type` | `string` | Override the rendered cell type instead of inferring it from the field. |
+| `pinned` | `'left' \| 'right'` | Freeze the column to one edge. |
+| `summary` | `ColumnSummary \| { type, field? }` | Footer aggregation — see [Column Summaries](#column-summaries). |
+| `prefix` | `{ field, type? }` | Render a second field inline before the value. |
+| `link` | `boolean` | Render the value as a link to the record. |
+| `action` | `string` | Run a named action when the cell is clicked. |
+
+`ListColumnSchema` is a **strict** Zod object, so an unknown key is *rejected*
+rather than ignored — a column is spelled this one way. `header` and
+`accessorKey` are not softer spellings of `label` and `field`; they fail
+validation.
 
 ### Column Summaries
 
@@ -163,34 +208,70 @@ than this package's component API.
 
 ## Examples
 
-### Grid with Custom Cells
+### Basic Grid
 
 ```json
 {
-  "type": "grid",
+  "type": "object-grid",
+  "objectName": "users",
   "columns": [
-    { "header": "Name", "accessorKey": "name" },
-    { 
-      "header": "Status", 
-      "accessorKey": "status",
-      "cell": {
-        "type": "badge",
-        "label": "${value}",
-        "variant": "${value === 'Active' ? 'success' : 'default'}"
-      }
-    },
-    {
-      "header": "Actions",
-      "accessorKey": "id",
-      "cell": {
-        "type": "button-group",
-        "buttons": [
-          { "label": "Edit" },
-          { "label": "Delete", "variant": "destructive" }
-        ]
-      }
-    }
+    { "field": "name", "label": "Name", "width": 200, "sortable": true },
+    { "field": "email", "label": "Email" },
+    { "field": "role", "label": "Role" },
+    { "field": "status", "label": "Status", "type": "select" }
+  ],
+  "sort": [{ "field": "name", "order": "asc" }],
+  "pagination": { "pageSize": 20 }
+}
+```
+
+### Cell appearance
+
+A column does not carry a render function. What it *can* say is which **cell
+type** to use and how to decorate the value — the same vocabulary the saved-view
+metadata uses, so a grid authored by hand and one authored in the designer
+render alike.
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "opportunities",
+  "columns": [
+    { "field": "stage", "type": "select" },
+    { "field": "amount", "type": "currency", "align": "right", "summary": "sum" },
+    { "field": "name", "link": true, "prefix": { "field": "health", "type": "badge" } },
+    { "field": "owner_id", "action": "reassign" }
   ]
+}
+```
+
+`link: true` renders the value as a link to the record and `action: "reassign"`
+runs a named action on click — that is the metadata form of the "Actions column"
+a render function used to be written for. A genuinely custom cell **renderer** is
+a component-layer concern: `VirtualGridColumn.cell` on `VirtualGrid`, a React
+prop, not an authoring key.
+
+### Inline data
+
+A grid normally queries `objectName`. To render fixed rows instead — demos,
+fixtures, tests — give it a `ViewData` with the `value` provider. The rows go
+under `items`.
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "users",
+  "columns": [
+    { "field": "name", "label": "Name" },
+    { "field": "email", "label": "Email" }
+  ],
+  "data": {
+    "provider": "value",
+    "items": [
+      { "id": 1, "name": "John Doe", "email": "john@example.com", "status": "Active" },
+      { "id": 2, "name": "Jane Smith", "email": "jane@example.com", "status": "Active" }
+    ]
+  }
 }
 ```
 
@@ -198,91 +279,147 @@ than this package's component API.
 
 ```json
 {
-  "type": "grid",
-  "columns": [...],
-  "data": [...],
-  "selectable": true,
-  "onSelectionChange": "handleSelection"
+  "type": "object-grid",
+  "objectName": "users",
+  "columns": ["name", "email"],
+  "selection": { "type": "multiple" },
+  "bulkActions": ["delete", "export"]
 }
 ```
+
+`selection.type` is the canonical spelling; the boolean `selectable` is a
+deprecated legacy alias, read only when `selection` is absent. Declaring bulk
+actions auto-enables multi-select, so the two keys agree by construction.
+
+To react to a selection in React, pass the `onRowSelect` **component prop** —
+see [Row callbacks are component props](#row-callbacks-are-component-props).
 
 ### Grid with Pagination
 
 ```json
 {
-  "type": "grid",
-  "columns": [...],
-  "data": [...],
-  "pagination": {
-    "pageSize": 10,
-    "showSizeChanger": true,
-    "pageSizeOptions": [10, 20, 50, 100]
-  }
+  "type": "object-grid",
+  "objectName": "users",
+  "columns": ["name", "email"],
+  "pagination": { "pageSize": 10, "pageSizeOptions": [10, 20, 50, 100] }
 }
 ```
 
+`PaginationConfig` is a **strict** object of exactly `pageSize` and
+`pageSizeOptions` — there is no `showSizeChanger`, and none is needed: the pager
+always carries a rows-per-page picker, and `pageSizeOptions` only replaces the
+choices it offers with your own.
+
 ### ObjectQL Integration
+
+The object comes from `objectName`; there is no `object` key. Filtering is the
+metadata `filter` (lowered to `$filter`) and search is `searchableFields`
+(lowered to `$searchFields`).
 
 ```json
 {
   "type": "object-grid",
-  "object": "users",
+  "objectName": "users",
   "columns": [
-    { "header": "Name", "accessorKey": "name" },
-    { "header": "Email", "accessorKey": "email" },
-    { "header": "Created", "accessorKey": "created_at" }
+    { "field": "name", "label": "Name" },
+    { "field": "email", "label": "Email" },
+    { "field": "created_at", "label": "Created", "type": "datetime" }
   ],
-  "pagination": true,
-  "sortable": true,
-  "filterable": true
+  "filter": [{ "field": "status", "operator": "equals", "value": "active" }],
+  "searchableFields": ["name", "email"],
+  "pagination": { "pageSize": 20 }
 }
 ```
+
+The adapter itself is **not** a schema key: a schema is a serialisable document,
+while a live adapter is an object with methods. The grid reads its adapter from
+React context, which the host installs once above the whole tree with
+`<SchemaRendererProvider dataSource={...} />`.
 
 ## Features
 
 ### Sorting
 
-Enable sorting on all or specific columns:
+Columns sort by default. `sortable` is a **per-column** key, used to turn a
+column off; the grid-level `sort` declares the order the grid opens with. There
+is no top-level `sortable` switch.
 
 ```json
 {
-  "type": "grid",
-  "sortable": true,
+  "type": "object-grid",
+  "objectName": "users",
+  "sort": [{ "field": "created", "order": "desc" }],
   "columns": [
-    { "header": "Name", "accessorKey": "name", "sortable": true },
-    { "header": "Email", "accessorKey": "email", "sortable": false }
+    { "field": "name", "label": "Name" },
+    { "field": "email", "label": "Email", "sortable": false }
   ]
 }
 ```
 
-### Filtering
+### Filtering and search
 
-Enable column-level filtering:
+There is no per-column filter key and no top-level `filterable` switch. A grid
+narrows its query two ways: a `filter` baked into the metadata, and a toolbar
+search over the fields named in `searchableFields`.
 
 ```json
 {
-  "type": "grid",
-  "filterable": true,
-  "columns": [
-    { "header": "Status", "accessorKey": "status", "filterable": true }
-  ]
+  "type": "object-grid",
+  "objectName": "users",
+  "filter": [
+    { "field": "status", "operator": "equals", "value": "active" },
+    { "field": "created", "operator": "after", "value": "2026-01-01" }
+  ],
+  "searchableFields": ["name", "email"],
+  "columns": ["name", "email", "status"]
 }
 ```
 
 ### Row Actions
 
-Add action buttons to each row:
+`rowActions` and `bulkActions` are lists of **action names** — the actions
+themselves live in the object's action set, so the same action behaves
+identically wherever it is offered. They are `string[]`, not inline definitions
+carrying callbacks.
 
 ```json
 {
-  "type": "grid",
-  "rowActions": [
-    { "label": "View", "onClick": "viewRow" },
-    { "label": "Edit", "onClick": "editRow" },
-    { "label": "Delete", "onClick": "deleteRow" }
-  ]
+  "type": "object-grid",
+  "objectName": "users",
+  "columns": ["name", "email"],
+  "rowActions": ["view", "edit", "delete"],
+  "selection": { "type": "multiple" },
+  "bulkActions": ["delete", "export"]
 }
 ```
+
+### Row callbacks are component props
+
+`onRowClick`, `onRowSelect`, `onCellChange`, `onRowSave`, `onBatchSave`,
+`onEdit`, `onDelete`, `onBulkDelete` and `onAddRecord` are React props on
+`ObjectGridComponentProps`. They are functions, so no metadata document can hold
+them, and writing one into a schema does nothing at all: the grid builds the
+inner table's handlers itself and never reads a callback off the schema.
+
+```tsx
+import { ObjectGrid } from '@object-ui/plugin-grid';
+import type { ObjectGridComponentProps } from '@object-ui/plugin-grid';
+
+export const Grid = (props: ObjectGridComponentProps) => (
+  <ObjectGrid
+    {...props}
+    onRowClick={(record) => console.log('Row clicked:', record)}
+    onRowSelect={(rows) => console.log('Selection changed:', rows)}
+  />
+);
+```
+
+Note `onRowSelect` — the prop that reports a selection change is spelled that
+way; there is no `onSelectionChange` on this component.
+
+The declarative alternative, which *is* metadata and survives a round trip
+through storage, is `navigation`: its `mode` decides what a row click does
+without any host code.
 
 ### Inline Editing
 
@@ -293,91 +430,124 @@ Enable inline cell editing for quick data updates:
   "type": "object-grid",
   "objectName": "users",
   "columns": [
-    { "header": "ID", "accessorKey": "id", "editable": false },
-    { "header": "Name", "accessorKey": "name" },
-    { "header": "Email", "accessorKey": "email" },
-    { "header": "Status", "accessorKey": "status" }
+    { "field": "id", "label": "ID" },
+    { "field": "name", "label": "Name" },
+    { "field": "email", "label": "Email" },
+    { "field": "status", "label": "Status", "type": "select" }
   ],
   "editable": true,
-  "onCellChange": "handleCellChange"
+  "singleClickEdit": false
 }
 ```
+
+`editable` is the only switch: it is a grid-level flag, and edits persist
+through the host's data source (`dataSource.update`) with no callback to wire.
 
 **Features:**
-- Double-click or press Enter on a cell to start editing
-- Press Enter to save changes
-- Press Escape to cancel editing
-- Column-level control: Set `editable: false` on specific columns to prevent editing
-- Callback support: Use `onCellChange` to handle cell value updates
+- **Double-click to edit**: double-click any editable cell to enter edit mode
+  (`singleClickEdit: true` opens it on the first click instead)
+- **Keyboard shortcuts**: press Enter on a focused cell to start editing, Enter
+  again to save, Escape to cancel
+- **Per-field read-only**: which cells open is decided by the **field
+  definition**, not by a column key — a field marked `readonly`, and
+  computed/binary field types (formula, autonumber, file, …), never open an
+  editor. There is no `editable` key on `ListColumn`.
+- **Visual feedback**: editable cells show a hover state, and the input is
+  focused and selected when editing begins
 
-**Example Handler:**
-```javascript
-function handleCellChange(rowIndex, columnKey, newValue, row) {
-  console.log(`Cell at row ${rowIndex}, column ${columnKey} changed to:`, newValue);
-  console.log('Full row data:', row);
-  // Update your data source here
-}
-```
+To own persistence in a React host, supply `onCellChange` as a **component
+prop** — it is not a schema key.
 
 ### Batch Editing & Multi-Row Save
 
-Edit multiple cells across multiple rows and save them individually or all at once:
+Edit multiple cells across multiple rows and save them individually or all at
+once. The schema half is just `editable` — the save/cancel affordances appear on
+their own once a row has pending changes:
 
 ```json
 {
   "type": "object-grid",
   "objectName": "products",
   "columns": [
-    { "header": "SKU", "accessorKey": "sku", "editable": false },
-    { "header": "Name", "accessorKey": "name" },
-    { "header": "Price", "accessorKey": "price" }
+    { "field": "sku", "label": "SKU" },
+    { "field": "name", "label": "Name" },
+    { "field": "price", "label": "Price", "type": "currency", "align": "right" },
+    { "field": "stock", "label": "Stock", "type": "number", "align": "right" }
   ],
-  "editable": true,
-  "rowActions": true,
-  "onRowSave": "handleRowSave",
-  "onBatchSave": "handleBatchSave"
+  "editable": true
 }
+```
+
+Left alone, saving goes through the host's data source. A React host that needs
+to own persistence supplies `onRowSave` / `onBatchSave` as **component props** —
+and because they are props, they take the adapter from the host's own scope
+rather than from anything in the schema:
+
+```tsx
+import type { ObjectGridComponentProps } from '@object-ui/plugin-grid';
+
+type Persistence = Pick<ObjectGridComponentProps, 'onRowSave' | 'onBatchSave'>;
+
+const persistence = (
+  dataSource: NonNullable<ObjectGridComponentProps['dataSource']>,
+): Persistence => ({
+  onRowSave: async (rowIndex, changes, row) => {
+    await dataSource.update('products', row.id, changes);
+  },
+  onBatchSave: async (allChanges) => {
+    await Promise.all(
+      allChanges.map(({ row, changes }) => dataSource.update('products', row.id, changes)),
+    );
+  },
+});
 ```
 
 **Features:**
-- **Pending changes tracking**: Edit multiple cells across rows before saving
-- **Visual indicators**: Modified rows highlighted in amber, modified cells in bold
-- **Row-level save/cancel**: Individual row save and cancel buttons
+- **Pending changes tracking**: edit multiple cells across rows before saving
+- **Visual indicators**: modified rows highlighted in amber, modified cells in bold
+- **Row-level save/cancel**: individual row save and cancel buttons
 - **Batch operations**: Save All and Cancel All buttons for bulk actions
-- **Flexible callbacks**: `onRowSave` for single row, `onBatchSave` for multiple rows
-
-**Example Handlers:**
-```javascript
-function handleRowSave(rowIndex, changes, row) {
-  console.log('Saving row:', rowIndex, changes);
-  // Save single row to backend
-  await dataSource.update(row.id, changes);
-}
-
-function handleBatchSave(allChanges) {
-  console.log('Batch saving:', allChanges.length, 'rows');
-  // Save all changes at once
-  await Promise.all(
-    allChanges.map(({ row, changes }) => 
-      dataSource.update(row.id, changes)
-    )
-  );
-}
-```
+- **Flexible callbacks** — all three are `ObjectGridComponentProps`, never schema
+  keys: `onRowSave` for a single row, `onBatchSave` for many, `onCellChange` for
+  each staged cell edit
 
 ## TypeScript Support
 
-```plaintext
-import type { GridSchema, GridColumn } from '@object-ui/plugin-grid';
+The schema and column types come from `@object-ui/types`; this package exports
+the *component* types. Neither `GridSchema` nor `GridColumn` is on this
+package's export surface, and both names are taken elsewhere by different
+things — `GridSchema` in `@object-ui/types` is the CSS Grid **layout**
+container, and `GridColumn` in `@object-ui/fields` is a column of the
+line-items form widget (keyed `name`). The data-grid pair is
+`ObjectGridSchema` + `ListColumn`.
 
-const grid: GridSchema = {
-  type: 'grid',
-  columns: [...],
-  data: [],
-  sortable: true,
-  pagination: true
+```typescript
+import type { ObjectGridSchema, ListColumn } from '@object-ui/types';
+import type { ObjectGridComponentProps } from '@object-ui/plugin-grid';
+
+const nameColumn: ListColumn = {
+  field: 'name',
+  label: 'Full Name',
+  sortable: true
+};
+
+const grid: ObjectGridSchema = {
+  type: 'object-grid',
+  objectName: 'users',
+  columns: [nameColumn],
+  pagination: { pageSize: 20 }
+};
+
+// Row callbacks are COMPONENT props, not schema keys.
+const gridProps: ObjectGridComponentProps = {
+  schema: grid,
+  onRowClick: (record) => console.log('Row clicked:', record)
 };
 ```
+
+Annotating the literal is the point: an un-annotated `const schema = { … }`
+type-checks no matter what is written in it, so a snippet that carries no
+annotation cannot tell you whether its keys are real.
 
 ## License
 

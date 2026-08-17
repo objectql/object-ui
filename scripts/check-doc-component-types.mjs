@@ -318,6 +318,9 @@ const DOC_TYPE_EXEMPTIONS = {
   },
   'content/docs/plugins/plugin-grid.mdx': {
     count_unique: 'Column summary aggregation under `columns[].summary`, not a node type.',
+    multiple:
+      'SelectionConfig mode under `selection` — the spec\'s `none` / `single` / `multiple` ' +
+      'vocabulary (`SelectionConfigSchema`, @objectstack/spec/ui), not a node type.',
   },
   'content/docs/plugins/plugin-report.mdx': {
     matrix: 'ReportInput kind — a report definition\'s shape, sibling of `joined` / `summary`.',
