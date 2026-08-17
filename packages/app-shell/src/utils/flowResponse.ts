@@ -151,8 +151,9 @@ function flowFailureMessage(data: FlowRunResult, fallback: string): string {
  * has always been able to arrive as a bare string, and a non-2xx may carry no
  * parseable body at all, so nothing here may assume an object.
  */
-function errorEnvelopeDetails(json: any): FlowRunResult {
-    const details = (json?.error as { details?: unknown } | null | undefined)?.details;
+function errorEnvelopeDetails(json: unknown): FlowRunResult {
+    const envelope = (json as { error?: { details?: unknown } } | null | undefined)?.error;
+    const details = envelope?.details;
     if (!details || typeof details !== 'object' || Array.isArray(details)) return {};
     return details as FlowRunResult;
 }
