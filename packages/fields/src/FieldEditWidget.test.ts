@@ -71,7 +71,14 @@ describe('inline editor ↔ form widget parity', () => {
   });
 
   it('relational fields use the standard picker inline (regression: lookup was a text box)', () => {
-    for (const t of ['lookup', 'master_detail', 'user', 'owner']) {
+    // `owner` stood beside `user` here until objectui#4931. It is NOT merely
+    // dropped for convenience: this assertion pinned the exact branch that card
+    // removed — `EDIT_WIDGETS`' `owner` key, the road by which objectui#4814's
+    // retirement was bypassed — so keeping it in any form would be pinning the
+    // bug. Its replacement fact (the retirement gate answers `false`, and the
+    // grid degrades to a read-only cell rather than a text box) is asserted in
+    // one place, `__tests__/FieldEditWidget.retiredFieldType.test.tsx`.
+    for (const t of ['lookup', 'master_detail', 'user']) {
       expect(hasFieldEditWidget(t)).toBe(true);
     }
   });

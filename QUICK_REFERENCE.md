@@ -113,9 +113,9 @@ that test tells you to edit this block. The one exception is called out on its r
 
 - **Version:** 17.5.0 (the version every `@object-ui/*` manifest carries — they are one
   `fixed` group in `.changeset/config.json`, so a release moves all of them together)
-- **Spec:** `@objectstack/spec` ^17.0.0-rc.6 (declared by the root `package.json` and by
+- **Spec:** `@objectstack/spec` ^17.0.0 (declared by the root `package.json` and by
   `apps/console/package.json`)
-- **Client:** `@objectstack/client` ^17.0.0-rc.6 (declared by `apps/console/package.json`
+- **Client:** `@objectstack/client` ^17.0.0 (declared by `apps/console/package.json`
   and `packages/data-objectstack/package.json`)
 - **Node.js:** ≥ 22 (see root `engines.node`)
 - **pnpm:** ≥ 9 (the workspace pins `pnpm@10.31.0` via `packageManager`)
