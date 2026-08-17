@@ -317,23 +317,70 @@ here.
 
 ## TypeScript Support
 
-```typescript
-import type { DashboardSchema, MetricCardSchema } from '@object-ui/plugin-dashboard';
+This package ships **components, not schema types** — its whole type export
+surface is `WidgetConfigPanelProps`, `ConfigPanelTranslate` and the three
+`WidgetDataset*` catalog types, none of which describe an authored dashboard.
+The authored shape is typed by `@object-ui/types`:
 
-const metricCard: MetricCardSchema = {
-  type: 'metric-card',
+| Import from `@object-ui/types` | What it types |
+| --- | --- |
+| `DashboardComponentSchema` | the whole `type: 'dashboard'` node — `columns`, `gap`, `widgets`, `header`, `globalFilters`, `dateRange`, `refreshInterval`, … |
+| `DashboardWidgetSchema` | one entry of `widgets[]` — the spec's `DashboardWidget` keys, plus objectui's own (`component`, `layout`, `options`, …) |
+| `DashboardWidgetLayout` | a widget's `{ x, y, w, h }` grid box |
+
+```typescript
+import type {
+  DashboardComponentSchema,
+  DashboardWidgetSchema,
+} from '@object-ui/types';
+
+// Dataset-bound KPI — the widget vocabulary (see "Dashboard-level filters").
+const revenue: DashboardWidgetSchema = {
+  id: 'kpi_revenue',
+  type: 'metric',
   title: 'Revenue',
-  value: '$123,456',
-  trend: 'up',
-  trendValue: '+12%'
+  dataset: 'invoices',
+  values: ['count'],
+  colorVariant: 'success',
 };
 
-const dashboard: DashboardSchema = {
+// Single-value widget with no query: the number lives under `options`.
+const users: DashboardWidgetSchema = {
+  id: 'kpi_users',
+  type: 'metric',
+  title: 'Total Users',
+  options: { value: '1,234' },
+};
+
+// Component format: a registered component node in the widget's `component`
+// slot. Its keys are that COMPONENT's props, not widget keys.
+const custom: DashboardWidgetSchema = {
+  id: 'kpi_custom',
+  component: {
+    type: 'metric-card',
+    title: 'Revenue',
+    value: '$123,456',
+    trend: 'up',
+    trendValue: '+12%',
+  },
+  layout: { x: 0, y: 0, w: 3, h: 2 },
+};
+
+const dashboard: DashboardComponentSchema = {
   type: 'dashboard',
   columns: 3,
-  widgets: [metricCard]
+  gap: 4,
+  widgets: [revenue, users, custom],
 };
 ```
+
+There is **no per-widget-family schema type**: one `DashboardWidgetSchema`
+covers every `type` (`metric`, `bar`, `table`, …) and the family-specific
+settings live under `options`. `MetricCard`'s own props — `value`, `trend`,
+`trendValue` — are the component's, not the widget's: `DashboardWidgetSchema`
+declares none of them, and the component's props interface is not on this
+package's export surface either. So a `metric-card` node is typed only where it
+appears as a component (the `component` slot above), not as a widget family.
 
 ## Customization
 
