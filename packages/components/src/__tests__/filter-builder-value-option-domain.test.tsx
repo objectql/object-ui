@@ -462,6 +462,11 @@ describe('narrowFilterValueToOptions — the A/C split, stated on the helper', (
   });
 
   it('is inert on a malformed or absent field entry', () => {
+    // Inert because `hasStaticOptionDomain` gates on `Array.isArray` BEFORE any
+    // option is read — not because the reading is lenient. Measured: with that
+    // gate removed, this case does not merely answer wrongly, it throws inside
+    // `optionKeysOf` (`.map` on a string). The criterion is what keeps the
+    // narrowing total, so it is pinned here as well as on the A/C split.
     expect(narrowFilterValueToOptions('acme', undefined, 'equals')).toBe('acme');
     expect(
       narrowFilterValueToOptions('acme', { type: 'select', options: 'won' as any }, 'equals'),
