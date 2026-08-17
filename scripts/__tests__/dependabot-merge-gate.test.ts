@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   NOT_A_GATE,
+  main,
   OPTIONAL_CONTEXTS,
   REQUIRED_CONTEXTS,
   evaluateGate,
@@ -124,7 +125,12 @@ describe('the #4959 counterfactual: this gate stops the merge that happened', ()
     // `gate == 'green'` and nothing else.
     expect(result.verdict).not.toBe('green');
 
-    // The eight contexts that were still running when the merge landed.
+    // Nine contexts were still running when the merge landed: these eight
+    // required ones plus `Bundle Analysis`, which is optional-if-present and was
+    // also in flight. The exact count is asserted so a fixture edit cannot
+    // quietly weaken the case.
+    expect(result.pending).toHaveLength(9);
+    expect(result.pending).toContain('Bundle Analysis (in_progress)');
     expect(result.pending).toEqual(
       expect.arrayContaining([
         'Type Check (in_progress)',
@@ -326,6 +332,27 @@ describe('waitForGate: the deadline fails closed', () => {
         sha: 'deadbeef',
       }),
     ).rejects.toThrow('HTTP 403');
+  });
+});
+
+describe('main(): a misconfigured deadline fails loudly, not silently', () => {
+  const greenApi = { listCheckRuns: async () => allGreenSnapshot() };
+  const baseEnv = { HEAD_SHA: 'deadbeef', GATE_REPORT_FILE: '/dev/null' };
+
+  it('rejects a non-numeric timeout instead of polling forever', async () => {
+    await expect(
+      main({ api: greenApi, env: { ...baseEnv, GATE_TIMEOUT_SECONDS: '40 minutes' } }),
+    ).rejects.toThrow('GATE_TIMEOUT_SECONDS must be a positive number of seconds');
+  });
+
+  it('rejects a zero or negative interval', async () => {
+    await expect(
+      main({ api: greenApi, env: { ...baseEnv, GATE_INTERVAL_SECONDS: '0' } }),
+    ).rejects.toThrow('GATE_INTERVAL_SECONDS must be a positive number of seconds');
+  });
+
+  it('refuses to run without being told which SHA it is judging', async () => {
+    await expect(main({ api: greenApi, env: { GATE_REPORT_FILE: '/dev/null' } })).rejects.toThrow('HEAD_SHA');
   });
 });
 

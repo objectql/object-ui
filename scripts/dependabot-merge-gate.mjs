@@ -390,18 +390,49 @@ export function renderVerdict(result) {
   return `${lines.join('\n')}\n`;
 }
 
+/**
+ * A duration from the environment, in seconds, or a loud failure.
+ *
+ * `Number('40 minutes')` is `NaN`, and `elapsedMs >= NaN` is false forever — a
+ * typo in the workflow would turn the deadline off and leave the gate polling
+ * until the runner killed the job. That direction is still fail-closed (nothing
+ * merges) but it burns 50 minutes of a runner and reports as a timeout rather
+ * than as the misconfiguration it is. So a bad value throws here instead.
+ *
+ * @param {string|undefined} raw
+ * @param {number} fallbackSeconds
+ * @param {string} name
+ */
+function readDuration(raw, fallbackSeconds, name) {
+  const seconds = raw === undefined || raw === '' ? fallbackSeconds : Number(raw);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    throw new Error(`${name} must be a positive number of seconds, got ${JSON.stringify(raw)}`);
+  }
+  return seconds * 1000;
+}
+
 function appendTo(envVar, text) {
   const target = process.env[envVar];
   if (!target) return;
   fs.appendFileSync(target, `${text}\n`);
 }
 
+/**
+ * The workflow's entry point. `api` is injectable for the tests; `env` is split
+ * out for the same reason. Typed explicitly because a binding with no default in
+ * a destructured JS parameter is dropped from the inferred signature under
+ * `strict`, which would make the injected `api` a type error at the call site
+ * (`tsconfig.scripts.json` compiles the pin tests).
+ *
+ * @param {{ api?: { listCheckRuns: (sha: string) => Promise<Array<object>> },
+ *           env?: Record<string, string | undefined> }} [input]
+ */
 export async function main({ api, env = process.env } = {}) {
   const sha = env.HEAD_SHA ?? '';
   if (!sha) throw new Error('HEAD_SHA is not set — the gate must be told which commit it is judging');
 
-  const timeoutMs = Number(env.GATE_TIMEOUT_SECONDS ?? 2400) * 1000;
-  const intervalMs = Number(env.GATE_INTERVAL_SECONDS ?? 20) * 1000;
+  const timeoutMs = readDuration(env.GATE_TIMEOUT_SECONDS, 2400, 'GATE_TIMEOUT_SECONDS');
+  const intervalMs = readDuration(env.GATE_INTERVAL_SECONDS, 20, 'GATE_INTERVAL_SECONDS');
   const reportFile = env.GATE_REPORT_FILE ?? 'dependabot-merge-gate.md';
   const runUrl =
     env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && env.GITHUB_RUN_ID
