@@ -72,7 +72,17 @@ async function resolveFieldLabels(
     fieldLabel(objectName, fieldName, fields?.[fieldName]?.label || fieldName);
 }
 
-/** One description line, given the translator and the already-labelled field list. */
+/**
+ * One description line, given the translator and the already-labelled field list.
+ *
+ * Every implementation below re-annotates `t: TranslateFn` even though this type
+ * already infers it. That is not noise: `scripts/check-i18n-call-site-keys.mjs`
+ * decides whether a `t(...)` call is a real translator from the ANNOTATION on the
+ * binding (`TRANSLATOR_TYPE`), and an inferred parameter reads as "not a
+ * translator" — which silently drops these keys out of the en-pack resolution,
+ * the inline-`defaultValue` comparison and the interpolation-parity check. The
+ * wording table is exactly the code that gate needs to be watching.
+ */
 type StrippedLine = (t: TranslateFn, fields: string) => string;
 
 /**
@@ -95,18 +105,18 @@ type StrippedLine = (t: TranslateFn, fields: string) => string;
  * consumer that branches on `reason` to use.
  */
 const STRIPPED_LINE: Record<DroppedFieldsEvent['reason'], StrippedLine> = {
-  readonly: (t, fields) =>
+  readonly: (t: TranslateFn, fields: string) =>
     t('detail.writeStrippedReadonly', {
       fields,
       defaultValue: 'Read-only, so it did not take effect: {{fields}}',
     }),
-  readonly_when: (t, fields) =>
+  readonly_when: (t: TranslateFn, fields: string) =>
     t('detail.writeStrippedByState', {
       fields,
       defaultValue:
         "Not editable in this record's current state, so it did not take effect: {{fields}}",
     }),
-  primary_key: (t, fields) =>
+  primary_key: (t: TranslateFn, fields: string) =>
     t('detail.writeStrippedPrimaryKey', {
       fields,
       defaultValue:
@@ -129,7 +139,7 @@ const STRIPPED_LINE: Record<DroppedFieldsEvent['reason'], StrippedLine> = {
  * card exists to delete. So name the fields and claim nothing about the cause —
  * version skew is the one case where "we cannot say why" is the true answer.
  */
-const strippedLineUnknownReason: StrippedLine = (t, fields) =>
+const strippedLineUnknownReason: StrippedLine = (t: TranslateFn, fields: string) =>
   t('detail.writeStrippedUnknownReason', {
     fields,
     defaultValue: 'Not applied by the server: {{fields}}',
