@@ -21,9 +21,42 @@ import { useDisplayLocale } from '@object-ui/i18n';
 import { LookupField } from './LookupField';
 import { FileCell } from './FileField';
 import { toDateInputValue, toDateTimeInputValue, fromDateTimeInputValue } from './nativeDateValue';
+import { toDomProps } from './toDomProps';
+import { toHostGroupProps } from './toHostGroupProps';
 
 /**
  * GridField / LineItemsField — editable child-grid ("line items") widget.
+ *
+ * ## Where the host's label and help text land, and why (objectui#4857)
+ *
+ * This widget forwarded nothing a host handed it, so the field's visible label
+ * pointed `for` at an id no element carried and the help text had zero
+ * consumers. Measured on `origin/main` at `e71c854ce`, a real form, editable
+ * state, `description` set:
+ *
+ * ```
+ * bare (no columns)   for=DANGLING hostIdEl=NONE consumers=0  focusables=[button]
+ * columns + one row   for=DANGLING hostIdEl=NONE consumers=0  focusables=[drag,
+ *                       input(Item), input(Qty), button(Duplicate row),
+ *                       button(Remove row), input(Item), input(Qty), button(Add)]
+ * ```
+ *
+ * The bare row's single focusable is the auxiliary "Add line" BUTTON — labelable,
+ * but routing the host id (and so the label's `for`) onto it would make the
+ * field's label NAME the add-row action and make a click on the label insert a
+ * row. Every realistic config is a composite: many cell inputs, each with its
+ * own `aria-label`, under one container. So this widget declares
+ * `labelling: 'group'` (see `FIELD_WIDGET_LABELLING` in `../index`) — the
+ * objectui#3961 composite shape, like `address` — and the CONTAINER consumes the
+ * host's keys:
+ *
+ *  - editable / list mode: the root div takes the DOM pass-through minus `name`
+ *    (DOM-legal on form controls only — the objectui#3291 leak) and minus
+ *    `aria-invalid` (control-channel state; this grid reports validity per CELL,
+ *    with its own inline marks), answering `role="group"` only when a host
+ *    actually named it — `CheckboxesField`'s split, key for key.
+ *  - readonly: the table replaces the inputs entirely, so that surface takes the
+ *    name AND the description via `toHostGroupProps` — `'instead-of-the-inputs'`.
  *
  * A controlled component: `value` is an array of row objects, `onChange`
  * receives the next array. It renders one editable cell per configured
@@ -660,7 +693,14 @@ export function GridField({
   // ── Read-only / view rendering ────────────────────────────────────────────
   if (readonly) {
     return (
-      <div className={cn('space-y-2', className)}>
+      <div
+        // No input of the field's own renders here, so this surface is the only
+        // candidate for the host's name AND description (objectui#4857; the
+        // objectui#3990/#4005 route). Standalone rendering hands down none of
+        // the keys, so nothing is emitted and the markup is unchanged.
+        {...toHostGroupProps(props, 'instead-of-the-inputs')}
+        className={cn('space-y-2', className)}
+      >
         {columnChooser && <div className="flex justify-end">{columnChooser}</div>}
         <div className="border border-border rounded-lg overflow-x-auto" data-testid="line-items-readonly">
         <table className="w-full text-sm">
@@ -887,8 +927,28 @@ export function GridField({
     );
   };
 
+  // DOM pass-through (objectui#4857): the container carries the form renderer's
+  // id / aria-labelledby / aria-describedby, but NOT its `name` (DOM-legal on
+  // form controls only — the objectui#3291 leak) and NOT its `aria-invalid`
+  // (control-channel state; this grid reports validity per CELL with its own
+  // inline marks). `CheckboxesField`'s split, key for key.
+  const {
+    'aria-invalid': _hostAriaInvalid,
+    name: _domName,
+    ...groupDomProps
+  } = toDomProps(props);
+  // The container answers `role="group"` only when a host actually NAMED it by
+  // IDREF (objectui#3961) — standalone rendering (a bare SDUI node) hands down
+  // no `aria-labelledby`, emits no role, and keeps its markup unchanged.
+  const isLabelledGroup = groupDomProps['aria-labelledby'] != null;
+
   return (
-    <div className={cn('space-y-2', className)} data-testid="line-items">
+    <div
+      {...groupDomProps}
+      role={isLabelledGroup ? 'group' : undefined}
+      className={cn('space-y-2', className)}
+      data-testid="line-items"
+    >
       {columnChooser && <div className="flex justify-end">{columnChooser}</div>}
       <div className="border border-border rounded-lg overflow-x-auto">
         <table ref={gridRef} className="w-full text-sm">

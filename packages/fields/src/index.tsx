@@ -8,7 +8,7 @@
 
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
-import { ComponentRegistry, percentDisplayValue, getRecordDisplayName } from '@object-ui/core';
+import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, type ComponentMeta } from '@object-ui/core';
 import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
 import { Badge, Avatar, AvatarImage, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
 import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
@@ -2393,7 +2393,13 @@ export function evaluateCondition(condition: any, formData: any): boolean {
  * Field widget map for lazy loading
  * Maps field type to widget component
  */
-const fieldWidgetMap: Record<string, () => Promise<{ default: React.ComponentType<any> }>> = {
+type FieldWidgetLoader = () => Promise<{ default: React.ComponentType<any> }>;
+
+// `satisfies` (not a `Record<string, …>` annotation) so the KEY SET survives as
+// a literal union — that union is what makes `FIELD_WIDGET_LABELLING` below
+// exhaustive BY CONSTRUCTION: adding a widget here without deciding its
+// labelling is a compile error, not a silent fallback (objectui#4857).
+const fieldWidgetMap = {
   // Basic fields
   'text': () => import('./widgets/TextField').then(m => ({ default: m.TextField })),
   'textarea': () => import('./widgets/TextAreaField').then(m => ({ default: m.TextAreaField })),
@@ -2472,7 +2478,16 @@ const fieldWidgetMap: Record<string, () => Promise<{ default: React.ComponentTyp
   'object-ref': () => import('./widgets/ObjectRefField').then(m => ({ default: m.ObjectRefField })),
   'filter-condition': () => import('./widgets/FilterConditionField').then(m => ({ default: m.FilterConditionField })),
   'recipient-picker': () => import('./widgets/RecipientPickerField').then(m => ({ default: m.RecipientPickerField })),
-};
+} satisfies Record<string, FieldWidgetLoader>;
+
+/** The registered field widget keys, as a literal union (objectui#4857). */
+export type RegisteredFieldWidgetType = keyof typeof fieldWidgetMap;
+
+// String-indexed view of the same object, for the resolver call sites below
+// that look up ARBITRARY spellings (aliases, retired keys, author typos). The
+// literal-keyed `fieldWidgetMap` cannot be indexed by a plain `string`; this
+// alias widens the key without copying anything.
+const fieldWidgetLoaderByKey: Record<string, FieldWidgetLoader | undefined> = fieldWidgetMap;
 
 /**
  * Every field type the form can render (the canonical list of supported types).
@@ -2494,14 +2509,14 @@ export const FORM_FIELD_TYPES: readonly string[] = Object.freeze(Object.keys(fie
  * support can never drift behind the form surface (ADR-0059).
  */
 export function resolveFormWidgetType(fieldType: string): string {
-  if (fieldWidgetMap[fieldType]) return fieldType;
+  if (fieldWidgetLoaderByKey[fieldType]) return fieldType;
   // A retired spelling resolves to ITSELF, not to `text`: the registry holds a
   // tombstone widget under that key which refuses visibly, so every host built
   // on this seam (the app-shell `ActionParamDialog`, the bulk dialog) reports
   // the retirement instead of silently rendering an input (objectui#4814).
   if (RETIRED_FIELD_TYPES[fieldType]) return fieldType;
   const mapped = mapFieldTypeToFormType(fieldType).replace(/^field:/, '');
-  return fieldWidgetMap[mapped] ? mapped : 'text';
+  return fieldWidgetLoaderByKey[mapped] ? mapped : 'text';
 }
 
 /**
@@ -2536,7 +2551,8 @@ export function getLazyFieldWidget(fieldType: string): React.ComponentType<any> 
   if (RETIRED_FIELD_TYPES[key]) return RetiredFieldTombstone;
   let Widget = lazyFieldWidgets.get(key);
   if (!Widget) {
-    Widget = React.lazy(fieldWidgetMap[key]);
+    // `resolveFormWidgetType` only returns keys the map holds, hence the `!`.
+    Widget = React.lazy(fieldWidgetLoaderByKey[key]!);
     lazyFieldWidgets.set(key, Widget);
   }
   return Widget;
@@ -2589,58 +2605,110 @@ const FIELD_TYPES_SKIP_FALLBACK = new Set([
 ]);
 
 /**
- * Widgets whose labelled surface is NOT a labelable HTML element, so a host's
- * `<label for>` cannot reach it and the association has to go by IDREF instead
- * (`ComponentMeta.labelling`, objectui#3961). Two shapes, one declaration:
+ * The labelling declaration of EVERY registered field widget
+ * (`ComponentMeta.labelling` — the closed `'control' | 'group' | 'display'`
+ * vocabulary, objectui#3961 extended by objectui#4857). This `Record` is keyed
+ * by the widget map's own literal key union, so it is exhaustive BY
+ * CONSTRUCTION: registering a widget without deciding how a host's label
+ * reaches it is a COMPILE error here, not a silent fall-through to the
+ * `'control'` path — the omitted-declaration degradation is exactly the trap
+ * the #4857 ruling named, and it is what turned the display-only four into
+ * fields with no accessible name.
+ *
+ * ## `'group'` — a surface no `<label for>` can reach; the WIDGET consumes the IDREF
+ *
+ * Two shapes, one declaration:
  *
  *  - real composites — `address` / `geolocation` render several inputs under one
- *    container, and `checkboxes` / `radio` / `rating` / `multiselect` a set of
- *    choice controls; the host's label names the GROUP, each sub-control keeps
- *    its own name (a sub-label, or the chip's own text content).
- *  - `file` is not composite at all: it has exactly ONE control, the dropzone,
- *    which is a `div[role="button"]` (it is the keyboard path to the hidden file
- *    input). It is here because a `div` cannot be `for`-labelled, not because it
- *    is a group, and it renders NO `role="group"` — the dropzone itself takes the
- *    `aria-labelledby`.
+ *    container, `checkboxes` / `radio` / `rating` / `multiselect` a set of
+ *    choice controls, and `grid` a whole table of cell inputs plus row actions;
+ *    the host's label names the GROUP, each sub-control keeps its own name (a
+ *    sub-label, the chip's text content, or a cell's own `aria-label`).
+ *  - single non-labelable controls — `file`'s one control is a
+ *    `div[role="button"]` dropzone, `slider`'s is Radix's `span[role="slider"]`
+ *    thumb (objectui#3318), `signature`'s drawing surface is a `<canvas>`
+ *    (objectui#3318). A `div`/`span`/`canvas` cannot be `for`-labelled, so the
+ *    name goes by IDREF to the control (or, for `signature`, its container).
  *
- * Measured, not assumed: every entry was verified in a real form to be a widget
- * whose host label either resolved to nothing (`address` / `geolocation`, whose
- * sub-input ids overwrote the host id — objectui#3343) or resolved to an element
- * that cannot carry it (`checkboxes` / `radio` / `rating` / `file` /
- * `multiselect`). In both shapes the visible group label was, before this
- * declaration, the accessible name of NOTHING.
+ * Measured, not assumed: every `'group'` entry was verified in a real form —
+ * the #3961/#3975 probes for the first seven, the #3318 delivery for
+ * `slider`/`signature`, and the #4857 re-measurement for `grid` (bare config:
+ * one focusable, the auxiliary "Add line" BUTTON — routing `for` there would
+ * have label clicks INSERT A ROW; realistic config: 8 focusables across cell
+ * inputs and row actions — a composite, not a single control).
  *
- * `multiselect` arrived one issue later (objectui#3975) for a coverage reason,
- * not a mechanism one: #3961's probe covered the six above, and re-running it
- * over the full widget map afterwards found `multiselect` on the byte-identical
- * failure shape as `checkboxes` — the host id kept, on the chip row's wrapper
- * `div`, where a `for` is inert. Same declaration, same container answer.
+ * ## `'display'` — a pure display in EVERY state; the HOST wraps (objectui#4857)
  *
- * A widget NOT listed here takes the single-control path unchanged. That is the
- * safe default: the host keeps emitting `for`, and a composite that forgot to
- * declare itself is caught by the label-association tests (objectui#3952) rather
- * than silently emitting an `aria-labelledby` onto a container with no role.
+ * `formula` / `summary` / `auto_number` / `vector` have no editable branch at
+ * all: the whole widget is a replacement display with no focusable control, in
+ * the editable state as much as the readonly one (on the real object-form path
+ * they arrive `disabled`, never `readonly`, so the #4788 readonly gate could
+ * not cover them). The form renderer answers the declaration with its own
+ * wrapper — id + `aria-labelledby` + `aria-describedby` + `role="group"`, the
+ * #4788 container — and the label emits no `for`. The widgets spread nothing,
+ * by design; the host is the named surface.
+ *
+ * ## `'control'` — everything else
+ *
+ * The host's `<label for>` reaches a real labelable element. At registration
+ * this is deliberately spelled as ABSENCE of the meta key (one spelling of the
+ * default, objectui#3961), so hosts keep one rule for these and for
+ * out-of-registry widgets alike; the entry here is still mandatory, because
+ * "defaulted by omission" and "decided to be the default" are different facts.
  */
-const FIELD_TYPES_GROUP_LABELLED = new Set([
-  'address',
-  'geolocation',
-  'checkboxes',
-  'radio',
-  'rating',
-  'file',
-  // objectui#3975 — the residual after #3961's six, same shape as `checkboxes`.
-  'multiselect',
-  // objectui#3318 — two more of `file`'s shape, not composites:
-  //  - `slider`'s one control is Radix's `span[role="slider"]` thumb;
-  //  - `signature`'s drawing surface is a `<canvas>`.
-  // Neither is one of HTML's labelable elements, so a host `for` can only
-  // dangle at it; both must be named by IDREF instead.
-  'slider',
-  'signature',
-]);
+export const FIELD_WIDGET_LABELLING: Record<
+  RegisteredFieldWidgetType,
+  NonNullable<ComponentMeta['labelling']>
+> = {
+  text: 'control',
+  textarea: 'control',
+  number: 'control',
+  boolean: 'control',
+  select: 'control',
+  date: 'control',
+  datetime: 'control',
+  time: 'control',
+  email: 'control',
+  phone: 'control',
+  url: 'control',
+  multiselect: 'group',
+  radio: 'group',
+  checkboxes: 'group',
+  tags: 'control',
+  currency: 'control',
+  percent: 'control',
+  password: 'control',
+  markdown: 'control',
+  html: 'control',
+  richtext: 'control',
+  lookup: 'control',
+  master_detail: 'control',
+  file: 'group',
+  image: 'control',
+  location: 'control',
+  formula: 'display',
+  summary: 'display',
+  auto_number: 'display',
+  user: 'control',
+  object: 'control',
+  vector: 'display',
+  grid: 'group',
+  color: 'control',
+  slider: 'group',
+  rating: 'group',
+  code: 'control',
+  avatar: 'control',
+  address: 'group',
+  geolocation: 'group',
+  signature: 'group',
+  qrcode: 'control',
+  'object-ref': 'control',
+  'filter-condition': 'control',
+  'recipient-picker': 'control',
+};
 
 export function registerField(fieldType: string): void {
-  const loader = fieldWidgetMap[fieldType];
+  const loader = fieldWidgetLoaderByKey[fieldType];
   if (!loader) {
     console.warn(`Unknown field type: ${fieldType}`);
     return;
@@ -2653,13 +2721,17 @@ export function registerField(fieldType: string): void {
   // label/description/spacing. The only thing wrapped is the metadata carrier:
   // `withFieldCarrier` maps `SchemaRenderer`'s `schema` node onto `field`
   // (objectui#3233) and renders nothing of its own.
+  // The loader check above proves `fieldType` is a map key, which is what the
+  // labelling record is keyed by — hence the cast, not a second lookup table.
+  const labelling = FIELD_WIDGET_LABELLING[fieldType as RegisteredFieldWidgetType];
   ComponentRegistry.register(fieldType, withFieldCarrier(LazyFieldWidget), {
     namespace: 'field',
     skipFallback: FIELD_TYPES_SKIP_FALLBACK.has(fieldType),
-    // Only the group-labelled widgets carry the key; everything else leaves it
-    // absent, which the form renderer reads as `'control'` (objectui#3961). One
-    // spelling of the default, in one place.
-    ...(FIELD_TYPES_GROUP_LABELLED.has(fieldType) ? { labelling: 'group' as const } : null),
+    // Only the group- and display-labelled widgets carry the meta key;
+    // `'control'` stays ABSENT, which every host reads as `'control'`
+    // (objectui#3961). One spelling of the default, in one place — while the
+    // exhaustive record above still forces every widget to declare.
+    ...(labelling !== 'control' ? { labelling } : null),
   });
 }
 

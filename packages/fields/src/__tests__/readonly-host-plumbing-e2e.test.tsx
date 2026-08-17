@@ -410,9 +410,15 @@ describe('the editable branch is untouched — its label still addresses a real 
     if (type === 'formula') {
       // The D group has no editable branch to keep: it renders the same
       // display-only span, which is why its editable row measured
-      // `for=DANGLING hostIdEl=NONE consumers=0` too. That residual is NOT this
-      // issue's readonly defect and is deliberately left as measured — pinned
-      // here so a later change to it is a deliberate one.
+      // `for=DANGLING hostIdEl=NONE consumers=0` too. objectui#4857 closed that
+      // residual — deliberately, as this pin demanded — through a
+      // `labelling: 'display'` DECLARATION, whose covered behaviour is pinned
+      // in `display-grid-host-channels-e2e.test.tsx`. THIS file registers every
+      // widget bare, declaration-less, so what this branch now pins is the
+      // UNDECLARED fallback: a widget that skips the declaration falls to the
+      // single-control path and its editable `for` dangles again — the silent
+      // degradation the exhaustive `FIELD_WIDGET_LABELLING` record exists to
+      // make impossible for this package's own registrations.
       expect(screen.queryByRole('group')).toBeNull();
       expect(hostLabel(name)).toHaveAttribute('for');
       expect(byId(hostLabel(name).getAttribute('for'))).toBeNull();

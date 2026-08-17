@@ -31,11 +31,16 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
-import { registerAllFields, mapFieldTypeToFormType } from '../index';
+import {
+  registerAllFields,
+  mapFieldTypeToFormType,
+  FIELD_WIDGET_LABELLING,
+  FORM_FIELD_TYPES,
+} from '../index';
 
 /**
  * Every field type whose host label must be associated by IDREF. Two shapes, one
- * declaration — see `FIELD_TYPES_GROUP_LABELLED` in `../index`:
+ * declaration — see `FIELD_WIDGET_LABELLING` in `../index`:
  * real composites, plus `file`, whose single control is a `div[role="button"]`.
  *
  * `multiselect` (objectui#3975) is the seventh, added after #3961 shipped: its
@@ -47,6 +52,13 @@ import { registerAllFields, mapFieldTypeToFormType } from '../index';
  * are `file`'s shape rather than a composite: ONE surface, which happens not to
  * be labelable. A slider's control is Radix's `span[role="slider"]` thumb; a
  * signature's is a `<canvas>`. `<label for>` reaches neither.
+ *
+ * `grid` (objectui#4857) is the tenth, and it is the COMPOSITE shape, measured
+ * before being classified: its bare config offers exactly one focusable — the
+ * auxiliary "Add line" button, which a `for` could reach but must not (the
+ * label would name the add-row action, and clicking the label would insert a
+ * row) — and every realistic config is a table of per-cell inputs and row
+ * actions under one container, `address`'s shape at larger scale.
  */
 const GROUP_LABELLED = [
   'address',
@@ -58,7 +70,18 @@ const GROUP_LABELLED = [
   'multiselect',
   'slider',
   'signature',
+  'grid',
 ] as const;
+
+/**
+ * Widgets whose whole surface is a pure display in EVERY state — no editable
+ * branch, no focusable control, nothing a `<label for>` could ever reach
+ * (objectui#4857). Declared `'display'` so the form renderer wraps their output
+ * in its own named container (the objectui#4788 channel) in the editable state
+ * too — on the real object-form path these arrive `disabled`, never `readonly`,
+ * so the readonly-keyed gate alone could not cover them.
+ */
+const DISPLAY_LABELLED = ['formula', 'summary', 'auto_number', 'vector'] as const;
 
 /**
  * Single-control widgets: the host's `<label for>` reaches a real labelable
@@ -96,9 +119,17 @@ describe('field widgets declare how their label must be associated (objectui#396
     expect(ComponentRegistry.getMeta(type, 'field')?.labelling).toBe('group');
   });
 
+  it.each(DISPLAY_LABELLED)('%s declares labelling: "display" (objectui#4857)', (type) => {
+    expect(ComponentRegistry.getMeta(type, 'field')?.labelling).toBe('display');
+  });
+
   it.each(CONTROL_LABELLED)('%s leaves labelling undeclared (⇒ "control")', (type) => {
     // Absent, not `'control'`: one spelling of the default, and the form
-    // renderer reads any non-`'group'` value as the single-control path.
+    // renderer reads any non-`'group'`/-`'display'` value as the single-control
+    // path. The DECISION is still mandatory — `FIELD_WIDGET_LABELLING` spells
+    // `'control'` for every one of these, and its exhaustive `Record` key makes
+    // omission a compile error; absence here is that record's runtime spelling
+    // of the default, not a widget that skipped the question.
     expect(ComponentRegistry.getMeta(type, 'field')?.labelling).toBeUndefined();
   });
 
@@ -116,6 +147,54 @@ describe('field widgets declare how their label must be associated (objectui#396
       .sort();
 
     expect(declared).toEqual([...GROUP_LABELLED].sort());
+  });
+
+  it('declares display labelling for exactly the audited set — no more (objectui#4857)', () => {
+    // Same both-directions discipline as the group set: a widget declared
+    // `'display'` without actually BEING a pure display would have the host
+    // wrap a live control inside a group and drop its `for` — so growth of this
+    // set must be a deliberate, audited act.
+    const declared = ComponentRegistry.getKnownTypes()
+      .filter((key) => key.startsWith('field:'))
+      .filter((key) => ComponentRegistry.getMeta(key.slice('field:'.length), 'field')?.labelling === 'display')
+      .map((key) => key.slice('field:'.length))
+      .sort();
+
+    expect(declared).toEqual([...DISPLAY_LABELLED].sort());
+  });
+});
+
+describe('registered ⇒ declared (objectui#4857 registry gate)', () => {
+  it('every registered field widget carries a labelling decision', () => {
+    // The load-bearing half of this gate is COMPILE-time: `FIELD_WIDGET_LABELLING`
+    // is a `Record` keyed by the widget map's own literal key union, so an entry
+    // missing for a registered widget (or left over for an unregistered one) is
+    // a type-check failure, not a runtime discovery. This runtime restatement
+    // exists so the parity is also visible to a mutation that bypasses tsc, and
+    // so the failure NAMES the widget.
+    expect(Object.keys(FIELD_WIDGET_LABELLING).sort()).toEqual([...FORM_FIELD_TYPES].sort());
+
+    for (const [type, labelling] of Object.entries(FIELD_WIDGET_LABELLING)) {
+      expect(
+        ['control', 'group', 'display'],
+        `widget "${type}" must declare a labelling value from the closed vocabulary`,
+      ).toContain(labelling);
+    }
+  });
+
+  it('the runtime meta agrees with the declaration record, key by key', () => {
+    // `'control'` is spelled as ABSENCE in the registry meta (one spelling of
+    // the default, objectui#3961); `'group'` / `'display'` must be present and
+    // exact. This is the join that catches a `registerField` regression which
+    // reads the record but writes the wrong meta.
+    for (const [type, labelling] of Object.entries(FIELD_WIDGET_LABELLING)) {
+      const meta = ComponentRegistry.getMeta(type, 'field')?.labelling;
+      if (labelling === 'control') {
+        expect(meta, `widget "${type}" (control) must leave the meta key absent`).toBeUndefined();
+      } else {
+        expect(meta, `widget "${type}" must register labelling: "${labelling}"`).toBe(labelling);
+      }
+    }
   });
 });
 

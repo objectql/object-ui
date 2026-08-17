@@ -253,7 +253,7 @@ const NOT_APPLICABLE: ReadonlyMap<string, string> = new Map([
   ],
   [
     'signature',
-    'Drawing surface is a <canvas> with no keyboard path; the one other element, Clear, is disabled while empty. Its LABEL is a separate half and IS delivered — see FIELD_TYPES_GROUP_LABELLED.',
+    'Drawing surface is a <canvas> with no keyboard path; the one other element, Clear, is disabled while empty. Its LABEL is a separate half and IS delivered — see FIELD_WIDGET_LABELLING.',
   ],
   [
     'filter-condition',

@@ -395,11 +395,10 @@ function normalizeFieldType(type: string): string {
  * unregistered type — resolves to `'control'`: the single-control path, byte for
  * byte what this renderer emitted before the declaration existed.
  */
-function resolveFieldLabelling(type: string): 'control' | 'group' {
+function resolveFieldLabelling(type: string): 'control' | 'group' | 'display' {
   if (BUILTIN_FIELD_TYPES.has(type)) return 'control';
-  return ComponentRegistry.getMeta(normalizeFieldType(type), 'field')?.labelling === 'group'
-    ? 'group'
-    : 'control';
+  const declared = ComponentRegistry.getMeta(normalizeFieldType(type), 'field')?.labelling;
+  return declared === 'group' || declared === 'display' ? declared : 'control';
 }
 
 /**
@@ -426,10 +425,16 @@ function resolvesToRegisteredFieldWidget(type: string): boolean {
 }
 
 /**
- * The container a READONLY registered field widget's output is wrapped in, so
- * the field's visible label NAMES and its visible help text DESCRIBES the
- * surface that replaced the control (objectui#4788, maintainer ruling of
- * 2026-08-16 — option E of the measured option set).
+ * The container a registered field widget's replacement-display output is
+ * wrapped in, so the field's visible label NAMES and its visible help text
+ * DESCRIBES the surface that replaced the control (objectui#4788, maintainer
+ * ruling of 2026-08-16 — option E of the measured option set). Reached two
+ * ways: a READONLY registered widget (#4788's original gate, unchanged), and —
+ * since objectui#4857 — a widget declared `labelling: 'display'`, whose whole
+ * surface is such a display in every state (`formula` / `summary` /
+ * `auto_number` / `vector`), so the wrapper applies in the editable state too.
+ * The `data-slot` keeps its original name: what this container wraps is a
+ * read-only display either way, whatever the form's own mode.
  *
  * ## What was broken
  *
@@ -1890,28 +1895,48 @@ ComponentRegistry.register('form',
       // the form schema has no owning object.
       const fieldTestId = `field:${schema.objectName ? `${schema.objectName}.` : ''}${name}`;
 
-      const groupLabelled = resolveFieldLabelling(resolvedType) === 'group';
+      const fieldLabelling = resolveFieldLabelling(resolvedType);
+      const groupLabelled = fieldLabelling === 'group';
 
-      // A READONLY registered field widget renders a replacement display in
-      // place of its control, and drops every prop the host handed down with it
-      // (objectui#4788). The host therefore wraps that output in a named group
-      // of its own — see {@link ReadonlyFieldGroup} for the measurement and the
-      // shape. Three gates, each carrying its own reason:
+      // A registered field widget whose output is a replacement display drops
+      // every prop the host handed down, so the host wraps that output in a
+      // named group of its own — see {@link ReadonlyFieldGroup} for the
+      // measurement and the shape. Two ways a field gets here, one wrapper:
+      //
+      //  - `readonly === true` (objectui#4788): the widget's readonly branch
+      //    renders the display in place of its control. Unchanged semantics —
+      //    this arm still keys off the field STATE, not the declaration, so an
+      //    undeclared third-party widget keeps exactly the #4788 behaviour;
+      //  - `labelling: 'display'` (objectui#4857): the widget declares that its
+      //    surface is a pure display in EVERY state — `formula` / `summary` /
+      //    `auto_number` / `vector` have no editable branch at all — so the
+      //    wrapper applies in the editable state too. Without this arm those
+      //    four lost the host id whenever the form was editable: on the real
+      //    object-form path they arrive as `disabled`, not `readonly`
+      //    (ObjectForm keeps that distinction deliberately — option 1 of the
+      //    #4857 option set was rejected), so the #4788 gate never fired and
+      //    the label's `for` dangled.
+      //
+      // Two further gates, each carrying its own reason:
       //
       //  - `label`: with no visible label there is no naming channel to repair,
       //    and a `role="group"` that nothing names is the inert pair this issue
       //    exists to avoid. Standalone / label-less rendering therefore stays
       //    byte-identical, exactly as `toHostGroupProps` keeps it;
-      //  - `!groupLabelled`: the seven group-labelled widgets already consume
-      //    the host's id / name / description themselves (objectui#3961 →
-      //    #3990 → #4005). Wrapping them too would nest a second group with the
-      //    same name and take the id off the surface those PRs put it on;
+      //  - `!groupLabelled`: the group-labelled widgets already consume the
+      //    host's id / name / description themselves (objectui#3961 → #3990 →
+      //    #4005). Wrapping them too would nest a second group with the same
+      //    name and take the id off the surface those PRs put it on;
       //  - a registered FIELD widget: the builtin branch renders a real control
       //    inside `<FormControl>` in the readonly state too, so its label keeps
       //    a `for` that resolves to a labelable element — measured, and left
-      //    alone.
-      const readonlyHostGroup =
-        readonly === true && !!label && !groupLabelled && resolvesToRegisteredFieldWidget(resolvedType);
+      //    alone. (A `'display'` declaration can only come from a registered
+      //    widget's meta, so for that arm this gate is belt-and-braces.)
+      const hostWrappedDisplay =
+        (readonly === true || fieldLabelling === 'display') &&
+        !!label &&
+        !groupLabelled &&
+        resolvesToRegisteredFieldWidget(resolvedType);
 
       // The visible label is associated by IDREF instead of `for` — it gets an
       // `id`, and the surface that answers to it gets `aria-labelledby`. Two
@@ -1928,14 +1953,15 @@ ComponentRegistry.register('form',
       // list: an id containing a space would silently resolve to two ids,
       // neither of which exists.
       const hostLabelId =
-        label && (groupLabelled || readonlyHostGroup)
+        label && (groupLabelled || hostWrappedDisplay)
           ? `${labelIdPrefix}${String(name).replace(/\s+/g, '_')}-group-label`
           : undefined;
 
       // The widget-facing half. Only the group-labelled path hands the IDREF
-      // DOWN to the widget: on the readonly path the wrapper is the named
-      // surface, and passing the same id to the widget as well would give one
-      // label two consumers — the double channel #3978 removed.
+      // DOWN to the widget: on the host-wrapped path (readonly, or a declared
+      // `'display'` widget) the wrapper is the named surface, and passing the
+      // same id to the widget as well would give one label two consumers — the
+      // double channel #3978 removed.
       const groupLabelId = groupLabelled ? hostLabelId : undefined;
 
       return (
@@ -1962,10 +1988,12 @@ ComponentRegistry.register('form',
                   // beside the `aria-labelledby` would give one label two
                   // association channels, one of which is broken.
                   //
-                  // A readonly registered widget (objectui#4788) reaches the
-                  // same shape through the host's own wrapper, and needs the
-                  // `for` gone for the same reason — it was measurably DANGLING
-                  // there, pointing at an id no element in the document carried.
+                  // A readonly registered widget (objectui#4788) — and a
+                  // widget declared `labelling: 'display'`, in every state
+                  // (objectui#4857) — reaches the same shape through the
+                  // host's own wrapper, and needs the `for` gone for the same
+                  // reason: it was measurably DANGLING there, pointing at an
+                  // id no element in the document carried.
                   {...(hostLabelId ? { id: hostLabelId, htmlFor: undefined } : null)}
                 >
                   {label}
@@ -1999,7 +2027,7 @@ ComponentRegistry.register('form',
                     A readonly registered widget's output goes inside the host's
                     own named group (objectui#4788) — every other field is handed
                     to `<FormControl>`'s Slot exactly as before. */}
-                {withReadonlyHostGroup(readonlyHostGroup ? hostLabelId : undefined, renderFieldComponent(resolvedType, {
+                {withReadonlyHostGroup(hostWrappedDisplay ? hostLabelId : undefined, renderFieldComponent(resolvedType, {
                   ...fieldProps,
                   // Specialized fields need the raw metadata object. `.field`
                   // is the declared metadata slot (#3090 — never the spec

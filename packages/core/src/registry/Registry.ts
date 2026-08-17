@@ -64,7 +64,11 @@ export type ComponentMeta = {
   skipFallback?: boolean;
   /**
    * How a HOST must associate its own visible label with what this component
-   * renders (objectui#3961). Read by the form renderer; absent ⇒ `'control'`.
+   * renders (objectui#3961, extended by objectui#4857). Read by the form
+   * renderer; absent ⇒ `'control'`. This closed three-value vocabulary is the
+   * single repo-wide answer to "how does a host learn what a widget will
+   * render" (maintainer ruling of 2026-08-17, joint with objectui#4871) — no
+   * host may keep a local variant of it.
    *
    * - `'control'` — the component's outermost rendered element is a LABELABLE
    *   HTML element (`input` / `textarea` / `select` / `button` / …), so the host
@@ -77,7 +81,18 @@ export type ComponentMeta = {
    *   nothing and contributes no accessible name (`HTMLLabelElement.control` is
    *   `null`) — so the host must instead give its label an `id` and hand the
    *   component `aria-labelledby`, which associates by IDREF and works on any
-   *   element.
+   *   element. The COMPONENT consumes those keys on its own surface.
+   * - `'display'` — the rendered surface is a pure display in EVERY state:
+   *   there is no focusable control and the component itself spreads nothing
+   *   (computed / system-generated values such as `formula` / `summary` /
+   *   `auto_number` / `vector`). The host must not emit a `<label for>` at all
+   *   — no labelable element will ever exist for it to reach, in the editable
+   *   state as much as the readonly one — and instead wraps the component's
+   *   output in the host's own container carrying the field id,
+   *   `aria-labelledby`, `aria-describedby` and `role="group"` (the
+   *   objectui#4788 channel, driven by this declaration rather than by
+   *   `readonly` alone). Unlike `'group'`, the WIDGET is not expected to
+   *   consume anything: the host's wrapper is the named surface.
    *
    * This is a DECLARATION, not a guess: the host cannot infer it from the DOM a
    * widget happens to render, and a widget that fails to declare it falls back
@@ -85,7 +100,7 @@ export type ComponentMeta = {
    * label-association tests (objectui#3952) instead of silently producing an
    * unlabelled group.
    */
-  labelling?: 'control' | 'group';
+  labelling?: 'control' | 'group' | 'display';
   inputs?: ComponentInput[];
   defaultProps?: Record<string, any>; // Default props when dropped
   defaultChildren?: SchemaNode[]; // Default children when dropped

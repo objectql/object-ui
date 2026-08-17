@@ -39,7 +39,7 @@ import { toHostGroupProps } from './toHostGroupProps';
  * The visible label reaches the thumb by IDREF, not by `for`: a
  * `span[role="slider"]` is not one of HTML's labelable elements, so this widget
  * is declared `labelling: 'group'` for the same reason `file` is — see
- * `FIELD_TYPES_GROUP_LABELLED` in `../index` and objectui#3961. No extra
+ * `FIELD_WIDGET_LABELLING` in `../index` and objectui#3961. No extra
  * `role="group"` wrapper: there is one control here, and `slider` is a role
  * that carries a name perfectly well on its own.
  */
