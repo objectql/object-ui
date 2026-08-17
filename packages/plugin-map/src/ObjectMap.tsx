@@ -29,6 +29,14 @@ import { z } from 'zod';
 import MapGL, { NavigationControl, Marker, Popup } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import {
+  computeMarkerBounds,
+  boundsCenter,
+  EMPTY_VIEW_ZOOM,
+  FIT_MAX_ZOOM,
+  FIT_PADDING_PX,
+  UNFITTED_CENTER_ZOOM,
+} from './camera';
 
 const MapConfigSchema = z.object({
   latitudeField: z.string().optional(),
@@ -74,9 +82,16 @@ interface MapConfig {
   titleField?: string;
   /** Field to use for marker description */
   descriptionField?: string;
-  /** Default zoom level (1-20) */
+  /**
+   * Zoom level (1-20). Declaring it opts the view OUT of fitting the camera to
+   * its records — the declaration wins (objectui#4941).
+   */
   zoom?: number;
-  /** Center coordinates [lat, lng] */
+  /**
+   * Center coordinates [lat, lng] — latitude first, as documented and as the
+   * `map` block's shape has always been read. Declaring it opts the view OUT of
+   * fitting the camera to its records.
+   */
   center?: [number, number];
   /** MapLibre style URL/spec (overrides the public demo default) */
   style?: string;
@@ -211,15 +226,20 @@ function getMapConfig(schema: ObjectGridSchema | any): MapConfig {
      return { ...config, style: config.style || style };
   }
 
-  // Default configuration
+  // Default configuration — field names only. No camera is synthesized here
+  // (objectui#4941): this branch is reached precisely when the author declared
+  // nothing, and a fabricated `zoom` / `center` is indistinguishable from a
+  // declared one at the read site. The old defaults (zoom 10 at the origin)
+  // therefore SUPPRESSED the fit for exactly the views that need it most — an
+  // unconfigured object list view of continent-wide records first-painted a
+  // city-block viewport centred on the set's midpoint, showing no markers at
+  // all. With no camera declared, the camera comes from the data.
   return {
     latitudeField: 'latitude',
     longitudeField: 'longitude',
     locationField: 'location',
     titleField: 'name',
     descriptionField: 'description',
-    zoom: 10,
-    center: [0, 0],
     style,
   };
 }
@@ -559,31 +579,55 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     return clusterMarkers(filteredMarkers, currentZoom, clusterRadius);
   }, [filteredMarkers, currentZoom, enableClustering, clusterRadius, schema]);
 
-  // Calculate map bounds
+  /**
+   * The box the records occupy, along the shortest arc containing them
+   * (see `./camera`). `null` when there is nothing to fit.
+   */
+  const markerBounds = useMemo(
+    () => computeMarkerBounds(filteredMarkers.map(m => m.coordinates)),
+    [filteredMarkers],
+  );
+
+  /**
+   * A camera the author declared, read from the documented `map` block. Only a
+   * READABLE declaration counts: `MapConfigSchema` already warns about a
+   * malformed one, and a shape whose numbers cannot be read is not a camera —
+   * letting it suppress the fit would first-paint an empty viewport, which is
+   * the defect this whole path exists to prevent (objectui#4941). Nothing is
+   * coerced: an unreadable declaration is diagnosed and ignored, never adapted.
+   */
+  const declaredLatitude = typeof mapConfig.center?.[0] === 'number' ? mapConfig.center[0] : undefined;
+  const declaredLongitude = typeof mapConfig.center?.[1] === 'number' ? mapConfig.center[1] : undefined;
+  const declaredZoom = typeof mapConfig.zoom === 'number' ? mapConfig.zoom : undefined;
+  const hasDeclaredCamera =
+    declaredLatitude !== undefined || declaredLongitude !== undefined || declaredZoom !== undefined;
+
+  /**
+   * Initial camera. Read once, when `MapGL` mounts — which is also every time
+   * the record set changes, because the `loading` gate below unmounts the map
+   * for the duration of each fetch. So the one-shot camera always reflects the
+   * records currently in hand, and nothing here ever yanks a camera the user
+   * has since panned.
+   */
   const initialViewState = useMemo(() => {
-    if (!filteredMarkers.length) {
+    // Records, no declared camera: hand MapLibre the box and let it fit at the
+    // real container size. `bounds` overrides center/zoom on the constructor.
+    if (markerBounds && !hasDeclaredCamera) {
       return {
-        longitude: mapConfig.center?.[1] || 0,
-        latitude: mapConfig.center?.[0] || 0,
-        zoom: mapConfig.zoom || 2
+        bounds: markerBounds,
+        fitBoundsOptions: { padding: FIT_PADDING_PX, maxZoom: FIT_MAX_ZOOM },
       };
     }
 
-    // Simple bounds calculation
-    const lngs = filteredMarkers.map(m => m.coordinates[0]);
-    const lats = filteredMarkers.map(m => m.coordinates[1]);
-    
-    const minLng = Math.min(...lngs);
-    const maxLng = Math.max(...lngs);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-
+    // Otherwise the declared halves win and the rest falls back: to the box's
+    // centre when there are records, to the world when there are none.
+    const fallback = markerBounds ? boundsCenter(markerBounds) : { longitude: 0, latitude: 0 };
     return {
-      longitude: (minLng + maxLng) / 2,
-      latitude: (minLat + maxLat) / 2,
-      zoom: mapConfig.zoom || 3, // Auto-zoom logic could be improved here
+      longitude: declaredLongitude ?? fallback.longitude,
+      latitude: declaredLatitude ?? fallback.latitude,
+      zoom: declaredZoom ?? (markerBounds ? UNFITTED_CENTER_ZOOM : EMPTY_VIEW_ZOOM),
     };
-  }, [filteredMarkers, mapConfig]);
+  }, [markerBounds, hasDeclaredCamera, declaredLongitude, declaredLatitude, declaredZoom]);
 
   if (loading) {
     return (

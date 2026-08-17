@@ -119,8 +119,8 @@ const schema = {
   locationField?: string,      // Field with combined location (alternative)
   titleField?: string,         // Field to use as marker title
   descriptionField?: string,   // Field for marker description
-  zoom?: number,               // Default zoom level (1-20)
-  center?: [number, number]    // Center coordinates [lat, lng]
+  zoom?: number,               // Zoom level (1-20) — opts out of the auto-fit
+  center?: [number, number]    // Center coordinates [lat, lng] — opts out of the auto-fit
 }
 ```
 
@@ -159,9 +159,24 @@ When your data has a combined location field:
 }
 ```
 
+### Initial Camera
+
+By default the map has no fixed camera: on load it **fits the records it queried**.
+The marker set's bounding box is measured along the shortest arc that contains
+every marker — so a set straddling the antimeridian is framed across the line
+rather than around the far side of the planet — and the map fits that box with
+padding, up to a city-scale zoom ceiling (a single record does not become a
+rooftop view). A view with data therefore never opens on an empty viewport.
+
+Two cases sit outside the fit:
+
+- **No records** (empty result, or every record missing coordinates): nothing to
+  fit, so the map opens on the whole world.
+- **A declared camera** (below): the declaration wins and the fit is skipped.
+
 ### Zoom and Center
 
-Control the initial map view:
+Declare either one to take the camera over and opt this view out of the auto-fit:
 
 ```tsx
 {
@@ -176,6 +191,9 @@ Control the initial map view:
   }
 }
 ```
+
+Declaring only one half keeps the other derived: `zoom` on its own is applied at
+the centre of the records, `center` on its own at a continental zoom.
 
 ## Data Providers
 
