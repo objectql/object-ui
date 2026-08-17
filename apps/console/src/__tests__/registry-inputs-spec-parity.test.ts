@@ -128,8 +128,9 @@
  * The blind spot was NOT dormant by the time it was fixed, which is worth
  * recording because the issue was filed believing it was. It was written against
  * `@objectstack/spec@17.0.0-rc.5`, where `ComponentPropsMap` carried no
- * tombstone at all; the rc.6 pin (objectui#4167) brought EIGHT, and the reverse
- * direction's red was live from that moment — absorbed, key by key, by the eight
+ * tombstone at all; the rc.6 pin (objectui#4167) brought EIGHT, the 17.0.0 GA
+ * pin (objectui#4636 / PR objectui#4639) carries the same eight, and the reverse
+ * direction's red was live from rc.6 onward — absorbed, key by key, by the eight
  * `UNPUBLISHED_EXEMPTIONS` entries that named this issue as the only thing that
  * could resolve them. Those eight are deleted with this change; the pin below
  * (`the eight tombstoned keys are recognised, not exempted`) is what keeps their
@@ -519,8 +520,9 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
    * run — no issue needed, no filter to remember. Two of the entries still below
    * are already queued for it: objectstack `origin/main` tombstones
    * `targetVariable` on BOTH `element:text_input` and `element:record_picker`
-   * (measured on `main` @ `23abe2782`, absent from the pinned rc.6), so the pin
-   * that carries those retirements will name both entries here. Deleting them is
+   * (measured on `main` @ `23abe2782`; both keys are still LIVE in the installed
+   * 17.0.0, whose tombstone set is the same eight rc.6 carried), so the pin that
+   * carries those retirements will name both entries here. Deleting them is
    * the fix — objectui#3834's "should we publish an intent-only key" question is
    * answered upstream by then, in the negative.
    *
@@ -1086,11 +1088,12 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     // the same reason the `#3808 / #3830` and `rc.6 record_picker` pins next door
     // are written by name.
     //
-    // Five upstream retirements, eight keys, three facts each. The list is
+    // Five upstream retirements, eight keys, several facts each. The list is
     // pin-dependent by construction and that is the point: it is the measurement
-    // (`@objectstack/spec@17.0.0-rc.6`) this change was made against, so a pin
-    // that un-retires one of them fails HERE, naming the key, instead of
-    // resurfacing as an unexplained red in a derived loop.
+    // (`@objectstack/spec@17.0.0`, and the same eight on the rc.6 that preceded
+    // it — this change was verified on both), so a pin that un-retires one of
+    // them fails HERE, naming the key, instead of resurfacing as an unexplained
+    // red in a derived loop.
     const HARVESTED: Array<[string, string]> = [
       ['element:record_picker', 'displayField'],
       ['element:record_picker', 'multiple'],

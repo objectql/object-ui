@@ -20,7 +20,9 @@ Not dormant, contrary to the issue's premise: it was filed against `17.0.0-rc.5`
 tombstone in `ComponentPropsMap`, and the `17.0.0-rc.6` pin (objectui#4167) brought eight —
 `page:header.icon`, `page:card.actions`, `page:card.body`, `page:tabs.type`,
 `record:details.layout` and the `element:record_picker` `displayField` / `searchFields` /
-`multiple` trio. The reverse direction's red was live from that pin, absorbed key by key by eight
+`multiple` trio. The `17.0.0` GA pin (objectui#4636), which landed while this change was in
+flight, carries the same eight; both pins were measured. The reverse direction's red was live from
+rc.6 onward, absorbed key by key by eight
 explicit exemptions that each named this issue as the only thing that could clear them. All eight
 are deleted here — not by hand-picking, but because the narrowing makes the existing
 dangling-and-stale checks report every one of them. The mechanism is self-clearing from now on: a
