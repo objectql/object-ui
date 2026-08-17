@@ -6,7 +6,7 @@
  *
  * ## What was measured
  *
- * `MetadataField` wrote `<Label htmlFor={id}>` for EVERY field and handed the
+ * `FieldRow` wrote `<Label htmlFor={id}>` for EVERY field and handed the
  * same `id` down, on the convention "the wrapped control carries it". Probed on
  * real `SchemaForm` renders at `167ec42e7` — every registry key, both the
  * editable and the read-only state, three columns each (does the host `for`
@@ -69,7 +69,7 @@ afterEach(cleanup);
 /** The HTML elements a `<label for>` can actually address. */
 const LABELABLE = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'METER', 'OUTPUT', 'PROGRESS']);
 
-// `prettify('probe') === 'Probe'`, so `MetadataField` renders no machine-name
+// `prettify('probe') === 'Probe'`, so `FieldRow` renders no machine-name
 // `<code>` inside the label and the accessible name is the visible text alone.
 const NAME = 'probe';
 const HOST_ID = `mdf-${NAME}`;
@@ -284,7 +284,7 @@ describe('the two channels name a field identically', () => {
   // The accessible name comes from the SAME visible label either way — via `for`
   // on the control path, via `aria-labelledby` on the group path. Pinned on a
   // field whose machine name IS shown (`prettify('colorVariant')` is "Color
-  // Variant", so a title of "Tone" makes `MetadataField` append a `<code>`
+  // Variant", so a title of "Tone" makes `FieldRow` append a `<code>`
   // inside the label), because that is the case where the two computations could
   // plausibly diverge: both must read the label's whole subtree, not its first
   // text node. The two names are compared to EACH OTHER rather than to a
@@ -331,7 +331,7 @@ describe('the two channels name a field identically', () => {
 
     renderWith({ type: 'string', title: 'Tone' });
     expect(document.querySelector('input[type="color"]')).toHaveAccessibleName(
-      // The visible label verbatim: title + the machine name `MetadataField`
+      // The visible label verbatim: title + the machine name `FieldRow`
       // appends when the two differ.
       `Tone ${field}`,
     );

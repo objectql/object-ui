@@ -348,19 +348,13 @@ function detectColorWidget(name: string, schema: JsonSchema | undefined): string
   return undefined;
 }
 
-const CONDITION_FIELD_NAMES = new Set(['visible', 'hidden', 'disabled', 'visibleOn', 'condition', 'predicate']);
-/**
- * Detect a CEL predicate field by NAME CONVENTION (`visible` / `hidden` /
- * `disabled` / `visibleOn` / `condition` / `*When`) so it renders the no-code
- * condition builder instead of a raw expression text box. String-only, no enum.
- */
 /**
  * Resolve a CONDITIONAL widget name to the concrete registration that will
  * render (objectui#4871, maintainer ruling point 4).
  *
  * `color-picker` used to be one registry entry that chose between a swatch
  * `radiogroup` and a labelable `input[type="color"]` at RUNTIME, from
- * `schema`/`fieldSpec` — i.e. AFTER `MetadataField` had already written
+ * `schema`/`fieldSpec` — i.e. AFTER `FieldRow` had already written
  * `<Label htmlFor>`, which is exactly why the host could not know which naming
  * channel to emit. The two surfaces are two registrations now, and this
  * function is where the host picks between them: from the schema, BEFORE the
@@ -383,6 +377,12 @@ function resolveRegisteredWidget(
   return widget;
 }
 
+const CONDITION_FIELD_NAMES = new Set(['visible', 'hidden', 'disabled', 'visibleOn', 'condition', 'predicate']);
+/**
+ * Detect a CEL predicate field by NAME CONVENTION (`visible` / `hidden` /
+ * `disabled` / `visibleOn` / `condition` / `*When`) so it renders the no-code
+ * condition builder instead of a raw expression text box. String-only, no enum.
+ */
 function detectConditionWidget(name: string, schema: JsonSchema | undefined): string | undefined {
   if (Array.isArray(schema?.enum)) return undefined;
   const isString =
@@ -1178,7 +1178,7 @@ function FieldControl({
       return (
         <Renderer
           // Exactly one of these is defined, decided by the widget's own
-          // `labelling` declaration in `MetadataField` (objectui#4871).
+          // `labelling` declaration in `FieldRow` (objectui#4871).
           id={id}
           ariaLabelledBy={ariaLabelledBy}
           schema={schema}

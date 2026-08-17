@@ -2286,7 +2286,7 @@ export const WIDGET_LABELLING: Record<RegisteredWidgetKey, WidgetLabelling> = {
 /**
  * The declared labelling of a widget key, for the host's channel decision.
  * An UNREGISTERED key (a passthrough hint, a third-party name) resolves to
- * `'control'` — byte for byte what `MetadataField` emitted before the
+ * `'control'` — byte for byte what `FieldRow` emitted before the
  * declaration existed.
  */
 export function widgetLabelling(widget: string | undefined): WidgetLabelling {

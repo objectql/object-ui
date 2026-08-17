@@ -11,7 +11,7 @@
  *    can name;
  *  - a free colour → `<input type="color">`, a labelable element —
  *
- * while `MetadataField` had already written `<Label htmlFor={id}>` above it. The
+ * while `FieldRow` had already written `<Label htmlFor={id}>` above it. The
  * host could not publish an IDREF for the group to answer, because it did not
  * yet know which surface it was labelling. #4010 fixed the half it could reach
  * (the group carried its OWN name) and pinned the other half as a KNOWN
@@ -94,7 +94,7 @@ describe('color-picker (palette ⇒ radiogroup) — named by the host, by IDREF'
     // Through `SchemaForm` there is ALWAYS a visible label to reference, so the
     // host-IDREF arm is what this path takes — the widget's `ariaLabel` fallback
     // is for a caller that renders it standalone (pinned in
-    // SchemaForm.widgetLabelling.test.tsx). With no `title`, `MetadataField`
+    // SchemaForm.widgetLabelling.test.tsx). With no `title`, `FieldRow`
     // prettifies the field name, and that prettified text is what names the
     // group: one fact, one author.
     renderColorField({ type: 'string', enum: ['default', 'blue'] });
@@ -104,7 +104,7 @@ describe('color-picker (palette ⇒ radiogroup) — named by the host, by IDREF'
 
 describe('color-input (free colour ⇒ native picker) — a labelable control', () => {
   it('takes the host id on the native picker, so the plain `for` resolves', () => {
-    // `prettify('colorVariant') === 'Color Variant'`, so `MetadataField` shows no
+    // `prettify('colorVariant') === 'Color Variant'`, so `FieldRow` shows no
     // machine-name `<code>` and the label's whole text is the field title.
     renderColorField({ type: 'string', title: 'Color Variant' }, '#112233');
 
