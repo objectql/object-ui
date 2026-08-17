@@ -18,7 +18,11 @@ import { forwardRef } from 'react';
 const ContainerRenderer = forwardRef<HTMLDivElement, { schema: ContainerSchema; className?: string }>(
   ({ schema, className, ...props }: { schema: ContainerSchema; className?: string; [key: string]: any }, ref) => {
     const maxWidth = (schema.maxWidth || 'xl') as any;
-    const padding = schema.padding || 4;
+    // `??`, not `||`: `padding` is a declared `number`, and `0` is a legal value
+    // that `||` folds into the default — which left the `padding === 0 && 'p-0'`
+    // branch below permanently unreachable, so a container asking for no padding
+    // silently rendered `p-2 sm:p-3 md:p-4` (objectui#4003).
+    const padding = schema.padding ?? 4;
     const centered = schema.centered !== false; // Default to true
     
     const containerClass = cn(

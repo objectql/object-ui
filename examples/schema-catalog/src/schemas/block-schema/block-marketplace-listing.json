@@ -3,8 +3,11 @@
   "className": "max-w-md mx-auto",
   "children": [
     {
-      "type": "div",
-      "className": "h-32 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-t-lg flex items-center justify-center",
+      "type": "flex",
+      "justify": "center",
+      "align": "center",
+      "gap": 0,
+      "className": "h-32 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-t-lg",
       "children": [
         {
           "type": "icon",

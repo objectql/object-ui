@@ -4,8 +4,8 @@
   "className": "rounded-md border p-4",
   "content": [
     {
-      "type": "div",
-      "className": "space-y-2",
+      "type": "stack",
+      "gap": 2,
       "children": [
         {
           "type": "text",

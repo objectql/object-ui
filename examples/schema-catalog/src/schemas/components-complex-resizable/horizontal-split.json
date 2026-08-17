@@ -8,8 +8,11 @@
       "defaultSize": 50,
       "content": [
         {
-          "type": "div",
-          "className": "p-4 h-full flex items-center justify-center bg-slate-50",
+          "type": "flex",
+          "justify": "center",
+          "align": "center",
+          "gap": 0,
+          "className": "p-4 h-full bg-slate-50",
           "children": [
             {
               "type": "text",
@@ -23,8 +26,11 @@
       "defaultSize": 50,
       "content": [
         {
-          "type": "div",
-          "className": "p-4 h-full flex items-center justify-center bg-slate-100",
+          "type": "flex",
+          "justify": "center",
+          "align": "center",
+          "gap": 0,
+          "className": "p-4 h-full bg-slate-100",
           "children": [
             {
               "type": "text",

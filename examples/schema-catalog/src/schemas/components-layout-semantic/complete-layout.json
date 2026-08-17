@@ -1,6 +1,9 @@
 {
-  "type": "div",
-  "className": "max-w-4xl border rounded-lg overflow-hidden",
+  "type": "container",
+  "maxWidth": "4xl",
+  "centered": false,
+  "padding": 0,
+  "className": "border rounded-lg overflow-hidden",
   "children": [
     {
       "type": "header",

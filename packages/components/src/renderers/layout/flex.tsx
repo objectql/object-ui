@@ -16,7 +16,11 @@ ComponentRegistry.register('flex',
     const direction = schema.direction || 'row';
     const justify = schema.justify || 'start';
     const align = schema.align || 'start';
-    const gap = schema.gap || 2;
+    // `??`, not `||`: `gap` is a declared `number`, and `0` is a legal value that
+    // `||` folds into the default — which left the `gap === 0 && 'gap-0'` branch
+    // below permanently unreachable. Sibling `stack.tsx` / `grid.tsx` already read
+    // theirs with `??`; this converges the family (objectui#4003).
+    const gap = schema.gap ?? 2;
     const wrap = schema.wrap || false;
     
     const flexClass = cn(

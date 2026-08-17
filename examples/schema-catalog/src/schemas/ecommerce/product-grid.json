@@ -1,6 +1,7 @@
 {
-  "type": "div",
-  "className": "w-full max-w-6xl mx-auto",
+  "type": "container",
+  "maxWidth": "6xl",
+  "padding": 0,
   "children": [
     {
       "type": "flex",
@@ -19,16 +20,24 @@
       ]
     },
     {
-      "type": "div",
-      "className": "grid sm:grid-cols-2 lg:grid-cols-4 gap-6",
+      "type": "grid",
+      "columns": {
+        "xs": 1,
+        "sm": 2,
+        "lg": 4
+      },
+      "gap": 6,
       "children": [
         {
           "type": "card",
           "className": "overflow-hidden",
           "children": [
             {
-              "type": "div",
-              "className": "aspect-square bg-muted flex items-center justify-center",
+              "type": "flex",
+              "justify": "center",
+              "align": "center",
+              "gap": 0,
+              "className": "aspect-square bg-muted",
               "children": [
                 {
                   "type": "icon",
@@ -67,8 +76,11 @@
           "className": "overflow-hidden",
           "children": [
             {
-              "type": "div",
-              "className": "aspect-square bg-muted flex items-center justify-center",
+              "type": "flex",
+              "justify": "center",
+              "align": "center",
+              "gap": 0,
+              "className": "aspect-square bg-muted",
               "children": [
                 {
                   "type": "icon",
@@ -107,8 +119,11 @@
           "className": "overflow-hidden",
           "children": [
             {
-              "type": "div",
-              "className": "aspect-square bg-muted flex items-center justify-center",
+              "type": "flex",
+              "justify": "center",
+              "align": "center",
+              "gap": 0,
+              "className": "aspect-square bg-muted",
               "children": [
                 {
                   "type": "icon",
@@ -147,8 +162,11 @@
           "className": "overflow-hidden",
           "children": [
             {
-              "type": "div",
-              "className": "aspect-square bg-muted flex items-center justify-center",
+              "type": "flex",
+              "justify": "center",
+              "align": "center",
+              "gap": 0,
+              "className": "aspect-square bg-muted",
               "children": [
                 {
                   "type": "icon",

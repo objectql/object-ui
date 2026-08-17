@@ -11,8 +11,11 @@
       "className": "p-4",
       "children": [
         {
-          "type": "div",
-          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0 flex items-center justify-center",
+          "type": "flex",
+          "justify": "center",
+          "align": "center",
+          "gap": 0,
+          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0",
           "children": [
             {
               "type": "text",
@@ -21,8 +24,11 @@
           ]
         },
         {
-          "type": "div",
-          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0 flex items-center justify-center",
+          "type": "flex",
+          "justify": "center",
+          "align": "center",
+          "gap": 0,
+          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0",
           "children": [
             {
               "type": "text",
@@ -31,8 +37,11 @@
           ]
         },
         {
-          "type": "div",
-          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0 flex items-center justify-center",
+          "type": "flex",
+          "justify": "center",
+          "align": "center",
+          "gap": 0,
+          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0",
           "children": [
             {
               "type": "text",
@@ -41,8 +50,11 @@
           ]
         },
         {
-          "type": "div",
-          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0 flex items-center justify-center",
+          "type": "flex",
+          "justify": "center",
+          "align": "center",
+          "gap": 0,
+          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0",
           "children": [
             {
               "type": "text",
@@ -51,8 +63,11 @@
           ]
         },
         {
-          "type": "div",
-          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0 flex items-center justify-center",
+          "type": "flex",
+          "justify": "center",
+          "align": "center",
+          "gap": 0,
+          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0",
           "children": [
             {
               "type": "text",
@@ -61,8 +76,11 @@
           ]
         },
         {
-          "type": "div",
-          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0 flex items-center justify-center",
+          "type": "flex",
+          "justify": "center",
+          "align": "center",
+          "gap": 0,
+          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0",
           "children": [
             {
               "type": "text",
@@ -71,8 +89,11 @@
           ]
         },
         {
-          "type": "div",
-          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0 flex items-center justify-center",
+          "type": "flex",
+          "justify": "center",
+          "align": "center",
+          "gap": 0,
+          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0",
           "children": [
             {
               "type": "text",
@@ -81,8 +102,11 @@
           ]
         },
         {
-          "type": "div",
-          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0 flex items-center justify-center",
+          "type": "flex",
+          "justify": "center",
+          "align": "center",
+          "gap": 0,
+          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0",
           "children": [
             {
               "type": "text",
@@ -91,8 +115,11 @@
           ]
         },
         {
-          "type": "div",
-          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0 flex items-center justify-center",
+          "type": "flex",
+          "justify": "center",
+          "align": "center",
+          "gap": 0,
+          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0",
           "children": [
             {
               "type": "text",
@@ -101,8 +128,11 @@
           ]
         },
         {
-          "type": "div",
-          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0 flex items-center justify-center",
+          "type": "flex",
+          "justify": "center",
+          "align": "center",
+          "gap": 0,
+          "className": "w-40 h-32 bg-slate-200 rounded flex-shrink-0",
           "children": [
             {
               "type": "text",

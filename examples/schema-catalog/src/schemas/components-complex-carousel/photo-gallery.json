@@ -7,8 +7,11 @@
   "items": [
     [
       {
-        "type": "div",
-        "className": "aspect-video bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center text-white text-2xl font-bold",
+        "type": "flex",
+        "justify": "center",
+        "align": "center",
+        "gap": 0,
+        "className": "aspect-video bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg text-white text-2xl font-bold",
         "children": [
           {
             "type": "text",
@@ -19,8 +22,11 @@
     ],
     [
       {
-        "type": "div",
-        "className": "aspect-video bg-gradient-to-br from-purple-400 to-purple-600 rounded-lg flex items-center justify-center text-white text-2xl font-bold",
+        "type": "flex",
+        "justify": "center",
+        "align": "center",
+        "gap": 0,
+        "className": "aspect-video bg-gradient-to-br from-purple-400 to-purple-600 rounded-lg text-white text-2xl font-bold",
         "children": [
           {
             "type": "text",
@@ -31,8 +37,11 @@
     ],
     [
       {
-        "type": "div",
-        "className": "aspect-video bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center text-white text-2xl font-bold",
+        "type": "flex",
+        "justify": "center",
+        "align": "center",
+        "gap": 0,
+        "className": "aspect-video bg-gradient-to-br from-green-400 to-green-600 rounded-lg text-white text-2xl font-bold",
         "children": [
           {
             "type": "text",
@@ -43,8 +52,11 @@
     ],
     [
       {
-        "type": "div",
-        "className": "aspect-video bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center text-white text-2xl font-bold",
+        "type": "flex",
+        "justify": "center",
+        "align": "center",
+        "gap": 0,
+        "className": "aspect-video bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg text-white text-2xl font-bold",
         "children": [
           {
             "type": "text",

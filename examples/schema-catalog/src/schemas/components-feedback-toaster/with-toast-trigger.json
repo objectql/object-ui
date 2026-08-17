@@ -1,6 +1,6 @@
 {
-  "type": "div",
-  "className": "space-y-4",
+  "type": "stack",
+  "gap": 4,
   "children": [
     {
       "type": "button",
