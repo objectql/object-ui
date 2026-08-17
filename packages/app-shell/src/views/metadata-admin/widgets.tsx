@@ -2223,8 +2223,10 @@ export type WidgetLabelling = Exclude<NonNullable<ComponentMeta['labelling']>, '
 
 /**
  * How the HOST's visible label reaches each registered widget — the reviewed
- * table that replaced seventeen scattered per-widget judgements (objectui#4871,
+ * table that replaced twenty scattered per-widget judgements (objectui#4871,
  * maintainer ruling of 2026-08-17, point 1: ledger first, then declare).
+ * (Nineteen before the `color-picker` split; objectui#4871's own body says
+ * "17", which the ledger corrected — see the PR.)
  *
  * Measured on real `SchemaForm` renders at `167ec42e7`, both states, three
  * columns per widget: does the host `for` RESOLVE and to a LABELABLE element /
