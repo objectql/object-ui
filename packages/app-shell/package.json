@@ -49,7 +49,7 @@
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@objectstack/formula": "^17.0.0",
-    "@objectstack/lint": "^17.0.0-rc.6",
+    "@objectstack/lint": "^17.0.0",
     "@objectstack/spec": "^17.0.0",
     "@sentry/react": "^10.70.0",
     "jsonc-parser": "^3.3.1",
