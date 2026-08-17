@@ -54,9 +54,13 @@
  */
 
 import { useObjectTranslation } from '@object-ui/i18n';
-// Type-only (erased at build): the overlay-scope label table below is keyed by
-// the spec's enum rather than by hand — see `LAYER_SCOPE_ZH`.
-import type { MetadataOverlayScope } from '@object-ui/data-objectstack';
+// Type-only (erased at build): the overlay-scope and lock-state label tables
+// below are keyed by their producer's own union rather than by hand — see
+// `LAYER_SCOPE_ZH` and `LOCK_STATE_ZH`.
+import type {
+  MetadataAuditEntry,
+  MetadataOverlayScope,
+} from '@object-ui/data-objectstack';
 
 export type SupportedLocale = 'en-US' | 'zh-CN';
 
@@ -4125,6 +4129,44 @@ const LAYER_SCOPE_ZH: Record<NonNullable<MetadataOverlayScope>, string> = {
 };
 
 /**
+ * zh-CN labels for the ADR-0010 §3.6 four-state metadata lock, keyed by the
+ * producer field the only consumer actually renders.
+ *
+ * The key type is `MetadataAuditEntry['lockState']` — the hand-written union in
+ * `packages/data-objectstack/src/metadata-client.ts`, not a `@objectstack/spec`
+ * enum, because this repo owns that union today. (Whether the spec should own
+ * the lock vocabulary is a separate question; it is deliberately not answered
+ * here.) Binding the keys means a fifth lock state added to the union stops this
+ * record from compiling and names the label that is missing, instead of the
+ * column silently shipping a raw English token.
+ *
+ * That silent path is objectui#5004, and it was total rather than partial: the
+ * table used to hold `draft` / `locked` / `published` / `none` — a draft-status
+ * vocabulary — so of the three values the audit column can actually show, zero
+ * had an entry. A zh-CN admin read bare `no-overlay` / `no-delete` / `full`.
+ *
+ * Wording tracks the lock banner sentences a reader meets on the same screen
+ * (`engine.edit.lockNoOverlay` 不可编辑 / `lockNoDelete` 不可删除 / `lockFull`
+ * 不可编辑或删除), compressed to state names for a narrow badge column.
+ *
+ * `none` is currently unreachable through the sole call site — `AuditPanel`
+ * renders an em dash for an unlocked/`null` row rather than a word — and is kept
+ * anyway: the key set follows the producer's type, so the record stays complete
+ * over the domain and does not need editing the day that presentation choice
+ * changes.
+ *
+ * Deliberately zh-only, like every other group here — `translateConsoleValue`
+ * returns the raw value for the other nine locale packs by existing design, and
+ * whether to extend it is a separate decision, not a rider on this fix.
+ */
+const LOCK_STATE_ZH: Record<NonNullable<MetadataAuditEntry['lockState']>, string> = {
+  none: '无',
+  'no-overlay': '禁止编辑',
+  'no-delete': '禁止删除',
+  full: '完全锁定',
+};
+
+/**
  * zh-CN labels for the metadata-editor side panels' raw enum-ish values —
  * History operation badges, Audit operation/outcome/lock-state, and the Layered
  * diff tab badges. Shared by every metadata type (not flow-specific). English
@@ -4143,7 +4185,7 @@ const CONSOLE_VALUE_ZH: Record<string, Record<string, string>> = {
     rollback: '回滚',
   },
   outcome: { allowed: '允许', denied: '拒绝', forced: '强制' },
-  lock: { draft: '草稿', locked: '已锁定', published: '已发布', none: '无' },
+  lock: LOCK_STATE_ZH,
   layer: {
     artifact: '工件',
     none: '无',
