@@ -61,7 +61,7 @@ describe('span deprecation notice — once per module load (#4917)', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.stubEnv('NODE_ENV', 'production');
 
-    renderSpan({ type: 'span', className: 'px-1', body: [{ type: 'text', content: 'a' }] });
+    renderSpan({ type: 'span', className: 'px-1', children: [{ type: 'text', content: 'a' }] });
 
     expect(deprecationCalls(warn)).toHaveLength(0);
   });
@@ -71,22 +71,31 @@ describe('span deprecation notice — once per module load (#4917)', () => {
 
     // Three separate renders, and one of them nests three more `span` nodes:
     // seven SpanRenderer invocations in total, one notice expected.
+    //
+    // The nesting spells the canonical child key (objectui#5027). It used to
+    // spell `body`, the one key nothing produces and, since that fix, the one
+    // key this renderer does not read — so the nested nodes would never have
+    // mounted and the count below would have been three invocations dressed up
+    // as seven, passing for the wrong reason.
     renderSpan({ type: 'span', className: 'a' });
     renderSpan({ type: 'span', className: 'b' });
-    renderSpan({
+    const nested = renderSpan({
       type: 'span',
       className: 'outer',
-      body: [
+      children: [
         {
           type: 'span',
           className: 'middle',
-          body: [
+          children: [
             { type: 'span', className: 'inner-1' },
             { type: 'span', className: 'inner-2' },
           ],
         },
       ],
     });
+    // The seven invocations are a claim about what mounted, so read it back
+    // instead of trusting the schema's shape.
+    expect(nested.container.querySelectorAll('span')).toHaveLength(4);
 
     const calls = deprecationCalls(warn);
     expect(calls).toHaveLength(1);

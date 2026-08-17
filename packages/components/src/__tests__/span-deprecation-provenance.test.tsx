@@ -39,15 +39,21 @@
  *
  * NOTE ON THE RENDER CONTROL — this deliberately does NOT copy the sibling
  * `div` test's control assertion. That test proves the html page really
- * rendered by reading the box tag's own text back out; the inline tag's text
- * never arrives, because this renderer reads `schema.body` while the parser
- * emits `children` (objectui#5027, filed separately — a rendering-path defect,
- * not a notice-scoping one, and one that needs its own ruling on which key is
- * canonical). The control here therefore uses a sibling paragraph's text plus
- * the presence of the inline element itself: together they prove the page
- * compiled AND that the node reached this deprecated renderer, so silence is an
- * exemption rather than a missing node. Both assertions still hold once #5027
- * is fixed.
+ * rendered by reading the box tag's own text back out. When this file was
+ * written the inline tag's text never arrived, because the renderer read
+ * `schema.body` while the parser emits `children` — filed separately as
+ * objectui#5027, since it was a rendering-path defect rather than a
+ * notice-scoping one and needed its own ruling on which key is canonical. The
+ * control here therefore uses a sibling paragraph's text plus the presence of
+ * the inline element itself: together they prove the page compiled AND that the
+ * node reached this deprecated renderer, so silence is an exemption rather than
+ * a missing node.
+ *
+ * objectui#5027 has since been fixed (the renderer reads `children`), and both
+ * assertions hold unchanged, as predicted here. They are deliberately left as
+ * they are: what this file is about is WHO gets told, and the inline tag's own
+ * text is now pinned where it belongs, in
+ * `__tests__/span-children-rendering.test.tsx`.
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -104,7 +110,11 @@ describe('span deprecation notice — scoped by provenance (#4917)', () => {
         schema={{
           type: 'span',
           className: 'authored',
-          body: [{ type: 'span', className: 'authored-inner' }],
+          // Canonical child key (objectui#5027) — this used to spell `body`.
+          // The inner node has to really render for the assertions below to
+          // mean anything: it is the second `span` whose absence would let the
+          // "exactly once" count pass without the guard doing any work.
+          children: [{ type: 'span', className: 'authored-inner' }],
         } as never}
       />,
     );

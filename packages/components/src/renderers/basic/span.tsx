@@ -101,7 +101,24 @@ const SpanRenderer = forwardRef<HTMLSpanElement, { schema: TextSpanSchema; class
         // Apply designer props
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
     >
-      {renderChildren(schema.body)}
+      {/*
+        The canonical child key is `children` (objectui#5027).
+
+        This read used to be `schema.body`, which no producer on either
+        authoring surface emits: `TextSpanSchema` declares `value` and
+        `children`, the html tier's parser assigns compiled child nodes to
+        `children` (`sdui-parser/src/parse.ts`), and the sibling `div` renderer
+        reads `children` too. So the tag rendered EMPTY and dropped its content
+        without a diagnostic — the parser's tree validation does not inspect
+        child keys.
+
+        `body` is deliberately not accepted as a second spelling. Adding a
+        tolerant read here would fossilize a second de-facto contract for the
+        one type whose declaration never named it (Commandment #0.1), and the
+        sweep for this issue found nothing in the repo authoring it on this tag.
+        `__tests__/span-children-rendering.test.tsx` pins both halves.
+      */}
+      {renderChildren(schema.children)}
     </span>
   );
   }

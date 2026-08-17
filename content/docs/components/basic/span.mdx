@@ -57,8 +57,7 @@ interface SpanSchema {
   
   // Content
   value?: string;                        // Text content
-  children?: SchemaNode | SchemaNode[];  // Child components
-  body?: SchemaNode | SchemaNode[];      // Alternative content prop
+  children?: SchemaNode | SchemaNode[];  // Child components (the child key this component reads)
   
   // Styling
   className?: string;                    // Tailwind CSS classes

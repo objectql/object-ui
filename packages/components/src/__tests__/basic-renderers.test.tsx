@@ -125,7 +125,10 @@ describe('Basic Renderers - Display Issue Detection', () => {
     it('should render inline content', () => {
       const { container } = renderComponent({
         type: 'span',
-        body: [{ type: 'text', content: 'Inline text' }],
+        // Canonical child key — what `TextSpanSchema` declares and what the
+        // renderer reads (objectui#5027). This case used to spell `body`, the
+        // one key nothing produced, which is what kept the defect invisible.
+        children: [{ type: 'text', content: 'Inline text' }],
       });
 
       const span = container.querySelector('span');
