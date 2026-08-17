@@ -38,8 +38,8 @@
   },
   "dependencies": {
     "@object-ui/types": "workspace:*",
-    "@objectstack/spec": "^17.0.0-rc.6",
-    "better-auth": "^1.6.26"
+    "@objectstack/spec": "^17.0.0",
+    "better-auth": "^1.6.28"
   },
   "devDependencies": {
     "@types/react": "19.2.18",
