@@ -30,6 +30,7 @@ one has its own section below.
 | `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `skills-paths.yml` | Skill Guide Path Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a path stated in a `skills/` guide does not exist |
+| `doc-component-types.yml` | Doc Component Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `content/docs/**.mdx` snippet teaches a `type` nothing registers |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -537,6 +538,57 @@ deliberate rather than assumed.
 the sentence's whole point is that the path does not exist. Run it locally with
 `pnpm check:skills-paths`, or `node scripts/check-skills-paths.mjs --list` to see every candidate and
 how it was classified.
+
+## Documented Component Types (`doc-component-types.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**, and here the reason is sharper than in the three sections above. `ci.yml`'s
+`type-check` job decides whether to run its gates with a `git diff` that *excludes* `content/**`, so
+a pull request editing only `content/docs/**.mdx` reports that context and runs nothing inside it —
+and a docs-only pull request is exactly the change that introduces the defect this gate exists for.
+It appears in the checks list as **Doc Component Type Check**.
+
+Runs `scripts/check-doc-component-types.mjs`, which reads every fenced code block under
+`content/docs/**` and asks, of each `type` string literal in one, whether the repository registers a
+component under that name.
+
+**Why the teaching surface needed its own ratchet.** The catalog side has had one since
+[#4616](https://github.com/objectstack-ai/objectui/issues/4616):
+`examples/schema-catalog/test/catalog-gallery-render.test.tsx` renders every catalog entry and fails
+if any paints the registry's `Unknown component type` panel (OBJUI-001). A snippet in the docs is
+rendered by nothing, parsed by nothing and compared against nothing, so it could name any string at
+all and every check stayed green — while a reader who copied it got the red panel. The same defect
+landed three times that way, each found by a human probe:
+[#4786](https://github.com/objectstack-ai/objectui/issues/4786) taught `stats-card`, and
+[#4796](https://github.com/objectstack-ai/objectui/issues/4796) taught `plugin:grid` and
+`plugin:map` (the registered names are `object-grid` and `object-map`).
+
+**Where the key list comes from.** Nowhere — it is derived from the `ComponentRegistry.register(…)`
+and `registerLazy(…)` calls themselves on every run, including the loop forms and two helpers that
+register from a collection, with `namespace` and `skipFallback` read out of each call's own balanced
+argument span. There is no hard-coded enumeration to drift, and no build step, which is what keeps
+the whole run to a checkout plus one `node` call. A registration whose key the derivation cannot
+resolve **fails the gate** rather than being skipped: a key silently missing from the universe turns
+*correct* documentation red, which is the failure mode that gets gates deleted.
+
+**How a snippet is judged.** `type` is not one vocabulary in these pages — measured across 143 files
+and 558 literals, the corpus spells action schemas, block schemas, theme and report schemas, field
+and JSON-Schema data types, validation rules and navigation items all under the same key. A
+structural discriminator was built and rejected on measurement (a TypeScript annotation reads exactly
+like an object key to a brace tracker, and `items` carries navigation entries on one page and
+renderable children on another, so any global rule is a silent false green somewhere). So the rule is
+flat: every literal is a candidate component key, and a value outside the derived universe must be
+**declared** in the script's `DOC_TYPE_EXEMPTIONS` — keyed by (file, value), with a written reason
+naming the vocabulary it really belongs to. A whole-file exemption is deliberately not offered:
+`blocks/block-schema.mdx` carries `type: 'block'` and `type: 'div'` in the same document.
+
+Entries are re-derived per run, so one whose page stopped spelling that type fails as a stale
+exemption rather than quietly widening the hole.
+
+**If it fails:** it prints every `file:line — type '<value>'` with the offending source line. Either
+spell the registered key (`grep -rn "ComponentRegistry.register(" packages/` for the real name), or —
+if the value belongs to another vocabulary — add the declaration with its reason. Run it locally with
+`pnpm check:doc-types`.
 
 ## Link Checking (`check-links.yml`)
 

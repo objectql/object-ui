@@ -47,6 +47,7 @@
     "check:i18n-drift": "node scripts/check-i18n-en-drift.mjs",
     "check:i18n-dead-keys": "node scripts/check-i18n-dead-keys.mjs",
     "check:skills-paths": "node scripts/check-skills-paths.mjs",
+    "check:doc-types": "node scripts/check-doc-component-types.mjs",
     "cli": "node packages/cli/dist/cli.js",
     "objectui": "node packages/cli/dist/cli.js",
     "create-plugin": "node packages/create-plugin/dist/index.js",
