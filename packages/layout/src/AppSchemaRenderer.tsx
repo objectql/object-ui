@@ -57,8 +57,26 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-/** Mobile navigation display mode */
-export type MobileNavMode = 'drawer' | 'bottom_nav' | 'hamburger';
+/**
+ * Mobile navigation display mode — the two modes this renderer implements.
+ *
+ * `drawer` is the default (the sidebar rides in the AppShell's mobile sheet
+ * overlay); `bottom_nav` additionally renders the fixed bottom bar. Those are
+ * the renderer's only two read points for the prop — the default below and the
+ * `=== 'bottom_nav'` comparison that gates the bottom bar — so every value that
+ * is not `bottom_nav` produces drawer behaviour.
+ *
+ * A third member (spelled after the collapsed-sidebar menu button) rode in this
+ * union with a JSDoc line promising "collapsed sidebar" and NO read point
+ * anywhere, which made it behaviourally identical to `drawer` while reading as
+ * a capability. Retired in objectui#3985 under ADR-0049 enforce-or-remove
+ * (maintainer ruling 2026-08-10): it never was behaviour, so it is gone from
+ * this union and from the published vocabulary rather than being documented as
+ * a synonym for the default. Wanting a collapsed-sidebar mode is an
+ * implementation card first, and the value comes back with a read point — never
+ * as a declaration on its own.
+ */
+export type MobileNavMode = 'drawer' | 'bottom_nav';
 
 export interface AppSchemaRendererProps {
   /** The AppSchema JSON to render */
@@ -461,8 +479,8 @@ function InternalSidebar({
  * - Area switcher when multiple areas are VISIBLE — area visibility is
  *   derived from the items inside, not authored (objectui#3311): an area
  *   whose items are all gated away is hidden and never auto-activated
- * - Mobile modes: `drawer` (sheet overlay, default), `bottom_nav` (fixed
- *   bottom bar), `hamburger` (collapsed sidebar)
+ * - Mobile modes: `drawer` (sheet overlay, default) and `bottom_nav` (fixed
+ *   bottom bar) — see `MobileNavMode` for why that list is two long
  * - Evaluates `visible` expressions and `requiredPermissions` on every item
  *
  * @example

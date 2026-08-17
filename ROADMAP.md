@@ -136,7 +136,8 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Implement `AppSchema` renderer consuming spec JSON (name, label, icon, branding)
 - [x] Build navigation tree renderer (7 nav item types: object, dashboard, page, url, report, action, group)
 - [x] Implement `NavigationAreaSchema` support (business domain partitioning)
-- [x] Implement mobile navigation modes (drawer/bottom_nav/hamburger)
+- [x] Implement mobile navigation modes (drawer/bottom_nav — the third mode this line
+      used to claim was declared but never had a read point, retired in objectui#3985)
 - [x] Add permission guards (`requiredPermissions`, `visible`) on navigation items
 
 ---

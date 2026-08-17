@@ -264,7 +264,22 @@ export function registerLayout() {
     inputs: [
       { name: 'schema', type: 'object' },
       { name: 'basePath', type: 'string' },
-      { name: 'mobileNavMode', type: 'string' },
+      // Declared as the vocabulary the renderer implements, not as free text
+      // (objectui#3985). `type: 'string'` judged only `typeof value ===
+      // 'string'`, so a hyphenated misspelling of `bottom_nav` passed every
+      // gate and then failed the renderer's one equality check in silence —
+      // the author got drawer behaviour and no diagnostic. As an `enum`,
+      // `sdui-parser`'s `checkType` raises an error-level `invalid-enum`
+      // instead, which is where an AI author finds the typo.
+      {
+        name: 'mobileNavMode',
+        type: 'enum',
+        enum: ['drawer', 'bottom_nav'],
+        defaultValue: 'drawer',
+        label: 'Mobile Nav Mode',
+        description:
+          'Mobile navigation mode. "drawer" (default) puts the sidebar in the mobile sheet overlay; "bottom_nav" additionally renders a fixed bottom bar. These are the only two modes the renderer implements.',
+      },
     ],
   });
 

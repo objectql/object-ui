@@ -521,6 +521,22 @@ describe('AppSchemaRenderer', () => {
     expect(bottomNav).toBeNull();
   });
 
+  // Narrowing `mobileNavMode` to a two-value enum (objectui#3985) must not move
+  // either surviving mode. The default is covered above; this is the same value
+  // passed EXPLICITLY, which is the path an author takes and the one a
+  // vocabulary change would break first — a default that still works says
+  // nothing about whether the value is still accepted.
+  it('does not render bottom nav when drawer is passed explicitly', () => {
+    const { container } = renderApp(schemaWithNav, { mobileNavMode: 'drawer' });
+    expect(
+      container.querySelector('[role="navigation"][aria-label="Mobile navigation"]'),
+    ).toBeNull();
+    // Non-vacuity: the shell and its sidebar navigation rendered, so "no bottom
+    // nav" is a verdict about the mode rather than about an empty container.
+    expect(screen.getByTestId('page-content')).toBeTruthy();
+    expect(screen.getAllByText('Accounts').length).toBeGreaterThan(0);
+  });
+
   // --- Sidebar footer slot ---
 
   it('renders sidebarFooter slot', () => {

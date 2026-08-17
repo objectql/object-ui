@@ -43,6 +43,7 @@
     "react-router-dom": "^6.0.0 || ^7.0.0"
   },
   "devDependencies": {
+    "@object-ui/sdui-parser": "workspace:*",
     "@vitejs/plugin-react": "^6.0.5",
     "react-router-dom": "^7.18.2",
     "vite": "^8.2.1",
