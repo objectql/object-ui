@@ -58,8 +58,33 @@ const noTypes = () => undefined;
  * it between @objectstack/spec 17.0.0-rc.2 and rc.5, and no builder operator
  * could author it. `containsCaseInsensitive` now does, so the entry is gone and
  * the parity assertion below is what holds that honest.
+ *
+ * `$like` and `$ilike` arrived with the `@objectstack/spec` 17.0.0 GA pin
+ * (objectui#4636). Their entry here is **undecided — see #4911**, and it claims
+ * nothing else: whether this builder should offer raw pattern matching at all is
+ * an authoring-surface question that has NOT been ruled on, so this is a CITED
+ * OPEN QUESTION, not a finding that the tokens should stay unauthorable. It was
+ * taken because the sweep below is red on `main` itself under the GA pin, which
+ * every open PR inherits (objectui#4977); the question keeps waiting on the
+ * maintainer either way.
+ *
+ * Harvest condition — a ruling on #4911 must change these two members or this
+ * paragraph. Neither survives the ruling untouched:
+ *
+ *   - ruled A (build the operators): delete both members and add the builder
+ *     operators that author them; the parity assertion below then holds that
+ *     honest, exactly as it did when objectui#4023 retired `$icontains`.
+ *   - ruled B (the builder will not offer raw pattern matching): rewrite this
+ *     paragraph as the refusal the ruling makes it — stated as a decision, with
+ *     the ruling's own reopen condition on the entry — and reopen #4911 if that
+ *     condition is ever met.
+ *
+ * Leaving it reading "undecided" after a ruling lands is the stale-exclusion rot
+ * this comment block already warns about, one level up: the ratchet below can
+ * only check that a member is still a spec operator, never that its reason is
+ * still the true one.
  */
-const KNOWN_UNREACHABLE = new Set(['$eq', '$between']);
+const KNOWN_UNREACHABLE = new Set(['$eq', '$between', '$like', '$ilike']);
 
 /** Pull the operator keys out of a `{ field: { $op: v } }` fragment. */
 function operatorsOf(frag: Record<string, any> | null): string[] {
