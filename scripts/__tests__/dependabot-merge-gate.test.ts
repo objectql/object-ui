@@ -531,6 +531,16 @@ describe('the declared buckets partition what a pull request actually produces',
     }
   });
 
+  it('writes down the check-runs-only boundary, so the scope is not inferred from the endpoint', () => {
+    // A third-party commit STATUS (this repository has one: `Vercel`) is not a
+    // check run and is not read by the gate. That boundary has to be stated
+    // rather than left to whoever next wonders why a red status did not block.
+    const script = fs.readFileSync(path.join(repoRoot, 'scripts', 'dependabot-merge-gate.mjs'), 'utf8');
+
+    expect(script).toMatch(/commit STATUS/i);
+    expect(script).toContain('Vercel');
+  });
+
   it('states a reason for every context it declines to gate on', () => {
     for (const [name, reason] of Object.entries({ ...OPTIONAL_CONTEXTS, ...NOT_A_GATE })) {
       expect(reason.length, `${name} needs a reason, not just an entry`).toBeGreaterThan(40);

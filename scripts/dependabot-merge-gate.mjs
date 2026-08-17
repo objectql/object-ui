@@ -89,6 +89,23 @@
  * `if:` on that verdict, so the whole set of things that can write is visible
  * in the YAML. A crash here (403 on `checks: read`, network, bad input) exits
  * non-zero and merges nothing, which is the correct direction to fail.
+ *
+ * ## The boundary of the declared set: check RUNS, not commit STATUSES
+ *
+ * Everything above is about check runs — what GitHub Actions jobs produce.
+ * Third-party apps can also attach a legacy commit STATUS to the same SHA, and
+ * this repository has one: `Vercel`, which on a pull request reports
+ * `success` / "Canceled by Ignored Build Step" for changes its ignored-build
+ * step filters out. The gate does not read statuses, so a red Vercel status
+ * would not stop a Dependabot merge.
+ *
+ * That is a stated boundary, not an oversight, and it is not a regression: the
+ * unconditional `--auto` this replaced waited for nothing at all. It is left
+ * outside deliberately — requiring a preview deployment from a third-party
+ * service would let an unrelated outage block every dependency bump, and
+ * whether that trade is worth making is a maintainer's call, not a hot fix's.
+ * It is written down here so the next reader does not have to infer the scope
+ * from the endpoint being called.
  */
 
 import fs from 'node:fs';
