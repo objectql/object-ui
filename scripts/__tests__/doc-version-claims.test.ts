@@ -792,7 +792,7 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     file: 'skills/objectui/guides/i18n.md',
     claim: '@objectstack/spec' + TICK + ' v4',
     kind: 'stale',
-    why: 'Measured WRONG at the time of writing, recorded rather than blessed - the class the census below opened and objectui#3708/#3709/#3710/#3690 emptied. Two lines (117 and 162, one inventory key) attribute the plain-string label rule to @objectstack/spec v4 while 33 manifests in this repo declare ^17.0.0 and node_modules carries 17.0.0: thirteen majors, the same shape as the architecture-overview.md literal #3708 repaired. Filed as objectui#5081 rather than repaired in #4981, because the repair is a judgement that card did not own (correct the number, or delete a version qualifier that carries no information and can only rot). When that card lands, this entry must go with it or the downward ratchet turns red.',
+    why: 'Measured WRONG at the time of writing, recorded rather than blessed - the class the census below opened and objectui#3708/#3709/#3710/#3690 emptied. Two lines (117 and 162, one inventory key) attribute the plain-string label rule to @objectstack/spec v4 while this repo declares ^17.0.0 in 33 places across 31 manifests, with node_modules carrying 17.0.0: thirteen majors, the same shape as the architecture-overview.md literal #3708 repaired. Filed as objectui#5081 rather than repaired in #4981, because the repair is a judgement that card did not own (correct the number, or delete a version qualifier that carries no information and can only rot). When that card lands, this entry must go with it or the downward ratchet turns red.',
   },
   {
     file: 'skills/objectui/guides/plugin-development.md',
