@@ -7,10 +7,13 @@ marker comes from a record's own coordinate fields, and the first paint frames t
 records that were fetched. It is a *view over data* — there is no authored marker
 list, and no pin you place by hand.
 
-Importing the package registers two component types on the `ComponentRegistry`:
+Importing the package registers two component types on the `ComponentRegistry`,
+both resolving to the same renderer:
 
 - `object-map` — the object-bound renderer
-- `map` — the view-type alias used by `ObjectView` / `ViewSwitcher`
+- `map` — the bare spec view-type name (`ViewTypeSchema`'s `'map'`), for a node
+  authored with it directly. Inside an `ObjectView`, a `map` view is compiled to
+  an `object-map` node, so both spellings end at the same component.
 
 ## Installation
 
