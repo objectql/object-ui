@@ -31,7 +31,7 @@
   "dependencies": {
     "@object-ui/core": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@objectstack/client": "^17.0.0-rc.6",
+    "@objectstack/client": "^17.0.0",
     "@objectstack/spec": "^17.0.0"
   },
   "devDependencies": {

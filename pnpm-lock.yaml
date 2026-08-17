@@ -267,8 +267,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/client':
-        specifier: ^17.0.0-rc.6
-        version: 17.0.0-rc.6(ai@7.0.65(zod@4.4.3))
+        specifier: ^17.0.0
+        version: 17.0.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^17.0.0
         version: 17.0.0(ai@7.0.65(zod@4.4.3))
@@ -1229,8 +1229,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/client':
-        specifier: ^17.0.0-rc.6
-        version: 17.0.0-rc.6(ai@7.0.65(zod@4.4.3))
+        specifier: ^17.0.0
+        version: 17.0.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^17.0.0
         version: 17.0.0(ai@7.0.65(zod@4.4.3))
@@ -4140,12 +4140,12 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@objectstack/client@17.0.0-rc.6':
-    resolution: {integrity: sha512-gdHhcY3JTRRmjlosIUP2WE4wG0ciwfYWu+HqyvtjFHVnhuNOoDOuzsKy2M/CppeOaKDay21Bs/HNH9ljGRQOnQ==}
+  '@objectstack/client@17.0.0':
+    resolution: {integrity: sha512-pfapHGMXA0/nKohGNg6tXTZ9AuKa3lN7ZRrvb6N8h0+PEZsJLsGP13C2nb3Hc6T9NzCl4uO1nDMMSRYcLe++Ug==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/core@17.0.0-rc.6':
-    resolution: {integrity: sha512-78VndPhlxUXAupQVJ04YDdFbyIYcMJxw1I+Q7dlUuf+NGrlP7VzWwAQZm98dRH3q+M5wEvvV5t0myLhmVEpmKQ==}
+  '@objectstack/core@17.0.0':
+    resolution: {integrity: sha512-byJCvD92jvepzzcvydmQfSyjb5Qiu+r+RJEKn/qlRwYXFpMG9CbJovglBHyyCFRzbpWKc70z88FGrj5vlr25gQ==}
     engines: {node: '>=22.0.0'}
 
   '@objectstack/formula@17.0.0-rc.6':
@@ -12580,16 +12580,16 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@objectstack/client@17.0.0-rc.6(ai@7.0.65(zod@4.4.3))':
+  '@objectstack/client@17.0.0(ai@7.0.65(zod@4.4.3))':
     dependencies:
-      '@objectstack/core': 17.0.0-rc.6(ai@7.0.65(zod@4.4.3))
-      '@objectstack/spec': 17.0.0-rc.6(ai@7.0.65(zod@4.4.3))
+      '@objectstack/core': 17.0.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/spec': 17.0.0(ai@7.0.65(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/core@17.0.0-rc.6(ai@7.0.65(zod@4.4.3))':
+  '@objectstack/core@17.0.0(ai@7.0.65(zod@4.4.3))':
     dependencies:
-      '@objectstack/spec': 17.0.0-rc.6(ai@7.0.65(zod@4.4.3))
+      '@objectstack/spec': 17.0.0(ai@7.0.65(zod@4.4.3))
       zod: 4.4.3
     transitivePeerDependencies:
       - ai
