@@ -1556,7 +1556,21 @@ describe('doc version claims - the plugin-skeleton assertion', () => {
     // The premise the assertion rests on, asserted rather than assumed: it is only fair to
     // pin a doc to "the" range if there is one. Measured at the #3855 cut - 19 plugin
     // manifests declaring vite ^8.2.1, 16 of them typescript ^6.0.3.
-    for (const dep of ['vite', 'typescript']) {
+    //
+    // Derived from the inventory rather than hardcoded, so a THIRD skeletonDep added later
+    // is covered by this premise too instead of resting on the assertion alone. The two
+    // names below are then a floor on that derivation: read from skeletonChecks and it
+    // could quietly become an empty loop, so the deps #3855 measured must still be in it.
+    const anchoredDeps = [...new Set(skeletonChecks.map((check) => check.dep))];
+    for (const measured of ['vite', 'typescript']) {
+      expect(
+        anchoredDeps,
+        `${measured} lost its skeletonDep entry - either the plugin guide stopped naming it ` +
+          `or the inventory did, and this premise is no longer being checked for it`,
+      ).toContain(measured);
+    }
+
+    for (const dep of anchoredDeps) {
       const ranges = pluginDeclaredRanges(dep);
       expect(
         [...ranges.keys()],
