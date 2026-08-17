@@ -143,39 +143,114 @@ component the same way.
 
 ## Schema API
 
-### Form
+Two form schemas reach a renderer, and **both are declared in
+`@object-ui/types`** — this package imports them and declares neither. The
+tables below name the keys and point at the declaration; the declaration is the
+contract. (Restating an interface inside this README is what let this section
+drift away from the code in the first place — objectui#5075.)
 
-Complete form with fields and validation:
+| Schema | `type` | Declared in | Rendered by |
+|---|---|---|---|
+| `FormSchema` | `'form'` | `packages/types/src/form.ts` | the basic form in `@object-ui/components` — bare `form` is deliberately **not** claimed by this plugin (`skipFallback: true`, see the table above) |
+| `ObjectFormSchema` | `'object-form'` | `packages/types/src/objectql.ts` | `ObjectForm` here, through `plugin-form:object-form` / `object-form` |
 
-```typescript
-{
-  type: 'form',
-  fields: FormField[],
-  submitLabel?: string,
-  cancelLabel?: string,
-  onSubmit?: (data) => void,
-  onCancel?: () => void,
-  className?: string
-}
-```
+Both `type` slots are string **literals**. A schema whose `type` names something
+no registration claims does not fall back to a form — it renders the
+unknown-component placeholder.
+
+### Form (`type: 'form'`)
+
+| Key | Type | Notes |
+|---|---|---|
+| `type` | `'form'` | literal, not a free string |
+| `fields` | `FormField[]` | **optional** — a form may render `children` instead |
+| `defaultValues` | `Record<string, any>` | form-level initial values. There is no field-level `defaultValue` |
+| `submitLabel` / `cancelLabel` | `string` | button text |
+| `showCancel` / `showActions` | `boolean` | action-row composition |
+| `mobileStickyActions` | `boolean` | pin the action row on small viewports |
+| `layout` | `'vertical' \| 'horizontal'` | label placement |
+| `columns` | `number` | grid width (1–4) |
+| `validationMode` | `'onSubmit' \| 'onBlur' \| 'onChange' \| 'onTouched' \| 'all'` | when the rules run |
+| `resetOnSubmit` / `disabled` | `boolean` | |
+| `mode` | `'edit' \| 'read' \| 'disabled'` | whole-form mode |
+| `objectName` | `string` | enables metadata field locators `data-testid="field:{objectName}.{field}"` (ADR-0054 C4) |
+| `previousValues` | `Record<string, any>` | edit-mode hosts only — the persisted record, as evaluation context for `previous` / `readonlyWhen`. Never sent anywhere |
+| `fieldContainerClass` | `string` | class for the field grid inside the `<form>` |
+| `fieldTabs` / `defaultFieldTab` / `fieldTabsPosition` | see [Tabbed field layout](#tabbed-field-layout-fieldtabs) | |
+| `fieldPanes` / `fieldPanesOrientation` / `fieldPanesResizable` | see [Split field layout](#split-field-layout-fieldpanes) | |
+| `actions` | `SchemaNode[]` | extra nodes in the action row |
+| `children` | `SchemaNode \| SchemaNode[]` | custom body instead of `fields` |
+| `onSubmit` / `onChange` / `onDirtyChange` / `onCancel` | callbacks | **TypeScript-authored schemas only** — a JSON metadata document cannot carry a function. Metadata pages go through the object-form route instead |
+| `className`, `id`, `hidden`, … | — | inherited from `BaseSchema` |
+
+⚠️ `FormSchema` extends `BaseSchema`, which declares `[key: string]: any`
+(`packages/types/src/base.ts`), so an invented or misspelled key on a form schema
+is **not** a compile error — it is simply never read. That is why every example
+below is annotated with its real type *and* checked against these key tables:
+an un-annotated `const schema = { … }` type-checks whatever is written in it.
 
 ### Form Field
 
-Individual form field configuration:
+`FormField` (`packages/types/src/form.ts`) declares 23 keys, and `name` is the
+only **required** one:
 
-```typescript
-interface FormField {
-  name: string;
-  type: string;                   // 'input', 'select', 'checkbox', etc.
-  label: string;
-  placeholder?: string;
-  required?: boolean;
-  validation?: ValidationRule[];
-  defaultValue?: any;
-  disabled?: boolean;
-  className?: string;
-}
-```
+| Key | Type | What it does |
+|---|---|---|
+| `name` | `string` | **required** — the submit key |
+| `id` | `string` | stable render key; falls back to `name` |
+| `label` | `string` | optional — with none, no label element is rendered at all (validation messages fall back to `name`). The object-bound paths always fill it from the object field |
+| `description` | `string` | help text under the control |
+| `type` | `string` | optional, defaults to `'input'`. Built-ins: `input`, `textarea`, `checkbox`, `switch`, `select`; any other value resolves through the registry (`field:<type>` first, then the bare name) |
+| `inputType` | `string` | HTML input type for `type: 'input'` — `'email'`, `'password'`, `'tel'`, … |
+| `widget` | `string` | widget override; wins over `type` (spec `FormField.widget`) |
+| `placeholder` | `string` | |
+| `required` | `boolean` | the presence rule. `validation.required` does **not** make a field required — see below |
+| `disabled` | `boolean` | not interactive, muted |
+| `readonly` | `boolean` | shown plainly, not editable — deliberately distinct from `disabled` |
+| `hidden` | `boolean` | field is not rendered at all |
+| `options` | `SelectOption[] \| RadioOption[]` | for `select` / radio fields |
+| `validation` | `FieldValidationRules` | **an object keyed by rule name** — see below |
+| `condition` | `FieldCondition` | legacy `{ field, equals, notEquals, in, custom }` matcher |
+| `visibleWhen` / `readonlyWhen` / `requiredWhen` | `string \| { dialect?, source }` | CEL predicates over the live record, evaluated by `@objectstack/formula` — the same engine and dialect the server uses. Fail open |
+| `visibleOn` | `string \| { dialect?, source }` | view-level visibility predicate (spec `FormField.visibleOn`) |
+| `dependsOn` | `DependsOnInput` | cascading parent(s): a bare name, a list of names, or `{ field, param }` entries |
+| `span` | `'auto' \| 'full'` | relative width, independent of the column count (preferred) |
+| `colSpan` | `number` | legacy column span (1–4), clamped to the current column count |
+| `field` | `Record<string, any>` | the resolved object-field **metadata object**, stashed by the object-bound paths so widgets can read `precision`, `currency`, `reference_to`, … In the *spec* form-view vocabulary `field` is a string (the referenced field name); that shape ends at `normalizeSectionField` and never reaches a runtime `FormField` |
+
+`FormField` also declares `[key: string]: any`, so an invented key type-checks
+here too. Two that a reader might expect, and that are **not** declared:
+
+| Not a `FormField` key | Write this instead |
+|---|---|
+| `defaultValue` | `FormSchema.defaultValues` at form level. An object-bound form seeds from the object field's own declared `defaultValue` — see [What a create form opens with](#what-a-create-form-opens-with) |
+| `className` | `span` / `colSpan` for width, `FormSchema.fieldContainerClass` for the grid. (A field-level `className` is read on exactly one pseudo-field, `type: 'section-divider'`, where it styles the inline section header.) |
+
+There is no `ValidationRule` type in this repo, under any spelling.
+
+#### `validation` is an object keyed by rule name
+
+`FieldValidationRules` (`packages/types/src/form.ts`) is **not** an array of
+`{ type, value, message }` entries:
+
+| Rule | Type | Notes |
+|---|---|---|
+| `required` | `string \| boolean` | supplies the required **message** only. Whether the field is required is decided by `required` / `requiredWhen` **on the field** |
+| `minLength` / `maxLength` | `{ value: number; message: string }` | `message` is not optional when you author the rule by hand |
+| `min` / `max` | `{ value: number; message: string }` | numeric range |
+| `pattern` | `{ value: string \| RegExp; message: string }` | pass a **RegExp** in a hand-authored schema: react-hook-form only applies a pattern whose value `instanceof RegExp`, and it is the object-metadata path (`buildValidationRules` in `@object-ui/fields`) that compiles a declared string into one |
+| `validate` | `(value) => boolean \| string \| Promise<boolean \| string>` | custom check; TypeScript-authored schemas only |
+
+There is no `email` rule name — an email check is a `pattern`, which is exactly
+what `buildValidationRules` emits for an object field of type `email`.
+
+**Why the array spelling fails silently.** The only reader of this key is the
+basic form renderer, which spreads it into the rule object handed to
+react-hook-form — `const rules: any = { ...validation }`
+(`packages/components/src/renderers/form/form.tsx:1652`). Spreading an **array**
+into an object literal produces numeric keys (`{ '0': …, '1': … }`), which
+react-hook-form does not recognise: every rule is dropped, nothing throws, and
+the form looks validated while validating nothing.
 
 ### What a create form opens with
 
@@ -368,7 +443,9 @@ primary pane, the rest stack in the secondary one behind inline section headers.
 ### Basic Form
 
 ```typescript
-const schema = {
+import type { FormSchema } from '@object-ui/types';
+
+const schema: FormSchema = {
   type: 'form',
   fields: [
     {
@@ -384,9 +461,15 @@ const schema = {
       inputType: 'email',
       label: 'Email Address',
       required: true,
-      validation: [
-        { type: 'email', message: 'Invalid email format' }
-      ]
+      // Rule name → rule. Not an array (see Schema API above), and there is no
+      // 'email' rule: the email check is the pattern the metadata path builds
+      // for a field of type `email`.
+      validation: {
+        pattern: {
+          value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+          message: 'Invalid email format'
+        }
+      }
     },
     {
       name: 'country',
@@ -413,51 +496,111 @@ const schema = {
 
 ### Multi-Step Form
 
+A multi-step form is an **`object-form` with `formType: 'wizard'`**, and its
+steps are its `sections` — one step per section. There is no
+`multi-step-form` schema type (no registration anywhere claims that name) and no
+`steps` key on any form schema, so a schema written that way renders the
+unknown-component placeholder and the fields inside `steps` are never read.
+
 ```typescript
-const schema = {
-  type: 'multi-step-form',
-  steps: [
+import type { ObjectFormSchema } from '@object-ui/types';
+
+const schema: ObjectFormSchema = {
+  type: 'object-form',
+  objectName: 'contacts',        // required
+  mode: 'create',                // required
+  formType: 'wizard',            // routes to WizardForm — needs at least one section
+  sections: [
     {
-      title: 'Personal Info',
+      name: 'personal',
+      label: 'Personal Info',
+      fields: ['first_name', 'last_name']    // field NAMES, resolved from the object schema
+    },
+    {
+      name: 'contact',
+      label: 'Contact Info',
+      fields: ['email', 'phone']
+    }
+  ],
+  allowSkip: false,              // see "Wizard steps and allowSkip" above
+  showStepIndicator: true
+};
+```
+
+A section's `fields` accepts three shapes — a field **name**, a spec
+`FormFieldSchema` object (whose identity key is `field`), or an inline runtime
+`FormField` object. The inline shape is what lets a wizard run with no data
+source at all, which is the closest equivalent of the old snippet; note that
+`WizardForm` reports a data-source-less submit through `onSuccess` (there is no
+`onSubmit` on this schema):
+
+```tsx
+import { WizardForm } from '@object-ui/plugin-form';
+import type { WizardFormSchema } from '@object-ui/plugin-form';
+
+const wizard: WizardFormSchema = {
+  type: 'object-form',
+  formType: 'wizard',
+  objectName: 'contacts',
+  mode: 'create',
+  sections: [
+    {
+      name: 'personal',
+      label: 'Personal Info',
       fields: [
         { name: 'firstName', type: 'input', label: 'First Name', required: true },
         { name: 'lastName', type: 'input', label: 'Last Name', required: true }
       ]
     },
     {
-      title: 'Contact Info',
+      name: 'contact',
+      label: 'Contact Info',
       fields: [
         { name: 'email', type: 'input', inputType: 'email', label: 'Email', required: true },
         { name: 'phone', type: 'input', inputType: 'tel', label: 'Phone' }
       ]
-    },
-    {
-      title: 'Review',
-      fields: []
     }
   ],
-  onSubmit: (data) => {
+  onSuccess: (data) => {
     console.log('Multi-step form completed:', data);
   }
 };
+
+<WizardForm schema={wizard} />   // dataSource omitted: every step lists inline fields
 ```
+
+`WizardFormSchema` declares no index signature, so an invented key on *this*
+type is a real compile error — unlike `ObjectFormSchema`, which inherits
+`BaseSchema`'s `[key: string]: any`.
+
+One more route exists and is worth knowing about rather than reinventing: a flat
+`object-form` can be turned into a stepper on small viewports with
+`mobile: { stepper: true | 'auto', stepperFieldsPerStep, stepperMinFields }`,
+which feeds the same `WizardForm`.
 
 ### Form with Validation
 
 ```typescript
-const schema = {
+import type { FormSchema } from '@object-ui/types';
+
+const schema: FormSchema = {
   type: 'form',
+  validationMode: 'onBlur',
   fields: [
     {
       name: 'username',
       type: 'input',
       label: 'Username',
-      required: true,
-      validation: [
-        { type: 'minLength', value: 3, message: 'Username must be at least 3 characters' },
-        { type: 'maxLength', value: 20, message: 'Username must be less than 20 characters' },
-        { type: 'pattern', value: '^[a-zA-Z0-9_]+$', message: 'Only letters, numbers, and underscores' }
-      ]
+      required: true,                 // presence: this is the key that decides it
+      validation: {
+        required: 'Pick a username',   // the MESSAGE for the rule above, nothing more
+        minLength: { value: 3, message: 'Username must be at least 3 characters' },
+        maxLength: { value: 20, message: 'Username must be less than 20 characters' },
+        pattern: {
+          value: /^[a-zA-Z0-9_]+$/,    // a RegExp, not a string
+          message: 'Only letters, numbers, and underscores'
+        }
+      }
     },
     {
       name: 'password',
@@ -465,14 +608,23 @@ const schema = {
       inputType: 'password',
       label: 'Password',
       required: true,
-      validation: [
-        { type: 'minLength', value: 8, message: 'Password must be at least 8 characters' },
-        { type: 'pattern', value: '(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])', message: 'Must contain uppercase, lowercase, and number' }
-      ]
+      validation: {
+        minLength: { value: 8, message: 'Password must be at least 8 characters' },
+        pattern: {
+          value: /(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])/,
+          message: 'Must contain uppercase, lowercase, and number'
+        },
+        validate: (value) =>
+          String(value).toLowerCase() !== 'password' || 'Pick something less guessable'
+      }
     }
   ]
 };
 ```
+
+Each rule appears **once**, under its own name — an object, not a list. A second
+`minLength` cannot exist, which is the point: the shape the renderer hands
+react-hook-form is one rule per kind.
 
 ## Integration with Data Sources
 
