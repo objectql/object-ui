@@ -27,24 +27,43 @@
  * navigation here is therefore still `window.location.assign`, and these tests
  * assert the string it is called with — not that a mount was applied.
  *
- * ## Reverse verification — predicted before running, then measured
+ * ## Reverse verification — predicted first, then measured (counts are measured)
  *
- * 1. **Restoring `isSameOriginUrl(behavior.url)` around the old assign** (i.e.
- *    putting defect 2 and 3 back): the two refusal tests go RED and they go red in
- *    two DIFFERENT ways, which is the point of keeping them separate. The
- *    same-origin absolute case fails on the assign — the old guard says yes, so it
- *    navigates where the new code refuses. The protocol-relative case fails on the
- *    refusal being ABSENT: the old guard says no, so nothing happens at all, which
- *    is precisely the silence being fixed. The interpolation tests also go red
- *    (the old line assigned `behavior.url` verbatim, braces included).
- * 2. **Deleting only the `toast.error` + `setSubmitted` refusal arm** (keeping the
- *    schema parse, so the destination is simply dropped): the two refusal tests go
- *    RED on the visible-refusal assertions while every in-contract test stays
- *    green. That is the narrow change detector for defect 2 on its own — and note
- *    it reproduces the ORIGINAL bug exactly, which is why "the guard is stricter
- *    now" is not by itself a fix.
- * 3. **Deleting the `encodeURIComponent`**: `escapes an interpolated value into
- *    one segment` goes red here, alongside the unit file's escape block.
+ * 1. **Restoring `isSameOriginUrl(behavior.url)` around the old assign** — i.e.
+ *    putting the whole pre-ruling consumption back: **6 of the 9 tests here go
+ *    RED, 3 stay green** (12 red across both component files; WizardForm's is
+ *    6 of 7). The three survivors are `navigates to a ruled relative path` and
+ *    the two `delayMs` cases — all three describe behaviour the old line ALSO
+ *    had, which is the honest reading: this change did not alter what happens to
+ *    an in-contract destination.
+ *
+ *    The two refusal tests go red in two DIFFERENT ways, which is why they are
+ *    kept separate. The same-origin absolute case fails on the assign — the old
+ *    guard answers yes, so it navigates where the contract refuses (defect 3).
+ *    The protocol-relative case fails on the refusal being ABSENT — the old guard
+ *    answers no and then nothing happens at all, which is defect 2's silence in
+ *    its purest form.
+ *
+ *    Measured and worth stating: `submitRedirect.test.ts` stays **entirely
+ *    green** under this mutation. It kills the CALL SITE, leaving the module
+ *    correct and unused — precisely why the mechanism is pinned here and not
+ *    only there.
+ * 2. **Deleting only the `toast.error` + `setSubmitted` refusal arm**, keeping the
+ *    schema parse so the destination is simply dropped: **exactly the 3 tests in
+ *    the refusal block go RED** (6 across both files) and all 10 in-contract
+ *    tests stay green — a narrow, non-overlapping change detector for defect 2 on
+ *    its own. Note what this mutation IS: the original bug, reproduced with the
+ *    stricter guard in place. "The guard is relative-only now" is therefore not
+ *    by itself the fix.
+ * 3. **Replacing the spec's refusal with a local hand-written sentence**: **18 red
+ *    overall** — 14 in `submitRedirect.test.ts` (every one of the 13 refusal
+ *    families, plus the external-alternative case) and the 2 refusal tests in
+ *    each component file, on their `RELATIVE path only` / `#7496` /
+ *    `protocol-relative` assertions. That is the load-bearing probe: the sentence
+ *    on screen is provably the live schema parse's, not a local string.
+ * 4. **Deleting the `encodeURIComponent`**: **10 red** — `escapes an interpolated
+ *    value into one segment` here and in the wizard file, plus 8 in the unit
+ *    file's escape and hostile-value blocks.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

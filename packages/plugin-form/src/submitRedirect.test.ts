@@ -21,11 +21,12 @@
  * so the oracle is turned on the OUTPUT — whatever this module emits, hostile
  * record values and all, must still be a value the contract would accept.
  *
- * ## Reverse verification — predicted, then measured
+ * ## Reverse verification — predicted first, then measured (counts are measured)
  *
- * Deleting the `encodeURIComponent` (interpolating the raw value) turns this file
- * red, and WHICH assertion catches each value is the part worth writing down,
- * because re-parsing the emitted string is necessary and **not sufficient**:
+ * Deleting the `encodeURIComponent` (interpolating the raw value) turns **8 tests
+ * in this file** red (10 counting the two component files), and WHICH assertion
+ * catches each value is the part worth writing down, because re-parsing the
+ * emitted string is necessary and **not sufficient**:
  *
  *   - the schema oracle catches only values whose raw form breaks the ruled shape
  *     ANYWHERE in the string — a backslash, whitespace, a control character.
@@ -42,11 +43,17 @@
  * So the two assertions in that block are not belt-and-braces; they cover
  * disjoint halves of "escaped enough".
  *
- * Deleting the whole parse and returning the url verbatim inverts the refusal
- * suite: every out-of-contract case goes red at once. Deleting the CALL SITES
- * instead (restoring `isSameOriginUrl` in the two components) leaves this entire
- * file GREEN — the module would simply be unused — which is why the consumption
- * is pinned in the two rendered-component files and not here.
+ * Replacing the spec's refusal message with a local hand-written sentence turns
+ * **14 tests here** red — all 13 refusal families plus the external-alternative
+ * case — while every accept case stays green. That is the load-bearing probe for
+ * "the verdict is the contract's": a local re-implementation could reproduce the
+ * ok/refuse BOOLEAN for every value in this table and still fail these, because
+ * what they check is that the prose came from the schema.
+ *
+ * Deleting the CALL SITES instead (restoring `isSameOriginUrl` in the two
+ * components) leaves this entire file GREEN — measured, not assumed: the module
+ * would simply be correct and unused. That is why the consumption is pinned in the
+ * two rendered-component files and not here.
  *
  * Control characters below are written as escape sequences on purpose — a raw one
  * makes the whole file read as binary to grep, and this repo has paid for that

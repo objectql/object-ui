@@ -20,18 +20,24 @@
  * `submitRedirect.mountBlind.test.tsx`. The navigation is still
  * `window.location.assign`, and these tests assert the string it receives.
  *
- * ## Reverse verification — predicted before running, then measured
+ * ## Reverse verification — predicted first, then measured (counts are measured)
  *
- * 1. **Restoring `isSameOriginUrl(behavior.url)` around the old assign**: the
- *    same-origin-absolute test goes RED on the assign (the old guard says yes and
- *    navigates), the protocol-relative test goes RED on the missing refusal (the
- *    old guard says no and does nothing — defect 2's silence), and the
- *    interpolation tests go RED because the old line assigned the authored string
- *    with its braces intact.
- * 2. **Deleting only the refusal arm**, keeping the parse: exactly the two refusal
- *    tests go red, on the visible-refusal assertions.
- * 3. **Deleting the `encodeURIComponent`**: the escaping test goes red here and
- *    the unit file's escape block goes red with it.
+ * See `ObjectForm.submitRedirect.test.tsx` for the full account; the numbers for
+ * this file:
+ *
+ * 1. **Restoring `isSameOriginUrl(behavior.url)` around the old assign**: **6 of
+ *    the 7 tests go RED**, the survivor being `navigates to a ruled relative
+ *    path` — behaviour the old line also had. The same-origin-absolute test fails
+ *    on the assign (the old guard answers yes and navigates — defect 3); the
+ *    protocol-relative test fails on the refusal being absent (defect 2's
+ *    silence); the interpolation tests fail because the old line assigned the
+ *    authored string with its braces intact.
+ * 2. **Deleting only the refusal arm**, keeping the parse: **exactly the 3 tests
+ *    in the refusal block go red**, all 4 in-contract tests stay green.
+ * 3. **Replacing the spec's refusal with a local sentence**: the 2 refusal tests
+ *    asserting the spec's wording go red (18 red overall across the three files).
+ * 4. **Deleting the `encodeURIComponent`**: `escapes an interpolated value into
+ *    one segment` goes red here (10 red overall).
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
