@@ -66,8 +66,11 @@ to opt in:
 <GanttView
   tasks={tasks}
   onTaskUpdate={(task, { start, end }) => {
-    // start/end are JS Date objects already snapped to whole days,
-    // and the resize-left/right cases clamp so end - start >= 1 day.
+    // `changes` is a Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>>:
+    // only the keys the edit actually touched are present. A bar drag/resize
+    // sends start + end, but the progress grip sends just { progress } — so
+    // guard, or a progress drag writes both dates back as undefined.
+    if (!start || !end) return;
     save(task.id, { start, end });
   }}
 />
