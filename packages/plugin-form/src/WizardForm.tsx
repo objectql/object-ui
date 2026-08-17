@@ -247,6 +247,29 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   const [submitted, setSubmitted] = useState<
     { title?: string; message?: string; refusal?: string } | null
   >(null);
+  // The accepted destination of a `submitBehavior: { kind: 'redirect' }` submit
+  // plus the delay declared for it (objectui#5033). Same reasoning as
+  // ObjectForm's copy of this state, and the same reason it is a state and not a
+  // timer armed in the handler: a bare `setTimeout` there was owned by nobody, so
+  // the pending full-page navigation outlived this wizard and yanked back a
+  // submitter who had closed the modal/drawer variant or navigated on. The delay
+  // is captured with the destination so the pause cannot be restarted mid-wait by
+  // a host re-render carrying a different `delayMs`.
+  const [pendingRedirect, setPendingRedirect] = useState<
+    { url: string; delayMs: number } | null
+  >(null);
+
+  // The delayed leg of a `redirect` submit behaviour, owned by this component:
+  // unmounting cancels the wait. `delayMs` semantics are untouched — the pause is
+  // still a pause, an unset value is still a zero timer, i.e. "go now".
+  React.useEffect(() => {
+    if (!pendingRedirect) return;
+    const timer = setTimeout(
+      () => window.location.assign(pendingRedirect.url),
+      pendingRedirect.delayMs,
+    );
+    return () => clearTimeout(timer);
+  }, [pendingRedirect]);
 
   // Stable id for the *inner* step form's <form> element. The wizard's
   // Next/Create buttons live in the footer, OUTSIDE that form, and submit it
@@ -525,7 +548,10 @@ export const WizardForm: React.FC<WizardFormProps> = ({
                 });
                 break;
               }
-              setTimeout(() => window.location.assign(verdict.url), behavior.delayMs ?? 0);
+              // Hand the accepted destination to the effect that owns the wait
+              // (objectui#5033). The verdict flow above is unchanged: this arm
+              // still decides WHETHER to navigate, no longer when.
+              setPendingRedirect({ url: verdict.url, delayMs: behavior.delayMs ?? 0 });
               break;
             }
             case 'continue':

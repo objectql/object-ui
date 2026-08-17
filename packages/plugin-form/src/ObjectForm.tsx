@@ -430,6 +430,42 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
     { title?: string; message?: string; refusal?: string } | null
   >(null);
 
+  // The accepted destination of a `submitBehavior: { kind: 'redirect' }` submit,
+  // together with the delay declared for it, held from the moment the write
+  // succeeds until the wait below elapses (objectui#5033).
+  //
+  // The wait used to be a bare `setTimeout` armed inside the submit handler:
+  // nothing stored the handle and nothing cleared it, so for the whole of
+  // `delayMs` a full-page navigation was pending that OUTLIVED this component. A
+  // submitter who dismissed the modal/drawer variant, followed an in-app link, or
+  // whose host re-keyed the subtree was pulled away from wherever they had gone.
+  // Recording the destination here hands the wait to the effect below, which owns
+  // it for exactly as long as this component is mounted.
+  //
+  // The delay travels WITH the destination rather than being re-read from
+  // `schema.submitBehavior` at wait time: the value honoured is the one declared
+  // when the write was accepted, so a host re-rendering with a different
+  // `delayMs` mid-wait cannot restart the pause under the submitter.
+  const [pendingRedirect, setPendingRedirect] = useState<
+    { url: string; delayMs: number } | null
+  >(null);
+
+  // The delayed leg of a `redirect` submit behaviour.
+  //
+  // `delayMs` semantics are unchanged: the pause is what makes the confirmation
+  // readable, and an unset value still means "go now" (a zero timer, exactly as
+  // the in-handler version scheduled it). The one thing that changed is who owns
+  // the wait — unmounting cancels it instead of leaving it to fire into a page
+  // the submitter has left.
+  useEffect(() => {
+    if (!pendingRedirect) return;
+    const timer = setTimeout(
+      () => window.location.assign(pendingRedirect.url),
+      pendingRedirect.delayMs,
+    );
+    return () => clearTimeout(timer);
+  }, [pendingRedirect]);
+
   // OCC-guarded edit save + its conflict dialog (see occSave.tsx).
   const { saveWithOcc, conflictDialog } = useOccSave();
 
@@ -843,7 +879,11 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
               });
               break;
             }
-            setTimeout(() => window.location.assign(verdict.url), behavior.delayMs ?? 0);
+            // Record the destination; the effect that owns the wait takes it
+            // from here (objectui#5033). Nothing about the verdict flow above
+            // changes — this arm still decides WHETHER to navigate, only no
+            // longer WHEN, because a timer armed here answered to nobody.
+            setPendingRedirect({ url: verdict.url, delayMs: behavior.delayMs ?? 0 });
             break;
           }
           case 'continue':
