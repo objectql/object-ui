@@ -123,6 +123,15 @@ bypasses this whitelist.
 match subdomains; the apex itself must be listed explicitly. Dangerous
 schemes (`javascript:`, `data:`) are always rejected.
 
+The thank-you panel follows that verdict rather than the declaration: the
+`Redirecting in N seconds…` line appears only for a destination that was
+**accepted**, and reads its countdown from the delay that destination was
+accepted with. When the destination is refused the line is omitted, and
+`texts.redirectBlocked` — if you declared it — is shown in the panel instead;
+leave it undeclared and the panel stays silent. Either way the refusal is
+logged with `console.warn`, which is where to look if a redirect you expected
+never happens.
+
 ### GDPR consent
 
 ```tsx
