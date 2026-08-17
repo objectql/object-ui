@@ -59,36 +59,51 @@
  * did, which is why upstream retired the key at all). The carve-out is a named,
  * issue-backed, self-clearing list rather than a silent pass — see
  * `RENDERER_OWN_DECLARED`.
+ *
+ * THE JUDGE IS SHARED NOW — objectui#3809, and this file's own note asked for it
+ * ("the criterion here is deliberately the same one objectui#3809 converges on
+ * repo-wide; when that lands, this local helper is what it replaces"). The local
+ * `z.never()` probe is gone, replaced by `@object-ui/test-support`'s. Three
+ * things change with it, none of them a loosening:
+ *
+ *   - the same criterion now serves the repo-wide parity gate
+ *     (`apps/console/src/__tests__/registry-inputs-spec-parity.test.ts`), where
+ *     its absence was a live FALSE GREEN in one direction and a FALSE RED in the
+ *     other. This file had the fix and could not lend it — that is what a copied
+ *     judgement costs;
+ *   - recognition gained a second channel (the `[REMOVED]` marker `retiredKey()`
+ *     stamps on the description), OR-ed with the structural one, so a Zod
+ *     internals rework can no longer silently turn the probe permissive;
+ *   - the probe is calibrated once, centrally, against what the contract's own
+ *     `safeParse` actually rejects — `packages/test-support/src/__tests__/
+ *     spec-tombstones.test.ts`. The local non-vacuity test below is KEPT anyway:
+ *     it pins this file's own subject (`icon` retired, `title` live), which no
+ *     amount of central calibration can state.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
 import { PageHeaderProps as SpecPageHeaderProps } from '@objectstack/spec/ui';
+import {
+  authorableShapeKeys,
+  isShapeKeyTombstoned,
+  listedShapeKeys,
+  shapeMemberTypeName,
+} from '@object-ui/test-support';
 
 import { registerLayout, PageHeader } from '../index';
 
 /** Every key `PageHeaderProps` still LISTS — ADR-0087 tombstones included. */
-const specDeclaredKeys = new Set(Object.keys(SpecPageHeaderProps.shape));
+const specDeclaredKeys = new Set(listedShapeKeys(SpecPageHeaderProps));
+
+/** One `.shape` member's type, unwrapped past `.optional()`. */
+const shapeMemberType = (key: string): string | undefined =>
+  shapeMemberTypeName(SpecPageHeaderProps, key);
 
 /**
- * One `.shape` member's type, unwrapped past `.optional()`.
- *
- * Walking Zod internals is the only way to ask this question, so the probe is
- * guarded by its own non-vacuity test below rather than trusted.
- */
-const shapeMemberType = (key: string): string | undefined => {
-  const shape = SpecPageHeaderProps.shape as unknown as Record<string, unknown>;
-  const member = shape[key] as { unwrap?: () => unknown } | undefined;
-  const inner = (typeof member?.unwrap === 'function' ? member.unwrap() : member) as
-    | { _def?: { type?: string }; def?: { type?: string } }
-    | undefined;
-  return inner?._def?.type ?? inner?.def?.type;
-};
-
-/**
- * Is this key an ADR-0087 D2 tombstone — still listed, but typed `never` so the
- * contract rejects every value by name with a migration message?
+ * Is this key an ADR-0087 D2 tombstone — still listed, but rejected by name with
+ * a migration message?
  *
  * The distinction is the whole reason this file changed in objectui#3829. A D2
  * retirement does NOT delete the key from the shape; it REPLACES the member with
@@ -96,14 +111,12 @@ const shapeMemberType = (key: string): string | undefined => {
  * the spec refuses — and every assertion below that derived its truth from raw
  * `Object.keys` was therefore FALSE GREEN for `icon` from the moment
  * @objectstack/spec 17.0.0 retired `PageHeaderProps.icon` (objectstack#6946 /
- * PR objectstack#7115). The criterion here is deliberately the same one
- * objectui#3809 converges on repo-wide; when that lands, this local helper is
- * what it replaces.
+ * PR objectstack#7115).
  */
-const isTombstoned = (key: string): boolean => shapeMemberType(key) === 'never';
+const isTombstoned = (key: string): boolean => isShapeKeyTombstoned(SpecPageHeaderProps, key);
 
 /** Authorable keys of the spec node this renderer serves — tombstones excluded. */
-const specKeys = new Set([...specDeclaredKeys].filter((key) => !isTombstoned(key)));
+const specKeys = new Set(authorableShapeKeys(SpecPageHeaderProps));
 
 /**
  * Keys this ALIAS declares on a renderer-read fact the spec no longer carries.
@@ -176,6 +189,12 @@ describe('the `page-header` registration declares the spec key, not a dialect', 
     expect(shapeMemberType('title')).toBeTruthy();
     expect(isTombstoned('title')).toBe(false);
     expect(isTombstoned('icon')).toBe(true);
+    // THE PREMISE, stated locally (objectui#3809): a D2 retirement KEEPS the
+    // member. Everything above narrows a set that only needs narrowing while
+    // that is true — if upstream ever retires by deleting the key, `icon` drops
+    // out of the listed set, this line reds, and the right response is to remove
+    // the narrowing rather than to keep filtering nothing.
+    expect(specDeclaredKeys.has('icon')).toBe(true);
     // …and the narrowing is not a no-op, which is the third way this could rot.
     expect(specKeys.size).toBeLessThan(specDeclaredKeys.size);
   });

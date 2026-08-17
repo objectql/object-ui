@@ -46,6 +46,25 @@ code imports — nothing in `src/` of a released package may import this.
   `packages/app-shell/src/__tests__/widget-dom-leak-sweep.test.tsx`.
 - `src/__tests__/dom-leak-judge.test.tsx` — the calibration fixtures that prove
   the judge, once, for both gates.
+- `src/spec-tombstones.ts` — the ADR-0087 D2 tombstone judge:
+  `authorableShapeKeys`, `listedShapeKeys`, `tombstonedShapeKeys`,
+  `isShapeKeyTombstoned`, `tombstoneEvidence`, `shapeMemberTypeName`,
+  `resolvePropsShape`. Answers "does `@objectstack/spec` still ACCEPT this key,
+  or does it list a tombstone that rejects it by name?" — the question raw
+  `Object.keys(schema.shape)` cannot answer, because a retired key stays in the
+  shape (objectui#3809). Consumed by
+  `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts` (both parity
+  directions) and `packages/layout/src/__tests__/page-header-authorable-keys.test.tsx`.
+  Two more local copies of the same judgement still exist, in
+  `packages/plugin-detail/src/__tests__/recordDetailsInputs.spec-parity.test.ts`
+  and `packages/app-shell/src/views/metadata-admin/previews/__tests__/block-config.test.ts`
+  — both correct today, both structural-channel-only, and both tracked for
+  conversion by objectui#4947. New gates import this module; they do not add a
+  fifth copy.
+- `src/__tests__/spec-tombstones.test.ts` — the calibration for that judge: one
+  synthetic fixture per recognition channel (so neither can quietly stop
+  working), plus a cross-check of the structural verdict against what the
+  installed contract's own `safeParse` actually rejects.
 
 ## Conventions
 
