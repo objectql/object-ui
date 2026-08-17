@@ -468,13 +468,23 @@ function isRealClockTime(hours: string, minutes: string, seconds?: string): bool
  *
  *   - **number** — `Number()` over the trimmed string, kept only if finite.
  *     `"42"` → `42`; `"42abc"`, `"1,000"` and `"acme"` convert to nothing and
- *     the caller clears them. Deliberately stricter than the `parseFloat(x) ||
- *     0` this file's token input and range inputs use when the USER types into
- *     an `<input type="number">`: there the browser has already refused
- *     everything non-numeric, so leniency is unreachable; here the string
- *     arrives from a column that had no such input, and `parseFloat` would turn
- *     `"acme"` into `0` — a filter the user never wrote, which is precisely
- *     what objectui#4781 ruled against.
+ *     the caller clears them. `parseFloat` is what this refuses to be: it reads
+ *     `"42abc"` as `42` and `"acme"` as `NaN`, and the `|| 0` that used to
+ *     follow it buried both as `0` — a filter the user never wrote, which is
+ *     precisely what objectui#4781 ruled against.
+ *
+ *     Since objectui#4875 the three KEYED paths in this file read through here
+ *     too — `MultiValueInput`'s `commit`, the range's `setBound`, and the
+ *     single input's `handleValueChange` — so the file holds ONE answer to "is
+ *     this string a number" instead of a strict one for field switches beside a
+ *     lenient one for typing. What each does with an unreadable string is still
+ *     its own question, and they answer it differently on purpose (clear, clear,
+ *     decline-and-keep-the-draft); what none of them may do is invent a number.
+ *     That convergence is drift insurance rather than a live repair: all three
+ *     sit behind `<input type="number">`, which hands back `""` for anything
+ *     non-numeric, so the lenient branch was unreachable while it existed. The
+ *     day one of them becomes a text box — formulas, variables, a paste path —
+ *     the strict reading is already the one in force.
  *   - **boolean** — only the two words the row can round-trip back out of a
  *     boolean column (`"true"` / `"false"`, trimmed, case-insensitively).
  *     `1` / `0` / `"yes"` are conventions, not readings, so they clear.
@@ -730,10 +740,55 @@ export function operatorsForFieldType(
   )
 }
 
+/**
+ * Does this row have NO value — the ONE reading of "empty" this component makes
+ * (objectui#4873).
+ *
+ * There are exactly three ways a row is unfilled: the seed `addCondition`
+ * writes (`""`), a key an external `FilterGroup` never set (`undefined` /
+ * `null`), and the empty shape `retypeFilterValue` clears to (`""`).
+ * EVERYTHING else is a value the user chose — including the two falsy ones,
+ * `false` and `0`.
+ *
+ * Spelled out rather than left to `!value`, and that is not a style preference:
+ * `!value` answers a different question, and answering it here was the defect.
+ * A boolean row filtered `equals false` showed the "Select value" placeholder
+ * and a number row filtered `equals 0` showed an empty box, while both rows
+ * went on carrying that value, persisting it through
+ * `foldFilterGroupToSpecRules` and filtering by it in the live grid. Typing `0`
+ * into a number column looked like the keystroke had not landed at all. The
+ * same invisible-value shape objectui#4768 closed on the operator and
+ * objectui#4781 on the value's type, this time on the value itself.
+ *
+ * `normalizeToArray` and `LookupValuePicker`'s `selectedIds` each used to spell
+ * this out for themselves — correctly, as it happens; it was the DISPLAY path
+ * that took the short spelling. One definition the three of them read is how
+ * they stay agreed.
+ */
+function isValueUnset(
+  value: FilterBuilderCondition["value"] | undefined | null,
+): boolean {
+  return value === undefined || value === null || value === ""
+}
+
+/**
+ * The string a value CONTROL shows for a row's current value — `""` if and only
+ * if {@link isValueUnset} says the row has none (objectui#4873).
+ *
+ * `""` is precisely what makes a `<Select>` fall back to its placeholder and an
+ * `<input>` render blank, so this is the only place allowed to produce it. A
+ * value that IS there is stringified as it stands: `false` → `"false"`, which
+ * is the boolean Select's own item value so the trigger reads "False"; `0` →
+ * `"0"`, which a number input shows as `0`.
+ */
+function displayScalarValue(value: FilterBuilderCondition["value"]): string {
+  return isValueUnset(value) ? "" : String(value)
+}
+
 /** Normalize a filter value into an array for multi-select scenarios */
 function normalizeToArray(value: FilterBuilderCondition["value"]): (string | number | boolean)[] {
   if (Array.isArray(value)) return value
-  if (value !== undefined && value !== null && value !== "") return [value as string | number | boolean]
+  if (!isValueUnset(value)) return [value as string | number | boolean]
   return []
 }
 
@@ -995,7 +1050,14 @@ function FilterBuilder({
       const numeric = numberLikeTypes.includes(field?.type || "")
       const setBound = (index: 0 | 1, raw: string) => {
         const next: [string | number | boolean, string | number | boolean] = [bounds[0], bounds[1]]
-        next[index] = numeric && raw !== "" ? parseFloat(raw) || 0 : raw
+        // The same one reading as the field-switch path (objectui#4875), in
+        // place of `parseFloat(raw) || 0`: a bound is a clean number or it is
+        // not filled in (`""`). A half-read bound (`"42abc"` → 42) or an
+        // invented `0` is worse here than anywhere else in this file — it
+        // silently narrows a RANGE, and `0` is a plausible-looking bound.
+        // `convertScalarToFamily("", "number")` is `""`, so the old
+        // `raw !== ""` guard is subsumed rather than dropped.
+        next[index] = numeric ? (convertScalarToFamily(raw, "number") ?? "") : raw
         // Both bounds cleared → back to the "nothing filled in yet" shape the
         // write path drops, rather than persisting an empty range.
         updateCondition(condition.id, {
@@ -1009,7 +1071,7 @@ function FilterBuilder({
             className="h-9 text-sm"
             placeholder={t('filterBuilder.rangeStart')}
             aria-label={t('filterBuilder.rangeStart')}
-            value={bounds[0] === "" ? "" : String(bounds[0])}
+            value={displayScalarValue(bounds[0])}
             onChange={(e) => setBound(0, e.target.value)}
           />
           <span className="text-xs text-muted-foreground shrink-0">-</span>
@@ -1018,7 +1080,7 @@ function FilterBuilder({
             className="h-9 text-sm"
             placeholder={t('filterBuilder.rangeEnd')}
             aria-label={t('filterBuilder.rangeEnd')}
-            value={bounds[1] === "" ? "" : String(bounds[1])}
+            value={displayScalarValue(bounds[1])}
             onChange={(e) => setBound(1, e.target.value)}
           />
         </div>
@@ -1029,7 +1091,12 @@ function FilterBuilder({
     if (field?.options && (selectLikeTypes.includes(field.type || "") || lookupLikeTypes.includes(field.type || ""))) {
       return (
         <Select
-          value={String(condition.value || "")}
+          // `displayScalarValue`, never `value || ""` (objectui#4873): an
+          // option whose id is `0` — a status code, a level — is a real
+          // selection, and `0 || ""` handed the trigger the same `""` an
+          // unfilled row gives it, so the row filtered by an option the
+          // placeholder said was not picked.
+          value={displayScalarValue(condition.value)}
           onValueChange={(value) =>
             updateCondition(condition.id, { value })
           }
@@ -1052,7 +1119,15 @@ function FilterBuilder({
     if (field?.type === "boolean") {
       return (
         <Select
-          value={String(condition.value || "")}
+          // The reported repro (objectui#4873). `String(false || "")` is `""`,
+          // so picking **False** bounced the trigger straight back to the
+          // "Select value" placeholder while the row saved, persisted and
+          // filtered by `value: false`. `displayScalarValue` gives `"false"` —
+          // this Select's own item value — so "not picked yet" (`""`, the
+          // placeholder) and "picked False" stay two distinguishable states,
+          // which is the part a shorter rewrite would have moved rather than
+          // fixed.
+          value={displayScalarValue(condition.value)}
           onValueChange={(value) =>
             updateCondition(condition.id, { value: value === "true" })
           }
@@ -1073,24 +1148,35 @@ function FilterBuilder({
     
     // Format value based on field type
     const formatValue = () => {
-      if (!condition.value) return ""
+      // `isValueUnset`, never `!condition.value` (objectui#4873): `0` is a
+      // number the user typed, not an empty box. Under the old guard, typing
+      // `0` into a number column wrote `value: 0` and the very next render
+      // blanked the input — the keystroke looked like it had never landed,
+      // while the row filtered `amount equals 0` for good.
+      if (isValueUnset(condition.value)) return ""
       if (inputType === "date" && typeof condition.value === "string") {
         // Ensure date is in YYYY-MM-DD format
         return condition.value.split('T')[0]
       }
-      return String(condition.value)
+      return displayScalarValue(condition.value)
     }
-    
+
     // Handle value change with proper type conversion
     const handleValueChange = (newValue: string) => {
       let convertedValue: string | number | boolean = newValue
-      
-      if (numberLikeTypes.includes(field?.type || "") && newValue !== "") {
-        convertedValue = parseFloat(newValue) || 0
+
+      if (numberLikeTypes.includes(field?.type || "")) {
+        // ONE reading of "is this string a number", shared with the field-switch
+        // path (objectui#4875). `parseFloat(newValue) || 0` read `"42abc"` as
+        // 42 and `"acme"` as `NaN`, then buried both as `0` — a filter the user
+        // never wrote. Unreadable now means UNFILLED (`""`), the same empty
+        // shape a fresh row starts in; `""` in also gives `""` out, so the old
+        // `newValue !== ""` guard is subsumed rather than dropped.
+        convertedValue = convertScalarToFamily(newValue, "number") ?? ""
       } else if (dateLikeTypes.includes(field?.type || "")) {
         convertedValue = newValue // Keep as ISO string
       }
-      
+
       updateCondition(condition.id, { value: convertedValue })
     }
     
@@ -1252,7 +1338,17 @@ function MultiValueInput({ values, inputType, numeric, testId, onChange }: Multi
   const commit = (raw: string) => {
     const trimmed = raw.trim()
     if (trimmed === "") return
-    const next = numeric ? (parseFloat(trimmed) || 0) : trimmed
+    // The same one reading as the field-switch path (objectui#4875), in place
+    // of `parseFloat(trimmed) || 0` — which committed `"42abc"` as the token 42
+    // and `"acme"` as the token 0, both values the user never typed and both
+    // indistinguishable, once committed, from a token they did.
+    const next = numeric ? convertScalarToFamily(trimmed, "number") : trimmed
+    // Unreadable → NOT committed, and the draft is deliberately left standing:
+    // this is the one of the three keyed paths where clearing to "unfilled"
+    // would destroy the text instead of just declining it. The user sees what
+    // they typed, still in the box, and can fix it. (`""` cannot arrive here —
+    // an empty draft returned above — so the check is only about `undefined`.)
+    if (next === undefined || next === "") return
     setDraft("")
     if (values.some((v) => String(v) === String(next))) return
     onChange([...values, next])
@@ -1361,7 +1457,7 @@ function LookupValuePicker({ field, value, multiple, onChange }: LookupValuePick
     if (multiple) {
       return normalizeToArray(value).map((v) => String(v))
     }
-    if (value === undefined || value === null || value === "") return []
+    if (isValueUnset(value)) return []
     return [String(value)]
   }, [value, multiple])
 
@@ -1472,6 +1568,12 @@ function LookupValuePicker({ field, value, multiple, onChange }: LookupValuePick
     onChange(multiple ? [] : "")
   }
 
+  // The `||` fallbacks below are the OTHER answer objectui#4873's sweep found,
+  // and they are kept: `resolved[id]` is a LABEL, and the two falsy strings it
+  // can be — `undefined` (not fetched yet) and `""` (a record whose display
+  // field is blank) — both mean "no label to show", for which the id is the
+  // better chip than an empty one. Emptiness really is unset here, unlike the
+  // value controls above where `false` and `0` are the user's own answer.
   const renderTrigger = () => {
     if (selectedIds.length === 0) {
       return (
