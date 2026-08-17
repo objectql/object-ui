@@ -140,8 +140,8 @@ import { fileURLToPath } from 'node:url';
  * `packages/plugin-<name>` manifests declared `vite` `^8.2.1`, and the 16 that declare
  * `typescript` all said `^6.0.3`. An anchor that unanimous is not a judgement call.
  *
- * Hence `describe('the plugin-skeleton assertion')` below, and the `skeletonDep` field: the
- * two entries are now `anchored`, each naming the dependency whose range is READ off the
+ * Hence `describe('the plugin-skeleton assertion')` below, and the `skeletonDep` field: those
+ * entries are `anchored`, each naming the dependency whose range is READ off the
  * skeleton line and compared against the in-repo plugin manifests. The next toolchain bump
  * turns this file red naming that page, which is the half of #3855 that outlives the two
  * values it corrected — the values alone would re-fossilise on the next bump, and had
@@ -154,6 +154,40 @@ import { fileURLToPath } from 'node:url';
  * may legitimately widen or narrow it; a devDependency range says what gets INSTALLED to
  * build this thing here. objectui#3827's anchor table drew that line first and excluded
  * peer ranges from its anchor sources for the same reason.
+ *
+ * ## What objectui#4961 added: a third anchored line, and the limit of what this judges
+ *
+ * #4961 is the same page and the same block, arriving from the opposite direction: not a
+ * range that had drifted, but a dependency the block never declared AT ALL. Step 5 of the
+ * numbered tutorial writes `vite.config.ts` with `import react from '@vitejs/plugin-react'`
+ * and calls `react()` in `plugins`; step 6's `devDependencies` listed the three
+ * `workspace:*` deps, `typescript` and `vite`, and nothing else. That page-wide import was
+ * the only mention of the package on the page. A reader following 1 through 6 therefore hit
+ * their first `pnpm build` with a config importing something they were never told to
+ * install — the same defect the closed objectui#3716 and #3742 fixed on the
+ * `create-plugin` generator side, on a hand-written page nobody walked at the same time.
+ *
+ * It cost one doc line and one inventory entry, which is what #3855's second half was for:
+ * the derived floor in the unanimity test picks up a third `skeletonDep` without a new
+ * mechanism, and it is now three names rather than two. The entry itself is also the worked
+ * example of why `skeletonDep` is a written-out name and not something derived from the
+ * inventory key: the key the scan produces for that line is `react": "^6.0.5`, because
+ * `React` is a `TOOLCHAIN` word and the `-` in `@vitejs/plugin-react` is a word boundary,
+ * so the recorded literal is the TAIL of the package name and names a different package
+ * than the line declares. `parseManifestLine` reads the whole line, so the comparison is
+ * against `@vitejs/plugin-react` regardless.
+ *
+ * And the boundary, stated because this assertion invites exactly one wrong inference: it
+ * judges the RANGE of a dependency the page ALREADY NAMES. It does not, and must not, be
+ * read as "the skeleton should declare whatever the plugin manifests declare". All 19
+ * in-repo plugin manifests carry `vite-plugin-dts`; the skeleton has no such line and needs
+ * none, because its build script is `vite build && tsc --emitDeclarationOnly` and the
+ * declarations come from the compiler. Both spellings are internally consistent, so
+ * completing the skeleton from the manifest list would add a dependency nothing on the page
+ * uses. What made the plugin-react line belong was not its presence in the manifests but
+ * its use in step 5 — the page contradicted ITSELF, and the manifests only supplied the
+ * range once the line had to exist. The unanimity of an anchor decides which range to
+ * teach, never which dependencies a doc ought to have.
  *
  * ## The census that set the design (measured on d46b40324, the merge of PR #3698)
  *
@@ -563,6 +597,18 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     claim: 'react": "^18.0.0',
     kind: 'sample',
     why: 'A peerDependencies range in the plugin skeleton: what the copied plugin ACCEPTS from its host, which its author owns and may legitimately widen or narrow. Stays a sample while the two devDependency ranges in the same block became anchored in objectui#3855 - installed-here versus accepted-from-the-host is the distinction, not which fence the line sits in.',
+  },
+  {
+    file: 'content/docs/guide/plugins.md',
+    // Reads as a `react` claim and is not one: the scan matches the TAIL of the scoped
+    // package name (`@vitejs/plugin-react`), because `React` is a TOOLCHAIN word and the
+    // `-` before it is a word boundary. The dep this entry is anchored on is the one
+    // `skeletonDep` names, which the assertion parses off the WHOLE line — this entry is
+    // the worked example of why that field is written out rather than derived from the key.
+    claim: 'react": "^6.0.5',
+    kind: 'anchored',
+    skeletonDep: '@vitejs/plugin-react',
+    why: 'The third devDependency of the same in-workspace skeleton, added in objectui#4961 - and added because it was MISSING, not because its range had drifted: step 5 of the same numbered tutorial imports @vitejs/plugin-react in vite.config.ts and calls react() in plugins, while step 6 never declared it, so a reader following 1-6 failed on their first pnpm build with an import of a package they were never told to install. Same shape as the closed objectui#3716 and #3742, which fixed it on the create-plugin generator side while this hand-written page was never walked. Anchored on the same unanimous evidence as its two neighbours: all 19 packages/plugin-<name> manifests declare ^6.0.5.',
   },
   {
     file: 'content/docs/guide/plugins.md',
@@ -1541,28 +1587,30 @@ describe('doc version claims - the plugin-skeleton assertion', () => {
 
     expect(
       skeletonChecks.length,
-      'no inventory entry carries skeletonDep - the two plugin-guide entries lost the field ' +
+      'no inventory entry carries skeletonDep - the three plugin-guide entries lost the field ' +
         'and are back to being recorded rather than checked',
-    ).toBeGreaterThanOrEqual(2);
+    ).toBeGreaterThanOrEqual(3);
 
     expect(
       skeletonChecks.reduce((n, check) => n + check.stated.length, 0),
       'the skeleton assertion compared implausibly few lines - the manifest-line parser or ' +
         'the claim resolution collapsed, and it is now green over nothing',
-    ).toBeGreaterThanOrEqual(2);
+    ).toBeGreaterThanOrEqual(3);
   });
 
   it('resolves the anchor unanimously, and would notice if it stopped being unanimous', () => {
     // The premise the assertion rests on, asserted rather than assumed: it is only fair to
     // pin a doc to "the" range if there is one. Measured at the #3855 cut - 19 plugin
-    // manifests declaring vite ^8.2.1, 16 of them typescript ^6.0.3.
+    // manifests declaring vite ^8.2.1, 16 of them typescript ^6.0.3; re-measured at the
+    // #4961 cut, which added the third name below - 19 of 19 on @vitejs/plugin-react ^6.0.5.
     //
     // Derived from the inventory rather than hardcoded, so a THIRD skeletonDep added later
-    // is covered by this premise too instead of resting on the assertion alone. The two
-    // names below are then a floor on that derivation: read from skeletonChecks and it
-    // could quietly become an empty loop, so the deps #3855 measured must still be in it.
+    // is covered by this premise too instead of resting on the assertion alone. #4961 was
+    // that third one and needed no change here beyond joining the list. The names below are
+    // then a floor on that derivation: read from skeletonChecks and it could quietly become
+    // an empty loop, so every dep measured so far must still be in it.
     const anchoredDeps = [...new Set(skeletonChecks.map((check) => check.dep))];
-    for (const measured of ['vite', 'typescript']) {
+    for (const measured of ['vite', 'typescript', '@vitejs/plugin-react']) {
       expect(
         anchoredDeps,
         `${measured} lost its skeletonDep entry - either the plugin guide stopped naming it ` +
