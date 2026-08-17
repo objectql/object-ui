@@ -228,18 +228,30 @@ body:
 
 ### File-system routing
 
-If the project contains a `pages/` directory, `dev` and `build` automatically
-switch to file-system routing — every `.json`/`.yaml` file under `pages/` becomes
-a route based on its path.
+If the project contains a `pages/` directory, `dev`, `serve` and `build`
+automatically switch to file-system routing — every `.json`/`.yaml` file under
+`pages/` becomes a route based on its path.
 
 ```
 my-app/
+├── app.json                → app config (title, layout)
 ├── pages/
 │   ├── index.json          → /
 │   ├── about.json          → /about
 │   └── users/
 │       └── [id].json       → /users/:id
 ```
+
+**Which directory is "the project"** is decided by the schema argument, so the
+three commands answer one invocation the same way from anywhere:
+
+1. The directory the schema argument points into — `objectui build my-app/app.json`
+   run from above `my-app/` routes from `my-app/pages/`, with `my-app/app.json`
+   as the app config.
+2. Otherwise the current working directory — `cd my-app && objectui dev` routes
+   from `./pages/`, with `./app.json` as the app config when present.
+3. Otherwise the named file is rendered on its own (single-schema mode), which
+   is what a lone `.json`/`.yaml` schema with no `pages/` beside it does.
 
 ## Programmatic API
 

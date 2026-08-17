@@ -8,11 +8,12 @@
 
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
-import { existsSync, mkdirSync, statSync } from 'fs';
-import { join, resolve, dirname } from 'path';
+import { mkdirSync } from 'fs';
+import { join } from 'path';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
-import { scanPagesDirectory, createTempAppWithRouting, createTempApp, parseSchemaFile, type RouteInfo } from '../utils/app-generator.js';
+import { createTempAppWithRouting, createTempApp } from '../utils/app-generator.js';
+import { reportProjectSource, resolveProjectSource } from '../utils/project-source.js';
 import { isWorkspaceRoot, prepareWorkspaceTempApp } from '../utils/workspace-vite.js';
 
 interface DevOptions {
@@ -23,103 +24,22 @@ interface DevOptions {
 
 export async function dev(schemaPath: string, options: DevOptions) {
   const cwd = process.cwd();
-  
-  // Resolve the actual project root and schema file
-  let _projectRoot = cwd;
-  const targetSchemaPath = schemaPath;
-  let hasPagesDir = false;
-  let pagesDir = '';
-  let appConfig: unknown = null;
 
-  // 1. Determine Project Root & Mode
-  const absoluteSchemaPath = resolve(cwd, schemaPath);
-  
-  if (existsSync(absoluteSchemaPath) && statSync(absoluteSchemaPath).isFile()) {
-    // If input is a file (e.g. examples/showcase/app.json)
-    const fileDir = dirname(absoluteSchemaPath);
-    const potentialPagesDir = join(fileDir, 'pages');
-
-    if (existsSync(potentialPagesDir)) {
-      console.log(chalk.blue(`📂 Detected project structure at ${fileDir}`));
-      _projectRoot = fileDir;
-      hasPagesDir = true;
-      pagesDir = potentialPagesDir;
-      
-      // Try to load app.json as config
-      try {
-        appConfig = parseSchemaFile(absoluteSchemaPath);
-        console.log(chalk.blue('⚙️  Loaded App Config from app.json'));
-      } catch (_e) {
-        console.warn('Failed to parse app config');
-      }
-    }
-  } 
-  
-  // Fallback: Check detect pages dir in current cwd if not found above
-  if (!hasPagesDir) {
-     const localPagesDir = join(cwd, 'pages');
-     if (existsSync(localPagesDir)) {
-        hasPagesDir = true;
-        pagesDir = localPagesDir;
-        // Try to find and load app.json in cwd
-        const appJsonPath = join(cwd, 'app.json');
-        if (existsSync(appJsonPath)) {
-          try {
-            appConfig = parseSchemaFile(appJsonPath);
-            console.log(chalk.blue('⚙️  Loaded App Config from app.json'));
-          } catch (_e) {
-            console.warn('Failed to parse app.json config');
-          }
-        }
-     }
-  }
-
-  let routes: RouteInfo[] = [];
-  let schema: unknown = null;
-  let useFileSystemRouting = false;
-
-  if (hasPagesDir) {
-    // File-system based routing
-    console.log(chalk.blue(`📁 Using file-system routing from ${pagesDir}`));
-    routes = scanPagesDirectory(pagesDir);
-    useFileSystemRouting = true;
-    
-    if (routes.length === 0) {
-      throw new Error(`No schema files found in ${pagesDir}`);
-    }
-    
-    console.log(chalk.green(`✓ Found ${routes.length} route(s)`));
-    routes.forEach(route => {
-      console.log(chalk.dim(`  ${route.path} → ${route.filePath.replace(cwd, '.')}`));
-    });
-  } else {
-    // Single schema file mode
-    const fullSchemaPath = resolve(cwd, schemaPath);
-    // ... (rest of the logic)
-    if (!existsSync(fullSchemaPath)) {
-      throw new Error(`Schema file not found: ${schemaPath}\nRun 'objectui init' to create a sample schema.`);
-    }
-    console.log(chalk.blue('📋 Loading schema:'), chalk.cyan(schemaPath));
-    try {
-      schema = parseSchemaFile(fullSchemaPath);
-    } catch (error) {
-      // The caught error's message is inlined below. We can't pass it as the
-      // `Error` `cause` option because this package targets ES2020, whose lib
-      // types the 1-arg `Error` constructor only; hence the scoped disable.
-      // eslint-disable-next-line preserve-caught-error
-      throw new Error(`Invalid schema file: ${error instanceof Error ? error.message : error}`);
-    }
-  }
+  // What this invocation names — the project root, the routes, the app config —
+  // resolved by the helper all three commands share, so `dev`, `serve` and
+  // `build` cannot answer the same invocation differently (objectui#4923).
+  const source = resolveProjectSource(cwd, schemaPath);
+  reportProjectSource(source, cwd);
 
   // Create temporary app directory (always in cwd to keep node_modules access)
   const tmpDir = join(cwd, '.objectui-tmp');
   mkdirSync(tmpDir, { recursive: true });
 
   // Create temporary app files
-  if (useFileSystemRouting) {
-    createTempAppWithRouting(tmpDir, routes, appConfig);
+  if (source.mode === 'routes') {
+    createTempAppWithRouting(tmpDir, source.routes, source.appConfig);
   } else {
-    createTempApp(tmpDir, schema);
+    createTempApp(tmpDir, source.schema);
   }
 
 

@@ -12,7 +12,8 @@ import { existsSync, mkdirSync, cpSync, rmSync } from 'fs';
 import { join, resolve } from 'path';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
-import { scanPagesDirectory, createTempAppWithRouting, createTempApp, parseSchemaFile, type RouteInfo } from '../utils/app-generator.js';
+import { createTempAppWithRouting, createTempApp } from '../utils/app-generator.js';
+import { reportProjectSource, resolveProjectSource } from '../utils/project-source.js';
 import { isWorkspaceRoot, prepareWorkspaceTempApp } from '../utils/workspace-vite.js';
 
 interface BuildOptions {
@@ -28,57 +29,23 @@ export async function buildApp(schemaPath: string, options: BuildOptions) {
   console.log(chalk.blue('🔨 Building application for production...'));
   console.log();
   
-  // Check if pages directory exists for file-system routing
-  const pagesDir = join(cwd, 'pages');
-  const hasPagesDir = existsSync(pagesDir);
-  
-  let routes: RouteInfo[] = [];
-  let schema: unknown = null;
-  let useFileSystemRouting = false;
-
-  if (hasPagesDir) {
-    // File-system based routing
-    console.log(chalk.blue('📁 Using file-system routing'));
-    routes = scanPagesDirectory(pagesDir);
-    useFileSystemRouting = true;
-    
-    if (routes.length === 0) {
-      throw new Error('No schema files found in pages/ directory');
-    }
-    
-    console.log(chalk.green(`✓ Found ${routes.length} route(s)`));
-  } else {
-    // Single schema file mode
-    const fullSchemaPath = resolve(cwd, schemaPath);
-
-    // Check if schema file exists
-    if (!existsSync(fullSchemaPath)) {
-      throw new Error(`Schema file not found: ${schemaPath}\nRun 'objectui init' to create a sample schema.`);
-    }
-
-    console.log(chalk.blue('📋 Loading schema:'), chalk.cyan(schemaPath));
-
-    // Read and validate schema
-    try {
-      schema = parseSchemaFile(fullSchemaPath);
-    } catch (error) {
-      // The caught error's message is inlined below. We can't pass it as the
-      // `Error` `cause` option because this package targets ES2020, whose lib
-      // types the 1-arg `Error` constructor only; hence the scoped disable.
-      // eslint-disable-next-line preserve-caught-error
-      throw new Error(`Invalid schema file: ${error instanceof Error ? error.message : error}`);
-    }
-  }
+  // What this invocation names — the project root, the routes, the app config —
+  // resolved by the helper all three commands share. This command used to look
+  // for a pages/ directory under cwd and nowhere else, so from any directory
+  // above the project it emitted a bundle with the app config rendered as the
+  // page schema, exit 0 (objectui#4923).
+  const source = resolveProjectSource(cwd, schemaPath);
+  reportProjectSource(source, cwd);
 
   // Create temporary app directory
   const tmpDir = join(cwd, '.objectui-tmp');
   mkdirSync(tmpDir, { recursive: true });
 
   // Create temporary app files
-  if (useFileSystemRouting) {
-    createTempAppWithRouting(tmpDir, routes);
+  if (source.mode === 'routes') {
+    createTempAppWithRouting(tmpDir, source.routes, source.appConfig);
   } else {
-    createTempApp(tmpDir, schema);
+    createTempApp(tmpDir, source.schema);
   }
 
   // Install dependencies

@@ -49,6 +49,12 @@ objectui dev --no-open
 - `-h, --host <host>` — default `localhost`
 - `--no-open` — do not open browser
 
+`dev`, `serve` and `build` locate the project the same way: a `pages/` directory
+beside the schema argument means file-system routing (with that file as the app
+config), otherwise a `pages/` directory in the current directory, otherwise the
+named file is rendered on its own. So `objectui build my-app/app.json` from above
+`my-app/` builds the same routes `objectui dev my-app/app.json` serves.
+
 ### `objectui build [schema]`
 
 Build the application for production.
