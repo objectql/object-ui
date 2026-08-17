@@ -34,7 +34,7 @@ one has its own section below.
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
-| `dependabot-auto-merge.yml` | Dependabot Auto-merge | PR to `main`/`develop` authored by `dependabot[bot]` | No |
+| `dependabot-auto-merge.yml` | Dependabot Auto-merge | PR to `main`/`develop` authored by `dependabot[bot]` | No — but it gates *its own* merge, and goes red instead of merging when the check set is not green |
 | `cross-repo-issue-closer.yml` | Cross-repo Issue Closer | PR `closed` (acts only when merged) | No — runs after merge |
 | `changeset-release.yml` | Changeset Release | Push to `main` | n/a |
 | `release.yml` | Release | Push of a `v*` tag | n/a |
@@ -844,9 +844,49 @@ both resources ([#3724](https://github.com/objectstack-ai/objectui/issues/3724))
 
 **Trigger:** PRs on `main`/`develop` authored by `dependabot[bot]`.
 
-- **Patch/minor updates**: Auto-approved and squash-merged.
-- **Major updates**: Approved with a comment for manual review.
+- **Patch/minor updates**: approved and enqueued — **but only after an explicit wait**, see below.
+- **Major updates**: commented for manual review; never approved, never enqueued.
 - Configures a pnpm-lock.yaml merge driver for conflict resolution.
+
+**The wait, and why it exists.** This workflow used to run `gh pr merge --auto --squash`
+unconditionally for every patch/minor bump. `--auto` lands the merge as soon as GitHub considers
+the PR mergeable — that is, as soon as the *branch-protection required set* is satisfied, which is
+a different set from "the checks this repository runs". On 2026-08-17 the difference put a red
+commit on `main`: [#4959](https://github.com/objectstack-ai/objectui/issues/4959) merged at
+08:13:36Z with nine of its nineteen check runs still in flight, and shard 3/4 then reported
+`failure` at 08:21:01Z, shard 1/4 at 08:21:56Z. The four-way test shard matrix is the slowest job
+here **by construction** — it exists to cut a ~9 minute wall clock — so it is the check `--auto`
+systematically outruns, and the resulting red `main` blocked every parallel agent until
+[#4968](https://github.com/objectstack-ai/objectui/issues/4968) repaired it. It was the second
+time in seven days ([#4098](https://github.com/objectstack-ai/objectui/issues/4098)).
+
+So the wait is now explicit and this workflow owns it
+([#4973](https://github.com/objectstack-ai/objectui/issues/4973)):
+`scripts/dependabot-merge-gate.mjs` polls the Checks API for the pull request's head SHA until
+every context it declares has reported `success`, and only then may the two mutations — approve,
+enqueue — run. The declared set is the unfiltered blocking contexts (all four shards, **Type
+Check**, **Lint**, **Build & E2E**, **Build Docs** and the five one-`node`-call gates); the
+path-filtered ones (**Bundle Analysis**, **Changeset Bump Policy**) must be green *if they
+reported*; everything else is listed with the reason it cannot gate. A context that is missing,
+still running at the deadline, or anything other than `success` is **not** green: nothing merges,
+the job goes red, and a comment on the PR names what refused.
+
+Two properties are worth keeping in mind when editing it:
+
+- The gate does **not** ask GitHub which checks are required, because that set is a
+  repository-settings surface nothing here can read (see the three ordered steps under
+  [Merge Queue](#merge-queue)) — and it provably does not contain the shards today, since a merge
+  happened while all four were `in_progress`. Reading it would reproduce the hole.
+- It does **not** replace `--auto` with a direct merge. `main` is behind an enforced merge queue,
+  where a direct merge is rejected with 405; enabling auto-merge *is* the enqueue action. What
+  changed is that it happens after the check set is green on that SHA, not 29 seconds after the
+  shards started.
+
+`scripts/__tests__/dependabot-merge-gate.test.ts` holds both halves: it replays #4959's measured
+check-run timeline and asserts the gate says `pending` at the instant of the old merge and `red`
+once the shards report, and it asserts the declared buckets partition exactly the set of check
+names that `pull_request`-triggered workflows produce — so a renamed or added job fails that test
+instead of quietly dropping out of the wait.
 
 ### Shadcn Component Check (`shadcn-check.yml`)
 
