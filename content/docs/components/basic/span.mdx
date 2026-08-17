@@ -18,6 +18,13 @@ import { DemoGrid } from '@/app/components/ComponentDemo';
 
 The Span component is an inline container. **It is now deprecated in favor of semantic Shadcn-based components** that provide better accessibility and design system integration.
 
+**Scope of this deprecation: JSON-authored pages.** A `kind:'html'` page is written as
+constrained JSX/Tailwind text that the engine compiles (parses, never executes) into
+nodes, tag name straight through — there, the plain inline tag is part of that tier's own
+vocabulary and stays fully supported, because no other spelling of it exists for an
+author to migrate to. The dev-build deprecation notice is therefore reported for
+JSON-authored nodes only, and never for what the html tier compiled from its own source.
+
 ## Migration Guide
 
 Instead of using `span`, use these Shadcn alternatives:
