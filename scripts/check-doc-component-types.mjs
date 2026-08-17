@@ -233,9 +233,12 @@ const DOC_TYPE_EXEMPTIONS = {
     'block-editor':
       'BlockEditorSchema discriminant — packages/types/src/blocks.ts:315, zod/blocks.zod.ts:116.',
     slot:
-      'Block slot placeholder inside `BlockSchema.template`. Nothing registers `slot`; whether the ' +
-      'block vocabulary should have renderers at all is filed separately as objectui#4886 and is ' +
-      'not a rename this gate can prescribe.',
+      'Block slot placeholder inside `BlockSchema.template`, which IS a `SchemaNode` — so unlike its ' +
+      'siblings above this one sits on the render path and nothing registers `slot`. Filed as ' +
+      'objectui#4895: the correct spelling is not one thing (register a slot node, or route the ' +
+      'snippet through the declared `slotContent` key), and objectui#4823 does not pre-decide it. ' +
+      'DELETE this entry when #4895 lands — the gate reports a stale exemption, so it cannot be ' +
+      'forgotten.',
     string:
       'BlockVariable.type — a variable declaration\'s data type, next to `defaultValue` / `required`.',
   },
@@ -658,16 +661,18 @@ export function deriveRegistryKeys(root, options = {}) {
     const skip = entry.skipFallbackSet ? literalSet(source, entry.skipFallbackSet) : new Set();
     counters.indirect += names.length;
     for (const name of names) {
+      // Same shape as a direct call: the namespaced key always, plus the bare
+      // fallback unless the helper's skip set holds it. `PROTOCOL_COMPONENTS`
+      // entries are ALREADY namespaced strings (`view:grid`, `field:text`), so
+      // the bare form there is the spelling the docs actually teach and the
+      // `protocol-placeholder:` prefix is the derived one — the reverse of the
+      // usual reading, but the same two keys either way.
       if (entry.namespace) {
         add(`${entry.namespace}:${name}`, entry.site);
         if (!skip.has(name)) add(name, entry.site);
       } else {
         add(name, entry.site);
       }
-      // PROTOCOL_COMPONENTS entries are already namespaced strings
-      // (`view:grid`, `field:text`); registering them under a second namespace
-      // does not remove the bare form the docs teach.
-      if (entry.kind === 'array') add(name, entry.site);
     }
   }
 
