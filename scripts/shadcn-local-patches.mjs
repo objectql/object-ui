@@ -43,6 +43,14 @@
  * a small anchored reference survives upstream churn far better than an
  * inlined implementation, and the implementation itself stays reviewable and
  * unit-testable in a normal file.
+ *
+ * Write `find` from REGISTRY bytes, never from `src/ui/**`. The local file is
+ * the patched artefact, so any line an earlier local edit left there reads as a
+ * perfectly good anchor: it matches the file in front of you and matches
+ * nothing upstream, which makes the patch dead on arrival while looking
+ * correct. objectui#4976 is the worked example. The round-trip assertion in
+ * `scripts/__tests__/shadcn-local-patches.test.ts` is what holds a new anchor
+ * to this rule offline, without a network round-trip.
  */
 
 /**
@@ -175,17 +183,46 @@ const sidebarCookieReadPatches = [
  * the same defect one step easier) a widget has NO handle on the element that
  * must carry those facts. Hence a declared `thumbProps`.
  *
- * Four one-liners, each anchored on a line upstream has carried across every
- * sync in this file's history. As with the families above, the payload stays
- * OUT of `src/ui/`: the routing and its reasoning live in
+ * Four patches. Three are one-liners; the delivery half expands upstream's
+ * single-line self-closing Thumb into the multi-line form that can carry the
+ * routed props. As with the families above, the payload stays OUT of
+ * `src/ui/`: the routing and its reasoning live in
  * `packages/components/src/lib/slider-thumb.ts`.
  *
  * The root half is patched too, and that is not optional: leaving `thumbProps`
  * in Root's spread would stringify it onto the wrapper (`thumbprops="[object
  * Object]"`), the exact leak objectui#3291 sweeps for.
  *
+ * ## The delivery anchor was re-targeted once (objectui#4976)
+ *
+ * As first declared, the delivery patch anchored the line that forwarded the
+ * host's accessible name onto the thumb — a line objectui added by hand in
+ * commit a014bc00c ("fix Slider accessibility", 2026-04-13), NOT a line the
+ * registry has ever served. Upstream renders the thumb with a className and
+ * nothing else, and slider's own `localEdits` entry in `shadcn-components.json`
+ * said exactly that the whole time. So the anchor matched the file on disk and
+ * could never match upstream: the first `--check` after it landed reported the
+ * patch unappliable (`found 0x`) while the shipped file was perfectly correct.
+ *
+ * Re-targeting it moved the anchor only — the payload, and therefore every byte
+ * of the shipped primitive's behaviour, is untouched.
+ *
  * @type {LocalPatch[]}
  */
+/**
+ * Upstream's thumb class list, spelled exactly once.
+ *
+ * The delivery patch has to name it twice — the single-line element it matches
+ * and the expanded element it writes back — and a list this long is precisely
+ * the kind of string that drifts one character between two copies. One spelling
+ * means the anchor and its replacement cannot disagree, the same reason
+ * SIDEBAR_COOKIE_NAME is passed into the sidebar patch rather than retyped.
+ */
+const UPSTREAM_THUMB_CLASSNAME =
+  'block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background ' +
+  'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ' +
+  'focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
+
 const sliderThumbPassThroughPatches = [
   {
     id: 'slider-thumb-import',
@@ -230,11 +267,18 @@ const sliderThumbPassThroughPatches = [
     issue: 'objectui#3318',
     reason:
       'Delivers the host\'s control-channel facts to the element that can carry ' +
-      'them. Replaces (and preserves) the narrower hand-written `aria-label` ' +
-      'bridge upstream already needed here for the very same reason — proof the ' +
-      'thumb is unreachable from outside, not a new claim.',
-    find: '      aria-label={props["aria-label"]}\n',
-    replace: '      {...splitSliderThumbProps(props).thumb}\n',
+      'them. Upstream renders the thumb with a class list and nothing else, so ' +
+      'this is the only route to the focusable span — hence the anchor expands ' +
+      'the self-closing element instead of replacing an attribute on it. The ' +
+      'spread sits after `className`, the precedence the shipped primitive ' +
+      'already gives the routed props. Re-targeted in objectui#4976: the first ' +
+      'anchor named a local-only line, so it never matched a registry response.',
+    find: `    <SliderPrimitive.Thumb className="${UPSTREAM_THUMB_CLASSNAME}" />\n`,
+    replace:
+      '    <SliderPrimitive.Thumb\n' +
+      `      className="${UPSTREAM_THUMB_CLASSNAME}"\n` +
+      '      {...splitSliderThumbProps(props).thumb}\n' +
+      '    />\n',
     marker: 'splitSliderThumbProps(props).thumb',
     occurrences: 1,
   },
