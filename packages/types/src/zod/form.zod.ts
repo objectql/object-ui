@@ -95,15 +95,55 @@ export const CommandGroupSchema = z.object({
 });
 
 /**
- * Validation Rule Schema
+ * Bounded numeric rule — the `{ value, message }` object react-hook-form
+ * consumes for `minLength` / `maxLength` / `min` / `max`.
+ */
+const BoundedRuleSchema = (valueDescription: string) =>
+  z.object({
+    value: z.number().describe(valueDescription),
+    message: z.string().describe('Error message shown when the rule fails'),
+  });
+
+/**
+ * Validation Rule Schema — the zod mirror of `FieldValidationRules`
+ * (`../form.ts`), which is the shape `form.tsx`'s read point spreads into
+ * react-hook-form. Every rule except `required` is a `{ value, message }`
+ * object; `required` is `string | boolean` (a string IS the message —
+ * react-hook-form semantics).
+ *
+ * Until objectui#5186 this schema declared a flat scalar dialect
+ * (`minLength: z.number()`, `pattern: z.string()`) that NO read point
+ * consumed: `objectui validate` rejected metadata written to the public TS
+ * contract and passed a dialect react-hook-form silently drops — #5099's
+ * "looks validated, executes nothing", hidden on the zod face. The inner
+ * shape is pinned by `__tests__/form-field-zod-coverage.test.ts`.
+ *
+ * `pattern.value` must be a compiled `RegExp` (#5099 ruling): react-hook-form
+ * applies `pattern` only when `value instanceof RegExp`, and JSON/YAML cannot
+ * express one — so on the JSON face a hand-written `pattern` is rejected BY
+ * NAME with guidance toward the metadata route (`FieldSchema.pattern`, a
+ * string the field pipeline compiles via `new RegExp(...)` in
+ * `buildValidationRules`, `@object-ui/fields`, before it reaches this shape).
+ * Deliberately NOT a string→RegExp coercion here — consumer-side tolerance
+ * would re-open exactly what #5099 closed (AGENTS.md #0.1).
  */
 export const FieldConstraintsSchema = z.object({
-  required: z.boolean().optional().describe('Whether field is required'),
-  minLength: z.number().optional().describe('Minimum length'),
-  maxLength: z.number().optional().describe('Maximum length'),
-  min: z.number().optional().describe('Minimum value'),
-  max: z.number().optional().describe('Maximum value'),
-  pattern: z.string().optional().describe('Validation pattern (regex)'),
+  required: z.union([z.boolean(), z.string()]).optional()
+    .describe('Required rule — boolean flag, or the error message itself (string implies required)'),
+  minLength: BoundedRuleSchema('Minimum length').optional().describe('Minimum length rule'),
+  maxLength: BoundedRuleSchema('Maximum length').optional().describe('Maximum length rule'),
+  min: BoundedRuleSchema('Minimum value').optional().describe('Minimum value rule (numbers)'),
+  max: BoundedRuleSchema('Maximum value').optional().describe('Maximum value rule (numbers)'),
+  pattern: z.object({
+    value: z.custom<RegExp>((v) => v instanceof RegExp, {
+      message:
+        'pattern.value must be a compiled RegExp — react-hook-form runs `pattern` only when ' +
+        'value instanceof RegExp, and JSON/YAML metadata cannot express one (objectui#5099). ' +
+        'Declare the pattern on the field metadata route instead: `FieldSchema.pattern` (a ' +
+        'string), which is compiled before it reaches this shape.',
+    }).describe('Compiled RegExp — never a string; JSON authors use FieldSchema.pattern'),
+    message: z.string().describe('Error message shown when the pattern fails'),
+  }).optional().describe('Pattern rule (RegExp value + message)'),
   validate: z.function().optional().describe('Custom validation function'),
 });
 

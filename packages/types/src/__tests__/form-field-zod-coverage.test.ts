@@ -26,7 +26,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { FormFieldSchema } from '../zod/form.zod.js';
+import { FieldConstraintsSchema, FormFieldSchema } from '../zod/form.zod.js';
 
 /** Every key `FormField` (../form.ts) declares by name, in declaration order. */
 const DECLARED_KEYS = [
@@ -98,5 +98,109 @@ describe('FormFieldSchema covers the FormField contract', () => {
     // @object-ui/plugin-form, not a dual-key read here. (#3090 PR2 upgrades
     // the CLI's error MESSAGE for this case; the verdict must not change.)
     expect(FormFieldSchema.safeParse({ field: 'email', required: true }).success).toBe(false);
+  });
+});
+
+/**
+ * `FieldConstraintsSchema` ↔ `FieldValidationRules` inner-shape pin (#5186).
+ *
+ * The #3090 block above pins `FormFieldSchema`'s TOP-LEVEL keys only — which
+ * is exactly why `validation`'s inner shape drifted silently: the zod side
+ * declared a flat scalar dialect (`minLength: number`, `pattern: string`)
+ * while the TS contract (`FieldValidationRules`, ../form.ts) and the
+ * renderer's only read point (`form.tsx` → react-hook-form) consume
+ * `{ value, message }` objects. `objectui validate` was wrong in both
+ * directions at once: it rejected metadata written to the public TS contract
+ * and passed a dialect react-hook-form silently drops — #5099's "looks
+ * validated, executes nothing", hidden on the zod face. These tests pin the
+ * inner shape so that drift cannot re-open under a green top-level guard.
+ */
+describe('FieldConstraintsSchema mirrors FieldValidationRules (#5186)', () => {
+  it('declares exactly the FieldValidationRules key set', () => {
+    // Same #3017-style set-coverage pin as the block above, one level down:
+    // a key added to either side must touch this list in the same PR.
+    expect(Object.keys(FieldConstraintsSchema.shape).sort()).toEqual(
+      ['required', 'minLength', 'maxLength', 'min', 'max', 'pattern', 'validate'].sort(),
+    );
+  });
+
+  it('ACCEPTS validation written to the public TS contract', () => {
+    const contractShaped = {
+      required: 'Email is required', // string = the message itself (react-hook-form semantics)
+      minLength: { value: 3, message: 'At least 3 characters' },
+      maxLength: { value: 64, message: 'At most 64 characters' },
+      min: { value: 1, message: 'Must be at least 1' },
+      max: { value: 99, message: 'Must be at most 99' },
+      validate: (v: unknown) => (v ? true : 'Required'),
+    };
+    const parsed = FieldConstraintsSchema.safeParse(contractShaped);
+    expect(parsed.success).toBe(true);
+    // `required` is the one rule that does NOT follow { value, message }:
+    // the TS contract says `string | boolean`, and both faces must pass.
+    expect(FieldConstraintsSchema.safeParse({ required: true }).success).toBe(true);
+    expect(FieldConstraintsSchema.safeParse({ required: false }).success).toBe(true);
+  });
+
+  it('REJECTS the flat scalar dialect no read point consumes', () => {
+    // This exact object parsed clean before #5186 while `form.tsx` spread it
+    // into react-hook-form where not one of these rules ran.
+    const flat = {
+      minLength: 3,
+      maxLength: 10,
+      min: 1,
+      max: 99,
+      pattern: '^[a-z]+$',
+    };
+    const parsed = FieldConstraintsSchema.safeParse(flat);
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      // Every flat key must be individually rejected — a verdict that hinged
+      // on one key would let the other four ride back in one at a time.
+      const rejectedKeys = new Set(parsed.error.issues.map((i) => String(i.path[0])));
+      expect([...rejectedKeys].sort()).toEqual(['max', 'maxLength', 'min', 'minLength', 'pattern']);
+    }
+  });
+
+  it('rejects a string pattern.value BY NAME, with guidance toward the metadata route', () => {
+    // JSON cannot express a RegExp, so on the JSON face a hand-written
+    // pattern can never be satisfied — the honest answer is a named
+    // rejection pointing at the route that CAN carry it (#5099 ruling,
+    // JSON-face half). Never a silent strip, never a string→RegExp coercion.
+    const parsed = FieldConstraintsSchema.safeParse({
+      pattern: { value: '^[a-z0-9-]+$', message: 'Lowercase letters, digits, dashes' },
+    });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      const issue = parsed.error.issues.find(
+        (i) => i.path.join('.') === 'pattern.value',
+      );
+      expect(issue).toBeDefined();
+      expect(issue?.message).toMatch(/RegExp/);
+      expect(issue?.message).toMatch(/FieldSchema\.pattern/);
+    }
+  });
+
+  it('accepts a compiled RegExp pattern.value — the TS-contract face stays intact', () => {
+    // Programmatic (in-memory) callers hold real RegExp instances; the named
+    // rejection above is about what JSON can carry, not a key retirement.
+    const parsed = FieldConstraintsSchema.safeParse({
+      pattern: { value: /^[a-z0-9-]+$/, message: 'Lowercase letters, digits, dashes' },
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('parses a FormField carrying contract-shaped validation', () => {
+    const parsed = FormFieldSchema.parse({
+      name: 'email',
+      type: 'input',
+      validation: {
+        required: 'Email is required',
+        minLength: { value: 3, message: 'At least 3 characters' },
+      },
+    });
+    expect(parsed.validation).toEqual({
+      required: 'Email is required',
+      minLength: { value: 3, message: 'At least 3 characters' },
+    });
   });
 });
