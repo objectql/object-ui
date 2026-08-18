@@ -7,6 +7,7 @@ import {
   isObjectInlineEditable,
   normalizeUserAction,
   userActionPredicates,
+  type UserActionsOverride,
 } from './managedBy';
 
 describe('resolveEffectiveCrudAffordances — bucket half, delegated to the spec', () => {
@@ -228,5 +229,69 @@ describe('isObjectInlineEditable — effective API operations (#3546)', () => {
 
   it('empty effective set → not inline-editable (deny-all)', () => {
     expect(isObjectInlineEditable({ managedBy: 'platform' }, [])).toBe(false);
+  });
+});
+
+/**
+ * [#5142] The `import` half of the toolbar-scope predicate pair.
+ *
+ * `@objectstack/spec@17.0.0` types `userActions.create` and `userActions.import`
+ * identically and emits a predicate envelope for each; objectui#4646 consumed
+ * only the `create` half and deliberately left this local type narrow
+ * (`import?: boolean`) so the declaration stayed an honest statement of what the
+ * renderer honoured. The consumer landed with #5142, so the type widened with
+ * it.
+ *
+ * The pin below is COMPILE-time, and it is the only kind that can observe this
+ * property: the widening erases at runtime, so vitest cannot see it. `tsc` can
+ * — `packages/core/tsconfig.test.json` compiles this file and is chained from
+ * the package's `type-check` script (objectui#3181), which is what CI runs.
+ * Restore `import?: boolean` and the annotated constant below fails to compile.
+ */
+describe('#5142 — userActions.import carries the same object form as create', () => {
+  /** COMPILE-TIME pin: the object form is assignable to the `import` key. */
+  const IMPORT_OBJECT_FORM: UserActionsOverride['import'] = {
+    enabled: true,
+    visibleWhen: "os.user.profile == 'admin'",
+    disabledWhen: 'features.readOnly == true',
+  };
+
+  it('carries importPredicates through the objectui-side #3391 intersection', () => {
+    const aff = resolveEffectiveCrudAffordances({
+      managedBy: 'platform',
+      userActions: { import: IMPORT_OBJECT_FORM },
+    });
+    expect(aff.import).toBe(true);
+    expect(aff.importPredicates).toEqual({
+      visibleWhen: "os.user.profile == 'admin'",
+      disabledWhen: 'features.readOnly == true',
+    });
+    // The `create` half is untouched by an `import`-only override — the two
+    // envelopes are separate keys, not one shared toolbar bag.
+    expect(aff.createPredicates).toBeUndefined();
+  });
+
+  it('the boolean arm of the union still carries no predicates', () => {
+    const aff = resolveEffectiveCrudAffordances({ managedBy: 'platform', userActions: { import: true } });
+    expect(aff.import).toBe(true);
+    expect(aff.importPredicates).toBeUndefined();
+  });
+
+  it('predicates survive `enabled: false` — the object-level bit is what closes', () => {
+    // The resolver reports both facts; refusing to surface a predicate for a
+    // closed affordance is the CONSUMER's layering rule (ObjectView, #5142),
+    // not the resolver's.
+    const aff = resolveEffectiveCrudAffordances({
+      managedBy: 'platform',
+      userActions: { import: { enabled: false, visibleWhen: 'x' } },
+    });
+    expect(aff.import).toBe(false);
+    expect(aff.importPredicates).toEqual({ visibleWhen: 'x' });
+  });
+
+  it('the widened key is the union, not `any` — a number is still a compile error', () => {
+    // @ts-expect-error — widened to `boolean | RowCrudActionOverride`, and no further.
+    const bad: UserActionsOverride['import'] = 42;
+    expect(bad).toBe(42);
   });
 });
