@@ -13,6 +13,68 @@ import { AuthCtx, type AuthContextValue } from './AuthContext';
 import { createAuthClient, TokenStorage } from './createAuthClient';
 import { ActiveOrganizationStorage } from './createAuthenticatedFetch';
 
+/**
+ * Prefix of every `MetadataProvider` seed entry in `sessionStorage`
+ * (`objectui:metadata:<type>:<orgId>:<principal>`, `@object-ui/app-shell`).
+ *
+ * Spelled out here rather than imported: `@object-ui/app-shell` depends on
+ * `@object-ui/auth`, so the constant cannot travel in that direction without a
+ * dependency cycle. The two ends are held together by BEHAVIOUR instead of by
+ * a shared symbol — `MetadataProvider.crossPrincipalSeed.test.tsx` fills the
+ * cache by running the real `MetadataProvider` and empties it by signing out
+ * through this provider, so a prefix that drifts on either side fails there
+ * rather than silently purging nothing.
+ */
+const METADATA_SEED_CACHE_PREFIX = 'objectui:metadata:';
+
+/**
+ * Drop the client-side caches that belong to the session being ended
+ * (objectui#5198).
+ *
+ * `sessionStorage` is per-TAB, not per-session, and no sign-out call site
+ * reloads the page — `AppSidebar`, `AppHeader`, `UserMenu` and
+ * `RemediationOverlay` all just call `signOut()` and let the SPA keep running.
+ * So without this the next person to sign in in the same tab (a shared or
+ * kiosk browser, a handover, a support session) is SEEDED from the previous
+ * user's entry, and what is in it is that user's PERMISSION-FILTERED app list —
+ * the server filters `GET /api/v1/meta/:type` per session. That makes it a
+ * cross-principal disclosure, not ordinary staleness, which is why it is
+ * cleared here and not left to the tab being closed.
+ *
+ * Two properties of the loop are load-bearing:
+ *
+ *  - It matches by PREFIX. The keys are org-scoped (objectui#4486), so a purge
+ *    that recomputed the scope would depend on `ActiveOrganizationStorage`
+ *    still holding the org those entries were written under. A prefix sweep has
+ *    no such dependency and therefore no ordering hazard of its own.
+ *  - It runs BEFORE `ActiveOrganizationStorage.clear()` anyway, so the ordering
+ *    stays correct for anything scope-derived added later: clearing the org
+ *    first would leave such a purge computing the no-org scope and deleting
+ *    nothing while the real entries survived.
+ *
+ * `MetadataProvider` additionally keys the entry by session fingerprint, so a
+ * blob that escapes this purge (a tab open across the upgrade, a session ended
+ * by expiry rather than by this call) is unreadable rather than merely
+ * undeleted. The two halves are deliberately independent.
+ */
+function purgeSignedOutClientCaches(): void {
+  if (typeof sessionStorage !== 'undefined') {
+    try {
+      // Snapshot the keys first (`Object.keys`) — removing entries during a
+      // live index walk shifts the ones behind it and skips half of them.
+      // Same idiom as the `MarketplacePackagePage` purge loop.
+      for (const key of Object.keys(sessionStorage)) {
+        if (key.startsWith(METADATA_SEED_CACHE_PREFIX)) {
+          sessionStorage.removeItem(key);
+        }
+      }
+    } catch {
+      /* storage unavailable */
+    }
+  }
+  ActiveOrganizationStorage.clear();
+}
+
 export interface AuthProviderProps extends AuthProviderOptions {
   children: React.ReactNode;
   /**
@@ -276,9 +338,25 @@ export function AuthProvider({
       setUser(null);
       setSession(null);
       setError(null);
+      // The organization block is the previous principal's data too: the list
+      // is the workspaces THAT user belongs to (the switcher renders it), and
+      // a lingering `activeOrganization` would additionally suppress the
+      // re-resolution below — `refreshOrganizations` only asks the server for
+      // the active org `if (orgs.length > 0 && !activeOrganization)`, so the
+      // next sign-in in this tab would inherit the previous user's active
+      // workspace in context while storage had (correctly) forgotten it.
+      // `activeMember` follows from the effect that watches `activeOrganization`.
+      // Same pairing `deleteOrganization` / `leaveOrganization` already use in
+      // this file: drop the in-memory reference and the stored id together.
+      setOrganizations([]);
+      setActiveOrganization(null);
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
+      // Unconditional: `createAuthClient.signOut` clears `TokenStorage` BEFORE
+      // it rethrows a server error, so a failed call still leaves this tab
+      // without a session — the caches it authenticated for must go with it.
+      purgeSignedOutClientCaches();
       setIsLoading(false);
     }
   }, [client]);

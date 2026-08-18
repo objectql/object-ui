@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { expandViewContainer } from '@objectstack/spec/ui';
-import { ActiveOrganizationStorage, useAuth } from '@object-ui/auth';
+import { ActiveOrganizationStorage, TokenStorage, useAuth } from '@object-ui/auth';
 import { type ObjectStackAdapter } from '@object-ui/data-objectstack';
 import { normalizeSchemaReferenceKeys } from '@object-ui/core';
 import { resolveInlineMode } from '@object-ui/plugin-form';
@@ -112,25 +112,123 @@ function activeOrgScope(): string {
   }
 }
 
-/** `objectui:metadata:<type>:<orgId>` — see {@link activeOrgScope}. */
-function sessionKeyFor(type: string): string {
-  return `${SESSION_STORAGE_PREFIX}${type}:${activeOrgScope()}`;
+/**
+ * Storage scope for "nobody is signed in" — see {@link principalScope}. Shares
+ * the `@` convention with {@link NO_ORG_SCOPE}; {@link fingerprintToken} emits
+ * base-36 digits only, so a real principal can never produce it.
+ */
+const ANON_PRINCIPAL = '@anon';
+
+/**
+ * 64 bits of non-reversible key material derived from the session token — two
+ * FNV-1a passes with different constants and finalizers, each emitted as a
+ * zero-padded base-36 word so the halves cannot re-associate into a colliding
+ * pair.
+ *
+ * Deliberately NOT `crypto.subtle.digest`: that is ASYNC and this value is
+ * needed synchronously on the mount path. It is not standing in for a security
+ * primitive either — the token itself already sits in same-origin
+ * `localStorage`, so hashing hides nothing from anyone who can read this key.
+ * It exists so the key can DISCRIMINATE principals without printing a live
+ * credential into a storage key name.
+ */
+function fingerprintToken(token: string): string {
+  let h1 = 0x811c9dc5;
+  let h2 = 0xc2b2ae35;
+  for (let i = 0; i < token.length; i += 1) {
+    const code = token.charCodeAt(i);
+    h1 = Math.imul(h1 ^ code, 0x01000193);
+    h2 = Math.imul(h2 ^ code, 0x85ebca6b);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 15), 0x2545f491);
+  h2 = Math.imul(h2 ^ (h2 >>> 13), 0x27d4eb2f);
+  const word = (h: number) => (h >>> 0).toString(36).padStart(7, '0');
+  return `${word(h1)}${word(h2)}`;
 }
 
 /**
- * Drop the pre-#4486 unscoped entry (`objectui:metadata:<type>`).
+ * Fingerprint of the session this cache was filled under (objectui#5198).
  *
- * Re-keying alone only fixes tabs going FORWARD: a tab that was already open
- * across the upgrade still holds an org-blind blob under the old key. Nothing
- * reads that key any more, so it is inert — but it is another organization's
- * app list sitting in storage, and the cheapest correct answer to "does already
- * cached data need invalidating on upgrade" is to delete it the first time the
- * new code looks.
+ * `sessionStorage` is per-TAB, not per-session, and no sign-out call site
+ * reloads the page — so signing out and signing a DIFFERENT person in inside
+ * the same tab used to seed them from the previous user's entry. What sits
+ * there is that user's PERMISSION-FILTERED app list (the server filters
+ * `GET /api/v1/meta/:type` per session), which makes it a cross-principal
+ * disclosure rather than ordinary staleness. Org-scoping does not close it:
+ * two users in the SAME org compute the same {@link activeOrgScope}.
+ *
+ * `AuthProvider.signOut` purges these entries, and that is the commissioned
+ * fix; this scope is the half that does not depend on remembering it. An entry
+ * written under one session is not AT the key the next session computes, so it
+ * is unreadable by construction however sign-out paths evolve.
+ *
+ * Why the TOKEN rather than `useAuth().user?.id` — the same reason
+ * {@link activeOrgScope} reads storage instead of the context: the user
+ * resolves ASYNCHRONOUSLY (`AuthProvider` fetches the session after mount), so
+ * at seed time, which is the entire point of this cache, it is still `null`
+ * and every boot would miss its own entry. `TokenStorage` is the one identity
+ * already correct synchronously at mount, and it is the SAME credential the
+ * request that filled the cache authenticated with — so, exactly as with the
+ * tenant scope, the key cannot claim a principal the server did not filter for.
+ *
+ * A token ROTATION (impersonation, objectui#4467) changes the fingerprint,
+ * which is correct — the principal genuinely changed. The cost of any change
+ * here is one cache MISS, i.e. a refetch, never stale data.
+ *
+ * Client-local by construction: no new field on the session response and no
+ * extra request — see the issue's scope ruling.
  */
-function dropLegacyUnscopedEntry(type: string): void {
+function principalScope(): string {
+  let token: string | null = null;
+  try {
+    token = TokenStorage.get();
+  } catch {
+    /* SSR / storage unavailable */
+  }
+  return token ? fingerprintToken(token) : ANON_PRINCIPAL;
+}
+
+/**
+ * `objectui:metadata:<type>:<orgId>:<principal>` — see {@link activeOrgScope}
+ * and {@link principalScope}. Both scopes come from the same client-local
+ * storage the request that filled the entry tenanted and authenticated itself
+ * with, so a key can never describe a principal/tenant pair the server did not
+ * filter for.
+ */
+function sessionKeyFor(type: string): string {
+  return `${SESSION_STORAGE_PREFIX}${type}:${activeOrgScope()}:${principalScope()}`;
+}
+
+/**
+ * Delete every seed entry belonging to a principal other than the one reading
+ * now — the pre-#4486 unscoped entry (`objectui:metadata:<type>`), the
+ * pre-#5198 principal-blind one (`objectui:metadata:<type>:<orgId>`), and
+ * anything a previous user of this tab left behind.
+ *
+ * Re-keying alone only fixes tabs going FORWARD: a tab already open across the
+ * upgrade — or across a sign-out on a build without the purge — still holds
+ * the older blob under its old key. Nothing reads those keys any more, so they
+ * are inert; but an inert blob is still another organization's (objectui#4486)
+ * or another person's (objectui#5198) app list sitting in storage, and the
+ * cheapest correct answer to "does already cached data need invalidating" is to
+ * delete it the first time the new code looks.
+ *
+ * Entries of the CURRENT principal are kept whatever their org: those are this
+ * user's own other workspaces, which #4486 already keys correctly and which a
+ * switch back is entitled to seed from.
+ */
+function dropForeignPrincipalEntries(): void {
   if (typeof sessionStorage === 'undefined') return;
   try {
-    sessionStorage.removeItem(SESSION_STORAGE_PREFIX + type);
+    const mine = `:${principalScope()}`;
+    // Snapshot the keys first (`Object.keys`) — removing entries during a live
+    // index walk shifts the ones behind it, skipping half of them. Same idiom
+    // as the `MarketplacePackagePage` purge loop.
+    for (const key of Object.keys(sessionStorage)) {
+      if (key.startsWith(SESSION_STORAGE_PREFIX) && !key.endsWith(mine)) {
+        sessionStorage.removeItem(key);
+      }
+    }
   } catch {
     /* storage unavailable */
   }
@@ -752,7 +850,7 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
     // Session-cached apps are PUBLISHED-world data — seeding them while in
     // draft preview would flash the wrong universe before the fetch lands.
     const cached = previewDrafts ? null : loadFromSession('app');
-    dropLegacyUnscopedEntry('app');
+    dropForeignPrincipalEntries();
     // A cached EMPTY list is a MISS, not a hit (objectui#4486).
     //
     // `[]` is truthy, so an empty cached list used to take this branch and
