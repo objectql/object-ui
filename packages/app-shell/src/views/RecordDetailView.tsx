@@ -638,16 +638,42 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           // refusal only once every source has been tried, instead of the
           // silent drop this call site used to fall back to
           // (objectstack#8018, objectui#4669).
+          //
+          // objectui#5176 — the page-record fallback is not enough on its own,
+          // because the header does not wait for the page record. `isLoading`
+          // (the only state the <SkeletonDetail> early return reads) is flipped
+          // false in a route-keyed microtask, while `pageRecord` lands one
+          // `findOne` round-trip later; for that whole window the real header
+          // renders with every `record_header` action live. Clicking inside it
+          // seeded from `null`, which `resolveRecordIdParamSeed` deliberately
+          // abstains on (no value AND no error — "no row context" is not that
+          // guard's business), so the request went out naming no record and the
+          // backend answered `missing_record_id`. That is the reported "click
+          // does nothing, click again and it works".
+          //
+          // `pureRecordId` is the id this page is ADDRESSED by — read off the
+          // URL, present on the first render, and already the fallback the
+          // other three dispatch paths in this file use. Seeding a minimal row
+          // from it makes this path agree with them. It stays a LAST resort
+          // (row and override still outrank it) and keeps the same
+          // retarget guard `interpolationRecord` uses, so a child-object action
+          // is never handed the parent page's id. An action keyed on some other
+          // field via `recordIdField` gets a row without that key, which is the
+          // helper's named refusal — deliberately, since the URL carries the
+          // record's id and nothing else: refusing beats under-specifying.
           const recordIdOverride = (action as { recordId?: unknown }).recordId;
           const rowHasValue = !!rowRecord && rowRecord[rowField] != null;
           if (!rowHasValue && recordIdOverride != null) {
             body[action.recordIdParam] = recordIdOverride;
           } else {
+            const targetsThisRecord = !action.objectName || action.objectName === objectName;
+            const thisRecordSeed: Record<string, any> | undefined = targetsThisRecord
+              ? ((pageRecord as Record<string, any> | undefined)
+                  ?? (pureRecordId != null ? { id: pureRecordId } : undefined))
+              : undefined;
             const seedRecord: Record<string, any> | undefined = rowHasValue
               ? rowRecord
-              : ((!action.objectName || action.objectName === objectName
-                  ? (pageRecord as Record<string, any> | undefined)
-                  : undefined) ?? rowRecord);
+              : (thisRecordSeed ?? rowRecord);
             const seed = resolveRecordIdParamSeed(action, seedRecord);
             if (seed.error) return { success: false, error: seed.error };
             if (seed.value !== undefined) body[action.recordIdParam] = seed.value;
