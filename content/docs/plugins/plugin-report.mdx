@@ -79,6 +79,7 @@ export const OpportunitiesByStage = defineReport({
 defines; `stage` is one of its dimensions. The report picks from that
 vocabulary and adds nothing to it.
 
+{/* doc-snippet: fragment — renders the report defined in the block above, with the host's data source */}
 ```tsx
 import { ReportRenderer } from '@object-ui/plugin-report';
 
@@ -203,6 +204,7 @@ every aggregated row and matrix cell becomes clickable; supply nothing and
 nothing is clickable. The report emits *what was clicked* and the host decides
 where that goes, because the renderer only knows dimension names:
 
+{/* doc-snippet: fragment — renders the report defined above and calls the host's own router */}
 ```tsx
 import { ReportRenderer, type DatasetDrillArgs } from '@object-ui/plugin-report';
 
