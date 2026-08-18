@@ -211,7 +211,7 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  */
 const UNGATED_DOCS = {
   'content/docs/guide/objectos-integration.mdx':
-    '36 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 7 unresolved-module diagnostic(s); plus TS2305x3 TS2339x1 — candidate real defects, un-triaged',
+    '36 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 7 unresolved-module diagnostic(s); plus TS2305x1 TS2339x1 — candidate real defects, un-triaged',
   'content/docs/plugins/plugin-calendar-view.mdx':
     '2 unresolved-module diagnostic(s) — and NOT a defect: the page is a migration guide whose ' +
     '"Before" blocks quote the retired `@object-ui/plugin-calendar-view` import on purpose. Covering ' +
@@ -238,15 +238,15 @@ const UNGATED_DOCS = {
   'content/docs/utilities/runner.mdx':
     '5 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 3 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 3 unresolved-module diagnostic(s)',
   'packages/app-shell/README.md':
-    '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 18 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2305x2 — candidate real defects, un-triaged',
+    '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 14 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/auth/README.md':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 15 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2741x1 — candidate real defects, un-triaged',
   'packages/collaboration/README.md':
     '13 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2339x2 TS2353x1 TS2554x1 TS2739x1 — candidate real defects, un-triaged',
   'packages/components/README.md':
-    '2 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2305x3 — candidate real defects, un-triaged',
+    '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/core/README.md':
-    '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2305x6 TS2351x1 — candidate real defects, un-triaged',
+    '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2339x2 TS2351x1 — candidate real defects, un-triaged',
   'packages/data-objectstack/README.md':
     '10 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 41 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/fields/README.md':
@@ -298,7 +298,7 @@ const UNGATED_DOCS = {
   'packages/react-runtime/README.md':
     '25 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2813x1 TS2814x1 — candidate real defects, un-triaged',
   'packages/react/README.md':
-    '10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2305x1 TS2339x2 — candidate real defects, un-triaged',
+    '9 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2339x2 — candidate real defects, un-triaged',
   'packages/types/README.md':
     '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 3 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
 };

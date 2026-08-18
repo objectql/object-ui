@@ -158,18 +158,19 @@ falling back to the object's full scope. Use `useElementDataSourceSchema` (plus
 the exported `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel`) when
 a block cannot be wrapped — a renderer whose hooks must run before the panels.
 
-### useRegistry
+### ComponentRegistry
 
-Access the component registry:
+There is no registry hook: the registry is a process-level singleton exported
+by `@object-ui/core`, so read it directly. Subscribe to it only when a lazily
+registered plugin must trigger a re-render.
 
 ```tsx
-import { useRegistry } from '@object-ui/react'
+import { ComponentRegistry } from '@object-ui/core'
 
-function MyComponent() {
-  const registry = useRegistry()
-  const Component = registry.get('button')
-  
-  return <Component {...props} />
+function MyComponent(props: Record<string, unknown>) {
+  const Component = ComponentRegistry.get('button')
+
+  return Component ? <Component {...props} /> : null
 }
 ```
 

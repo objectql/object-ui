@@ -70,10 +70,14 @@ entry goes on generating the classes your own source uses, as it always did.
 ### 2. Register Components
 
 ```tsx
-import { registerDefaultRenderers } from '@object-ui/components'
+import { initializeComponents } from '@object-ui/components'
 
-registerDefaultRenderers()
+initializeComponents()
 ```
+
+Importing the package already registers its components as a side effect;
+`initializeComponents()` is the explicit call for bundlers that would otherwise
+tree-shake that import away.
 
 ## Usage
 
@@ -81,9 +85,9 @@ registerDefaultRenderers()
 
 ```tsx
 import { SchemaRenderer } from '@object-ui/react'
-import { registerDefaultRenderers } from '@object-ui/components'
+import { initializeComponents } from '@object-ui/components'
 
-registerDefaultRenderers()
+initializeComponents()
 
 const schema = {
   type: 'card',
@@ -200,15 +204,19 @@ All components accept `className` for Tailwind classes:
 Register your own components:
 
 ```tsx
-import { registerRenderer } from '@object-ui/react'
+import { ComponentRegistry } from '@object-ui/core'
 import { Button } from '@object-ui/components'
 
-function CustomButton(props) {
+function CustomButton(props: Record<string, unknown>) {
   return <Button {...props} className="my-custom-style" />
 }
 
-registerRenderer('custom-button', CustomButton)
+ComponentRegistry.register('custom-button', CustomButton)
 ```
+
+`ComponentRegistry` is a process-level singleton exported by `@object-ui/core`;
+`SchemaRenderer` resolves every `type` against it, so a component registered
+here is renderable from schema anywhere in the app.
 
 ## API Reference
 

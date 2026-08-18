@@ -325,22 +325,26 @@ const schema = {
 
 ### Custom Data Hooks
 
+`@object-ui/data-objectstack` ships the *adapter*, not hooks. Reads and writes
+go through `useViewData` from `@object-ui/react`, which resolves the adapter
+from context and hands back both the rows and the `DataSource` to write with.
+
 ```typescript
-// Implement custom hooks for data operations
-import { useObjectQuery, useObjectMutation } from '@object-ui/data-objectstack';
+import { useViewData } from '@object-ui/react';
 
 function ContactList() {
-  const { data, loading, error } = useObjectQuery('contact', {
-    filter: { field: 'status', operator: 'eq', value: 'active' },
-    sort: [{ field: 'name', order: 'asc' }],
-    page: 1,
-    pageSize: 20
+  const { data, loading, error, dataSource, refresh } = useViewData({
+    resource: 'contact',
+    params: {
+      $filter: { status: 'active' },
+      $orderby: [{ field: 'name', order: 'asc' }],
+      $top: 20,
+    },
   });
 
-  const { mutate: createContact } = useObjectMutation('contact', 'create');
-  
-  const handleCreate = async (formData: any) => {
-    await createContact(formData);
+  const handleCreate = async (formData: Record<string, unknown>) => {
+    await dataSource?.create('contact', formData);
+    await refresh();
   };
 
   if (loading) return <div>Loading...</div>;
@@ -350,7 +354,7 @@ function ContactList() {
     <SchemaRenderer
       schema={{
         type: 'object-grid',
-        rowData: data.records,
+        rowData: data,
         // ... other props
       }}
     />

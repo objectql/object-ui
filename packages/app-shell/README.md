@@ -8,7 +8,8 @@ A lightweight, framework-agnostic rendering engine that enables third-party syst
 
 This package provides the essential building blocks for rendering ObjectUI schemas:
 - Basic layout components (AppShell, Sidebar, Main)
-- Renderer components for objects, dashboards, pages, and forms
+- Route-level views for objects, dashboards, pages and records
+  (`ObjectView`, `DashboardView`, `PageView`, `RecordDetailView`)
 - Zero console-specific dependencies
 - Bring-your-own-router design
 
@@ -23,15 +24,18 @@ pnpm add @object-ui/app-shell
 ### Basic Setup
 
 ```tsx
-import { AppShell, ObjectRenderer } from '@object-ui/app-shell';
+import { AppShell } from '@object-ui/app-shell';
+import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
+import type { ObjectViewSchema } from '@object-ui/types';
+
+const contactView: ObjectViewSchema = { type: 'object-view', objectName: 'contact' };
 
 function MyCustomConsole() {
   return (
     <AppShell sidebar={<MySidebar />}>
-      <ObjectRenderer
-        objectName="contact"
-        dataSource={myDataSource}
-      />
+      <SchemaRendererProvider dataSource={myDataSource}>
+        <SchemaRenderer schema={contactView} />
+      </SchemaRendererProvider>
     </AppShell>
   );
 }
@@ -39,8 +43,11 @@ function MyCustomConsole() {
 
 ### With Dashboard
 
+`DashboardRenderer` ships from `@object-ui/plugin-dashboard` — this package's
+own `DashboardView` imports it from there.
+
 ```tsx
-import { DashboardRenderer } from '@object-ui/app-shell';
+import { DashboardRenderer } from '@object-ui/plugin-dashboard';
 
 function MyDashboard() {
   return (
@@ -103,39 +110,37 @@ Basic layout container with sidebar support.
 </AppShell>
 ```
 
-### ObjectRenderer
+### ObjectView
 
-Renders object views (Grid, Kanban, List, etc.).
-
-```tsx
-<ObjectRenderer
-  objectName="contact"
-  viewId="grid-view"
-  dataSource={dataSource}
-  onRecordClick={(record) => navigate(`/detail/${record.id}`)}
-/>
-```
-
-### DashboardRenderer
-
-Renders dashboard layouts from schema.
+The route-level object surface (Grid, Kanban, List, etc.). It resolves the
+object and view from the host's route, so it takes no `objectName` prop —
+mount it on a route that supplies them, as the console does with
+`/apps/:appName/:objectName` and `/apps/:appName/:objectName/view/:viewId`.
 
 ```tsx
-<DashboardRenderer
-  schema={dashboardSchema}
-  dataSource={dataSource}
-/>
+<ObjectView dataSource={dataSource} />
 ```
 
-### PageRenderer
+To render an object view from a schema instead of from a route, use
+`SchemaRenderer` from `@object-ui/react` — see [Basic Setup](#basic-setup).
 
-Renders custom page schemas.
+### DashboardView / PageView
+
+`DashboardView` and `PageView` are the route-level equivalents for dashboards
+and custom pages; like `ObjectView` they resolve their target from the route
+(`dashboardName` / `pageName`) rather than from a `schema` prop.
 
 ```tsx
-<PageRenderer
-  schema={pageSchema}
-/>
+<DashboardView dataSource={dataSource} />
 ```
+
+```tsx
+<PageView />
+```
+
+The schema-driven renderers live elsewhere: `DashboardRenderer` in
+`@object-ui/plugin-dashboard`, and everything else through `SchemaRenderer` in
+`@object-ui/react`, which resolves `type` against the component registry.
 
 ### ActionParamDialog
 
