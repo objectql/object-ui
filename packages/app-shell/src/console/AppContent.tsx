@@ -230,17 +230,39 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // re-check ONCE (the registry can lag a beat behind a publish) before
   // concluding it's absent — so a just-built app resolves on its own instead
   // of flashing "not available", while we still never render a foreign app.
-  const [missingRecheck, setMissingRecheck] = useState<'idle' | 'checking' | 'done'>('idle');
+  //
+  // objectui#4522 — the run is stored WITH the app it ran for and read back
+  // only for that app. Held loose from a name, it was a flag for "a re-check
+  // HAS run", reset on exactly one condition: `requestedAppMissing` going
+  // false. Two missing apps in a row never satisfy that — `requestedAppMissing`
+  // is true before the transition and true after it — so the state rode across
+  // as 'done' and the SECOND app got no re-check at all. An app reached second
+  // in one mount (launcher, then a typo'd URL, then the real freshly-published
+  // app; or two attempts while a build lands) was shown "not available" with no
+  // refresh behind it. Same keying as `accessProbe` below, deliberately: one
+  // pattern in this file, not two.
+  const [missingRecheckRun, setMissingRecheckRun] =
+    useState<{ app: string; phase: 'checking' | 'done' } | null>(null);
+  const missingRecheck: 'idle' | 'checking' | 'done' =
+    missingRecheckRun && missingRecheckRun.app === appName ? missingRecheckRun.phase : 'idle';
   useEffect(() => {
     if (!requestedAppMissing) {
-      if (missingRecheck !== 'idle') setMissingRecheck('idle');
+      setMissingRecheckRun(run => (run === null ? run : null));
       return;
     }
-    if (missingRecheck === 'idle' && !metadataLoading && !previewDrafts) {
-      setMissingRecheck('checking');
-      Promise.resolve(refreshMetadata()).finally(() => setMissingRecheck('done'));
+    if (missingRecheck === 'idle' && !metadataLoading && !previewDrafts && appName) {
+      const rechecked = appName;
+      setMissingRecheckRun({ app: rechecked, phase: 'checking' });
+      // Settled BY NAME rather than by the `cancelled` flag the probe below
+      // uses: this effect re-runs on its own state change, so a cleanup-based
+      // cancel would fire on the way out of 'checking' and strand the check
+      // there forever. A refresh landing late for a previous app leaves the
+      // current app's run untouched.
+      Promise.resolve(refreshMetadata()).finally(() =>
+        setMissingRecheckRun(run => (run?.app === rechecked ? { app: rechecked, phase: 'done' } : run)),
+      );
     }
-  }, [requestedAppMissing, metadataLoading, previewDrafts, missingRecheck, refreshMetadata]);
+  }, [requestedAppMissing, metadataLoading, previewDrafts, missingRecheck, appName, refreshMetadata]);
 
   // objectui#4252 — WHY the app is missing, once the re-check above has settled
   // and it still is. The list this reads is the generic metadata list route
@@ -265,8 +287,9 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // whole way across, so nothing in this branch is reset by the transition — a
   // verdict held loose from its name would ride into the next URL and answer
   // for an app it never probed, telling a user their typo is a permission
-  // problem. (`missingRecheck` above has the same shape and is deliberately
-  // left alone: its staleness costs one skipped refresh, not a wrong screen.)
+  // problem. (`missingRecheck` above had the same shape and the same defect —
+  // costing one skipped refresh rather than a wrong screen, which is why it was
+  // filed separately; objectui#4522 keyed it the same way.)
   const [accessProbe, setAccessProbe] = useState<{ app: string; verdict: AppAccessVerdict } | null>(null);
   useEffect(() => {
     if (!requestedAppMissing || previewDrafts || missingRecheck !== 'done' || !appName) {
@@ -666,7 +689,7 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
             })}
           </EmptyDescription>
           <div className="mt-4">
-            <Button onClick={() => setMissingRecheck('idle')} data-testid="app-not-available-retry">
+            <Button onClick={() => setMissingRecheckRun(null)} data-testid="app-not-available-retry">
               {t('common.retry', { defaultValue: 'Retry' })}
             </Button>
           </div>
