@@ -105,7 +105,7 @@ is **not** an array of `{ type, value, message }` entries:
 | `required` | `string \| boolean` | supplies the required **message** only. Whether the field is required is decided by `required` / `requiredWhen` **on the field** |
 | `minLength` / `maxLength` | `{ value: number; message: string }` | text length |
 | `min` / `max` | `{ value: number; message: string }` | numeric range |
-| `pattern` | `{ value: string \| RegExp; message: string }` | hand-authored schemas must pass a **RegExp**: react-hook-form applies a pattern only when its value is `instanceof RegExp`. It is the object-metadata path (`buildValidationRules` in `@object-ui/fields`) that compiles a declared string into one, so a `pattern` string written straight into a plain `form` schema never runs |
+| `pattern` | `{ value: RegExp; message: string }` | hand-authored schemas must pass a **RegExp**: react-hook-form applies a pattern only when its value is `instanceof RegExp`. It is the object-metadata path (`buildValidationRules` in `@object-ui/fields`) that compiles a declared string into one, so a `pattern` string written straight into a plain `form` schema never runs |
 | `validate` | `(value) => boolean \| string \| Promise<boolean \| string>` | custom check; TypeScript-authored schemas only |
 
 There is no `email` rule name — an email check is a `pattern`, which is exactly
