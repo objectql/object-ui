@@ -600,11 +600,16 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         // correctly as a grid and returned everything as a calendar/kanban/
         // gallery. It also keeps each source as its own child of the `and`
         // rather than spreading it, which is what a `ViewFilterRule[]` needs.
+        // The `table` segment reads the CANONICAL key first and the deprecated
+        // one only as its alias (objectui#5102). The two view segments ahead of
+        // it are untouched — this extends the last segment only.
         const finalFilter = mergeFilterNodes(
-          currentNamedViewConfig?.filter || activeView?.filter || schema.table?.defaultFilters,
+          currentNamedViewConfig?.filter || activeView?.filter
+            || schema.table?.filter || schema.table?.defaultFilters,
         );
 
-        const sort = currentNamedViewConfig?.sort || activeView?.sort || schema.table?.defaultSort || undefined;
+        const sort = currentNamedViewConfig?.sort || activeView?.sort
+          || schema.table?.sort || schema.table?.defaultSort || undefined;
 
         // Auto-inject $expand for lookup/master_detail fields.
         // Use a ref instead of the state variable to avoid re-running this effect
@@ -1016,23 +1021,61 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   }, [schema.objectName, schema.table?.fields, currentNamedViewConfig, activeView]);
 
   // Build grid schema (default content renderer)
-  const gridSchema: ObjectGridSchema = useMemo(() => ({
-    type: 'object-grid',
-    objectName: schema.objectName,
-    title: schema.table?.title,
-    description: schema.table?.description,
-    fields: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.fields,
-    columns: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.columns,
-    operations: {
-      ...operations,
-      create: false, // Create is handled by the view's create button
-    },
-    defaultFilters: currentNamedViewConfig?.filter || activeView?.filter || schema.table?.defaultFilters,
-    defaultSort: currentNamedViewConfig?.sort || activeView?.sort || schema.table?.defaultSort,
-    pageSize: schema.table?.pageSize,
-    selectable: schema.table?.selectable,
-    className: schema.table?.className,
-  }), [schema, operations, currentNamedViewConfig, activeView]);
+  //
+  // objectui#5102: `table` is documented as "inherits from ObjectGridSchema",
+  // but this whitelist forwarded only the DEPRECATED half of four pairs —
+  // `pageSize` / `selectable` / `defaultFilters` / `defaultSort` — and dropped
+  // their canonical successors `pagination` / `selection` / `filter` / `sort`
+  // on the floor. An author who wrote the canonical shape the type recommends
+  // got a compile-clean, semantically correct, RUNTIME-INERT view.
+  //
+  // ObjectGrid already reads both spellings of all four and already resolves
+  // them canonical-first (`schema.pagination?.pageSize ?? schema.pageSize`;
+  // `if (schema.selection?.type) … else if (schema.selectable !== undefined)`;
+  // `schemaFilter !== undefined ? … : schema.defaultFilters`;
+  // `schemaSort ?? (schema.defaultSort ? [schema.defaultSort] : undefined)`).
+  // So the fix is forwarding, not translation — and the precedence is not a
+  // free choice here: emitting both slots lets ObjectGrid's existing
+  // canonical-wins rule decide, which is the only answer that keeps the two
+  // layers saying the same thing.
+  const gridSchema: ObjectGridSchema = useMemo(() => {
+    // The two segments ahead of the `table` one, resolved once. They keep
+    // riding the LEGACY slots they ride today: `filter`/`defaultFilters` are
+    // not interchangeable downstream — ObjectGrid lowers the canonical slot
+    // through `toFilterNode` and raw-assigns the legacy one — so moving a
+    // named-view filter across would change the wire shape of a path this
+    // card does not own.
+    const viewFilter = currentNamedViewConfig?.filter || activeView?.filter;
+    const viewSort = currentNamedViewConfig?.sort || activeView?.sort;
+
+    return {
+      type: 'object-grid',
+      objectName: schema.objectName,
+      title: schema.table?.title,
+      description: schema.table?.description,
+      fields: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.fields,
+      columns: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.columns,
+      operations: {
+        ...operations,
+        create: false, // Create is handled by the view's create button
+      },
+      defaultFilters: viewFilter || schema.table?.defaultFilters,
+      defaultSort: viewSort || schema.table?.defaultSort,
+      // Canonical `table` keys, at last forwarded. `filter`/`sort` carry the
+      // `table` segment ONLY: a view segment resolved above already occupies
+      // the legacy slot, and ObjectGrid prefers this slot over that one — so
+      // handing it `table.filter` while a named view is active would let the
+      // table default outrank the view, inverting the precedence the two
+      // untouched segments exist to express.
+      filter: viewFilter ? undefined : schema.table?.filter,
+      sort: viewSort ? undefined : schema.table?.sort,
+      pagination: schema.table?.pagination,
+      selection: schema.table?.selection,
+      pageSize: schema.table?.pageSize,
+      selectable: schema.table?.selectable,
+      className: schema.table?.className,
+    };
+  }, [schema, operations, currentNamedViewConfig, activeView]);
 
   // Build form schema
   const buildFormSchema = (): ObjectFormSchema => {
@@ -1150,12 +1193,19 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // written. It never was (see the note by the state declarations), so both
   // branches were dead. They are gone rather than corrected: the delegated
   // renderer owns the filter/sort UI and does its own combining.
+  //
+  // The `table` segment of both chains reads the canonical key first and the
+  // deprecated one as its alias (objectui#5102). Both land on `list-view`'s
+  // own `filter` / `sort` keys below, so a canonical value arrives in the slot
+  // that already matches its shape.
   const mergedFilters = currentNamedViewConfig?.filter
     || activeView?.filter
+    || schema.table?.filter
     || schema.table?.defaultFilters;
 
   const mergedSort = currentNamedViewConfig?.sort
     || activeView?.sort
+    || schema.table?.sort
     || schema.table?.defaultSort;
 
   // --- Content renderer ---
