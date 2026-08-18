@@ -628,26 +628,122 @@ react-hook-form is one rule per kind.
 
 ## Integration with Data Sources
 
-Connect forms to backend APIs:
+**The adapter is not a schema key.** A schema is a serialisable document; a live
+adapter is an object with methods, so it cannot travel in one. Both form routes
+read the adapter from React context, which the host installs once above the whole
+tree — the same rule [Registering a component under your own
+key](#registering-a-component-under-your-own-key) states for custom
+registrations.
 
-```typescript
+### The metadata route — `object-form`
+
+This is the route that actually reads and writes a record. `ObjectFormSchema`
+names its object with **`objectName`** and its intent with **`mode`**, and both
+are **required** (`packages/types/src/objectql.ts`); the adapter arrives on the
+context, which `ObjectFormRenderer` reads at `src/index.tsx` before handing
+`ObjectForm` its `dataSource` prop.
+
+```tsx
+import { SchemaRendererProvider, SchemaRenderer } from '@object-ui/react';
 import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+import '@object-ui/plugin-form';
+import type { ObjectFormSchema } from '@object-ui/types';
 
 const dataSource = createObjectStackAdapter({
   baseUrl: 'https://api.example.com',
-  token: 'your-auth-token'
+  token: 'your-auth-token',
 });
 
-const schema = {
+const schema: ObjectFormSchema = {
+  type: 'object-form',
+  objectName: 'users',
+  mode: 'create',
+  fields: ['name', 'email'],
+  submitText: 'Create user',
+};
+
+export const App = () => (
+  <SchemaRendererProvider dataSource={dataSource}>
+    <SchemaRenderer schema={schema} />
+  </SchemaRendererProvider>
+);
+```
+
+The object comes from `objectName`; there is no `resource` key. For `mode: 'edit'`
+or `'view'`, add the `recordId` of the record being opened. Note that this
+`mode` vocabulary is `'create' | 'edit' | 'view'` — the basic form's `mode` is a
+different key with a different vocabulary (`'edit' | 'read' | 'disabled'`, see
+[Schema API](#schema-api)).
+
+### The TypeScript route — basic `form`
+
+A bare `form` never fetches or saves by itself: it has no object name and no
+query, so there is nothing for it to call an adapter *with*. It collects values
+and hands them to your `onSubmit`, which the renderer awaits
+(`packages/components/src/renderers/form/form.tsx:1428`). Any persistence is
+whatever that function does:
+
+```typescript
+import type { FormSchema } from '@object-ui/types';
+
+const dataSource = createObjectStackAdapter({
+  baseUrl: 'https://api.example.com',
+  token: 'your-auth-token',
+});
+
+const schema: FormSchema = {
   type: 'form',
-  dataSource,
-  resource: 'users',
-  fields: [/* fields */],
+  fields: [
+    { name: 'name', type: 'input', label: 'Full Name', required: true },
+    { name: 'email', type: 'input', inputType: 'email', label: 'Email', required: true },
+  ],
+  submitLabel: 'Create user',
+  // The adapter reaches this call through the CLOSURE, not through the schema.
   onSubmit: async (data) => {
     await dataSource.create('users', data);
-  }
+  },
 };
 ```
+
+`onSubmit` is a function, so this route is **TypeScript-authored schemas only** —
+a JSON metadata document cannot carry one. Metadata pages take the `object-form`
+route above.
+
+What the adapter on the context still does for a bare `form` is supply the
+**field widgets**: the renderer reads it at `form.tsx:1004`
+(`const contextDataSource = schemaCtx?.dataSource ?? null`) and passes it down
+per field at `:2061`, which is how a lookup or cascading select loads its
+options. Nothing else about the form is wired to it.
+
+### Keys that look like wiring but are not
+
+Neither of these is a key of either form schema, and writing them changes
+nothing:
+
+| Written on a form schema | What actually happens |
+|---|---|
+| `dataSource` | **Discarded.** The basic form strips it in both directions — `dataSource: _dataSource` at `form.tsx:304` (`stripRendererOnlyProps`) and `:2168` — so it never reaches a widget and never reaches the DOM. The adapter the fields receive is the context one |
+| `resource` | **Never read.** It is not declared on `FormSchema` or `ObjectFormSchema` at all. The key exists elsewhere in the protocol — on **`CRUDSchema`** (`packages/types/src/crud.ts`, `type: 'crud'`), where `CRUDBuilder` in `@object-ui/core` sets it — but no form renderer reads it under any spelling. On a form it names nothing |
+
+Both survive compilation for the reason [Schema API](#schema-api) gives: `FormSchema`
+and `ObjectFormSchema` extend `BaseSchema`, which declares `[key: string]: any`, so an
+invented key is not a type error — it is simply never read. That is also why the
+older version of this section looked like it worked: its `onSubmit` genuinely ran
+and genuinely saved, but through the adapter its closure captured. The `dataSource`
+and `resource` keys sitting beside it in the same object were inert. Delete them and
+that example behaves identically — which is the test for whether a key is doing
+anything.
+
+> A top-level `dataSource` **does** mean something on a schema node, but it is not
+> an adapter: it is the spec's element **binding** (`PageComponentSchema.dataSource`,
+> objectstack#6953) — a descriptor such as `{ object: 'users' }` — resolved by
+> `useElementDataSource` (`packages/react/src/hooks/useElementDataSource.ts:139`).
+> `object-form` passes through that gate, and honours the binding's `object` key
+> only. Handing that slot a live adapter is rejected on purpose: the predicate
+> refuses any value carrying a `find` method
+> (`packages/core/src/data-scope/element-data-source.ts:131`), so an adapter written
+> there is ignored rather than mistaken for a binding. Pass adapters through the
+> provider above.
 
 ## TypeScript Support
 
