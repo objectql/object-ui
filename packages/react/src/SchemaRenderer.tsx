@@ -28,6 +28,7 @@ import { SchemaRendererContext } from './context/SchemaRendererContext';
 import { usePredicateScope } from './hooks/useExpression';
 import { usePageVariables } from './hooks/usePageVariables';
 import { resolveKeyedI18nLabel } from './utils/i18n';
+import { reportUnevaluatedExpressions } from './utils/unevaluatedExpression';
 
 /**
  * Dev-mode schema validation.
@@ -619,6 +620,32 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     responsiveStyles: _responsiveStyles, // stripped: compiled to scoped CSS, not a DOM prop
     ...componentProps
   } = evaluatedSchema;
+
+  // Dev-build loud diagnostic (objectui#4795, Direction 3): an unevaluated
+  // `${…}` about to be placed verbatim in front of a user.
+  //
+  // Sited HERE, after the metadata destructure, on purpose. `componentProps` is
+  // precisely the set of values that leaves this component for the DOM — it is
+  // spread as React props below, and the same values are what renderers read as
+  // `schema.<key>`. Everything the destructure stripped is schema METADATA:
+  // `visible` / `visibleWhen` / `hidden` / `disabled` / … hold raw predicate
+  // SOURCE by design (they are evaluated as conditions, never placed), so
+  // scanning before the strip would report every correctly-authored predicate
+  // in the repo. The strip list is therefore the diagnostic's exclusion list,
+  // for free and without a second copy of it to drift.
+  //
+  // Read-only: it reports what evaluation already produced and changes nothing
+  // about what is rendered — no DOM attribute either, so no snapshot moves.
+  if (__DEV__) {
+    reportUnevaluatedExpressions(
+      schema as object,
+      evaluatedSchema.type,
+      evaluatedSchema.id,
+      componentProps,
+      evaluatedSchema.properties,
+      evaluatedSchema.props
+    );
+  }
 
   // SDUI scoped styling (ADR-0065): a node's `responsiveStyles` compiles to
   // id-scoped CSS injected as a <style> tag, and a scope class is appended to
