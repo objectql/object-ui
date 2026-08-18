@@ -358,6 +358,34 @@ export function useObjectLabel() {
     },
 
     /**
+     * Resolve a translated metric-widget SUB-CAPTION within a dashboard.
+     * Convention: `{ns}.dashboards.{dashboardName}.widgets.{widgetId}.subCaption`.
+     * Returns undefined when neither metadata nor translation provides one.
+     *
+     * Deliberately its OWN key, not a second reader of `widgets.{id}.description`.
+     * The KPI card renders two authored strings from two different fields — the
+     * shared card header's `widget.description`, and the sub-caption under the
+     * value, which is authored as `widget.options.description` — and the
+     * objectstack#5428 item-4 ruling (2026-08-06) settled that they get two
+     * keys, not one: 「两个作者字段两个 key」. Collapsing them would make one
+     * translation entry silently retarget the other field on any widget type
+     * that renders both at once (`kpi`, `gauge`, `bullet` — every metric-family
+     * type except the self-contained `metric`).
+     *
+     * `subCaption` is the member objectstack#8056 added to the widget
+     * translation node for exactly this, shipped in `@objectstack/spec@17.0.0`.
+     * The server-side resolver reads the SAME key and overlays it onto
+     * `options.description` (`translateDashboard`), so a document served
+     * through `/meta` and a document translated here land on the same string —
+     * this is the client half of one convention, not a second dialect.
+     */
+    widgetSubCaption: (dashboardName: string, widgetId: string, fallback?: string) => {
+      const fb = fallback ?? '';
+      const resolved = resolve(dashboardSuffixes(dashboardName, `widgets.${widgetId}.subCaption`), fb);
+      return resolved || undefined;
+    },
+
+    /**
      * Resolve translated page label, falling back to pageDef.label.
      * Convention: `{ns}.pages.{pageName}.label`.
      */
