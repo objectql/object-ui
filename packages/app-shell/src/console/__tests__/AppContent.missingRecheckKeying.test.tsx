@@ -204,14 +204,18 @@ function goTo(url: string) {
 /**
  * Let effects, microtasks and timers settle, so a late extra call would show.
  *
- * Deliberately NOT wrapped in `act`. Measured on this surface: every
- * `await act(async () => …)` here sits for the full 15000ms test timeout
- * rather than the 20ms asked for — the console keeps recurring timers running
- * (`LoadingScreen` renders a `setInterval` step animation while a re-check is
- * in flight), so the async wrapper never sees a quiet queue. The assertions
- * this precedes read the refresh mock's call count and the rendered surface,
- * both of which the effect updates whether or not the render is act-wrapped;
- * `findBy*` / `waitFor` do the act-aware waiting where one is needed.
+ * Deliberately NOT wrapped in `act`. Measured on this surface (objectui#5194):
+ * every `await act(async () => …)` here sits for the full 15000ms test timeout
+ * rather than the 20ms asked for, and fails as a timeout rather than as an
+ * assertion. The cause is NOT isolated — `LoadingScreen` does run a recurring
+ * step-animation `setInterval` while a re-check is in flight, but two of the
+ * three measurements were taken after it had unmounted, so do not read that as
+ * the diagnosis.
+ *
+ * What this helper needs is only real elapsed time: the assertions it precedes
+ * read the refresh mock's call count and the rendered surface, both of which
+ * the effect updates whether or not the render is act-wrapped, and `findBy*` /
+ * `waitFor` do the act-aware waiting where one is actually needed.
  */
 async function settle() {
   await new Promise(resolve => setTimeout(resolve, 20));
