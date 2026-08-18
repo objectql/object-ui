@@ -287,6 +287,16 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.edit.auditCount': 'events',
   'engine.edit.auditEmptyTitle': 'No audit events yet',
   'engine.edit.auditEmptyDescription': 'No save, publish, rollback, delete or reset attempts have been recorded for this item. Once someone tries to change it (allowed or denied), the attempt will appear here.',
+  // …and the FAILED read (objectui#5169). The empty copy above is a POSITIVE
+  // CLAIM about the record — true for a read that completed and found nothing,
+  // a lie for one that never completed — and it used to render next to the
+  // failure banner and a measured `0 events`. This copy states only that the
+  // read did not complete and makes no claim in either direction about whether
+  // attempts were recorded. Any reword must keep that property; "no attempts
+  // have been recorded" is exactly the sentence this state exists to avoid.
+  'engine.edit.auditErrorTitle': 'Audit trail could not be read',
+  'engine.edit.auditErrorDescription':
+    'The audit read did not complete, so whether anything has been recorded for this item is unknown. This is not a statement that no attempts were made — use Refresh to ask again.',
   'engine.edit.auditColTime': 'Time',
   'engine.edit.auditColActor': 'Actor',
   'engine.edit.auditColOperation': 'Operation',
@@ -963,6 +973,18 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.form.selectField': 'Select field…',
   'engine.form.addFields': 'Add fields…',
   'engine.form.noObjectBound': 'No object bound',
+  // The FAILURE state shared by every option picker (objectui#5170). It must
+  // never be confusable with the empty-state copy around it — `noObjects`
+  // ("no objects detected") is a MEASUREMENT and `noObjectBound` names a CAUSE,
+  // and on a failed load both are false. This copy states only that the list
+  // could not be loaded and makes no claim in either direction about whether
+  // options exist, because the question was not answered. Any reword must keep
+  // that property: "no options were found" is exactly the sentence this state
+  // exists to avoid.
+  'engine.form.loadingOptions': 'Loading options…',
+  'engine.form.optionsLoadFailedTitle': 'Options could not be loaded',
+  'engine.form.optionsLoadFailedDesc':
+    'This list did not load, so it is not a statement that no options exist. Reload the editor to ask again.',
   'engine.form.none': '— None —',
   'engine.form.notInObject': '(not in object)',
   'engine.form.searchIcons': 'Search icons…',
@@ -2077,6 +2099,12 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.edit.auditCount': '条记录',
   'engine.edit.auditEmptyTitle': '暂无审计记录',
   'engine.edit.auditEmptyDescription': '该元数据尚未发生任何保存、发布、回滚、删除或重置操作。一旦有人尝试修改（无论允许或拒绝），都会在此显示。',
+  // The zh half of the audit failure state (objectui#5169). Same rule as the en
+  // table above: the empty copy is a positive claim about the record, so this
+  // copy must state only that the read did not complete.
+  'engine.edit.auditErrorTitle': '审计记录读取失败',
+  'engine.edit.auditErrorDescription':
+    '审计读取没有完成，因此无法得知这一项是否有过记录。这并不表示没有发生过任何尝试 —— 请使用「刷新」重新读取。',
   'engine.edit.auditColTime': '时间',
   'engine.edit.auditColActor': '操作人',
   'engine.edit.auditColOperation': '操作',
@@ -2761,6 +2789,14 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.form.selectField': '选择字段…',
   'engine.form.addFields': '添加字段…',
   'engine.form.noObjectBound': '未绑定对象',
+  // The zh half of the shared picker failure state (objectui#5170). Same rule
+  // as the en table above: this copy must never be confusable with the empty
+  // copy around it, and must make no claim in either direction about whether
+  // options exist.
+  'engine.form.loadingOptions': '正在加载选项…',
+  'engine.form.optionsLoadFailedTitle': '选项加载失败',
+  'engine.form.optionsLoadFailedDesc':
+    '这个列表没有加载成功,因此它并不表示不存在可选项。请重新加载编辑器后再试。',
   'engine.form.none': '— 无 —',
   'engine.form.notInObject': '（不在对象中）',
   'engine.form.searchIcons': '搜索图标…',

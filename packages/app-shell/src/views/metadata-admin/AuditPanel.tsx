@@ -29,6 +29,7 @@ import type {
   MetadataAuditEntry,
 } from '@object-ui/data-objectstack';
 import { t, translateConsoleValue, type SupportedLocale } from './i18n';
+import { type LoadState, loadErrorMessage } from './loadState';
 
 export interface AuditPanelProps {
   type: string;
@@ -83,21 +84,52 @@ export function AuditPanel({
   client,
   locale = 'en-US',
 }: AuditPanelProps) {
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [events, setEvents] = React.useState<MetadataAuditEntry[] | null>(null);
+  /**
+   * The audit read, as one four-arm `LoadState` (objectui#5169).
+   *
+   * It used to be `events: MetadataAuditEntry[] | null` + `error: string | null`
+   * + `loading: boolean`, and the catch set the error **and** wrote
+   * `setEvents([])`. Because the error did not gate the count or the empty
+   * branch, a failed read rendered all three of these at once, contradicting
+   * each other:
+   *
+   *   • the rose failure banner              — "the read failed"
+   *   • the header count, `0 events`         — a measurement
+   *   • "No audit events yet — no save, publish, rollback, delete or reset
+   *     attempts have been recorded for this item."
+   *
+   * The last one is a positive claim about the record, and this is the surface
+   * people read for compliance-shaped questions ("did anyone touch this?"), so
+   * the false `0` is the part that matters. The union makes the count and the
+   * empty state reachable **only** from `loaded`; the empty copy is deliberately
+   * kept unchanged, because it is exactly right for a read that completed and
+   * found nothing.
+   */
+  const [state, setState] = React.useState<LoadState<MetadataAuditEntry[]>>({
+    status: 'idle',
+  });
+  /**
+   * A request is in flight. NOT a fourth data state — it drives only the
+   * Refresh button's spinner and disabled state, and it is deliberately
+   * separate from `state` so a refresh over an already-loaded trail can keep
+   * the rows on screen (the pre-existing behaviour, which spelled the same
+   * intent as `loading && (!events || events.length === 0)`).
+   */
+  const [refreshing, setRefreshing] = React.useState(false);
 
   const load = React.useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setRefreshing(true);
+    // A refresh over loaded rows keeps them; a first read shows the spinner.
+    setState((prev) => (prev.status === 'loaded' ? prev : { status: 'loading' }));
     try {
       const res = await client.audit(type, name, { limit: 100 });
-      setEvents(res.events ?? []);
-    } catch (err: any) {
-      setError(String(err?.message ?? err));
-      setEvents([]);
+      setState({ status: 'loaded', data: res.events ?? [] });
+    } catch (err) {
+      // NOT `{ status: 'loaded', data: [] }`. A read that did not complete is
+      // not a measurement of zero events — that substitution is the defect.
+      setState({ status: 'error', message: loadErrorMessage(err) });
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
   }, [client, type, name]);
 
@@ -108,18 +140,24 @@ export function AuditPanel({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b px-1 pb-2">
-        <div className="text-xs text-muted-foreground">
-          {events?.length ?? 0} {t('engine.edit.auditCount', locale)}
-        </div>
+        {/* A count is a measurement, so only a COMPLETED read may show one — a
+            `0` over a failed read is the false zero this card is about. */}
+        {state.status === 'loaded' ? (
+          <div className="text-xs text-muted-foreground" data-testid="audit-count">
+            {state.data.length} {t('engine.edit.auditCount', locale)}
+          </div>
+        ) : (
+          <div />
+        )}
         <Button
           variant="ghost"
           size="sm"
           onClick={() => void load()}
-          disabled={loading}
+          disabled={refreshing}
           className="h-7 gap-1 text-xs"
           title={t('engine.edit.refresh', locale)}
         >
-          {loading ? (
+          {refreshing ? (
             <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
             <RefreshCw className="h-3 w-3" />
@@ -128,20 +166,37 @@ export function AuditPanel({
         </Button>
       </div>
 
-      {error && (
-        <div className="m-2 rounded border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">
-          {error}
+      {state.status === 'error' && (
+        <div
+          data-testid="audit-error"
+          className="m-2 rounded border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700"
+        >
+          {state.message}
         </div>
       )}
 
       <div className="flex-1 overflow-auto">
-        {loading && (!events || events.length === 0) ? (
+        {state.status === 'idle' || state.status === 'loading' ? (
           <div className="flex h-32 items-center justify-center text-xs text-muted-foreground">
             <Loader2 className="mr-2 h-3 w-3 animate-spin" />
             {t('engine.edit.loading', locale)}
           </div>
-        ) : !events || events.length === 0 ? (
-          <Empty className="py-10">
+        ) : state.status === 'error' ? (
+          // The read did not complete. This says so and asserts NOTHING about
+          // whether attempts were recorded — the honest answer when the question
+          // was not answered. The banner above carries the cause; Refresh in the
+          // header re-runs the same loader.
+          <Empty className="py-10" data-testid="audit-error-state">
+            <EmptyTitle>{t('engine.edit.auditErrorTitle', locale)}</EmptyTitle>
+            <EmptyDescription>
+              {t('engine.edit.auditErrorDescription', locale)}
+            </EmptyDescription>
+          </Empty>
+        ) : state.data.length === 0 ? (
+          // Reachable only from a COMPLETED read, which is the one case where
+          // "no attempts have been recorded for this item" is true. Copy
+          // deliberately unchanged.
+          <Empty className="py-10" data-testid="audit-empty">
             <EmptyTitle>{t('engine.edit.auditEmptyTitle', locale)}</EmptyTitle>
             <EmptyDescription>
               {t('engine.edit.auditEmptyDescription', locale)}
@@ -172,7 +227,7 @@ export function AuditPanel({
               </tr>
             </thead>
             <tbody>
-              {events.map((ev) => (
+              {state.data.map((ev) => (
                 <tr
                   key={String(ev.id)}
                   className="border-t border-border/50 align-top hover:bg-muted/20"

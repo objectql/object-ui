@@ -42,7 +42,7 @@ import {
   DialogTitle,
 } from '@object-ui/components';
 import type { ComponentMeta } from '@object-ui/core';
-import { ChevronDown, ChevronsUpDown, ChevronUp, Eye, EyeOff, Plus, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronsUpDown, ChevronUp, Eye, EyeOff, Plus, Search, Trash2 } from 'lucide-react';
 import { iconNames } from 'lucide-react/dynamic.mjs';
 import { toast } from 'sonner';
 import { useObjectTranslation } from '@object-ui/i18n';
@@ -51,6 +51,35 @@ import { foldFilterGroupToSpecRules, FILTER_FOLD_REFUSAL_KEYS } from '../viewFil
 import { ColorVariantPicker } from './color-variant-field';
 import { ConditionBuilder } from './inspectors/ConditionBuilder';
 import { expressionSource, writeExpressionSource } from './inspectors/expression-envelope';
+
+/**
+ * Load failures for the option catalogs on {@link WidgetContext}, by catalog
+ * (objectui#5170).
+ *
+ * A key is present **only** when that catalog's load FAILED. It is absent for a
+ * catalog that completed and found nothing, and absent for one that was never
+ * asked (no source object bound) — a miss and a fault are different facts
+ * (ADR-0110 D3).
+ *
+ * ⚠️ A picker MUST consult this **before** it renders its catalog. The catalog
+ * arrays are still empty on failure, so `objectFields.length === 0` on its own
+ * cannot tell "this object has no fields" from "we could not ask" — that
+ * conflation is the defect this type exists to close. `ResourceEditPage` holds
+ * the authoritative four-arm `LoadState` (see `./loadState`) and projects the
+ * failure arm here; the empty array is the fallback for consumers that cannot
+ * render a failure, never a claim that the catalog is empty.
+ *
+ * `fields` covers the action catalog as well: both come from the one
+ * `client.get('object', …)` request, so they fail together.
+ */
+export interface CatalogErrors {
+  /** The object-name list could not be loaded (`ref:object`, `object-selector`). */
+  objects?: string;
+  /** The bound object's field AND action catalogs could not be loaded. */
+  fields?: string;
+  /** The bound object's view catalog could not be loaded (`view-ref`). */
+  views?: string;
+}
 
 export interface WidgetContext {
   /** Names of all object metadata records (for `ref:object`). */
@@ -97,6 +126,11 @@ export interface WidgetContext {
    * free-text id the author can typo.
    */
   componentIds?: Array<{ id: string; type?: string; label?: string }>;
+  /**
+   * Which of the catalogs above FAILED to load. See {@link CatalogErrors} —
+   * a picker checks this before it renders an empty catalog as "none exist".
+   */
+  catalogErrors?: CatalogErrors;
 }
 
 export interface WidgetProps {
@@ -158,6 +192,72 @@ export interface WidgetProps {
 export type WidgetRenderer = (props: WidgetProps) => React.ReactElement;
 
 /* -------------------------------------------------------------------------- */
+/* Shared failure state for every option picker (objectui#5170)               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The one thing every picker renders when its option catalog failed to load.
+ *
+ * Before this existed there was no failure state anywhere in this file: the
+ * loaders in `ResourceEditPage` caught a fault by writing the empty array, and
+ * each picker then rendered its EMPTY copy — which is not neutral wording. It
+ * names a cause, and on a failed load the cause it names is false:
+ *
+ *   • `ref:object`      → "object_name (no objects detected)"  — a measurement
+ *   • `field-ref`       → "No object bound"   — but an object IS bound
+ *   • `view-ref`        → "No object bound"   — likewise
+ *   • `filter-mode`     → "Bind a source object to pick filter fields."
+ *   • `action-multi`    → "Bind a source object to pick actions"
+ *
+ * So an operator authoring a view, a permission row or an action was told, in
+ * so many words, that the thing they are looking for does not exist — and an
+ * author who concludes "this object has no fields" tends to go and create one.
+ *
+ * One component, used by every picker, so the answer is the same wherever the
+ * question is asked. The copy states that the list could not be loaded and
+ * makes NO claim in either direction about whether options exist — the honest
+ * answer when the question was never answered — and shows the cause. Every
+ * picker keeps whatever control lets the author see and edit the value already
+ * stored, because a failed catalog must not also block authoring.
+ *
+ * ⛔ The empty-state copy above is deliberately untouched: it is correct for a
+ * load that COMPLETED and found nothing, and this card is additive. Rendering
+ * it is now reachable only from a completed load.
+ */
+function PickerLoadFailure({
+  message,
+  testId,
+}: {
+  message: string;
+  testId: string;
+}) {
+  const locale = useMetadataLocale();
+  return (
+    <div
+      data-testid={testId}
+      role="status"
+      className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900"
+    >
+      <div className="flex items-center gap-1.5 font-medium">
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+        {t('engine.form.optionsLoadFailedTitle', locale)}
+      </div>
+      <p className="mt-1 text-amber-800">
+        {t('engine.form.optionsLoadFailedDesc', locale)}
+      </p>
+      {message ? (
+        <p
+          data-testid={`${testId}-cause`}
+          className="mt-1 max-w-full break-words font-mono text-[10px] text-amber-700"
+        >
+          {message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* ref:object — pick an object by name                                        */
 /* -------------------------------------------------------------------------- */
 
@@ -179,6 +279,24 @@ function RefObjectWidget({
         disabled
         placeholder={t('engine.form.loadingObjects', locale)}
       />
+    );
+  }
+  // The object list FAILED to load — not the same fact as "there are no
+  // objects", which is what the empty branch below says out loud (objectui#5170).
+  // The freeform input is kept, and enabled, so a failed catalog does not also
+  // block authoring.
+  const loadError = context?.catalogErrors?.objects;
+  if (loadError) {
+    return (
+      <div className="space-y-1.5">
+        <PickerLoadFailure message={loadError} testId="ref-object-load-failed" />
+        <Input
+          id={id}
+          value={v}
+          disabled={readOnly}
+          onChange={(e) => onChange(e.target.value || undefined)}
+        />
+      </div>
     );
   }
   // If list is empty (e.g. no objects defined yet), fall back to a
@@ -381,6 +499,12 @@ function ObjectSelectorWidget({
     return <Input id={id} value={t('engine.form.loadingObjects', locale)} readOnly disabled />;
   }
 
+  // The object list FAILED to load (objectui#5170). The picker below would
+  // otherwise render as a completed, empty dropdown — indistinguishable from an
+  // install that genuinely has no objects. Already-selected values stay visible
+  // and removable; only the "add" picker is replaced.
+  const loadError = context?.catalogErrors?.objects;
+
   return (
     <div className="space-y-2">
       {/* Selected items */}
@@ -407,23 +531,27 @@ function ObjectSelectorWidget({
       )}
 
       {/* Object picker */}
-      <Select
-        value=""
-        onValueChange={handleToggle}
-        disabled={readOnly || names.length === 0}
-      >
-        <SelectTrigger id={id}>
-          <SelectValue placeholder={multiple ? t('engine.form.addObjects', locale) : t('engine.form.selectObject', locale)} />
-        </SelectTrigger>
-        <SelectContent>
-          {names.map(name => (
-            <SelectItem key={name} value={name} disabled={!multiple && selectedValues.includes(name)}>
-              {name}
-              {selectedValues.includes(name) && ' ✓'}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {loadError ? (
+        <PickerLoadFailure message={loadError} testId="object-selector-load-failed" />
+      ) : (
+        <Select
+          value=""
+          onValueChange={handleToggle}
+          disabled={readOnly || names.length === 0}
+        >
+          <SelectTrigger id={id}>
+            <SelectValue placeholder={multiple ? t('engine.form.addObjects', locale) : t('engine.form.selectObject', locale)} />
+          </SelectTrigger>
+          <SelectContent>
+            {names.map(name => (
+              <SelectItem key={name} value={name} disabled={!multiple && selectedValues.includes(name)}>
+                {name}
+                {selectedValues.includes(name) && ' ✓'}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
     </div>
   );
 }
@@ -990,6 +1118,21 @@ function FieldRefWidget({ id, value, onChange, readOnly, context }: WidgetProps)
   const fields = context?.objectFields ?? [];
   const current = value == null ? '' : String(value);
   const inCatalog = !current || fields.some((f) => f.name === current);
+  // Four structurally distinct arms, one per `LoadState` (objectui#5170), so a
+  // fault can never be read as a measurement. Note what the empty placeholder
+  // below claims: "No object bound" — on a failed load an object IS bound, so
+  // that sentence names a cause that is not the real one, which is why the
+  // failure arm replaces the picker rather than decorating it (the shape #5110
+  // landed for the References panel).
+  const loadError = context?.catalogErrors?.fields;
+  if (loadError) {
+    return <PickerLoadFailure message={loadError} testId="field-ref-load-failed" />;
+  }
+  // Same in-file precedent as `ref:object` / `object-selector`: an unanswered
+  // question renders as "asking", never as an answer of none.
+  if (context?.objectFieldsLoading) {
+    return <Input id={id} value={t('engine.form.loadingOptions', locale)} readOnly disabled />;
+  }
   return (
     <Select
       value={current || NO_FIELD}
@@ -997,7 +1140,9 @@ function FieldRefWidget({ id, value, onChange, readOnly, context }: WidgetProps)
       disabled={readOnly}
     >
       <SelectTrigger id={id}>
-        <SelectValue placeholder={fields.length ? t('engine.form.selectField', locale) : t('engine.form.noObjectBound', locale)} />
+        <SelectValue
+          placeholder={fields.length ? t('engine.form.selectField', locale) : t('engine.form.noObjectBound', locale)}
+        />
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={NO_FIELD}>
@@ -1058,6 +1203,16 @@ function ViewRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) 
   // view). Only a value that resolves to NOTHING gets the "(not in object)" tag —
   // so a working bare value like `default` is no longer mislabelled.
   const { suffixMatch, resolves, showStored } = resolveStoredViewRef(views, current);
+  // objectui#5170 — same four arms as {@link FieldRefWidget}. The empty
+  // placeholder says "No object bound", which is false when the object IS bound
+  // and only its view catalog could not be fetched.
+  const loadError = context?.catalogErrors?.views;
+  if (loadError) {
+    return <PickerLoadFailure message={loadError} testId="view-ref-load-failed" />;
+  }
+  if (context?.objectViewsLoading) {
+    return <Input id={id} value={t('engine.form.loadingOptions', locale)} readOnly disabled />;
+  }
   return (
     <Select
       value={current || NO_FIELD}
@@ -1065,7 +1220,9 @@ function ViewRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) 
       disabled={readOnly}
     >
       <SelectTrigger id={id}>
-        <SelectValue placeholder={views.length ? t('engine.form.selectEllipsis', locale) : t('engine.form.noObjectBound', locale)} />
+        <SelectValue
+          placeholder={views.length ? t('engine.form.selectEllipsis', locale) : t('engine.form.noObjectBound', locale)}
+        />
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={NO_FIELD}>
@@ -1111,6 +1268,7 @@ function FieldRefMultiWidget({ value, onChange, readOnly, context, ariaLabelledB
       : [];
   const labelFor = (name: string) => fields.find((f) => f.name === name)?.label || name;
   const remaining = fields.filter((f) => !selected.includes(f.name));
+  const loadError = context?.catalogErrors?.fields;
 
   const add = (name: string) => {
     if (!selected.includes(name)) onChange([...selected, name]);
@@ -1181,6 +1339,12 @@ function FieldRefMultiWidget({ value, onChange, readOnly, context, ariaLabelledB
           ))}
         </div>
       )}
+      {/* objectui#5170 — the field catalog failed to load, so the add picker
+          below is empty for a reason that has nothing to do with the object.
+          Selected chips above stay editable. */}
+      {loadError && (
+        <PickerLoadFailure message={loadError} testId="field-multi-load-failed" />
+      )}
       {!readOnly && (
         <Select value="" onValueChange={add} disabled={remaining.length === 0}>
           {/* No host id here: the group above is the named surface, and an id
@@ -1190,11 +1354,13 @@ function FieldRefMultiWidget({ value, onChange, readOnly, context, ariaLabelledB
           <SelectTrigger aria-label={t('engine.form.addField', locale)}>
             <SelectValue
               placeholder={
-                fields.length
-                  ? remaining.length
-                    ? t('engine.form.addField', locale)
-                    : t('engine.form.allFieldsAdded', locale)
-                  : t('engine.form.noObjectBound', locale)
+                loadError
+                  ? t('engine.form.optionsLoadFailedTitle', locale)
+                  : fields.length
+                    ? remaining.length
+                      ? t('engine.form.addField', locale)
+                      : t('engine.form.allFieldsAdded', locale)
+                    : t('engine.form.noObjectBound', locale)
               }
             />
           </SelectTrigger>
@@ -1422,6 +1588,10 @@ function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }
   const uf = (value && typeof value === 'object' ? value : undefined) as UFValue | undefined;
   const mode: 'none' | UFElement = uf?.element ?? (uf ? 'dropdown' : 'none');
   const objectFields = context?.objectFields ?? [];
+  // objectui#5170 — every "Bind a source object…" line below is a CAUSE claim.
+  // On a failed catalog load a source object IS bound, so each of them names
+  // the wrong reason; the failure state replaces them.
+  const loadError = context?.catalogErrors?.fields;
 
   const setMode = (next: 'none' | UFMode) => {
     if (readOnly) return;
@@ -1573,9 +1743,11 @@ function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }
               </SelectContent>
             </Select>
           )}
-          {objectFields.length === 0 && (
+          {loadError ? (
+            <PickerLoadFailure message={loadError} testId="filter-mode-fields-load-failed" />
+          ) : objectFields.length === 0 ? (
             <p className="text-xs text-muted-foreground">Bind a source object to pick filter fields.</p>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -1623,6 +1795,7 @@ function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }
                   value={tab.filter as FilterRuleLite[] | undefined}
                   onChange={(f) => patchTab(ti, { filter: f as any })}
                   fields={objectFields}
+                  loadError={loadError}
                   readOnly={readOnly}
                 />
               </div>
@@ -1646,9 +1819,11 @@ function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }
             Show “All records” tab
           </label>
 
-          {objectFields.length === 0 && (
+          {loadError ? (
+            <PickerLoadFailure message={loadError} testId="filter-mode-tabs-load-failed" />
+          ) : objectFields.length === 0 ? (
             <p className="text-xs text-muted-foreground">Bind a source object to build tab filter rules.</p>
-          )}
+          ) : null}
         </div>
       )}
     </div>
@@ -1663,7 +1838,12 @@ function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }
 /* only offers actions the object actually defines).                          */
 /* -------------------------------------------------------------------------- */
 function ActionMultiWidget({ value, onChange, readOnly, context, ariaLabelledBy }: WidgetProps) {
+  const locale = useMetadataLocale();
   const actions = context?.objectActions ?? [];
+  // The action catalog rides the SAME `client.get('object', …)` request as the
+  // field catalog, so it has no separate failure — one request, one fault
+  // (objectui#5170).
+  const loadError = context?.catalogErrors?.fields;
   const selected: string[] = Array.isArray(value)
     ? value.map(String)
     : typeof value === 'string' && value
@@ -1687,6 +1867,9 @@ function ActionMultiWidget({ value, onChange, readOnly, context, ariaLabelledBy 
     // measured reason for `labelling: 'group'` (objectui#4871): the add trigger
     // that used to carry the host id disappears in the read-only state.
     <div className="space-y-2" data-testid="action-multi" role="group" aria-labelledby={ariaLabelledBy}>
+      {loadError && (
+        <PickerLoadFailure message={loadError} testId="action-multi-load-failed" />
+      )}
       {selected.length > 0 && (
         <div className="space-y-1">
           {selected.map((name, i) => (
@@ -1710,7 +1893,7 @@ function ActionMultiWidget({ value, onChange, readOnly, context, ariaLabelledBy 
         <Select value="" onValueChange={add} disabled={remaining.length === 0}>
           {/* No host id — see {@link FieldRefMultiWidget}'s add trigger. */}
           <SelectTrigger data-testid="action-multi-add" aria-label="Add action button">
-            <SelectValue placeholder={actions.length ? (remaining.length ? '+ Add action button…' : 'All actions added') : 'Bind a source object to pick actions'} />
+            <SelectValue placeholder={loadError ? t('engine.form.optionsLoadFailedTitle', locale) : actions.length ? (remaining.length ? '+ Add action button…' : 'All actions added') : 'Bind a source object to pick actions'} />
           </SelectTrigger>
           <SelectContent>
             {remaining.map((a) => (
@@ -1761,11 +1944,17 @@ const SPEC_TO_FB: Record<string, string> = {
 
 interface FilterRuleLite { field: string; operator: string; value?: unknown }
 
-function FilterBuilderField({ value, onChange, fields, readOnly, id }: {
+function FilterBuilderField({ value, onChange, fields, readOnly, id, loadError }: {
   value?: FilterRuleLite[];
   onChange: (rules: FilterRuleLite[]) => void;
   fields: Array<{ name: string; label?: string; type?: string }>;
   readOnly?: boolean;
+  /**
+   * Why `fields` is empty, when the reason is that the catalog failed to load
+   * rather than that no object is bound (objectui#5170). Absent on a completed
+   * load, empty or not.
+   */
+  loadError?: string;
   /**
    * Host field id, forwarded onto the trigger BUTTON — a labelable element, so
    * the host's `<label for>` reaches it (objectui#4871). Only the standalone
@@ -1818,7 +2007,9 @@ function FilterBuilderField({ value, onChange, fields, readOnly, id }: {
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[440px] max-w-[90vw] p-3">
-        {fields.length === 0 ? (
+        {loadError ? (
+          <PickerLoadFailure message={loadError} testId="filter-builder-load-failed" />
+        ) : fields.length === 0 ? (
           <p className="text-xs text-muted-foreground">Bind a source object to add filter conditions.</p>
         ) : (
           <FilterBuilder fields={fbFields} value={group as any} onChange={handle} />
@@ -1838,6 +2029,7 @@ function FilterBuilderWidget({ id, value, onChange, readOnly, context }: WidgetP
       value={value as FilterRuleLite[] | undefined}
       onChange={(rules) => onChange(rules.length ? rules : undefined)}
       fields={context?.objectFields ?? []}
+      loadError={context?.catalogErrors?.fields}
       readOnly={readOnly}
     />
   );

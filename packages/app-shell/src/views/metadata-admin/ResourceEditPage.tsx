@@ -93,7 +93,14 @@ import {
   DRAWER_METADATA_ID_SCOPE,
   type SchemaFormIssue,
 } from './SchemaForm';
-import { collectPageComponentIds } from './widgets';
+import { collectPageComponentIds, type CatalogErrors } from './widgets';
+import {
+  type LoadState,
+  loadErrorMessage,
+  loadErrorOf,
+  loadedData,
+  isLoading,
+} from './loadState';
 import {
   useMetadataClient,
   useMetadataTypes,
@@ -273,6 +280,78 @@ type ReferencesState =
   | { status: 'loading' }
   | { status: 'loaded'; items: MetadataReference[] }
   | { status: 'error'; message: string };
+
+/** The two catalogs the single `client.get('object', …)` call yields. */
+type ObjectCatalog = {
+  fields: Array<{ name: string; label?: string; type?: string }>;
+  actions: Array<{ name: string; label?: string; locations?: string[] }>;
+};
+
+// Module-level empties so the derived catalogs keep a stable identity across
+// renders — `widgetContext` memoises on them, and a fresh `[]` per render would
+// defeat that for every consumer downstream.
+const EMPTY_OBJECT_NAMES: string[] = [];
+const EMPTY_OBJECT_VIEWS: Array<{ name: string; label?: string }> = [];
+const EMPTY_OBJECT_CATALOG: ObjectCatalog = { fields: [], actions: [] };
+
+/**
+ * The one loader the three option-picker catalogs share (objectui#5170).
+ *
+ * All three used to hand-roll the same effect, and all three hand-rolled the
+ * same bug in it: the `catch` wrote the empty array — the value a *successful*
+ * response with nothing in it writes — and the `finally` flipped loading to
+ * false. The picker then rendered a completed, empty list, and an operator
+ * authoring a view, a permission row or an action read that as the metadata
+ * graph's answer ("this object has no fields") and went and created one.
+ * `client.list()` / `client.get()` throw for every non-ok status other than the
+ * 404s they map to an empty result, so refusals, dropped connections, expired
+ * sessions and unparseable bodies all took that path.
+ *
+ * Sharing one hook is what makes that unrepeatable: the catch is written once,
+ * and it can only produce the `error` arm. Three copy-pasted unions in one file
+ * is how the next drift starts. The three loaders differ only in what they
+ * fetch and in whether they are gated on a bound source object, and both
+ * differences fit through the argument:
+ *
+ *   • `load` is the request, memoised by the caller — its identity is the
+ *     dependency, so the caller keeps its own explicit dep list and this hook
+ *     needs no dep-array passthrough.
+ *   • `load === null` means "not applicable" (no source object is bound). That
+ *     is the `idle` arm: a question never asked, which is NOT a failure and
+ *     must not render as one.
+ *
+ * The initial state follows `load` rather than defaulting to `idle`, so an
+ * enabled loader is already `loading` on first paint. Starting at `idle` would
+ * flash one frame of "not loading, zero results" before the effect runs — the
+ * exact false reading this card is about, just briefly.
+ */
+function usePickerLoad<T>(load: (() => Promise<T>) | null): LoadState<T> {
+  const [state, setState] = React.useState<LoadState<T>>(() =>
+    load ? { status: 'loading' } : { status: 'idle' },
+  );
+  React.useEffect(() => {
+    if (!load) {
+      setState({ status: 'idle' });
+      return;
+    }
+    let cancelled = false;
+    setState({ status: 'loading' });
+    void (async () => {
+      try {
+        const data = await load();
+        if (!cancelled) setState({ status: 'loaded', data });
+      } catch (err) {
+        // NOT `{ status: 'loaded', data: [] }`. An unanswered question is not
+        // an answer of "nothing" — that substitution is the entire defect.
+        if (!cancelled) setState({ status: 'error', message: loadErrorMessage(err) });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [load]);
+  return state;
+}
 
 interface MetadataResourceEditPageImplProps {
   type: string;
@@ -627,27 +706,21 @@ function MetadataResourceEditPageImpl({
 
   // Prefetch object name list once — fuels the `ref:object` widget.
   // We don't block render on it; the widget shows a "Loading…" state.
-  const [objectNames, setObjectNames] = React.useState<string[]>([]);
-  const [objectsLoading, setObjectsLoading] = React.useState(true);
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const list = (await client.list('object')) as Array<{ name?: string }>;
-        if (cancelled) return;
-        setObjectNames(
-          list.map((x) => x?.name).filter((n): n is string => !!n).sort(),
-        );
-      } catch {
-        if (!cancelled) setObjectNames([]);
-      } finally {
-        if (!cancelled) setObjectsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [client]);
+  //
+  // objectui#5170: this used to be `objectNames: string[]` + `objectsLoading:
+  // boolean`, and the catch wrote `setObjectNames([])` — the exact value a
+  // successful list of zero objects writes — then flipped loading to false, with
+  // no error state, no banner and not even a `console.error`. The picker
+  // rendered as a completed, empty list and told the operator "object_name (no
+  // objects detected)". See {@link usePickerLoad}.
+  const objectsState = usePickerLoad<string[]>(
+    React.useCallback(async () => {
+      const list = (await client.list('object')) as Array<{ name?: string }>;
+      return list.map((x) => x?.name).filter((n): n is string => !!n).sort();
+    }, [client]),
+  );
+  const objectNames = loadedData(objectsState, EMPTY_OBJECT_NAMES);
+  const objectsLoading = isLoading(objectsState);
   // Field catalog of the draft's bound/source object — fuels field-picker
   // widgets (e.g. the interface-page filter-mode selector). For a page the
   // source is `interfaceConfig.source` (interface mode) or the bound
@@ -657,72 +730,61 @@ function MetadataResourceEditPageImpl({
     ((draft as any)?.data?.object as string | undefined) ||
     ((draft as any)?.object as string | undefined) ||
     ((draft as any)?.objectName as string | undefined);
-  const [objectFields, setObjectFields] = React.useState<Array<{ name: string; label?: string; type?: string }>>([]);
-  const [objectFieldsLoading, setObjectFieldsLoading] = React.useState(false);
-  // Action catalog of the source object — fuels the `action-multi` picker so
-  // interface-page `buttons` reference the object's real actions.
-  const [objectActions, setObjectActions] = React.useState<Array<{ name: string; label?: string; locations?: string[] }>>([]);
-  React.useEffect(() => {
-    let cancelled = false;
-    if (!sourceObjectName) { setObjectFields([]); setObjectActions([]); return; }
-    setObjectFieldsLoading(true);
-    (async () => {
-      try {
-        const obj = (await client.get('object', sourceObjectName)) as { fields?: Record<string, any> | Array<any> } | null;
-        if (cancelled) return;
-        const raw = obj?.fields;
-        const list = Array.isArray(raw)
-          ? raw.map((f: any) => ({ name: f?.name, label: f?.label, type: f?.type }))
-          : raw && typeof raw === 'object'
-            ? Object.entries(raw).map(([name, f]: [string, any]) => ({ name, label: f?.label, type: f?.type }))
-            : [];
-        setObjectFields(list.filter((f) => !!f.name));
-        const rawActions = (obj as any)?.actions;
-        const acts = Array.isArray(rawActions)
-          ? rawActions.map((a: any) => ({ name: a?.name, label: a?.label, locations: a?.locations })).filter((a: any) => !!a.name)
-          : [];
-        if (!cancelled) setObjectActions(acts);
-      } catch {
-        if (!cancelled) { setObjectFields([]); setObjectActions([]); }
-      } finally {
-        if (!cancelled) setObjectFieldsLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [client, sourceObjectName]);
+  // The field catalog and the action catalog come from ONE `client.get('object',
+  // …)` call, so they succeed together and fail together — one `LoadState` for
+  // the pair, not two that could disagree (objectui#5170).
+  const objectCatalogState = usePickerLoad<ObjectCatalog>(
+    React.useMemo(
+      () =>
+        sourceObjectName
+          ? async () => {
+              const obj = (await client.get('object', sourceObjectName)) as { fields?: Record<string, any> | Array<any> } | null;
+              const raw = obj?.fields;
+              const list = Array.isArray(raw)
+                ? raw.map((f: any) => ({ name: f?.name, label: f?.label, type: f?.type }))
+                : raw && typeof raw === 'object'
+                  ? Object.entries(raw).map(([name, f]: [string, any]) => ({ name, label: f?.label, type: f?.type }))
+                  : [];
+              const rawActions = (obj as any)?.actions;
+              const acts = Array.isArray(rawActions)
+                ? rawActions.map((a: any) => ({ name: a?.name, label: a?.label, locations: a?.locations })).filter((a: any) => !!a.name)
+                : [];
+              return { fields: list.filter((f) => !!f.name), actions: acts };
+            }
+          : null,
+      [client, sourceObjectName],
+    ),
+  );
+  const objectFields = loadedData(objectCatalogState, EMPTY_OBJECT_CATALOG).fields;
+  const objectActions = loadedData(objectCatalogState, EMPTY_OBJECT_CATALOG).actions;
+  const objectFieldsLoading = isLoading(objectCatalogState);
 
   // View catalog of the source object — fuels the `view-ref` picker for
   // `interfaceConfig.sourceView` so the author chooses an existing view
   // instead of typing (and mistyping) a name. Views are standalone metadata
   // keyed to their object via `objectName`/`object`; the LIST endpoint returns
   // name + label, which is all the picker needs.
-  const [objectViews, setObjectViews] = React.useState<Array<{ name: string; label?: string }>>([]);
-  const [objectViewsLoading, setObjectViewsLoading] = React.useState(false);
-  React.useEffect(() => {
-    let cancelled = false;
-    if (!sourceObjectName) { setObjectViews([]); return; }
-    setObjectViewsLoading(true);
-    (async () => {
-      try {
-        const all = (await client.list('view')) as Array<Record<string, any>>;
-        if (cancelled) return;
-        const forObject = (all || []).filter((v) => {
-          const obj = v?.objectName ?? v?.object ?? v?.object_name;
-          return obj === sourceObjectName;
-        });
-        const seen = new Set<string>();
-        const list = forObject
-          .map((v) => ({ name: v?.name as string, label: (v?.label as string) || undefined }))
-          .filter((v) => !!v.name && !seen.has(v.name) && seen.add(v.name));
-        setObjectViews(list);
-      } catch {
-        if (!cancelled) setObjectViews([]);
-      } finally {
-        if (!cancelled) setObjectViewsLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [client, sourceObjectName]);
+  const objectViewsState = usePickerLoad<Array<{ name: string; label?: string }>>(
+    React.useMemo(
+      () =>
+        sourceObjectName
+          ? async () => {
+              const all = (await client.list('view')) as Array<Record<string, any>>;
+              const forObject = (all || []).filter((v) => {
+                const obj = v?.objectName ?? v?.object ?? v?.object_name;
+                return obj === sourceObjectName;
+              });
+              const seen = new Set<string>();
+              return forObject
+                .map((v) => ({ name: v?.name as string, label: (v?.label as string) || undefined }))
+                .filter((v) => !!v.name && !seen.has(v.name) && seen.add(v.name));
+            }
+          : null,
+      [client, sourceObjectName],
+    ),
+  );
+  const objectViews = loadedData(objectViewsState, EMPTY_OBJECT_VIEWS);
+  const objectViewsLoading = isLoading(objectViewsState);
 
   // Component ids placed on the page being edited — fuels the `ref:component`
   // picker so a page variable's `source` (the component that writes it) is
@@ -734,9 +796,30 @@ function MetadataResourceEditPageImpl({
     [type, draft],
   );
 
+  // `catalogErrors` is the failure arm of the three loaders above, carried to
+  // the pickers (objectui#5170). A key is present ONLY when that catalog's load
+  // FAILED — never for a catalog that completed and found nothing, and never for
+  // one that was never asked (no source object bound). The catalog arrays stay
+  // empty on failure, which is exactly why the pickers must consult this first:
+  // an empty array can no longer be read as "the answer is none" without also
+  // checking whether the question was answered at all.
+  //
+  // `fields` covers `objectActions` too — both come from the single
+  // `client.get('object', …)` call, so there is one failure, not two.
+  const catalogErrors = React.useMemo<CatalogErrors>(() => {
+    const errors: CatalogErrors = {};
+    const objects = loadErrorOf(objectsState);
+    const fields = loadErrorOf(objectCatalogState);
+    const views = loadErrorOf(objectViewsState);
+    if (objects) errors.objects = objects;
+    if (fields) errors.fields = fields;
+    if (views) errors.views = views;
+    return errors;
+  }, [objectsState, objectCatalogState, objectViewsState]);
+
   const widgetContext = React.useMemo(
-    () => ({ objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading, objectActions, componentIds }),
-    [objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading, objectActions, componentIds],
+    () => ({ objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading, objectActions, componentIds, catalogErrors }),
+    [objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading, objectActions, componentIds, catalogErrors],
   );
 
   // Load layered view + initial draft.
