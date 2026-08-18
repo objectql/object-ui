@@ -28,6 +28,14 @@
  * read point (consumer tolerance, AGENTS.md #0.1), so the last test asserts
  * the string is handed to react-hook-form UNCOMPILED — if someone "helpfully"
  * adds `new RegExp(...)` in form.tsx, that assertion goes red.
+ *
+ * Also pinned, because a later refactor dropping either would be invisible:
+ * the diagnostic is DEV-ONLY (the ruling says dev-time; production consoles
+ * are not the audience — same gate as `basic/div.tsx`, including its order
+ * property: the production check must return before the seen-set is marked),
+ * and it reports ONCE per field + rule-set however often a schema-driven
+ * caller rebuilds the `fields` array (`basic/div.tsx` / `ObjectMap.tsx`
+ * once-memo shape; objectui#3965 measured what unthrottled repetition costs).
  */
 
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
@@ -51,6 +59,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 function renderForm(fields: any[], defaultValues: Record<string, unknown> = {}, onSubmit?: any) {
@@ -162,6 +171,63 @@ describe('form renderer — unrecognized validation rule names (objectui#5099)',
       expect(screen.getByText('Lowercase letters, digits, dashes')).toBeInTheDocument();
     });
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('is silent in production builds, and the gate does not eat the dev notice', () => {
+    // The ruling's second limb says DEV-TIME error — a customer's production
+    // console is not the audience. Same gate as `basic/div.tsx` /
+    // `basic/span.tsx`, and this pins the documented order property too: the
+    // production check returns BEFORE the seen-set is marked, so a production
+    // render must never suppress the later dev notice for the same field.
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const Form = ComponentRegistry.get('form')!;
+    const schemaWith = (fields: any[]) => ({
+      type: 'form',
+      mode: 'create',
+      showSubmit: true,
+      submitLabel: 'Create',
+      fields,
+      onSubmit: () => {},
+    });
+    const badField = () => [
+      { name: 'prod_probe', label: 'P', type: 'input', validation: { minlength: { value: 3, message: 'x' } } },
+    ];
+
+    vi.stubEnv('NODE_ENV', 'production');
+    const view = render(<Form schema={schemaWith(badField())} />);
+    expect(ruleErrors(spy)).toHaveLength(0);
+
+    vi.unstubAllEnvs();
+    // Fresh fields array ⇒ the reporting effect re-runs; now in dev it must
+    // fire — a production render marking the seen-set would swallow this.
+    view.rerender(<Form schema={schemaWith(badField())} />);
+    expect(ruleErrors(spy)).toHaveLength(1);
+  });
+
+  it('reports once per field + rule-set, however often the caller rebuilds `fields`', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const Form = ComponentRegistry.get('form')!;
+    const schemaWith = (validation: any) => ({
+      type: 'form',
+      mode: 'create',
+      showSubmit: true,
+      submitLabel: 'Create',
+      // A fresh array every call — the schema-driven caller shape that made
+      // the effect re-run per render and would repeat the notice forever.
+      fields: [{ name: 'dedupe_probe', label: 'D', type: 'input', validation }],
+      onSubmit: () => {},
+    });
+
+    const view = render(<Form schema={schemaWith({ minlength: { value: 3, message: 'x' } })} />);
+    expect(ruleErrors(spy)).toHaveLength(1);
+
+    view.rerender(<Form schema={schemaWith({ minlength: { value: 3, message: 'x' } })} />);
+    expect(ruleErrors(spy)).toHaveLength(1); // same field, same keys: silent
+
+    // The memo includes the offending KEYS, not just the field name: metadata
+    // that grows a NEW bad rule after the first report must still shout.
+    view.rerender(<Form schema={schemaWith({ email: true })} />);
+    expect(ruleErrors(spy)).toHaveLength(2);
   });
 
   it('does NOT compile string patterns at the read point — rejected by the ruling', async () => {
