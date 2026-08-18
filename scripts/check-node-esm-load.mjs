@@ -204,13 +204,13 @@ export function buildPreservesSpecifiers(buildScript, pkgDir) {
  * package reaches zero.
  */
 export const SPECIFIER_DEBT = new Map([
-  ['@object-ui/app-shell', 'objectui#4538 follow-up; held by another session when #4538 landed'],
-  ['@object-ui/auth', 'objectui#4538 follow-up'],
-  ['@object-ui/collaboration', 'objectui#4538 follow-up'],
-  ['@object-ui/fields', 'objectui#4538 follow-up; held by another session when #4538 landed'],
-  ['@object-ui/mobile', 'objectui#4538 follow-up'],
-  ['@object-ui/permissions', 'objectui#4538 follow-up'],
-  ['@object-ui/providers', 'objectui#4538 follow-up'],
+  ['@object-ui/app-shell', 'objectui#5214; 1259 specifiers, large enough to deserve its own card'],
+  ['@object-ui/auth', 'objectui#5214'],
+  ['@object-ui/collaboration', 'objectui#5214'],
+  ['@object-ui/fields', 'objectui#5214; held by another session when objectui#4538 landed'],
+  ['@object-ui/mobile', 'objectui#5214; blocks 6 plugin packages that fail on its dist'],
+  ['@object-ui/permissions', 'objectui#5214; blocks 4 plugin packages that fail on its dist'],
+  ['@object-ui/providers', 'objectui#5214; blocks 2 packages that fail on its dist'],
 ]);
 
 /**
