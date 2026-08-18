@@ -36,10 +36,16 @@ vi.mock('react-map-gl/maplibre', () => ({
 const mockData = [{ id: '1', name: 'Loc 1', latitude: 40, longitude: -74 }];
 
 describe('ObjectMap — style/load-failure fallback', () => {
+  // Spelled `mapStyle`, not `style`: this case pre-dates the naming and used the
+  // top-level `style` leg, which objectui#5017 deleted (it is `BaseSchema.style`,
+  // inline CSS). The behaviour under test — a configured style beats the public
+  // demo default — is unchanged and its assertion is untouched; only the key it
+  // is configured with moved to the declared name. The deleted leg's own verdict
+  // is pinned in `ObjectMap.topLevelStyle.test.tsx`.
   it('uses the configured style over the public demo default', async () => {
     const schema: any = {
       type: 'map',
-      style: 'https://tiles.example.com/style.json',
+      mapStyle: 'https://tiles.example.com/style.json',
       map: { latitudeField: 'latitude', longitudeField: 'longitude', titleField: 'name' },
       data: { provider: 'value', items: mockData },
     };

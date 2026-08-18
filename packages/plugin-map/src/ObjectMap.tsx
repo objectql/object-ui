@@ -186,6 +186,62 @@ function warnOnLegacyFilterMapConfig(schema: MapConfigSource): void {
 }
 
 /**
+ * Warn once per distinct dropped URL, for the same reason the diagnostics
+ * around it warn once: this runs on every render of the map.
+ */
+const warnedTopLevelStyleUrls = new Set<string>();
+
+/**
+ * Top-level `style` is `BaseSchema.style` — inline CSS — and is NOT a map style
+ * (objectui#5017).
+ *
+ * `getMapConfig` used to read it FIRST, ahead of both declared spellings, so a
+ * map node carrying the base face's own `style: { height: '400px' }` handed that
+ * object to MapGL's `mapStyle` prop: no validation, no diagnostic, and a
+ * collision `@object-ui/types` had already gone out of its way to avoid — it
+ * named the key `mapStyle` (not `style`) for exactly this reason
+ * (`objectql.ts`, `ObjectMapSchema.mapStyle`). The consumer contradicted the
+ * declaration it was named after; that read is gone.
+ *
+ * The OBJECT form needs no diagnostic: it is legal base-face authoring, and
+ * dropping it is the fix. The STRING form does, because it is the one shape
+ * that used to work:
+ * - `ObjectView` / `ListView` build an `object-map` schema by spreading the
+ *   CONTENTS of `options.map` at the top level (see `FlatMapConfigKeys`), so a
+ *   view authored with `map: { style: '<url>' }` arrives here as a top-level
+ *   STRING `style` — the flatten crosses the two keys' namespaces. That shape
+ *   is not spec-authorable (`@objectstack/spec`'s list-view schemas are strict
+ *   and declare no `map` block at all), but it is runtime-reachable, so say
+ *   what happened instead of silently painting the demo tiles.
+ * - A string is not valid `BaseSchema.style` either (that is a record), so a
+ *   string here is unambiguously "the author meant a map style" — there is no
+ *   legitimate CSS reading to mistake it for.
+ */
+function warnOnTopLevelStyleUrl(schema: MapConfigSource): void {
+  if (!isDev()) return;
+
+  // Re-tested at runtime rather than trusted from the declaration: the
+  // declaration says this key is a CSS record, and the shape this probe exists
+  // for is precisely the one that violates it.
+  const raw: unknown = schema.style;
+  if (typeof raw !== 'string' || raw === '') return;
+
+  const memo = `${schema.type ?? 'map'}::${schema.objectName ?? ''}::${raw}`;
+  if (warnedTopLevelStyleUrls.has(memo)) return;
+  warnedTopLevelStyleUrls.add(memo);
+
+  console.warn(
+    '[ObjectMap] A top-level `style` is NOT read as a map style, so this map is rendering with ' +
+      `the DEFAULT public demo tiles and \`${raw}\` was dropped. \`style\` is the base schema's ` +
+      'INLINE CSS key (a record of CSS properties), which every node may carry; the map style is ' +
+      '`mapStyle` — named that way precisely to avoid this collision. Write `mapStyle: ' +
+      `'${raw}'\` at the top level, or \`map: { style: '${raw}' }\` in the declared config block. ` +
+      'On a view, note that `options.map` is FLATTENED into the top level, so its `style` lands ' +
+      'here as this same top-level key — spell it `map: { mapStyle }` there. objectui#5017.',
+  );
+}
+
+/**
  * Warn once per distinct shadowing, for the same reason `getMapConfig` warns
  * once per legacy stash: this runs on every render of the map.
  */
@@ -238,16 +294,18 @@ function warnOnShadowedFlatMapKeys(schema: MapConfigSource): void {
  */
 function getMapConfig(schema: MapConfigSource): ObjectMapConfig {
   warnOnLegacyFilterMapConfig(schema);
+  warnOnTopLevelStyleUrl(schema);
 
   // A custom style may be set alongside any of the shapes below — read it
   // once so every return path can carry it through.
   //
-  // `BaseSchema.style` is an inline-CSS object, not a MapLibre style URL: that
-  // collision is objectui#5017's to rule, and this read deliberately keeps its
-  // exact pre-#5018 runtime behaviour, cast and all, rather than settling it
-  // here.
-  const style: string | undefined =
-    (schema.style as unknown as string | undefined) || schema.mapStyle || schema.map?.style;
+  // The two DECLARED spellings, and only those: `mapStyle` on the schema
+  // (`ObjectMapSchema.mapStyle`) and `style` inside the declared config block
+  // (`ObjectMapConfig.style`). The top-level `style` this used to read first is
+  // `BaseSchema.style` — inline CSS, a different key with a different meaning —
+  // and is no longer consumed here at all (objectui#5017; see
+  // `warnOnTopLevelStyleUrl`).
+  const style: string | undefined = schema.mapStyle || schema.map?.style;
 
   // 1. The declared configuration input: `{ name: 'map', type: 'object' }` at
   // the `object-map` / `map` registrations. The author face, and the winner
