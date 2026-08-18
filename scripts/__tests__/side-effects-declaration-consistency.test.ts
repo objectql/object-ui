@@ -247,10 +247,13 @@ interface AliasEntry {
  * Bundler configs, by strict basename.
  *
  * The strictness is load-bearing rather than tidy: a `vite.config.*` glob also
- * matches `packages/plugin-editor/vite.config.ts.timestamp-*.mjs`, a Vite
- * temp-config artifact that is git-tracked even though `.gitignore:99` names
- * the pattern (objectui#4540). It is a stale CI-runner snapshot pinned to vite
- * 5.4.21 and reading it would feed this guard a table from another era.
+ * matches `vite.config.ts.timestamp-*.mjs`, the temp-config Vite writes beside a
+ * config while loading it, and reading one would feed this guard an alias table
+ * from whenever that snapshot was taken. Being git-ignored (`.gitignore:99`) does
+ * not put it out of reach — `readAliasEntries` below walks the filesystem, so any
+ * copy a crashed or killed Vite left behind is visible here whether or not git
+ * tracks it. One such file was tracked in `packages/plugin-editor` until
+ * objectui#4540 removed it.
  */
 const BUNDLER_CONFIG_RE = /^vite\.config\.(ts|mts|cts|js|mjs|cjs)$/;
 
