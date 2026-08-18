@@ -48,14 +48,20 @@
  */
 
 import { existsSync, statSync } from 'fs';
-import { dirname, join, relative, resolve } from 'path';
+import { basename, dirname, join, relative, resolve } from 'path';
 
 import chalk from 'chalk';
 
 import { parseSchemaFile, scanPagesDirectory, type RouteInfo } from './app-generator.js';
 
-/** Where the `pages/` directory that won was found. */
-export type PagesDirOrigin = 'schema-dir' | 'cwd';
+/**
+ * Where the `pages/` directory that won was found.
+ *
+ * - `schema-dir` — beside the schema FILE the argument named.
+ * - `argument-dir` — the argument was itself a directory (objectui#5037).
+ * - `cwd` — the working-directory fallback.
+ */
+export type PagesDirOrigin = 'schema-dir' | 'argument-dir' | 'cwd';
 
 /** File-system routing: a `pages/` directory decides the routes. */
 export interface RoutedProjectSource {
@@ -64,7 +70,7 @@ export interface RoutedProjectSource {
   projectRoot: string;
   /** Absolute path of the `pages/` directory being scanned. */
   pagesDir: string;
-  /** Which of the two candidate locations `pagesDir` came from. */
+  /** Which of the candidate locations `pagesDir` came from. */
   pagesDirOrigin: PagesDirOrigin;
   routes: RouteInfo[];
   /** Parsed app config, when one was found and readable. */
@@ -114,37 +120,47 @@ function readAppConfig(path: string, warnings: string[]): unknown {
  *
  * Resolution order — first match wins:
  *
- * 1. `<schemaArg>` is an existing file and `pages/` sits beside it → routing
+ * 1. `<schemaArg>` names an existing file and `pages/` sits beside it → routing
  *    from there, with the named file as the app config. This is the limb
- *    `serve`/`build` never had.
+ *    `serve`/`build` never had. `<schemaArg>` names an existing DIRECTORY that
+ *    either IS a `pages` directory or contains one → routing from it, with
+ *    `<projectRoot>/app.json` as the app config when it exists (objectui#5037).
  * 2. `<cwd>/pages` exists → routing from there, with `<cwd>/app.json` as the app
  *    config when it exists. Invoking inside the project keeps working, including
- *    with the default `app.json` argument and with a `pages/` argument.
+ *    with the default `app.json` argument.
  * 3. Otherwise → single schema file mode.
  *
  * Throws when the resolved input cannot be rendered at all: a missing schema
- * file, an unparsable one, or a `pages/` directory holding no schema.
+ * file, an unparsable one, a `pages/` directory holding no schema, or a
+ * directory argument that is no project.
  */
 export function resolveProjectSource(cwd: string, schemaArg: string): ProjectSource {
   const warnings: string[] = [];
   const absoluteSchemaPath = resolve(cwd, schemaArg);
 
-  // 1. Anchored on the argument: a project is the directory the schema lives in.
-  if (existsSync(absoluteSchemaPath) && statSync(absoluteSchemaPath).isFile()) {
-    const projectRoot = dirname(absoluteSchemaPath);
-    const pagesDir = join(projectRoot, 'pages');
+  // 1. Anchored on the argument, whether it names a file or a directory.
+  if (existsSync(absoluteSchemaPath)) {
+    const argumentStats = statSync(absoluteSchemaPath);
 
-    if (existsSync(pagesDir)) {
-      return {
-        mode: 'routes',
-        projectRoot,
-        pagesDir,
-        pagesDirOrigin: 'schema-dir',
-        routes: scanRoutes(pagesDir),
-        appConfig: readAppConfig(absoluteSchemaPath, warnings),
-        appConfigPath: absoluteSchemaPath,
-        warnings
-      };
+    if (argumentStats.isFile()) {
+      const projectRoot = dirname(absoluteSchemaPath);
+      const pagesDir = join(projectRoot, 'pages');
+
+      if (existsSync(pagesDir)) {
+        return {
+          mode: 'routes',
+          projectRoot,
+          pagesDir,
+          pagesDirOrigin: 'schema-dir',
+          routes: scanRoutes(pagesDir),
+          appConfig: readAppConfig(absoluteSchemaPath, warnings),
+          appConfigPath: absoluteSchemaPath,
+          warnings
+        };
+      }
+    } else if (argumentStats.isDirectory()) {
+      const fromDirectory = resolveDirectoryArgument(absoluteSchemaPath, warnings);
+      if (fromDirectory) return fromDirectory;
     }
   }
 
@@ -173,6 +189,19 @@ export function resolveProjectSource(cwd: string, schemaArg: string): ProjectSou
     );
   }
 
+  // A directory can never be a schema file. Before objectui#5037 this fell into
+  // `parseSchemaFile` and surfaced the raw `EISDIR: illegal operation on a
+  // directory, read` from `readFileSync` — an error that names neither the
+  // argument's shape nor what would have been accepted instead.
+  if (statSync(absoluteSchemaPath).isDirectory()) {
+    throw new Error(
+      `Not a project directory: ${schemaArg}\n` +
+        `A directory argument must be a 'pages' directory, or contain one, for file-system ` +
+        `routing — ${absoluteSchemaPath} is neither.\n` +
+        `Pass a JSON/YAML schema file instead, or run 'objectui init' to create a project.`
+    );
+  }
+
   let schema: unknown;
   try {
     schema = parseSchemaFile(absoluteSchemaPath);
@@ -189,6 +218,46 @@ export function resolveProjectSource(cwd: string, schemaArg: string): ProjectSou
     projectRoot: dirname(absoluteSchemaPath),
     schemaFile: absoluteSchemaPath,
     schema,
+    warnings
+  };
+}
+
+/**
+ * Resolve a DIRECTORY argument to a routed project, or `null` when it is no
+ * project (objectui#5037).
+ *
+ * Two shapes are accepted, in this order: the directory IS the `pages`
+ * directory (`objectui dev my-app/pages`, the form the docs print), or it
+ * CONTAINS one (`objectui dev my-app`). Both produce the same answer as naming
+ * the app config beside them would — which is what "the three commands answer
+ * one invocation the same way" has to mean for the documented directory form
+ * too, and the reason this lives in step ① rather than in each command.
+ *
+ * Returning `null` rather than throwing keeps the working-directory fallback
+ * ahead of the refusal: an argument that resolves to nothing is answered by
+ * `<cwd>/pages` exactly as any other unresolved argument is, and only reaches
+ * the diagnosis in step ③ when there is no such fallback either.
+ */
+function resolveDirectoryArgument(argumentDir: string, warnings: string[]): RoutedProjectSource | null {
+  const isPagesDir = basename(argumentDir) === 'pages';
+  const pagesDir = isPagesDir ? argumentDir : join(argumentDir, 'pages');
+
+  if (!isPagesDir && !(existsSync(pagesDir) && statSync(pagesDir).isDirectory())) {
+    return null;
+  }
+
+  const projectRoot = isPagesDir ? dirname(argumentDir) : argumentDir;
+  const appConfigPath = join(projectRoot, 'app.json');
+  const hasAppConfig = existsSync(appConfigPath) && statSync(appConfigPath).isFile();
+
+  return {
+    mode: 'routes',
+    projectRoot,
+    pagesDir,
+    pagesDirOrigin: 'argument-dir',
+    routes: scanRoutes(pagesDir),
+    appConfig: hasAppConfig ? readAppConfig(appConfigPath, warnings) : null,
+    appConfigPath: hasAppConfig ? appConfigPath : null,
     warnings
   };
 }

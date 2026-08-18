@@ -99,6 +99,21 @@ function writeProject(parent: string, name = 'app'): string {
   return root;
 }
 
+/**
+ * The three commands, each reduced to "resolve, then render".
+ *
+ * Every input handed to these below is decided inside the detection step, so
+ * none of the calls reaches Vite: they are the command layer's own answer to
+ * "what is this project", read off the thrown error. Shared by both parity
+ * groups (objectui#4923, objectui#5037) so "all three answer identically" is
+ * asserted against one list rather than two copies of it.
+ */
+const commands: ReadonlyArray<readonly [string, (schema: string) => Promise<unknown>]> = [
+  ['dev', (schema) => dev(schema, { port: '0', host: 'localhost', open: false })],
+  ['serve', (schema) => serve(schema, { port: '0', host: 'localhost' })],
+  ['build', (schema) => buildApp(schema, { outDir: 'dist' })]
+];
+
 describe('resolveProjectSource — anchoring on the argument (objectui#4923)', () => {
   it('finds the project from a directory above it', async () => {
     await withParentDir((parent) => {
@@ -181,11 +196,17 @@ describe('resolveProjectSource — anchoring on the argument (objectui#4923)', (
       expect(noAppConfig.appConfig).toBeNull();
       expect(noAppConfig.appConfigPath).toBeNull();
 
+      // `objectui dev pages/` from inside the project reaches the SAME routed
+      // answer, but since objectui#5037 it is step ① that gives it: the
+      // argument names the pages directory, so it no longer needs the cwd
+      // fallback to catch it by coincidence. Only the origin label moved.
       writeJson(join(parent, 'app.json'), APP_CONFIG);
       const viaPagesDir = resolveProjectSource(parent, 'pages');
       expect(viaPagesDir.mode).toBe('routes');
       if (viaPagesDir.mode !== 'routes') return;
-      expect(viaPagesDir.pagesDirOrigin).toBe('cwd');
+      expect(viaPagesDir.pagesDirOrigin).toBe('argument-dir');
+      expect(viaPagesDir.projectRoot).toBe(parent);
+      expect(viaPagesDir.pagesDir).toBe(join(parent, 'pages'));
       expect(viaPagesDir.appConfig).toEqual(APP_CONFIG);
     });
   });
@@ -318,19 +339,6 @@ describe('dev / serve / build detection parity (objectui#4923)', () => {
     vi.restoreAllMocks();
   });
 
-  /**
-   * The three commands, each reduced to "resolve, then render".
-   *
-   * Every input below is decided inside the detection step, so none of these
-   * calls reaches Vite: they are the command layer's own answer to "what is this
-   * project", read off the thrown error.
-   */
-  const commands: ReadonlyArray<readonly [string, (schema: string) => Promise<unknown>]> = [
-    ['dev', (schema) => dev(schema, { port: '0', host: 'localhost', open: false })],
-    ['serve', (schema) => serve(schema, { port: '0', host: 'localhost' })],
-    ['build', (schema) => buildApp(schema, { outDir: 'dist' })]
-  ];
-
   it.each(commands)('%s anchors the project on the argument, not on cwd', async (_name, run) => {
     await withParentDir(async (parent) => {
       const root = join(parent, 'app');
@@ -365,6 +373,180 @@ describe('dev / serve / build detection parity (objectui#4923)', () => {
       vi.spyOn(console, 'log').mockImplementation(() => {});
 
       await expect(run('nope.json')).rejects.toThrow('Schema file not found: nope.json');
+    });
+  });
+});
+
+
+/**
+ * The documented directory form (objectui#5037).
+ *
+ * `content/docs/utilities/cli.mdx` records the positional argument as "Path to
+ * JSON/YAML schema file or `pages/` directory" and shows `objectui dev pages/`.
+ * Before this fix that promise had never been parsed: step ① required
+ * `statSync(...).isFile()`, so a directory argument fell straight through it,
+ * and only the one spelling that happened to BE `<cwd>/pages` was caught — by
+ * the cwd fallback, as a coincidence of position rather than a reading of the
+ * argument. Every pathful spelling reached step ③ and handed a directory to
+ * `readFileSync`:
+ *
+ *     $ objectui dev my-app/pages
+ *     Error: Invalid schema file: EISDIR: illegal operation on a directory, read
+ *
+ * Ruled 2026-08-17 (「同意」): support it, in step ① so all three commands
+ * answer identically, and refuse the remaining directory-shaped miss in plain
+ * language instead of leaking EISDIR.
+ */
+describe('resolveProjectSource — directory arguments (objectui#5037)', () => {
+  it('routes from a pathful `pages/` argument, invoked from outside the project', async () => {
+    await withParentDir((parent) => {
+      // The card's own invocation: `objectui dev my-app/pages`, run from ABOVE
+      // `my-app`. The cwd-relative spelling passes on the unfixed code, so it
+      // is this one that carries the defect.
+      const root = writeProject(parent);
+      const source = resolveProjectSource(parent, 'app/pages');
+
+      expect(source.mode).toBe('routes');
+      if (source.mode !== 'routes') return;
+      expect(source.projectRoot).toBe(root);
+      expect(source.pagesDir).toBe(join(root, 'pages'));
+      expect(source.pagesDirOrigin).toBe('argument-dir');
+      expect(source.routes.map((route) => route.path)).toEqual(['/']);
+      expect(source.appConfig).toEqual(APP_CONFIG);
+      expect(source.appConfigPath).toBe(join(root, 'app.json'));
+      expect(source.warnings).toEqual([]);
+    });
+  });
+
+  it('routes from a project directory that contains a `pages/`', async () => {
+    await withParentDir((parent) => {
+      const root = writeProject(parent);
+      const source = resolveProjectSource(parent, 'app');
+
+      expect(source.mode).toBe('routes');
+      if (source.mode !== 'routes') return;
+      expect(source.projectRoot).toBe(root);
+      expect(source.pagesDir).toBe(join(root, 'pages'));
+      expect(source.pagesDirOrigin).toBe('argument-dir');
+      expect(source.appConfig).toEqual(APP_CONFIG);
+      expect(source.appConfigPath).toBe(join(root, 'app.json'));
+    });
+  });
+
+  it('answers a directory argument exactly as it answers the app config beside it', async () => {
+    await withParentDir((parent) => {
+      const root = writeProject(parent);
+      writeJson(join(root, 'pages/about.json'), PAGE);
+
+      const viaAppConfig = resolveProjectSource(parent, 'app/app.json');
+      const spellings = [
+        resolveProjectSource(parent, 'app'),
+        resolveProjectSource(parent, 'app/pages'),
+        resolveProjectSource(parent, 'app/pages/'),
+        resolveProjectSource(parent, join(root, 'pages'))
+      ];
+
+      expect(viaAppConfig.mode).toBe('routes');
+      if (viaAppConfig.mode !== 'routes') return;
+      for (const source of spellings) {
+        expect(source.mode).toBe('routes');
+        if (source.mode !== 'routes') continue;
+        expect(source.projectRoot).toBe(viaAppConfig.projectRoot);
+        expect(source.pagesDir).toBe(viaAppConfig.pagesDir);
+        expect(source.routes).toEqual(viaAppConfig.routes);
+        expect(source.appConfig).toEqual(viaAppConfig.appConfig);
+        expect(source.appConfigPath).toBe(viaAppConfig.appConfigPath);
+        expect(source.warnings).toEqual([]);
+      }
+    });
+  });
+
+  it('refuses a directory that is neither, naming what was expected', async () => {
+    await withParentDir((parent) => {
+      mkdirSync(join(parent, 'not-a-project/src'), { recursive: true });
+
+      // A non-zero exit is NOT the assertion: `EISDIR` exits non-zero too, so an
+      // exit-code pin cannot tell the fix from the bug. What must hold is that
+      // the sentence names the directory and what was expected of it.
+      const refuse = () => resolveProjectSource(parent, 'not-a-project');
+      expect(refuse).toThrow('Not a project directory: not-a-project');
+      expect(refuse).toThrow(/'pages' directory/);
+      expect(refuse).not.toThrow(/EISDIR/);
+    });
+  });
+
+  it('leaves the working-directory fallback ahead of the refusal', async () => {
+    // A directory argument that resolves to nothing does not become fatal while
+    // the cwd still names a project: the fallback that answers every unresolved
+    // argument today keeps answering this one. objectui#5037 adds a limb and a
+    // diagnosis; it narrows nothing.
+    await withParentDir((parent) => {
+      writeJson(join(parent, 'pages/index.json'), PAGE);
+      mkdirSync(join(parent, 'not-a-project'), { recursive: true });
+
+      const source = resolveProjectSource(parent, 'not-a-project');
+      expect(source.mode).toBe('routes');
+      if (source.mode !== 'routes') return;
+      expect(source.pagesDir).toBe(join(parent, 'pages'));
+      expect(source.pagesDirOrigin).toBe('cwd');
+    });
+  });
+
+  it('keeps a directory named `pages` legible when it holds no schema', async () => {
+    await withParentDir((parent) => {
+      mkdirSync(join(parent, 'app/pages'), { recursive: true });
+
+      expect(() => resolveProjectSource(parent, 'app/pages')).toThrow(
+        `No schema files found in ${join(parent, 'app/pages')}`
+      );
+    });
+  });
+});
+
+describe('dev / serve / build answer a directory argument identically (objectui#5037)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each(commands)('%s routes a pathful `pages/` argument to the argument\'s project', async (_name, run) => {
+    await withParentDir(async (parent) => {
+      const root = join(parent, 'app');
+      writeJson(join(root, 'app.json'), APP_CONFIG);
+      mkdirSync(join(root, 'pages'), { recursive: true });
+      vi.spyOn(process, 'cwd').mockReturnValue(parent);
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      // The `pages/` is left empty so the verdict is reached inside detection,
+      // before Vite: naming this directory is the proof that the pathful
+      // argument — not cwd, which is not a project at all here — got scanned.
+      await expect(run('app/pages')).rejects.toThrow(
+        `No schema files found in ${join(root, 'pages')}`
+      );
+    });
+  });
+
+  it.each(commands)('%s routes a pathful project directory to the same place', async (_name, run) => {
+    await withParentDir(async (parent) => {
+      const root = join(parent, 'app');
+      writeJson(join(root, 'app.json'), APP_CONFIG);
+      mkdirSync(join(root, 'pages'), { recursive: true });
+      vi.spyOn(process, 'cwd').mockReturnValue(parent);
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await expect(run('app')).rejects.toThrow(`No schema files found in ${join(root, 'pages')}`);
+    });
+  });
+
+  it.each(commands)('%s refuses a non-project directory in plain language', async (_name, run) => {
+    await withParentDir(async (parent) => {
+      mkdirSync(join(parent, 'not-a-project'), { recursive: true });
+      vi.spyOn(process, 'cwd').mockReturnValue(parent);
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await expect(run('not-a-project')).rejects.toThrow(
+        'Not a project directory: not-a-project'
+      );
+      await expect(run('not-a-project')).rejects.toThrow(/'pages' directory/);
     });
   });
 });
