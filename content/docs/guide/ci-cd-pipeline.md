@@ -31,6 +31,7 @@ one has its own section below.
 | `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `skills-paths.yml` | Skill Guide Path Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a path stated in a `skills/` guide does not exist |
 | `doc-component-types.yml` | Doc Component Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `content/docs/**.mdx` snippet teaches a `type` nothing registers |
+| `doc-snippet-types.yml` | Doc Snippet Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a covered documentation snippet no longer compiles against the packages' built types |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -589,6 +590,69 @@ exemption rather than quietly widening the hole.
 spell the registered key (`grep -rn "ComponentRegistry.register(" packages/` for the real name), or —
 if the value belongs to another vocabulary — add the declaration with its reason. Run it locally with
 `pnpm check:doc-types`.
+
+## Documented Snippet Types (`doc-snippet-types.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**, for the same reason as the section above: the change that breaks a
+documentation snippet is a docs-only change, and that is exactly the shape `ci.yml`'s expensive jobs
+short-circuit. It appears in the checks list as **Doc Snippet Type Check**.
+
+Runs `scripts/check-doc-snippet-types.mjs`, which extracts every fenced `ts` / `tsx` block from the
+documents it covers and compiles them `--strict` against each package's **built** `dist/*.d.ts` — the
+surface a reader who copies the snippet actually imports.
+
+**The second dimension, and why it is separate from the first.**
+`doc-component-types.yml` answers whether a `type` literal names a registered component. It says so
+in its own header, and [#5138](https://github.com/objectstack-ai/objectui/issues/5138) measured what
+the gap beside it allowed: both plugin-report documents taught the pre-9.0 report form for the whole
+interval after the ADR-0021 cutover, and every gate was green on that prose — because the `type`
+literals (`summary`, `matrix`, `joined`) were the one thing that was correct, while `objectName`,
+`groupingsDown`, an object-shaped `columns` and an import of a type the spec does not export sat
+beside them. The harness that catches those had by then been hand-rolled three times, privately, in
+[#5053](https://github.com/objectstack-ai/objectui/issues/5053),
+[#5060](https://github.com/objectstack-ai/objectui/issues/5060) and
+[#5047](https://github.com/objectstack-ai/objectui/issues/5047) — which is what made it consolidation
+rather than new capability.
+
+**Why this one builds.** Its criterion is the *published* type surface, so the packages the covered
+snippets import must exist as `dist/*.d.ts` first. The build is filtered to exactly those packages,
+and the filter is emitted by the gate itself (`node scripts/check-doc-snippet-types.mjs
+--build-filter`) rather than hand-maintained in the workflow — so it can never drift from what the
+documents import, and the cost grows only when coverage grows. This is deliberately **not** the
+per-PR full-repo build the 2026-08-16 ruling on
+[#4846](https://github.com/objectstack-ai/objectui/issues/4846) rejected; see *Published Dist Gate*
+below.
+
+**Fragments are declared, never guessed.** Documentation legitimately carries partial snippets, so a
+block that is not meant to compile carries a marker line immediately above its fence with a written
+reason — `{/* doc-snippet: fragment - why */}` in `.mdx`, the HTML-comment form in `.md`. A block
+that merely fails to parse is **reported**, never skipped: a skip-on-failure rule turns every real
+defect into silence, and degrades exactly as the docs get worse.
+
+**Syntax and semantics are reported apart.** `tsc` reports syntactic diagnostics and, if there are
+any, never reports semantic ones — program-wide. #5047 measured a run that printed five parse errors,
+zero semantic diagnostics, and read as a meaningful red while proving nothing. So this gate parses
+blocks one at a time first, keeps unparseable ones out of the semantic program, tags every failure
+`[syntax]` or `[semantic]`, and always prints how many blocks the semantic phase actually judged.
+
+**It proves itself before it judges the docs.** Every run prints three controls: the resolved path
+for `@object-ui/types` (which must land in a `dist/*.d.ts` — the root `tsconfig.json` maps the
+workspace to *source*, so that substitution is one inherited config away), a planted
+`ThisNameIsDefinitelyNotExported` import that must produce TS2305 (a program silently resolving to
+`any` reports green forever), and a real import that must be clean (so a broken harness cannot read
+as "the docs are full of defects"). A failed control fails the run and says no verdict about the
+documents can be read from it.
+
+**Coverage is declared.** A document is covered unless the script's `UNGATED_DOCS` ledger names it
+with a reason, so a new page is gated from the day it lands and opting one out is a visible edit.
+The ledger is debt with names: those documents are **not** compiled and **not** counted, which the
+script's header states plainly rather than letting a green run imply otherwise.
+
+**If it fails:** each line is `file:line TS<code>: <message>`, addressed at the document rather than
+at the harness. Either fix what the snippet teaches, or — if the block is genuinely partial — declare
+it with a reason. Run it locally with `pnpm check:doc-snippets` (after building the packages it
+names: `pnpm exec turbo run build $(node scripts/check-doc-snippet-types.mjs --build-filter)`).
 
 ## Link Checking (`check-links.yml`)
 

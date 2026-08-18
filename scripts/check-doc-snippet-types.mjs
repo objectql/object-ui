@@ -198,6 +198,8 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * the fence language corrected to `json`; a page whose snippets are genuinely
  * wrong needs the documented API fixed. Only the third is a defect this gate
  * would report, and telling them apart is per-page work.
+ *
+ * @type {Record<string, string>}
  */
 const UNGATED_DOCS = {
   'content/docs/guide/objectos-integration.mdx':
