@@ -927,15 +927,48 @@ export const RelatedList: React.FC<RelatedListProps> = ({
      // would see raw values (e.g. `planned`, unformatted numbers).
      const normalizeColumn = (c: any): any => {
        if (typeof c !== 'string') {
-         // Object column: attach a cell renderer when it lacks one and we can
-         // resolve the field def — preserves any author-supplied cell/render.
+         // Object column: resolve the identity ONCE, then hand the table an
+         // entry that already speaks the table's own vocabulary.
+         //
+         // Every read in this file resolves identity canonical-first through
+         // the shared `columnIdentity` reader (objectui#3104), so
+         // `{ field: 'status' }` passes
+         // the FLS filter, the FK filter, `pruneEmpty` and the sort row. The
+         // data-table it feeds does NOT: it normalizes its accessor as
+         // `accessorKey: col.accessorKey || col.name` and never looks at
+         // `field`. An entry authored in the spec-canonical spelling therefore
+         // used to survive every metadata-aware filter and then render a header
+         // over `row[undefined]` — blank cells, no warning (objectui#5022; the
+         // objectui#3951 shape, one spelling over).
+         //
+         // The stamp goes HERE rather than in the table's normalization
+         // because `accessorKey` is the table LIBRARY's key, not metadata:
+         // `column-identity.ts` names it `TABLE_ADAPTER_COLUMN_KEY` and keeps
+         // the canonicalizing fold away from it on purpose. Resolving the
+         // metadata vocabulary inside the adapter would merge the two
+         // vocabularies in the one place that module says must stay separate;
+         // translating at the boundary keeps the adapter monolingual.
+         //
+         // Mirror, don't move: the authored spelling is left in place (a host
+         // reading `field`/`name` off these columns keeps working), and an
+         // author-supplied `accessorKey` is never overwritten — a deliberate
+         // divergence between the table slot and the metadata key belongs to
+         // the author. An entry with no resolvable identity is returned
+         // untouched, so nothing is invented for it.
          const key = c?.accessorKey || columnIdentity(c);
-         if (c && !c.cell && !c.render && key) {
+         if (!c || !key) return c;
+         const patch: Record<string, unknown> = {};
+         if (!c.accessorKey) patch.accessorKey = key;
+         // Attach a cell renderer when it lacks one and we can resolve the
+         // field def — preserves any author-supplied cell/render.
+         if (!c.cell && !c.render) {
            const def = (objectSchema?.fields as any)?.[key];
            const cell = def ? makeCell(String(key), def) : undefined;
-           if (cell) return { ...c, cell };
+           if (cell) patch.cell = cell;
          }
-         return c;
+         // Nothing to add: return the INPUT entry by reference, so the
+         // downstream `useMemo`s keep a stable dependency on the common path.
+         return Object.keys(patch).length > 0 ? { ...c, ...patch } : c;
        }
        const fieldDef = objectSchema?.fields?.[c] as any;
        const header = fieldDef?.label || resolveFieldLabel(relatedObjectName, c, fieldDef) || c;
