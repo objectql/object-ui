@@ -1,4 +1,5 @@
 export * from './button-group';
+export * from './character-count';
 export * from './combobox';
 export * from './config-row';
 export * from './config-field-renderer';

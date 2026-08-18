@@ -7,13 +7,36 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { useFieldTranslation } from './useFieldTranslation';
+import { createSafeTranslation } from '@object-ui/i18n';
 
 /**
  * The character counter a capped long-text field renders, in the GOV.UK
  * character-count shape — extracted from `TextAreaField` so that widget's TWO
  * editing surfaces (the inline textarea and the fullscreen dialog) render the
  * SAME counting UI instead of two hand-written copies (objectui#3417).
+ *
+ * ## Why this lives in `components` (objectui#3439)
+ *
+ * There were not two surfaces but FOUR. The two above are the registered
+ * `field:textarea` widget's; the form renderer's built-in, unregistered
+ * `textarea` branch has an inline control and a fullscreen dialog of its own,
+ * and both rendered no counter at all. One `maxLength` declaration therefore
+ * produced two experiences: on the registered path a visible count, a cap
+ * announced on focus and a gated near-limit warning; on the built-in path
+ * nothing but a validation error after submit — i.e. a screen-reader user was
+ * told the cap only once they had already exceeded it.
+ *
+ * The hoist direction is the one PR #4193 measured and the maintainer ruled on
+ * for `FullscreenEditor` (objectui#3398, 2026-08-10): `@object-ui/fields`
+ * depends on `@object-ui/components` and `components` declares no dependency on
+ * `fields` in either `dependencies` or `peerDependencies`, so the shared piece
+ * lands HERE, where both render paths may reach it. `TextAreaField` imports it
+ * from this package and is otherwise unchanged.
+ *
+ * This is the same bounded exception to the package's "Pure UI, no business
+ * logic" charter (AGENTS.md §3) that `FullscreenEditor` is: what it owns is
+ * presentation and an announcement schedule, not metadata — it reads no field
+ * config, touches no data layer, and imports nothing from `fields`.
  *
  * ## Why this is shared rather than copied
  *
@@ -93,6 +116,29 @@ function counterStatusThreshold(maxLength: number): number {
   );
 }
 
+/**
+ * The counter's copy, on the SAME `fields.textarea.*` keys the fields-side
+ * implementation consumed (objectui#3406 / #3408), so the ten locale packs need
+ * no new entries and the two render paths cannot drift into two wordings. The
+ * defaults below are byte-identical to the ones that lived in
+ * `useFieldTranslation`'s `FIELD_DEFAULTS`, which is why a provider-less embed
+ * renders exactly what it did before the hoist.
+ *
+ * `createSafeTranslation`, not a bare `useObjectTranslation`: this counter is
+ * rendered without an `I18nProvider` by standalone/embedded hosts — precisely
+ * the hosts the built-in branch exists for — and by many bare-render tests.
+ * Same mechanism, same reason, as `FullscreenEditor` next door.
+ */
+const useSafeCounterTranslation = createSafeTranslation(
+  {
+    'fields.textarea.characterCount': 'Character count: {{count}} of {{max}}',
+    'fields.textarea.charactersRemaining': 'Characters remaining: {{count}}',
+  },
+  // Probe key: one this component itself consumes, so it cannot rot into
+  // pointing at a key no caller reads.
+  'fields.textarea.characterCount',
+);
+
 export interface CharacterCountProps {
   /**
    * Length of the text this surface is counting. The inline surface passes the
@@ -156,7 +202,7 @@ export function CharacterCount({
   className,
   testId,
 }: CharacterCountProps) {
-  const { t } = useFieldTranslation();
+  const { t } = useSafeCounterTranslation();
 
   /**
    * The counter sentence as a DESCRIPTION (objectui#3408). Reached through the

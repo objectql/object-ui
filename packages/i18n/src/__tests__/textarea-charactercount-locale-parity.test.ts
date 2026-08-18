@@ -60,12 +60,14 @@ describe('fields.textarea.characterCount locale coverage (objectui#3406)', () =>
 
   it('the English pack is byte-identical to the literal it replaced', () => {
     // The widget rendered `Character count: ${n} of ${max}` before
-    // objectui#3406. This value and `FIELD_DEFAULTS['fields.textarea.characterCount']`
-    // in `packages/fields` must both still say exactly that, so neither an `en`
-    // session nor a provider-less embed changed. The fields-side half of this
-    // pin lives in `TextAreaField.characterCount.no-provider.test.tsx` —
-    // `packages/i18n` cannot import `packages/fields`, the dependency runs the
-    // other way.
+    // objectui#3406. This value and the `createSafeTranslation` default in
+    // `CharacterCount` must both still say exactly that, so neither an `en`
+    // session nor a provider-less embed changed. That default moved from
+    // `packages/fields`' `FIELD_DEFAULTS` to `packages/components`
+    // (`custom/character-count.tsx`) with the component itself in
+    // objectui#3439. The rendered half of this pin lives in
+    // `TextAreaField.characterCount.no-provider.test.tsx` — `packages/i18n`
+    // cannot import either package, the dependency runs the other way.
     expect(characterCountOf('en')).toBe('Character count: {{count}} of {{max}}');
   });
 

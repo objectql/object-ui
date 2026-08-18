@@ -100,27 +100,15 @@ const FIELD_DEFAULTS: Record<string, string> = {
   'fields.address.state': 'State / Province',
   'fields.address.postalCode': 'ZIP / Postal Code',
   'fields.address.country': 'Country',
-  // objectui#3406 — the accessible name of `TextAreaField`'s character
-  // counter, rendered only when the field declares `maxLength`. The visible
-  // `{n}/{max}` is digits; this sentence is what a screen reader speaks, and
-  // the element is `aria-live`, so before the key existed a non-English
-  // session heard English on every keystroke. Byte-identical to the literal
-  // it replaces, so a no-provider render is unchanged.
-  'fields.textarea.characterCount': 'Character count: {{count}} of {{max}}',
-  // objectui#3408 — the NEAR-LIMIT warning, spoken by the counter's status
-  // region after the typist pauses and only once they are inside the last 10%
-  // (or last 20 characters) of the cap. The sentence above became the field's
-  // `aria-describedby` description in the same change; this one is the only
-  // thing that is ever announced mid-typing, which is why it says what is
-  // LEFT rather than repeating the whole count.
+  // The character counter's copy (objectui#3406 / #3408) is NOT declared here
+  // any more, for exactly the reason the fullscreen copy below is not: it moved
+  // with the implementation. `CharacterCount` is now a primitive in
+  // `@object-ui/components` (objectui#3439, hoisted so the form renderer's
+  // built-in `textarea` branch renders the same counter instead of a third
+  // copy), and it carries its own `createSafeTranslation` defaults for the same
+  // `fields.textarea.*` keys — still byte-identical English, so provider-less
+  // rendering is unchanged and the ten locale packs need no edit.
   //
-  // Colon form, not "You have {{count}} characters remaining": `count` makes
-  // i18next attempt plural lookup (`_one` / `_few` / …) before the base key,
-  // and these packs declare the base key only — the same base-key fallback
-  // `characterCount` already relies on. A sentence whose grammar does not
-  // depend on the number stays correct at 1 without ten plural entries per
-  // pack, and matches the sibling key's shape.
-  'fields.textarea.charactersRemaining': 'Characters remaining: {{count}}',
   // The fullscreen long-text dialog's copy (objectui#3404) is NOT declared
   // here any more. It moved with the implementation: `FullscreenFieldEditor` is
   // a thin wrapper over `FullscreenEditor` in `@object-ui/components`

@@ -22,10 +22,22 @@ export interface InboxNotification {
   type: string;
   title: string;
   body?: string | null;
-  /** Deep-link target carried by the inbox materialization. */
+  /**
+   * Deep-link target carried by the inbox materialization — the ONLY pointer a
+   * row carries (ADR-0030 L5).
+   *
+   * The pre-ADR-0030 `source_object`/`source_id` pair used to sit here as a
+   * back-compat fallback. It was declared and never filled: `mergeInboxRows`
+   * (`hooks/sharedUserFeeds.ts`), the single producer of every row both the bell
+   * and Home render, maps neither, and the `sys_inbox_message` object declares
+   * `action_url` with no source columns to map FROM. A declared input no
+   * producer fills is a standing invitation to wire it up; removed rather than
+   * maintained (objectui#5190). A row that carries no link at all is a real
+   * state — the producer leaves `action_url` undefined when an emit has neither
+   * a `payload.url` nor a `source` — and both consumers now answer it the same
+   * way, by opening the full inbox.
+   */
   action_url?: string | null;
-  source_object?: string | null;
-  source_id?: string | null;
   actor_name?: string | null;
   is_read?: boolean;
   created_at?: string;

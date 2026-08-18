@@ -168,20 +168,23 @@ export function InboxPopover({
     // resolver dropped the user on the default app's home: objectui#5179.
     // Reusing the drills' own resolver also stops an unchecked remembered app
     // from addressing a link into an app that has since been deactivated.
-    //
-    // The `source_object`/`source_id` arm below is the pre-ADR-0030 pointer,
-    // kept because it is this component's declared input shape — but note the
-    // shared feed does not populate either field today (`mergeInboxRows` maps
-    // neither), so nothing in this repo can currently reach it. It is resolved
-    // through the SAME helper rather than left building a bare
-    // `/objects/{object}/{id}`, which matches no route and lands on the app
-    // landing page for exactly the reason above.
-    const target =
-      resolveNotificationTarget(n.action_url, hostAppSegment) ??
-      (n.source_object && n.source_id
-        ? resolveNotificationTarget(`/${n.source_object}/${n.source_id}`, hostAppSegment)
-        : null);
-    if (!target) return;
+    const target = resolveNotificationTarget(n.action_url, hostAppSegment);
+    if (!target) {
+      // No link at all — a real state, not a defect: the producer leaves
+      // `action_url` undefined when an emit carries neither a `payload.url` nor
+      // a `source`. `onMarkRead` above has already consumed the row, so
+      // returning here spent the notification and left the popover sitting open
+      // on it, having navigated nowhere (objectui#5190).
+      //
+      // Home's action centre answers this by opening the full inbox
+      // (objectui#4074), and that is the ruled behaviour — so the bell reuses
+      // the drill it already has one screen up rather than writing a second
+      // answer to the same question. `goToAllNotifications` closes the popover
+      // and lands on the same `?view=mine` page the row came from, which is
+      // where a linkless notification can still be read in full.
+      goToAllNotifications();
+      return;
+    }
     setOpen(false);
     if (target.kind === 'external') {
       window.open(target.url, '_blank', 'noopener,noreferrer');

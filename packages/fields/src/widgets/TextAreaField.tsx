@@ -1,6 +1,5 @@
 import React, { useId } from 'react';
-import { Textarea, EmptyValue } from '@object-ui/components';
-import { CharacterCount } from './CharacterCount';
+import { Textarea, EmptyValue, CharacterCount } from '@object-ui/components';
 import { FullscreenFieldEditor } from './FullscreenFieldEditor';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
@@ -40,7 +39,11 @@ import { toDomProps } from './toDomProps';
  * ## The character counter (objectui#3408, shared across surfaces in #3417)
  *
  * Both editing surfaces below — the inline `<Textarea>` and the fullscreen
- * dialog's — render the SAME `CharacterCount`, which owns the three-node
+ * dialog's — render the SAME `CharacterCount`. It lives in
+ * `@object-ui/components` since objectui#3439, hoisted there so the form
+ * renderer's built-in `textarea` branch renders that very component too rather
+ * than growing a third copy; this widget's use of it is unchanged. It owns the
+ * three-node
  * GOV.UK shape (decorative digits / accessible description / gated status
  * region) and the debounce and threshold behind it. Until #3417 the fullscreen
  * footer had its own hand-written copy that was digits and nothing else, which
