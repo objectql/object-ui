@@ -232,11 +232,34 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
           ? p.options.map((o: any) => ({ ...o, label: actionParamOptionLabel(objForI18n, action?.name, p.name, o.value, o.label) }))
           : p.options,
       }));
+      // objectui#5178 — a caller-authored notice that must reach the user
+      // AHEAD of the declared description, and must not be replaceable by a
+      // translation bundle.
+      //
+      // `DeclaredActionsBar` sets this when the viewer is taking a privileged
+      // admin-override branch (`can_act:false && can_override:true`), naming the
+      // approvers about to be bypassed. It is deliberately NOT folded into
+      // `description`: `actionDescription` resolves
+      // `_actions.<name>.description` and prefers a bundle hit over the passed
+      // literal, and `plugin-approvals` ships exactly such an entry for
+      // `approval_reject` — so a warning routed through `description` would be
+      // silently overwritten by the ordinary "Reject this request?" copy in
+      // every locale that has the bundle. A safety notice a translation can
+      // delete is not a safety notice.
+      //
+      // The notice arrives already localized (bar-authored chrome, resolved
+      // through the normal locale bundle), so it is concatenated verbatim.
+      const declaredDescription = actionDescription(objForI18n, action?.name, action?.description);
+      const overrideNotice = typeof action?.overrideNotice === 'string' && action.overrideNotice
+        ? action.overrideNotice
+        : undefined;
       setParamState({
         open: true,
         params: localized,
         title: action?.label || action?.title,
-        description: actionDescription(objForI18n, action?.name, action?.description),
+        description: overrideNotice
+          ? [overrideNotice, declaredDescription].filter(Boolean).join('\n\n')
+          : declaredDescription,
         resolve,
       });
     });

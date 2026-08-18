@@ -154,6 +154,17 @@ export interface ApprovalActionRow {
   created_at?: string;
   /** Display name of the actor, resolved server-side. */
   actor_name?: string;
+  /**
+   * Whether the actor was admitted to this action ONLY by the privileged
+   * admin-override path (framework#3424) — they held no slot in the request's
+   * pending-approver slate (framework#4466). Declared here so the Approval
+   * Center's timeline can SAY so; before objectui#5178 the column was written
+   * by the server, sent on the wire, and read by nothing.
+   *
+   * Tri-state, mirroring the column: `true` = override, `false` = checked and
+   * NOT an override, `undefined` = a row written before the column existed.
+   */
+  via_override?: boolean;
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
