@@ -19,7 +19,7 @@ import type {
   DashboardWidget as SpecDashboardWidget,
   GlobalFilter as SpecGlobalFilter,
 } from '@objectstack/spec/ui';
-import type { BaseSchema, SchemaNode } from './base';
+import type { BaseSchema, SchemaNode } from './base.js';
 
 /**
  * Kanban column

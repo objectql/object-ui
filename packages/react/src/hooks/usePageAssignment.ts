@@ -25,7 +25,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { useMetadata } from '../context/AppShellContext';
+import { useMetadata } from '../context/AppShellContext.js';
 
 export interface PageAssignmentOptions {
   /** Salesforce-style record type filter (reserved for future use). */

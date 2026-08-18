@@ -7,7 +7,7 @@
  */
 
 import type { BaseSchema } from '@object-ui/types';
-import type { BridgeContext, BridgeFn } from '../types';
+import type { BridgeContext, BridgeFn } from '../types.js';
 
 interface FormField {
   field: string;

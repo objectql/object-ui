@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { ManagedByBucket } from './managed-by';
+import type { ManagedByBucket } from './managed-by.js';
 
 /**
  * @object-ui/types - Field Type Definitions

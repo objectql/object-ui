@@ -41,6 +41,8 @@
     "check:action-forward-parity": "node scripts/check-action-forward-parity.mjs",
     "check:phantom-deps": "node scripts/check-phantom-dependencies.mjs",
     "check:self-import": "node scripts/check-package-self-import.mjs",
+  "check:esm-specifiers": "node scripts/check-node-esm-load.mjs --specifiers-only",
+  "check:node-esm-load": "node scripts/check-node-esm-load.mjs",
     "check:control-bytes": "node scripts/check-control-bytes.mjs",
     "check:published-dist": "node scripts/check-published-dist-tooling.mjs",
     "check:i18n-keys": "node scripts/check-i18n-call-site-keys.mjs",

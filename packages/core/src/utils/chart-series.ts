@@ -37,7 +37,7 @@
  * different groups; see {@link chartBucketId} for the identity, and
  * {@link CHART_BUCKET_ID_KEY} for how it reaches a click handler.
  */
-import { pivotBucketId, pivotDimensionValue } from './dataset-pivot';
+import { pivotBucketId, pivotDimensionValue } from './dataset-pivot.js';
 
 export interface ChartResultField {
   name: string;

@@ -24,11 +24,11 @@ import {
   scopeClassFor,
   compileScopedStyles,
 } from '@object-ui/core';
-import { SchemaRendererContext } from './context/SchemaRendererContext';
-import { usePredicateScope } from './hooks/useExpression';
-import { usePageVariables } from './hooks/usePageVariables';
-import { resolveKeyedI18nLabel } from './utils/i18n';
-import { reportUnevaluatedExpressions } from './utils/unevaluatedExpression';
+import { SchemaRendererContext } from './context/SchemaRendererContext.js';
+import { usePredicateScope } from './hooks/useExpression.js';
+import { usePageVariables } from './hooks/usePageVariables.js';
+import { resolveKeyedI18nLabel } from './utils/i18n.js';
+import { reportUnevaluatedExpressions } from './utils/unevaluatedExpression.js';
 
 /**
  * Dev-mode schema validation.

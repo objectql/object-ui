@@ -17,8 +17,8 @@
  */
 
 // Import existing base types to avoid duplication
-import type { SortConfig as BaseSortConfig } from './objectql';
-import type { FilterBuilderOperator as BaseFilterOperator } from './complex';
+import type { SortConfig as BaseSortConfig } from './objectql.js';
+import type { FilterBuilderOperator as BaseFilterOperator } from './complex.js';
 
 // Spec-owned vocabulary, bound rather than re-declared (objectstack#4115). The
 // spec exports these as zod schemas, not as types, so they are derived through

@@ -28,9 +28,9 @@
  */
 
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { SchemaRendererContext } from '../context/SchemaRendererContext';
-import { useNotifications } from '../context/NotificationContext';
-import type { NotificationSeverityLevel } from '../context/NotificationContext';
+import { SchemaRendererContext } from '../context/SchemaRendererContext.js';
+import { useNotifications } from '../context/NotificationContext.js';
+import type { NotificationSeverityLevel } from '../context/NotificationContext.js';
 
 /* ------------------------------------------------------------------ */
 /*  Public types                                                      */

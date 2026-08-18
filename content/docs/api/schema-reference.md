@@ -620,12 +620,7 @@ A powerful action definition supporting API calls, confirmations, dialogs, chain
   "api": "/api/orders",
   "method": "POST",
   "data": { "status": "submitted" },
-  "confirm": {
-    "title": "Submit Order?",
-    "message": "This will send the order to the warehouse.",
-    "confirmText": "Yes, Submit",
-    "confirmVariant": "default"
-  },
+  "confirmText": "This will send the order to the warehouse.",
   "successMessage": "Order submitted successfully",
   "errorMessage": "Failed to submit order",
   "chain": [
@@ -656,7 +651,7 @@ A powerful action definition supporting API calls, confirmations, dialogs, chain
 | `api` | `string` | API endpoint for `ajax` actions. |
 | `method` | `string` | HTTP method: `"GET"`, `"POST"`, `"PUT"`, `"DELETE"`, `"PATCH"`. |
 | `data` | `any` | Request body data. |
-| `confirm` | `object` | Confirmation dialog with `title`, `message`, `confirmText`, `cancelText`. |
+| `confirmText` | `string` | Confirmation message shown before executing — the one confirm spelling, addressed by the translation bundle. (A structured `confirm` object was retired in objectui#4314.) |
 | `dialog` | `object` | Modal dialog with `title`, `content`, `size`, `actions`. |
 | `chain` | `ActionSchema[]` | Actions to execute after this action completes. |
 | `chainMode` | `"sequential" \| "parallel"` | How chained actions execute. |

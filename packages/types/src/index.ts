@@ -63,12 +63,12 @@ export type {
   ObjectSelection,
   AppWizardDraft,
   EditorMode,
-} from './app';
-export { menuItemToNavigationItem, isValidAppName, wizardDraftToAppSchema } from './app';
+} from './app.js';
+export { menuItemToNavigationItem, isValidAppName, wizardDraftToAppSchema } from './app.js';
 
 // Object-level semantic-role readers (ADR-0085), shared across surfaces.
-export { detectStatusField } from './record-semantics';
-export type { StatusFieldSource } from './record-semantics';
+export { detectStatusField } from './record-semantics.js';
+export type { StatusFieldSource } from './record-semantics.js';
 
 // Dashboard global-filter legacy alias (ADR-0089 retirement window, #4165) —
 // `{ preset: <name> }` → the canonical bare preset name. Read-site helpers, so
@@ -76,7 +76,7 @@ export type { StatusFieldSource } from './record-semantics';
 export {
   liftLegacyGlobalFilterDefault,
   liftLegacyDashboardFilterDefaults,
-} from './dashboard-filter-alias';
+} from './dashboard-filter-alias.js';
 
 // ============================================================================
 // Base Types - The Foundation
@@ -101,7 +101,7 @@ export type {
   HTMLAttributes,
   EventHandlers,
   StyleProps,
-} from './base';
+} from './base.js';
 
 // ============================================================================
 // Layout Components - Structure & Organization
@@ -131,7 +131,7 @@ export type {
   PageNodeRegion,
   PageRegionWidth,
   PageVariable,
-} from './layout';
+} from './layout.js';
 
 // ============================================================================
 // Form Components - User Input & Interaction
@@ -163,7 +163,7 @@ export type {
   FormSchema,
   LabelSchema,
   FormComponentSchema,
-} from './form';
+} from './form.js';
 
 // ============================================================================
 // Data Display Components - Information Presentation
@@ -193,7 +193,7 @@ export type {
   HtmlSchema,
   StatisticSchema,
   DataDisplaySchema,
-} from './data-display';
+} from './data-display.js';
 
 // ============================================================================
 // Feedback Components - Status & Progress Indication
@@ -208,7 +208,7 @@ export type {
   SonnerSchema,
   ToasterSchema,
   FeedbackSchema,
-} from './feedback';
+} from './feedback.js';
 
 // ============================================================================
 // Disclosure Components - Collapsible Content
@@ -219,7 +219,7 @@ export type {
   AccordionSchema,
   CollapsibleSchema,
   DisclosureSchema,
-} from './disclosure';
+} from './disclosure.js';
 
 // ============================================================================
 // Overlay Components - Modals & Popovers
@@ -239,7 +239,7 @@ export type {
   DropdownMenuSchema,
   ContextMenuSchema,
   OverlaySchema,
-} from './overlay';
+} from './overlay.js';
 
 // ============================================================================
 // Navigation Components - Menus & Navigation
@@ -254,7 +254,7 @@ export type {
   NavigationMenuSchema,
   NavigationSchema,
   PaginationSchema,
-} from './navigation';
+} from './navigation.js';
 
 // ============================================================================
 // Complex Components - Advanced/Composite Components
@@ -282,7 +282,7 @@ export type {
   ChatbotSchema,
   FloatingChatbotConfig,
   ComplexSchema,
-} from './complex';
+} from './complex.js';
 
 // ============================================================================
 // Data Management - Backend Integration
@@ -324,7 +324,7 @@ export type {
   ImportJobUndoResult,
   ListImportJobsOptions,
   ExportDownloadRequest,
-} from './data';
+} from './data.js';
 
 // ============================================================================
 // CRUD Components - Create, Read, Update, Delete Operations
@@ -339,7 +339,7 @@ export type {
   DetailSchema,
   CRUDDialogSchema,
   CRUDComponentSchema,
-} from './crud';
+} from './crud.js';
 
 // ============================================================================
 // ObjectQL Components - ObjectQL-specific components
@@ -386,7 +386,7 @@ export type {
   BulkActionDef,
   BulkActionParam,
   BulkActionOperation,
-} from './objectql';
+} from './objectql.js';
 
 // ============================================================================
 // Record Components - Spec-aligned record:* page component props
@@ -399,7 +399,7 @@ export type {
   RecordActivityComponentProps,
   RecordChatterComponentProps,
   RecordPathComponentProps,
-} from './record-components';
+} from './record-components.js';
 
 // ============================================================================
 // Field Types - ObjectQL Field Type System
@@ -455,7 +455,7 @@ export type {
   ObjectSchemaMetadata,
   ObjectIndex,
   ObjectRelationship,
-} from './field-types';
+} from './field-types.js';
 
 // System / audit / ownership field classification — runtime helper + name set,
 // used by default list-column derivation to keep framework-injected fields
@@ -465,10 +465,10 @@ export {
   AUDIT_FIELD_BY_ROLE,
   AUDIT_FIELD_NAMES,
   isSystemManagedField,
-} from './system-fields';
-export type { AuditFieldName } from './system-fields';
-export { MANAGED_BY_BUCKETS } from './managed-by';
-export type { ManagedByBucket } from './managed-by';
+} from './system-fields.js';
+export type { AuditFieldName } from './system-fields.js';
+export { MANAGED_BY_BUCKETS } from './managed-by.js';
+export type { ManagedByBucket } from './managed-by.js';
 
 // ============================================================================
 // Phase 3: Data Protocol Advanced Types
@@ -554,7 +554,7 @@ export type {
   DatasourceManager,
   HealthCheckResult,
   DatasourceMetrics,
-} from './data-protocol';
+} from './data-protocol.js';
 
 // ============================================================================
 // Permission & RBAC Types (Q2 2026)
@@ -571,7 +571,7 @@ export type {
   PermissionCheckResult,
   PermissionContext,
   PermissionGuardConfig,
-} from './permissions';
+} from './permissions.js';
 
 // ============================================================================
 // Mobile Optimization Types (Q2 2026)
@@ -606,12 +606,12 @@ export type {
   LongPressGestureConfig,
   TouchTargetConfig,
   TouchInteraction,
-} from './mobile';
+} from './mobile.js';
 
 // Runtime witness for the retired touch vocabulary — a VALUE, so it must not
 // sit inside the `export type` block above (#2561: inside one it is
 // value-erased and resolves to `undefined` at runtime).
-export { SPEC_GESTURE_TYPES } from './mobile';
+export { SPEC_GESTURE_TYPES } from './mobile.js';
 
 // ============================================================================
 // Visual Designer Types (Q2 2026)
@@ -654,13 +654,13 @@ export type {
   DesignerValidationRule,
   DesignerFieldDefinition,
   FieldDesignerSchema,
-} from './designer';
+} from './designer.js';
 
 export {
   DASHBOARD_COLOR_VARIANTS,
   DASHBOARD_WIDGET_TYPES,
   DESIGNER_FIELD_TYPES,
-} from './designer';
+} from './designer.js';
 
 // ============================================================================
 // API and Events - API Integration and Event Handling
@@ -676,24 +676,24 @@ export type {
   ExpressionContext,
   ExpressionNodeSchema,
   APISchema,
-} from './api-types';
+} from './api-types.js';
 
 // ============================================================================
 // Union Types - Discriminated Unions for All Schemas
 // ============================================================================
 
-import type { BaseSchema, SchemaNode } from './base';
-import type { LayoutSchema, PageNodeSchema } from './layout';
-import type { FormComponentSchema } from './form';
-import type { DataDisplaySchema } from './data-display';
-import type { FeedbackSchema } from './feedback';
-import type { DisclosureSchema } from './disclosure';
-import type { OverlaySchema } from './overlay';
-import type { NavigationSchema } from './navigation';
-import type { ComplexSchema, DashboardComponentSchema } from './complex';
-import type { CRUDComponentSchema } from './crud';
-import type { ObjectQLComponentSchema, ListViewSchema } from './objectql';
-import type { AppComponentSchema } from './app';
+import type { BaseSchema, SchemaNode } from './base.js';
+import type { LayoutSchema, PageNodeSchema } from './layout.js';
+import type { FormComponentSchema } from './form.js';
+import type { DataDisplaySchema } from './data-display.js';
+import type { FeedbackSchema } from './feedback.js';
+import type { DisclosureSchema } from './disclosure.js';
+import type { OverlaySchema } from './overlay.js';
+import type { NavigationSchema } from './navigation.js';
+import type { ComplexSchema, DashboardComponentSchema } from './complex.js';
+import type { CRUDComponentSchema } from './crud.js';
+import type { ObjectQLComponentSchema, ListViewSchema } from './objectql.js';
+import type { AppComponentSchema } from './app.js';
 
 // ============================================================================
 // Phase 2 Schemas - New Additions
@@ -713,7 +713,7 @@ export type {
   ThemePreviewSchema,
   // Legacy aliases
   ThemeDefinition,
-} from './theme';
+} from './theme.js';
 
 export type {
   // Report Presentation Layer (ObjectUI-specific UX enhancements:
@@ -732,7 +732,7 @@ export type {
   ReportExportConfig,
   ReportBuilderSchema,
   ReportViewerSchema,
-} from './reports';
+} from './reports.js';
 
 // ---------------------------------------------------------------------------
 // Spec Report Bridge
@@ -752,7 +752,7 @@ export type {
   LegacyReportPresentationLike,
   JoinedReportBlock,
   JoinedSpecReport,
-} from './spec-report';
+} from './spec-report.js';
 
 export {
   SpecReportSchema,
@@ -763,7 +763,7 @@ export {
   specReportToPresentation,
   isSpecReport,
   isJoinedSpecReport,
-} from './spec-report';
+} from './spec-report.js';
 
 // Workflow / Flow Designer schemas removed in 9.0 — they backed the retired
 // `@object-ui/plugin-workflow` designers, whose BPMN-style node vocabulary the
@@ -784,7 +784,7 @@ export type {
   NLQueryResult,
   NLQuerySchema,
   AIInsightsSchema,
-} from './ai';
+} from './ai.js';
 
 export type {
   // Block System
@@ -797,7 +797,7 @@ export type {
   BlockEditorSchema,
   BlockInstanceSchema,
   ComponentSchema,
-} from './blocks';
+} from './blocks.js';
 
 export type {
   // View System Enhancements
@@ -823,14 +823,14 @@ export type {
   Mention,
   Reaction,
   RecordSubscription,
-} from './views';
+} from './views.js';
 
 export type {
   // Enhanced Action System (Phase 2)
   ActionExecutionMode,
   ActionCallback,
   ActionCondition,
-} from './crud';
+} from './crud.js';
 
 /**
  * Union of all component schemas.
@@ -897,7 +897,7 @@ export const SCHEMA_VERSION = '1.0.0';
 export type {
   SchemaRegistry,
   ComponentType,
-} from './registry';
+} from './registry.js';
 
 // ============================================================================
 // Plugin Scope Isolation - Section 3.3
@@ -910,7 +910,7 @@ export type {
   ComponentMeta as PluginComponentMeta,
   ComponentInput as PluginComponentInput,
   PluginEventHandler,
-} from './plugin-scope';
+} from './plugin-scope.js';
 
 // ============================================================================
 // UI Actions - Enhanced Action Schema (ObjectStack Spec v2.0.1)
@@ -942,7 +942,7 @@ export type {
   UndoRedoEntry,
   UndoRedoConfig,
   UndoRedoState,
-} from './ui-action';
+} from './ui-action.js';
 
 export {
   ACTION_LOCATIONS,
@@ -951,7 +951,7 @@ export {
   OBJECTUI_LOCAL_PARAM_FIELD_TYPES,
   ACTION_PARAM_FIELD_TYPES,
   actionRendersAt,
-} from './ui-action';
+} from './ui-action.js';
 
 // ============================================================================
 // ObjectStack Protocol Namespaces - Protocol Re-exports
@@ -1256,9 +1256,9 @@ export type {
   ResolvedWidget,
   WidgetRegistryEvent,
   WidgetRegistryListener,
-} from './widget';
+} from './widget.js';
 
-export { errorCodeIs, errorCodeIsAnyOf } from './error-code';
+export { errorCodeIs, errorCodeIsAnyOf } from './error-code.js';
 
 // Transient-HTTP-retry primitives, shared by the two `/auth/me/*` providers
 // (permissions is fail-closed and blocks across the waits, localization is
@@ -1272,4 +1272,4 @@ export {
     backoffMs,
     sleep,
     retryAfterFrom,
-} from './http-retry';
+} from './http-retry.js';

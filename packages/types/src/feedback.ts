@@ -15,7 +15,7 @@
  * @packageDocumentation
  */
 
-import type { BaseSchema } from './base';
+import type { BaseSchema } from './base.js';
 
 /**
  * Loading/Spinner component

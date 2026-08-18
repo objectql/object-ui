@@ -77,7 +77,7 @@ import {
 import {
   useElementDataSource,
   type ElementDataSourceStatus,
-} from '../hooks/useElementDataSource';
+} from '../hooks/useElementDataSource.js';
 
 /**
  * Where a block's row cap lives. Three spellings are real in this repo and each

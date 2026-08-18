@@ -6,8 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { useLocalization } from './LocalizationContext';
-import { useObjectTranslation } from './provider';
+import { useLocalization } from './LocalizationContext.js';
+import { useObjectTranslation } from './provider.js';
 
 /**
  * `useDisplayLocale` — the BCP-47 tag that field / cell / metric renderers

@@ -67,7 +67,7 @@ import {
   type DimensionRelabelTarget,
 } from '@object-ui/core';
 import { useSafeFieldLabel } from '@object-ui/i18n';
-import { SchemaRendererContext } from '../context/SchemaRendererContext';
+import { SchemaRendererContext } from '../context/SchemaRendererContext.js';
 
 /** `{ dimension → { rowValue → displayLabel } }`, or null when nothing resolved. */
 export type DimensionLabelMaps = Record<string, Record<string, string>> | null;

@@ -23,10 +23,10 @@
 
 import type { RunnableActionType, UIActionSchema } from '@object-ui/types';
 import type { Action as SpecActionInput } from '@objectstack/spec/ui';
-import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
-import { hasDeclaredPredicate } from '../evaluator/declaredPredicate';
-import { globalUndoManager, type UndoableOperation } from './UndoManager';
-import { warnOnDeprecatedObjectParams, warnOnUnknownActionKeys } from './actionKeys';
+import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator.js';
+import { hasDeclaredPredicate } from '../evaluator/declaredPredicate.js';
+import { globalUndoManager, type UndoableOperation } from './UndoManager.js';
+import { warnOnDeprecatedObjectParams, warnOnUnknownActionKeys } from './actionKeys.js';
 
 export interface ActionResult {
   success: boolean;
@@ -142,10 +142,22 @@ export interface ActionDef {
    * it — the two TS2353s the deletion produced repo-wide were both this key.
    */
   description?: UIActionSchema['description'];
-  /** Confirmation text — shows a confirm dialog before executing */
+  /**
+   * Confirmation text — shows a confirm dialog before executing. The ONE
+   * confirm spelling: `@objectstack/spec`'s action surface and the
+   * TranslationBundle key (`{ns}.objects.{obj}._actions.{name}.confirmText`)
+   * both stand on it.
+   */
   confirmText?: string;
-  /** Structured confirmation (from crud.ts) */
-  confirm?: { title?: string; message?: string; confirmText?: string; cancelText?: string };
+  /**
+   * RETIRED (objectui#4314): the structured confirm object used to sit here
+   * and its `message` OUTRANKED `confirmText` — untranslated, since no bundle
+   * key exists for it. `?: never` so constructing an action with it is a tsc
+   * error rather than a silently-ignored key; the authorable twin
+   * (`@object-ui/types` `crud.ts`) carries the same tombstone.
+   * @deprecated Retired — author `confirmText` instead.
+   */
+  confirm?: never;
   /**
    * Condition predicate — the action executes only while it holds.
    *
@@ -967,16 +979,14 @@ export class ActionRunner {
         }
       }
 
-      // Confirmation (structured or simple)
-      const confirmMessage = action.confirm?.message || action.confirmText;
-      if (confirmMessage) {
+      // Confirmation. One spelling: `confirmText` — the only one the
+      // translation bundle can address (`…._actions.{name}.confirmText`). The
+      // structured `confirm.message` read that used to OUTRANK it is retired
+      // (objectui#4314): it had zero producers and no bundle key, so a dialog
+      // authored that way silently lost localization.
+      if (action.confirmText) {
         const confirmed = await this.confirmHandler(
-          this.evaluator.evaluate(confirmMessage) as string,
-          action.confirm ? {
-            title: action.confirm.title,
-            confirmText: action.confirm.confirmText,
-            cancelText: action.confirm.cancelText,
-          } : undefined,
+          this.evaluator.evaluate(action.confirmText) as string,
         );
         if (!confirmed) {
           return { success: false, error: 'Action cancelled by user' };

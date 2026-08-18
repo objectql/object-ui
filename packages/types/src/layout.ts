@@ -17,7 +17,7 @@
  */
 
 import type { PageType as SpecPageType } from '@objectstack/spec/ui';
-import type { BaseSchema, SchemaNode } from './base';
+import type { BaseSchema, SchemaNode } from './base.js';
 
 /**
  * Basic HTML div container

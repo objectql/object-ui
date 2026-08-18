@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-export { SpecBridge } from './SpecBridge';
-export type { BridgeContext, BridgeFn, ObjectDefLite } from './types';
-export { bridgeListView } from './bridges/list-view';
-export { bridgeFormView } from './bridges/form-view';
+export { SpecBridge } from './SpecBridge.js';
+export type { BridgeContext, BridgeFn, ObjectDefLite } from './types.js';
+export { bridgeListView } from './bridges/list-view.js';
+export { bridgeFormView } from './bridges/form-view.js';

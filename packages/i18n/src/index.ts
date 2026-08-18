@@ -32,7 +32,7 @@
  */
 
 // Core i18n setup
-export { createI18n, getDirection, getAvailableLanguages, type I18nConfig, type TranslationKeys } from './i18n';
+export { createI18n, getDirection, getAvailableLanguages, type I18nConfig, type TranslationKeys } from './i18n.js';
 
 // React integration
 export {
@@ -51,26 +51,26 @@ export {
   readCachedLanguageSeed,
   cacheLanguageSeed,
   type I18nProviderProps,
-} from './provider';
+} from './provider.js';
 
 // Safe translation hook factory
-export { createSafeTranslation, useSafeTranslate } from './useSafeTranslation';
+export { createSafeTranslation, useSafeTranslate } from './useSafeTranslation.js';
 
 // Convention-based object/field label i18n
-export { useObjectLabel, useSafeFieldLabel } from './useObjectLabel';
+export { useObjectLabel, useSafeFieldLabel } from './useObjectLabel.js';
 
 // Locale packs
-export { builtInLocales, isRTL, RTL_LANGUAGES } from './locales/index';
-export { default as en } from './locales/en';
-export { default as zh } from './locales/zh';
-export { default as ja } from './locales/ja';
-export { default as ko } from './locales/ko';
-export { default as de } from './locales/de';
-export { default as fr } from './locales/fr';
-export { default as es } from './locales/es';
-export { default as pt } from './locales/pt';
-export { default as ru } from './locales/ru';
-export { default as ar } from './locales/ar';
+export { builtInLocales, isRTL, RTL_LANGUAGES } from './locales/index.js';
+export { default as en } from './locales/en.js';
+export { default as zh } from './locales/zh.js';
+export { default as ja } from './locales/ja.js';
+export { default as ko } from './locales/ko.js';
+export { default as de } from './locales/de.js';
+export { default as fr } from './locales/fr.js';
+export { default as es } from './locales/es.js';
+export { default as pt } from './locales/pt.js';
+export { default as ru } from './locales/ru.js';
+export { default as ar } from './locales/ar.js';
 
 // Formatting utilities
 export {
@@ -82,7 +82,7 @@ export {
   type DateFormatOptions,
   type CurrencyFormatOptions,
   type NumberFormatOptions,
-} from './utils/index';
+} from './utils/index.js';
 
 // Spec-aligned formatters (v2.0.7)
 export {
@@ -94,7 +94,7 @@ export {
   type SpecDateFormat,
   type SpecNumberFormat,
   type SpecLocaleConfig,
-} from './utils/index';
+} from './utils/index.js';
 
 // Spec TranslationData → flat namespace transform (consumed by
 // `useObjectLabel`). Exposed so apps don't have to copy/paste — see
@@ -103,18 +103,18 @@ export {
   isSpecTranslationData,
   transformSpecTranslations,
   type SpecTranslationData,
-} from './utils/index';
+} from './utils/index.js';
 
-export { pickLocalized } from './pickLocalized';
-export { LocalizationProvider, useLocalization, type LocalizationValue } from './LocalizationContext';
-export { resolveFieldCurrency } from './currency';
+export { pickLocalized } from './pickLocalized.js';
+export { LocalizationProvider, useLocalization, type LocalizationValue } from './LocalizationContext.js';
+export { resolveFieldCurrency } from './currency.js';
 
 // The one number-display formatter (objectui#4033) and the locale it formats
 // in. Every field cell / widget / metric renderer goes through this pair —
 // see `utils/number-display.ts` for the grouping policy and its interim status.
-export { useDisplayLocale } from './useDisplayLocale';
+export { useDisplayLocale } from './useDisplayLocale.js';
 export {
   formatDisplayNumber,
   shouldGroupDisplayNumber,
   type DisplayNumberFormatOptions,
-} from './utils/index';
+} from './utils/index.js';

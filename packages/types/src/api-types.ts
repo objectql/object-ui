@@ -16,7 +16,7 @@
  * @packageDocumentation
  */
 
-import type { BaseSchema } from './base';
+import type { BaseSchema } from './base.js';
 
 /**
  * HTTP Method types

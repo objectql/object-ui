@@ -12,7 +12,7 @@
  * Defines reusable component blocks for composition and templating.
  */
 
-import type { BaseSchema, SchemaNode } from './base';
+import type { BaseSchema, SchemaNode } from './base.js';
 
 /**
  * Block Variable Definition

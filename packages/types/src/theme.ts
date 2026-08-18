@@ -17,7 +17,7 @@
  * @packageDocumentation
  */
 
-import type { BaseSchema } from './base';
+import type { BaseSchema } from './base.js';
 
 // ============================================================================
 // Spec-Canonical Theme Sub-types — imported from @objectstack/spec/ui

@@ -54,8 +54,8 @@
  * ```
  */
 
-import type { ActionContext, ActionDef, ActionResult } from './ActionRunner';
-import { interpretActionResponse } from './actionResponse';
+import type { ActionContext, ActionDef, ActionResult } from './ActionRunner.js';
+import { interpretActionResponse } from './actionResponse.js';
 
 /** The response surface the dispatcher needs — satisfied by a WHATWG `Response`. */
 export interface ServerActionFetchResponse {

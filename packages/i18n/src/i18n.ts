@@ -5,8 +5,8 @@
  */
 import i18next, { type i18n as I18nInstance } from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import { builtInLocales, isRTL } from './locales/index';
-import type { TranslationKeys } from './locales/en';
+import { builtInLocales, isRTL } from './locales/index.js';
+import type { TranslationKeys } from './locales/en.js';
 
 export interface I18nConfig {
   /** Default language (default: 'en') */

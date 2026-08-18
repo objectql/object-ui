@@ -118,12 +118,11 @@ function toBulkActionDef(action: NamedActionDef, localize?: ActionLabelResolver)
   const variant = typeof action.variant === 'string' && BULK_VARIANTS.has(action.variant)
     ? (action.variant as BulkActionDef['variant'])
     : undefined;
-  const confirmText =
-    typeof action.confirmText === 'string'
-      ? action.confirmText
-      : typeof (action.confirm as { message?: unknown } | undefined)?.message === 'string'
-        ? String((action.confirm as { message: string }).message)
-        : undefined;
+  // `confirmText` only. The structured `confirm.message` fallback that used to
+  // sit here is retired (objectui#4314): spec's action surface carries no
+  // structured confirm, so the branch read a key `objectDef.actions` can never
+  // deliver — and tolerating it kept a second confirm dialect alive (#0.1).
+  const confirmText = typeof action.confirmText === 'string' ? action.confirmText : undefined;
   // A non-string `I18nLabel` (the `{ en, zh }` map form) is dropped rather than
   // forwarded: the bar renders `def.label` as a React child, so an object here
   // would take the page down. Falling through to `formatActionLabel(name)`

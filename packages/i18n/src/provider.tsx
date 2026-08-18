@@ -6,8 +6,8 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import type { i18n as I18nInstance } from 'i18next';
-import { createI18n, getDirection, type I18nConfig } from './i18n';
-import { builtInLocales } from './locales/index';
+import { createI18n, getDirection, type I18nConfig } from './i18n.js';
+import { builtInLocales } from './locales/index.js';
 
 /**
  * `localStorage` key holding the user's explicit language choice.

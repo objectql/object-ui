@@ -21,7 +21,7 @@ import type {
   ScrollAreaSchema,
   ResizableSchema,
   PageNodeSchema,
-} from './layout';
+} from './layout.js';
 
 import type {
   ButtonSchema,
@@ -38,7 +38,7 @@ import type {
   CalendarSchema as FormCalendarSchema,
   InputOTPSchema,
   FormSchema,
-} from './form';
+} from './form.js';
 
 import type {
   AlertSchema,
@@ -53,7 +53,7 @@ import type {
   TimelineSchema,
   HtmlSchema,
   StatisticSchema,
-} from './data-display';
+} from './data-display.js';
 
 import type {
   LoadingSchema,
@@ -61,13 +61,13 @@ import type {
   SkeletonSchema,
   ToastSchema,
   ToasterSchema,
-} from './feedback';
+} from './feedback.js';
 
 import type {
   AccordionSchema,
   CollapsibleSchema,
   DisclosureSchema,
-} from './disclosure';
+} from './disclosure.js';
 
 import type {
   DialogSchema,
@@ -79,14 +79,14 @@ import type {
   HoverCardSchema,
   DropdownMenuSchema,
   ContextMenuSchema,
-} from './overlay';
+} from './overlay.js';
 
 import type {
   HeaderBarSchema,
   SidebarSchema,
   BreadcrumbSchema,
   PaginationSchema,
-} from './navigation';
+} from './navigation.js';
 
 import type {
   KanbanSchema,
@@ -94,7 +94,7 @@ import type {
   FilterBuilderSchema,
   CarouselSchema,
   ChatbotSchema,
-} from './complex';
+} from './complex.js';
 
 /**
  * Registry mapping component types to their schema definitions.

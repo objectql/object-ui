@@ -32,9 +32,9 @@
 
 import type { z } from 'zod';
 import type { ReportType as SpecReportType } from '@objectstack/spec/ui';
-import type { BaseSchema, SchemaNode } from './base';
-import type { ChartSchema } from './data-display';
-import type { DataSource } from './data';
+import type { BaseSchema, SchemaNode } from './base.js';
+import type { ChartSchema } from './data-display.js';
+import type { DataSource } from './data.js';
 
 /**
  * Report Export Format

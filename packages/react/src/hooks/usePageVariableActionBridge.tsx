@@ -7,8 +7,8 @@
  */
 
 import * as React from 'react';
-import { usePageVariables } from './usePageVariables';
-import { useAction } from '../context';
+import { usePageVariables } from './usePageVariables.js';
+import { useAction } from '../context/index.js';
 
 /**
  * PageVariableActionBridge — publishes the live page-variable snapshot into the
