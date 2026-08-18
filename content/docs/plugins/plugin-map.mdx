@@ -229,23 +229,16 @@ the centre of the records, `center` on its own at a continental zoom.
 }
 ```
 
-### API Provider
+### API Provider — not implemented
 
-```tsx
-{
-  type: 'object-map',
-  data: {
-    provider: 'api',
-    endpoint: '/api/locations',
-    method: 'GET'
-  },
-  map: {
-    latitudeField: 'latitude',
-    longitudeField: 'longitude',
-    titleField: 'locationName'
-  }
-}
-```
+`data.provider: 'api'` has no fetch implementation in `ObjectMap`. A schema that
+reaches this branch logs `API provider not yet implemented for ObjectMap`, sets
+the record set to empty and renders a map with no markers; `endpoint` and
+`method` have no read point anywhere in the package. Without a `DataSource` it
+fails one step earlier, with `DataSource required for object/api providers`.
+
+Read from the database with the **Object Provider** above, or pass records you
+already hold with the **Value Provider**.
 
 ## Event Handling
 
