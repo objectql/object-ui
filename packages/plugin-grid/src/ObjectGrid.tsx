@@ -27,7 +27,7 @@ import { isSystemManagedField } from '@object-ui/types';
 import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useSafeFieldLabel, usePredicateScope, useRelatedRecordActions } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
-import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES, coerceToSafeValue } from '@object-ui/fields';
+import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, getBadgeHexAppearance, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES, coerceToSafeValue } from '@object-ui/fields';
 import { useLocalization, useDisplayLocale, resolveFieldCurrency } from '@object-ui/i18n';
 import { stateMachineNextValues, isFieldInlineEditable } from './inline-edit-options';
 import {
@@ -3124,17 +3124,29 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
                     {stageCol && row[stageCol.accessorKey] && (() => {
                       const rawValue = row[stageCol.accessorKey];
                       const optMeta = resolveOptionMeta(stageCol.accessorKey, rawValue);
-                      // Explicit option color wins (matches desktop grid via
-                      // getBadgeColorClasses); fall back to the pipeline-stage
-                      // heuristics keyed on the raw value, which stays stable
-                      // across locales.
-                      const badgeClasses = optMeta.color
-                        ? getBadgeColorClasses(optMeta.color, rawValue)
-                        : stageBadgeColor(String(rawValue));
+                      // Explicit option color wins, resolved EXACTLY as the
+                      // desktop cell resolves it (`SelectCellRenderer` in
+                      // `@object-ui/fields`): a declared hex renders as
+                      // declared via `getBadgeHexAppearance` (objectui#5141,
+                      // adopted here by objectui#5183), a family name keeps
+                      // going through `getBadgeColorClasses`. The `style` is
+                      // load-bearing — the hex ships as CSS custom properties
+                      // that the returned className reads, so dropping it
+                      // yields a badge referencing undefined variables.
+                      // With no declared colour at all we keep the
+                      // pipeline-stage heuristic keyed on the raw value,
+                      // which stays stable across locales.
+                      const hexBadge = getBadgeHexAppearance(optMeta.color);
+                      const badgeClasses = hexBadge
+                        ? hexBadge.className
+                        : optMeta.color
+                          ? getBadgeColorClasses(optMeta.color, rawValue)
+                          : stageBadgeColor(String(rawValue));
                       return (
                         <Badge
                           variant="outline"
                           className={`text-xs shrink-0 max-w-[140px] truncate ${badgeClasses}`}
+                          style={hexBadge?.style}
                         >
                           {optMeta.label}
                         </Badge>
@@ -3320,6 +3332,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
       ? resolveFieldLabel(schema.objectName, field, fieldDef?.label || field)
       : (fieldDef?.label || field);
     let labelColorClass: string | undefined;
+    let labelColorStyle: React.CSSProperties | undefined;
     const ftype = fieldDef?.type;
     if (ftype === 'select' || ftype === 'status') {
       const opts = fieldDef?.options
@@ -3328,13 +3341,22 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
       const matched = Array.isArray(opts)
         ? opts.find((o: any) => String(o.label) === label || String(o.value) === label)
         : undefined;
-      labelColorClass = getBadgeColorClasses(matched?.color, matched?.value ?? label);
+      // Same resolution as the cell below the header (`SelectCellRenderer`):
+      // a declared hex renders as declared (objectui#5141/#5183), everything
+      // else keeps resolving to a palette family. `labelColorStyle` carries
+      // the CSS custom properties the hex className reads — the pill needs
+      // BOTH halves or it references undefined variables.
+      const hexBadge = getBadgeHexAppearance(matched?.color);
+      labelColorClass = hexBadge
+        ? hexBadge.className
+        : getBadgeColorClasses(matched?.color, matched?.value ?? label);
+      labelColorStyle = hexBadge?.style;
     }
-    return { fieldLabel, labelColorClass };
+    return { fieldLabel, labelColorClass, labelColorStyle };
   };
 
   const renderGroup = (group: typeof groups[number]): React.ReactNode => {
-    const { fieldLabel, labelColorClass } = resolveGroupHeader(group.field, group.label);
+    const { fieldLabel, labelColorClass, labelColorStyle } = resolveGroupHeader(group.field, group.label);
     return (
       <div key={group.key}>
         <GroupRow
@@ -3345,6 +3367,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
           aggregations={group.aggregations}
           fieldLabel={group.depth === 0 ? fieldLabel : undefined}
           labelColorClass={labelColorClass}
+          labelColorStyle={labelColorStyle}
           onToggle={toggleGroup}
         >
           {group.subgroups.length > 0 ? (
