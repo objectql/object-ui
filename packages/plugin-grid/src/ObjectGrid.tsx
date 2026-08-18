@@ -605,6 +605,28 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
       : `grid-columns-${schema.objectName}`;
   }, [schema.objectName, schema.id]);
 
+  /**
+   * NON-AUTHOR SURFACE — `columnState` is deliberately absent from
+   * `GRID_QUERY_INPUTS` (`index.tsx`), by the maintainer ruling of 2026-08-18
+   * on objectui#5091. The cast reads in this block are therefore DELIBERATELY
+   * unlisted, not missed.
+   *
+   * It is the USER-STATE persistence payload, not authoring surface: the host
+   * hands in whatever the user last saved (`app-shell/src/views/ObjectView.tsx`
+   * :1848 reads it off the view def) and writes their drags back through
+   * `dataSource.updateViewConfig` (`persistViewPatch`, same file :1867;
+   * `saveColumnState` below is the outbound half). Publishing it would put
+   * column widths and order in the designer panel and in the generated
+   * `sdui-intrinsics.d.ts` — i.e. bless hand-authoring a payload the product
+   * writes on the user's behalf.
+   *
+   * The contract says the same thing independently: `ComponentPropsMap
+   * ['object-grid']` (`@objectstack/spec@17`) is a `strictObject` and rejects
+   * `columnState` BY NAME (`unrecognized_keys`), so an author who took the
+   * offer could not save the document. Both halves — unlisted here, rejected
+   * there — are pinned by `__tests__/gridNonAuthorKeys.test.tsx`, together with
+   * the reads themselves, so this exemption cannot decay into a silent drop.
+   */
   const [columnState, setColumnState] = useState<ObjectGridColumnState>(() => {
     // Priority: 1) externally provided (e.g. persisted view override),
     // 2) localStorage (per-browser fallback), 3) empty.
@@ -621,6 +643,8 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // Sync when external columnState changes (e.g. switching views, reload pulls
   // a saved override from the server). Wrapped in a stable string key to
   // avoid re-renders when the parent passes a fresh-but-equal object.
+  // Non-author surface, same ruling as the seed above (objectui#5091): these
+  // two reads are the host's inbound channel, never an authored key.
   const externalColumnStateKey = React.useMemo(
     () => JSON.stringify((schema as any).columnState ?? null),
     [(schema as any).columnState]
@@ -2100,6 +2124,17 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
           rowActions={customRowActions}
           rowActionDefs={resolvedRowActionDefs as any[]}
           objectFields={objectSchema?.fields}
+          // NON-AUTHOR SURFACE — `maxInlineRowActions` is deliberately
+          // absent from `GRID_QUERY_INPUTS` (maintainer ruling, 2026-08-18,
+          // objectui#5091), so this cast read is deliberate, not missed. It is
+          // a host/internal switch for the inline-button budget before the
+          // rest fold into the "⋮" menu — an embedder's layout call, set from
+          // code (`apps/console/src/dev/DevRowActions.tsx:51`), never from a
+          // view document. `ComponentPropsMap['object-grid']` is a
+          // `strictObject` and rejects the key by name, so publishing it would
+          // advertise a key the save gate refuses. The `?? 1` default is the
+          // published behaviour and stays the one an author sees. Pinned by
+          // `__tests__/gridNonAuthorKeys.test.tsx`.
           maxInlineActions={(schema as any).maxInlineRowActions ?? 1}
           // [#4296] The object verdict ANDed with THIS row's record-level one.
           // It rides the same per-row channel the #2614 predicates ride —
@@ -3229,6 +3264,16 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // Grid toolbar (row height toggle + export)
   // Hide row-height toggle when parent (e.g., ListView) controls density externally,
   // signaled by `hideRowHeightToggle` prop on schema.
+  //
+  // NON-AUTHOR SURFACE — `hideRowHeightToggle` is deliberately absent from
+  // `GRID_QUERY_INPUTS` (maintainer ruling, 2026-08-18, objectui#5091), so this
+  // cast read is deliberate, not missed. It is the host's own signal, written
+  // by the embedding view when IT owns density (`plugin-list/src/ListView.tsx`
+  // :1866 sets it unconditionally); the author-facing way to ask for a density
+  // is `rowHeight`, which IS declared. `ComponentPropsMap['object-grid']` is a
+  // `strictObject` and rejects this key by name, so publishing it would offer a
+  // key the save gate refuses. Pinned by
+  // `__tests__/gridNonAuthorKeys.test.tsx`.
   const showRowHeightToggle = schema.rowHeight !== undefined && !(schema as any).hideRowHeightToggle;
   // Export is offered only when configured AND not blocked by object-level perms
   // — including the server's effective API operation set (#3391): when present
