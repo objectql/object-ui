@@ -21,6 +21,10 @@ import { useIsMobile, toast } from '@object-ui/components';
 import { resolveEffectiveCrudAffordances } from '@object-ui/core';
 import { resolveSuccessNavigate } from './successBehavior';
 import { resolveSubmitRedirect, submitRedirectScope } from './submitRedirect';
+import {
+  useSubmitRedirectNavigation,
+  type PendingSubmitRedirect,
+} from './submitRedirectNavigation';
 import { usePermissions } from '@object-ui/permissions';
 import { TabbedForm } from './TabbedForm';
 import { WizardForm } from './WizardForm';
@@ -446,9 +450,7 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
   // `schema.submitBehavior` at wait time: the value honoured is the one declared
   // when the write was accepted, so a host re-rendering with a different
   // `delayMs` mid-wait cannot restart the pause under the submitter.
-  const [pendingRedirect, setPendingRedirect] = useState<
-    { url: string; delayMs: number } | null
-  >(null);
+  const [pendingRedirect, setPendingRedirect] = useState<PendingSubmitRedirect | null>(null);
 
   // The delayed leg of a `redirect` submit behaviour.
   //
@@ -457,14 +459,13 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
   // the in-handler version scheduled it). The one thing that changed is who owns
   // the wait — unmounting cancels it instead of leaving it to fire into a page
   // the submitter has left.
-  useEffect(() => {
-    if (!pendingRedirect) return;
-    const timer = setTimeout(
-      () => window.location.assign(pendingRedirect.url),
-      pendingRedirect.delayMs,
-    );
-    return () => clearTimeout(timer);
-  }, [pendingRedirect]);
+  //
+  // WHERE the wait lands is `submitRedirectNavigation.ts`'s question: the host's
+  // injected navigate when one was supplied (so a mounted host's basename is
+  // applied — objectui#4989 defect 4), else the `window.location.assign` this
+  // arm has always done. The wizard consumes the same hook, so a wizard and a
+  // flat form cannot travel to one authored destination differently.
+  useSubmitRedirectNavigation(pendingRedirect);
 
   // OCC-guarded edit save + its conflict dialog (see occSave.tsx).
   const { saveWithOcc, conflictDialog } = useOccSave();

@@ -37,6 +37,7 @@ import {
 import { ThemeProvider } from '../chrome/ThemeProvider';
 import { LoadingScreen } from '../chrome/LoadingScreen';
 import { RemediationOverlay } from './RemediationOverlay';
+import { HostNavigationBridge } from './HostNavigationBridge';
 import { ImpersonationBanner } from '../layout/ImpersonationBanner';
 
 // The console's every pre-React / pre-auth gate (Suspense fallback, adapter
@@ -132,6 +133,22 @@ function GlobalActionRuntimeProvider({ dataSource, children }: { dataSource: unk
  *               which is the whole difference between it and a banner
  */
 export function ConsoleShell({ children }: { children: ReactNode }) {
+  return (
+    /* objectui#4989 — hand published renderers this console's OWN navigate, so a
+       destination they resolved (a form's ruled `submitBehavior.url`) is
+       travelled to through the router that knows the deployment's basename
+       instead of a full-page `window.location.assign` against the origin root.
+       Outermost, because the renderers that read it are reached from every
+       console route and several arrive through `ComponentRegistry`, where no
+       prop could be passed. */
+    <HostNavigationBridge>
+      <ConsoleShellProviders>{children}</ConsoleShellProviders>
+    </HostNavigationBridge>
+  );
+}
+
+/** The provider stack itself — see {@link ConsoleShell}, which wraps it. */
+function ConsoleShellProviders({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider defaultTheme="system" storageKey="object-ui-theme">
       {/* `defaultDuration` matches ConsoleToaster's 4s toast default and
