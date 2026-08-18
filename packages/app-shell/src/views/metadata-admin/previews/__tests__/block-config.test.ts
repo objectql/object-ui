@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ACTION_LOCATIONS,
+  PageAccordionProps,
   PageComponentType,
   PageHeaderProps,
   RecordDetailsProps,
@@ -148,8 +149,10 @@ describe('record:details sections ↔ spec section-entry coverage (#3819)', () =
   });
 
   it('lists `name` before `label` — the entry identity comes first', () => {
-    // Matches `page:tabs` (`key`) and `page:accordion` (`value`), where the
-    // stable identifier precedes the human label.
+    // Matches `page:tabs` (`key`), where the stable identifier precedes the
+    // human label. `page:accordion` items no longer have an identifier field
+    // to compare against — its `value` was removed as dead input (#5212): the
+    // renderer derives the panel id and never reads what was authored.
     const order = (sectionsField?.itemFields ?? []).map((f) => f.name);
     expect(order.indexOf('name')).toBeGreaterThanOrEqual(0);
     expect(order.indexOf('name')).toBeLessThan(order.indexOf('label'));
@@ -360,6 +363,121 @@ describe('page:header `icon` — the designer field retired with the spec key (#
     for (const key of [
       'engine.inspector.pageBlock.field.page:header.icon',
       'engine.inspector.pageBlock.placeholder.page:header.icon',
+    ]) {
+      expect(t(key, 'en-US')).toBe(key);
+      expect(t(key, 'zh-CN')).toBe(key);
+    }
+  });
+});
+
+/**
+ * `page:accordion` `title` / items `value` — designer inputs no renderer
+ * reads (#5212).
+ *
+ * Same PUBLISH-FACE-with-no-parity-gate reasoning as the `page:header.icon`
+ * describe above: nothing diffs the designer's field set against
+ * `ComponentPropsMap`, so a field can go on offering a key nothing on the
+ * render path honours and every derived check stays green.
+ *
+ * What was wrong, verified against the CURRENT tree (the card that reported
+ * this was six days stale and one of its three findings had already been
+ * fixed elsewhere — objectui#3829 / PR #4794 dropped `page:header.icon`
+ * before this issue was even filed):
+ *   - `title`: `PageAccordionRenderer` (`renderers/layout/containers.tsx`)
+ *     reads `items`, `allowMultiple`, `variant` — never `schema.title`, and
+ *     there is no accordion-level heading in the rendered output.
+ *     `PageAccordionProps` never declared a `title` member either, so this
+ *     was dead on BOTH sides, not merely unread by one renderer.
+ *   - items `value`: the renderer OVERWRITES it — `itemsWithValue =
+ *     items.map((it, idx) => ({ ...it, value: `panel-${idx}` }))` — so an
+ *     authored value never reaches the Radix item. `PageAccordionProps.items[]`
+ *     deliberately does not declare `value` either, and carries a `guidance`
+ *     prescription (added with the #5212 spec-side half) telling an author
+ *     who writes it by hand to remove the key.
+ *
+ * Neither is symmetric with `page:tabs`: one component over, an authored
+ * `items[].value` (designer field name `key`) IS read, with a `tab-${idx}`
+ * fallback only when absent (`itemsWithValue` for `page:tabs`, same file).
+ * `PageTabsProps.items[].value` is a real, declared schema member. The
+ * accordion's panel id is unconditionally derived; the tabs one is genuinely
+ * live — this suite touches the accordion only.
+ */
+describe('page:accordion `title` / items `value` — dead designer inputs (#5212)', () => {
+  const fieldNames = () => BLOCK_CONFIG['page:accordion'].map((f) => f.name);
+  const itemsField = () =>
+    BLOCK_CONFIG['page:accordion'].find((f) => f.name === 'items') as
+      | { kind: 'array'; itemFields: Array<{ name: string }> }
+      | undefined;
+
+  // POSITIVE half: without it the negative pins below would pass just as
+  // happily on a designer panel that lost ALL of its fields.
+  it('still offers the item fields the renderer does implement', () => {
+    expect(fieldNames()).toEqual(['items']);
+    expect(itemsField()?.itemFields.map((f) => f.name)).toEqual(['label']);
+  });
+
+  it('does NOT offer the accordion-level `title` field', () => {
+    expect(fieldNames().length, 'field list is empty — the pin would be vacuous').toBeGreaterThan(0);
+    expect(fieldNames()).not.toContain('title');
+  });
+
+  it('does NOT offer an item `value` field', () => {
+    const names = itemsField()?.itemFields.map((f) => f.name) ?? [];
+    expect(names.length, 'item field list is empty — the pin would be vacuous').toBeGreaterThan(0);
+    expect(names).not.toContain('value');
+  });
+
+  // The spec side: unlike `page:header.icon` (a tombstoned `z.never()`
+  // member — the key still exists on the shape), `title` and items `value`
+  // were never declared at all, so a strict-object rejection is the right
+  // envelope to assert (same `unrecognized_keys` pattern as
+  // `text-input-inputs-spec-parity.test.ts`), not a tombstone-type probe.
+  it('the spec rejects an authored `title` — not a member of PageAccordionProps', () => {
+    const result = PageAccordionProps.safeParse({
+      title: 'Section heading',
+      items: [{ label: 'One', children: [] }],
+    });
+    expect(result.success).toBe(false);
+    const codes = result.success ? [] : result.error.issues.map((i) => i.code);
+    expect(codes).toContain('unrecognized_keys');
+    const refused = result.success
+      ? []
+      : result.error.issues.flatMap((i) => (i as unknown as { keys?: string[] }).keys ?? []);
+    expect(refused).toContain('title');
+  });
+
+  it('the spec rejects an authored item `value` — not a member of the item shape', () => {
+    const result = PageAccordionProps.safeParse({
+      items: [{ label: 'One', value: 'panel-custom', children: [] }],
+    });
+    expect(result.success).toBe(false);
+    const codes = result.success ? [] : result.error.issues.map((i) => i.code);
+    expect(codes).toContain('unrecognized_keys');
+    const refused = result.success
+      ? []
+      : result.error.issues.flatMap((i) => (i as unknown as { keys?: string[] }).keys ?? []);
+    expect(refused).toContain('value');
+  });
+
+  // Non-vacuity for both safeParse probes above: a base accordion with only
+  // the declared keys must parse clean, or the rejections above could be
+  // attributable to something other than the extra key under test.
+  it('a base accordion with only declared keys parses clean', () => {
+    const result = PageAccordionProps.safeParse({
+      items: [{ label: 'One', children: [] }],
+      allowMultiple: true,
+      variant: 'card',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  // The i18n side, exactly as the `page:header.icon` removal above: a key
+  // kept past its field is dead vocabulary the next author reads as a live
+  // surface, so BOTH locale tables lost these two keys.
+  it('has no leftover translation for the retired fields in either locale', () => {
+    for (const key of [
+      'engine.inspector.pageBlock.field.page:accordion.title',
+      'engine.inspector.pageBlock.field.page:accordion.items.value',
     ]) {
       expect(t(key, 'en-US')).toBe(key);
       expect(t(key, 'zh-CN')).toBe(key);

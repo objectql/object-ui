@@ -659,10 +659,12 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.add.page:tabs.items': 'Add tab',
   'engine.inspector.pageBlock.field.page:tabs.items.key': 'Key',
   'engine.inspector.pageBlock.field.page:tabs.items.label': 'Label',
-  'engine.inspector.pageBlock.field.page:accordion.title': 'Title',
+  // `…field.page:accordion.title` and `…field.page:accordion.items.value`
+  // retired with their designer fields (objectui#5212): neither is read by
+  // `PageAccordionRenderer` nor declared by `PageAccordionProps`, so a key kept
+  // past its field is dead vocabulary the next author reads as a live surface.
   'engine.inspector.pageBlock.field.page:accordion.items': 'Sections',
   'engine.inspector.pageBlock.add.page:accordion.items': 'Add section',
-  'engine.inspector.pageBlock.field.page:accordion.items.value': 'Key',
   'engine.inspector.pageBlock.field.page:accordion.items.label': 'Label',
   'engine.inspector.pageBlock.field.record:related_list.objectName': 'Object',
   'engine.inspector.pageBlock.field.record:related_list.relationshipField': 'Relationship field',
@@ -2428,10 +2430,11 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.add.page:tabs.items': '添加标签页',
   'engine.inspector.pageBlock.field.page:tabs.items.key': '键',
   'engine.inspector.pageBlock.field.page:tabs.items.label': '标签',
-  'engine.inspector.pageBlock.field.page:accordion.title': '标题',
+  // `…field.page:accordion.title` / `…items.value` retired with their designer
+  // fields — see the matching note in the `en` table above. Removed from BOTH
+  // tables in the same edit so the two key sets stay identical.
   'engine.inspector.pageBlock.field.page:accordion.items': '分区',
   'engine.inspector.pageBlock.add.page:accordion.items': '添加分区',
-  'engine.inspector.pageBlock.field.page:accordion.items.value': '键',
   'engine.inspector.pageBlock.field.page:accordion.items.label': '标签',
   'engine.inspector.pageBlock.field.record:related_list.objectName': '对象',
   'engine.inspector.pageBlock.field.record:related_list.relationshipField': '关联字段',

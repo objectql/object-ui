@@ -385,15 +385,32 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
       ],
     },
   ],
+  // No top-level `title` field, and no `value` on an item: neither is read by
+  // `PageAccordionRenderer` (`renderers/layout/containers.tsx`) and neither is
+  // a member of `PageAccordionProps` in `@objectstack/spec` — an author who
+  // filled either in got no effect and no diagnostic (objectui#5212).
+  //   - `title`: the renderer reads `items`, `allowMultiple`, `variant`; there
+  //     is no accordion-level heading. `PageAccordionProps`'s shape has no
+  //     `title` key at all — a strict-object rejection, not a silent drop, once
+  //     the value reaches metadata validation.
+  //   - `items[].value`: the renderer OVERWRITES it before render —
+  //     `itemsWithValue = items.map((it, idx) => ({ ...it, value:
+  //     \`panel-${idx}\` }))` — so an authored value never reaches the Radix
+  //     item. This is NOT the `page:tabs` case one component over: there, an
+  //     authored `items[].value` (designer field name `key`) really is read,
+  //     with a `tab-${idx}` fallback only when absent. The accordion's panel id
+  //     is unconditionally derived; the tabs one is genuinely live. The spec
+  //     mirrors the asymmetry — `PageAccordionProps.items[]` deliberately does
+  //     not declare `value` and carries a `guidance` prescription pointing an
+  //     author at the same fact, while `PageTabsProps.items[].value` is a real
+  //     schema member.
   'page:accordion': [
-    { name: 'title', label: 'engine.inspector.pageBlock.field.page:accordion.title', kind: 'text' },
     {
       name: 'items',
       label: 'engine.inspector.pageBlock.field.page:accordion.items',
       kind: 'array',
       addLabel: 'engine.inspector.pageBlock.add.page:accordion.items',
       itemFields: [
-        { name: 'value', label: 'engine.inspector.pageBlock.field.page:accordion.items.value', kind: 'text' },
         { name: 'label', label: 'engine.inspector.pageBlock.field.page:accordion.items.label', kind: 'text' },
       ],
     },
