@@ -129,8 +129,12 @@ const regionSlice = (): string => {
 // ---------------------------------------------------------------------------
 
 describe('the forwarded key set equals the documented exemption (objectui#5097)', () => {
-  const exempt = [...OBJECT_VIEW_HOST_COMPOSITION_KEYS].sort();
-  const declared = [...OBJECT_VIEW_DECLARED_FORWARDED_KEYS].sort();
+  // Widened to `string[]` deliberately: the constants are `as const`, and
+  // comparing them against a set DERIVED from the source is the whole point —
+  // narrowed literal types would make the compiler, not the file, the authority
+  // on which keys exist.
+  const exempt: string[] = [...OBJECT_VIEW_HOST_COMPOSITION_KEYS].sort();
+  const declared: string[] = [...OBJECT_VIEW_DECLARED_FORWARDED_KEYS].sort();
 
   it('the fence reads exactly the 27 exempt keys plus the 4 declared ones', () => {
     expect(castReadsIn(regionSlice())).toEqual([...exempt, ...declared].sort());
