@@ -67,16 +67,61 @@ npm install @object-ui/plugin-dashboard
 import '@object-ui/plugin-dashboard';
 ```
 
-### Manual Registration
+### What the side-effect import registers
+
+That single import is the whole of registration — there is no components map to
+iterate over. Importing the entry runs the eight `ComponentRegistry.register(...)`
+calls in `packages/plugin-dashboard/src/index.tsx`, which claim exactly these
+schema types. The keys below are read off those calls.
+
+| Namespaced key | Bare-name fallback | Renderer behind it |
+| --- | --- | --- |
+| `view:dashboard` | `dashboard` | `DashboardRenderer` — the widget container |
+| `plugin-dashboard:metric` | `metric` | `MetricWidget` — one KPI value |
+| `plugin-dashboard:metric-card` | `metric-card` | `MetricCard` — KPI with trend and icon |
+| `plugin-dashboard:object-metric` | `object-metric` | internal wrapper around `ObjectMetricWidget` — a metric aggregated over an object |
+| `plugin-dashboard:pivot` | `pivot` | `PivotTable` — pivot over rows you pass in |
+| `plugin-dashboard:object-pivot` | `object-pivot` | internal wrapper around `ObjectPivotTable` — pivot queried from an object |
+| `plugin-dashboard:dashboard-grid` | `dashboard-grid` | `DashboardGridLayout` — the drag/resize editable grid |
+| `plugin-dashboard:object-data-table` | `object-data-table` | `ObjectDataTable` — table queried from an object |
+
+`ComponentRegistry.register` publishes `namespace:type`, and — unless the call
+passes `skipFallback: true` — the bare `type` as a back-compat fallback
+(`packages/core/src/registry/Registry.ts:194`, fallback branch at `:226`). No
+call in this package passes `skipFallback`, so each type above resolves under
+both spellings; the schema snippets on this page use the bare one.
+
+The two `object-*` rows name a wrapper rather than an export on purpose.
+`ObjectMetricBlock` and `ObjectPivotBlock` are internal to `src/index.tsx`: each
+first resolves the element's `dataSource` binding through `ElementDataSourceGate`
+(from `@object-ui/react`) and only then renders the exported
+`ObjectMetricWidget` / `ObjectPivotTable`.
+
+### Registering a component under your own key
+
+The import above needs no follow-up call. What a manual registration is for here
+is serving one of this package's exported components under a key of your own —
+you register the component, not a map:
 
 ```plaintext
-import { dashboardComponents } from '@object-ui/plugin-dashboard';
 import { ComponentRegistry } from '@object-ui/core';
+import { MetricCard } from '@object-ui/plugin-dashboard';
 
-Object.entries(dashboardComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
+ComponentRegistry.register('my-metric', MetricCard, {
+  namespace: 'my-app',
+  label: 'My Metric',
+  category: 'Dashboard',
 });
 ```
+
+The package also exports a `dashboardComponents` object, and two measured facts
+about it are worth stating, because iterating it is not the registration above:
+its eleven keys are **component class names** (`DashboardRenderer`, `MetricCard`,
+`WidgetConfigPanel`, …) rather than schema types, so feeding each key to
+`ComponentRegistry.register` registers eleven names no schema author writes,
+while the eight types in the table stay exactly as the import left them. Each
+such call also passes no `meta`, so it trips the no-namespace deprecation warning
+in `register` (`packages/core/src/registry/Registry.ts:198`).
 
 ## Examples
 
