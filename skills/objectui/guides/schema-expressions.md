@@ -136,8 +136,12 @@ When expressions are evaluated, these variables are in scope:
 |----------|--------|---------|
 | Top-level data fields | `SchemaRendererProvider dataSource` | `${users}`, `${metrics.total}` |
 | `data` | Alias for dataSource root | `${data.fieldName}` |
-| `item` | Current array element (in loops) | `${item.name}` |
-| `index` | Current array index (in loops) | `${index + 1}` |
+| `current_user` / `user` | Host predicate scope | `${current_user.email}` |
+| `page` | Page-local state (`PageSchema.variables`) | `${page.selectedId}` |
+
+That is the whole scope. There is **no `item` and no `index`** — the evaluator
+context is built once per node, not once per array element. See "No per-item
+template iteration" below.
 
 ### Safe globals (always available)
 - `Math` — `${Math.round(price)}`, `${Math.max(a, b)}`
@@ -383,27 +387,108 @@ When `SchemaRendererProvider` receives `dataSource = { customers: [...] }`, the 
 
 **Nested paths work:** `"bind": "app.settings.users"` resolves `dataSource.app.settings.users`.
 
-## Iteration scopes (loops)
+## No per-item template iteration (`list` is data-as-nodes)
 
-Components like Grid, List, and Table inject scoped variables for each item:
+**There is no loop construct in ObjectUI, and no `item` / `index` scope.** No
+component renders a per-item *template*: the evaluator context is built once per
+node (`data`, `page`, the host predicate scope), and nothing ever pushes a
+per-element frame onto it. A `${item.name}` resolves against nothing — an
+unknown root identifier is left alone, so the literal text `${item.name}` is
+what reaches the screen.
+
+`list` is the component authors reach for first, and it is **data-as-nodes**:
+the array it renders *is* the node list. It never reads `children`.
 
 ```json
+// ❌ Renders two EMPTY <li>. `children` is not a template — `list` never reads it,
+//    and `${item.name}` would render literally even if it did.
 {
   "type": "list",
   "bind": "users",
-  "children": [
-    {
-      "type": "card",
-      "props": {
-        "title": "${item.name}",
-        "subtitle": "#${index + 1}"
-      }
-    }
-  ]
+  "children": [{ "type": "text", "content": "${item.name}" }]
 }
 ```
 
-Inside the loop body, `item` refers to the current element and `index` to its 0-based position.
+### What `list` renders
+
+Each entry of `items` (or of the array `bind` resolves to) is read as a node
+descriptor:
+
+| Entry shape | Rendered as |
+|---|---|
+| `"Ada"` (a plain string) | the string |
+| `{ "content": … }` | `content` verbatim — **not** expression-evaluated |
+| `{ "body": node }` or `{ "body": [node, …] }` | rendered through `SchemaRenderer` |
+| `{ "className": … }` | class on the `<li>` |
+| anything else — e.g. a record `{ "name": "Ada" }` | an **empty `<li>`** |
+
+`content` wins over `body` when both are present. The last row is the trap this
+section exists to close: binding `list` to ordinary records produces one empty
+`<li>` per record — the right number of bullets, no text in any of them.
+
+```json
+// ✅ Authored items — `title` and `ordered` are read off the node
+{
+  "type": "list",
+  "title": "Team",
+  "ordered": true,
+  "items": [{ "content": "Ada" }, { "content": "Linus" }]
+}
+```
+
+```json
+// ✅ Bound data, already node-shaped: dataSource = { rows: [{ "content": "Ada" }, { "content": "Linus" }] }
+{ "type": "list", "bind": "rows" }
+```
+
+Only `body` entries go back through `SchemaRenderer`, so they are the one place
+inside a list where expressions are evaluated at all — against the host scope,
+never against a current element:
+
+```json
+// ✅ `${data.*}` works inside `body`; there is still no `${item.*}`
+{
+  "type": "list",
+  "items": [{ "body": { "type": "text", "content": "Owner: ${data.team.owner}" } }]
+}
+```
+
+### Grid and Table are not iterators either
+
+- **`grid`** has no data binding at all — it is a CSS-grid wrapper that renders
+  its `children` **once** and lays them out in columns. A `bind` on a `grid` is
+  inert.
+- **`table`** renders rows from an inline `data` array against `columns`
+  accessors (`accessorKey`, falling back to `name`). Cell values are plain
+  property lookups — never expressions — and `table` does not read `bind`.
+
+```json
+// ✅ `table`: inline rows + column accessors, no per-row scope
+{
+  "type": "table",
+  "columns": [{ "label": "Name", "accessorKey": "name" }],
+  "data": [{ "name": "Ada" }, { "name": "Linus" }]
+}
+```
+
+### Rendering one node per record
+
+Template-per-item rendering is not something any component does today. The two
+working routes:
+
+1. **Expand in the host.** Map your records to nodes *before* handing the schema
+   to `SchemaRenderer` — the host has the full array and can build one node per
+   record with real string interpolation.
+2. **Feed data-as-nodes.** Shape the data as list entries (`content` / `body`)
+   and let `items` or `bind` render it, per the table above.
+
+### The per-row scope that does exist
+
+Row-level **predicates** on list views — conditional formatting and row-action
+`visible` / `disabled` — are CEL over `record.*`, evaluated by
+`@objectstack/formula`; see "List-view conditional tier" above. That is a
+different engine with a different scope: it decides *whether* and *how* a row is
+styled, and it gives `${}` templates no `item`.
 
 ## Security model
 
