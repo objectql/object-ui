@@ -48,9 +48,9 @@ three calls in `src/index.tsx` claim exactly these keys:
 
 | `register(…)` call | Namespaced key | Bare fallback |
 | --- | --- | --- |
-| `('object-grid', ObjectGridRenderer, { namespace: 'plugin-grid' })` — `src/index.tsx:181` | `plugin-grid:object-grid` | `object-grid` |
-| `('grid', ObjectGridRenderer, { namespace: 'view', skipFallback: true })` — `src/index.tsx:193` | `view:grid` | **none** — `skipFallback: true` |
-| `('import-wizard', ImportWizardRenderer, { namespace: 'plugin-grid' })` — `src/index.tsx:216` | `plugin-grid:import-wizard` | `import-wizard` |
+| `('object-grid', ObjectGridRenderer, { namespace: 'plugin-grid' })` — `src/index.tsx:202` | `plugin-grid:object-grid` | `object-grid` |
+| `('grid', ObjectGridRenderer, { namespace: 'view', skipFallback: true })` — `src/index.tsx:214` | `view:grid` | **none** — `skipFallback: true` |
+| `('import-wizard', ImportWizardRenderer, { namespace: 'plugin-grid' })` — `src/index.tsx:237` | `plugin-grid:import-wizard` | `import-wizard` |
 
 **Bare `grid` is deliberately not ours.** `skipFallback: true` on the second call
 keeps this plugin from claiming it, because `grid` belongs to the CSS Grid *layout*
@@ -148,7 +148,7 @@ contract rather than this package's component API.
 
 A grid node is an `ObjectGridSchema`: one required `objectName`, and keys drawn
 from the list this package **declares** as its authoring surface
-(`GRID_QUERY_INPUTS`, `src/index.tsx:145`) — the same list that feeds the designer
+(`GRID_QUERY_INPUTS`, `src/index.tsx:166`) — the same list that feeds the designer
 panel and the generated `sdui-intrinsics.d.ts`, so what is authorable here is what
 the renderer reads.
 
