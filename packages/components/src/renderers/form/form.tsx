@@ -24,6 +24,7 @@ import {
 } from '../../ui/select';
 import { renderChildren } from '../../lib/utils';
 import { toControlValue, matchOptionValue, type OptionValue } from './option-value';
+import { RHF_RECOGNIZED_RULE_KEYS } from './validationRuleKeys';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../../custom/resizable';
 import { Alert, AlertDescription } from '../../ui/alert';
@@ -799,6 +800,37 @@ ComponentRegistry.register('form',
         }
       }
     }, [rawFields, specVocabularyFields]);
+
+    // ── Unrecognized validation-rule names fail LOUDLY (#5099) ────────────
+    // react-hook-form's field validator destructures a FIXED rule set (see
+    // validationRuleKeys.ts, pinned against the installed bundle) and drops
+    // every other key without a trace — a misspelled `minlength`, an invented
+    // `email`, or the numeric keys left by spreading an ARRAY into
+    // `validation` all yield a form that LOOKS validated and runs nothing.
+    // `FieldValidationRules` already rejects these at compile time; this
+    // catches the metadata that reaches the renderer as plain JSON, where
+    // TypeScript never ran. Report-only by design: the maintainer ruling on
+    // #5099 explicitly rejected normalizing/compiling at this read point
+    // (consumer tolerance, AGENTS.md #0.1) — the fix belongs at the producer.
+    React.useEffect(() => {
+      for (const f of rawFields as any[]) {
+        const v = f?.validation;
+        if (v == null || typeof v !== 'object') continue;
+        const unrecognized = Object.keys(v).filter((k) => !RHF_RECOGNIZED_RULE_KEYS.has(k));
+        if (unrecognized.length === 0) continue;
+        // The message doubles as the fix instruction — it is what an agent
+        // iterating on the metadata will read and follow.
+        console.error(
+          `[object-ui] form field '${f?.name}': validation rule(s) ${unrecognized
+            .map((k) => `'${k}'`)
+            .join(', ')} are not rules react-hook-form runs — the field renders, but these rules ` +
+            `validate NOTHING. Recognized rules: ${[...RHF_RECOGNIZED_RULE_KEYS].join(', ')}. ` +
+            `Check the spelling (\`minLength\`, not \`minlength\`); express email/url checks as a ` +
+            `\`pattern\` whose \`value\` is a RegExp; and declare \`validation\` as an OBJECT — ` +
+            `spreading an array leaves numeric keys that run nothing.`,
+        );
+      }
+    }, [rawFields]);
 
     // A two-state control has no third state, so a boolean field that nobody
     // supplied a value for starts at `false` — not `undefined`. Without this
