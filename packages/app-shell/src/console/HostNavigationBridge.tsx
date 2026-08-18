@@ -30,15 +30,41 @@
  * several arrive through `ComponentRegistry` where the shell never constructs
  * the element and so could not pass a prop.
  *
- * It must render INSIDE the router — `ConsoleShell`'s own contract already
- * requires that (see its docblock), and `useNavigate` throws outside one.
+ * ## Why it tolerates having no router above it
+ *
+ * `ConsoleShell`'s contract already says to mount it inside a `BrowserRouter`,
+ * and every real console does — everything below it (`AppContent`'s own
+ * `useNavigate`, the `Routes`) needs one anyway. But partial trees are rendered
+ * without one (a test that mounts the shell to exercise notifications, a
+ * storybook), and `useNavigate()` THROWS outside a router. Turning a documented
+ * convention into a crash is a behaviour change this card did not ask for and
+ * would buy nothing: a console with no router is already broken one component
+ * lower, so the crash carries no diagnosis.
+ *
+ * So with no router above, this supplies NO navigate — which is precisely the
+ * seam's documented absent state, and leaves every renderer on the fallback it
+ * had before. Note what this is not: the "router-presence sniffing" the ruling
+ * rejected was a RENDERER discovering a router implicitly and thereby making
+ * mount-awareness magic. Here the mechanism is unchanged and explicit — a
+ * console deliberately supplying its navigate — and the check only decides
+ * whether this supplier has anything to offer.
  */
 
 import { useMemo, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useInRouterContext, useNavigate } from 'react-router-dom';
 import { HostNavigationProvider, type HostNavigationValue } from '@object-ui/react';
 
 export function HostNavigationBridge({ children }: { children: ReactNode }) {
+  // Rules-of-hooks safe: the branch is on whether a Router sits ABOVE this
+  // component, which is a fact about the mount and cannot flip under it.
+  return useInRouterContext() ? (
+    <RouterNavigationBridge>{children}</RouterNavigationBridge>
+  ) : (
+    <>{children}</>
+  );
+}
+
+function RouterNavigationBridge({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
 
   const value = useMemo<HostNavigationValue>(

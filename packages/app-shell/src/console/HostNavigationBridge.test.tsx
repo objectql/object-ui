@@ -41,25 +41,36 @@ function LocationProbe() {
   return <div data-testid="at">{pathname}</div>;
 }
 
+/**
+ * What a renderer below the bridge sees. Rendered into the DOM rather than
+ * captured into an outer variable — assigning during render is a side effect
+ * (`react-hooks/globals` refuses it, rightly: it makes the observation depend on
+ * when React happens to re-render).
+ */
+function SeamProbe() {
+  const { navigate } = useHostNavigation();
+  return (
+    <>
+      <div data-testid="seam">{typeof navigate}</div>
+      <div>content</div>
+    </>
+  );
+}
+
 beforeEach(() => {
   window.history.replaceState({}, '', `${MOUNT}/start`);
 });
 
 describe('HostNavigationBridge — the console supplies a basename-aware navigate', () => {
   it('offers a navigate at all (absent is what the defect looked like)', () => {
-    let seen: unknown = 'unset';
-    function Probe() {
-      seen = useHostNavigation().navigate;
-      return null;
-    }
     render(
       <BrowserRouter basename={MOUNT}>
         <HostNavigationBridge>
-          <Probe />
+          <SeamProbe />
         </HostNavigationBridge>
       </BrowserRouter>,
     );
-    expect(typeof seen).toBe('function');
+    expect(screen.getByTestId('seam').textContent).toBe('function');
   });
 
   it('applies the deployment basename to a rooted in-app path', async () => {
@@ -98,6 +109,24 @@ describe('HostNavigationBridge — the console supplies a basename-aware navigat
     // is the responsibility a host takes on by supplying the seam.
     await waitFor(() => expect(screen.getByText('thank you')).toBeTruthy());
     expect(screen.getByTestId('at').textContent).toBe('/thanks');
+  });
+
+  it('supplies nothing, and does not throw, when mounted with no router above it', () => {
+    // A partial tree (a test mounting the shell for something else, a
+    // storybook). `useNavigate()` throws outside a router, and turning
+    // ConsoleShell's documented "put me inside a BrowserRouter" into a crash
+    // would be a behaviour change with no diagnostic value — a router-less
+    // console is already broken one component lower. Renderers below simply see
+    // the seam's absent state and keep their own fallback.
+    expect(() =>
+      render(
+        <HostNavigationBridge>
+          <SeamProbe />
+        </HostNavigationBridge>,
+      ),
+    ).not.toThrow();
+    expect(screen.getByTestId('seam').textContent).toBe('undefined');
+    expect(screen.getByText('content')).toBeTruthy();
   });
 
   it('passes `replace` through when the caller asks for it', async () => {
