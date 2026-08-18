@@ -21,7 +21,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
@@ -1066,6 +1066,68 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     return declared.filter((a: unknown) => String(a).toLowerCase() !== 'delete');
   }, [schema.bulkActions, schema.objectName, objectDef, effectiveApiOps, canDo]);
 
+  /**
+   * [#4647] Is the grid toolbar's inline-edit toggle offered at all?
+   *
+   * Two gaps closed together, because both end at this one render condition.
+   *
+   * ## Gap 1 — the permission gate
+   *
+   * The toggle used to render on the sole conditions "grid view", "the host
+   * wired `onInlineEditChange`" and "not the compact toolbar" — and every host
+   * passes that callback unconditionally. It was the ONE affordance on this
+   * toolbar with no permission check: New and Import are hidden for an account
+   * without the grant, the bulk-delete entry directly above ANDs
+   * `can(obj, 'delete')`, and inline edit alone stayed available to a read-only
+   * principal, who could flip it, edit cells and press "Save all" to earn a
+   * server 403. No data ever landed (the server gate is solid), but the UI
+   * walked the user through a round-trip guaranteed to fail.
+   *
+   * The gate is `permittedBulkActions`' verbatim, with the operation moved from
+   * `delete` to `update`: the object's resolved affordance — ADR-0103 bucket ∧
+   * `userActions.edit` ∧ the server's effective API operations (#3391) — AND
+   * the CURRENT PRINCIPAL's grant (#4096). The first half is spelled
+   * `isObjectInlineEditable`, which IS
+   * `resolveEffectiveCrudAffordances(...).edit` under the name that says what
+   * this surface is asking; it is the same helper the record body's
+   * double-click/pencil affordances read, so a list and a record page cannot
+   * disagree about whether an object's rows are editable in place.
+   *
+   * `can()` answers `true` with no `PermissionProvider`, so standalone embeds
+   * and the Studio designer keep today's behavior — the same fail-open the
+   * bulk gate above relies on.
+   *
+   * ## Gap 2 — consuming the declared `userActions.editInline`
+   *
+   * `ListViewSchema.userActions.editInline` is spec-declared and, on this
+   * toolbar, was read by nothing: an author could not switch inline editing off
+   * even unconditionally. It is read here as an explicit opt-OUT (`!== false`).
+   *
+   * That default is deliberate and it does NOT enforce the spec's
+   * `.default(false)`. Enforcing it would take the toggle away from every
+   * existing console list view in one release, since nothing folds a legacy key
+   * into `editInline` and no stored view declares it — the console's own
+   * channel for this capability is the view's `inlineEdit` property, which the
+   * host relays as `onInlineEditChange`. This is `toolbarFlags`' stated rule
+   * for exactly this block (defaults "matching what these flags have always
+   * done"; `hideFields`/`rowColor` keep their historical OFF because flipping
+   * them "would grow two buttons on every existing view") applied in the
+   * direction that would REMOVE one. So: an explicit `false` is honoured, an
+   * explicit `true` is honoured, and absence defers to the host channel that
+   * already governs this surface. `InterfaceListPage` — the other consumer of
+   * this key — reads the absent case as OFF (`=== true`), because the
+   * ADR-0047 interface page has no such host channel to defer to.
+   */
+  const inlineEditOffered = React.useMemo(() => {
+    if ((schema.userActions as Record<string, boolean | undefined> | undefined)?.editInline === false) {
+      return false;
+    }
+    return (
+      isObjectInlineEditable(objectDef as any, effectiveApiOps) &&
+      (schema.objectName ? canDo(schema.objectName, 'update') : true)
+    );
+  }, [schema.userActions, schema.objectName, objectDef, effectiveApiOps, canDo]);
+
   // Normalize exportOptions: support both ObjectUI object format and spec string[] format
   const resolvedExportOptions = React.useMemo(() => {
     if (!schema.exportOptions) return undefined;
@@ -1820,7 +1882,14 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...baseProps,
           columns: effectiveFields,
           ...(schema.conditionalFormatting ? { conditionalFormatting: schema.conditionalFormatting } : {}),
-          editable: inlineEdit,
+          // [#4647] The MODE, not just its toggle. Gating only the toggle would
+          // leave the issue's own consequence reachable by a different door: a
+          // stored view carrying `inlineEdit: true` (the console persists it
+          // per view) drops a read-only principal straight into editable cells
+          // with no toggle to press, and "Save all" still earns the 403. The
+          // toggle can only ever be the cheapest entrance to this state; the
+          // state is what needs the grant.
+          editable: inlineEdit && inlineEditOffered,
           ...(schema.wrapHeaders != null ? { wrapHeaders: schema.wrapHeaders } : {}),
           ...(schema.resizable != null ? { resizable: schema.resizable } : {}),
           ...(schema.selection ? { selection: schema.selection } : {}),
@@ -2014,7 +2083,11 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // objectDef is in the deps because the kanban default lane field derives
   // from it (ADR-0085 stageField) and it loads async — without it the board
   // would keep the null-def result forever.
-  }, [currentView, schema, currentSort, effectiveFields, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize, inlineEdit, objectDef]);
+  // `inlineEditOffered` joins the deps for #4647: the permission verdict lands
+  // asynchronously (`/me/permissions`) and `objectDef` loads into state, so a
+  // grid schema built before either resolved must be rebuilt when they do —
+  // otherwise `editable` keeps the pre-verdict answer for the session.
+  }, [currentView, schema, currentSort, effectiveFields, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize, inlineEdit, inlineEditOffered, objectDef]);
 
   const hasFilters = currentFilters.conditions && currentFilters.conditions.length > 0;
 
@@ -2449,8 +2522,11 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             </>
           )}
           {/* Inline edit — toggle record editing for this (grid) view. Persists
-              `inlineEdit` on the view via onInlineEditChange. */}
-          {currentView === 'grid' && onInlineEditChange && !toolbarFlags.compactToolbar && (
+              `inlineEdit` on the view via onInlineEditChange.
+              [#4647] `inlineEditOffered` carries BOTH the `can(obj,'update')`
+              permission gate this affordance was missing and the declared
+              `userActions.editInline` switch — see its definition above. */}
+          {currentView === 'grid' && onInlineEditChange && !toolbarFlags.compactToolbar && inlineEditOffered && (
             <Button
               variant="ghost"
               size="sm"
@@ -2837,7 +2913,13 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               showHideFields={toolbarFlags.showHideFields}
               hiddenFields={hiddenFields}
               updateHiddenFields={updateHiddenFields}
-              showInlineEdit={currentView === 'grid'}
+              /* [#4647] The compact toolbar's inline-edit entry — the SECOND
+                 render site for this affordance, and the one with no gate at
+                 all: it never even required `onInlineEditChange`. Same
+                 `inlineEditOffered` verdict as the wide toolbar's toggle, or a
+                 read-only principal would keep the entry on mobile after
+                 losing it on desktop. */
+              showInlineEdit={currentView === 'grid' && inlineEditOffered}
               inlineEdit={inlineEdit}
               setInlineEdit={updateInlineEdit}
             />

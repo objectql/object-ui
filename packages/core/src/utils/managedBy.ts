@@ -62,7 +62,22 @@ export type UserActionOverride =
     };
 
 export interface UserActionsOverride {
-  create?: boolean;
+  /**
+   * Bare boolean or the object form. Widened from `boolean` in objectui#4646:
+   * `@objectstack/spec@17.0.0` types this key
+   * `z.union([z.boolean(), RowCrudActionOverrideSchema])`, and the spec's
+   * resolver emits the parsed predicates as `CrudAffordances.createPredicates`.
+   * The local type said `boolean` — so an author writing the shape the spec
+   * accepts, and that the related-list toolbar now honours
+   * (`RelatedRecordActionsBridge`, objectui#4646), was rejected by objectui's
+   * own type while the runtime handled it.
+   *
+   * `import` below is deliberately NOT widened. The spec accepts the object
+   * form there too and emits `importPredicates`, but nothing in objectui reads
+   * them yet; widening the type ahead of a consumer would re-declare the
+   * inert-metadata defect this change removes, one key over.
+   */
+  create?: UserActionOverride;
   import?: boolean;
   edit?: UserActionOverride;
   delete?: UserActionOverride;

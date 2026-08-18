@@ -70,6 +70,17 @@ export interface RelatedListProps {
   objectName?: string;
   /** Callback when "New" button is clicked */
   onNew?: () => void;
+  /**
+   * [#4646] Render "New" GREYED rather than clickable. Supplied by the host
+   * alongside `onNew` when the create affordance exists for this list but its
+   * `userActions.create.disabledWhen` predicate answers true for the record in
+   * scope (the parent record, on a record page's related list).
+   *
+   * Deliberately distinct from omitting `onNew` — which HIDES the button. Same
+   * hidden-vs-disabled split the row Edit/Delete predicates have had since
+   * objectui#2614.
+   */
+  newDisabled?: boolean;
   /** Callback when "View All" button is clicked */
   onViewAll?: () => void;
   /** Callback when a row Edit action is clicked */
@@ -304,6 +315,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   dataSource,
   objectName,
   onNew,
+  newDisabled,
   onViewAll,
   onRowEdit,
   onRowDelete,
@@ -1309,6 +1321,12 @@ export const RelatedList: React.FC<RelatedListProps> = ({
               <Button
                 variant={isEmpty ? 'ghost' : 'outline'}
                 size="sm"
+                /* [#4646] `userActions.create.disabledWhen` for the record this
+                   list hangs off. `visibleWhen` never reaches here — a false
+                   one makes the host omit `onNew`, so the button is absent
+                   rather than greyed. */
+                disabled={newDisabled}
+                data-testid="related-list-new"
                 onClick={(e) => { e.stopPropagation(); onNew(); }}
                 className="gap-1 h-9 sm:h-7 text-xs shadow-none"
               >

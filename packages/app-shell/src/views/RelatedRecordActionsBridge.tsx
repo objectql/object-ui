@@ -36,6 +36,34 @@
  * Each affordance is gated by {@link resolveEffectiveCrudAffordances} so system /
  * append-only children never show New / Edit / Delete. When this bridge is
  * absent (e.g. the Studio designer) the related list stays read-only.
+ *
+ * ## The related-list toolbar's create predicates (objectui#4646)
+ *
+ * `@objectstack/spec@17.0.0` widened `userActions.create` from a bare boolean
+ * to `z.union([z.boolean(), RowCrudActionOverrideSchema])`, so
+ * `resolveCrudAffordances` now emits `createPredicates` beside the
+ * `editPredicates` / `deletePredicates` the row surfaces have consumed since
+ * objectui#2614. Nothing read them: the spec's CHANGELOG named "the
+ * related-list toolbar honouring `create.visibleWhen`" as objectui's downstream
+ * card, and this is that card. A parent record entering a frozen state greyed
+ * its children's row Edit/Delete correctly while "+ New" stayed live, so the
+ * user filled in the whole child form to earn a 409.
+ *
+ * The binding is the spec docblock's, not an invention here: unlike the ROW
+ * predicates, `createPredicates` evaluates **once per toolbar, against the
+ * record of the scope the toolbar sits in** — on a record page's related list
+ * that is the HOST PARENT record, which is why `parentRecord` had to be
+ * threaded in beside the `parentRecordId` this bridge already carried. (An id
+ * cannot answer `record.status != 'frozen'`.) A standalone object list has no
+ * record in scope and evaluates nothing — it never reaches this bridge at all.
+ *
+ * Evaluated WITHOUT a hook, deliberately: `resolve` answers for a VARIABLE
+ * number of related lists inside one `useMemo`, so a `useRowPredicate` per
+ * child object would tie the hook count to the page's related-list count. This
+ * is the same constraint — and the same resolution — as `plugin-grid`'s
+ * `evalRowActionVisibility`, whose row loop faces it per action. The evaluator
+ * underneath is the canonical one either way (`evalRowPredicate`), and the fail
+ * directions below are the record header's verbatim.
  */
 
 import { useCallback, useMemo } from 'react';
@@ -45,12 +73,13 @@ import {
   notifyDataChanged,
   useAction,
   useActionTextLocalizer,
+  usePredicateScope,
   type ActionTextLocalizer,
   type RelatedRecordActionsValue,
   type RelatedRecordHandlers,
   type RelatedRowActionDef,
 } from '@object-ui/react';
-import type { ActionDef } from '@object-ui/core';
+import { evalRowPredicate, type ActionDef, type RowCrudPredicates } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { resolveEffectiveCrudAffordances } from '../utils/crudAffordances';
 import { RECORD_FORM_PARAM, RECORD_FORM_OBJECT_PARAM, RECORD_FORM_LINK_PARAM, RECORD_TRAIL_PARAM, appendRecordTrail } from '../urlParams';
@@ -69,6 +98,43 @@ export function notifyRelatedChanged(objectName: string): void {
   notifyDataChanged({ objectName });
 }
 
+/**
+ * [#4646] Evaluate one toolbar-scope create predicate the way the record
+ * header's edit/delete predicates are evaluated — on the canonical CEL engine,
+ * failing CLOSED with a diagnosable warning — but WITHOUT a hook.
+ *
+ * Mirrors `useRowPredicate(pred, record, { fallback: false, warnOnError: true,
+ * label, fields })` exactly, boolean short-circuit included. The short-circuit
+ * is not an optimisation: a boolean handed to the engine faults ("AST-only
+ * evaluation not yet supported") and would fail closed, which is how
+ * `visible: true` once hid a bulk button from everyone (objectui#3492).
+ *
+ * Hook-free for the reason `plugin-grid`'s `evalRowActionVisibility` is: the
+ * caller answers for a VARIABLE number of related lists inside one `useMemo`.
+ *
+ * Whether a gate was DECLARED is not decided here — each caller below answers
+ * that first, by its own rule (`?? true` for `visibleWhen`, `!= null` for
+ * `disabledWhen`). An empty predicate that reaches an evaluator is unevaluable
+ * and fails closed like any other.
+ */
+function evalCreatePredicate(
+  pred: unknown,
+  record: Record<string, any> | null | undefined,
+  scope: Record<string, unknown>,
+  label: string,
+  fields: unknown,
+): boolean {
+  if (typeof pred === 'boolean') return pred;
+  if (pred == null || pred === '') return false;
+  return evalRowPredicate(pred as never, record ?? {}, {
+    fallback: false,
+    scope,
+    warnOnError: true,
+    label,
+    fields: fields as never,
+  });
+}
+
 export interface RelatedRecordActionsBridgeProps {
   /** Current app segment used to build `/apps/:appName/...` routes. */
   appName?: string;
@@ -85,6 +151,31 @@ export interface RelatedRecordActionsBridgeProps {
   parentObjectName?: string;
   parentRecordId?: string;
   parentTitle?: string;
+  /**
+   * [#4646] The parent record ITSELF — the subject the child objects'
+   * `userActions.create` predicates are evaluated against, per the spec
+   * docblock ("the record in scope where the toolbar renders"). `parentRecordId`
+   * above cannot stand in for it: `record.status != 'frozen'` needs the fields,
+   * not the key.
+   *
+   * Omitting it leaves every create predicate unevaluable, which fails CLOSED
+   * for `visibleWhen` exactly as it does on the record header — so a host that
+   * gates creation on the parent must pass the record, and a host with no
+   * parent record in hand should not be declaring create predicates on its
+   * children. Hosts that declare none are untouched either way: with no
+   * `createPredicates` there is nothing to evaluate.
+   */
+  parentRecord?: Record<string, any> | null;
+  /**
+   * [#4646] The PARENT object's field definitions, handed to the predicate for
+   * the same reason the row kebab and the record header pass theirs: a relation
+   * field must bind as the stored FOREIGN KEY rather than whatever `$expand`
+   * substituted for it on this surface, or `record.owner == os.user.id` answers
+   * a different question here than it does on the list.
+   *
+   * The parent's, not the child's — the record being bound is the parent.
+   */
+  parentObjectFields?: unknown;
   children: React.ReactNode;
 }
 
@@ -115,12 +206,21 @@ export function RelatedRecordActionsBridge({
   parentObjectName,
   parentRecordId,
   parentTitle,
+  parentRecord,
+  parentObjectFields,
   children,
 }: RelatedRecordActionsBridgeProps) {
   const navigate = useNavigate();
   const { execute } = useAction();
   const [, setSearchParams] = useSearchParams();
   const { getObjectApiOperations, can } = usePermissions();
+  // [#4646] The host predicate scope (`features.*` / `os.user.*` / …), read
+  // ONCE here rather than per resolved child list — `resolve` is hook-free by
+  // construction (see the module note). This is the same scope
+  // `useRowPredicate` reads for the record header's edit/delete predicates, so
+  // a `create` predicate and an `edit` predicate on the same page see the same
+  // globals.
+  const predicateScope = usePredicateScope();
   // The child action's authored strings go through the ONE shared resolver
   // (objectui#4265). This used to arrive as an `actionLabel` prop injected by
   // RecordDetailView — an injection point that could only ever carry the LABEL,
@@ -248,9 +348,51 @@ export function RelatedRecordActionsBridge({
         // answers `true` with no `PermissionProvider`, which keeps standalone
         // embeds exactly where they were.
         const rawAff = resolveEffectiveCrudAffordances(childDef, getObjectApiOperations(objectName));
+        const objectCanCreate = rawAff.create && can(objectName, 'create');
+        // [#4646] The per-scope layer, on top of the object-level verdict above.
+        // Surfaced only when that verdict passed — the same posture
+        // `resolveRowCrudAffordances` takes for the row predicates
+        // (`editPredicates: canEdit ? aff.editPredicates : undefined`): a
+        // predicate cannot re-open an affordance the bucket, the effective API
+        // operations or the principal's grant already closed.
+        const createPredicates: RowCrudPredicates | undefined = objectCanCreate
+          ? rawAff.createPredicates
+          : undefined;
+        /**
+         * `visibleWhen` — fails CLOSED, and counts as DECLARED by `!= null`
+         * rather than by truthiness, so `visibleWhen: false` hides "+ New"
+         * instead of reading as "ungated" (the objectui#3492 invariant).
+         * `?? true` expresses the ungated default as a boolean, which the
+         * evaluator short-circuits without touching the engine — so a child
+         * object with no `userActions.create` predicates takes no evaluation at
+         * all and this gate is a literal `true`.
+         */
+        const createVisible = evalCreatePredicate(
+          createPredicates?.visibleWhen ?? true,
+          parentRecord,
+          predicateScope,
+          'builtin:create:visibleWhen',
+          parentObjectFields,
+        );
+        /**
+         * `disabledWhen` — fails SOFT (an unevaluable predicate must not grey a
+         * button forever), and the `!= null` gate lives OUTSIDE the evaluation,
+         * so `disabledWhen: ''` reads as "no condition" rather than as
+         * "disable". Verbatim the posture of the record header (PR #4515) and
+         * of `DataTableBuiltinRowActionItem`.
+         */
+        const createDisabled =
+          createPredicates?.disabledWhen != null &&
+          evalCreatePredicate(
+            createPredicates.disabledWhen,
+            parentRecord,
+            predicateScope,
+            'builtin:create:disabledWhen',
+            parentObjectFields,
+          );
         const aff = {
           ...rawAff,
-          create: rawAff.create && can(objectName, 'create'),
+          create: objectCanCreate && createVisible,
           edit: rawAff.edit && can(objectName, 'update'),
           delete: rawAff.delete && can(objectName, 'delete'),
         };
@@ -261,6 +403,10 @@ export function RelatedRecordActionsBridge({
         };
 
         if (aff.create) {
+          // [#4646] Greyed, not gone: `onCreate` is still supplied so the list
+          // keeps offering "+ New" as a visible-but-inert affordance. The
+          // hidden case is `aff.create` being false above.
+          if (createDisabled) handlers.createDisabled = true;
           handlers.onCreate = () => {
             const canLink =
               relationshipField && parentId != null && parentId !== '';
@@ -305,7 +451,11 @@ export function RelatedRecordActionsBridge({
       recordHref,
       openRecord,
     }),
-    [objects, base, dataSource, localizeActionTexts, runRowAction, openChildForm, recordHref, openRecord, getObjectApiOperations, can],
+    // `parentRecord` / `parentObjectFields` / `predicateScope` join the deps for
+    // the #4646 create predicates: a parent record that changes (a save, a
+    // status transition) must re-resolve "+ New" for every related list under
+    // it, or the toolbar keeps answering for the record's previous state.
+    [objects, base, dataSource, localizeActionTexts, runRowAction, openChildForm, recordHref, openRecord, getObjectApiOperations, can, parentRecord, parentObjectFields, predicateScope],
   );
 
   return (

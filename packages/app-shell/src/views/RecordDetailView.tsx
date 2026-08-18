@@ -2335,6 +2335,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                 parentObjectName={objectName}
                 parentRecordId={pureRecordId ?? undefined}
                 parentTitle={recordTitle}
+                /* [#4646] The related-list toolbars under this page evaluate
+                   their child objects' `userActions.create` predicates against
+                   THIS record — the spec's "record in scope where the toolbar
+                   renders". Same record and same field definitions the header's
+                   edit/delete predicates above are evaluated against, so one
+                   page cannot hold two answers to "is this record frozen". */
+                parentRecord={pageRecord}
+                parentObjectFields={predicateFields}
               >
                 <SchemaRenderer schema={withPageTabsUrlSync(renderedPage, { defaultTab: activeTabParam, onTabChange: handleTabChange }) as any} />
               </RelatedRecordActionsBridge>
