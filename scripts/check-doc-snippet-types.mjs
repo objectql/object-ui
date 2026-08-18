@@ -78,9 +78,17 @@
  *
  *     EVERY `ts` / `tsx` fenced block in a covered document is compiled, in
  *     ISOLATION, as its own module. A block that is not meant to compile must be
- *     DECLARED a fragment by a marker line immediately above its fence, carrying
- *     a written reason. There is no third case: a block that fails to parse is a
- *     FAILURE, never a skip.
+ *     DECLARED by a marker line immediately above its fence, carrying a written
+ *     reason. There is no third case: a block that fails to parse is a FAILURE,
+ *     never a skip.
+ *
+ * Two kinds of block need the declaration, and the reason says which: a genuine
+ * FRAGMENT (a shape excerpt, a block continuing the one above it, a call into
+ * the host's own router), and a block that is deliberately about code that no
+ * longer exists — a migration guide's "before" example naming a retired package
+ * is correct documentation and must not compile. The marker keyword stays
+ * `fragment` for both rather than growing a second vocabulary; what
+ * distinguishes them is the written reason, which is the part a reviewer reads.
  *
  * The two marker spellings are quoted verbatim in `FRAGMENT_MARKER_EXAMPLES`
  * below — an MDX expression comment for `.mdx`, an HTML comment for `.md`. They
@@ -205,9 +213,10 @@ const UNGATED_DOCS = {
   'content/docs/guide/objectos-integration.mdx':
     '36 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 7 unresolved-module diagnostic(s); plus TS2305x3 TS2339x1 — candidate real defects, un-triaged',
   'content/docs/plugins/plugin-calendar-view.mdx':
-    '2 unresolved-module diagnostic(s) — the whole page teaches `@object-ui/plugin-calendar-view`, ' +
-    'a package this workspace does not contain. A real defect, filed rather than fixed here; the ' +
-    'entry stays until the page does, and is the one entry on this list that is NOT fragment-shaped.',
+    '2 unresolved-module diagnostic(s) — and NOT a defect: the page is a migration guide whose ' +
+    '"Before" blocks quote the retired `@object-ui/plugin-calendar-view` import on purpose. Covering ' +
+    'it means declaring those blocks, which is a judgement about the page rather than a mechanical ' +
+    'edit — the one entry here that would be closed by declaring blocks rather than by fixing them.',
   'content/docs/plugins/plugin-calendar.mdx':
     '25 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 6 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 2 unresolved-module diagnostic(s); plus TS2322x1 — candidate real defects, un-triaged',
   'content/docs/plugins/plugin-chatbot.mdx':
