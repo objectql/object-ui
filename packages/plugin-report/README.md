@@ -6,11 +6,11 @@ Report components for Object UI — render, view and export reports, with schedu
 
 - 🧩 **Four spec report variants** — `tabular` / `summary` / `matrix` / `joined`, dispatched by a single `<ReportRenderer schema={...}>`
 - 🧮 **Server-side aggregation** — a dataset-bound report selects measures by name through `dataSource.queryDataset`; totals come back pre-aggregated (ADR-0021)
-- 📅 **Date bucketing** — `dateGranularity: day|week|month|quarter|year` on `groupingsAcross` / `groupingsDown`
-- 🪜 **Multi-level grouping + totals** — row totals, column totals, grand totals for matrix; tabular/summary delegate to `ObjectGrid`
+- 📅 **Period pivots** — the across axis is a dimension the dataset declares at the grain it needs; a report buckets nothing itself
+- 🪜 **Multi-level grouping + totals** — row subtotals, column subtotals and grand total for `matrix`, a grand-total footer for `summary`, all server-computed
 - 🎯 **Cell drill-down** — aggregated rows and matrix cells emit `DatasetDrillArgs` to the host's `onDrill` callback; the host owns navigation (ADR-0021 D2)
-- 🧱 **Joined reports** — vertically stacked sub-reports; each block owns its own `objectName`, filter and data fetch
-- 🎨 **Type-aware cells** — `select` → Badge, `lookup` → link, `boolean` → ✓/✗, `email`/`url`/`phone` → links, `image` → thumbnail (auto-hydrated from object metadata)
+- 🧱 **Joined reports** — vertically stacked sub-reports; each block names its own `dataset`, filter and ordering
+- 🎨 **Type-aware cells** — the presentation-layer `ReportViewer` renders `select` → Badge, `lookup` → link, `boolean` → ✓/✗, `email`/`url`/`phone` → links, `image` → thumbnail
 - 🖨️ **Multi-format export** — CSV, JSON, HTML, PDF, Excel; live-data and Excel-formula variants
 - 📦 **Auto-registered** — components register with `ComponentRegistry` on import; embed via `{ "type": "spec-report", "report": {...} }`
 
@@ -82,68 +82,157 @@ function LegacyReportPage() {
 
 ## Spec Reports — the four variants
 
-The plugin renders any `Report` defined by `@objectstack/spec`:
+A report is **dataset-bound**: it names a semantic-layer `dataset` and selects
+that dataset's measures (`values`) grouped by its dimensions (`rows`, and for a
+matrix also `columns`). Every name in a report is a name the dataset defines —
+the report declares no object, no field, no aggregate and no date bucket of its
+own. `defineReport` validates at authoring time and returns the parsed shape
+`ReportRenderer` takes as `schema`:
 
 ```ts
-import type { ReportInput } from '@objectstack/spec/ui';
+import { defineReport } from '@objectstack/spec/ui';
 import { ReportRenderer } from '@object-ui/plugin-report';
 
-const report: ReportInput = {
+const report = defineReport({
   name: 'opp_by_stage',
-  objectName: 'opportunity',
+  label: 'Opportunities by Stage',
   type: 'summary',
-  columns: [
-    { field: 'stage' },
-    { field: 'amount', aggregate: 'sum' },
-    { field: 'id', label: 'Deals', aggregate: 'count' },
-  ],
-  groupingsDown: [{ field: 'stage', sortOrder: 'asc' }],
-};
+  dataset: 'opportunity_pipeline',
+  rows: ['stage'],
+  values: ['amount_sum', 'deal_count'],
+  order: [{ by: 'amount_sum', direction: 'desc' }],
+});
 
 <ReportRenderer schema={report} dataSource={ds} />
 ```
 
-| `type`    | Description                                          |
-| --------- | ---------------------------------------------------- |
-| `tabular` | Flat record list                                     |
-| `summary` | Single-axis grouped + aggregated                     |
-| `matrix`  | Row × column pivot with cell aggregates and totals   |
-| `joined`  | Vertically stacked sub-reports, each with own data   |
+| Key             | Type                                           | Meaning                                                          |
+| --------------- | ---------------------------------------------- | ---------------------------------------------------------------- |
+| `name`          | `string` (required)                            | Identifier, at least 2 characters.                                |
+| `label`         | `string` \| `Record< string, string >` (required) | Display title; the record form is the i18n shape.              |
+| `type`          | `tabular` \| `summary` \| `matrix` \| `joined` | Defaults to `tabular`.                                          |
+| `dataset`       | `string`                                       | The dataset this report reads.                                    |
+| `rows`          | `string[]`                                     | Dimension **names** to group down.                                |
+| `columns`       | `string[]`                                     | Dimension **names** across — the matrix pivot axis.               |
+| `values`        | `string[]`                                     | Measure **names** to display.                                     |
+| `runtimeFilter` | filter condition                               | Scope filter, merged with the filter the host passes at render.    |
+| `order`         | `{ by, direction }[]`                          | Result ordering, most significant key first.                      |
+| `drilldown`     | `boolean`                                      | Defaults to `true`.                                               |
+| `chart`         | object                                         | Embedded visualization over the same selection.                   |
+| `blocks`        | report[]                                       | `joined` only — the stacked sub-reports.                          |
+
+The schema is **strict**: a key it does not declare is rejected, not ignored.
+
+| `type`    | Description                                                                    |
+| --------- | ------------------------------------------------------------------------------ |
+| `tabular` | The selection as a flat list — `rows` + `values`, no totals                     |
+| `summary` | The same table plus a server-computed grand-total footer                        |
+| `matrix`  | Cross-tab: `rows` down × `columns` across, measures in the cells, plus subtotals |
+| `joined`  | A vertical stack of blocks, each its own dataset-bound table                    |
+
+The **declared type** picks the presentation — never the shape of the data that
+comes back.
 
 ### Matrix (row × column pivot)
 
+`columns` is a second list of dimension **names**, used as the across axis:
+
 ```ts
-{
+import { defineReport } from '@objectstack/spec/ui';
+
+defineReport({
   name: 'pipeline_by_quarter',
-  objectName: 'opportunity',
+  label: 'Pipeline Coverage by Quarter',
   type: 'matrix',
-  columns: [{ field: 'amount', label: 'Pipeline', aggregate: 'sum' }],
-  groupingsDown:   [{ field: 'forecast_category' }],
-  groupingsAcross: [{ field: 'close_date', dateGranularity: 'quarter' }],
-}
+  dataset: 'opportunity_pipeline',
+  rows: ['forecast_category'],
+  columns: ['close_quarter'],
+  values: ['amount_sum'],
+});
 ```
 
-`dateGranularity` accepts `day | week | month | quarter | year` and is
-pushed down to the server-side aggregator.
+`close_quarter` is a time dimension the **dataset** declares at that grain. A
+report cannot bucket a date itself: the grain a measure is valid at belongs to
+the semantic layer, not to one report. A `matrix` with no `columns` degrades to
+the flat grouped table.
 
-### Joined (M3)
+### Joined
 
 ```ts
-{
+import { defineReport } from '@objectstack/spec/ui';
+
+defineReport({
   name: 'churn_signals',
-  objectName: 'account',          // container default
+  label: 'Customer Churn Signals',
   type: 'joined',
-  columns: [],
   blocks: [
-    { name: 'at_risk', type: 'summary', columns: [...], filter: {...} },
-    { name: 'lost',    type: 'summary', objectName: 'opportunity', columns: [...], filter: {...} },
+    {
+      name: 'at_risk',
+      label: 'At-Risk Accounts',
+      type: 'summary',
+      dataset: 'account_health',
+      rows: ['industry'],
+      values: ['account_count'],
+      runtimeFilter: { is_active: true },
+    },
+    {
+      name: 'lost',
+      label: 'Recently Lost',
+      type: 'summary',
+      dataset: 'opportunity_pipeline',
+      rows: ['owner'],
+      values: ['amount_sum'],
+      runtimeFilter: { stage: 'closed_lost' },
+    },
   ],
-}
+});
 ```
 
-Block rules: `objectName` falls back to the container; `filter` is ANDed
-with the container's; each block runs an isolated `useReportData()` call;
-`block.type` must not be `joined` (no recursion).
+Block rules: every block names its **own** `dataset` (there is no container
+dataset to inherit); the container's `runtimeFilter` is merged into each block
+and the block's own keys win; each block orders itself through its own `order`;
+a block's declared `type` picks its presentation; `block.type` must not be
+`joined` (no recursion).
+
+### Ordering
+
+`order` is a list, most significant key first, lowered onto the dataset
+selection so the **server** orders the query — which is why ordering by a
+derived measure works and the sort applies to the whole result rather than to
+one fetched page. `by` names a dimension the report groups by or a measure it
+displays. For a matrix the across axis reads left-to-right in row-arrival
+order, so ordering by the across dimension is what fixes the column order;
+declaring nothing still reads correctly, because a selected time dimension
+defaults to ascending.
+
+### Embedded chart
+
+`chart.type` is one of the spec's chart names; `xAxis` / `yAxis` are **bare
+dimension and measure names** from the report's own selection, not field paths
+and not expressions:
+
+```ts
+import { defineReport } from '@objectstack/spec/ui';
+
+defineReport({
+  name: 'pipeline_by_stage',
+  label: 'Pipeline by Stage',
+  type: 'summary',
+  dataset: 'opportunity_pipeline',
+  rows: ['stage'],
+  values: ['amount_sum'],
+  chart: {
+    type: 'bar',
+    title: 'Pipeline by Stage',
+    xAxis: 'stage',
+    yAxis: 'amount_sum',
+    showLegend: false,
+  },
+});
+```
+
+`series`, `colors`, `height`, `showDataLabels`, `annotations` and `interaction`
+are passed through to the chart as authored.
 
 ## Server-side aggregation + drill-down
 
@@ -201,11 +290,54 @@ const daysAgo = (n: number): string => {
   return d.toISOString().slice(0, 10);
 };
 
-filter: { close_date: { $gte: daysAgo(30) } }
+runtimeFilter: { close_date: { $gte: daysAgo(30) } }
 ```
 
 See the bundled CRM `customer_churn_signals` demo for the full pattern.
 Native filter-time CEL evaluation is tracked for a future major version.
+
+## Stored pre-9.0 documents — migration only
+
+> ⚠️ **This section is about documents that already exist in storage. The shape
+> it describes is NOT available for authoring** — everything above is how a
+> report is written, nothing here is.
+
+Before the ADR-0021 cutover a report carried its own query: an `objectName`,
+`columns` as column *definition objects* with `aggregate`, and
+`groupingsDown` / `groupingsAcross` with `sortOrder` and `dateGranularity`.
+That form is **rejected by the current schema** — `objectName` and
+`groupingsDown` come back as unrecognized keys, and object-shaped `columns`
+fails as the wrong type (`columns` is now a list of dimension names).
+
+Stored documents in that shape still render, through a deliberately lossy
+bridge: `ReportRenderer` converts them to a presentation report and hands that
+to `ReportViewer`. The converter reads the *current* keys (`values`, `rows`), so
+a pre-9.0 document arrives with none of them and what comes out is the report's
+title over an **empty column set**. The document renders; its columns,
+groupings, aggregates and sort do not, and nothing reports an error. That is why
+the bridge is a waiting room rather than a supported way to write a report.
+
+Migrating one is a re-expression against the dataset:
+
+| Pre-9.0 key                        | Where it goes now                                                       |
+| ---------------------------------- | ----------------------------------------------------------------------- |
+| `objectName`                       | Gone from the report — the `dataset` owns the object.                    |
+| `columns: [{ field, aggregate }]`  | `values: string[]`; the aggregate becomes a **measure** in the dataset.  |
+| `columns: [{ field }]`             | `rows: string[]`, as a dimension.                                        |
+| `groupingsDown: [{ field }]`       | `rows: string[]`.                                                        |
+| `groupingsAcross: [{ field }]`     | `columns: string[]`.                                                     |
+| `sortOrder` on a grouping          | `order: [{ by, direction }]` on the report.                              |
+| `dateGranularity` on a grouping    | A time dimension declared at that grain **in the dataset**.              |
+| `filter`                           | `runtimeFilter`.                                                         |
+
+The part with no mechanical equivalent is the dataset itself: measures and time
+dimensions the old report declared inline must exist in the semantic layer
+before the migrated report can name them.
+
+The query-form renderers that used to draw these documents inline
+(`SpecReportGrid`, `MatrixRenderer`, `JoinedReportRenderer`) were removed at the
+cutover and have no replacement export — the bridge above is what renders a
+stored old-shape document now.
 
 ## Legacy presentation layer
 
@@ -406,40 +538,11 @@ component appropriate for its type — instead of `String(value)`.
 | `richtext` / `html` / `markdown` | Sanitised inline content                   |
 | `json`                        | Collapsed code preview                        |
 
-Authors do **not** need to repeat type metadata on every report column:
-when a report binds an `objectName`, the runtime auto-hydrates each
-column's `type`, `options`, `referenceTo`, and `label` from the
-corresponding `ObjectField`. Author-provided values always win.
-
-Minimal report leveraging type-aware cells:
-
-```ts
-import type { ReportInput } from '@objectstack/spec/ui';
-
-export const ContactsReport: ReportInput = {
-  name: 'contacts_by_account',
-  label: 'Contacts by Account',
-  objectName: 'contact', // ← enables auto-hydration
-  type: 'tabular',
-  columns: [
-    { field: 'full_name', label: 'Name' },
-    { field: 'email',      label: 'Email' },     // → mailto:
-    { field: 'phone',      label: 'Phone' },     // → tel:
-    { field: 'is_primary', label: 'Primary' },   // → ✓/✗
-    { field: 'account',    label: 'Account' },   // → linked record
-    { field: 'status',     label: 'Status' },    // → Badge with option color
-  ],
-};
-```
-
-Override per column when needed:
-
-```ts
-columns: [
-  { field: 'tier', label: 'Tier', type: 'select',
-    options: [{ value: 'gold', label: 'Gold', color: 'amber' }] },
-]
-```
+These are presentation-layer columns: each entry in `report.fields` carries its
+own `name`, `label` and `type`, and that declared `type` is what selects the
+renderer. This package resolves nothing from object metadata — there is no
+`objectName` on a report to hydrate from, and a column with no `type` renders
+as plain text.
 
 Legacy `renderAs: 'badge'` + `colorMap` is still honoured for plain
 string columns.
