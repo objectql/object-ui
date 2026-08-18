@@ -15,6 +15,7 @@ import { resolveFilterPlaceholders, DENSITY_MODE_TO_ROW_HEIGHT, normalizeListVie
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
 import { buildListFilterKey, readListFilterState, writeListFilterState } from './listFilterStorage';
 import { VALUELESS_FILTER_OPERATORS } from './viewFilterFold';
+import { narrowPersonalizationOverlay } from '@object-ui/data-objectstack';
 const ObjectChart = lazy(() =>
   import('@object-ui/plugin-charts').then((m) => ({ default: m.ObjectChart })),
 );
@@ -325,6 +326,18 @@ export function defaultListColumnsFromObject(
  */
 export function sanitizeViewOverride(override: any): any {
     if (!override || typeof override !== 'object') return override;
+    // objectui#5233 — a PERSONALIZATION overlay contributes only the keys it
+    // owns (density / sort / hiddenFields / columnState / inlineEdit). Every
+    // other key on such a row is a copy of the source view taken when the
+    // user last dragged a column, and the merge below hands it authority over
+    // the source declaration it was copied from. Narrowed FIRST and returned:
+    // a narrowed row can no longer carry a `filter` at all, so the
+    // recovery pass below has nothing left to do for it. The predicate is the
+    // adapter's (`@object-ui/data-objectstack` owns the row's shape and stamps
+    // its marker) so a saved view's OWN body — enumerated by the same batch
+    // read — is returned untouched, exactly as `listViews()` classifies it.
+    const narrowed = narrowPersonalizationOverlay(override);
+    if (narrowed !== override) return narrowed;
     if (!Array.isArray(override.filter)) return override;
 
     const kept = override.filter.filter((entry: any) => {

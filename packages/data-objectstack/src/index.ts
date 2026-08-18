@@ -1141,6 +1141,108 @@ function isPersonalizationOverlayRow(item: any, spec: any): boolean {
 }
 
 /**
+ * The keys a personalization overlay row legitimately OWNS (objectui#5233).
+ *
+ * One per `persistViewPatch` call site in app-shell's `ObjectView` — the ONLY
+ * production writer of these rows — read off the tree rather than recalled:
+ * `rowHeight` (the density toggle, spec-canonical since #2890), `sort`,
+ * `hiddenFields`, `columnState` and `inlineEdit`. Nothing else in such a row
+ * is an opinion the user expressed; it is a COPY of the source view as it
+ * stood at write time, because `persistViewPatch` sends
+ * `{ ...baseViewDef, ...patch }` and this adapter persists what it is given.
+ *
+ * That copy is the defect the maintainer ruled on (objectstack#7494, comment
+ * 5261754173): an overlay written by a mere column drag freezes the view's
+ * effective `filter` — and its `columns`, `label`, `type`, `isDefault` … — as
+ * of that moment, and because the display merge is `{ ...source, ...override }`
+ * the frozen copy SHADOWS the source view forever. An admin then edits the
+ * view's filter and every user who once resized a column keeps the old one,
+ * with nothing anywhere reporting it.
+ *
+ * ⛔ Do not grow this list to make some other key "stick" through an overlay.
+ * A key that belongs to the view belongs in the view; the overlay is a patch,
+ * and a patch that carries the whole document is what this list exists to
+ * stop. Adding a sixth entry is only correct alongside a sixth
+ * `persistViewPatch` call site — {@link narrowPersonalizationOverlay} is what
+ * a reader checks that against.
+ */
+export const VIEW_OVERLAY_OWNED_KEYS = Object.freeze([
+  'rowHeight',
+  'sort',
+  'hiddenFields',
+  'columnState',
+  'inlineEdit',
+] as const);
+
+/**
+ * Identity, not content — kept so a narrowed row is still addressable and
+ * still says what KIND of row it is.
+ *
+ * `label` is deliberately NOT here even though the platform stamps it onto
+ * these rows: `viewIdentityPatch` (`@objectstack/metadata-protocol`, #2555)
+ * inherits `viewKind`/`object`/`label` from the registry entry an overlay
+ * shadows, so a stored `label` is a snapshot of the source view's label at
+ * write time — content, and exactly the class of frozen key this narrowing
+ * exists to stop shadowing the source.
+ */
+const VIEW_OVERLAY_IDENTITY_KEYS = Object.freeze([
+  'name',
+  'object',
+  'viewKind',
+  VIEW_OVERLAY_MARKER,
+] as const);
+
+/**
+ * Reduce a personalization overlay row to the keys it owns — the read-side
+ * half of objectui#5233, and the half that reaches rows ALREADY STORED.
+ *
+ * Rows written before this shipped carry the whole source view (see
+ * {@link VIEW_OVERLAY_OWNED_KEYS}). Of the three dispositions the issue names
+ * for them — strip on next write, migrate, tolerate on read — this is the
+ * third, chosen deliberately and stated here rather than left implicit,
+ * because it is the only one that is already true for every existing row the
+ * moment it ships: strip-on-next-write heals a row only when its user happens
+ * to touch that view again (and leaves the frozen filter live until then),
+ * and a migration needs a runner this product does not have for `sys_metadata`
+ * rows an operator may not even know exist. What the issue forbids is SILENT
+ * tolerance; this is the explicit, pinned kind (`viewOverlayPatchOnly.test.ts`
+ * in this package, `ObjectView.overlayPatchOnly.test.tsx` in app-shell).
+ *
+ * Applied by the consumer that MERGES an override over a source view
+ * (app-shell's `sanitizeViewOverride`, the one seam both of
+ * `loadViewOverrides`' read branches pass through), NOT by
+ * {@link ObjectStackAdapter.listViewOverrides} / {@link ObjectStackAdapter.getView}:
+ * those two answer with the stored DOCUMENT, their equality is itself pinned
+ * ("same key space, same document" — `listViewOverrides.test.ts`), and
+ * `InterfaceListPage` hydrates a hollow view out of that document. Narrowing
+ * belongs where a row is read AS A PATCH, not where it is read as a row.
+ *
+ * Non-overlay rows — a genuine saved view's own body, which the same batch
+ * read enumerates — are returned by REFERENCE, untouched: for those the row
+ * IS the view, and every key on it is an opinion its author expressed.
+ * Classification is {@link isPersonalizationOverlayRow}, the same predicate
+ * {@link ObjectStackAdapter.listViews} excludes rows by, so a row cannot be a
+ * saved view for one reader and an overlay for the other.
+ */
+export function narrowPersonalizationOverlay<T>(row: T): T {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return row;
+  const item = row as Record<string, any>;
+  // Same unwrap the other readers of this namespace use — a `{list: {...}}`
+  // artifact wrapper is a view CONTAINER, never an overlay, and
+  // `isPersonalizationOverlayRow` reads both levels.
+  const spec = item.list ?? item;
+  if (!isPersonalizationOverlayRow(item, spec)) return row;
+  const narrowed: Record<string, any> = {};
+  for (const key of VIEW_OVERLAY_IDENTITY_KEYS) {
+    if (item[key] !== undefined) narrowed[key] = item[key];
+  }
+  for (const key of VIEW_OVERLAY_OWNED_KEYS) {
+    if (item[key] !== undefined) narrowed[key] = item[key];
+  }
+  return narrowed as T;
+}
+
+/**
  * Unwrap a `?state=draft` view read into its bare body, or `null` when there
  * is nothing pending (#4139).
  *
