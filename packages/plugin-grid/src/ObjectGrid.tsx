@@ -36,7 +36,7 @@ import {
   RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, listViewPredicates, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, listViewPredicates, isObjectInlineEditable, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
@@ -729,6 +729,51 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // data source), which leaves the affordance verdict untouched.
   const permissionUpdate = objectName ? perms.can(objectName, 'update') : undefined;
   const permissionDelete = objectName ? perms.can(objectName, 'delete') : undefined;
+
+  // [#5143] Whether THIS principal may edit THIS object's rows in place — the
+  // single verdict behind every inline-edit affordance this grid renders
+  // (`editable`, the cell editor, and the save/cancel column that serves them).
+  //
+  // `permissionUpdate` above was resolved for the row kebab and consumed by
+  // nothing else, while the inline-edit props read `schema.editable` raw. That
+  // left one component answering "may this user write these records?" two
+  // opposite ways on the same rows: the kebab hid Edit for a read-only
+  // principal, and a declaratively-authored `object-grid` block carrying
+  // `editable: true` dropped that same principal straight into editable cells,
+  // to be stopped only by the server's 403. No data ever landed (the server
+  // gate is solid) — the cost was a round-trip the UI guaranteed would fail.
+  //
+  // #4647 closed the ListView door with this exact conjunction (PR #5145,
+  // `inlineEditOffered`); the SDUI-authored grid schema is a SECOND, independent
+  // door into the same state that never passes through ListView. Spelling the
+  // gate identically here is what keeps the two from drifting: the object's
+  // resolved affordance — ADR-0103 bucket ∧ `userActions.edit` ∧ the server's
+  // effective API operations (#3391/#3546), which is what `isObjectInlineEditable`
+  // names — AND the current principal's own grant (#4096).
+  //
+  // Fail-open, like every sibling gate in this file. `can()` answers `true`
+  // with no `PermissionProvider`, and `isObjectInlineEditable` resolves the
+  // default-writable bucket for a null/absent object schema, so a standalone
+  // embed, the Studio designer, and a pure inline-data grid with no object
+  // semantics at all keep today's behavior. The narrowing only ever engages
+  // where there IS an object to have a verdict about.
+  const objectInlineEditable =
+    isObjectInlineEditable(objectSchema, effectiveApiOps) &&
+    (objectName ? perms.can(objectName, 'update') : true);
+
+  // [#5143] The authored request ∧ the verdict — resolved ONCE and read by all
+  // three inline-edit props below (`editable`, `renderCellEditor`, and the
+  // save/cancel `rowActions` column). Three sites re-deriving `schema.editable`
+  // is how they came to disagree in the first place; one name is what keeps a
+  // future prop from being added on the raw key again.
+  //
+  // The authored key stays the gate's left half, so this narrows and never
+  // widens: no verdict can turn inline editing ON for a grid that did not ask
+  // for it. When ListView owns this grid it has ALREADY ANDed the same
+  // conjunction into the `editable` it hands down (#4647 / PR #5145) — the two
+  // gates are the same predicate, so the second application is idempotent, not
+  // a second, differently-shaped door.
+  const inlineEditable = (schema.editable ?? false) && objectInlineEditable;
 
   // When the consumer wired onEdit/onDelete callbacks but the view schema
   // omits an explicit `operations` block, default to allowing those actions.
@@ -2672,17 +2717,32 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     // RowActionMenu column (from columnsWithActions) already handles edit/delete
     // actions via onEdit/onDelete props. Only enable DataTable's built-in action
     // column for inline-editing save/cancel (editable grids with onRowSave).
-    rowActions: !!(schema.editable && hasActions),
+    //
+    // [#5143] …which is exactly why it follows `inlineEditable` and not the raw
+    // schema key. This column's ONLY populated state is the save/cancel pair,
+    // shown when a row has pending changes: ObjectGrid never passes DataTable
+    // the `onRowEdit`/`onRowDelete`/`rowActionDefs` its built-in menu needs
+    // (they go to `columnsWithActions` instead), so `DataTableRowActionsMenu`
+    // renders `null` here on every row. Gate the editing but not this column and
+    // a read-only principal gets a permanently empty trailing column plus its
+    // header — a grid shape that has never existed, since a schema WITHOUT
+    // `editable` produces no such column today. Following the same verdict is
+    // what makes the gated grid identical to the non-editable one.
+    rowActions: !!(inlineEditable && hasActions),
     resizableColumns: schema.resizable ?? schema.resizableColumns ?? true,
     reorderableColumns: schema.reorderableColumns ?? false,
-    editable: schema.editable ?? false,
+    // [#5143] The authored key ∧ this principal's write verdict on the object.
+    editable: inlineEditable,
     // In-place cell editor: render the dedicated @object-ui/fields widget for
     // the field's type — the SAME control the form uses (select→dropdown,
     // boolean→checkbox, date→date picker, multi-select, …). Returning null lets
     // DataTable fall back to its built-in text/number/date inputs. Discrete
     // pickers commit-and-close on choose; everything else stages and closes when
     // the user moves on.
-    renderCellEditor: schema.editable
+    // [#5143] Same verdict as `editable` above: withholding the mode but still
+    // handing DataTable an editor factory would leave the built-in fallback
+    // editors as the only reachable ones if any future path re-opened the mode.
+    renderCellEditor: inlineEditable
       ? (ctx: { column: any; value: any; stage: (v: any) => void; commit: (v?: any) => void }) => {
           const fieldDef = (objectSchema as any)?.fields?.[ctx.column?.accessorKey];
           if (!fieldDef || !hasFieldEditWidget(fieldDef.type)) return null;
