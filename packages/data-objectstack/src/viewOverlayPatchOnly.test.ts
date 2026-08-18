@@ -128,6 +128,11 @@ describe('narrowPersonalizationOverlay — what an overlay may contribute', () =
     // stomp isDefault/columns").
     const narrowed: any = narrowPersonalizationOverlay({
       name: 'crm_lead.default', object: 'crm_lead', viewKind: 'list',
+      // A base key rides along deliberately: without one this fixture's key
+      // set is already the narrowed one, and the assertion below would hold
+      // just as well against a narrowing that never ran (measured — it stayed
+      // green under the ablation leg that makes the policy inert).
+      filter: [{ field: 'status', operator: 'equals', value: 'open' }],
       rowHeight: 'compact', _isOverride: true,
     });
     expect(Object.keys(narrowed).sort()).toEqual(
