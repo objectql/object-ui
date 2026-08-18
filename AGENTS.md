@@ -222,6 +222,21 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
   ```
 
   三者的共同点是**先把未提交状态捕获下来**再动工作区;任何「先覆盖、事后再从某个 ref 取回」的写法都**不是**替代做法 —— 它假设你的改动已经提交,而反向验证时通常没有(objectstack#7800:那条推荐语害一个 agent 丢了在途改动)。一个 **PreToolUse 钩子**(`.claude/hooks/guard-shared-stash.sh`)**强制**此规则:拦截 push/pop/drop/clear 共享栈的 `Bash` 命令,放行拿不到别人条目的形式 —— `git stash list`/`show`/`create`,以及 `git stash apply <sha>` / `store <sha>` 且 sha 为**字面十六进制 object id**(绝不用 `stash@{N}` —— 那是你并不拥有的那个栈里的一个**位置**)。确知栈只属于你时用 `OS_ALLOW_STASH=1` 放行;改了钩子就重跑 `.claude/hooks/guard-shared-stash.selftest.sh`。
+- **临时文件所在的 scratchpad 目录跨会话共享 —— 提交信息与 PR 正文一律别落到那里。** 容器发给每个会话的「scratchpad」临时目录事实上被多个并行会话映射到**同一个路径**,和上一条的 stash 栈同族:一块位于 worktree 之外的共享可写状态,worktree 隔离**管不到它**。两个 agent 各写一份同名的 `commitmsg.txt` / `pr-body.md`,后写的整份顶掉先写的;而 `git commit -F` 读到别人的文件**不报错**,每一步都报成功 —— 受害的是**另一个** agent 的产出(你的提交信息落到别人的 commit 上,你这边什么都看不出来),没有任何错误可供发现。实测在 20 分钟内撞了两次,可见的损伤是 `main` 上一条 squash commit:提交信息描述的是一张卡、diff 实施的是另一张卡,两者毫无关系;`main` 不重写,于是这条误导永久留在 git 考古里 —— 下一个人按 `git log --grep` 找那张卡,会得出「已经做过了」的错误结论。两条做法,**有先后之分**:
+
+  1. **首选机制:让内容根本不落共享盘。** 提交信息用 `git commit -F -` 配 heredoc(或多个 `-m`),PR 正文直接作为工具参数传(用 `gh` 就把正文写成进程内的 heredoc,别先写文件再 `--body-file`)。内容不落盘,就无从被顶掉。
+
+  ```bash
+  git commit -F - <<'"'"'EOF'"'"'
+  fix(scope): 一句话主题
+
+  正文……
+  EOF
+  ```
+
+  2. **次选纪律:确实需要临时文件时,文件名一律带卡号/分支号前缀**(该目录里既有的 `3309-pr.md` 就是这个惯例),**且用完即删**;写完要用之前先读回一遍,确认拿到的还是自己那份。
+
+  两条不是并列的两个建议:前缀与删除要求每个作者每一次都记得,记性会衰减,而衰减是静默的(见上:撞车不报错);`git commit -F -` 那种形式让撞车**不可能发生**,不依赖任何人的记性。所以能用形式解决的,就别退回到纪律。这一族目前**没有钩子**兜底(上面 worktree 与 stash 两条各有一个 PreToolUse 钩子),因此这条规则的全部效力就在于你选哪种形式。
 - **一个任务一个 feature 分支 + 一个 PR**;**绝不**把任务改动直接提交到 `main`。
 - **绝不 `git push --force`/`--force-with-lease`,绝不推 `main`**(会覆盖并行 agent 的工作;`main` 共享,一律走 PR)。
 - **每次 commit/push 前先确认当前分支**(`git rev-parse --abbrev-ref HEAD`);HEAD 可能被别的 agent 切走 —— 不是你的分支就停下重新 checkout。
