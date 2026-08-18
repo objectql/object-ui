@@ -34,6 +34,11 @@ import { AlertCircle, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 // (objectui#3398). The icons and the `Dialog` family that used to be imported
 // here belonged to the hand-written copy this branch no longer carries.
 import { FullscreenEditor } from '../../custom/fullscreen-editor';
+// The character counter both long-text render paths render (objectui#3439).
+// Hoisted here from `@object-ui/fields` for the same measured reason, and in
+// the same direction, as `FullscreenEditor` above (objectui#3398 / PR #4193):
+// `fields` depends on `components`, never the reverse.
+import { CharacterCount } from '../../custom/character-count';
 import { cn } from '../../lib/utils';
 import React from 'react';
 import { SchemaRendererContext, usePredicateScope, isPermissionError, extractWriteErrorMessage, extractFieldErrors } from '@object-ui/react';
@@ -670,6 +675,7 @@ function FullscreenTextarea({
   readOnly,
   disabled,
   error,
+  maxLength,
   ...rest
 }: {
   value?: string;
@@ -679,6 +685,15 @@ function FullscreenTextarea({
   label?: string;
   readOnly?: boolean;
   disabled?: boolean;
+  /**
+   * The declared character cap (objectui#3439). DECLARED rather than left to
+   * ride `rest`, because it now has THREE readers, not one: the native
+   * `maxLength` attribute on each of the two textareas, and the counter that
+   * renders beside them. It rode `rest` for as long as the branch's only use
+   * of it was the attribute — which is also why the legacy `max_length`
+   * spelling silently did nothing here (see the call site).
+   */
+  maxLength?: number;
   /**
    * The field's validation message (objectui#4824). DECLARED, so it is not a
    * passenger on `rest` — it must not reach the inline `<Textarea>` as a stray
@@ -700,6 +715,30 @@ function FullscreenTextarea({
   // single expression of "may a value leave this control".
   const locked = readOnly === true || disabled === true;
   const safeOnChange = (v: string) => { if (locked) return; onChange?.(v); };
+
+  /**
+   * Two description ids off one `useId()` — one per editing surface, exactly as
+   * `TextAreaField` mints them (objectui#3417). They cannot be one id: the
+   * dialog edits a LOCAL draft, so the moment the user types in it the two
+   * surfaces are counting different strings and a shared id would point both
+   * textareas at whichever sentence rendered last.
+   */
+  const instanceId = React.useId();
+  const descriptionId = `${instanceId}-charcount`;
+  const fullscreenDescriptionId = `${instanceId}-fullscreen-charcount`;
+
+  /**
+   * APPENDED, never assigned (objectui#3408's discipline, objectui#3439 here).
+   * `<FormControl>` is a Radix Slot and hands this component an
+   * `aria-describedby` naming the field's description and error message; it
+   * arrives on `rest`. Overwriting it would trade "no cap announced" for "no
+   * error announced" — strictly worse, and silent.
+   */
+  const describedBy =
+    [rest['aria-describedby'], maxLength ? descriptionId : undefined]
+      .filter(Boolean)
+      .join(' ') || undefined;
+
   return (
     <div className="relative">
       <Textarea
@@ -712,9 +751,33 @@ function FullscreenTextarea({
         value={value ?? ''}
         onChange={(e) => safeOnChange(e.target.value)}
         {...rest}
+        maxLength={maxLength}
+        // After the spread so the composed value wins over the raw host one.
+        aria-describedby={describedBy}
         readOnly={readOnly}
         disabled={disabled}
       />
+      {maxLength ? (
+        /*
+          The INLINE surface's counter, `announceNearLimit` — the same answer
+          `TextAreaField` gives its inline surface (objectui#3417). This is the
+          surface the user types into with the rest of the form around them, so
+          the near-limit warning is the one thing worth interrupting for, and it
+          is threshold-gated and debounced inside the primitive.
+
+          Positioned to clear the expand button when there is one: the button
+          occupies the top-right corner, the digits the bottom-right, which is
+          why this className is not simply the registered widget's.
+        */
+        <CharacterCount
+          length={(value ?? '').length}
+          maxLength={maxLength}
+          descriptionId={descriptionId}
+          announceNearLimit
+          className="absolute bottom-2 right-2 text-xs text-gray-400"
+          testId="form-textarea-character-count"
+        />
+      ) : null}
       <FullscreenEditor
         value={value ?? ''}
         onCommit={safeOnChange}
@@ -727,6 +790,29 @@ function FullscreenTextarea({
         readOnly={readOnly}
         disabled={disabled}
         error={error}
+        /*
+          The FULLSCREEN surface's counter (objectui#3439), the same slot and
+          the same ruling as the registered path's (objectui#3417).
+
+          `announceNearLimit={false}` is a choice about this SURFACE, not a
+          saving on effort: a fullscreen modal is opened deliberately to write
+          at length, the description below already delivers the cap on focus,
+          and the dialog's textarea carries the same native `maxLength` stop. A
+          second live region here would also put two of them in one document,
+          since the inline counter stays mounted behind the overlay.
+        */
+        footer={(draft) =>
+          maxLength ? (
+            <CharacterCount
+              length={draft.length}
+              maxLength={maxLength}
+              descriptionId={fullscreenDescriptionId}
+              announceNearLimit={false}
+              className="text-xs text-muted-foreground self-center"
+              testId="form-textarea-fullscreen-character-count"
+            />
+          ) : null
+        }
       >
         {(draft, setDraft, editorDisabled, editorAria) => (
           <Textarea
@@ -736,6 +822,7 @@ function FullscreenTextarea({
             placeholder={placeholder}
             className="h-full min-h-full resize-none text-base"
             disabled={editorDisabled}
+            maxLength={maxLength}
             data-testid="form-textarea-fullscreen-input"
             /*
               Name + validation state, computed by the primitive and spread whole
@@ -747,9 +834,126 @@ function FullscreenTextarea({
               which Radix `aria-hidden`s for as long as the dialog is open.
             */
             {...editorAria}
+            /*
+              Assigned, not appended — and that is a statement about THIS
+              element, not a relaxation of the composition rule above. The
+              inline control composes because `<FormControl>`'s Slot hands it an
+              `aria-describedby`; this one is built here from scratch, the Slot
+              never reaches it, and the ids the host would have supplied name
+              nodes OUTSIDE the dialog, which Radix `aria-hidden`s while the
+              modal is open. There is nothing to preserve. `editorAria` carries
+              no `aria-describedby` of its own, so this composes with it rather
+              than overwriting it.
+            */
+            aria-describedby={maxLength ? fullscreenDescriptionId : undefined}
           />
         )}
       </FullscreenEditor>
+    </div>
+  );
+}
+
+/**
+ * The built-in (unregistered) `textarea` branch's plain control — objectui#3439.
+ *
+ * ## What it exists to fix
+ *
+ * One `maxLength` declaration produced two experiences. The registered
+ * `field:textarea` widget has shipped four things since objectui#3406/#3408/
+ * #3417 — the native cap, visible `{n}/{max}` digits, a description reached
+ * through `aria-describedby` so the limit is announced ON FOCUS, and a
+ * threshold-gated debounced near-limit notice — while this branch shipped none
+ * of them. Measured on `origin/main`: a screen-reader user on the built-in path
+ * learned the cap only as a validation error AFTER submitting, and a sighted
+ * user saw no count at all.
+ *
+ * That is the family this repo has ruled on four times (objectui#3272, #3400,
+ * #3402, #3404, and #3398's hoist of the fullscreen editor): one form-level
+ * declaration must produce one behaviour on both render paths. The counter is
+ * therefore the SAME component the widget renders, hoisted to this package —
+ * not a second implementation of it.
+ *
+ * ## Why a component and not inline JSX in the branch
+ *
+ * The counter has to sit in a positioned wrapper beside the control, and
+ * `<FormControl>` is a Radix `Slot`: it injects the field's `id` /
+ * `aria-describedby` / `aria-invalid` into whatever ELEMENT the branch returns.
+ * Returning a `<div>` wrapper directly would hand those three to the DIV — the
+ * label would point at an id no control carries and the field would lose its
+ * accessible name and error link, which is objectui#3976 exactly. A component
+ * boundary receives them as props instead, so this one re-addresses them onto
+ * the `<textarea>`. Same reason, same mechanism, as `BuiltinSelectControl`
+ * below and `FullscreenTextarea` above.
+ */
+function BuiltinTextarea({
+  value,
+  placeholder,
+  className,
+  readOnly,
+  maxLength,
+  ...rest
+}: {
+  value?: string;
+  placeholder?: string;
+  className?: string;
+  readOnly?: boolean;
+  /**
+   * The declared cap, resolved by the call site rather than left to ride `rest`
+   * onto the DOM. Two readers now — the native attribute and the counter — and
+   * the call site is where the two authored spellings are reconciled.
+   */
+  maxLength?: number;
+  [key: string]: any;
+}) {
+  /** One id per control; see `FullscreenTextarea` for why the dialog needs a second. */
+  const descriptionId = `${React.useId()}-charcount`;
+
+  /**
+   * APPENDED, never assigned. The Slot's `aria-describedby` names the field's
+   * description and error message and arrives on `rest`; assigning here would
+   * trade "no cap announced" for "no error announced".
+   */
+  const describedBy =
+    [rest['aria-describedby'], maxLength ? descriptionId : undefined]
+      .filter(Boolean)
+      .join(' ') || undefined;
+
+  // No counter, no wrapper: an unconditional `<div className="relative">` around
+  // every built-in textarea would change the layout of every capless long-text
+  // field in the repo to buy nothing. A field that declares no cap renders
+  // exactly the element it rendered before this component existed.
+  const control = (
+    <Textarea
+      placeholder={placeholder}
+      className={className}
+      {...rest}
+      maxLength={maxLength}
+      // After the spread so the composed value wins over the raw host one.
+      aria-describedby={describedBy}
+      readOnly={readOnly}
+      value={value ?? ''}
+    />
+  );
+
+  if (!maxLength) return control;
+
+  return (
+    <div className="relative">
+      {control}
+      {/*
+        `announceNearLimit` — this is the surface the user types into with the
+        rest of the form around them, the same answer the registered widget's
+        inline surface gives (objectui#3408/#3417). The gating and the debounce
+        live in the primitive, so neither path can drift into its own schedule.
+      */}
+      <CharacterCount
+        length={(value ?? '').length}
+        maxLength={maxLength}
+        descriptionId={descriptionId}
+        announceNearLimit
+        className="absolute bottom-2 right-2 text-xs text-gray-400"
+        testId="form-textarea-character-count"
+      />
     </div>
   );
 }
@@ -2811,8 +3015,31 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       // say the field had failed — measured announcing nothing at all while the
       // inline control announced `aria-invalid="true"` for the same field. The
       // primitive, not this branch, decides what to do with it.
+      //
+      // `maxLength` is resolved HERE, in both authored spellings, rather than
+      // left to ride `rest` onto the DOM (objectui#3439). Measured on
+      // `origin/main`, the pass-through answered the two spellings differently:
+      // a camelCase `maxLength` happened to work because it names a real DOM
+      // attribute, so the element got `maxlength="100"`; the legacy
+      // `max_length` reached the same element as a STRAY, inert
+      // `max_length="100"` attribute and the field had no cap at all — no
+      // truncation, and (before this change) no counter either. The registered
+      // `field:textarea` widget has dual-read `maxLength ?? max_length` since
+      // framework#1878 §3, as do all three producers of a form field
+      // (`ObjectForm`, `sectionFields`, `EmbeddableForm.applyDefaultMaxLengths`),
+      // so this is not a new tolerance invented at a consumer (AGENTS.md #0.1)
+      // — it is this path finally resolving the declaration the way every other
+      // reader in the repo already resolves it. A hand-authored `FormSchema`
+      // handed straight to this renderer, which is the standalone/embedded host
+      // this branch exists for, has no producer in between to normalize it.
+      //
+      // `max_length` is then kept OFF the element: it is not a DOM attribute in
+      // any spelling, so leaving it in `rest` renders invalid HTML that looks
+      // like a working cap to the next reader.
       const { mobile_fullscreen, label, error } = fieldProps as any;
-      const rest = stripRendererOnlyProps(fieldProps);
+      const { max_length: _maxLengthLegacy, ...textareaProps } = fieldProps as any;
+      const maxLength = (fieldProps as any).maxLength ?? (fieldProps as any).max_length;
+      const rest = stripRendererOnlyProps(textareaProps);
       if (mobile_fullscreen) {
         return (
           <FullscreenTextarea
@@ -2828,16 +3055,20 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
             // was on. (`disabled` rides `rest`, which no strip touches.)
             className={cn('min-h-[44px] sm:min-h-0', readonlyInputClass)}
             {...rest}
+            // After the spread, so the resolved cap wins over the raw
+            // camelCase key `rest` still carries (the #3222 discipline).
+            maxLength={maxLength}
             readOnly={readonly}
             value={rest.value ?? ''}
           />
         );
       }
       return (
-        <Textarea
+        <BuiltinTextarea
           placeholder={placeholder}
           className={cn('min-h-[44px] sm:min-h-0', readonlyInputClass)}
           {...rest}
+          maxLength={maxLength}
           readOnly={readonly}
           value={rest.value ?? ''}
         />
