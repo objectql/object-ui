@@ -210,6 +210,24 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:self-import
 
+      # Node's ESM resolver does not extension-search relative specifiers, so an
+      # extensionless `./SchemaRenderer` in a published `dist/` is unloadable
+      # under plain Node — `@object-ui/react`'s entry died with
+      # ERR_MODULE_NOT_FOUND (objectui#4538). `tsc` never rewrites specifiers, so
+      # for a package whose build preserves them the SOURCE specifier is the
+      # emitted one, and the defect can be judged without building anything.
+      # That is why the cheap leg runs here: it reads sources, needs only the
+      # install, and catches a regression the moment it is written.
+      #
+      # The expensive leg — which BUILDS and actually imports each published
+      # entry — is `.github/workflows/node-esm-load-gate.yml`. It is not here on
+      # purpose: it needs a full-repo build, which this repository deliberately
+      # does not do per pull request (the same trade `published-dist-gate.yml`
+      # records at length).
+      - name: Verify published ESM packages emit resolvable relative specifiers
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:esm-specifiers
+
       # A local type/const declared under a `@objectstack/spec` export's NAME reads
       # to the next agent as the spec's own definition — four such symbols had
       # already drifted from the spec they claimed to be (objectstack#4115). Needs
