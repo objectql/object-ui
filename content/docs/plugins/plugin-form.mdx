@@ -285,12 +285,26 @@ The plugin supports these field types:
 
 ## TypeScript Support
 
-```plaintext
-import type { FormSchema, FormField } from '@object-ui/plugin-form';
+`FormSchema` and `FormField` are protocol types, so they live in
+`@object-ui/types` alongside the rest of the JSON contract. This package imports
+them and does not re-export them — the form types on its own entry are the
+per-container ones (`TabbedFormSchema`, `WizardFormSchema`, `ModalFormSchema`,
+`SplitFormSchema`, `DrawerFormSchema`, `MasterDetailFormSchema`).
+
+```typescript
+import type { FormSchema, FormField } from '@object-ui/types';
+
+const emailField: FormField = {
+  name: 'email',
+  type: 'input',
+  inputType: 'email',
+  label: 'Email',
+  required: true
+};
 
 const loginForm: FormSchema = {
   type: 'form',
-  fields: [...],
+  fields: [emailField],
   submitLabel: 'Sign In'
 };
 ```
