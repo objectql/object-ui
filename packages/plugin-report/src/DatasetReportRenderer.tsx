@@ -140,6 +140,17 @@ interface DatasetReportLike {
   columns?: string[];
   values?: string[];
   runtimeFilter?: Record<string, unknown>;
+  /**
+   * ⛔ NOT an authorable key, and NEVER applied as a filter (objectui#5137).
+   *
+   * `ReportSchema` (`@objectstack/spec`) is `z.core.$strict` and rejects
+   * `filter` outright, naming the replacement itself
+   * (`Did you mean … → runtimeFilter?`) — so a document carrying it did not
+   * arrive through the validated path. It stays declared for exactly one reason:
+   * so {@link warnOnRejectedFilterAlias} can SEE it on a stored document and
+   * say out loud that no filter was applied. Reading it AS a scope filter is
+   * the consumer tolerance this card removed. Author `runtimeFilter`.
+   */
   filter?: Record<string, unknown>;
   /**
    * Result ordering, most significant key first (framework#3916). Each `by`
@@ -177,6 +188,75 @@ export function isDatasetReport(value: unknown): value is DatasetReportLike {
   if (typeof v.dataset === 'string' && v.dataset.length > 0) return true;
   // A joined report whose blocks are dataset-bound.
   return v.type === 'joined' && Array.isArray(v.blocks) && v.blocks.some((b) => typeof b?.dataset === 'string');
+}
+
+// Warn-once memo for the rejected `filter` key. Keyed by SITE (which already
+// carries the report / block name) plus the offending value's key set, so two
+// different stale filters on one page both report — the author has to fix every
+// producer, not just the first one seen, and a bare site key would mute the
+// second. The key set rather than a full serialization because this reads
+// stored JSON that crosses the repo boundary: a warning must not be able to
+// throw on its way out.
+const warnedFilterAliases = new Set<string>();
+
+/** Reset the warn-once memo. Exported for tests. */
+export function resetReportFilterAliasWarnings(): void {
+  warnedFilterAliases.clear();
+}
+
+const isDev = (): boolean =>
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.NODE_ENV !==
+  'production';
+
+/**
+ * Dev-mode only: say out loud that a stored document's `filter` was NOT applied.
+ *
+ * objectui#5137 removed the `report.runtimeFilter ?? report.filter` alias read
+ * (and its per-block twin). `filter` is not an authorable key — `ReportSchema`
+ * (`@objectstack/spec`) is `z.core.$strict` and refuses it, naming the
+ * replacement itself — so honouring it here made the runtime looser than the
+ * contract the spec publishes, and which message an author met was a function
+ * of which path their document travelled.
+ *
+ * Deleting the read ALONE would have been a silent narrowing: a stored document
+ * still carrying `filter` renders **unfiltered**, which for a scoped report is
+ * worse than an error. (Server-side permissions still apply, so this is not an
+ * access-control hole — it is rows the AUTHOR meant to exclude, shown without
+ * anyone being told.) So the key does not go quiet: it is said out loud, once
+ * per offending document.
+ *
+ * The rename hint is copied verbatim from the spec's own `unrecognized_keys`
+ * message (`@objectstack/spec` 17.0.0) so an author meets one message rather
+ * than two dialects of one message.
+ *
+ * Non-breaking by construction: changes no types, rejects nothing, renders
+ * everything it rendered before, and is a no-op under `NODE_ENV=production`.
+ */
+function warnOnRejectedFilterAlias(node: DatasetReportLike, site: string): void {
+  if (!isDev()) return;
+  const rejected = node.filter;
+  if (rejected === undefined) return;
+  const shape =
+    rejected && typeof rejected === 'object'
+      ? Object.keys(rejected as Record<string, unknown>).sort().join(',')
+      : String(rejected);
+  const memo = `${site}:${shape}`;
+  if (warnedFilterAliases.has(memo)) return;
+  warnedFilterAliases.add(memo);
+  console.warn(
+    `[ObjectUI] ${site} carries \`filter\`, which is not an authorable key. ` +
+      'Did you mean `filter` → `runtimeFilter`? ' +
+      'NO filter was applied — it renders UNFILTERED, showing rows the report ' +
+      'was scoped to exclude. `ReportSchema` (`@objectstack/spec`) is strict and ' +
+      'rejects `filter`, so this document did not come through the validated ' +
+      'path; the renderer no longer reads it either. Fix the producer: rename ' +
+      '`filter` to `runtimeFilter`. (objectui#5137)',
+  );
+}
+
+/** How a report / block names itself in the warning above. */
+function describeReportSite(report: DatasetReportLike): string {
+  return `Report \`${report.name ?? '(unnamed)'}\``;
 }
 
 function resolveText(label: unknown, fallback: string): string {
@@ -1242,10 +1322,11 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
   onDrill,
   className,
 }) => {
-  const outerFilter = mergeFilters(
-    (report.runtimeFilter ?? report.filter) as Record<string, unknown> | undefined,
-    runtimeFilter,
-  );
+  // objectui#5137 — `runtimeFilter` ONLY. `filter` is rejected by the strict
+  // spec, so it is not read here either; it is reported instead of applied.
+  const reportSite = describeReportSite(report);
+  warnOnRejectedFilterAlias(report, reportSite);
+  const outerFilter = mergeFilters(report.runtimeFilter, runtimeFilter);
   // ADR-0021 D2: `drilldown` defaults on; the host must still supply a sink.
   const drillSink = report.drilldown === false ? undefined : onDrill;
   // The DECLARED type drives the branch (#2941) — never the data shape.
@@ -1261,7 +1342,9 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
         style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
       >
         {report.blocks.map((block, index) => {
-          const blockFilter = mergeFilters(outerFilter, (block.runtimeFilter ?? block.filter) as Record<string, unknown> | undefined);
+          // objectui#5137 — same rule per block: `runtimeFilter` only.
+          warnOnRejectedFilterAlias(block, `${reportSite} block \`${block.name ?? index}\``);
+          const blockFilter = mergeFilters(outerFilter, block.runtimeFilter);
           const blockAcross = readNames(block.columns);
           // #3916 — each block orders ITSELF. A joined container selects nothing
           // of its own (the schema rejects `order` on it), and every block is an
