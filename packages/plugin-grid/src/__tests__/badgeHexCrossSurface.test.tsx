@@ -24,6 +24,16 @@
  * is rendered through all three of the grid's badge surfaces and the resolved
  * custom properties must be byte-identical across them.
  *
+ * ── Why every lookup is SCOPED to one surface ────────────────────────────
+ * Load-bearing, and measured: a grouped grid renders the group pill AND the
+ * leaf table's desktop cells, and both carry the option's label as their whole
+ * text content. An unscoped "find the element labelled Emerald that declares
+ * `--os-badge-bg`" therefore reads whichever comes first in document order —
+ * so with the fix reverted the group-header case still went GREEN off the
+ * CELL's variables, asserting nothing about the header. Each surface is
+ * addressed by its own selector below, and the two single-surface renders
+ * assert that no group pill exists to be confused with.
+ *
  * ── Why these two hexes ──────────────────────────────────────────────────
  * `#2ecc71` and `#1e8449` are the pair from #5141's report. Their hues differ
  * by 0.1°, so `hexToPaletteName` buckets BOTH into the `green` family — under
@@ -97,9 +107,9 @@ const BADGE_VARS = ['--os-badge-bg', '--os-badge-fg', '--os-badge-border'] as co
 
 type BadgeVars = Record<string, string>;
 
-/** Custom properties declared by the badge-ish element labelled `label`. */
-function badgeVarsFor(root: HTMLElement, label: string): BadgeVars | undefined {
-  const carrier = Array.from(root.querySelectorAll<HTMLElement>('[style]')).find(
+/** Custom properties declared by the labelled element within `candidates`. */
+function badgeVarsAmong(candidates: HTMLElement[], label: string): BadgeVars | undefined {
+  const carrier = candidates.find(
     (el) =>
       el.textContent?.trim() === label &&
       el.style.getPropertyValue('--os-badge-bg').trim() !== '',
@@ -109,6 +119,14 @@ function badgeVarsFor(root: HTMLElement, label: string): BadgeVars | undefined {
   for (const name of BADGE_VARS) out[name] = carrier.style.getPropertyValue(name).trim();
   return out;
 }
+
+/** Group-header pills only — never the cells in the group's leaf table. */
+const groupPills = (root: HTMLElement) =>
+  Array.from(root.querySelectorAll<HTMLElement>('.group-label'));
+
+/** Everything styled on a render that has no group pills at all. */
+const styledNodes = (root: HTMLElement) =>
+  Array.from(root.querySelectorAll<HTMLElement>('[style]'));
 
 function gridSchema(extra: Record<string, unknown> = {}) {
   return {
@@ -138,16 +156,16 @@ function renderGrid(schema: any) {
 async function desktopCellVars(label: string): Promise<BadgeVars | undefined> {
   const { container } = renderGrid(gridSchema());
   await waitFor(() => expect(screen.getAllByText(label).length).toBeGreaterThan(0));
-  return badgeVarsFor(container, label);
+  // Ungrouped: nothing here can be a group pill, so the lookup is unambiguous.
+  expect(groupPills(container)).toHaveLength(0);
+  return badgeVarsAmong(styledNodes(container), label);
 }
 
 /** Surface 2 — the group-header pill (`resolveGroupHeader` -> `GroupRow`). */
 async function groupHeaderVars(label: string): Promise<BadgeVars | undefined> {
   const { container } = renderGrid(gridSchema({ grouping: { fields: [{ field: 'stage' }] } }));
-  await waitFor(() =>
-    expect(container.querySelectorAll('.group-label').length).toBeGreaterThan(0),
-  );
-  return badgeVarsFor(container, label);
+  await waitFor(() => expect(groupPills(container).length).toBeGreaterThan(0));
+  return badgeVarsAmong(groupPills(container), label);
 }
 
 /** Surface 3 — the compact card / mobile stage badge. */
@@ -155,7 +173,8 @@ async function mobileCardVars(label: string): Promise<BadgeVars | undefined> {
   setMobileWidth();
   const { container } = renderGrid(gridSchema());
   await waitFor(() => expect(screen.getAllByText(label).length).toBeGreaterThan(0));
-  return badgeVarsFor(container, label);
+  expect(groupPills(container)).toHaveLength(0);
+  return badgeVarsAmong(styledNodes(container), label);
 }
 
 describe('objectui#5183 — a declared hex renders the same on every grid surface', () => {
@@ -182,13 +201,12 @@ describe('objectui#5183 — a declared hex renders the same on every grid surfac
     expect(card).toEqual(cell);
   });
 
-  it('two same-family hexes stay distinguishable (agreement is not quantization)', async () => {
+  it('two same-family hexes stay distinguishable in the group headers', async () => {
     const { container } = renderGrid(gridSchema({ grouping: { fields: [{ field: 'stage' }] } }));
-    await waitFor(() =>
-      expect(container.querySelectorAll('.group-label').length).toBeGreaterThan(1),
-    );
-    const emerald = badgeVarsFor(container, 'Emerald');
-    const forest = badgeVarsFor(container, 'Forest');
+    await waitFor(() => expect(groupPills(container).length).toBeGreaterThan(1));
+    const pills = groupPills(container);
+    const emerald = badgeVarsAmong(pills, 'Emerald');
+    const forest = badgeVarsAmong(pills, 'Forest');
     expect(emerald?.['--os-badge-bg']).toBeTruthy();
     expect(forest?.['--os-badge-bg']).toBeTruthy();
     expect(emerald!['--os-badge-bg']).not.toBe(forest!['--os-badge-bg']);
