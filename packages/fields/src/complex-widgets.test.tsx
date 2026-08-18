@@ -435,8 +435,19 @@ describe('Complex & Relationship Widgets', () => {
 
         it('shows a recently-used section on empty focus', async () => {
             localStorage.setItem('objectui:lookup:recent:customers', JSON.stringify(['r1']));
-            mockDataSource.find.mockResolvedValue({ data: [{ id: 'a', name: 'Acme Corp' }], total: 1 });
-            mockDataSource.findOne.mockResolvedValue({ id: 'r1', name: 'Recent Co' });
+            // The rail resolves its remembered ids through `find`, carrying the
+            // field's merged filter, rather than the unfiltered per-id `findOne`
+            // it used before (#5195) — so the fixture answers the id-restricted
+            // query. Behaviour under test is unchanged: recents still appear on
+            // empty focus, in their own section.
+            mockDataSource.find.mockImplementation(async (_obj: string, params: any) => {
+                const ids = params?.$filter?.id?.$in as string[] | undefined;
+                if (ids) {
+                    const data = [{ id: 'r1', name: 'Recent Co' }].filter(r => ids.includes(r.id));
+                    return { data, total: data.length };
+                }
+                return { data: [{ id: 'a', name: 'Acme Corp' }], total: 1 };
+            });
 
             render(<LookupField {...dynamicProps} />);
 
