@@ -253,6 +253,7 @@ export {
   ObjectFormSchema,
   ObjectViewSchema,
   ObjectMapSchema,
+  ObjectMapConfigSchema,
   ObjectGanttSchema,
   ObjectCalendarSchema,
   ObjectKanbanSchema,

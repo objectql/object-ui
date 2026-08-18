@@ -101,16 +101,21 @@ const schema = {
 ```plaintext
 {
   type: 'object-map',
-  objectName?: string,              // ObjectQL object name
+  objectName: string,               // ObjectQL object name
   staticData?: Array<any>,          // Static data array
   data?: ViewData,                  // Advanced data configuration
-  map?: MapConfig,                  // Map-specific configuration
+  filter?: Array<any>,              // Query filter, sent as $filter
+  sort?: string | SortConfig[],     // Sort, sent as $orderby
+  map?: ObjectMapConfig,            // Map-specific configuration
+  enableClustering?: boolean,       // Cluster nearby markers (auto past 100)
+  navigation?: NavigationConfig,    // Record navigation (drawer/dialog/page)
+  mapStyle?: string,                // MapLibre style URL/spec
   onMarkerClick?: (record: any) => void,
   className?: string
 }
 ```
 
-### MapConfig
+### ObjectMapConfig
 
 ```plaintext
 {
@@ -120,7 +125,8 @@ const schema = {
   titleField?: string,         // Field to use as marker title
   descriptionField?: string,   // Field for marker description
   zoom?: number,               // Zoom level (1-20) — opts out of the auto-fit
-  center?: [number, number]    // Center coordinates [lat, lng] — opts out of the auto-fit
+  center?: [number, number],   // Center coordinates [lat, lng] — opts out of the auto-fit
+  style?: string               // MapLibre style URL/spec (overrides the demo default)
 }
 ```
 
@@ -470,9 +476,9 @@ Consider using one of the full-featured mapping libraries above.
 ## TypeScript Support
 
 ```plaintext
-import type { ObjectGridSchema, MapConfig } from '@object-ui/types'
+import type { ObjectMapSchema, ObjectMapConfig } from '@object-ui/types'
 
-const mapConfig: MapConfig = {
+const mapConfig: ObjectMapConfig = {
   latitudeField: 'lat',
   longitudeField: 'lng',
   titleField: 'name',
@@ -481,7 +487,7 @@ const mapConfig: MapConfig = {
   center: [37.7749, -122.4194]
 }
 
-const mapSchema: ObjectGridSchema = {
+const mapSchema: ObjectMapSchema = {
   type: 'object-map',
   objectName: 'locations',
   map: mapConfig

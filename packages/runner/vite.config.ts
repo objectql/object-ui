@@ -85,6 +85,8 @@ export default defineConfig({
       "@object-ui/components": path.resolve(__dirname, "../../packages/components/src"),
       "@object-ui/react": path.resolve(__dirname, "../../packages/react/src"),
       "@object-ui/core": path.resolve(__dirname, "../../packages/core/src"),
+      // Subpath before bare package — see the note in `apps/console/vite.config.ts`.
+      "@object-ui/types/zod": path.resolve(__dirname, "../../packages/types/src/zod/index.zod.ts"),
       "@object-ui/types": path.resolve(__dirname, "../../packages/types/src"),
       "@object-ui/plugin-kanban": path.resolve(__dirname, "../../packages/plugin-kanban/src"),
       "@object-ui/plugin-charts": path.resolve(__dirname, "../../packages/plugin-charts/src"),

@@ -49,6 +49,7 @@ export default defineConfig({
           '@object-ui/core': 'ObjectUICore',
           '@object-ui/react': 'ObjectUIReact',
           '@object-ui/types': 'ObjectUITypes',
+          '@object-ui/types/zod': 'ObjectUITypesZod',
           'lucide-react': 'LucideReact',
         },
       },

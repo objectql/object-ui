@@ -364,6 +364,7 @@ export type {
   ConditionalFormattingRule,
   // Component schemas
   ObjectMapSchema,
+  ObjectMapConfig,
   ObjectGanttSchema,
   ObjectCalendarSchema,
   ObjectKanbanSchema,
