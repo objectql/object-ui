@@ -10,8 +10,21 @@ import chalk from 'chalk';
 import { globSync } from 'glob';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { parse as parseJsonc, printParseErrorCode, type ParseError } from 'jsonc-parser';
 
 import { isKnownSchemaType } from '../utils/known-schema-types.js';
+
+/**
+ * Render a `jsonc-parser` error the way `JSON.parse` renders its own: a reason,
+ * then where it happened. The parser reports a byte offset; the line/column is
+ * derived here because a bare offset is not actionable in an editor.
+ */
+function describeParseError(text: string, error: ParseError): string {
+  const upTo = text.slice(0, error.offset);
+  const line = upTo.split('\n').length;
+  const column = error.offset - (upTo.lastIndexOf('\n') + 1) + 1;
+  return `${printParseErrorCode(error.error)} at line ${line} column ${column}`;
+}
 
 /**
  * @param cwd Directory to scan. Defaults to the process working directory,
@@ -36,7 +49,37 @@ export async function check(cwd: string = process.cwd()) {
     try {
       // Basic JSON parsing check
       if (file.endsWith('.json')) {
-        const content = JSON.parse(readFileSync(join(cwd, file), 'utf-8'));
+        // `.json` on disk means JSONC in practice — comments and trailing
+        // commas are how `tsconfig.json`, `.eslintrc.json`, `devcontainer.json`
+        // and VS Code's own settings are documented to be written. `JSON.parse`
+        // rejected every one of them, and because a parse failure is the only
+        // thing that increments `errors`, `objectui check` exited 1 in any
+        // TypeScript project — 64 errors in this repository alone (objectui#5237).
+        //
+        // The reader is `jsonc-parser` (already shipped by `@object-ui/app-shell`),
+        // NOT a comment-stripping regex: a `//` inside a string value — say a
+        // URL — is not a comment, and a stripper that cannot tell the
+        // difference corrupts valid files instead of reading them.
+        const text = readFileSync(join(cwd, file), 'utf-8');
+        const parseErrors: ParseError[] = [];
+        // Comments are permitted by default; trailing commas are opt-in.
+        // `allowEmptyContent` stays off so an empty `.json` is still an error,
+        // exactly as `JSON.parse('')` was.
+        const content = parseJsonc(text, parseErrors, { allowTrailingComma: true });
+
+        // `parseJsonc` is error-TOLERANT: it recovers and returns a best-effort
+        // value rather than throwing, so genuinely malformed JSON is caught by
+        // consulting this array. Dropping this check would turn the fix into
+        // "never fail on anything".
+        if (parseErrors.length > 0) {
+          const [first] = parseErrors;
+          console.log(
+            chalk.red(`x Invalid JSON in ${file}: ${describeParseError(text, first)}`)
+          );
+          errors++;
+          continue;
+        }
+
         // Schema validation: check for ObjectUI schema patterns
         if (content && typeof content === 'object' && content.type) {
           // The known-type universe is DERIVED from the repository's
