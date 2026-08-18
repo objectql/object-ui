@@ -396,7 +396,7 @@ function aliasTableExpressions(source: ts.SourceFile, config: string): ts.Expres
  * Until #5158 this read the source TEXT with one regex that required the exact
  * characters `path.resolve(` after a SINGLE-quoted key inside an object
  * literal. Every config that spelled the same table any other way was not
- * checked-and-passed, it was never looked at — measured on `main@da6eda06e`:
+ * checked-and-passed, it was never looked at — measured on `main@cdac3cc20`:
  * 70 of 196 entries read, 15 configs contributing zero. Three independent
  * spellings were invisible, and only the first is the one #5158 opened on:
  *
@@ -408,8 +408,10 @@ function aliasTableExpressions(source: ts.SourceFile, config: string): ts.Expres
  *   - DOUBLE-quoted keys — 14 entries in `packages/runner`, missed for a reason
  *     that has nothing to do with `resolve` and everything to do with `'`.
  *
- * Three spellings of one structure is the argument against enumerating
- * spellings. The AST reads the structure: a property of an alias table whose
+ * Three invisible spellings of one structure is the argument against
+ * enumerating spellings — the widened `(?:path\.)?` regex #5158 proposed closes
+ * the first and leaves the other two, because they do not differ on `resolve`.
+ * The AST reads the structure instead: a property of an alias table whose
  * value is a `resolve(dirname, '<relative>')` call, however the callee, the
  * quotes and the table are written.
  *
