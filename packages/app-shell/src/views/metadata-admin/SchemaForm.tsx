@@ -712,9 +712,17 @@ export interface SchemaFormProps {
   /** JSONSchema for the root object. */
   schema: JsonSchema | undefined;
   /**
-   * Ancestor id path this form is nested under — set ONLY by the recursive
-   * render inside {@link FieldControl} (objectui#5062). A top-level form leaves
-   * it undefined, which is what keeps top-level ids spelled `mdf-{field}`.
+   * Ancestor id path this form is nested under. Two kinds of caller set it:
+   *
+   *  - the recursive render inside {@link FieldControl}, which passes the path
+   *    of the field hosting this form (objectui#5062);
+   *  - a host that mounts a SECOND form into a document that already has one,
+   *    which passes an artificial ancestor SEGMENT to scope the whole instance
+   *    (objectui#5092 — see {@link DRAWER_METADATA_ID_SCOPE}). The semantics
+   *    are unchanged: it is still just an ancestor path.
+   *
+   * The PAGE-level form leaves it undefined, which is what keeps top-level ids
+   * spelled `mdf-{field}`.
    */
   idPath?: string;
   /**
@@ -745,7 +753,7 @@ export interface SchemaFormProps {
   widgetContext?: WidgetContext;
 }
 
-export function SchemaForm({
+function SchemaFormBody({
   schema,
   form,
   value,
@@ -885,6 +893,115 @@ export function SchemaForm({
         />
       ))}
     </div>
+  );
+}
+
+/* ----- instance scoping (objectui#5092) ----------------------------------- */
+
+/**
+ * Scope segments for the SECOND `SchemaForm` a metadata-admin document can
+ * host (objectui#5092).
+ *
+ * `MetadataDetailDrawer` is a Radix `Sheet`: when it opens, the page's own
+ * form STAYS IN THE DOM behind it. Both forms render top-level fields, and
+ * top-level ids are `mdf-{field}` with no instance dimension — so a field
+ * name both forms have (`name`, `label`, `description` — nearly always) is
+ * one id twice, and a `label[for]` resolves to the FIRST match in document
+ * order, i.e. the PAGE form. The drawer's labels then name and focus the
+ * controls of the form hidden behind the drawer.
+ *
+ * The fix is the ancestor path {@link joinIdPath} already threads: each
+ * drawer-side mount point passes a scope segment as its form's `idPath`, so
+ * its top-level fields become `mdf-{scope}.{field}`. The PAGE form passes
+ * nothing and its ids are byte-for-byte what they always were — the selector
+ * surface the metadata-admin tests read does not move (the same additive
+ * contract objectui#5062 kept for nested rows).
+ *
+ * Requirements on a segment, and why these two satisfy them:
+ *
+ *  - **Distinct per mount point** — two scoped forms must not collide with
+ *    each other either. Pinned by `SchemaForm.instanceIdScope.test.tsx`.
+ *  - **Whitespace-free** — these ids are consumed as `aria-labelledby` IDREFs,
+ *    which tokenize on whitespace (objectui#5062, `joinIdPath`).
+ *  - **Cannot be spelled by a real field** — a segment equal to some top-level
+ *    field name would let `mdf-{scope}.{field}` be reached from two different
+ *    paths. Both segments contain `-`, which is outside the metadata
+ *    machine-name grammar (`^[a-z][a-z0-9_]*$`) and outside the camelCase
+ *    property names the metadata JSON-Schemas use.
+ */
+export const DRAWER_METADATA_ID_SCOPE = 'drawer-metadata';
+
+/** @see DRAWER_METADATA_ID_SCOPE — the drawer's embedded-item editor. */
+export const DRAWER_EMBEDDED_ITEM_ID_SCOPE = 'drawer-embedded-item';
+
+/**
+ * True inside any `SchemaForm`, so the OUTERMOST form of a subtree runs the
+ * duplicate-id scan and the nested ones (a composite/repeater page mounts
+ * dozens) do not repeat it.
+ *
+ * Per SUBTREE, not per document: the page form and the drawer's form are
+ * siblings, so both are outermost and both scan. That is intended — the scan
+ * is precisely what tells the two of them apart.
+ */
+const SchemaFormNestingContext = React.createContext(false);
+
+const isDevBuild = (): boolean =>
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+    ?.NODE_ENV !== 'production';
+
+/**
+ * Dev-only: say out loud that two field host ids collide in this document.
+ *
+ * Scoping by mount point (above) relies on every host that mounts a SECOND
+ * form remembering to pass a segment — a new mount point that forgets brings
+ * the cross-wiring back SILENTLY, because a duplicate id is not an error to
+ * the DOM and the association still resolves, just to the wrong element.
+ * This is the half that makes that failure loud. Production is untouched:
+ * the whole body is behind the dev gate, so the effect does no work.
+ */
+function useDuplicateFieldHostIdCheck(enabled: boolean): void {
+  // Report a given collision set once per form instance instead of on every
+  // keystroke; a fresh mount reports again, which is what makes it visible.
+  const lastReported = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!enabled || !isDevBuild() || typeof document === 'undefined') return;
+    const seen = new Set<string>();
+    const duplicates: string[] = [];
+    for (const el of Array.from(document.querySelectorAll('[id^="mdf-"]'))) {
+      const id = el.id;
+      if (!seen.has(id)) seen.add(id);
+      else if (!duplicates.includes(id)) duplicates.push(id);
+    }
+    const signature = duplicates.join(',');
+    if (signature === lastReported.current) return;
+    lastReported.current = signature;
+    if (duplicates.length === 0) return;
+    console.error(
+      `[SchemaForm] duplicate field host id(s) in this document: ${duplicates.join(', ')}. ` +
+        'Two SchemaForm instances are mounted at once — the metadata detail drawer sits on ' +
+        'top of the page form, which stays in the DOM — and at least one of them renders ' +
+        'unscoped top-level ids. A `label[for]` resolves to the FIRST match in the document, ' +
+        "so the later form's labels name and focus the earlier form's controls " +
+        '(objectui#5092). Give the secondary form a distinct `idPath` scope segment — see ' +
+        'DRAWER_METADATA_ID_SCOPE / DRAWER_EMBEDDED_ITEM_ID_SCOPE in SchemaForm.tsx.',
+    );
+  });
+}
+
+/**
+ * Renders a metadata form for `schema` (see {@link SchemaFormProps}).
+ *
+ * The wrapper exists for the two document-level concerns above: it marks the
+ * subtree as "inside a SchemaForm" so nested forms know they are not the
+ * outermost one, and it runs the dev-only duplicate-host-id check.
+ */
+export function SchemaForm(props: SchemaFormProps) {
+  const nested = React.useContext(SchemaFormNestingContext);
+  useDuplicateFieldHostIdCheck(!nested);
+  return (
+    <SchemaFormNestingContext.Provider value={true}>
+      <SchemaFormBody {...props} />
+    </SchemaFormNestingContext.Provider>
   );
 }
 

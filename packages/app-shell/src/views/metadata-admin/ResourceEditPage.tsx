@@ -88,7 +88,11 @@ import { PageShell } from './PageShell';
 import { MetadataTypeActions } from './MetadataTypeActions';
 import { LayeredDiff, countOverlaidFields } from './LayeredDiff';
 import { DraftReviewPanel, computeDraftChangeCount } from './DraftReviewPanel';
-import { SchemaForm, type SchemaFormIssue } from './SchemaForm';
+import {
+  SchemaForm,
+  DRAWER_METADATA_ID_SCOPE,
+  type SchemaFormIssue,
+} from './SchemaForm';
 import { collectPageComponentIds } from './widgets';
 import {
   useMetadataClient,
@@ -1602,6 +1606,14 @@ function MetadataResourceEditPageImpl({
       ? getMetadataPreview(type)
       : undefined;
 
+  // The id scope for THIS editor's form (objectui#5092). Embedded means we are
+  // mounted inside `MetadataDetailDrawer`, which slides over a page that is
+  // still rendering its own form: without a scope segment both forms emit the
+  // same `mdf-{field}` ids for every field name they share, and the drawer's
+  // labels — later in document order — resolve to the page's controls.
+  // The page editor passes `undefined` and its ids stay exactly as they were.
+  const formIdPath = embedded ? DRAWER_METADATA_ID_SCOPE : undefined;
+
   // Optional scoped inspector for the selected sub-element (e.g. a
   // dashboard widget). Registered separately via
   // `registerMetadataInspector()` so a type can opt in independently
@@ -2458,6 +2470,7 @@ function MetadataResourceEditPageImpl({
                         ) : (
                           <SchemaForm
                             schema={schema}
+                            idPath={formIdPath}
                             form={createMode && config.createSchema ? undefined : (entry?.form as any)}
                             value={draft}
                             onChange={handleCreateAwareChange}
@@ -2481,6 +2494,7 @@ function MetadataResourceEditPageImpl({
             ) : (
               <SchemaForm
                 schema={schema}
+                idPath={formIdPath}
                 form={createMode && config.createSchema ? undefined : (entry?.form as any)}
                 value={draft}
                 onChange={handleCreateAwareChange}

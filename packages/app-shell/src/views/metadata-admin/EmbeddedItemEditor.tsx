@@ -28,7 +28,11 @@
 import * as React from 'react';
 import { Loader2, Save, AlertTriangle } from 'lucide-react';
 import { Button } from '@object-ui/components';
-import { SchemaForm, type SchemaFormIssue } from './SchemaForm';
+import {
+  SchemaForm,
+  DRAWER_EMBEDDED_ITEM_ID_SCOPE,
+  type SchemaFormIssue,
+} from './SchemaForm';
 import { getMetadataPreview } from './preview-registry';
 import { useMetadataClient, useMetadataTypes } from './useMetadata';
 import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n';
@@ -218,8 +222,13 @@ export function EmbeddedItemEditor({
         />
       )}
 
+      {/* This editor only ever renders inside `MetadataDetailDrawer`, i.e. on
+          top of a page that is still rendering its own form. The scope segment
+          keeps the two instances' top-level ids apart so this form's labels
+          address THIS form's controls (objectui#5092). */}
       <SchemaForm
         schema={schema}
+        idPath={DRAWER_EMBEDDED_ITEM_ID_SCOPE}
         form={form}
         value={draft}
         onChange={setDraft}
