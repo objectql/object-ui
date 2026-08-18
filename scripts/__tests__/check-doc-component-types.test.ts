@@ -471,3 +471,50 @@ describe('wiring — the gate is reachable and a docs-only PR starts it', () => 
     expect(imports.every((spec) => spec.startsWith('node:')), `non-builtin import in the gate: ${imports}`).toBe(true);
   });
 });
+
+describe('objectui#5118 — the plugin-form page teaches the real `validation` shape', () => {
+  // The `type` literals this gate judges were only half the drift on that page.
+  // `### Form Field` redeclared a local `interface FormField` whose `validation`
+  // was `ValidationRule[]` — a type name that exists nowhere in this repository
+  // — and `### Form with Validation` authored the array to match. Neither half
+  // was visible to any check: a hand-written `interface` in a ```plaintext block
+  // compiles nowhere, and the array's `type: 'minLength'` / `'maxLength'` were
+  // EXEMPTED here, with a reason ("ValidationRule discriminant under a field's
+  // `validation[]`") that restated the fiction. Deleting those entries is what
+  // gives this gate teeth over the example half; this block pins the rest.
+  const page = path.join(repoRoot, 'content/docs/plugins/plugin-form.mdx');
+  const body = fs.readFileSync(page, 'utf8');
+
+  it('no longer authors `ValidationRule`, and says outright that it does not exist', () => {
+    // Same shape as the `multi-step-form` pin above: the page still NAMES the
+    // fiction in prose, to tell the reader it is one. What must not come back is
+    // the declaration a reader copies.
+    expect(body).not.toMatch(/validation\??\s*:\s*ValidationRule/);
+    expect(body).toContain('There is no `ValidationRule` type in this repository');
+  });
+
+  it('authors `validation` as an object keyed by rule name, never an array', () => {
+    // Prose may still SHOW the array spelling (it is the counterexample); an
+    // authored one — JSON or TS, in a snippet or a table — may not come back.
+    const authoredArrays = [...body.matchAll(/^\s*"?validation"?\s*:\s*\[/gm)];
+    expect(authoredArrays.map((m) => m[0].trim())).toEqual([]);
+    expect(body).toContain('"minLength": { "value": 3, "message": "Min 3 characters" }');
+    expect(body).toContain('| `validation` | `FieldValidationRules` |');
+  });
+
+  it('names types that are really declared, so the pin fails if one moves', () => {
+    const types = fs.readFileSync(path.join(repoRoot, 'packages/types/src/form.ts'), 'utf8');
+    expect(types).toContain('export interface FieldValidationRules {');
+    expect(types).toContain('validation?: FieldValidationRules;');
+    // The keys the page's rule table teaches, as the interface declares them.
+    for (const rule of ['required?:', 'minLength?:', 'maxLength?:', 'min?:', 'max?:', 'pattern?:', 'validate?:']) {
+      expect(types.slice(types.indexOf('export interface FieldValidationRules {'))).toContain(rule);
+    }
+    // `defaultValue` / `className` are named as NON-members; that is only true
+    // while the interface really omits them.
+    const formField = types.slice(types.indexOf('export interface FormField {'));
+    const declaredKeys = formField.slice(0, formField.indexOf('\n}'));
+    expect(declaredKeys).not.toMatch(/^\s{2}defaultValue\??:/m);
+    expect(declaredKeys).not.toMatch(/^\s{2}className\??:/m);
+  });
+});
