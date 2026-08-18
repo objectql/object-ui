@@ -3215,19 +3215,62 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       );
     }
 
-    default:
+    default: {
+      // The declared ceiling is resolved HERE, in BOTH authored spellings,
+      // rather than left to ride the pass-through onto the DOM
+      // (objectui#5253). Identical mechanism, identical reasons and identical
+      // shape to the `input` branch above (objectui#5201) and the `textarea`
+      // branch (objectui#3439) — this fallback was simply out of #5201's
+      // scoped surface, so it kept the defect after that card landed.
+      //
+      // Measured on `origin/main` at 87d9202b1, with a `type` that is neither
+      // a `BUILTIN_FIELD_TYPES` member nor a registered component (so this
+      // branch renders it), the pass-through answered the two spellings
+      // differently:
+      //
+      //   max_length: 50 → attrs=[…,"max_length",…]  maxlength=null
+      //   maxLength: 50 → attrs=[…,"maxlength",…]    maxlength="50"
+      //
+      // i.e. camelCase capped by COINCIDENCE (it names a real DOM attribute),
+      // while the legacy `max_length` capped NOTHING and landed as a stray,
+      // inert `max_length="50"` attribute — invalid HTML that reads like a
+      // working cap to the next reader. Two independent defects.
+      //
+      // `maxLength ?? max_length` is not a tolerance invented at a consumer
+      // (AGENTS.md #0.1): the registered `field:*` widgets have dual-read it
+      // since framework#1878 §3, all three producers of a form field do
+      // (`ObjectForm`, `sectionFields`, `EmbeddableForm.applyDefaultMaxLengths`)
+      // and `packages/types`' field types declare `max_length`. This branch —
+      // like the `input` one — serves a hand-authored `FormSchema` handed
+      // straight to the renderer, where there is no normalizing producer in
+      // between and the author IS the producer.
+      //
+      // The legacy key is destructured off LOCALLY — NOT added to
+      // `stripRendererOnlyProps` — because that helper feeds EVERY branch
+      // (`checkbox`, `switch`, `select` and this fallback all share
+      // `domFieldProps`), so extending it would change what reaches the DOM
+      // for widgets this card neither fixes nor tests. Both landed siblings
+      // strip it the same local way.
+      const { max_length: _maxLengthLegacy, ...fallbackProps } = domFieldProps as any;
+      const maxLength = (fieldProps as any).maxLength ?? (fieldProps as any).max_length;
       return (
         <Input
           type={inputType || 'text'}
           placeholder={placeholder}
           className={cn(readonlyInputClass)}
-          {...domFieldProps}
+          {...fallbackProps}
+          // After the spread, so the resolved cap wins over the raw camelCase
+          // key `fallbackProps` still carries (the #3222 discipline).
+          // `undefined` when neither spelling was declared, which renders no
+          // attribute — an uncapped field is left exactly as it was.
+          maxLength={maxLength}
           onClick={(e) => {
             openNativePickerOnClick(inputType)?.(e);
-            domFieldProps.onClick?.(e);
+            fallbackProps.onClick?.(e);
           }}
           readOnly={readonly}
         />
       );
+    }
   }
 }
