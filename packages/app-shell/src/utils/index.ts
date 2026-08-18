@@ -32,6 +32,18 @@ export { deriveRelatedLists } from './deriveRelatedLists';
 export type { DerivedRelatedList } from './deriveRelatedLists';
 
 export { preferLocal } from './preferLocal';
+
+// Admin-override affordance + audit marker (objectui#5178). Exported because
+// the Approval Center (`apps/console`) renders the second timeline and must ask
+// the SAME question about a row as the record page's panel does — two copies of
+// "is this an override" is exactly the dialect this repo rules against.
+export {
+  isOverrideOnlyViewer,
+  actionAdmittedByOverride,
+  isOverrideDecision,
+  bypassedApproverNames,
+  isViaOverrideRow,
+} from './approvalOverride';
 export {
   appRouteSegment,
   matchAppBySegment,

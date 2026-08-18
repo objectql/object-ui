@@ -148,6 +148,22 @@ export interface ApprovalActionLite {
   reassign_to?: string;
   reassign_from_name?: string;
   reassign_to_name?: string;
+  /**
+   * Whether the actor was admitted to this action ONLY by the privileged
+   * admin-override path (framework#3424) — they held no slot in the request's
+   * pending-approver slate (framework#4466).
+   *
+   * The server has written this since framework#4466 and `rowFromAction` puts
+   * it on the wire, but no console surface declared or read it, so every
+   * timeline rendered an override byte-for-byte like an ordinary approval —
+   * objectui#5178, the unlanded half of framework#4466's own *Expected*.
+   *
+   * Tri-state, mirroring the column: `true` = override, `false` = checked and
+   * NOT an override, `undefined` = a row written before the column existed.
+   * Read it through {@link isViaOverrideRow}, which marks only an explicit
+   * `true` — "not recorded" is not the same claim as "not an override".
+   */
+  via_override?: boolean;
 }
 
 /**

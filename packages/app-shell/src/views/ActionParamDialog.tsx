@@ -298,7 +298,11 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{state.title || t('actionDialog.title')}</DialogTitle>
-          <DialogDescription>
+          {/* `whitespace-pre-line` so a description composed of more than one
+              paragraph renders as authored. objectui#5178 puts an admin-override
+              warning ahead of the action's declared description here; collapsed
+              to one run-on paragraph the warning stops reading as a warning. */}
+          <DialogDescription className="whitespace-pre-line">
             {state.description || t('actionDialog.description')}
           </DialogDescription>
         </DialogHeader>
