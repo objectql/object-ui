@@ -70,11 +70,16 @@ import { FilterBuilder, narrowFilterValueToOptions } from '../custom/filter-buil
  *   - `level` — a static picklist whose option id is `'0'`, the falsy id
  *     objectui#4873 was about. Membership must not confuse it with "unset";
  *   - `account` — a lookup with `referenceTo` and NO `options`: the remote
- *     search column, `renderValueInput`'s own `!field?.options` branch;
+ *     search column, `renderValueInput`'s own `hasStaticOptionDomain` branch;
  *   - `account_pending` — a lookup whose `options` are PRESENT BUT EMPTY, the
  *     shape `deriveFilterFields` produces before the picklist values arrive.
- *     `[]` is truthy, so this does NOT reach the remote picker: it renders an
- *     empty Select, and a membership test against it would clear everything.
+ *     A membership test against it would clear everything, so the narrowing is
+ *     inert here — and since objectui#5031 the render path reads that same
+ *     criterion, so this column reaches the remote picker rather than an
+ *     option-driven Select. The visibility assertions below therefore read the
+ *     picker's id input, exactly as `account`'s do; the Select's own temporary
+ *     -option path is pinned on `stage`, a column that really does own its
+ *     option domain.
  */
 const FIELDS = [
   { value: 'title', label: 'Title', type: 'text' },
@@ -310,15 +315,23 @@ describe('a remote/async option domain keeps the value AND shows it', () => {
     expect(lastRow(onChange)).toMatchObject({ field: 'account_pending', value: 'acc_007' });
   });
 
-  it('mounts the kept value as its own option so the trigger is not blank', async () => {
+  it('shows the kept value rather than leaving the control blank', async () => {
     const { onChange } = renderRow({ field: 'title', operator: 'equals', value: 'acc_007' });
     await pickField('Account (pending)');
 
-    // The C half. On `origin/main` this trigger rendered `''` — Radix matches
-    // `SelectValue` against mounted `SelectItem`s and there were none — which is
-    // shape B (row carries it, control blank) and is what the ruling refuses.
-    expect(valueTriggerText()).toBe('acc_007');
-    expect(valueTriggerText()).not.toBe('');
+    // The C half, still the invariant: the control shows what the row holds.
+    // On `origin/main` (before PR #5030) this column drew a Select whose trigger
+    // rendered `''` — Radix matches `SelectValue` against mounted `SelectItem`s
+    // and there were none — which is shape B (row carries it, control blank) and
+    // is what the ruling refuses. Since objectui#5031 the column reaches
+    // `LookupValuePicker` instead of a Select at all, so the value is read off
+    // the picker's by-hand id input; the ASSERTION is unchanged in substance —
+    // what the row holds is on screen.
+    const input = document.querySelector<HTMLInputElement>(
+      'input[placeholder="Enter Account (pending) id"]',
+    );
+    expect(input, 'the unloaded lookup drew no id input').toBeTruthy();
+    expect(input!.value).toBe('acc_007');
     expect(lastRow(onChange).value).toBe('acc_007');
   });
 
@@ -333,7 +346,25 @@ describe('a remote/async option domain keeps the value AND shows it', () => {
       value: 'acc_042',
     });
 
-    expect(valueTriggerText()).toBe('acc_042');
+    const input = document.querySelector<HTMLInputElement>(
+      'input[placeholder="Enter Account (pending) id"]',
+    );
+    expect(input, 'the unloaded lookup drew no id input').toBeTruthy();
+    expect(input!.value).toBe('acc_042');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('mounts a persisted non-member as its own option on a STATIC column', () => {
+    // The Select's temporary-option path, which the two cases above used to
+    // carry before objectui#5031 rerouted `account_pending` to the picker. It
+    // has to stay pinned on a column that genuinely owns its option domain:
+    // `stage` offers `won`/`lost`, the saved view filters by `acme`, no switch
+    // happens so nothing narrows it away — and the trigger must still show it
+    // rather than the blank of shape B.
+    const { onChange } = renderRow({ field: 'stage', operator: 'equals', value: 'acme' });
+
+    expect(valueTriggerText()).toBe('acme');
+    expect(valueTriggerText()).not.toBe('');
     expect(onChange).not.toHaveBeenCalled();
   });
 
