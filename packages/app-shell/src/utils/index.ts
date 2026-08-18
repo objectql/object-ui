@@ -40,7 +40,9 @@ export {
   appStudioDesignPath,
   appStudioSurfacePath,
   appStudioRoutePath,
+  resolveNotificationTarget,
 } from './appRoute';
+export type { NotificationTarget } from './appRoute';
 
 /**
  * Resolves objectui's KEYED i18n label to a plain string.

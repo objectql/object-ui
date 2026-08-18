@@ -28,7 +28,12 @@ import { HomeAppsStrip } from './HomeAppsStrip';
 import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail';
 import { useHomeInbox } from '../../hooks/useHomeInbox';
 import { useNavigationContext } from '../../context/NavigationContext';
-import { appRouteSegment, filterActiveApps, resolveHostAppSegment } from '../../utils';
+import {
+  appRouteSegment,
+  filterActiveApps,
+  resolveHostAppSegment,
+  resolveNotificationTarget,
+} from '../../utils';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
 import { Sparkles, ShieldAlert, X, UploadCloud, MessageSquareText, Hammer, LayoutTemplate } from 'lucide-react';
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
@@ -602,12 +607,29 @@ export function HomePage() {
               unreadTopicCount={unreadTopicCount}
               notificationsStatus={notificationsStatus}
               onOpenApprovals={() => navigate(`/apps/${hostAppSegment}/system/approvals`)}
-              /* The fallback arm runs whenever a notification carries no
-                 `action_url`; `?view=mine` selects the user-scoped view, so the
-                 full page matches what the card showed (objectui#4074). */
-              onOpenNotification={(n) =>
-                navigate(n.actionUrl || `/apps/${hostAppSegment}/sys_inbox_message?view=mine`)
-              }
+              /* `action_url` is APP-RELATIVE (`/{object}/{id}`, ADR-0030 L5),
+                 so it has to be hosted under an app before it is a route —
+                 navigating it verbatim is objectui#5179, where the console
+                 catch-all forwarded the unmatched path to `/` and the landing
+                 resolver dropped the user on the default app's home with the
+                 notification already marked read. `resolveNotificationTarget`
+                 is shared with the top-bar bell so the two cannot answer this
+                 differently. The fallback arm runs whenever a notification
+                 carries no link at all; `?view=mine` selects the user-scoped
+                 view, so the full page matches what the card showed
+                 (objectui#4074). */
+              onOpenNotification={(n) => {
+                const target = resolveNotificationTarget(n.actionUrl, hostAppSegment);
+                if (!target) {
+                  navigate(`/apps/${hostAppSegment}/sys_inbox_message?view=mine`);
+                  return;
+                }
+                if (target.kind === 'external') {
+                  window.open(target.url, '_blank', 'noopener,noreferrer');
+                  return;
+                }
+                navigate(target.path);
+              }}
               t={t}
             />
           </div>
