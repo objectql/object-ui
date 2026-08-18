@@ -29,11 +29,11 @@ import { DatasetReportRenderer, resetReportFilterAliasWarnings } from '../Datase
 type MockRows = Array<Record<string, unknown>>;
 
 function makeSource(byDataset: Record<string, MockRows>) {
-  const calls: Array<{ dataset: string; selection: any }> = [];
+  const calls: Array<{ dataset: string; selection: Record<string, unknown> }> = [];
   return {
     calls,
     queryDataset: vi.fn(async (dataset: string, selection: unknown) => {
-      calls.push({ dataset, selection: selection as any });
+      calls.push({ dataset, selection: selection as Record<string, unknown> });
       return { rows: byDataset[dataset] ?? [] };
     }),
   };
@@ -51,18 +51,21 @@ const renderReport = (report: Record<string, unknown>, src: ReturnType<typeof ma
     </I18nProvider>,
   );
 
-let warnSpy: ReturnType<typeof vi.spyOn>;
+// Inferred rather than annotated: the spy's own type is what `vi.spyOn`
+// returns for THIS console method, and spelling it out by hand drifts.
+const spyOnWarn = () => vi.spyOn(console, 'warn').mockImplementation(() => {});
+let warnSpy: ReturnType<typeof spyOnWarn>;
 
 beforeEach(() => {
   resetReportFilterAliasWarnings();
-  warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  warnSpy = spyOnWarn();
 });
 
 afterEach(() => {
   warnSpy.mockRestore();
 });
 
-const warnings = (): string[] => warnSpy.mock.calls.map((c) => String(c[0]));
+const warnings = (): string[] => warnSpy.mock.calls.map((c: unknown[]) => String(c[0]));
 const aliasWarnings = (): string[] => warnings().filter((m) => m.includes('objectui#5137'));
 
 describe('DatasetReportRenderer — `runtimeFilter` still applies (unchanged)', () => {
