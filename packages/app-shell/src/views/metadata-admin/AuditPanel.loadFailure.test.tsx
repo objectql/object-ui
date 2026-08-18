@@ -65,13 +65,15 @@ const ENTRY: MetadataAuditEntry = {
   id: 'evt_1',
   occurredAt: '2026-08-18T09:00:00.000Z',
   actor: 'alice',
+  source: 'protocol.saveMetaItem',
   operation: 'save',
   outcome: 'denied',
-  lockState: 'locked',
+  code: 'item_locked',
+  lockState: 'full',
   lockOverridden: false,
+  requestId: 'req_abc123',
   note: 'metadata is locked',
-  code: 'METADATA_LOCKED',
-} as MetadataAuditEntry;
+};
 
 function mount() {
   return render(
