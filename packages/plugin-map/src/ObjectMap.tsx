@@ -79,18 +79,22 @@ type FlatMapConfigKeys = Omit< ObjectMapConfig, 'style' >;
 type MapConfigSource = ObjectMapSchema & FlatMapConfigKeys;
 
 /**
- * The flat keys, in one place, so the shadow diagnostic below and the reader
- * cannot fall out of step.
+ * The flat keys, DERIVED from `ObjectMapConfigSchema` — the same zod object
+ * `getMapConfig` validates the `map` block against — rather than hand-listed,
+ * so a key added to (or removed from) the declaration reaches the shadow
+ * diagnostic below without a second edit (objectui#5177). `style` is excluded
+ * because the FLAT form is where its namespace collides with `BaseSchema.style`
+ * (see `FlatMapConfigKeys` above and `warnOnTopLevelStyleUrl`) — not because
+ * the declaration omits it; `ObjectMapConfigSchema` carries `style` too.
+ *
+ * `ObjectView` / `ListView` derive their own flatten whitelist from this exact
+ * schema (imported from `@object-ui/types/zod`, already a dependency of both —
+ * no new coupling to this package's heavier `react-map-gl` / `maplibre-gl`
+ * dependencies), so all three sites read one canonical set of keys.
  */
-const FLAT_MAP_CONFIG_KEYS = [
-  'latitudeField',
-  'longitudeField',
-  'locationField',
-  'titleField',
-  'descriptionField',
-  'zoom',
-  'center',
-] as const satisfies readonly (keyof FlatMapConfigKeys)[];
+const FLAT_MAP_CONFIG_KEYS = (Object.keys(ObjectMapConfigSchema.shape) as (keyof ObjectMapConfig)[]).filter(
+  (key): key is keyof FlatMapConfigKeys => key !== 'style',
+);
 
 /**
  * Helper to get data configuration from schema

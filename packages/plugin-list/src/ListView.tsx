@@ -20,10 +20,38 @@ import type { LoadErrorKind } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
+import { ObjectMapConfigSchema } from '@object-ui/types/zod';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
+
+/**
+ * The `case 'map'` branch below builds an `object-map` schema by flattening
+ * `schema.options.map`'s CONTENTS to the top level. Whitelisted to these keys —
+ * `ObjectMapConfigSchema`'s shape minus `style` — rather than the whole bag:
+ * `style` is ALSO `BaseSchema.style` (inline CSS, legal on every node), and
+ * spreading the raw `map` block collapsed the two namespaces onto one key
+ * (objectui#5177).
+ *
+ * DERIVED, not hand-listed: `ObjectMapConfigSchema` (`@object-ui/types/zod`) is
+ * the same declaration `plugin-map`'s `ObjectMap.tsx` validates the `map` block
+ * against and derives its own `FLAT_MAP_CONFIG_KEYS` from, so a key added there
+ * reaches this flattener without a second edit. Read from `@object-ui/types`
+ * rather than imported from `@object-ui/plugin-map` deliberately: `plugin-map`
+ * is loaded lazily (`ComponentRegistry.registerLazy('object-map', ...)`)
+ * specifically so its `maplibre-gl` / `react-map-gl` weight is paid only when a
+ * map view actually renders — a static import here would defeat that for every
+ * `ListView`, map or not.
+ */
+const FLAT_MAP_CONFIG_KEYS = Object.keys(ObjectMapConfigSchema.shape).filter((key) => key !== 'style');
+
+/** Pick only the declared flat map keys present on an authored `map` block. */
+function pickFlatMapConfig(mapConfig: unknown): Record<string, unknown> {
+  if (!mapConfig || typeof mapConfig !== 'object') return {};
+  const source = mapConfig as Record<string, unknown>;
+  return Object.fromEntries(FLAT_MAP_CONFIG_KEYS.filter((key) => key in source).map((key) => [key, source[key]]));
+}
 
 /**
  * The list view's props.
@@ -2013,11 +2041,15 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...(schema.gantt || {}),
         };
       case 'map':
+        // Whitelisted flatten (objectui#5177) — see `FLAT_MAP_CONFIG_KEYS`.
+        // `schema.options.map` is an untyped bag; a raw spread here forwarded
+        // every key the author wrote, including `style`, which `ObjectMap`'s
+        // `FlatMapConfigKeys` declares OUT of this flat form.
         return {
           type: 'object-map',
           ...baseProps,
           locationField: schema.options?.map?.locationField || 'location',
-          ...(schema.options?.map || {}),
+          ...pickFlatMapConfig(schema.options?.map),
         };
       case 'tree': {
         // Self-referencing tree-grid. Config lives under view.tree.* (direct)

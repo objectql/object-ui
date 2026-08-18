@@ -58,6 +58,7 @@ import { Plus } from 'lucide-react';
 import { useObjectTranslation, createSafeTranslation } from '@object-ui/i18n';
 import { buildExpandFields, normalizeListViewSchema, mergeFilterNodes } from '@object-ui/core';
 import { SchemaRenderer as ImportedSchemaRenderer } from '@object-ui/react';
+import { ObjectMapConfigSchema } from '@object-ui/types/zod';
 import { ViewSwitcher } from './ViewSwitcher';
 import { deriveRecordSurface } from './recordSurface';
 
@@ -65,6 +66,33 @@ import { deriveRecordSurface } from './recordSurface';
  * SchemaRenderer from @object-ui/react, used to render sub-view schemas.
  */
 const SchemaRendererComponent: React.FC<any> = ImportedSchemaRenderer;
+
+/**
+ * The `case 'map'` branch below builds an `object-map` schema by flattening
+ * `viewOptions.map`'s CONTENTS to the top level. Whitelisted to these keys —
+ * `ObjectMapConfigSchema`'s shape minus `style` — rather than the whole bag:
+ * `style` is ALSO `BaseSchema.style` (inline CSS, legal on every node), and
+ * spreading the raw `map` block collapsed the two namespaces onto one key
+ * (objectui#5177).
+ *
+ * DERIVED, not hand-listed: `ObjectMapConfigSchema` (`@object-ui/types/zod`) is
+ * the same declaration `plugin-map`'s `ObjectMap.tsx` validates the `map` block
+ * against and derives its own `FLAT_MAP_CONFIG_KEYS` from, so a key added there
+ * reaches this flattener without a second edit. Read from `@object-ui/types`
+ * rather than imported from `@object-ui/plugin-map` deliberately: `plugin-map`
+ * is loaded lazily (`ComponentRegistry.registerLazy('object-map', ...)`)
+ * specifically so its `maplibre-gl` / `react-map-gl` weight is paid only when a
+ * map view actually renders — a static import here would defeat that for every
+ * `ObjectView`, map or not.
+ */
+const FLAT_MAP_CONFIG_KEYS = Object.keys(ObjectMapConfigSchema.shape).filter((key) => key !== 'style');
+
+/** Pick only the declared flat map keys present on an authored `map` block. */
+function pickFlatMapConfig(mapConfig: unknown): Record<string, unknown> {
+  if (!mapConfig || typeof mapConfig !== 'object') return {};
+  const source = mapConfig as Record<string, unknown>;
+  return Object.fromEntries(FLAT_MAP_CONFIG_KEYS.filter((key) => key in source).map((key) => [key, source[key]]));
+}
 
 /**
  * Record-create verb, shared with the runtime object pages: both surfaces
@@ -768,11 +796,15 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           ...(viewOptions.gantt || {}),
         };
       case 'map':
+        // Whitelisted flatten (objectui#5177) — see `FLAT_MAP_CONFIG_KEYS`.
+        // `viewOptions.map` is an untyped bag (`NamedListView.options`); a raw
+        // spread here forwarded every key the author wrote, including `style`,
+        // which `ObjectMap`'s `FlatMapConfigKeys` declares OUT of this flat form.
         return {
           type: 'object-map',
           ...baseProps,
           locationField: viewOptions.map?.locationField || 'location',
-          ...(viewOptions.map || {}),
+          ...pickFlatMapConfig(viewOptions.map),
         };
       case 'tree':
         return {

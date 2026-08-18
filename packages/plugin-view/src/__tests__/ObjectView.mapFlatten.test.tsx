@@ -103,3 +103,48 @@ describe('ObjectView flattens `options.map` and emits NO `map` key (objectui#501
     expect(Object.prototype.hasOwnProperty.call(schema, 'map')).toBe(false);
   });
 });
+
+/**
+ * objectui#5177 — the flatten above used to be a WHOLE-BAG spread
+ * (`...(viewOptions.map || {})`), so any key an author wrote in the `map`
+ * block landed at the top level, including keys `ObjectMap`'s
+ * `FlatMapConfigKeys = Omit<ObjectMapConfig, 'style'>` declares OUT of this
+ * flat form. `style` is the specimen the card measured: it collides with
+ * `BaseSchema.style` (inline CSS, legal on every node), so a `map: { style:
+ * '<url>' }` authoring intent arrived as a top-level CSS-shaped key.
+ *
+ * These pin the whitelist (`FLAT_MAP_CONFIG_KEYS`, derived from
+ * `ObjectMapConfigSchema` in `@object-ui/types/zod`) rather than the raw
+ * spread: a declared key still travels, `style` does not, and neither does an
+ * arbitrary undeclared one.
+ */
+describe('ObjectView flattens `map` through a whitelist, not a raw spread (objectui#5177)', () => {
+  it('still reaches a declared key (locationField) in the flattened product', async () => {
+    const schema = await renderMapView({ locationField: 'geo' });
+
+    expect(schema.locationField).toBe('geo');
+  });
+
+  it('does NOT let `style` in the `map` block reach the top level — the specimen the card measured', async () => {
+    const schema = await renderMapView({
+      latitudeField: 'lat',
+      longitudeField: 'lng',
+      style: 'https://tiles.example.com/style.json',
+    });
+
+    expect(schema.latitudeField).toBe('lat');
+    expect(schema.style).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(schema, 'style')).toBe(false);
+  });
+
+  it('does NOT let an arbitrary undeclared key reach the top level', async () => {
+    const schema = await renderMapView({
+      latitudeField: 'lat',
+      totallyUndeclaredKey: 'nope',
+    });
+
+    expect(schema.latitudeField).toBe('lat');
+    expect(schema.totallyUndeclaredKey).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(schema, 'totallyUndeclaredKey')).toBe(false);
+  });
+});
