@@ -17,7 +17,7 @@
  * - Interactive map with markers
  * - Location-based data visualization
  * - Popup/tooltip on marker click
- * - Works with object/api/value data providers
+ * - Works with object/value data providers
  */
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
