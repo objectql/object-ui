@@ -24,7 +24,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { DeclaredActionsBar } from '@object-ui/app-shell';
+import { DeclaredActionsBar, isViaOverrideRow } from '@object-ui/app-shell';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import {
   Button,
@@ -94,6 +94,7 @@ import {
   Check,
   Circle,
   Paperclip,
+  ShieldAlert,
 } from 'lucide-react';
 import {
   approvalsApi,
@@ -1858,7 +1859,14 @@ export function ApprovalsInboxPage() {
                 ) : (
                   <ol className="relative space-y-3 pl-5 before:absolute before:left-[7px] before:top-1 before:bottom-1 before:w-px before:bg-border">
                     {actions.map((a) => {
-                      const color = a.action === 'approve' ? 'bg-emerald-500'
+                      // objectui#5178 — an admin override does not wear the
+                      // ordinary decision's dot. Same rule and same predicate as
+                      // the record page's approval panel (both call
+                      // `isViaOverrideRow`), so the two timelines cannot drift
+                      // on what counts as an override.
+                      const viaOverride = isViaOverrideRow(a);
+                      const color = viaOverride ? 'bg-amber-500'
+                                  : a.action === 'approve' ? 'bg-emerald-500'
                                   : a.action === 'reject'  ? 'bg-destructive'
                                   : a.action === 'submit'  ? 'bg-blue-500'
                                   : a.action === 'reassign' ? 'bg-indigo-500'
@@ -1897,6 +1905,20 @@ export function ApprovalsInboxPage() {
                             <span className="font-medium">{actionText}</span>
                             <span className="text-muted-foreground">·</span>
                             <span title={a.actor_id || ''}>{actorName}</span>
+                            {/* The marker framework#4466 wrote and nothing read
+                                (objectui#5178). Only an explicit
+                                `via_override: true` earns it. */}
+                            {viaOverride && (
+                              <Badge
+                                variant="outline"
+                                className="gap-1 border-amber-500/60 px-1.5 py-0 text-[10px] font-medium text-amber-700 dark:text-amber-400"
+                                title={tr('viaOverrideHint', 'The actor held no approver slot on this step — admitted by the admin-override path.')}
+                                data-testid="via-override-chip"
+                              >
+                                <ShieldAlert className="h-3 w-3" aria-hidden />
+                                {tr('viaOverrideChip', 'Admin override')}
+                              </Badge>
+                            )}
                             <span
                               className="ml-auto text-muted-foreground text-[10px]"
                               title={formatDate(a.created_at)}

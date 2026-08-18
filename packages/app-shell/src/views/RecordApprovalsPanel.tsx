@@ -8,7 +8,7 @@
 
 import * as React from 'react';
 import { cn, Badge, Button } from '@object-ui/components';
-import { Stamp, Check, Circle, Paperclip, Loader2, Send } from 'lucide-react';
+import { Stamp, Check, Circle, Paperclip, Loader2, Send, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/react';
@@ -19,6 +19,7 @@ import {
   type ApprovalActionAttachmentLite,
   type ApprovalRequestLite,
 } from '../hooks/useRecordApprovals';
+import { isViaOverrideRow } from '../utils/approvalOverride';
 
 /**
  * RecordApprovalsPanel — the record page's read-only approval surface
@@ -470,14 +471,36 @@ export const RecordApprovalsPanel: React.FC<RecordApprovalsPanelProps> = ({
             <ol className="relative space-y-3 pl-5 before:absolute before:left-[7px] before:top-1 before:bottom-1 before:w-px before:bg-border">
               {actions.map((a) => (
                 <li key={a.id} className="relative text-xs">
+                  {/* objectui#5178 — an admin override does not wear the ordinary
+                      decision's dot. `approve` is emerald here, which is exactly
+                      the "byte-for-byte like an ordinary approval" the card
+                      reports; an override gets the amber attention dot instead,
+                      so the distinction survives a glance down the timeline. */}
                   <span
-                    className={`absolute -left-[18px] top-1 h-3 w-3 rounded-full ring-2 ring-background ${ACTION_DOT[a.action] ?? 'bg-muted-foreground'}`}
+                    className={`absolute -left-[18px] top-1 h-3 w-3 rounded-full ring-2 ring-background ${
+                      isViaOverrideRow(a) ? 'bg-amber-500' : ACTION_DOT[a.action] ?? 'bg-muted-foreground'
+                    }`}
                     aria-hidden
                   />
                   <div className="flex items-baseline gap-1.5 flex-wrap">
                     <span className="font-medium">{actionText(a)}</span>
                     <span className="text-muted-foreground">·</span>
                     <span title={a.actor_id || ''}>{actorName(a)}</span>
+                    {/* The marker framework#4466 wrote and nothing read. Only an
+                        explicit `via_override: true` earns it — see
+                        `isViaOverrideRow` for why "not recorded" must not
+                        render as either answer. */}
+                    {isViaOverrideRow(a) && (
+                      <Badge
+                        variant="outline"
+                        className="gap-1 border-amber-500/60 px-1.5 py-0 text-[10px] font-medium text-amber-700 dark:text-amber-400"
+                        title={tr('viaOverrideHint', 'The actor held no approver slot on this step — admitted by the admin-override path.')}
+                        data-testid="via-override-chip"
+                      >
+                        <ShieldAlert className="h-3 w-3" aria-hidden />
+                        {tr('viaOverrideChip', 'Admin override')}
+                      </Badge>
+                    )}
                     {a.step_name && (
                       <span className="text-muted-foreground">· {prettifyMachineName(a.step_name)}</span>
                     )}
