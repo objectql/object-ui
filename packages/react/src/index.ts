@@ -6,24 +6,24 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-export * from './SchemaRenderer';
-export * from './schema-input';
-export * from './hooks'; // will be empty for now
-export * from './context'; // will be empty for now
-export * from './LazyPluginLoader';
-export * from './spec-bridge';
-export * from './data-invalidation';
+export * from './SchemaRenderer.js';
+export * from './schema-input.js';
+export * from './hooks/index.js'; // will be empty for now
+export * from './context/index.js'; // will be empty for now
+export * from './LazyPluginLoader.js';
+export * from './spec-bridge/index.js';
+export * from './data-invalidation.js';
 // PageComponentSchema.dataSource — mapping the spec's per-element data binding
 // onto the schema keys each object-bound block reads (objectstack#6953).
-export * from './element-data-source/ElementDataSourceGate';
+export * from './element-data-source/ElementDataSourceGate.js';
 
 // i18n utilities
-export { resolveKeyedI18nLabel } from './utils/i18n';
+export { resolveKeyedI18nLabel } from './utils/i18n.js';
 
 // Write-error surfacing utilities (shared by drag-write plugins so a failed
 // PATCH — e.g. an RLS 403 — is never silently swallowed).
-export { extractWriteErrorMessage, isPermissionError, extractFieldErrors, classifyLoadError } from './utils/error-message';
-export type { WriteFieldError, LoadErrorKind } from './utils/error-message';
+export { extractWriteErrorMessage, isPermissionError, extractFieldErrors, classifyLoadError } from './utils/error-message.js';
+export type { WriteFieldError, LoadErrorKind } from './utils/error-message.js';
 
 // Built-in i18n support
 export {

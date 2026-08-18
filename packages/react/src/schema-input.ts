@@ -7,7 +7,7 @@
  */
 
 import type { BaseSchema } from '@object-ui/types';
-import type { SchemaRendererProps } from './SchemaRenderer';
+import type { SchemaRendererProps } from './SchemaRenderer.js';
 
 /**
  * Narrow a loosely-typed metadata node onto {@link SchemaRendererProps.schema}.

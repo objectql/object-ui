@@ -31,7 +31,7 @@ import {
   type ElementDataSourceConfig,
   type ElementSavedView,
 } from '@object-ui/core';
-import { SchemaRendererContext } from '../context/SchemaRendererContext';
+import { SchemaRendererContext } from '../context/SchemaRendererContext.js';
 
 /**
  * Where a resolution attempt stands. Distinguishing `loading` from `missing`

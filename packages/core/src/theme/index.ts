@@ -24,4 +24,4 @@ export {
   resolveMode,
   contrastRatio,
   meetsContrastLevel,
-} from './ThemeEngine';
+} from './ThemeEngine.js';

@@ -16,11 +16,11 @@
  * @packageDocumentation
  */
 
-import type { BaseSchema, SchemaNode } from './base';
-import type { ActionSchema } from './crud';
-import type { TableColumn } from './data-display';
-import type { FormField } from './form';
-import type { SelectOptionMetadata } from './field-types';
+import type { BaseSchema, SchemaNode } from './base.js';
+import type { ActionSchema } from './crud.js';
+import type { TableColumn } from './data-display.js';
+import type { FormField } from './form.js';
+import type { SelectOptionMetadata } from './field-types.js';
 
 /**
  * View Type

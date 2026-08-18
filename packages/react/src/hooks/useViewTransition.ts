@@ -7,7 +7,7 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import { useReducedMotion } from './useReducedMotion';
+import { useReducedMotion } from './useReducedMotion.js';
 
 // ---------------------------------------------------------------------------
 // Types

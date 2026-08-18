@@ -7,7 +7,7 @@ export {
   type DateFormatOptions,
   type CurrencyFormatOptions,
   type NumberFormatOptions,
-} from './formatting';
+} from './formatting.js';
 
 export {
   resolvePlural,
@@ -18,16 +18,16 @@ export {
   type SpecDateFormat,
   type SpecNumberFormat,
   type SpecLocaleConfig,
-} from './spec-formatters';
+} from './spec-formatters.js';
 
 export {
   isSpecTranslationData,
   transformSpecTranslations,
   type SpecTranslationData,
-} from './spec-translations';
+} from './spec-translations.js';
 
 export {
   formatDisplayNumber,
   shouldGroupDisplayNumber,
   type DisplayNumberFormatOptions,
-} from './number-display';
+} from './number-display.js';

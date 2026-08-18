@@ -59,7 +59,7 @@
  *    the code that reads it.
  */
 
-import type { ChartSeriesBinding } from './chart-series';
+import type { ChartSeriesBinding } from './chart-series.js';
 
 /** Authored spec `ChartSeries` presentation, in the renderer's internal spelling. */
 export interface AuthoredSeriesPresentation {

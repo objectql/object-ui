@@ -7,7 +7,7 @@
  */
 
 import { useMemo } from 'react';
-import { useReducedMotion } from './useReducedMotion';
+import { useReducedMotion } from './useReducedMotion.js';
 
 // ---------------------------------------------------------------------------
 // Types aligned with @objectstack/spec v2.0.7 PageTransitionSchema

@@ -16,9 +16,9 @@
  * @packageDocumentation
  */
 
-import type { BaseSchema, SchemaNode } from './base';
-import type { FormField } from './form';
-import type { TableColumn } from './data-display';
+import type { BaseSchema, SchemaNode } from './base.js';
+import type { FormField } from './form.js';
+import type { TableColumn } from './data-display.js';
 
 /**
  * Action execution mode for chaining

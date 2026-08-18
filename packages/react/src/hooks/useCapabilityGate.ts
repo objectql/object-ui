@@ -30,8 +30,8 @@
  */
 
 import { useCallback, useContext } from 'react';
-import { ActionCtxReact } from '../context/ActionContext';
-import { usePredicateScope } from './useExpression';
+import { ActionCtxReact } from '../context/ActionContext.js';
+import { usePredicateScope } from './useExpression.js';
 
 /**
  * The caller's system capabilities, or `undefined` when the host never supplied

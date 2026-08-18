@@ -16,7 +16,7 @@
  *   ActionSchema[] → ActionEngine → ActionRunner → ActionResult
  */
 
-import { ActionRunner, type ActionDef, type ActionContext, type ActionResult } from './ActionRunner';
+import { ActionRunner, type ActionDef, type ActionContext, type ActionResult } from './ActionRunner.js';
 import { toPredicateInput } from '../evaluator/predicateInput.js';
 import { hasDeclaredPredicate } from '../evaluator/declaredPredicate.js';
 

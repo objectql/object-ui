@@ -18,9 +18,9 @@
  * @packageDocumentation
  */
 
-import type { BaseSchema } from './base';
+import type { BaseSchema } from './base.js';
 import type { BulkActionOperation } from '@objectstack/spec/ui';
-import type { FormField } from './form';
+import type { FormField } from './form.js';
 // ListView type is now derived from the zod schema (issue #2231) — see ListViewSchema below.
 import type { ListViewInferred } from './zod/objectql.zod.js';
 

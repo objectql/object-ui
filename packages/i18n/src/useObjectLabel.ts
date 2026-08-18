@@ -18,8 +18,8 @@
  */
 
 import { useMemo } from 'react';
-import { useObjectTranslation } from './provider';
-import { I18N_PROBE_FLAG } from './i18n';
+import { useObjectTranslation } from './provider.js';
+import { I18N_PROBE_FLAG } from './i18n.js';
 
 /**
  * Built-in Object UI top-level locale keys — not app namespaces.

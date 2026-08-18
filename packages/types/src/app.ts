@@ -51,7 +51,7 @@ import type {
   ActionNavItem as SpecActionNavItem,
   ComponentNavItem as SpecComponentNavItem,
 } from '@objectstack/spec/ui';
-import type { BaseSchema } from './base';
+import type { BaseSchema } from './base.js';
 
 // ============================================================================
 // Unified Navigation Model (aligned with @objectstack/spec)

@@ -31,7 +31,7 @@ import {
   type ActionContext,
   type ActionResult,
 } from '@object-ui/core';
-import { ActionCtxReact } from '../context/ActionContext';
+import { ActionCtxReact } from '../context/ActionContext.js';
 
 export interface UseActionEngineOptions {
   /** Action definitions to register */

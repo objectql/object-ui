@@ -12,7 +12,7 @@
  * @param defaults - Fallback English translations keyed by i18n key
  * @param testKey - A key to test if i18n is properly configured (must be in defaults)
  */
-import { useObjectTranslation } from './provider';
+import { useObjectTranslation } from './provider.js';
 
 /**
  * The i18next option that names the string to use when the lookup misses.

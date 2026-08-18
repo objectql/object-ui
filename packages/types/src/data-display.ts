@@ -16,7 +16,7 @@
  */
 
 import type { ChartType as SpecChartType } from '@objectstack/spec/ui';
-import type { BaseSchema, SchemaNode } from './base';
+import type { BaseSchema, SchemaNode } from './base.js';
 
 /**
  * Alert component

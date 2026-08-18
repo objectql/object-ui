@@ -23,10 +23,10 @@
 
 import type { RunnableActionType, UIActionSchema } from '@object-ui/types';
 import type { Action as SpecActionInput } from '@objectstack/spec/ui';
-import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
-import { hasDeclaredPredicate } from '../evaluator/declaredPredicate';
-import { globalUndoManager, type UndoableOperation } from './UndoManager';
-import { warnOnDeprecatedObjectParams, warnOnUnknownActionKeys } from './actionKeys';
+import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator.js';
+import { hasDeclaredPredicate } from '../evaluator/declaredPredicate.js';
+import { globalUndoManager, type UndoableOperation } from './UndoManager.js';
+import { warnOnDeprecatedObjectParams, warnOnUnknownActionKeys } from './actionKeys.js';
 
 export interface ActionResult {
   success: boolean;

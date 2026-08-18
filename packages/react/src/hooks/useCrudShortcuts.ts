@@ -10,7 +10,7 @@ import { useMemo } from 'react';
 import {
   useKeyboardShortcuts,
   type KeyboardShortcutDefinition,
-} from './useKeyboardShortcuts';
+} from './useKeyboardShortcuts.js';
 
 export interface CrudShortcutCallbacks {
   onCreate?: () => void;
