@@ -111,6 +111,12 @@ interface Case {
   noProvider?: boolean;
   /** Drop `objectName` — a pure inline data grid with no object semantics. */
   noObjectName?: boolean;
+  /**
+   * Address the object through the DATA CONFIG only (`{ provider: 'object',
+   * object: … }`) with no top-level `objectName`. ObjectGrid resolves the name
+   * from either; ListView's gate reads only `schema.objectName`.
+   */
+  objectViaDataConfig?: boolean;
 }
 
 function makeDataSource(c: Case) {
@@ -144,7 +150,8 @@ function renderGrid(c: Case) {
   const ds = makeDataSource(c);
   const schema: any = {
     type: 'object-grid',
-    ...(c.noObjectName ? {} : { objectName: OBJECT }),
+    ...(c.noObjectName || c.objectViaDataConfig ? {} : { objectName: OBJECT }),
+    ...(c.objectViaDataConfig ? { data: { provider: 'object', object: OBJECT } } : {}),
     ...(c.editable != null ? { editable: c.editable } : {}),
     singleClickEdit: true,
     columns: [{ field: 'name', label: 'Name', type: 'text' }],
@@ -289,6 +296,22 @@ describe('ObjectGrid inline edit vs the object-level affordance (#5143)', () => 
     expect(await entersEditState({ permUpdate: true })).toBe(false);
     cleanup();
     expect(await entersEditState({ editable: false, permUpdate: true })).toBe(false);
+  });
+
+  it('an object addressed through the DATA CONFIG is gated here too — this is the only gate on that shape', async () => {
+    // Not a redundant copy of ListView's gate. ObjectGrid resolves
+    // `objectName = dataConfig.object ?? schema.objectName`, while ListView's
+    // `inlineEditOffered` reads `schema.objectName` alone — so a grid whose
+    // object identity arrives ONLY through `data: { provider: 'object', object:
+    // … }` falls through ListView's `schema.objectName ? … : true` branch open
+    // and is judged solely by the verdict resolved in this component. Pinned so
+    // that narrowing `objectName` back to the schema key fails here rather than
+    // silently reopening the door on that shape.
+    expect(await entersEditState({ editable: true, objectViaDataConfig: true, permUpdate: false }))
+      .toBe(false);
+    cleanup();
+    expect(await entersEditState({ editable: true, objectViaDataConfig: true, permUpdate: true }))
+      .toBe(true);
   });
 
   it('a pure inline data grid with no object semantics is untouched', async () => {

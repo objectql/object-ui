@@ -769,10 +769,20 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   //
   // The authored key stays the gate's left half, so this narrows and never
   // widens: no verdict can turn inline editing ON for a grid that did not ask
-  // for it. When ListView owns this grid it has ALREADY ANDed the same
-  // conjunction into the `editable` it hands down (#4647 / PR #5145) — the two
-  // gates are the same predicate, so the second application is idempotent, not
-  // a second, differently-shaped door.
+  // for it.
+  //
+  // When ListView owns this grid it has already ANDed its own copy of this
+  // conjunction into the `editable` it hands down (#4647 / PR #5145), so on
+  // that path the second application is idempotent — A ∧ B, then ∧ B again.
+  // The two are NOT the same predicate everywhere, though, and the difference
+  // runs in the safe direction: ListView reads `schema.objectName`, while
+  // `objectName` here is `dataConfig.object ?? schema.objectName`. A grid whose
+  // object identity arrives only through its data config (`{ provider:
+  // 'object', object: … }`, no top-level `objectName`) falls through ListView's
+  // `schema.objectName ? … : true` branch OPEN and is judged solely here. This
+  // gate is therefore the only one on that shape, not a redundant copy of
+  // ListView's — verified rather than assumed, since "it's already gated
+  // upstream" is exactly the reasoning that left this door open to begin with.
   const inlineEditable = (schema.editable ?? false) && objectInlineEditable;
 
   // When the consumer wired onEdit/onDelete callbacks but the view schema
