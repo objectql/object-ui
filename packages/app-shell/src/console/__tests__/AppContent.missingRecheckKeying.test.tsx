@@ -47,7 +47,7 @@
 
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 
@@ -142,6 +142,18 @@ const refreshMetadata = vi.fn(() => {
   });
 });
 
+/**
+ * Whether the host hands back a FRESH `refresh` identity on every render.
+ *
+ * The shipped `MetadataProvider` memoizes it (`useCallback`), so the stable
+ * default is the ordinary case. But `refresh` is a dependency of the re-check
+ * effect, and a host that does not memoize — `apps/console`'s own AppContent
+ * tests mock it that way — makes that effect run after EVERY render. Any
+ * unconditional state update in its body then becomes an infinite render loop.
+ * The default here was stable-only, which is exactly why the first version of
+ * this fix shipped that loop past this file.
+ */
+let unstableRefreshIdentity = false;
 vi.mock('../../providers/MetadataProvider', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useMetadata: () => ({
@@ -152,7 +164,7 @@ vi.mock('../../providers/MetadataProvider', async (importOriginal) => ({
     // first render (mirrors a host that ships metadata eagerly).
     ensureType: undefined,
     error: null,
-    refresh: refreshMetadata,
+    refresh: unstableRefreshIdentity ? () => refreshMetadata() : refreshMetadata,
   }),
 }));
 
@@ -195,6 +207,29 @@ function renderConsoleAt(initialUrl: string) {
   );
 }
 
+/**
+ * A lazily-imported child mounted through `extraRoutes`, i.e. inside the
+ * resolved-app route tree. It resolves on a short timer rather than a
+ * microtask, so the assertion measures React getting far enough to commit it —
+ * the thing a render loop takes away.
+ */
+const LazyProbe = lazy(
+  () =>
+    new Promise<{ default: () => React.ReactElement }>(resolve => {
+      setTimeout(() => resolve({ default: () => <div data-testid="lazy-probe" /> }), 10);
+    }),
+);
+const lazyProbeRoute = (
+  <Route
+    path="lazy-probe"
+    element={
+      <Suspense fallback={null}>
+        <LazyProbe />
+      </Suspense>
+    }
+  />
+);
+
 /** Navigate WITHOUT remounting `AppContent` — the transition under test. */
 function goTo(url: string) {
   navTarget = url;
@@ -229,6 +264,7 @@ describe('AppContent — the post-publish re-check is keyed to the app it ran fo
     refreshMode = 'immediate';
     pendingRefreshes = [];
     navTarget = '/apps/beta';
+    unstableRefreshIdentity = false;
   });
 
   it('THE DEFECT — a freshly published app reached SECOND in one mount still gets its re-check', async () => {
@@ -327,5 +363,43 @@ describe('AppContent — the post-publish re-check is keyed to the app it ran fo
     expect(await screen.findByTestId('app-not-available-retry')).toBeInTheDocument();
     await settle();
     expect(refreshMetadata).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * THE REGRESSION THIS FIX SHIPPED ONCE, and the reason the effect's early
+   * return is guarded by an `if` rather than leaning on React's bailout.
+   *
+   * With a host that returns a fresh `refresh` identity per render, the effect
+   * re-runs after every render; an unconditional `setMissingRecheckRun` in the
+   * reset branch then re-renders, which re-runs the effect, forever. Nothing
+   * about it reads as a "wrong screen" — what it breaks is everything
+   * downstream that needs the render loop to quiesce, above all a LAZY route,
+   * which never mounts. That is how it was caught in CI, one package over, in
+   * `apps/console/src/__tests__/AppContent.systemHubRoutes.test.tsx`: its
+   * record route stayed permanently empty (measured: still empty after 9s,
+   * with 4250 un-acted updates in the first second).
+   *
+   * So the pin here is the CONSEQUENCE, not a render count. A render count
+   * cannot carry it: this surface already churns under these mocks — measured
+   * on unmodified `origin/main`, 20 and 66 renders per 20ms window for the two
+   * cases below — because the auth mock hands back a fresh `getAuthConfig`
+   * each render and the features effect writes a fresh `{}`. That churn is
+   * pre-existing and out of scope here (the fix as landed lowers it to 2 and
+   * 12), but it means any bound tight enough to catch the loop would fail on
+   * `main` too. A lazy child either mounts or it does not.
+   */
+  it('MUST NOT LOOP — a lazy route under a resolved app still mounts when the host re-creates `refresh` every render', async () => {
+    unstableRefreshIdentity = true;
+
+    render(
+      <MemoryRouter initialEntries={['/apps/crm/lazy-probe']}>
+        <Routes>
+          <Route path="/apps/:appName/*" element={<AppContent extraRoutes={lazyProbeRoute} />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Under the loop this never arrived — not at 1s, and not at 9s.
+    expect(await screen.findByTestId('lazy-probe')).toBeInTheDocument();
   });
 });

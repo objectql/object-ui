@@ -247,7 +247,21 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
     missingRecheckRun && missingRecheckRun.app === appName ? missingRecheckRun.phase : 'idle';
   useEffect(() => {
     if (!requestedAppMissing) {
-      setMissingRecheckRun(run => (run === null ? run : null));
+      // ⛔ The `if` is load-bearing — do not "simplify" it into an
+      // unconditional `setMissingRecheckRun(null)` (or the functional form
+      // `run => run === null ? run : null`, which reads as if React's bailout
+      // covers it). `refreshMetadata` is a dep of this effect and its identity
+      // comes from the HOST's metadata context: the shipped `MetadataProvider`
+      // memoizes it, but a host — or a test — that hands back a fresh function
+      // each render makes this effect run after every render. With no state
+      // update in the body that is a no-op; with one, it is an infinite render
+      // loop, and the surface it starves is the LAZY route inside
+      // `ConsoleLayout`, which then never mounts. Measured while landing
+      // objectui#4522: 4250 un-acted updates in one second and a permanently
+      // empty content area on `/apps/setup/system/record/workgroups`, pinned
+      // now by `apps/console/src/__tests__/AppContent.systemHubRoutes.test.tsx`
+      // and by the resolved-app case in this state's own test file.
+      if (missingRecheckRun !== null) setMissingRecheckRun(null);
       return;
     }
     if (missingRecheck === 'idle' && !metadataLoading && !previewDrafts && appName) {
@@ -262,7 +276,7 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
         setMissingRecheckRun(run => (run?.app === rechecked ? { app: rechecked, phase: 'done' } : run)),
       );
     }
-  }, [requestedAppMissing, metadataLoading, previewDrafts, missingRecheck, appName, refreshMetadata]);
+  }, [requestedAppMissing, metadataLoading, previewDrafts, missingRecheck, missingRecheckRun, appName, refreshMetadata]);
 
   // objectui#4252 — WHY the app is missing, once the re-check above has settled
   // and it still is. The list this reads is the generic metadata list route
