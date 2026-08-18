@@ -246,7 +246,7 @@ const UNGATED_DOCS = {
   'packages/components/README.md':
     '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/core/README.md':
-    '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2339x2 TS2351x1 — candidate real defects, un-triaged',
+    '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2339x2 — candidate real defects, un-triaged',
   'packages/data-objectstack/README.md':
     '10 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 41 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/fields/README.md':

@@ -225,6 +225,15 @@ This is a **real PR gate**, and it is easy to miss because it is not part of CI 
   known gap. turbo skips scriptless packages silently, so without this guard a package reads as
   clean because nothing ever linted it.
 - Then `pnpm lint`.
+- Then `pnpm check` — this repository's own tree run through `objectui check`, the command the CLI
+  ships. The step builds the CLI and its workspace dependency closure first, through pnpm rather
+  than turbo: the root script executes `packages/cli/dist/`, this job installs without building, and
+  a turbo cache hit can replay a build that writes no `dist/` at all — either way the step would
+  then fail for a reason that has nothing to do with the tree being checked. Nothing ran this
+  command until
+  [#5246](https://github.com/objectstack-ai/objectui/issues/5246) — it had been exiting 1 on `main`
+  for as long as any `tsconfig.json` carried a comment
+  ([#5237](https://github.com/objectstack-ai/objectui/issues/5237)), and no gate ever asked.
 
 **It gates errors, not warnings.** `--max-warnings` is deliberately unset: the repository carries
 thousands of warnings (overwhelmingly `no-explicit-any`, plus React Compiler rules the config
@@ -234,6 +243,12 @@ sets to `error` — including the custom `object-ui/*` ratchets, each of which c
 issue it came from in a comment beside the rule itself. Until #2923 this workflow was
 `workflow_dispatch`-only, so every one of those `error` ratchets was inert: each was written
 specifically to fail CI, and nothing ran them.
+
+The `pnpm check` step splits the same way, and by the command's own behaviour rather than by a flag
+set here: `objectui check` exits non-zero on parse errors only, while its unknown-schema-type
+warnings print and leave the exit code alone. This gate neither promotes those warnings to failures
+nor suppresses them from the log — [#5127](https://github.com/objectstack-ai/objectui/issues/5127)
+owns that arm and is open.
 
 ## Control Bytes (`control-bytes.yml`)
 
