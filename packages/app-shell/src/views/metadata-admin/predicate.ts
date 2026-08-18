@@ -104,6 +104,43 @@
  * header says, this file is an interim stand-in for `@objectstack/formula`, so
  * **this diagnostic retires with the file** when ROADMAP M9 lands CEL. Do not
  * grow it into a second evaluator.
+ *
+ * ## An unparseable element inside `in [...]` also fails silently (objectui#4266)
+ *
+ * `path in [...]` hands the bracketed text to `parseLiteral`'s array branch,
+ * which JSON-parses it after normalising quotes. An element that is not a JSON
+ * literal — a path, a bare identifier, a trailing comma — makes that
+ * `JSON.parse` throw, and the `catch` returned `[]` with nothing in the
+ * console. `[].includes(anything)` is `false`, so the predicate silently reads
+ * FALSE FOR EVERY ROW, and — because the parse is whole-set, not per-element —
+ * one bad element discards every good literal sitting next to it too:
+ * `data.type in ['text', data.a]` collapsed exactly as hard as `data.type in
+ * [data.a]` alone.
+ *
+ * Same family as objectui#4049 (silently wrong verdict, zero warning) and the
+ * same ruling: **diagnose only, zero semantic change.** The `catch` still
+ * returns `[]` — an `in` set that fails to parse is still, and remains, the
+ * empty set — this file does not gain the ability to resolve a path inside
+ * `in [...]` (that stays outside the declared subset; #4049 already draws
+ * that boundary for the right side of `==`/`!=` and it is not reopened here).
+ * All that changes is that the console names the predicate and, best-effort,
+ * the element that broke the parse, instead of staying silent. Verdicts are
+ * pinned identical before and after in `predicate.test.ts` §8.3, the same
+ * shape as #4049's §7.3.
+ *
+ * A louder option — making the whole predicate throw so the top-level
+ * fail-open in {@link evaluatePredicate} turns it `true`, mirroring
+ * objectstack#6936's unresolved-path ruling — was considered and rejected:
+ * #6936's `true` verdict corrects a fail-CLOSED bug (a hidden field is worse
+ * than a shown one), but here the existing verdict (`false`, i.e. hidden) is
+ * not a bug — it is the documented behaviour for a set this evaluator cannot
+ * parse, same as `#4049`'s tail returning the right-hand text verbatim
+ * instead of resolving it. Flipping it to fail-open `true` would be a
+ * semantic change with no ruling behind it, and would make an authoring
+ * mistake (a stray non-literal element) MORE visible than a correctly
+ * authored predicate that legitimately evaluates false — exactly backwards.
+ *
+ * This diagnostic retires with the file at ROADMAP M9, same as #4049's.
  */
 
 export function evaluatePredicate(
@@ -151,10 +188,20 @@ const warnedUnresolvedPaths = new Set<string>();
  */
 const warnedPathShapedLiterals = new Set<string>();
 
+/**
+ * The same warn-once discipline for the `in`-array parse-failure diagnostic
+ * (objectui#4266), keyed on (raw set text, predicate) for the same reason as
+ * the two Sets above: keying on the set text alone would report the first
+ * predicate carrying it and stay silent about a sibling predicate that
+ * happens to spell the same broken set.
+ */
+const warnedUnparseableInSets = new Set<string>();
+
 /** Reset the warn-once memos. Exported for tests. */
 export function resetPredicateWarnings(): void {
   warnedUnresolvedPaths.clear();
   warnedPathShapedLiterals.clear();
+  warnedUnparseableInSets.clear();
 }
 
 const isDev = (): boolean =>
@@ -207,6 +254,56 @@ function warnPathShapedLiteral(text: string, source: string): void {
       'paths, that is outside this evaluator\'s subset: it is an interim stand-in for ' +
       '`@objectstack/formula` until CEL lands (ROADMAP M9), and predicate expressions are ' +
       'validated at publish time (objectstack#7010). objectui#4049.',
+  );
+}
+
+/**
+ * Best-effort identification of WHICH element inside an unparseable `in [...]`
+ * set actually broke the parse — for the warning text only, never to change
+ * the return value. Splits on top-level commas (reusing `splitTopLevel`,
+ * which already tracks bracket depth and quotes for the `&&`/`||` splitters
+ * above) and re-runs the exact same quote-normalising `JSON.parse` the array
+ * branch itself uses, one element at a time, so the reported culprit is
+ * judged by literally the same rule that judged the whole set. Returns `null`
+ * when every individual element parses fine on its own (e.g. a stray trailing
+ * comma broke the whole-string parse but no single element is at fault) —
+ * the warning then falls back to naming the whole set.
+ */
+function findUnparseableSetElement(raw: string): string | null {
+  const inner = raw.slice(1, -1);
+  if (!inner.trim()) return null;
+  for (const part of splitTopLevel(inner, ',')) {
+    const el = part.trim();
+    if (!el) continue;
+    try {
+      const json = el.replace(/'([^']*)'/g, (_, innerStr) => JSON.stringify(innerStr));
+      JSON.parse(json);
+    } catch {
+      return el;
+    }
+  }
+  return null;
+}
+
+function warnUnparseableInSet(raw: string, source: string): void {
+  if (!isDev()) return;
+  const memo = `${raw}::${source}`;
+  if (warnedUnparseableInSets.has(memo)) return;
+  warnedUnparseableInSets.add(memo);
+  const element = findUnparseableSetElement(raw);
+  console.warn(
+    `[metadata-admin] visibility predicate \`${source}\` has an \`in\` set \`${raw}\`` +
+      (element != null
+        ? ` containing \`${element}\`, which is not a literal this evaluator can parse — `
+        : ', which this evaluator could not parse — ') +
+      'the WHOLE set was treated as EMPTY, so the predicate is FALSE for every row (not just the ' +
+      'element that failed — one bad element discards the good literals next to it too). This ' +
+      "evaluator only supports literal elements inside `in [...]` (supported subset: `path in " +
+      "['a','b']`); it does not resolve paths there — paths resolve only on the LEFT of an operator " +
+      '(objectui#4049). If you meant a literal, quote it. If you meant to test membership against ' +
+      "another field, that is outside this evaluator's subset: it is an interim stand-in for " +
+      '`@objectstack/formula` until CEL lands (ROADMAP M9), and predicate expressions are validated ' +
+      'at publish time (objectstack#7010). objectui#4266.',
   );
 }
 
@@ -334,6 +431,11 @@ function parseLiteral(raw: string, source: string): unknown {
       const json = s.replace(/'([^']*)'/g, (_, inner) => JSON.stringify(inner));
       return JSON.parse(json);
     } catch {
+      // Whole-set parse failure (a non-literal element, a trailing comma, …).
+      // Diagnose only (objectui#4266) — the verdict is UNTOUCHED: the set is
+      // still `[]`, `in` is still false for every row. See the header section
+      // "An unparseable element inside `in [...]` also fails silently".
+      warnUnparseableInSet(s, source);
       return [];
     }
   }

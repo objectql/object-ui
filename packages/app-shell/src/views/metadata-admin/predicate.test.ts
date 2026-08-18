@@ -454,3 +454,106 @@ describe('a path-shaped right-hand side is diagnosed, not resolved (objectui#404
     expect(evaluatePredicate(expr as string, scope(row as Record<string, unknown>))).toBe(expected);
   });
 });
+
+/* ── 8. a non-literal element inside `in [...]` is diagnosed (objectui#4266) ── */
+
+/**
+ * objectui#4266. `parseLiteral`'s array branch JSON-parses the bracketed text
+ * after normalising quotes; an element that is not a JSON literal (a path, a
+ * bare identifier, a trailing comma) makes that `JSON.parse` throw, and the
+ * `catch` returned `[]` with nothing in the console — `in` reads FALSE FOR
+ * EVERY ROW, and because the parse is whole-set, one bad element discards the
+ * good literals sitting next to it too.
+ *
+ * Ruling on this card: **diagnose only, zero semantic change** — the same
+ * posture #4049 took for the right-hand-literal tail. The `catch` still
+ * returns `[]`; the verdicts are pinned IDENTICAL before and after (§8.3);
+ * all that changes is that the console stops being silent.
+ */
+describe('a non-literal element inside `in [...]` is diagnosed, not resolved (objectui#4266)', () => {
+  /* 8.1 — it fires, and it names the predicate and the culprit element */
+
+  it('`data.type in [data.a]` warns, naming the predicate and the unparseable element', () => {
+    expect(evaluatePredicate('data.type in [data.a]', scope({ type: 'text', a: 'text' }))).toBe(false);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warnings()).toContain('data.type in [data.a]');
+    expect(warnings()).toContain('`data.a`');
+  });
+
+  it('a bare (unresolvable-shaped) identifier element is named too', () => {
+    expect(evaluatePredicate("data.type in ['text', foo]", scope({ type: 'text' }))).toBe(false);
+    expect(warnings()).toContain('`foo`');
+  });
+
+  it('a trailing comma with otherwise-literal elements still warns, falling back to the whole set', () => {
+    // No single element is at fault here — every element parses fine on its
+    // own, so `findUnparseableSetElement` finds none, and the warning names
+    // the whole broken set instead of guessing at (and misnaming) a culprit.
+    expect(evaluatePredicate("data.type in ['a','b',]", scope({ type: 'a' }))).toBe(false);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warnings()).toContain("data.type in ['a','b',]");
+    expect(warnings()).not.toContain('containing `');
+  });
+
+  /* 8.2 — one bad element still discards the good literals beside it, and the
+     warning names the ONE that actually broke the parse, not the whole set
+     blindly */
+
+  it('one non-literal element collapses the WHOLE set, including the good literals next to it', () => {
+    // Both sides hold 'text' — a working `in` would be true. It is false,
+    // matching the pre-fix whole-set collapse; only the console changes.
+    expect(evaluatePredicate("data.type in ['text', data.a]", scope({ type: 'text', a: 'text' }))).toBe(
+      false,
+    );
+    expect(warnings()).toContain('`data.a`');
+    // The warning names the culprit, not the innocent literal beside it.
+    expect(warnings()).not.toContain("containing `'text'`");
+  });
+
+  /* 8.3 — the zero-semantics proof: verdicts identical to pre-change */
+
+  it.each([
+    ['data.type in [data.a]', { type: 'text', a: 'text' }, false], // would be true if paths resolved
+    ["data.type in ['text', data.a]", { type: 'text', a: 'text' }, false], // good literal discarded too
+    ["data.type in [data.a,]", { type: 'text', a: 'text' }, false],
+  ])('%s over %j is still %s — the diagnostic changes no verdict', (expr, row, expected) => {
+    expect(evaluatePredicate(expr, scope(row as Record<string, unknown>))).toBe(expected);
+  });
+
+  /* 8.4 — controls: literal-only `in` sets are completely unaffected */
+
+  it.each([
+    ["data.type in ['text','textarea']", { type: 'text' }, true],
+    ["data.type in ['number','currency']", { type: 'text' }, false],
+    ["data.type in ['a', 'b', 'c']", {}, false],
+  ])('%s over %j → %s, silently (literal path unperturbed)', (expr, row, expected) => {
+    expect(evaluatePredicate(expr, scope(row as Record<string, unknown>))).toBe(expected);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  /* 8.5 — warn-once discipline, same bar as #6936 and #4049 */
+
+  it('warns ONCE per (predicate, set) pair, not once per evaluation', () => {
+    for (let i = 0; i < 5; i++) evaluatePredicate('data.type in [data.a]', scope({ type: 'text', a: 'x' }));
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('but a different predicate carrying the same broken set gets its own warning', () => {
+    evaluatePredicate('data.type in [data.a]', scope({ type: 'text', a: 'x' }));
+    evaluatePredicate('data.kind in [data.a]', scope({ kind: 'text', a: 'x' }));
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  /* 8.6 — dev-mode only */
+
+  it('the diagnostic is dev-mode only', () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      expect(evaluatePredicate('data.type in [data.a]', scope({ type: 'text', a: 'text' }))).toBe(false);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+});
