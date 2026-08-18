@@ -175,3 +175,58 @@ jobs:
       - name: Run linter
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm lint
+
+      # ── The product's own check command, on the product's own tree ────────
+      # `objectui check` is what a consumer runs against their schema tree, and
+      # the root `check` script points that same command at this repository.
+      # Nothing ran it. It exited 1 with 64 errors on `main` — and had done
+      # since the first `tsconfig.json` grew a comment — until someone ran it by
+      # hand while measuring something unrelated (objectui#5237, fixed by
+      # #5245). A shipped command sitting red on its own repository is the
+      # dogfood invariant failing, and the reason it could sit there is that no
+      # gate ever asked. This is that gate (objectui#5246).
+      #
+      # The build step below is not a convenience. The root script is
+      # `node packages/cli/dist/cli.js check`, and this job installs without
+      # building, so without it the step dies on a missing file. That failure
+      # mode is worse than no gate at all: it is red for a reason that has
+      # nothing to do with the tree being checked, and the obvious repair from
+      # outside is to delete the step — leaving the hole exactly as it was, now
+      # with a commit saying it was considered.
+      #
+      # `...` is pnpm's dependency closure: the CLI plus every workspace
+      # package it depends on, in topological order, derived from the graph
+      # rather than listed here. The closure is the requirement and not just
+      # tidiness — `dist/cli.js` imports `@object-ui/types`' built output at
+      # startup, so building the CLI package alone produces a binary that
+      # cannot load (objectui#5237 records the same import as the reproduce
+      # recipe's first step).
+      #
+      # Deliberately NOT `turbo run build`, although the Turbo cache above is
+      # restored by this point and would usually make it free. A turbo cache
+      # HIT restores a task's recorded outputs, and an entry recorded with an
+      # empty output set replays as "cache hit, replaying logs" plus FULL
+      # TURBO while writing no `dist/` at all — measured on this repo, where
+      # the CLI then died with ERR_MODULE_NOT_FOUND on the types import above.
+      # A blocking gate must not be able to fail for a reason that lives in a
+      # cache rather than in the tree it is judging, which is the same argument
+      # as the paragraph above one level down. Building through pnpm has no
+      # cache layer to replay, and it costs well under a minute.
+      - name: Build the CLI the self-check runs
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm --filter '@object-ui/cli...' build
+
+      # Errors only, which is the command's existing behaviour rather than a
+      # setting chosen here: a parse failure increments the error count, a
+      # non-zero count is the only thing that exits 1, and the unknown-schema-
+      # type arm prints and moves on. So this step blocks on the same arm
+      # `pnpm lint` above does, and for the same reason — errors are a signal,
+      # the warning stream is known debt. Nothing here promotes those warnings
+      # to failures, and no output-suppressing flag hides them either: they stay
+      # visible in the log and non-blocking. That arm belongs to objectui#5127,
+      # which is open; whatever it settles changes what this step PRINTS, never
+      # what it fails on. No count is quoted, for the reason the `--max-warnings`
+      # paragraph in the header gives.
+      - name: Verify the CLI's own check command passes on this repository
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check
