@@ -46,10 +46,13 @@ const mySchema: PageNodeSchema = {
 ```typescript
 import { ComponentRegistry } from '@object-ui/core'
 
-const registry = new ComponentRegistry()
-registry.register('button', buttonMetadata)
-const metadata = registry.get('button')
+ComponentRegistry.register('button', buttonMetadata)
+const metadata = ComponentRegistry.get('button')
 ```
+
+`ComponentRegistry` is a process-level singleton exported by `@object-ui/core`;
+`SchemaRenderer` resolves every `type` against it, so a component registered
+here is renderable from schema anywhere in the app.
 
 ### Data Scope
 
