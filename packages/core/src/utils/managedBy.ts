@@ -71,14 +71,24 @@ export interface UserActionsOverride {
    * accepts, and that the related-list toolbar now honours
    * (`RelatedRecordActionsBridge`, objectui#4646), was rejected by objectui's
    * own type while the runtime handled it.
-   *
-   * `import` below is deliberately NOT widened. The spec accepts the object
-   * form there too and emits `importPredicates`, but nothing in objectui reads
-   * them yet; widening the type ahead of a consumer would re-declare the
-   * inert-metadata defect this change removes, one key over.
    */
   create?: UserActionOverride;
-  import?: boolean;
+  /**
+   * Bare boolean or the object form — the SAME union as `create` above, which
+   * is how `@objectstack/spec@17.0.0` types the two toolbar keys
+   * (`z.union([z.boolean(), RowCrudActionOverrideSchema])` for each), and its
+   * resolver emits `CrudAffordances.importPredicates` beside
+   * `createPredicates`.
+   *
+   * Widened in objectui#5142, deliberately IN THE SAME change that gave the
+   * object-list toolbar's Import button a consumer for those predicates
+   * (`ObjectView`). objectui#4646 left this key narrow on purpose and said why:
+   * widening a type ahead of its consumer re-declares the inert-metadata defect
+   * — objectui would have *claimed* to accept the object form while still
+   * dropping the predicate. Type and consumer travel together, so the
+   * declaration stays an honest statement of what this renderer honours.
+   */
+  import?: UserActionOverride;
   edit?: UserActionOverride;
   delete?: UserActionOverride;
   exportCsv?: boolean;

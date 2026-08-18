@@ -56,7 +56,7 @@ import { useMobileViewSwitcherRegistration } from '../layout/MobileViewSwitcherC
 import type { MobileViewSwitcherItem } from '../layout/MobileViewSwitcherContext';
 import { ManagedByBadge } from '../components/ManagedByBadge';
 import { RecordDetailView } from './RecordDetailView';
-import { resolveEffectiveCrudAffordances } from '../utils/crudAffordances';
+import { resolveEffectiveCrudAffordances, type RowCrudPredicates } from '../utils/crudAffordances';
 import { createIdentityImportDataSource, IDENTITY_IMPORT_OBJECT, type IdentityPasswordPolicy } from './identityImport';
 import { IdentityImportOptions, IdentityImportResultExtra, identityImportFields } from './IdentityImportPanels';
 import { importTargetFields } from './importTargetFields';
@@ -70,7 +70,7 @@ import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
-import { ActionProvider, useNavigationOverlay, SchemaRenderer, useActionTextLocalizer, RelatedRecordActionsProvider } from '@object-ui/react';
+import { ActionProvider, useNavigationOverlay, SchemaRenderer, useActionTextLocalizer, useRowPredicate, RelatedRecordActionsProvider } from '@object-ui/react';
 import type { RelatedRecordActionsValue, RelatedRecordHandlers } from '@object-ui/react';
 import { toast } from 'sonner';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
@@ -937,6 +937,66 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         if (externalRefreshKey === undefined || externalRefreshKey === 0) return;
         setRefreshKey(k => k + 1);
     }, [externalRefreshKey]);
+
+    /**
+     * [#5142] The object-list toolbar's IMPORT predicates — the `import` half
+     * of the toolbar-scope pair the spec resolver emits, mirroring what
+     * `RelatedRecordActionsBridge` does for `create` (objectui#4646).
+     *
+     * `@objectstack/spec@17.0.0` types `userActions.create` and
+     * `userActions.import` identically and `resolveCrudAffordances` emits a
+     * predicate envelope for each; the docblock binds them in one breath
+     * ("`importPredicates` — same binding as `createPredicates`"). #4646 gave
+     * `create` a consumer and left `import` declared-and-inert: an author could
+     * write `userActions.import.visibleWhen`, have the spec accept it and the
+     * resolver parse it, and watch this toolbar offer the CSV wizard anyway.
+     *
+     * BINDING (the spec docblock's, not an invention here). Unlike the ROW
+     * predicates, a toolbar predicate evaluates ONCE per toolbar against the
+     * record of the scope the toolbar sits in — the host parent record on a
+     * related list, and **no record at all on a standalone object list**, which
+     * is what this surface is. So `null` is passed deliberately below: a
+     * predicate reading `record.*` has nothing to bind, faults, and — per the
+     * fail-CLOSED rule — hides the button, exactly as the spec spells out.
+     * Predicates over the host scope (`os.user.*` / `features.*`) bind normally
+     * and are the meaningful shape here.
+     *
+     * LAYERING: surfaced only when the object-level verdict already passed —
+     * the same posture the related-list bridge takes, because a predicate may
+     * not RE-OPEN what the bucket, the effective API operations (#3391) or the
+     * principal's grant have closed. The identity-import bypass below is a
+     * different affordance entirely (it does not read `affordances.import`) and
+     * is deliberately left outside this layer.
+     */
+    const objectCanImport = affordances.import && can(objectDef.name, 'create');
+    const importPredicates: RowCrudPredicates | undefined = objectCanImport
+      ? affordances.importPredicates
+      : undefined;
+    /**
+     * `visibleWhen` — fails CLOSED, and counts as DECLARED by `?? true` rather
+     * than by truthiness, so `visibleWhen: false` hides Import instead of
+     * reading as "ungated" (the objectui#3492 invariant). The `true` default is
+     * a boolean, which the evaluator short-circuits without touching the engine
+     * — an object with no import predicates pays no evaluation at all.
+     */
+    const importVisible = useRowPredicate(importPredicates?.visibleWhen ?? true, null, {
+      fallback: false,
+      warnOnError: true,
+      label: 'builtin:import:visibleWhen',
+    });
+    /**
+     * `disabledWhen` — fails SOFT (an unevaluable predicate must not grey a
+     * button forever), with the `!= null` declared-ness gate OUTSIDE the
+     * evaluation so `disabledWhen: ''` reads as "no condition" rather than as
+     * "disable". Verbatim the posture of the record header (PR #4515), the
+     * row kebab, and the related-list toolbar.
+     */
+    const importDisabledPred = useRowPredicate(importPredicates?.disabledWhen, null, {
+      fallback: false,
+      warnOnError: true,
+      label: 'builtin:import:disabledWhen',
+    });
+    const importDisabled = importPredicates?.disabledWhen != null && importDisabledPred;
 
     // Import wizard open/close state — toolbar entry triggers it.
     const [showImport, setShowImport] = useState(false);
@@ -2137,11 +2197,15 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                         are inherently a desk/laptop workflow; the button
                         was eating header space on mobile next to the
                         primary "+" action. */}
-                    {(identityImportEnabled || (affordances.import && can(objectDef.name, 'create'))) && (
+                    {/* [#5142] `objectCanImport && importVisible` — the object-level
+                        verdict, then the toolbar-scope `visibleWhen` layer on top of
+                        it. Greyed, not gone, is the `disabledWhen` case below. */}
+                    {(identityImportEnabled || (objectCanImport && importVisible)) && (
                     <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setShowImport(true)}
+                        disabled={importDisabled}
                         className="hidden sm:inline-flex shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9"
                         title={t('console.objectView.importTitle')}
                         data-testid="object-view-import-button"
