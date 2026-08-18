@@ -939,6 +939,46 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     }, [externalRefreshKey]);
 
     /**
+     * [#5153] The object-list toolbar's CREATE predicates — the `create` half
+     * of the toolbar-scope pair on THIS surface. #4646 (PR #5145) gave
+     * `createPredicates` a consumer on the **related list**
+     * (`RelatedRecordActionsBridge`); the standalone object-list page kept
+     * gating its "New" on the object-level verdict alone, so one
+     * `userActions.create` object form got two different verdicts depending on
+     * which surface rendered the button — honoured on a record page's related
+     * list, ignored here. `visibleWhen: false` (the objectui#3492 shape) did
+     * not hide this "New".
+     *
+     * BINDING, LAYERING and the fail-CLOSED / fail-SOFT split are the import
+     * half's, immediately below, verbatim — the spec types the two toolbar keys
+     * identically and binds them in one breath. See that docblock for the
+     * reasoning; the only thing that differs here is which affordance is gated.
+     *
+     * TWO RENDER POINTS, ONE VERDICT. The affordance surfaces twice on this
+     * page — the PageHeader button (desktop) and the phone-only floating "+"
+     * that stands in for it once the header is hidden. They are one affordance
+     * rendered twice, so both consume these SAME two values; computing the
+     * predicate once here is what keeps them from disagreeing with each other.
+     */
+    const objectCanCreate = affordances.create && can(objectDef.name, 'create');
+    const createPredicates: RowCrudPredicates | undefined = objectCanCreate
+      ? affordances.createPredicates
+      : undefined;
+    /** `visibleWhen` — fails CLOSED, declared-ness by `?? true`. As Import. */
+    const createVisible = useRowPredicate(createPredicates?.visibleWhen ?? true, null, {
+      fallback: false,
+      warnOnError: true,
+      label: 'builtin:create:visibleWhen',
+    });
+    /** `disabledWhen` — fails SOFT, `!= null` declared-ness OUTSIDE the eval. */
+    const createDisabledPred = useRowPredicate(createPredicates?.disabledWhen, null, {
+      fallback: false,
+      warnOnError: true,
+      label: 'builtin:create:disabledWhen',
+    });
+    const createDisabled = createPredicates?.disabledWhen != null && createDisabledPred;
+
+    /**
      * [#5142] The object-list toolbar's IMPORT predicates — the `import` half
      * of the toolbar-scope pair the spec resolver emits, mirroring what
      * `RelatedRecordActionsBridge` does for `create` (objectui#4646).
@@ -2185,9 +2225,20 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                       </Button>
                     )}
 
-                    {/* Primary action - always visible */}
-                    {affordances.create && can(objectDef.name, 'create') && (
-                    <Button size="sm" onClick={actions.create} className="shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9">
+                    {/* Primary action.
+                        [#5153] `objectCanCreate && createVisible` — the
+                        object-level verdict, then the toolbar-scope
+                        `visibleWhen` layer on top of it. Greyed, not gone, is
+                        the `disabledWhen` case. Same pair drives the phone FAB
+                        below, so the two render points cannot disagree. */}
+                    {objectCanCreate && createVisible && (
+                    <Button
+                        size="sm"
+                        onClick={actions.create}
+                        disabled={createDisabled}
+                        className="shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9"
+                        data-testid="object-view-new-button"
+                    >
                         <Plus className="h-4 w-4" />
                         <span className="hidden sm:inline">{t('console.objectView.new')}</span>
                     </Button>
@@ -2254,12 +2305,30 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                  PageHeader's primary create action we just hid. Positioned
                  above the bottom mobile-nav (h-12 + safe-area) so it
                  doesn't collide with it. Hidden on tablets/desktops
-                 because the inline header button is already visible. */}
-             {affordances.create && can(objectDef.name, 'create') && (
+                 because the inline header button is already visible.
+
+                 [#5153] Second render point of the SAME affordance, so it
+                 consumes the SAME `objectCanCreate && createVisible` /
+                 `createDisabled` pair as the header button — a phone user and a
+                 desktop user must not get different verdicts for one
+                 `userActions.create` declaration.
+
+                 DISABLED, on a control with no greyed form of its own: this is
+                 a bare `<button>`, not the design system's `Button`, so it
+                 carries none of the latter's `disabled:` treatment. Rather than
+                 collapse the three states to two (which would map
+                 `disabledWhen` onto "hidden" and lose the distinction the spec
+                 draws between hidden and greyed), it takes the native
+                 `disabled` — which is what conveys the state to assistive tech
+                 — plus the same `disabled:opacity-50
+                 disabled:pointer-events-none` utilities `Button` itself uses,
+                 so the visual affordance matches the header button's. */}
+             {objectCanCreate && createVisible && (
                <button
                  type="button"
                  onClick={actions.create}
-                 className="sm:hidden fixed right-4 bottom-36 z-40 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform inline-flex items-center justify-center"
+                 disabled={createDisabled}
+                 className="sm:hidden fixed right-4 bottom-36 z-40 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform inline-flex items-center justify-center disabled:opacity-50 disabled:pointer-events-none"
                  aria-label={t('console.objectView.new')}
                  data-testid="mobile-fab-create"
                >
