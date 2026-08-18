@@ -36,16 +36,26 @@
  *      held promise proves the arm is reachable, so "no longer loading" is not
  *      vacuous.
  *
- * ## Why these observables and not the placeholder copy
+ * ## Why these observables — measured, not assumed
  *
- * Measured, not assumed (the same measurement PR #5226 recorded): Radix
- * `SelectValue` does not render its `placeholder` in jsdom. This widget's
- * trigger holds `value=""` with no matching item, so its accessible name is
- * EMPTY in every completed arm — asserting on "Add fields…" or "Select field…"
- * would have passed for failure, empty and populated alike and pinned nothing.
- * The arms are therefore made structurally distinct and the assertions read the
- * structure: the failure block by its test id, the loading arm by its disabled
- * input, the completed arms by the combobox they render.
+ * PR #5226 recorded that Radix `SelectValue` does not render its `placeholder`
+ * in jsdom. That measurement was taken on `field-ref`, and it does NOT carry
+ * here: `field-ref` holds `value={current || NO_FIELD}`, so an item always
+ * matches and its text wins over the placeholder. This widget holds `value=""`
+ * with no matching item, and the placeholder DOES render. Re-measured on this
+ * widget rather than inherited:
+ *
+ *   completed, catalog empty      → trigger reads "Add fields…"
+ *   completed, catalog populated  → trigger reads "Add fields…"   (identical)
+ *   single-select, catalog empty  → trigger reads "Select field…"
+ *   failed                        → no trigger at all
+ *
+ * So the placeholder cannot tell a MEASURED-empty catalog from a populated one
+ * — it is the same string — and an assertion on it would pass for both. What it
+ * can do is separate a completed load from a failed one, because the failure
+ * arm renders no picker; that direction is asserted below, in both polarities,
+ * alongside the structural reads: the failure block by its test id, the loading
+ * arm by its disabled input, the completed arms by the combobox they render.
  */
 
 import '@testing-library/jest-dom/vitest';
@@ -65,6 +75,12 @@ const LOADING_FIELDS = t('engine.form.loadingFields', 'en-US');
 const LOAD_FAILED_TITLE = t('engine.form.optionsLoadFailedTitle', 'en-US');
 
 const FAILURE_TESTID = 'field-selector-load-failed';
+/**
+ * What the trigger reads on a COMPLETED load, measured (see the header).
+ * `multiple` is true for every case here except where stated, so this is the
+ * sentence a false empty used to show an operator.
+ */
+const ADD_FIELDS = t('engine.form.addFields', 'en-US');
 
 function okResponse(body: unknown): Response {
   return { ok: true, status: 200, json: async () => body } as unknown as Response;
@@ -123,9 +139,10 @@ describe('field-selector — a failed field fetch is not an empty field list (ob
       'NetworkError: failed to fetch',
     );
 
-    // NOT an empty field list: the picker is absent, so nothing on screen can
-    // be read as "this object has no fields".
+    // NOT an empty field list: the picker is absent, so neither the trigger
+    // nor its copy is on screen to be read as "this object has no fields".
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByText(ADD_FIELDS)).not.toBeInTheDocument();
     // …and the loading flag cleared.
     expect(screen.queryByDisplayValue(LOADING_FIELDS)).not.toBeInTheDocument();
 
@@ -144,6 +161,7 @@ describe('field-selector — a failed field fetch is not an empty field list (ob
 
     await waitFor(() => expect(screen.getByTestId(FAILURE_TESTID)).toBeInTheDocument());
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByText(ADD_FIELDS)).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue(LOADING_FIELDS)).not.toBeInTheDocument();
     // The server's own sentence, not a generic one.
     expect(screen.getByTestId(`${FAILURE_TESTID}-cause`)).toHaveTextContent(
@@ -180,6 +198,9 @@ describe('field-selector — a failed field fetch is not an empty field list (ob
     // measurement is still rendered, it is just no longer where a fault lands.
     await waitFor(() => expect(screen.getByRole('combobox')).toBeInTheDocument());
     expect(screen.getByRole('combobox')).toBeDisabled();
+    // The measurement is still spelled out — the fix bought honesty about the
+    // fault without deleting the case where "nothing here" is true.
+    expect(screen.getByText(ADD_FIELDS)).toBeInTheDocument();
     expect(screen.queryByTestId(FAILURE_TESTID)).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue(LOADING_FIELDS)).not.toBeInTheDocument();
   });
