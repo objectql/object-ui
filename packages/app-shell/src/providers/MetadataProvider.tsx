@@ -195,8 +195,12 @@ function principalScope(): string {
  * with, so a key can never describe a principal/tenant pair the server did not
  * filter for.
  */
+function sessionKeyForOrg(type: string, orgScope: string): string {
+  return `${SESSION_STORAGE_PREFIX}${type}:${orgScope}:${principalScope()}`;
+}
+
 function sessionKeyFor(type: string): string {
-  return `${SESSION_STORAGE_PREFIX}${type}:${activeOrgScope()}:${principalScope()}`;
+  return sessionKeyForOrg(type, activeOrgScope());
 }
 
 /**
@@ -511,12 +515,25 @@ function loadFromSession(type: string): any[] | null {
   }
 }
 
-function saveToSession(type: string, items: any[]): void {
+function saveToSession(type: string, items: any[], orgScope: string = activeOrgScope()): void {
   if (typeof sessionStorage === 'undefined') return;
   try {
-    sessionStorage.setItem(sessionKeyFor(type), JSON.stringify(items));
+    sessionStorage.setItem(sessionKeyForOrg(type, orgScope), JSON.stringify(items));
   } catch {
     /* quota or serialization failure */
+  }
+}
+
+/**
+ * Delete the entry a type wrote while the active organization was still
+ * unknown — see {@link NO_ORG_SCOPE} and objectui#5243.
+ */
+function removeNoOrgSeedEntry(type: string): void {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.removeItem(sessionKeyForOrg(type, NO_ORG_SCOPE));
+  } catch {
+    /* storage unavailable */
   }
 }
 
@@ -527,6 +544,9 @@ function saveToSession(type: string, items: any[]): void {
 export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: MetadataProviderProps) {
   const cacheRef = useRef<Map<string, TypeCacheEntry>>(new Map());
   const itemPromisesRef = useRef<Map<string, ItemPromiseMap>>(new Map());
+  // Types whose session entry this boot wrote under NO_ORG_SCOPE because the
+  // active organization had not resolved yet (objectui#5243).
+  const unscopedSeedTypesRef = useRef<Set<string>>(new Set<string>());
   const adapterRef = useRef(adapter);
   adapterRef.current = adapter;
 
@@ -645,7 +665,21 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
           }
           // Never let the draft-overlaid world poison the published session
           // cache — preview is ephemeral by design.
-          if (type === 'app' && !preview) saveToSession(type, items);
+          if (type === 'app' && !preview) {
+            const orgScope = activeOrgScope();
+            saveToSession(type, items, orgScope);
+            // objectui#5243 — remember that THIS boot wrote the entry before
+            // the active organization was known, so the org-resolution effect
+            // below can move it onto the key the next boot will look under.
+            // Recorded per write (not per mount) because it is the write that
+            // either did or did not know its scope; a later write that DOES
+            // know it retires the note.
+            if (orgScope === NO_ORG_SCOPE) {
+              unscopedSeedTypesRef.current.add(type);
+            } else {
+              unscopedSeedTypesRef.current.delete(type);
+            }
+          }
           debug(`fetched type=${type} items=${items.length} in ${Date.now() - started}ms`);
           bump();
           return items;
@@ -822,7 +856,47 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
     // throw away the eager `app`/`object`/`view` fetches while they are still
     // in flight and make the next render refetch all three — precisely the
     // doubled-request regression objectui#4042 pinned.
-    if (previous === null || previous === activeOrgId) return;
+    if (previous === null || previous === activeOrgId) {
+      // ── The seed written before the org was known (objectui#5243) ────────
+      //
+      // Not a switch, but it IS the moment the scope of this boot's own seed
+      // entry becomes known. On a browser that has never signed in,
+      // `ActiveOrganizationStorage` is empty at mount and the eager `app`
+      // fetch — one round trip — lands long before AuthProvider's
+      // `getSession` → `listOrganizations` → `getActiveOrganization` chain
+      // stamps it. So the entry goes to `…:@none:…`, every later boot computes
+      // the real org id, and the seed misses the boot right after a first
+      // login while the `@none` entry is orphaned until the tab closes.
+      //
+      // Moving the label is sound because the entry is correctly SCOPED and
+      // merely mislabelled: that first request carried no `X-Tenant-ID` (same
+      // empty storage), and the server does not read that header for tenant
+      // scoping — `resolveAuthzContext` takes `tenantId` from
+      // `session.activeOrganizationId` and nothing else, and the environment
+      // chain reads only the hostname and `X-Environment-Id`. The response was
+      // therefore computed for exactly the organization being stamped here.
+      //
+      // Deliberately NOT "wait for the org before seeding": the docblock on
+      // `activeOrgScope` already records why the async context value cannot
+      // gate the seed — it resolves after mount, so gating on it makes EVERY
+      // boot miss its own entry, which is the optimization's whole point.
+      // And deliberately not a refetch: that would trade this card's miss for
+      // the objectui#4042 request-budget regression.
+      if (previous === null && activeOrgId && unscopedSeedTypesRef.current.size > 0) {
+        for (const type of unscopedSeedTypesRef.current) {
+          const entry = cacheRef.current.get(type);
+          if (entry && entry.status === 'ready' && entry.items.length > 0) {
+            // Written from the LIVE entry rather than copied through storage:
+            // the items are already in hand, so no parse, and a cached EMPTY
+            // list stays a miss exactly as objectui#4486 requires.
+            saveToSession(type, entry.items, activeOrgId);
+          }
+          removeNoOrgSeedEntry(type);
+        }
+        unscopedSeedTypesRef.current.clear();
+      }
+      return;
+    }
 
     let cancelled = false;
     cacheRef.current.clear();
