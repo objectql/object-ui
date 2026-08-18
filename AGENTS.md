@@ -27,7 +27,17 @@ You don't just build components — you build a **Renderer** that interprets JSO
 - **Styling:** Tailwind CSS (utility-first).
   - ✅ Use `class-variance-authority` (cva) for component variants.
   - ✅ Use `tailwind-merge` + `clsx` (via `cn()`) for class overrides.
-  - ❌ No inline styles (`style={{}}`), CSS Modules, or styled-components.
+  - ❌ No inline styles (`style={{}}`), CSS Modules, or styled-components. The
+    hazard the ban exists to stop: an inline value that hard-codes a colour, so
+    dark mode renders identically and the design system loses theme control.
+    - ⚠️ **One carve-out — author-declared, data-driven colour.** A colour the
+      *author* declared in metadata (e.g. `options[].color`) may reach the DOM
+      through `style={{}}`, but **only** as CSS custom properties that *static*
+      Tailwind utilities consume, so `dark:` stays a real variant. Never a
+      colour-bearing property (`backgroundColor`, `color`) written inline, and
+      never a colour the *component* chose. Colour only — layout, spacing and
+      sizing stay on utilities. Full rule and worked example:
+      `skills/objectui/rules/styling.md`.
 - **UI primitives:** Shadcn UI (Radix) + Lucide icons.
 - **State:** Zustand (global store), React Context (scoped data).
 - **Testing:** Vitest + React Testing Library.
