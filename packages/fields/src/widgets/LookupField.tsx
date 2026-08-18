@@ -18,7 +18,7 @@ import type { RecordPickerFilterColumn } from './RecordPickerDialog';
 import { PeoplePicker } from './PeoplePicker';
 import { useRecordQuery } from './useRecordQuery';
 import { deriveLookupColumns } from './deriveLookupColumns';
-import { getRecordDisplayName } from '@object-ui/core';
+import { getRecordDisplayName, mergeFilterNodes } from '@object-ui/core';
 import { getRecentLookupIds, pushRecentLookupId } from './recentLookups';
 import { getPersonInitials } from './personDisplay';
 import { getCellRendererResolver } from './_cell-renderer-bridge';
@@ -493,6 +493,15 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
    * but no option resolves it yet. Fetches the referenced record(s) via
    * the DataSource and caches them in `pickerResolvedRecords` so the chip
    * shows a friendly label instead of an empty placeholder.
+   *
+   * Deliberately UNFILTERED, unlike the recents rail below (#5195). These ids
+   * are what the record already holds, not candidates being offered: the value
+   * is committed, so hiding it cannot prevent a bad pick — it can only replace
+   * a readable label with a raw id and hide the mismatch from the user who
+   * needs to see it. A record that was admissible when chosen and is not any
+   * more (a product deactivated last week) must still render its name. The
+   * narrowing belongs on every surface that OFFERS a choice; this one reports
+   * one already made.
    */
   useEffect(() => {
     if (!hasDataSource || !dataSource || !referenceTo) return;
@@ -750,29 +759,71 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
   );
 
   // ── Recently-used, quick-create, combined option list ────────────────────
+  //
+  // The recents rail lists CANDIDATES, so its re-fetch must answer the same
+  // question the main popover query answers: "which records may this field
+  // take right now?" (#5195). It used to answer a different one — it re-read
+  // each remembered id with `dataSource.findOne(referenceTo, id)`, which
+  // carries no filter at all, so a record the author's `lookupFilters`
+  // exclude, or one belonging to the PREVIOUS value of a `depends_on` parent,
+  // stayed visible and selectable. Reported from a deployed project: pick a
+  // product under project A, switch to project B, and the rail still offered
+  // project A's product — the declared filter was enforced on every surface
+  // except this one, leaving a server-side hook as the app's only defence.
+  //
+  // The fix is one filtered query, not a client-side prune: `popoverFilter`
+  // (base `lookupFilters` + the `depends_on` chain) is merged with the id
+  // restriction through `mergeFilterNodes`, the repo's single filter sink, so
+  // the SERVER decides admissibility exactly as it does for the main query.
+  // Merging as a conjunction rather than spreading matters — a spread would
+  // let the `$in` overwrite a declared filter that happens to key on the same
+  // field, widening the accept set at the one place we are narrowing it.
+  //
+  // Two bypasses close with it: the per-id `findOption` cache could return a
+  // record resolved under the old parent (the cache has no idea a filter
+  // moved), and a gated cascade (`dependenciesMissing`) disabled the main
+  // query while leaving this one running. Membership now comes only from the
+  // filtered response; ids it does not return are dropped, whether they fail
+  // the filters or no longer exist. It is also one request instead of up to
+  // MAX_RECENT serial round-trips.
   const [recentOptions, setRecentOptions] = useState<LookupOption[]>([]);
   useEffect(() => {
     if (!isOpen || !hasDataSource || !dataSource || !referenceTo || searchQuery) return;
+    if (dependenciesMissing) { setRecentOptions([]); return; }
     const ids = getRecentLookupIds(referenceTo);
     if (!ids.length) { setRecentOptions([]); return; }
     let cancelled = false;
     (async () => {
       try {
-        const recs: LookupOption[] = [];
-        for (const id of ids) {
-          const cached = findOption(id);
-          if (cached) { recs.push(cached); continue; }
-          if (typeof (dataSource as any).findOne === 'function') {
-            const r = await (dataSource as any).findOne(referenceTo, id);
-            if (r) recs.push(recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema));
+        const idRestriction = { [idField]: { $in: ids } };
+        const res = await dataSource.find(referenceTo, {
+          $filter: popoverFilter
+            ? mergeFilterNodes(popoverFilter, idRestriction)
+            : idRestriction,
+          $top: ids.length,
+        } as QueryParams);
+        const rows = (res as any)?.data ?? res ?? [];
+        const byId = new Map<string, any>();
+        if (Array.isArray(rows)) {
+          for (const row of rows) {
+            const rid = row?.[idField] ?? row?.id ?? row?._id;
+            if (rid !== undefined && rid !== null) byId.set(String(rid), row);
           }
         }
+        // Most-recent-first order is preserved; the response only decides
+        // WHICH ids survive, never their order.
+        const recs = ids
+          .map((id) => byId.get(String(id)))
+          .filter(Boolean)
+          .map((r) =>
+            recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema),
+          );
         if (!cancelled) setRecentOptions(recs);
       } catch { if (!cancelled) setRecentOptions([]); }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, hasDataSource, referenceTo, searchQuery]);
+  }, [isOpen, hasDataSource, referenceTo, searchQuery, dependenciesMissing, popoverFilter, idField]);
 
   // Recently-used first (only before the user types), then live results — one
   // de-duped list that drives BOTH rendering and arrow-key navigation.

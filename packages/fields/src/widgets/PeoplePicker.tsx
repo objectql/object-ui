@@ -30,6 +30,10 @@ import {
 import { Search, Loader2, AlertCircle } from 'lucide-react';
 import type { DataSource, LookupFilterDef } from '@object-ui/types';
 import { useRecordQuery } from './useRecordQuery';
+// The repo's single filter sink — conjoins filter sources under one `and`
+// instead of spreading them, so an id restriction can never overwrite a
+// declared filter on the same field (#5195).
+import { mergeFilterNodes } from '@object-ui/core';
 import { lookupFiltersToRecord } from './RecordPickerDialog';
 import { getPersonId } from './personDisplay';
 import { PersonRow } from './PersonRow';
@@ -172,30 +176,65 @@ export function PeoplePicker({
     return value != null && value !== '' ? [value] : [];
   }, [multiple, value]);
 
-  // One extra query resolves both recents and the current selection to records.
-  const seedIds = useMemo(
-    () => Array.from(new Set([...valueIds, ...recentIds].map(v => v))),
-    [valueIds, recentIds],
-  );
-  const seedQuery = useRecordQuery({
+  // Recents and the current value used to ride ONE unfiltered `$in` query
+  // (`seedIds = valueIds + recentIds`), which is the defect in #5195: the main
+  // candidate query above merges `baseFilter` (the author's `lookupFilters`
+  // plus the `depends_on` cascade the host passes down) and this one merged
+  // nothing, so the "Recently used" rail kept offering records the declared
+  // filters exclude — a product from the previously-selected project, still
+  // selectable after switching parents.
+  //
+  // They are split because they answer DIFFERENT questions, and only one of
+  // them is about candidates:
+  //
+  //   valueQuery  — what does the record already hold? Stays UNFILTERED. The
+  //                 value is committed; dropping it here would empty the tray
+  //                 and make a no-op Confirm silently clear the field, which
+  //                 is a worse bug than the one being fixed.
+  //   recentQuery — what may the user pick right now? Carries the SAME merged
+  //                 filter as the main candidate query, so the server decides
+  //                 admissibility once, in one vocabulary.
+  //
+  // `mergeFilterNodes` (the repo's single filter sink) conjoins rather than
+  // spreads, so an id restriction can never overwrite a declared filter keyed
+  // on the same field and widen what we are here to narrow. With nothing
+  // declared there is nothing to enforce, and the plain record form goes out
+  // exactly as before.
+  const valueQuery = useRecordQuery({
     dataSource,
     objectName,
-    enabled: open && seedIds.length > 0,
-    pageSize: Math.max(1, seedIds.length),
-    filter: { [idField]: { $in: seedIds } },
+    enabled: open && valueIds.length > 0,
+    pageSize: Math.max(1, valueIds.length),
+    filter: { [idField]: { $in: valueIds } },
     expand: effectiveExpand,
   });
 
+  const recentFilter = useMemo<unknown>(() => {
+    const idRestriction = { [idField]: { $in: recentIds } };
+    return baseFilter ? mergeFilterNodes(baseFilter, idRestriction) : idRestriction;
+  }, [baseFilter, idField, recentIds]);
+
+  const recentQuery = useRecordQuery({
+    dataSource,
+    objectName,
+    enabled: open && recentIds.length > 0,
+    pageSize: Math.max(1, recentIds.length),
+    filter: recentFilter,
+    expand: effectiveExpand,
+  });
+
+  // Tray hydration reads the value leg only — a recents hit must never stand in
+  // for a value the value query did not return.
   const recordsById = useMemo(() => {
     const m = new Map<string, any>();
-    for (const r of seedQuery.records) m.set(String(getPersonId(r, idField)), r);
+    for (const r of valueQuery.records) m.set(String(getPersonId(r, idField)), r);
     return m;
-  }, [seedQuery.records, idField]);
+  }, [valueQuery.records, idField]);
 
   // --- selection state (full records so the tray can show avatar + name) ---
   const [selectedRecords, setSelectedRecords] = useState<any[]>([]);
   const seededRef = useRef(false);
-  // On open, seedQuery.loading is still false for one render (its fetch is
+  // On open, valueQuery.loading is still false for one render (its fetch is
   // kicked off in an effect that runs after this one), so an eager seed would
   // read an empty recordsById, seed nothing, and lock — wiping an existing
   // selection on confirm. Only seed after we've observed the fetch start.
@@ -216,7 +255,7 @@ export function PeoplePicker({
       seededRef.current = true;
       return;
     }
-    if (seedQuery.loading) {
+    if (valueQuery.loading) {
       sawSeedLoadingRef.current = true;
       return;
     }
@@ -225,7 +264,7 @@ export function PeoplePicker({
     const seeded = valueIds.map(id => recordsById.get(String(id))).filter(Boolean);
     setSelectedRecords(seeded);
     seededRef.current = true;
-  }, [open, valueIds, seedQuery.loading, recordsById]);
+  }, [open, valueIds, valueQuery.loading, recordsById]);
 
   const selectedIds = useMemo(
     () => new Set(selectedRecords.map(r => String(getPersonId(r, idField)))),
@@ -291,10 +330,20 @@ export function PeoplePicker({
   const hasSearch = query.search.trim().length > 0;
 
   // Recent contacts (only when not searching), in MRU order.
+  //
+  // Membership comes from the FILTERED recents query alone (#5195), never from
+  // the value leg: the currently-selected record is usually also the most
+  // recent one, and reading it out of the unfiltered tray map is exactly how a
+  // record the declared filters exclude used to walk back onto the rail. An id
+  // the filtered query did not return is dropped — it fails the filters, or it
+  // no longer exists, and neither is offerable.
   const recentRecords = useMemo(() => {
     if (hasSearch) return [];
-    return recentIds.map(id => recordsById.get(String(id))).filter(Boolean);
-  }, [hasSearch, recentIds, recordsById]);
+    const admissible = new Map<string, any>(
+      recentQuery.records.map(r => [String(getPersonId(r, idField)), r]),
+    );
+    return recentIds.map(id => admissible.get(String(id))).filter(Boolean);
+  }, [hasSearch, recentIds, recentQuery.records, idField]);
 
   // Candidate list; drop recents when idle to avoid showing them twice.
   const resultRecords = useMemo(() => {
