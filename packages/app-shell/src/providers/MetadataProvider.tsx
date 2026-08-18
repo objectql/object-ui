@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { expandViewContainer } from '@objectstack/spec/ui';
+import { ActiveOrganizationStorage, useAuth } from '@object-ui/auth';
 import { type ObjectStackAdapter } from '@object-ui/data-objectstack';
 import { normalizeSchemaReferenceKeys } from '@object-ui/core';
 import { resolveInlineMode } from '@object-ui/plugin-form';
@@ -77,6 +78,63 @@ const TYPE_BY_STATE_KEY: Record<keyof Omit<MetadataCacheState, 'loading' | 'erro
 };
 
 const SESSION_STORAGE_PREFIX = 'objectui:metadata:';
+
+/**
+ * Storage scope for a deployment with no active organization — a single-tenant
+ * install, or a brand-new user before provisioning. A real org id can never
+ * collide with it (`@` is not produced by the id generator), and the moment an
+ * org DOES become active the scope changes, so a list cached with no org is
+ * never served to one.
+ */
+const NO_ORG_SCOPE = '@none';
+
+/**
+ * The active organization id, read the SAME way the request that filled this
+ * cache reads it (objectui#4486).
+ *
+ * `createAuthenticatedFetch` stamps `X-Tenant-ID` from
+ * `ActiveOrganizationStorage` on every `/api/v1/meta/*` call, so deriving the
+ * cache scope from that same storage makes the key equal to the tenant the
+ * items were fetched under — the cache cannot describe itself as belonging to
+ * an org other than the one the server filtered for.
+ *
+ * Deliberately NOT `useAuth().activeOrganization?.id`: that resolves
+ * ASYNCHRONOUSLY (AuthProvider fetches the membership list after mount), so at
+ * seed time — the whole point of this cache — it is still `null` and every boot
+ * would miss its own entry. The storage value is already correct at mount
+ * because the previous session wrote it.
+ */
+function activeOrgScope(): string {
+  try {
+    return ActiveOrganizationStorage.get() || NO_ORG_SCOPE;
+  } catch {
+    return NO_ORG_SCOPE;
+  }
+}
+
+/** `objectui:metadata:<type>:<orgId>` — see {@link activeOrgScope}. */
+function sessionKeyFor(type: string): string {
+  return `${SESSION_STORAGE_PREFIX}${type}:${activeOrgScope()}`;
+}
+
+/**
+ * Drop the pre-#4486 unscoped entry (`objectui:metadata:<type>`).
+ *
+ * Re-keying alone only fixes tabs going FORWARD: a tab that was already open
+ * across the upgrade still holds an org-blind blob under the old key. Nothing
+ * reads that key any more, so it is inert — but it is another organization's
+ * app list sitting in storage, and the cheapest correct answer to "does already
+ * cached data need invalidating on upgrade" is to delete it the first time the
+ * new code looks.
+ */
+function dropLegacyUnscopedEntry(type: string): void {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.removeItem(SESSION_STORAGE_PREFIX + type);
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 function isDev(): boolean {
   try {
@@ -346,7 +404,7 @@ function emptyEntry(): TypeCacheEntry {
 function loadFromSession(type: string): any[] | null {
   if (typeof sessionStorage === 'undefined') return null;
   try {
-    const raw = sessionStorage.getItem(SESSION_STORAGE_PREFIX + type);
+    const raw = sessionStorage.getItem(sessionKeyFor(type));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : null;
@@ -358,7 +416,7 @@ function loadFromSession(type: string): any[] | null {
 function saveToSession(type: string, items: any[]): void {
   if (typeof sessionStorage === 'undefined') return;
   try {
-    sessionStorage.setItem(SESSION_STORAGE_PREFIX + type, JSON.stringify(items));
+    sessionStorage.setItem(sessionKeyFor(type), JSON.stringify(items));
   } catch {
     /* quota or serialization failure */
   }
@@ -637,13 +695,74 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
   const [initialLoading, setInitialLoading] = useState(true);
   const [initialError, setInitialError] = useState<Error | null>(null);
 
+  // ── An org change drops the whole cache (objectui#4486) ───────────────────
+  //
+  // Scoping the sessionStorage seed by org covers the RELOADING switch paths
+  // (`WorkspaceSwitcher` and `OrganizationsPage` both full-page-navigate to the
+  // console root after `switchOrganization` resolves). It does NOT cover the
+  // switch path that stays inside the SPA:
+  // `console/organizations/manage/OrganizationLayout` calls `switchOrganization`
+  // from an effect whenever the `/organizations/:slug` segment names a
+  // different org, with no reload at all. On that path the IN-MEMORY cache
+  // below is what answers `useMetadata().apps`, and it would keep serving the
+  // previous org's items until the 5-minute TTL lapsed.
+  //
+  // The card's invariant is about the data, not the storage key, so it is
+  // enforced where the data actually lives: one organization's metadata never
+  // survives into another organization's reads. Same shape as the preview-mode
+  // clear above — swapping the active org swaps the world every `/meta/*`
+  // request resolves in.
+  const { activeOrganization } = useAuth();
+  const activeOrgId = activeOrganization?.id ?? null;
+  const lastOrgId = useRef<string | null>(null);
+  useEffect(() => {
+    const previous = lastOrgId.current;
+    lastOrgId.current = activeOrgId;
+    // The FIRST resolution (unknown → known) is NOT a switch. AuthProvider
+    // resolves the active organization asynchronously after mount, so this
+    // effect sees `null → <id>` on every normal boot; clearing there would
+    // throw away the eager `app`/`object`/`view` fetches while they are still
+    // in flight and make the next render refetch all three — precisely the
+    // doubled-request regression objectui#4042 pinned.
+    if (previous === null || previous === activeOrgId) return;
+
+    let cancelled = false;
+    cacheRef.current.clear();
+    itemPromisesRef.current.clear();
+    // `apps` is the one collection read straight off the entry
+    // (`getEntry('app').items`) instead of through `readType`, so unlike every
+    // lazy type it is NOT re-armed by a consumer reading it. Without this kick
+    // the clear above would leave the nav permanently empty on the no-reload
+    // path. And `initialLoading` goes back up for the same reason the cached-
+    // empty case is a miss: while the new org's list is in flight, "no apps" is
+    // not yet an answer.
+    setInitialLoading(true);
+    void ensureType('app').finally(() => {
+      if (!cancelled) setInitialLoading(false);
+    });
+    bump();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrgId, bump, ensureType]);
+
   useEffect(() => {
     let cancelled = false;
 
     // Session-cached apps are PUBLISHED-world data — seeding them while in
     // draft preview would flash the wrong universe before the fetch lands.
     const cached = previewDrafts ? null : loadFromSession('app');
-    if (cached) {
+    dropLegacyUnscopedEntry('app');
+    // A cached EMPTY list is a MISS, not a hit (objectui#4486).
+    //
+    // `[]` is truthy, so an empty cached list used to take this branch and
+    // clear `initialLoading` — which made "no apps (cached, possibly stale)"
+    // indistinguishable from "no apps (fresh)" for every consumer that gates on
+    // `loading`. There is also nothing to gain: seeding zero items saves no
+    // render, while the `status: 'ready'` it stamped made `getTypeStatus('app')`
+    // claim a settled answer the provider did not have. Falling through leaves
+    // the entry `idle` and `initialLoading` true until the fetch below lands.
+    if (cached && cached.length > 0) {
       const entry = getEntry('app');
       entry.items = cached;
       entry.status = 'ready';
