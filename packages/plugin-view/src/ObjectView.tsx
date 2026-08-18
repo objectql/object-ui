@@ -279,6 +279,129 @@ export interface ObjectViewProps {
 type FormMode = 'create' | 'edit' | 'view';
 
 /**
+ * HOST-COMPOSITION SURFACE on the `object-view` node — the keys the
+ * `renderListView` delegation branch reads off the node that are deliberately
+ * NOT declared members of `ObjectViewSchema`, and ⛔ not to be taught as
+ * schema keys anywhere in the docs (objectui#5097).
+ *
+ * ## The verdict
+ *
+ * The delegation branch in `renderContent` below reads 31 distinct keys off
+ * the object-view node through `(schema as any).K` and forwards them to the
+ * host's list renderer. Four of them — `data`, `navigation`,
+ * `searchableFields`, `filterableFields`, listed in
+ * {@link OBJECT_VIEW_DECLARED_FORWARDED_KEYS} — are declared members of
+ * `ObjectViewSchema`. The other 27, listed here, are not, and stay that way:
+ * they are HOST-COMPOSITION surface, not authored surface. This constant is
+ * their single home; the branch is fenced by `#region` markers so the pin in
+ * `src/__tests__/objectViewHostSurface.test.tsx` fails BY NAME when a read is
+ * added or removed without touching this list.
+ *
+ * ## The ruling that made it deliberate
+ *
+ * Maintainer, 2026-08-18, on objectui#5097, verbatim 「同意」: the 27 keys are
+ * HOST surface, exempted with reasons — not authored surface. Basis: measured
+ * reachability. The delegation branch is entered ONLY when a host passes the
+ * `renderListView` prop; the registered renderer does not pass it; so the
+ * schema-registration path documented to authors cannot reach these keys at
+ * all, and declaring them on `ObjectViewSchema` would promise authors a
+ * surface that does nothing on their path.
+ *
+ * ⛔ Do not declare these on `ObjectViewSchema`, and ⛔ do not delete a read as
+ * a tidy-up — deleting a read is what silently blanks a stored app-shell
+ * document, and it is exactly what a reader of "not authored surface" is most
+ * likely to think is the clean finish. The structural follow-through (typing
+ * this block as an explicit host-side prop contract, so host surface and
+ * authored surface are separated in types, and retiring the `(schema as any)`
+ * reads) is owned by the objectui#5043 family track, not by this exemption.
+ *
+ * ## Who supplies the prop — what makes "host surface" checkable
+ *
+ * Every in-tree non-test supplier lives in `@object-ui/app-shell`, and there
+ * are TWO of them. Re-measured on `main` at `e03dfa5ea`; both were already
+ * present at the ruling's base `9fbb9b52f`, which named only the first:
+ *
+ *   - `packages/app-shell/src/views/ObjectView.tsx:1718` — the React host
+ *     defines the callback; it is passed at `:2481` and `:2524`.
+ *   - `packages/app-shell/src/views/studio-design/StudioDesignSurface.tsx:2575`
+ *     — the Studio design surface, as `renderListView={renderStudioGridList}`.
+ *
+ * The registered renderer is `ObjectViewRenderer` (`./index.tsx:58`), which
+ * renders `ObjectView` with `schema` and `dataSource` only and passes no
+ * `renderListView`. It is registered twice — under `object-view`
+ * (`./index.tsx:66`) and under the alias `view` (`./index.tsx:100`) — and
+ * neither registration can reach this branch.
+ *
+ * ## What the contract says about these keys
+ *
+ * Nothing at all, and that is the shape of the answer here — unlike the
+ * sibling `object-grid` exemption (objectui#5091, PR #5241), where the spec
+ * answered `unrecognized_keys` by name. `@objectstack/spec`'s
+ * `ComponentPropsMap` carries no `object-view` entry, so the repo-wide
+ * `registry-inputs-spec-parity` gate — which derives its expectations FROM
+ * `ComponentPropsMap` — never covers this node in either direction and is owed
+ * nothing here. The node's published authoring surface is the registry
+ * `inputs` list at `./index.tsx:71-86` (15 names; the alias `view` declares no
+ * `inputs` at all), and none of the 27 appears on either registration.
+ *
+ * ## The one asymmetry — `conditionalFormatting`
+ *
+ * 26 of the 27 are read ONLY inside the host-only branch. `conditionalFormatting`
+ * has a SECOND read site, in `generateViewSchema`'s kanban branch (see
+ * `kanbanConditionalFormatting`), which IS reachable through the registered
+ * renderer. For that one key the ruling's "the authored path cannot reach it"
+ * basis is therefore narrower than for its 26 neighbours. Recorded here rather
+ * than acted on: the exemption preserves the status quo either way (nothing
+ * declared, nothing removed), and whether that second read makes
+ * `conditionalFormatting` authored surface on the kanban path is a fresh
+ * contract question, filed separately as objectui#5248.
+ */
+export const OBJECT_VIEW_HOST_COMPOSITION_KEYS = [
+  'addDeleteRecordsInline',
+  'addRecord',
+  'addRecordViaForm',
+  'allowExport',
+  'allowPrinting',
+  'aria',
+  'bulkActions',
+  'clickIntoRecordDetails',
+  'collapseAllByDefault',
+  'color',
+  'compactToolbar',
+  'conditionalFormatting',
+  'emptyState',
+  'fieldTextColor',
+  'hiddenFields',
+  'inlineEdit',
+  'pagination',
+  'prefixField',
+  'resizable',
+  'rowActionDefs',
+  'rowActions',
+  'selection',
+  'sharing',
+  'showDescription',
+  'showRecordCount',
+  'userFilters',
+  'wrapHeaders',
+] as const;
+
+/**
+ * The other four keys the same branch reads through `(schema as any)`: these
+ * ARE declared members of `ObjectViewSchema` (`data` via `BaseSchema`), so
+ * they are authored surface and are NOT part of the objectui#5097 exemption.
+ * They are listed so the pin can assert the split, not just the exempt half —
+ * a read that moves from this list into the one above is a key losing its
+ * declaration, and must fail loudly.
+ */
+export const OBJECT_VIEW_DECLARED_FORWARDED_KEYS = [
+  'data',
+  'filterableFields',
+  'navigation',
+  'searchableFields',
+] as const;
+
+/**
  * ObjectView Component
  *
  * Renders a complete object management interface with multi-view rendering
@@ -762,6 +885,17 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         // `options.kanban.conditionalFormatting` wins, then the view-level, then
         // the schema-level rule — matching how the grid branch resolves it.
         // Previously the top-level rule was dropped for kanban entirely.
+        //
+        // ⚠️ objectui#5097 — this is the ONLY read of one of the 27
+        // host-composition keys that sits OUTSIDE the `#region` fence below,
+        // and the only one on a path the REGISTERED renderer can reach:
+        // `generateViewSchema` runs precisely when no host supplied
+        // `renderListView`. So for `conditionalFormatting` alone, the
+        // exemption's "the authored path cannot reach it" basis is narrower
+        // than for its 26 neighbours. Recorded, not acted on — see
+        // `OBJECT_VIEW_HOST_COMPOSITION_KEYS` ("The one asymmetry") and
+        // objectui#5248, which owns the contract question. ⛔ Do not delete
+        // this read, and ⛔ do not move it inside the fence to quiet the pin.
         const kanbanConditionalFormatting =
           kanbanCfg.conditionalFormatting ??
           activeView?.conditionalFormatting ??
@@ -1029,6 +1163,25 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     const key = `${schema.objectName}-${activeNamedView || activeView?.id || 'default'}-${currentViewType}-${refreshKey}`;
 
     // If a custom renderListView is provided, use it
+    // #region object-view HOST-COMPOSITION SURFACE (objectui#5097)
+    //
+    // 31 of the values assembled below are read off the object-view node with
+    // `(schema as any).K`. Four are declared members of `ObjectViewSchema`;
+    // the other 27 are NOT, deliberately: the maintainer ruling of 2026-08-18
+    // on objectui#5097 (verbatim 「同意」) ruled them HOST-COMPOSITION surface,
+    // not authored surface, because this branch is entered only when a HOST
+    // passes `renderListView` and the registered renderer never does.
+    //
+    // ⛔ Do not declare these keys on `ObjectViewSchema`, ⛔ do not teach them
+    // as schema keys in the docs, and ⛔ do not delete a read as a tidy-up — a
+    // deleted read silently blanks a stored app-shell document.
+    //
+    // The list, the two supplier `file:line`s, the contract's (non-)verdict and
+    // the `conditionalFormatting` asymmetry live with
+    // `OBJECT_VIEW_HOST_COMPOSITION_KEYS` at the top of this file. The `#region`
+    // fence is load-bearing: `src/__tests__/objectViewHostSurface.test.tsx`
+    // re-derives the read set from between these two markers, so adding or
+    // removing a read here fails that pin BY NAME.
     if (renderListView) {
       return renderListView({
         schema: {
@@ -1108,6 +1261,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         onAddRecord: handleCreate,
       });
     }
+    // #endregion object-view HOST-COMPOSITION SURFACE (objectui#5097)
 
     // For non-grid views, use SchemaRenderer with generated schema
     if (currentViewType !== 'grid') {
