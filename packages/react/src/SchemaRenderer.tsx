@@ -338,6 +338,51 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     // Shallow copy
     const newSchema = { ...schema };
 
+    // Evaluate 'properties' — the SPEC spelling of a node's config bag, of
+    // which `props` (evaluated below) is the legacy alias.
+    //
+    // objectui#4799: only `props` used to be evaluated here. Renderers in the
+    // `element:*` namespace read their config out of `schema.properties` FIRST
+    // (`readProps()` merges `{ ...schema.props, ...schema.properties }`), so a
+    // node written the canonical way handed the renderer the RAW `${…}` source
+    // and put it on screen verbatim, while the same node written with the
+    // "legacy alias" evaluated correctly. Measured through a real render with
+    // `dataSource: { total: 99 }`: `props: { content: '${data.total}' }` → `99`,
+    // `properties: { content: '${data.total}' }` → `${data.total}`. That is the
+    // inverse of contract-first (AGENTS.md #0.1) — the tolerant spelling was
+    // fed and the canonical one starved — so the fix belongs HERE, at the one
+    // producer of evaluated schema, not as a second read in each consumer.
+    //
+    // Order matters: this runs BEFORE the hoist block below, because that block
+    // copies every `properties.*` value onto the node's top level (and those
+    // copies are spread as React props at render). Evaluating first is what
+    // makes one key mean one thing whether it is read as `schema.properties.x`,
+    // as `schema.x`, or as the `x` prop. It also leaves the `content` leg below
+    // idempotent: a value evaluated here no longer carries a `${…}`.
+    //
+    // Per-value and SHALLOW, matching the `props` branch exactly:
+    // `evaluator.evaluate` returns every non-string untouched, so a nested
+    // object/array value is passed through rather than walked (measured: an
+    // `aria: { label: '${data.total}' }` nested under EITHER key renders the raw
+    // source today). Deepening that is a separate decision and would have to be
+    // taken for both spellings at once — not smuggled in on one side here.
+    //
+    // The guard is wider than the `props` branch's bare truthiness on purpose:
+    // this value FEEDS the hoist, so re-shaping a degenerate `properties`
+    // (a string, an array) via the object spread would propagate. Non-objects
+    // skip evaluation and reach the hoist exactly as they do today.
+    if (
+      newSchema.properties &&
+      typeof newSchema.properties === 'object' &&
+      !Array.isArray(newSchema.properties)
+    ) {
+      const newProperties: Record<string, any> = { ...newSchema.properties };
+      for (const [key, val] of Object.entries(newProperties)) {
+        newProperties[key] = evaluator.evaluate(val as any);
+      }
+      newSchema.properties = newProperties;
+    }
+
     // COMPAT: Hoist 'properties' up to schema level
     // This allows support for strict configs that wrap all props in 'properties'.
     // IMPORTANT: never let inner `properties.type` / `properties.id` shadow the
