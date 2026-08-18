@@ -29,6 +29,7 @@ import {
   AnyComponentSchema,
   ListViewSchema,
 } from '../zod/index.zod';
+import type { ActionSchema as CrudActionSchema } from '../crud';
 
 describe('Phase 2: AppComponentSchema Zod Validation', () => {
   it('should validate a complete AppComponentSchema', () => {
@@ -360,19 +361,48 @@ describe('Phase 2: Enhanced ActionSchema Zod Validation', () => {
       type: 'action',
       label: 'Delete Record',
       actionType: 'confirm',
-      confirm: {
-        title: 'Confirm Deletion',
-        message: 'Are you sure you want to delete this record?',
-        confirmText: 'Delete',
-        cancelText: 'Cancel',
-        confirmVariant: 'destructive',
-      },
+      confirmText: 'Are you sure you want to delete this record?',
       api: '/api/records/123',
       method: 'DELETE',
     };
 
     const result = ActionSchema.safeParse(confirmAction);
     expect(result.success).toBe(true);
+  });
+
+  it('refuses the retired structured confirm object (objectui#4314)', () => {
+    const structured = {
+      type: 'action',
+      label: 'Delete Record',
+      actionType: 'confirm',
+      confirm: { title: 'Confirm Deletion', message: 'Are you sure?' },
+    };
+
+    // Zod half of the `crud.ts` `confirm?: never` tombstone: any authored
+    // value is a LOUD parse rejection — never a silent strip, which would let
+    // the author believe the dialog they configured exists. Absent stays
+    // valid (accept case above).
+    const result = ActionSchema.safeParse(structured);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.map((i) => i.path.join('.'))).toContain('confirm');
+    }
+  });
+
+  it('carries the retirement to TypeScript authors (confirm is `never`)', () => {
+    const action: CrudActionSchema = {
+      type: 'action',
+      label: 'Delete',
+      // @ts-expect-error `confirm` is retired (objectui#4314) — its `message`
+      // outranked `confirmText`, the only spelling the translation bundle
+      // knows. `?: never` carries the retirement to authors writing
+      // TypeScript; the Zod refusal above carries it to JSON.
+      confirm: { message: 'Delete this item?' },
+    };
+    // The contract lives in the directive above: per this package's
+    // `type-check` (tsc -p tsconfig.test.json compiles every test file),
+    // putting the key back makes the directive unused and fails the build.
+    expect(action.type).toBe('action');
   });
 
   it('should validate dialog action type', () => {

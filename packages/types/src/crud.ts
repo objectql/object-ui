@@ -131,33 +131,26 @@ export interface ActionSchema extends BaseSchema {
    */
   headers?: Record<string, string>;
   /**
-   * Confirmation dialog configuration (for confirm actions)
+   * RETIRED (objectui#4314, maintainer ruling 2026-08-17, ADR-0049
+   * enforce-or-remove): the structured confirm object
+   * (`{ title, message, confirmText, cancelText, confirmVariant }`) had zero
+   * producers, and in `ActionRunner` its `message` OUTRANKED `confirmText` —
+   * the only spelling the translation bundle knows
+   * (`{ns}.objects.{obj}._actions.{name}.confirmText`) — so a dialog authored
+   * this way silently lost localization. `?: never` is this package's
+   * tombstone convention (see `complex.ts` `DashboardWidgetSchema`): authoring
+   * the key is a tsc error here and a parse rejection in the Zod twin
+   * (`zod/crud.zod.ts`); reading it still type-checks (`never | undefined`)
+   * during migration. Reopen condition, recorded on objectui#4314: real demand
+   * for structured confirm dialogs — the arm returns WITH its bundle keys
+   * (`_actions.{name}.confirm.*`) designed in, never before.
+   * @deprecated Retired — author `confirmText` instead.
    */
-  confirm?: {
-    /**
-     * Confirmation title
-     */
-    title?: string;
-    /**
-     * Confirmation message
-     */
-    message?: string;
-    /**
-     * Confirm button text
-     */
-    confirmText?: string;
-    /**
-     * Cancel button text
-     */
-    cancelText?: string;
-    /**
-     * Confirm button variant
-     */
-    confirmVariant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost';
-  };
+  confirm?: never;
   /**
-   * Legacy confirmation message (deprecated - use confirm object instead)
-   * @deprecated Use confirm.message instead
+   * Confirmation message — shows a confirm dialog before executing.
+   * The ONE confirm spelling: `@objectstack/spec`'s action surface and the
+   * TranslationBundle both stand on `confirmText`.
    */
   confirmText?: string;
   /**
