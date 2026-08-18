@@ -227,7 +227,7 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
   1. **首选机制:让内容根本不落共享盘。** 提交信息用 `git commit -F -` 配 heredoc(或多个 `-m`),PR 正文直接作为工具参数传(用 `gh` 就把正文写成进程内的 heredoc,别先写文件再 `--body-file`)。内容不落盘,就无从被顶掉。
 
   ```bash
-  git commit -F - <<'"'"'EOF'"'"'
+  git commit -F - <<'EOF'
   fix(scope): 一句话主题
 
   正文……
