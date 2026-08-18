@@ -132,6 +132,53 @@ leave it undeclared and the panel stays silent. Either way the refusal is
 logged with `console.warn`, which is where to look if a redirect you expected
 never happens.
 
+### Who performs the redirect (mounted hosts)
+
+The guard decides **whether** a destination is followed; who travels to it
+depends on the shape of the destination:
+
+| Destination | Travelled by |
+|---|---|
+| App-relative — `/thanks`, `thanks`, `?ok=1`, `#done` | the host's navigate, when one is supplied; otherwise a browser navigation |
+| External — a host you listed in `allowedRedirectHosts` | a browser navigation, always |
+| Same-origin but **absolute** — `https://your.app/thanks` | a browser navigation, always |
+
+This matters when your application is mounted at a sub-path (the console runs
+at basename `/_console`). A browser navigation resolves `/thanks` against the
+**origin root**, which leaves the application — so an in-app thank-you page
+needs the host to place the path. Supply one with `HostNavigationProvider`
+from `@object-ui/react` and the form hands app-relative destinations to it:
+
+```tsx
+import { HostNavigationProvider } from '@object-ui/react';
+import { EmbeddableForm, type EmbeddableFormConfig } from '@object-ui/plugin-form';
+import type { DataSource } from '@object-ui/types';
+
+export function MountedPublicForm(props: {
+  /** Your own router's navigate — it already knows the basename. */
+  navigate: (to: string) => void;
+  config: EmbeddableFormConfig;
+  dataSource: DataSource;
+}) {
+  return (
+    <HostNavigationProvider value={{ navigate: props.navigate }}>
+      <EmbeddableForm config={props.config} dataSource={props.dataSource} />
+    </HostNavigationProvider>
+  );
+}
+```
+
+Supplying it is optional and changes nothing for an unmounted host: with no
+provider — or with no router at all, where there is no basename to miss —
+every destination keeps the browser navigation it always had.
+
+An external destination is never handed to your navigate. A host navigate is a
+client-side router transition, so it takes an application-relative path, and a
+form holding a cross-origin address must not route it through your router. A
+same-origin **absolute** URL is treated the same way for a different reason:
+you spelled out the whole address, so that is the address the submitter gets —
+write the destination relatively if you want it placed inside your mount.
+
 ### GDPR consent
 
 ```tsx
