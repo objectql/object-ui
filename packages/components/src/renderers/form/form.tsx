@@ -1566,6 +1566,35 @@ ComponentRegistry.register('form',
       return () => subscription.unsubscribe();
     }, [form, onDirtyChangeProp]);
 
+    // Surface live values to the host — `FormSchema.onChange`, the value-change
+    // sibling of the submit/dirty/cancel callbacks destructured beside it. It
+    // was declared, typed, exported and documented, but the renderer never
+    // invoked it: authoring `onChange` on a form schema was a silent no-op
+    // (#4259). Same subscription plumbing as the two effects above, so the
+    // value channel cannot drift into its own schedule.
+    //
+    // GUARDED, like the `onAction` subscription and unlike the `onDirtyChange`
+    // one: a form whose author wrote no `onChange` must establish no
+    // subscription at all. Watching unconditionally would put a third
+    // `form.watch` on every form in the product to serve callers who asked for
+    // nothing — a behaviour change for them, where honouring the declaration
+    // is meant to be purely additive.
+    //
+    // Layout-phase for the ordering reason spelled out above the `onAction`
+    // effect: React runs every layout DESTROY before any layout CREATE, so a
+    // caller passing a fresh inline arrow each render — the common case — has
+    // this torn down before the `defaultValues` reset runs and re-established
+    // after. That is what keeps a record landing from being reported to the
+    // host as a user edit. A passive effect inverts the order (#2968).
+    React.useLayoutEffect(() => {
+      if (onChangeProp) {
+        const subscription = form.watch((values) => {
+          onChangeProp(values as Record<string, any>);
+        });
+        return () => subscription.unsubscribe();
+      }
+    }, [form, onChangeProp]);
+
     /**
      * Scroll a field into view and focus a control inside it. The field wrapper
      * carries `data-field` (FormItem), so this reaches custom widgets that RHF's
@@ -2423,7 +2452,16 @@ ComponentRegistry.register('form',
         'data-obj-type': dataObjType,
         style,
         onSubmit: _ignoredOnSubmit, // Prevent overwriting our handleSubmit
-        onChange: _ignoredOnChange, // Prevent overwriting our onChange
+        // Keep a top-level `onChange` off the <form> DOM node. Some callers /
+        // the SDUI dispatch spread the whole form node at the top level in
+        // addition to `schema`, and a DOM `onChange` there fires with a
+        // SyntheticEvent — never with form values, so it is not the
+        // `FormSchema.onChange` contract at all. That schema-level callback is
+        // subscribed above (#4259) and is the only `onChange` this renderer
+        // honours; before it was wired there was in fact no "our onChange" for
+        // this line to protect. Dropping the top-level copy is all this does:
+        // it is not re-routed here, and nothing double-fires.
+        onChange: _ignoredOnChange,
         // Extract schema props that should not be spread to DOM (handled separately by schema destructuring above)
         submitLabel: _submitLabel,
         cancelLabel: _cancelLabel,
