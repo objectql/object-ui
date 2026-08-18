@@ -3005,26 +3005,72 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
   const readonlyInputClass = readonly && 'bg-muted/40 cursor-default focus-visible:ring-0';
 
   switch (type) {
-    case 'input':
+    case 'input': {
+      // The declared ceiling is resolved HERE, in BOTH authored spellings,
+      // rather than left to ride the pass-through onto the DOM
+      // (objectui#5201). This is the same mechanism the `textarea` branch
+      // below resolves for the same reason (objectui#3439) — this branch was
+      // deliberately left out of that card because the COUNTER half is a
+      // design question for a single-line input; the ceiling half is not.
+      //
+      // Measured on `origin/main`, the pass-through answered the two spellings
+      // differently: a camelCase `maxLength` happened to work because it names
+      // a real DOM attribute, so the element got `maxlength="50"`; the legacy
+      // `max_length` reached the same element as a STRAY, inert
+      // `max_length="50"` attribute and the field had no cap at all — no
+      // truncation, and invalid HTML that reads like a working cap to whoever
+      // greps this file next.
+      //
+      // `maxLength ?? max_length` is not a tolerance invented at a consumer
+      // (AGENTS.md #0.1): the registered `field:*` widgets have dual-read it
+      // since framework#1878 §3, all three producers of a form field do
+      // (`ObjectForm`, `sectionFields`, `EmbeddableForm.applyDefaultMaxLengths`)
+      // and `packages/types`' field types declare `max_length`. Every reader in
+      // the repo honoured it except this branch — which is precisely the one
+      // serving a hand-authored `FormSchema` handed straight to the renderer,
+      // where there is no normalizing producer in between and the author IS
+      // the producer.
+      //
+      // The legacy key is destructured off LOCALLY — not added to
+      // `stripRendererOnlyProps` — because that helper feeds EVERY branch
+      // (`checkbox`, `switch`, `select` and the `default` fallback all share
+      // `domFieldProps`), so extending it would change what reaches the DOM
+      // for widgets this card neither fixes nor tests. The `textarea` branch
+      // strips it the same local way.
+      //
+      // Scope: the CEILING only. Whether a single-line input should also carry
+      // a visible `{n}/{max}` counter and an announced limit the way the
+      // `textarea` branch does is an independent design trade-off that does
+      // NOT follow from #3439's conclusion, and is deliberately not decided
+      // here (the objectui#5201 triage ruling).
+      const { max_length: _maxLengthLegacy, ...inputProps } = domFieldProps as any;
+      const maxLength = (fieldProps as any).maxLength ?? (fieldProps as any).max_length;
       if (inputType === 'file') {
-        // File inputs cannot be controlled with value prop
-         const { value, ...fileProps } = domFieldProps;
-         return <Input type="file" placeholder={placeholder} className="min-h-[44px] sm:min-h-0" {...fileProps} />;
+        // File inputs cannot be controlled with value prop. No cap applies to a
+        // file picker, but the stray legacy key must not reach it either — it
+        // is off `inputProps` already.
+        const { value, ...fileProps } = inputProps;
+        return <Input type="file" placeholder={placeholder} className="min-h-[44px] sm:min-h-0" {...fileProps} />;
       }
       return (
         <Input
           type={inputType || 'text'}
           placeholder={placeholder}
           className={cn('min-h-[44px] sm:min-h-0', readonlyInputClass)}
-          {...domFieldProps}
+          {...inputProps}
+          // After the spread, so the resolved cap wins over the raw camelCase
+          // key `inputProps` still carries (the #3222 discipline). `undefined`
+          // when neither spelling was declared, which renders no attribute.
+          maxLength={maxLength}
           onClick={(e) => {
             openNativePickerOnClick(inputType)?.(e);
-            domFieldProps.onClick?.(e);
+            inputProps.onClick?.(e);
           }}
           readOnly={readonly}
-          value={domFieldProps.value ?? ''}
+          value={inputProps.value ?? ''}
         />
       );
+    }
 
     case 'textarea': {
       // `mobile_fullscreen` is the flag's ONE spelling (objectui#3303). This
