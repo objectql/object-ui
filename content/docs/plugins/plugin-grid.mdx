@@ -398,8 +398,9 @@ carrying callbacks.
 `onRowClick`, `onRowSelect`, `onCellChange`, `onRowSave`, `onBatchSave`,
 `onEdit`, `onDelete`, `onBulkDelete` and `onAddRecord` are React props on
 `ObjectGridComponentProps`. They are functions, so no metadata document can hold
-them, and writing one into a schema does nothing at all: the grid builds the
-inner table's handlers itself and never reads a callback off the schema.
+them, and writing one of them into a schema does nothing at all: the grid builds
+the inner table's handlers itself and never reads any of these nine off the
+schema.
 
 ```tsx
 import { ObjectGrid } from '@object-ui/plugin-grid';
