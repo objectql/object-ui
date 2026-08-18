@@ -36,15 +36,27 @@
  *
  * 1. **Ablating the seam** — `useSubmitRedirectNavigation` ignores the injected
  *    navigate and always calls `window.location.assign` (i.e. the pre-ruling
- *    body): **8 of the 12 tests here go RED**, and the 4 absent-seam /
- *    refusal-with-seam tests stay green. That split is the point: the survivors
- *    are exactly the ones describing behaviour that was already correct, so the
- *    file cannot pass by describing the old world.
- * 2. **Removing the `HostNavigationBridge` from `ConsoleShell`** (the supply
- *    side): nothing here moves — 0 red — and the app-shell file goes red
- *    instead. Recorded because it is the honest statement of what a
- *    package-local test can and cannot see: a seam with no supplier is
- *    invisible from inside the package that reads it.
+ *    body): **exactly the 5 tests that assert a host navigate RECEIVED the
+ *    destination go red** (4 here on `ObjectForm`, 1 on `WizardForm`), and the
+ *    other 7 stay green. The survivors are worth naming, because two of them
+ *    are NOT change detectors for this mutation and pretending otherwise would
+ *    overstate the file: the 2 absent-seam tests and the 2 refusal tests SHOULD
+ *    survive (they describe behaviour that was already correct), while the
+ *    declared-delay and unmount-cancel tests survive because they assert that
+ *    NOTHING was called — true under both bodies. They are kept for the
+ *    properties they pin (a seam must not shorten the pause or outlive the
+ *    component), not as evidence the seam is wired.
+ *
+ *    Measured alongside: `ObjectForm.submitRedirect.test.tsx` and
+ *    `WizardForm.submitRedirect.test.tsx` stay **entirely green** under this
+ *    mutation — they mount no provider, so the seam is invisible to them. That
+ *    is precisely why this file exists rather than more cases there.
+ * 2. **Deleting the `HostNavigationBridge` line from `ConsoleShell`** (the
+ *    supply side): nothing in this package moves — 0 red — because a renderer
+ *    cannot see whether any host supplies the seam. `ConsoleShell.hostNavigation
+ *    .test.tsx` in `@object-ui/app-shell` is what goes red, and it was written
+ *    for this reason: measured before it existed, that deletion restored the
+ *    whole mount-blind behaviour with every test in the repository still green.
  * 3. **Dropping `encodeURIComponent` from `submitRedirect.ts`**: `hands over the
  *    RESOLVED path` goes red here, on top of the counts the two component files
  *    already record — the seam carries the resolved value, so the escape is
