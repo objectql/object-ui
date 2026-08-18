@@ -42,7 +42,7 @@ import {
 } from '@object-ui/react';
 import type { ActionDef } from '@object-ui/core';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldAlert } from 'lucide-react';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
 import { useAdapter } from '../providers/AdapterProvider';
 // Straight from `@object-ui/react`, NOT through `../providers/MetadataProvider`
@@ -57,6 +57,7 @@ import { useAdapter } from '../providers/AdapterProvider';
 import { useMetadataItem } from '@object-ui/react';
 import { decisionOutputDefs, decisionOutputParams } from '../utils/decisionOutputParams';
 import { getIcon } from '../utils/getIcon';
+import { isOverrideDecision, bypassedApproverNames } from '../utils/approvalOverride';
 
 export interface DeclaredActionsBarProps {
   /** Object whose declared actions to render (e.g. `sys_approval_request`). */
@@ -170,6 +171,53 @@ const DeclaredActionButton: React.FC<{
   // could not describe the envelope arm — have nothing left to reach around.
   const isDisabledPred = useCondition(toPredicateInput(action.disabled), predicateRecord);
 
+  /**
+   * Is the button this viewer is looking at an ADMIN OVERRIDE (objectui#5178)?
+   *
+   * `can_act:false && can_override:true` on the record, and an action whose own
+   * `visible` gate ORs in `can_override` — so the flag is the only term that
+   * can have made this button visible. The rule and its fail-safe direction
+   * live in `utils/approvalOverride`; this is one call, not a restatement.
+   *
+   * Nothing here is a permission decision: the server remains the sole
+   * authority on who may act, and this branch changes no request the console
+   * sends. It changes only what the viewer is told they are about to do.
+   */
+  const isOverride = useMemo(() => isOverrideDecision(action, record), [action, record]);
+  /**
+   * The approvers this override would bypass, by name — the load-bearing half
+   * of the warning. objectui#5178's report turns on a click that a warning
+   * naming *who* was about to be bypassed would have stopped, so the empty case
+   * (the unstaffed-position rescue the override path exists for) gets its own
+   * wording rather than an empty list.
+   */
+  const bypassed = useMemo(() => bypassedApproverNames(record), [record]);
+  // The declared label, localized — resolved ONCE here so the button text, the
+  // param dialog's title and the override framing below can never come from
+  // different bundle reads (objectui#4265).
+  const declaredLabel = (localizeActionTexts(objectName, action as Record<string, any>).label as string) || '';
+  /**
+   * The override framing wrapped around the declared label. A placeholder
+   * rather than a hard-coded prefix so a translator can reorder it — `Approve`
+   * / `拒绝` / `再割り当て` sit differently in different languages.
+   */
+  const overrideLabel = String(t('approvalsInbox.overrideActionLabel', {
+    defaultValue: 'Override {{action}}',
+    action: declaredLabel,
+  }));
+  const overrideNotice = isOverride
+    ? bypassed.length > 0
+      ? String(t('approvalsInbox.overrideNoticeWho', {
+        defaultValue:
+          'You hold no approver slot on this step. Continuing uses your admin override: it finalises the step immediately and bypasses the approvers who have not acted — {{who}}. The decision is recorded as an admin override.',
+        who: bypassed.join(', '),
+      }))
+      : String(t('approvalsInbox.overrideNotice', {
+        defaultValue:
+          'You hold no approver slot on this step. Continuing uses your admin override: it finalises the step immediately, bypassing any approver who has not acted. The decision is recorded as an admin override.',
+      }))
+    : undefined;
+
   const handleClick = useCallback(async () => {
     if (loading) return;
     setLoading(true);
@@ -212,6 +260,26 @@ const DeclaredActionButton: React.FC<{
         objectName,
         params: { _rowRecord: record },
       };
+      if (overrideNotice) {
+        // objectui#5178 — an override decision must SAY so before it runs, and
+        // it gets exactly ONE dialog to say it in.
+        //
+        // These decision actions collect params (comment, attachments), so the
+        // runtime opens the param dialog and nothing is POSTed until its own
+        // Confirm. That dialog IS the confirm — chaining a `confirmText` in
+        // front of it would put up a first dialog that already reads as "the
+        // action ran" (framework#7278, maintainer ruling 2026-08-10). So the
+        // warning rides the dialog's own title and description instead.
+        //
+        // `overrideNotice` is a separate key, NOT a rewritten `description`,
+        // and that is load-bearing: the runtime resolves `description` through
+        // `_actions.<name>.description`, and `plugin-approvals` SHIPS a bundle
+        // entry there for `approval_reject`. Folding the warning into
+        // `description` would let that entry replace it — a translation bundle
+        // silently deleting the safety copy, in every locale that has one.
+        dispatch.overrideNotice = overrideNotice;
+        dispatch.label = overrideLabel;
+      }
       const staticParams = Array.isArray(rawParams) ? rawParams : [];
       if (staticParams.length > 0 || outputParams.length > 0) {
         dispatch.actionParams = [...staticParams, ...outputParams];
@@ -220,7 +288,7 @@ const DeclaredActionButton: React.FC<{
     } finally {
       setLoading(false);
     }
-  }, [action, execute, loading, objectName, record, localizeActionTexts, t]);
+  }, [action, execute, loading, objectName, record, localizeActionTexts, t, overrideNotice, overrideLabel]);
 
   // Does the action DECLARE a `visible` gate? `hasDeclaredVisibilityGate`
   // (`!= null && !== ''`) is the one definition on the question, imported rather
@@ -249,14 +317,24 @@ const DeclaredActionButton: React.FC<{
   // differently); the rest pass through, and an undeclared variant stays
   // `outline` so a plain declared action still reads as a secondary button.
   const declaredVariant = (action as any).variant;
-  const variant = declaredVariant === 'primary'
-    ? 'default'
-    : declaredVariant === 'danger'
-      ? 'destructive'
-      : (declaredVariant || 'outline');
+  // objectui#5178 — an override decision does NOT wear its declared variant.
+  // The declared enum describes the action for the approver it was designed
+  // for: `approval_approve` is `primary` (a filled Approve) and
+  // `approval_reject` is `danger`. Rendering those to a viewer who holds no
+  // slot is the defect: the privileged branch looked exactly like the ordinary
+  // one. Overrides take one warning treatment instead, the SAME for approve /
+  // reject / reassign — the point being that it reads as "override", not as
+  // "the decision you were assigned".
+  const variant = isOverride
+    ? 'outline'
+    : declaredVariant === 'primary'
+      ? 'default'
+      : declaredVariant === 'danger'
+        ? 'destructive'
+        : (declaredVariant || 'outline');
   // Same resolver as the dispatch above, so the button text and the confirm
   // dialog body can never come from different bundle reads (objectui#4265).
-  const label = (localizeActionTexts(objectName, action as Record<string, any>).label as string) || '';
+  const label = isOverride ? overrideLabel : declaredLabel;
 
   return (
     <Button
@@ -281,13 +359,27 @@ const DeclaredActionButton: React.FC<{
       // deliberate metadata by looking at it.
       disabled={(hasDeclaredVisibilityGate(action.disabled) ? isDisabledPred : false) || loading}
       onClick={handleClick}
+      // Amber warning treatment for an override (objectui#5178) — the same
+      // palette the approvals surfaces already use for "waiting / attention",
+      // via `cn()` over the outline variant rather than a new Button variant
+      // (`packages/components/src/ui/**` is a no-touch Shadcn zone).
+      className={cn(isOverride
+        && 'border-amber-500/60 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-400 dark:hover:bg-amber-500/10 dark:hover:text-amber-300')}
       data-testid={`declared-action-${action.name}`}
+      // Pinnable, and readable by an E2E/QA pass without matching on copy.
+      data-override-decision={isOverride ? 'true' : undefined}
     >
       {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {/* An override replaces the declared icon: the declared one describes the
+          ordinary decision (a check for approve), which is precisely the
+          resemblance objectui#5178 is about. */}
+      {!loading && isOverride
+        ? <ShieldAlert className={cn('h-4 w-4', label && 'mr-2')} />
+        : null}
       {/* `getIcon` returns a (memoised) component — instantiate it via
           createElement so it is not a component "created during render" in JSX
           position (react-hooks/static-components), mirroring ObjectDataPage. */}
-      {!loading && iconName
+      {!loading && !isOverride && iconName
         ? React.createElement(getIcon(iconName), { className: cn('h-4 w-4', label && 'mr-2') })
         : null}
       {label}

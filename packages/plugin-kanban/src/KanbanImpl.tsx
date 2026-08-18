@@ -68,7 +68,12 @@ export interface KanbanCard {
    * Takes precedence over `cardSubtitle` / `description` when present.
    */
   cardFieldCells?: Array<{ field: string; label?: string; node: React.ReactNode }>
-  badges?: Array<{ label: string; variant?: "default" | "secondary" | "destructive" | "outline"; colorClass?: string }>
+  /**
+   * `colorStyle` carries the CSS custom properties a hex-derived `colorClass`
+   * reads (objectui#5183) — see `KanbanCard.badges` in `./types` for how to
+   * derive the pair.
+   */
+  badges?: Array<{ label: string; variant?: "default" | "secondary" | "destructive" | "outline"; colorClass?: string; colorStyle?: React.CSSProperties }>
   coverImage?: string
   [key: string]: any
 }
@@ -197,6 +202,7 @@ function SortableCard({ card, onCardClick, conditionalFormatting, objectFields }
                     key={index}
                     variant={badge.colorClass ? "outline" : (badge.variant || "default")}
                     className={cn("text-xs font-normal", badge.colorClass)}
+                    style={badge.colorStyle}
                   >
                     {badge.label}
                   </Badge>

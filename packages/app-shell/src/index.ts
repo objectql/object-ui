@@ -77,6 +77,15 @@ export {
 // (objectui#4109 / PR #4279), which is the "two readers of one prose contract"
 // shape #3367 / #3842 record. `./utils/appRoute` is the contract.
 export { resolveHostAppSegment, appRouteSegment, filterActiveApps } from './utils';
+// objectui#5178 — the Approval Center's timeline reads the same `via_override`
+// verdict the record page's approval panel does.
+export {
+  isOverrideOnlyViewer,
+  actionAdmittedByOverride,
+  isOverrideDecision,
+  bypassedApproverNames,
+  isViaOverrideRow,
+} from './utils';
 
 // Runtime AI-availability signal — the single source of truth every AI entry
 // point gates on (FAB, /ai routes, designer "Ask AI"). Server-pushed, no
