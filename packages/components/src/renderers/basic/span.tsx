@@ -117,8 +117,30 @@ const SpanRenderer = forwardRef<HTMLSpanElement, { schema: TextSpanSchema; class
         one type whose declaration never named it (Commandment #0.1), and the
         sweep for this issue found nothing in the repo authoring it on this tag.
         `__tests__/span-children-rendering.test.tsx` pins both halves.
+
+        `value` IS read, as the fallback (objectui#5050). It is not an alias
+        anybody invented on the read side: `TextSpanSchema` declares it
+        (`packages/types/src/layout.ts`) and the published doc's Schema block
+        lists it, both calling it the text content — and the renderer read
+        neither `value` nor, before #5027, any key a producer emits. So an
+        author following the type or the docs got the same empty element the
+        html tier got, one key over. Ruled 2026-08-17: wire it, rather than
+        retract two declared surfaces that have been published as true.
+
+        PRECEDENCE — child content wins. This is the family shape `text`
+        already sets one file over (`schema.content || schema.value` in
+        `basic/text.tsx`), not a rule invented for this type: the richer key
+        wins and the scalar is what you fall back to. `renderChildren` returns
+        `null` for an absent, empty-string or empty-array `children`, so "no
+        child content" is exactly when `value` renders.
+
+        Note the asymmetry with the `body` paragraph above, since both
+        paragraphs are about a key this renderer did not use to read: `body` is
+        declared NOWHERE for this type and refused; `value` is declared TWICE
+        for it and honored. The question is never "is a tolerant read
+        convenient" but "did we publish this key as authorable".
       */}
-      {renderChildren(schema.children)}
+      {renderChildren(schema.children) || schema.value}
     </span>
   );
   }

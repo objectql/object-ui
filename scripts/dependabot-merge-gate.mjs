@@ -124,6 +124,7 @@ import { pathToFileURL } from 'node:url';
  *   skills-paths.yml  Skill Guide Path Check
  *   changeset-presence.yml   Changeset Declaration
  *   doc-component-types.yml  Doc Component Type Check
+ *   doc-snippet-types.yml    Doc Snippet Type Check
  *
  * The four shards are spelled out individually on purpose. A single `Test`
  * entry, or any pattern match, would be satisfied by whichever shard happened
@@ -144,6 +145,7 @@ export const REQUIRED_CONTEXTS = Object.freeze([
   'Skill Guide Path Check',
   'Changeset Declaration',
   'Doc Component Type Check',
+  'Doc Snippet Type Check',
 ]);
 
 /**

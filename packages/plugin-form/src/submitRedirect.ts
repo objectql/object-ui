@@ -64,10 +64,12 @@
  * substitution and the escape, ~20 lines the spec exports no substituter for.
  *
  * Two deliberate divergences, both named so a future consolidation has a map.
- * The accepted value: the console resolves to a `path` it hands to a ROUTER,
- * whereas this package resolves to a `url` it hands to a browser-level
- * navigation, for the reason in {@link resolveSubmitRedirect}'s "what this module
- * does NOT fix". And the split: the console has since separated its shape verdict
+ * The accepted value: the console resolves to a `path` it hands to a ROUTER
+ * unconditionally, whereas this package resolves to a path it hands to the
+ * host's injected navigate when there is one and to a browser-level navigation
+ * when there is not — a renderer cannot assume a router, which is the whole
+ * subject of `submitRedirectNavigation.ts`. And the split: the console has since
+ * separated its shape verdict
  * into `checkSubmitRedirectUrl` because it also owns an authoring door
  * (`PublicFormsPage` asks it before saving), which this package has no
  * counterpart to — a renderer only ever consumes.
@@ -178,20 +180,20 @@ export function submitRedirectScope(
  * nothing to say about structure injected further along. `submitRedirect.test.ts`
  * therefore pins both halves.
  *
- * ## What this module does NOT fix: mount-blindness (objectui#4989 defect 4)
+ * ## What this module does not answer: WHO travels (objectui#4989 defect 4)
  *
- * An accepted value is a rooted relative path, and the caller hands it to
- * `window.location.assign`, which resolves it against the ORIGIN root. Under a
- * host mounted at a sub-path (the framework CLI configures one for every
- * embedded deployment) a ruled in-app `/thanks` therefore still leaves the app.
- * That is defect 4 of the card, and it is deliberately NOT addressed here:
- * fixing it means learning the host's mount, and every available mechanism
- * changes this package's published contract (see the escalation on
- * objectui#4989 — reading React Router's context requires importing
- * `react-router`, which this package declares in no dependency field and two of
- * its own consumers, `apps/site` and `packages/plugin-view`, do not have).
- * `submitRedirect.mountBlind.test.tsx` pins the measurement that escalation rests
- * on so the open defect stays visible instead of becoming folklore.
+ * An accepted value is a rooted relative path, and a rooted path resolves
+ * against the ORIGIN root when a browser-level navigation performs it — so
+ * under a host mounted at a sub-path a ruled in-app `/thanks` used to leave the
+ * app. That is defect 4 of the card, and it is not a property of the string:
+ * the same accepted path is correct or wrong depending on who travels to it.
+ * It is therefore answered one layer out, in `submitRedirectNavigation.ts`,
+ * where the host's optionally injected navigate is used when present
+ * (maintainer ruling, 2026-08-17) and `window.location.assign` otherwise.
+ *
+ * Nothing about the verdict changes with the seam: an injected host navigate is
+ * never a laundering route for a value this module refuses, because it is only
+ * ever handed a path this module already accepted.
  */
 export function resolveSubmitRedirect(
   url: string,

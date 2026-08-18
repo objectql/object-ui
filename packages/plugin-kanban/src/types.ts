@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type React from 'react';
 import type { BaseSchema, GroupingConfig, KanbanConditionalFormattingRule } from '@object-ui/types';
 
 /**
@@ -20,10 +21,24 @@ export interface KanbanCard {
     variant?: "default" | "secondary" | "destructive" | "outline";
     /**
      * Optional Tailwind class string applied to the badge. When set, it
-     * overrides `variant` so callers can reuse the same color palette as
-     * list/grid cells (see `getBadgeColorClasses` in `@object-ui/fields`).
+     * overrides `variant` so callers can reuse the same colors as list/grid
+     * cells.
+     *
+     * Derive it the way the grid cell derives it, or the same option renders
+     * two colours on one screen (objectui#5183): prefer
+     * `getBadgeHexAppearance(color)` from `@object-ui/fields` and use its
+     * `className` — passing its `colorStyle` too — and fall back to
+     * `getBadgeColorClasses(color, value)` only when it returns `undefined`.
      */
     colorClass?: string;
+    /**
+     * Inline style accompanying `colorClass`. **Required whenever the class
+     * string came from `getBadgeHexAppearance`** — that className reads CSS
+     * custom properties which only this style declares, so a badge carrying
+     * the class without the style references undefined variables. Pass the
+     * helper's `style` verbatim; leave unset on the palette-family path.
+     */
+    colorStyle?: React.CSSProperties;
   }>;
   [key: string]: any;
 }

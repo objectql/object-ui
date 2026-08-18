@@ -1,6 +1,8 @@
 # Styling Rules
 
 > **Critical:** ObjectUI uses Tailwind CSS exclusively. No inline styles, CSS modules, or styled-components.
+> The single carve-out — *author-declared, data-driven* colour published as CSS custom
+> properties — is stated in full under **Rule: Author-Declared, Data-Driven Colour**.
 
 ## Rule: Use Tailwind Utility Classes Only
 
@@ -17,6 +19,11 @@
 // Never do this in ObjectUI
 <Card style={{ padding: '24px', color: 'red' }} />
 ```
+
+Both halves are wrong, for different reasons: `padding` has a utility, and `color: 'red'`
+is a colour the *component* chose. A colour the *author* declared is the one case inline
+`style` is permitted, and only in one shape — see **Rule: Author-Declared, Data-Driven
+Colour**.
 
 ## Rule: Use `cn()` for Class Merging
 
@@ -50,10 +57,79 @@ className="border-border"
 **❌ FORBIDDEN:**
 ```typescript
 className="bg-blue-500 text-white"  // ❌ Hard-coded color
-className="bg-[#3b82f6]"             // ❌ Arbitrary value
+className="bg-[#3b82f6]"             // ❌ Arbitrary value — a colour literal
 ```
 
 **Why:** Semantic tokens support theming and dark mode automatically.
+
+What is banned is the colour **literal**, not the arbitrary-value syntax itself:
+`bg-[color:var(--os-badge-bg)]` carries a custom property rather than a colour, and is the
+sanctioned carrier for author-declared colour — see the next rule.
+
+## Rule: Author-Declared, Data-Driven Colour (the one carve-out)
+
+The rules above ban **component-authored** colour. They do not ban rendering a colour the
+*author* declared — an `options[].color` on a select field, a Gantt task's `color`, a
+conditional-formatting rule's `backgroundColor`. Those values exist only at runtime, so no
+class string can carry them, and quietly discarding or quantizing them is a bug in its own
+right.
+
+The permitted shape is narrow: publish the declared colour as **CSS custom properties** on
+the element, and let **static** Tailwind utilities consume them.
+
+**✅ CORRECT:**
+```typescript
+// The utility string is a literal, so Tailwind emits these classes at build time —
+// and `dark:` stays a real variant that the theme still controls.
+const HEX_BADGE_CLASSES =
+  'bg-[color:var(--os-badge-bg)] text-[color:var(--os-badge-fg)] ' +
+  'dark:bg-[color:var(--os-badge-bg-dark)] dark:text-[color:var(--os-badge-fg-dark)]';
+
+<span
+  className={HEX_BADGE_CLASSES}
+  style={{
+    '--os-badge-bg': surface,
+    '--os-badge-fg': label,
+    '--os-badge-bg-dark': surfaceDark,
+    '--os-badge-fg-dark': labelDark,
+  } as React.CSSProperties}
+/>
+```
+
+**❌ FORBIDDEN — the same author value, painted straight in:**
+```typescript
+<span style={{ backgroundColor: option.color }} />  // ❌ dark mode renders identically
+```
+
+**Still banned, unchanged:**
+
+- colour the **component** chose, in any form — that is what semantic tokens are for;
+- colour **literals** in class strings (`bg-blue-500`, `bg-[#3b82f6]`);
+- **any** inline style that hard-codes a colour such that dark mode renders identically.
+  That last one is the property that actually decides a case — not whether the word
+  `style` appears in the diff.
+
+**Why:** semantic tokens exist so that theming and dark mode work automatically. A pattern
+that preserves that property satisfies the rule; a pattern that defeats it does not.
+Routing an author's value through custom properties keeps both themes under the design
+system's control — the component supplies *values*, the stylesheet still supplies the
+*rules*, and a theme can still restyle or override them. Writing the value into
+`backgroundColor` hands the component the rules as well, and dark mode is the first thing
+that is lost.
+
+Read that rationale as the test. It decides cases this page does not list: a new widget
+that paints an author's colour, a token added to the palette, a helper that returns a
+style object. If the design system keeps theme control, the pattern is in; if the rendered
+colour is the same byte in both themes, it is out.
+
+Scope: **colour only**, and only where the value is an author's declaration. This is not a
+general licence for `style={{}}` — layout, spacing and sizing stay on utilities, and a
+runtime *geometry* value (a computed bar offset, a virtualiser's row height) is a separate
+question this carve-out does not answer.
+
+**Worked reference:** `getBadgeHexAppearance` / `getDotHexAppearance` in
+`packages/fields/src/index.tsx`, added by PR #5184 — the derived surface, label and border
+are published as custom properties and consumed by the static utility pair above.
 
 ## Rule: Use Component Variants (CVA)
 
@@ -122,6 +198,11 @@ className="bg-white dark:bg-gray-900"
 // ✅ Semantic tokens handle dark mode automatically
 className="bg-background text-foreground"
 ```
+
+The one exception is the custom-property carrier for author-declared colour, where an
+explicit `dark:` variant is what *keeps* dark mode real rather than bypassing it — see
+**Rule: Author-Declared, Data-Driven Colour**. Hand-picking a `dark:` colour the component
+chose is still wrong.
 
 ## Rule: No Manual Z-Index
 

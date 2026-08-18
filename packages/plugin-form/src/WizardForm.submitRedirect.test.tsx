@@ -15,10 +15,12 @@
  * leaves the unit file entirely green, which is exactly why the consumption is
  * pinned per component.
  *
- * **Defect 4 (mount-blindness) is deliberately NOT fixed** here either — it is
- * escalated on the issue, with the measurement in
- * `submitRedirect.mountBlind.test.tsx`. The navigation is still
- * `window.location.assign`, and these tests assert the string it receives.
+ * **Defect 4 (mount-blindness) is fixed separately**, by the optional injected
+ * navigation seam ruled on 2026-08-17 and pinned in
+ * `submitRedirect.injectedNavigation.test.tsx` (which covers this component
+ * too). No host provider is mounted here — a supported state, and the one that
+ * keeps `window.location.assign` — so these tests assert the string it receives
+ * and double as the pin on that fallback being unchanged.
  *
  * ## Reverse verification — predicted first, then measured (counts are measured)
  *

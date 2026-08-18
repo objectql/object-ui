@@ -20,7 +20,7 @@ import { toast } from '@object-ui/components';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import { extractRecords, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
-import { getBadgeColorClasses, getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
+import { getBadgeColorClasses, getBadgeHexAppearance, getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import { KanbanRenderer, KANBAN_UNCOLUMNED_ID } from './index';
 import { KanbanSchema } from './types';
 import {
@@ -370,7 +370,12 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
         'display_name',
       ]);
 
-      const cardBadges: Array<{ label: string; variant?: any; colorClass?: string }> = [];
+      const cardBadges: Array<{
+        label: string;
+        variant?: any;
+        colorClass?: string;
+        colorStyle?: React.CSSProperties;
+      }> = [];
       const cardFieldCells: Array<{ field: string; label?: string; node: React.ReactNode }> = [];
 
       if (explicitCardFields.length > 0) {
@@ -399,8 +404,17 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
               ? translateOptions(objectKey, f, [{ value: String(opt?.value ?? raw), label: rawLabel }])[0]?.label
                   ?? rawLabel
               : rawLabel;
-            const colorClass = getBadgeColorClasses(opt?.color, raw);
-            cardBadges.push({ label: translatedLabel, colorClass });
+            // Resolved exactly as the grid cell resolves it
+            // (`SelectCellRenderer` in `@object-ui/fields`): a declared hex
+            // renders as declared (objectui#5141/#5183), a family name keeps
+            // going through `getBadgeColorClasses`. `colorStyle` carries the
+            // CSS custom properties the hex className reads and travels with
+            // the badge to the renderer — the class alone is not a colour.
+            const hexBadge = getBadgeHexAppearance(opt?.color);
+            const colorClass = hexBadge
+              ? hexBadge.className
+              : getBadgeColorClasses(opt?.color, raw);
+            cardBadges.push({ label: translatedLabel, colorClass, colorStyle: hexBadge?.style });
           } else {
             // Route through the same registry that Grid/Gallery use so
             // every field type renders with its canonical widget.
@@ -451,8 +465,14 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
               String(o.value).toLowerCase() === String(v).toLowerCase()
             );
             const label = option?.label || String(v);
-            const colorClass = getBadgeColorClasses(option?.color, v);
-            cardBadges.push({ label, colorClass });
+            // Same hex-first resolution as the explicit-card-fields branch
+            // above (objectui#5141/#5183); see the comment there for why the
+            // style has to travel with the class.
+            const hexBadge = getBadgeHexAppearance(option?.color);
+            const colorClass = hexBadge
+              ? hexBadge.className
+              : getBadgeColorClasses(option?.color, v);
+            cardBadges.push({ label, colorClass, colorStyle: hexBadge?.style });
             if (cardBadges.length >= 2) break;
           }
         }

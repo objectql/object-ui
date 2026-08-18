@@ -1808,13 +1808,108 @@ export interface ListViewRuntimeProps {
   refreshTrigger?: number;
 }
 
+/**
+ * Object Map Configuration — the AUTHOR-FACING shape of an `object-map`'s
+ * type-specific configuration, carried under `ObjectMapSchema.map`.
+ *
+ * ONE declaration, two consumers: this interface is what a TypeScript author
+ * writes, and `ObjectMapConfigSchema` (`zod/objectql.zod.ts`) is what `ObjectMap`
+ * validates the authored block against at runtime. They are kept as a pair
+ * here, in `@object-ui/types`, precisely so the declared face and the runtime
+ * validation cannot drift — before objectui#5018 the zod lived package-private
+ * inside `plugin-map/src/ObjectMap.tsx` and the declared face did not exist at
+ * all, so a misspelled `latitudeFieId` reached the renderer unchallenged by
+ * either layer and painted an empty map.
+ *
+ * The FLAT top-level spelling of these same keys (`schema.latitudeField`, …)
+ * is deliberately NOT declared here: it is the internal product of ObjectView /
+ * ListView flattening `options.map` into the component schema, not an authoring
+ * surface (maintainer ruling on objectui#5018, 2026-08-17). Authors write the
+ * `map` block; when both are present, the block wins.
+ */
+export interface ObjectMapConfig {
+  /** Field containing latitude value */
+  latitudeField?: string;
+  /** Field containing longitude value */
+  longitudeField?: string;
+  /** Field with a combined location (`"lat,lng"`, `[lat, lng]` or `{ lat, lng }`) */
+  locationField?: string;
+  /** Field to use for the marker title/label */
+  titleField?: string;
+  /** Field to use for the marker description */
+  descriptionField?: string;
+  /**
+   * Zoom level (1-20). Declaring it opts the view OUT of fitting the camera to
+   * its records — the declaration wins (objectui#4941).
+   */
+  zoom?: number;
+  /**
+   * Center coordinates `[lat, lng]` — latitude first, as documented and as the
+   * `map` block has always been read. Declaring it opts the view OUT of fitting
+   * the camera to its records.
+   */
+  center?: [number, number];
+  /** MapLibre style URL/spec (overrides the public demo default) */
+  style?: string;
+}
+
+/**
+ * ObjectMap Component Schema
+ *
+ * Every key here has a read site in `plugin-map/src/ObjectMap.tsx`; nothing is
+ * declared that the renderer does not consume (objectui#5018 — the card exists
+ * because the reverse was true, and a declared-but-unread key re-creates the
+ * same defect pointing the other way).
+ */
 export interface ObjectMapSchema extends BaseSchema {
   type: 'object-map';
   /** ObjectQL object name */
   objectName: string;
-  /** Field containing location data (or lat/long pair) */
+  /**
+   * Data source configuration. Preferred over `staticData` / `objectName`
+   * (`getDataConfig`).
+   */
+  data?: ViewData;
+  /** Inline records, wrapped into a `{ provider: 'value' }` data config */
+  staticData?: any[];
+  /** Query filter, forwarded verbatim as `$filter` */
+  filter?: any[];
+  /** Sort configuration, forwarded as `$orderby` */
+  sort?: string | SortConfig[];
+  /**
+   * Map configuration — the author face. See `ObjectMapConfig`.
+   *
+   * Named `ObjectMapConfig`, not `MapConfig`: `@objectstack/spec/automation`
+   * already owns `MapConfig` / `MapConfigSchema` for an unrelated automation
+   * concept, and `check:spec-symbols` (rightly) refuses a local declaration
+   * under a spec export's name — a colliding name is read by the next agent as
+   * the spec's own definition.
+   */
+  map?: ObjectMapConfig;
+  /**
+   * Group nearby markers into clusters. Clustering also engages automatically
+   * past 100 markers; the `enableClustering` prop overrides this key.
+   */
+  enableClustering?: boolean;
+  /**
+   * Record navigation behaviour (drawer / dialog / page).
+   * Aligned with @objectstack/spec ListView.navigation.
+   */
+  navigation?: ViewNavigationConfig;
+  /**
+   * Field containing location data (or lat/long pair).
+   *
+   * INTERNAL FORM. This is the flat spelling ObjectView / ListView produce when
+   * they flatten `options.map`; it predates the `map` block and stays declared
+   * only so that already-published authoring keeps type-checking. New authoring
+   * belongs in `map.locationField`, which wins when both are present
+   * (objectui#5018).
+   */
   locationField?: string;
-  /** Field for marker title */
+  /**
+   * Field for marker title. INTERNAL FORM — see `locationField`; prefer
+   * `map.titleField`.
+   */
   titleField?: string;
   /**
    * MapLibre style URL/spec. Overrides the default demo style

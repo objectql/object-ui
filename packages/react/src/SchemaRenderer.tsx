@@ -28,6 +28,7 @@ import { SchemaRendererContext } from './context/SchemaRendererContext';
 import { usePredicateScope } from './hooks/useExpression';
 import { usePageVariables } from './hooks/usePageVariables';
 import { resolveKeyedI18nLabel } from './utils/i18n';
+import { reportUnevaluatedExpressions } from './utils/unevaluatedExpression';
 
 /**
  * Dev-mode schema validation.
@@ -338,6 +339,51 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     // Shallow copy
     const newSchema = { ...schema };
 
+    // Evaluate 'properties' — the SPEC spelling of a node's config bag, of
+    // which `props` (evaluated below) is the legacy alias.
+    //
+    // objectui#4799: only `props` used to be evaluated here. Renderers in the
+    // `element:*` namespace read their config out of `schema.properties` FIRST
+    // (`readProps()` merges `{ ...schema.props, ...schema.properties }`), so a
+    // node written the canonical way handed the renderer the RAW `${…}` source
+    // and put it on screen verbatim, while the same node written with the
+    // "legacy alias" evaluated correctly. Measured through a real render with
+    // `dataSource: { total: 99 }`: `props: { content: '${data.total}' }` → `99`,
+    // `properties: { content: '${data.total}' }` → `${data.total}`. That is the
+    // inverse of contract-first (AGENTS.md #0.1) — the tolerant spelling was
+    // fed and the canonical one starved — so the fix belongs HERE, at the one
+    // producer of evaluated schema, not as a second read in each consumer.
+    //
+    // Order matters: this runs BEFORE the hoist block below, because that block
+    // copies every `properties.*` value onto the node's top level (and those
+    // copies are spread as React props at render). Evaluating first is what
+    // makes one key mean one thing whether it is read as `schema.properties.x`,
+    // as `schema.x`, or as the `x` prop. It also leaves the `content` leg below
+    // idempotent: a value evaluated here no longer carries a `${…}`.
+    //
+    // Per-value and SHALLOW, matching the `props` branch exactly:
+    // `evaluator.evaluate` returns every non-string untouched, so a nested
+    // object/array value is passed through rather than walked (measured: an
+    // `aria: { label: '${data.total}' }` nested under EITHER key renders the raw
+    // source today). Deepening that is a separate decision and would have to be
+    // taken for both spellings at once — not smuggled in on one side here.
+    //
+    // The guard is wider than the `props` branch's bare truthiness on purpose:
+    // this value FEEDS the hoist, so re-shaping a degenerate `properties`
+    // (a string, an array) via the object spread would propagate. Non-objects
+    // skip evaluation and reach the hoist exactly as they do today.
+    if (
+      newSchema.properties &&
+      typeof newSchema.properties === 'object' &&
+      !Array.isArray(newSchema.properties)
+    ) {
+      const newProperties: Record<string, any> = { ...newSchema.properties };
+      for (const [key, val] of Object.entries(newProperties)) {
+        newProperties[key] = evaluator.evaluate(val as any);
+      }
+      newSchema.properties = newProperties;
+    }
+
     // COMPAT: Hoist 'properties' up to schema level
     // This allows support for strict configs that wrap all props in 'properties'.
     // IMPORTANT: never let inner `properties.type` / `properties.id` shadow the
@@ -574,6 +620,32 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     responsiveStyles: _responsiveStyles, // stripped: compiled to scoped CSS, not a DOM prop
     ...componentProps
   } = evaluatedSchema;
+
+  // Dev-build loud diagnostic (objectui#4795, Direction 3): an unevaluated
+  // `${…}` about to be placed verbatim in front of a user.
+  //
+  // Sited HERE, after the metadata destructure, on purpose. `componentProps` is
+  // precisely the set of values that leaves this component for the DOM — it is
+  // spread as React props below, and the same values are what renderers read as
+  // `schema.<key>`. Everything the destructure stripped is schema METADATA:
+  // `visible` / `visibleWhen` / `hidden` / `disabled` / … hold raw predicate
+  // SOURCE by design (they are evaluated as conditions, never placed), so
+  // scanning before the strip would report every correctly-authored predicate
+  // in the repo. The strip list is therefore the diagnostic's exclusion list,
+  // for free and without a second copy of it to drift.
+  //
+  // Read-only: it reports what evaluation already produced and changes nothing
+  // about what is rendered — no DOM attribute either, so no snapshot moves.
+  if (__DEV__) {
+    reportUnevaluatedExpressions(
+      schema as object,
+      evaluatedSchema.type,
+      evaluatedSchema.id,
+      componentProps,
+      evaluatedSchema.properties,
+      evaluatedSchema.props
+    );
+  }
 
   // SDUI scoped styling (ADR-0065): a node's `responsiveStyles` compiles to
   // id-scoped CSS injected as a <style> tag, and a scope class is appended to

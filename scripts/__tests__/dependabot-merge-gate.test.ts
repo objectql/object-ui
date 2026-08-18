@@ -106,14 +106,34 @@ function snapshotAt(instant: string) {
   });
 }
 
-/** The same 19 names, all green — the shape the gate is allowed to merge. */
+/**
+ * The shape the gate is allowed to merge: the incident's 19 names, all green,
+ * plus every required context added to the repository SINCE that SHA.
+ *
+ * The second half is not padding. `INCIDENT_4959` is a verbatim record of what
+ * the API returned for one commit in August 2026 and must never grow — but a
+ * required set that has grown since means "all green" is no longer that record.
+ * Building the all-green shape from the record ALONE would make every gate added
+ * after it look permanently `pending` here, and the natural repair — adding the
+ * new name to the incident record — falsifies the history the counterfactual
+ * rests on. So the record stays frozen and the additions are appended.
+ */
 function allGreenSnapshot() {
-  return INCIDENT_4959.map((run, index) => ({
+  const fromIncident = INCIDENT_4959.map((run, index) => ({
     id: 95_325_240_000 + index,
     name: run.name,
     status: 'completed',
     conclusion: run.name === 'Test (coverage)' ? 'skipped' : 'success',
   }));
+  const addedSince = REQUIRED_CONTEXTS.filter(
+    (name) => !INCIDENT_4959.some((run) => run.name === name),
+  ).map((name, index) => ({
+    id: 95_325_260_000 + index,
+    name,
+    status: 'completed',
+    conclusion: 'success',
+  }));
+  return [...fromIncident, ...addedSince];
 }
 
 describe('the #4959 counterfactual: this gate stops the merge that happened', () => {
@@ -171,7 +191,7 @@ describe('the #4959 counterfactual: this gate stops the merge that happened', ()
     expect(result.failing.join()).not.toContain('shard 4/4');
   });
 
-  it('is green on the same 19 contexts when they all pass', () => {
+  it('is green when the incident\'s contexts, and every one added since, all pass', () => {
     const result = evaluateGate({ checkRuns: allGreenSnapshot() });
 
     expect(result).toEqual({ verdict: 'green', failing: [], pending: [], missing: [] });

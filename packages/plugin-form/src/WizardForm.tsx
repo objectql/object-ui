@@ -26,6 +26,10 @@ import { seedCreateValues, omitServerResolvedDefaults, isCreateFormMode } from '
 import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
 import { resolveSuccessNavigate, type SubmitBehavior } from './successBehavior';
 import { resolveSubmitRedirect, submitRedirectScope } from './submitRedirect';
+import {
+  useSubmitRedirectNavigation,
+  type PendingSubmitRedirect,
+} from './submitRedirectNavigation';
 import { useOccSave } from './occSave';
 import type { FormSectionConfig } from './TabbedForm';
 
@@ -255,21 +259,16 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   // submitter who had closed the modal/drawer variant or navigated on. The delay
   // is captured with the destination so the pause cannot be restarted mid-wait by
   // a host re-render carrying a different `delayMs`.
-  const [pendingRedirect, setPendingRedirect] = useState<
-    { url: string; delayMs: number } | null
-  >(null);
+  const [pendingRedirect, setPendingRedirect] = useState<PendingSubmitRedirect | null>(null);
 
   // The delayed leg of a `redirect` submit behaviour, owned by this component:
   // unmounting cancels the wait. `delayMs` semantics are untouched — the pause is
-  // still a pause, an unset value is still a zero timer, i.e. "go now".
-  React.useEffect(() => {
-    if (!pendingRedirect) return;
-    const timer = setTimeout(
-      () => window.location.assign(pendingRedirect.url),
-      pendingRedirect.delayMs,
-    );
-    return () => clearTimeout(timer);
-  }, [pendingRedirect]);
+  // still a pause, an unset value is still a zero timer, i.e. "go now". The host's
+  // injected navigate is used when one was supplied, so a mounted host's basename
+  // is applied (objectui#4989 defect 4); with no host seam this is the same
+  // `window.location.assign` as before. Same hook as ObjectForm's redirect arm —
+  // see `submitRedirectNavigation.ts`.
+  useSubmitRedirectNavigation(pendingRedirect);
 
   // Stable id for the *inner* step form's <form> element. The wizard's
   // Next/Create buttons live in the footer, OUTSIDE that form, and submit it

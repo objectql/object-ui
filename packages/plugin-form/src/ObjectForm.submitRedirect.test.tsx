@@ -22,10 +22,13 @@
  *   - **defect 5** — `{{record.field_name}}` is substituted from the record the
  *     submit just wrote, URL-escaped.
  *
- * **Defect 4 (mount-blindness) is deliberately NOT fixed** and is escalated on the
- * issue; `submitRedirect.mountBlind.test.tsx` carries that measurement. The
- * navigation here is therefore still `window.location.assign`, and these tests
- * assert the string it is called with — not that a mount was applied.
+ * **Defect 4 (mount-blindness) is fixed separately**, by the optional injected
+ * navigation seam the maintainer ruled on 2026-08-17;
+ * `submitRedirect.injectedNavigation.test.tsx` carries it. These tests mount no
+ * host provider, which is a supported state and the one that keeps
+ * `window.location.assign` — so they still assert the string it is called with,
+ * and that assertion is now also the pin on the absent-seam fallback staying
+ * byte-for-byte what it was.
  *
  * ## Reverse verification — predicted first, then measured (counts are measured)
  *

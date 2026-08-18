@@ -669,16 +669,21 @@ function optionKeysOf(field: OptionBearingField | undefined): string[] {
  * ways to land here, all meaning "the local option set cannot vouch for this
  * value":
  *
- *   - `options` **absent** — the shape a lookup with `referenceTo` arrives in,
- *     which `renderValueInput` sends to {@link LookupValuePicker}'s remote
- *     search (`!field?.options` is that branch's own condition);
- *   - `options: []` — **present but not yet loaded**. `[]` is truthy, so this
- *     does NOT reach the remote picker: it renders an EMPTY Select, and a
- *     membership test against it would clear every value on earth. This is not
- *     hypothetical — `deriveFilterFields` in `@object-ui/fields` maps
- *     `Array.isArray(f.options)` through as-is, so an object whose picklist
- *     values have not arrived yields exactly this;
+ *   - `options` **absent** — the shape a lookup with `referenceTo` arrives in;
+ *   - `options: []` — **present but not yet loaded**. Not hypothetical:
+ *     `deriveFilterFields` in `@object-ui/fields` maps `Array.isArray(f.options)`
+ *     through as-is, so an object whose picklist values have not arrived yields
+ *     exactly this. A membership test against it would clear every value on
+ *     earth;
  *   - not an array at all — a malformed `fields` entry decides nothing.
+ *
+ * This is also the criterion `renderValueInput`'s remote-picker branch reads
+ * (objectui#5031), so the two questions a column raises — "which control is
+ * drawn for it" and "may a value be cleared against it" — are answered from one
+ * place. They used to disagree: that branch spelled the test `!field?.options`,
+ * which is `false` for `options: []`, so a lookup whose options had not arrived
+ * was handed the static Select (empty, no search box) by one answer while this
+ * one called it remote and kept its value.
  *
  * For those, the ruling is the other half: never clear on a local non-membership
  * guess (a valid lookup id is not the local page's to delete), and never leave
@@ -1199,8 +1204,20 @@ function FilterBuilder({
     const isMultiOperator = arity === "list"
     const isLookupLike = lookupLikeTypes.includes(field?.type || "")
 
-    // Lookup-like fields without static options → use remote search picker
-    if (isLookupLike && !field?.options && (field?.referenceTo || field?.type === "user" || field?.type === "owner")) {
+    // Lookup-like fields without a static option domain → remote search picker.
+    //
+    // `hasStaticOptionDomain`, never `!field?.options` (objectui#5031): `[]` is
+    // truthy, so the old spelling answered "is the static domain in place?" with
+    // YES for a column whose picklist values have not arrived — and drew the
+    // option-driven Select over an option set of zero. The user got a control
+    // with no search box and no candidates, on a column that would have had full
+    // remote search had the `options` key simply been absent. The value-domain
+    // side (`narrowFilterValueToOptions`) already reads `options: []` as
+    // remote/not-yet-in-place; this branch now reads the SAME criterion, so
+    // "which control is drawn" and "may this value be cleared" cannot give
+    // opposite answers about one column. A column with NON-EMPTY `options` is
+    // unaffected — it owns its domain and keeps the static Select.
+    if (isLookupLike && !hasStaticOptionDomain(field) && (field?.referenceTo || field?.type === "user" || field?.type === "owner")) {
       return (
         <LookupValuePicker
           field={field!}

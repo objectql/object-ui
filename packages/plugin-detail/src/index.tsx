@@ -537,7 +537,17 @@ ComponentRegistry.register('quick_actions', RecordQuickActionsRenderer, {
   label: 'Quick Actions',
   icon: 'Zap',
   inputs: [
-    { name: 'actionNames', type: 'array', label: 'Actions', description: 'Action names to expose, in order (else every action declared for the object at this location)' },
+    // Describes what the renderer does, not what it might do (objectui#4663).
+    // This sentence used to end "(else every action declared for the object at
+    // this location)" — a fallback that exists on no path: with no names and no
+    // host-supplied `actions`, `needsLookup` is false, the object metadata is
+    // never queried, and the bar renders its placeholder. The registry `inputs`
+    // are the published surface (`gen-manifest.ts` serializes them into
+    // `sdui.manifest.json` and the JSX authoring types), so the promise was
+    // taught to authors and to tooling — objectstack#8744 quoted it verbatim.
+    // Implementing the fallback would be a behaviour expansion and needs its own
+    // card; pinned by `recordQuickActionsInputs.actionNamesFallback.test.tsx`.
+    { name: 'actionNames', type: 'array', label: 'Actions', description: 'Action names to expose, in order — resolved from the actions declared on the object. With no names (and no host-supplied actions) nothing is looked up and the bar renders its empty placeholder' },
     { name: 'requiredPermissions', type: 'array', label: 'Required Permissions', description: 'Hide the whole bar unless the user holds these permissions' },
     // Derived from the spec's own vocabulary rather than restated — #3019.
     { name: 'location', type: 'enum', label: 'Location', enum: [...ACTION_LOCATIONS], defaultValue: 'record_header', description: 'Which declared action location this bar renders' },

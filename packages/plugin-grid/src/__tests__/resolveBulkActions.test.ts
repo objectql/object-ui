@@ -151,7 +151,7 @@ describe('resolveBulkActions', () => {
       name: 'push_down',
       icon: 'send',
       variant: 'danger',
-      confirm: { message: '确认下推?' },
+      confirmText: '确认下推?',
       visible: { dialect: 'cel', source: 'current_user.is_admin' },
     };
     const { defs } = resolveBulkActions({
@@ -165,6 +165,20 @@ describe('resolveBulkActions', () => {
       confirmText: '确认下推?',
       visible: { dialect: 'cel', source: 'current_user.is_admin' },
     });
+  });
+
+  // [objectui#4314] The structured `confirm` object is retired. Spec's action
+  // surface carries only `confirmText`, so `objectDef.actions` can never
+  // deliver this key — and the fallback read that used to sit in
+  // `toBulkActionDef` was the last thing keeping the second dialect alive.
+  it('ignores the retired structured confirm object (objectui#4314)', () => {
+    const stale = { name: 'push_down', confirm: { message: '确认下推?' } };
+    const { defs } = resolveBulkActions({
+      bulkActions: ['push_down'],
+      objectActions: [stale],
+    });
+
+    expect(defs[0].confirmText).toBeUndefined();
   });
 
   // [objectui#3492] The capability gate must travel with the promoted action:

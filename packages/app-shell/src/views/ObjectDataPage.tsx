@@ -29,7 +29,7 @@
 import * as React from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ListView } from '@object-ui/plugin-list';
-import { useNavigationOverlay } from '@object-ui/react';
+import { useNavigationOverlay, useRowPredicate } from '@object-ui/react';
 import {
   Button,
   Empty,
@@ -70,6 +70,7 @@ import {
   PREVIEW_QUERY_VALUE,
 } from '../preview/PreviewModeContext';
 import { useTenancyPosture } from '../hooks/useTenancyPosture';
+import { resolveEffectiveCrudAffordances, type RowCrudPredicates } from '../utils/crudAffordances';
 
 /** Field types the auto-derived user-filter bar offers as dropdowns. */
 const USER_FILTER_TYPES = new Set(['select', 'multiselect', 'radio', 'enum', 'boolean']);
@@ -189,7 +190,7 @@ export function ObjectDataPage({ dataSource, objects }: any) {
   const { objectLabel, fieldLabel } = useObjectLabel();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { can } = usePermissions();
+  const { can, getObjectApiOperations } = usePermissions();
   const { canRead } = useFieldPermissions(objectName ?? '');
   const { user, activeOrganization } = useAuth();
   const isAdmin = useIsWorkspaceAdmin();
@@ -389,6 +390,78 @@ export function ObjectDataPage({ dataSource, objects }: any) {
     [columns, urlFilters, metadataClient, dataSource, navigate, objectName, previewDrafts],
   );
 
+  // ─── The CRUD affordance matrix for this surface (#5164) ──────────────
+  //
+  // Until #5164 this page gated its "New" on `can(objectDef.name, 'create')`
+  // and nothing else — `resolveEffectiveCrudAffordances` was not called here at
+  // all. The bare data surface therefore contradicted every other console
+  // surface for the same object: `append-only` / `engine-owned` /
+  // `better-auth` objects (whose bucket resolves `create: false`) were still
+  // offered a "New" that navigates to `../new`, an object-level
+  // `userActions: { create: false }` opt-out did not close the button, and the
+  // #3391 effective-API-operation intersection was absent, so the toolbar could
+  // offer a create the server would 405.
+  //
+  // Resolved exactly as `ObjectView` does: the spec's bucket/`userActions`
+  // matrix (ADR-0103, delegated to `resolveCrudAffordances`), INTERSECTED with
+  // the server-resolved effective API operations for this object. `undefined`
+  // (unrestricted object / old backend) leaves the bucket affordances as-is.
+  const affordances = React.useMemo(
+    () =>
+      resolveEffectiveCrudAffordances(
+        objectDef as any,
+        objectDef ? getObjectApiOperations(objectDef.name) : undefined,
+      ),
+    [objectDef, getObjectApiOperations],
+  );
+
+  /**
+   * [#5164] The create affordance's PREDICATE layer, the fourth of the four
+   * this surface was missing. Binding, layering and the fail-CLOSED /
+   * fail-SOFT split are `ObjectView`'s (#5153 / PR #5165) verbatim — the spec
+   * types the toolbar keys once and binds them in one breath, so a
+   * `userActions.create` declaration must not get a different verdict because
+   * a different surface drew the button.
+   *
+   * BINDING: a toolbar predicate evaluates ONCE per toolbar against the record
+   * of the scope the toolbar sits in — and this surface, like the standalone
+   * object list, has NO record in scope. `null` is therefore passed
+   * deliberately: a predicate reading `record.*` has nothing to bind, faults,
+   * and — per the fail-closed rule — hides the button, exactly as the spec
+   * spells out. Predicates over the host scope (`os.user.*` / `features.*`)
+   * bind normally and are the meaningful shape here.
+   *
+   * LAYERING: surfaced only when the object-level verdict already passed. A
+   * predicate may not RE-OPEN what the bucket, the effective API operations
+   * (#3391) or the principal's grant have closed; it only narrows further. The
+   * pre-existing `can(...)` gate is not removed, it is one conjunct of this.
+   *
+   * ONE RENDER POINT here, unlike `ObjectView`: this page has no phone FAB —
+   * the whole PageHeader lives under `hidden sm:block`.
+   */
+  const objectCanCreate = !!objectDef && affordances.create && can(objectDef.name, 'create');
+  const createPredicates: RowCrudPredicates | undefined = objectCanCreate
+    ? affordances.createPredicates
+    : undefined;
+  /** `visibleWhen` — fails CLOSED, declared-ness by `?? true` rather than by
+   *  truthiness, so `visibleWhen: false` (the objectui#3492 shape) hides "New"
+   *  instead of reading as "ungated". The `true` default is a boolean, which
+   *  the evaluator short-circuits without touching the engine. */
+  const createVisible = useRowPredicate(createPredicates?.visibleWhen ?? true, null, {
+    fallback: false,
+    warnOnError: true,
+    label: 'builtin:create:visibleWhen',
+  });
+  /** `disabledWhen` — fails SOFT (an unevaluable predicate must not grey a
+   *  button forever), with the `!= null` declared-ness gate OUTSIDE the
+   *  evaluation so `disabledWhen: ''` reads as "no condition", not "disable". */
+  const createDisabledPred = useRowPredicate(createPredicates?.disabledWhen, null, {
+    fallback: false,
+    warnOnError: true,
+    label: 'builtin:create:disabledWhen',
+  });
+  const createDisabled = createPredicates?.disabledWhen != null && createDisabledPred;
+
   if (!objectDef) {
     return (
       <div className="h-full flex items-center justify-center p-8">
@@ -444,10 +517,16 @@ export function ObjectDataPage({ dataSource, objects }: any) {
           icon={React.createElement(getIcon((objectDef as any)?.icon), { className: 'h-4 w-4' })}
           actions={
             <>
-              {can(objectDef.name, 'create') && (
+              {/* [#5164] `objectCanCreate && createVisible` — the bucket +
+                  object-level `userActions` + #3391 effective-operations
+                  verdict (all folded into `affordances.create`) AND the
+                  principal's grant, then the toolbar-scope `visibleWhen` layer
+                  on top of it. Greyed, not gone, is the `disabledWhen` case. */}
+              {objectCanCreate && createVisible && (
                 <Button
                   size="sm"
                   onClick={() => navigate('../new', { relative: 'path' })}
+                  disabled={createDisabled}
                   className="shadow-none gap-1.5 h-8 sm:h-9"
                   data-testid="object-data-new-button"
                 >

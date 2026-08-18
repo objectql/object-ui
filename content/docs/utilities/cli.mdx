@@ -59,12 +59,13 @@ Start the development server with hot reload. Opens the browser automatically.
 ```bash
 objectui dev app.json
 objectui dev pages/                    # file-system routing
+objectui dev my-app/pages              # ...from anywhere, not just inside my-app
 objectui dev --port 8080 --no-open
 ```
 
 | Argument / Flag | Default | Description |
 |---|---|---|
-| `[schema]` (positional) | `app.json` | Path to JSON/YAML schema file or `pages/` directory |
+| `[schema]` (positional) | `app.json` | Path to JSON/YAML schema file, or a project / `pages/` directory |
 | `-p, --port <port>` | `3000` | Port to bind |
 | `-h, --host <host>` | `localhost` | Host to bind |
 | `--no-open` | — | Do not open the browser |
@@ -85,7 +86,7 @@ objectui build --out-dir build --clean
 
 | Argument / Flag | Default | Description |
 |---|---|---|
-| `[schema]` (positional) | `app.json` | Path to JSON/YAML schema file |
+| `[schema]` (positional) | `app.json` | Path to JSON/YAML schema file, or a project / `pages/` directory |
 | `-o, --out-dir <dir>` | `dist` | Output directory |
 | `--clean` | `false` | Clean output directory before build |
 
@@ -247,11 +248,16 @@ three commands answer one invocation the same way from anywhere:
 
 1. The directory the schema argument points into — `objectui build my-app/app.json`
    run from above `my-app/` routes from `my-app/pages/`, with `my-app/app.json`
-   as the app config.
+   as the app config. A **directory** argument counts here too: it may be the
+   `pages/` directory itself (`objectui dev my-app/pages`) or the project
+   directory holding it (`objectui dev my-app`), and both answer exactly as
+   naming the app config beside them does — from any working directory.
 2. Otherwise the current working directory — `cd my-app && objectui dev` routes
    from `./pages/`, with `./app.json` as the app config when present.
 3. Otherwise the named file is rendered on its own (single-schema mode), which
-   is what a lone `.json`/`.yaml` schema with no `pages/` beside it does.
+   is what a lone `.json`/`.yaml` schema with no `pages/` beside it does. A
+   directory that reaches this step is no project, and is refused by name — it
+   is neither a `pages/` directory nor does it contain one.
 
 ## Programmatic API
 

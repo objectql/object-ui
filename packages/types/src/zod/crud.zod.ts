@@ -63,14 +63,12 @@ export const ActionSchema: z.ZodType<any> = z.lazy(() => BaseSchema.extend({
   method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']).optional().default('POST').describe('HTTP method'),
   data: z.any().optional().describe('Request body/data'),
   headers: z.record(z.string(), z.string()).optional().describe('Request headers'),
-  confirm: z.object({
-    title: z.string().optional().describe('Confirmation title'),
-    message: z.string().optional().describe('Confirmation message'),
-    confirmText: z.string().optional().describe('Confirm button text'),
-    cancelText: z.string().optional().describe('Cancel button text'),
-    confirmVariant: z.enum(['default', 'destructive', 'outline', 'secondary', 'ghost']).optional().describe('Confirm button variant'),
-  }).optional().describe('Confirmation dialog configuration (for confirm actions)'),
-  confirmText: z.string().optional().describe('Legacy confirmation message (deprecated - use confirm object instead)'),
+  // RETIRED (objectui#4314): the structured confirm object is a tombstone.
+  // The TS twin (`crud.ts`) types it `?: never`; here any authored value is a
+  // loud parse rejection (absent stays valid), mirroring how `@objectstack/spec`
+  // retires keys. One confirm spelling: `confirmText` below.
+  confirm: z.never().optional().describe('RETIRED (objectui#4314) — author confirmText instead'),
+  confirmText: z.string().optional().describe('Confirmation message — shows a confirm dialog before executing'),
   dialog: z.object({
     title: z.string().optional().describe('Dialog title'),
     content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Dialog content'),

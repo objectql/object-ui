@@ -31,6 +31,7 @@ import {
   PaginationConfigSchema as SpecPaginationConfigSchema,
   UserActionsConfigSchema as SpecUserActionsConfigSchema,
   AriaPropsSchema as SpecAriaPropsSchema,
+  NavigationConfigSchema as SpecNavigationConfigSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
 
@@ -531,13 +532,51 @@ export const ListViewSchema = BaseSchema
 export type ListViewInferred = z.input<typeof ListViewSchema>;
 
 /**
+ * Object Map Configuration Schema — the runtime half of `ObjectMapConfig`
+ * (`objectql.ts`).
+ *
+ * NOT named `MapConfigSchema`: `@objectstack/spec/automation` exports that name
+ * for an unrelated automation concept, and `check:spec-symbols` refuses a local
+ * declaration under a spec export's name.
+ *
+ * Lifted out of `plugin-map/src/ObjectMap.tsx`, where it was package-private,
+ * so the declared authoring face and the validation the renderer performs are
+ * ONE schema rather than two that can drift (objectui#5018). `ObjectMap`
+ * imports this exact object; it no longer declares its own.
+ */
+export const ObjectMapConfigSchema = z.object({
+  latitudeField: z.string().optional().describe('Field containing latitude'),
+  longitudeField: z.string().optional().describe('Field containing longitude'),
+  locationField: z.string().optional().describe('Field with a combined location value'),
+  titleField: z.string().optional().describe('Field used as the marker title'),
+  descriptionField: z.string().optional().describe('Field used as the marker description'),
+  zoom: z.number().optional().describe('Zoom level (1-20); declaring it opts out of the auto-fit'),
+  center: z.tuple([z.number(), z.number()]).optional().describe('Center [lat, lng]; declaring it opts out of the auto-fit'),
+  style: z.string().optional().describe('MapLibre style URL/spec (overrides the public demo default)'),
+});
+
+/**
  * ObjectMap Schema
+ *
+ * Mirrors the `ObjectMapSchema` interface in `objectql.ts` key for key. Every
+ * key has a read site in `plugin-map/src/ObjectMap.tsx`; the FLAT spelling of
+ * the `map` block's keys is the ObjectView/ListView flatten product and stays
+ * out of this declaration (maintainer ruling on objectui#5018, 2026-08-17) —
+ * except `locationField` / `titleField`, which were published before the
+ * ruling and stay for compatibility.
  */
 export const ObjectMapSchema = BaseSchema.extend({
   type: z.literal('object-map'),
   objectName: z.string().describe('ObjectQL object name'),
-  locationField: z.string().optional().describe('Location field'),
-  titleField: z.string().optional().describe('Title field'),
+  data: ViewDataSchema.optional().describe('Data source configuration'),
+  staticData: z.array(z.any()).optional().describe('Inline records'),
+  filter: z.array(z.any()).optional().describe('Query filter, forwarded as $filter'),
+  sort: z.union([z.string(), z.array(SortConfigSchema)]).optional().describe('Sort configuration, forwarded as $orderby'),
+  map: ObjectMapConfigSchema.optional().describe('Map configuration (the author face)'),
+  enableClustering: z.boolean().optional().describe('Group nearby markers into clusters'),
+  navigation: SpecNavigationConfigSchema.optional().describe('Record navigation behaviour (drawer/dialog/page)'),
+  locationField: z.string().optional().describe('Location field (internal flat form; prefer map.locationField)'),
+  titleField: z.string().optional().describe('Title field (internal flat form; prefer map.titleField)'),
   mapStyle: z.string().optional().describe('MapLibre style URL/spec (overrides the public demo default)'),
 });
 

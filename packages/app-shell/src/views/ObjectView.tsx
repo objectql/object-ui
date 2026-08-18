@@ -56,7 +56,7 @@ import { useMobileViewSwitcherRegistration } from '../layout/MobileViewSwitcherC
 import type { MobileViewSwitcherItem } from '../layout/MobileViewSwitcherContext';
 import { ManagedByBadge } from '../components/ManagedByBadge';
 import { RecordDetailView } from './RecordDetailView';
-import { resolveEffectiveCrudAffordances } from '../utils/crudAffordances';
+import { resolveEffectiveCrudAffordances, type RowCrudPredicates } from '../utils/crudAffordances';
 import { createIdentityImportDataSource, IDENTITY_IMPORT_OBJECT, type IdentityPasswordPolicy } from './identityImport';
 import { IdentityImportOptions, IdentityImportResultExtra, identityImportFields } from './IdentityImportPanels';
 import { importTargetFields } from './importTargetFields';
@@ -70,7 +70,7 @@ import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
-import { ActionProvider, useNavigationOverlay, SchemaRenderer, useActionTextLocalizer, RelatedRecordActionsProvider } from '@object-ui/react';
+import { ActionProvider, useNavigationOverlay, SchemaRenderer, useActionTextLocalizer, useRowPredicate, RelatedRecordActionsProvider } from '@object-ui/react';
 import type { RelatedRecordActionsValue, RelatedRecordHandlers } from '@object-ui/react';
 import { toast } from 'sonner';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
@@ -937,6 +937,106 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         if (externalRefreshKey === undefined || externalRefreshKey === 0) return;
         setRefreshKey(k => k + 1);
     }, [externalRefreshKey]);
+
+    /**
+     * [#5153] The object-list toolbar's CREATE predicates — the `create` half
+     * of the toolbar-scope pair on THIS surface. #4646 (PR #5145) gave
+     * `createPredicates` a consumer on the **related list**
+     * (`RelatedRecordActionsBridge`); the standalone object-list page kept
+     * gating its "New" on the object-level verdict alone, so one
+     * `userActions.create` object form got two different verdicts depending on
+     * which surface rendered the button — honoured on a record page's related
+     * list, ignored here. `visibleWhen: false` (the objectui#3492 shape) did
+     * not hide this "New".
+     *
+     * BINDING, LAYERING and the fail-CLOSED / fail-SOFT split are the import
+     * half's, immediately below, verbatim — the spec types the two toolbar keys
+     * identically and binds them in one breath. See that docblock for the
+     * reasoning; the only thing that differs here is which affordance is gated.
+     *
+     * TWO RENDER POINTS, ONE VERDICT. The affordance surfaces twice on this
+     * page — the PageHeader button (desktop) and the phone-only floating "+"
+     * that stands in for it once the header is hidden. They are one affordance
+     * rendered twice, so both consume these SAME two values; computing the
+     * predicate once here is what keeps them from disagreeing with each other.
+     */
+    const objectCanCreate = affordances.create && can(objectDef.name, 'create');
+    const createPredicates: RowCrudPredicates | undefined = objectCanCreate
+      ? affordances.createPredicates
+      : undefined;
+    /** `visibleWhen` — fails CLOSED, declared-ness by `?? true`. As Import. */
+    const createVisible = useRowPredicate(createPredicates?.visibleWhen ?? true, null, {
+      fallback: false,
+      warnOnError: true,
+      label: 'builtin:create:visibleWhen',
+    });
+    /** `disabledWhen` — fails SOFT, `!= null` declared-ness OUTSIDE the eval. */
+    const createDisabledPred = useRowPredicate(createPredicates?.disabledWhen, null, {
+      fallback: false,
+      warnOnError: true,
+      label: 'builtin:create:disabledWhen',
+    });
+    const createDisabled = createPredicates?.disabledWhen != null && createDisabledPred;
+
+    /**
+     * [#5142] The object-list toolbar's IMPORT predicates — the `import` half
+     * of the toolbar-scope pair the spec resolver emits, mirroring what
+     * `RelatedRecordActionsBridge` does for `create` (objectui#4646).
+     *
+     * `@objectstack/spec@17.0.0` types `userActions.create` and
+     * `userActions.import` identically and `resolveCrudAffordances` emits a
+     * predicate envelope for each; the docblock binds them in one breath
+     * ("`importPredicates` — same binding as `createPredicates`"). #4646 gave
+     * `create` a consumer and left `import` declared-and-inert: an author could
+     * write `userActions.import.visibleWhen`, have the spec accept it and the
+     * resolver parse it, and watch this toolbar offer the CSV wizard anyway.
+     *
+     * BINDING (the spec docblock's, not an invention here). Unlike the ROW
+     * predicates, a toolbar predicate evaluates ONCE per toolbar against the
+     * record of the scope the toolbar sits in — the host parent record on a
+     * related list, and **no record at all on a standalone object list**, which
+     * is what this surface is. So `null` is passed deliberately below: a
+     * predicate reading `record.*` has nothing to bind, faults, and — per the
+     * fail-CLOSED rule — hides the button, exactly as the spec spells out.
+     * Predicates over the host scope (`os.user.*` / `features.*`) bind normally
+     * and are the meaningful shape here.
+     *
+     * LAYERING: surfaced only when the object-level verdict already passed —
+     * the same posture the related-list bridge takes, because a predicate may
+     * not RE-OPEN what the bucket, the effective API operations (#3391) or the
+     * principal's grant have closed. The identity-import bypass below is a
+     * different affordance entirely (it does not read `affordances.import`) and
+     * is deliberately left outside this layer.
+     */
+    const objectCanImport = affordances.import && can(objectDef.name, 'create');
+    const importPredicates: RowCrudPredicates | undefined = objectCanImport
+      ? affordances.importPredicates
+      : undefined;
+    /**
+     * `visibleWhen` — fails CLOSED, and counts as DECLARED by `?? true` rather
+     * than by truthiness, so `visibleWhen: false` hides Import instead of
+     * reading as "ungated" (the objectui#3492 invariant). The `true` default is
+     * a boolean, which the evaluator short-circuits without touching the engine
+     * — an object with no import predicates pays no evaluation at all.
+     */
+    const importVisible = useRowPredicate(importPredicates?.visibleWhen ?? true, null, {
+      fallback: false,
+      warnOnError: true,
+      label: 'builtin:import:visibleWhen',
+    });
+    /**
+     * `disabledWhen` — fails SOFT (an unevaluable predicate must not grey a
+     * button forever), with the `!= null` declared-ness gate OUTSIDE the
+     * evaluation so `disabledWhen: ''` reads as "no condition" rather than as
+     * "disable". Verbatim the posture of the record header (PR #4515), the
+     * row kebab, and the related-list toolbar.
+     */
+    const importDisabledPred = useRowPredicate(importPredicates?.disabledWhen, null, {
+      fallback: false,
+      warnOnError: true,
+      label: 'builtin:import:disabledWhen',
+    });
+    const importDisabled = importPredicates?.disabledWhen != null && importDisabledPred;
 
     // Import wizard open/close state — toolbar entry triggers it.
     const [showImport, setShowImport] = useState(false);
@@ -2125,9 +2225,20 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                       </Button>
                     )}
 
-                    {/* Primary action - always visible */}
-                    {affordances.create && can(objectDef.name, 'create') && (
-                    <Button size="sm" onClick={actions.create} className="shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9">
+                    {/* Primary action.
+                        [#5153] `objectCanCreate && createVisible` — the
+                        object-level verdict, then the toolbar-scope
+                        `visibleWhen` layer on top of it. Greyed, not gone, is
+                        the `disabledWhen` case. Same pair drives the phone FAB
+                        below, so the two render points cannot disagree. */}
+                    {objectCanCreate && createVisible && (
+                    <Button
+                        size="sm"
+                        onClick={actions.create}
+                        disabled={createDisabled}
+                        className="shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9"
+                        data-testid="object-view-new-button"
+                    >
                         <Plus className="h-4 w-4" />
                         <span className="hidden sm:inline">{t('console.objectView.new')}</span>
                     </Button>
@@ -2137,11 +2248,15 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                         are inherently a desk/laptop workflow; the button
                         was eating header space on mobile next to the
                         primary "+" action. */}
-                    {(identityImportEnabled || (affordances.import && can(objectDef.name, 'create'))) && (
+                    {/* [#5142] `objectCanImport && importVisible` — the object-level
+                        verdict, then the toolbar-scope `visibleWhen` layer on top of
+                        it. Greyed, not gone, is the `disabledWhen` case below. */}
+                    {(identityImportEnabled || (objectCanImport && importVisible)) && (
                     <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setShowImport(true)}
+                        disabled={importDisabled}
                         className="hidden sm:inline-flex shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9"
                         title={t('console.objectView.importTitle')}
                         data-testid="object-view-import-button"
@@ -2190,12 +2305,30 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                  PageHeader's primary create action we just hid. Positioned
                  above the bottom mobile-nav (h-12 + safe-area) so it
                  doesn't collide with it. Hidden on tablets/desktops
-                 because the inline header button is already visible. */}
-             {affordances.create && can(objectDef.name, 'create') && (
+                 because the inline header button is already visible.
+
+                 [#5153] Second render point of the SAME affordance, so it
+                 consumes the SAME `objectCanCreate && createVisible` /
+                 `createDisabled` pair as the header button — a phone user and a
+                 desktop user must not get different verdicts for one
+                 `userActions.create` declaration.
+
+                 DISABLED, on a control with no greyed form of its own: this is
+                 a bare `<button>`, not the design system's `Button`, so it
+                 carries none of the latter's `disabled:` treatment. Rather than
+                 collapse the three states to two (which would map
+                 `disabledWhen` onto "hidden" and lose the distinction the spec
+                 draws between hidden and greyed), it takes the native
+                 `disabled` — which is what conveys the state to assistive tech
+                 — plus the same `disabled:opacity-50
+                 disabled:pointer-events-none` utilities `Button` itself uses,
+                 so the visual affordance matches the header button's. */}
+             {objectCanCreate && createVisible && (
                <button
                  type="button"
                  onClick={actions.create}
-                 className="sm:hidden fixed right-4 bottom-36 z-40 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform inline-flex items-center justify-center"
+                 disabled={createDisabled}
+                 className="sm:hidden fixed right-4 bottom-36 z-40 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform inline-flex items-center justify-center disabled:opacity-50 disabled:pointer-events-none"
                  aria-label={t('console.objectView.new')}
                  data-testid="mobile-fab-create"
                >

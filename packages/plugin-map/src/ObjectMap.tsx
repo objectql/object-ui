@@ -17,15 +17,15 @@
  * - Interactive map with markers
  * - Location-based data visualization
  * - Popup/tooltip on marker click
- * - Works with object/api/value data providers
+ * - Works with object/value data providers
  */
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import type { ObjectGridSchema, DataSource, ViewData } from '@object-ui/types';
+import type { ObjectMapSchema, ObjectMapConfig, DataSource, ViewData } from '@object-ui/types';
+import { ObjectMapConfigSchema } from '@object-ui/types/zod';
 import { useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay, cn, useIsMobile } from '@object-ui/components';
 import { extractRecords, buildExpandFields, convertSortToQueryParams } from '@object-ui/core';
-import { z } from 'zod';
 import MapGL, { NavigationControl, Marker, Popup } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -38,17 +38,6 @@ import {
   UNFITTED_CENTER_ZOOM,
 } from './camera';
 
-const MapConfigSchema = z.object({
-  latitudeField: z.string().optional(),
-  longitudeField: z.string().optional(),
-  locationField: z.string().optional(),
-  titleField: z.string().optional(),
-  descriptionField: z.string().optional(),
-  zoom: z.number().optional(),
-  center: z.tuple([z.number(), z.number()]).optional(),
-  style: z.string().optional(),
-});
-
 /**
  * Public MapLibre demo style — free, unauthenticated, but not intended for
  * production traffic (rate-limited, no uptime guarantee). Used only when no
@@ -58,7 +47,7 @@ const MapConfigSchema = z.object({
 const DEFAULT_MAP_STYLE = 'https://demotiles.maplibre.org/style.json';
 
 export interface ObjectMapProps {
-  schema: ObjectGridSchema;
+  schema: ObjectMapSchema;
   dataSource?: DataSource;
   className?: string;
   onMarkerClick?: (record: any) => void;
@@ -71,36 +60,42 @@ export interface ObjectMapProps {
   clusterRadius?: number;
 }
 
-interface MapConfig {
-  /** Field containing latitude value */
-  latitudeField?: string;
-  /** Field containing longitude value */
-  longitudeField?: string;
-  /** Field containing combined location (e.g., "lat,lng" or location object) */
-  locationField?: string;
-  /** Field to use for marker title/label */
-  titleField?: string;
-  /** Field to use for marker description */
-  descriptionField?: string;
-  /**
-   * Zoom level (1-20). Declaring it opts the view OUT of fitting the camera to
-   * its records — the declaration wins (objectui#4941).
-   */
-  zoom?: number;
-  /**
-   * Center coordinates [lat, lng] — latitude first, as documented and as the
-   * `map` block's shape has always been read. Declaring it opts the view OUT of
-   * fitting the camera to its records.
-   */
-  center?: [number, number];
-  /** MapLibre style URL/spec (overrides the public demo default) */
-  style?: string;
-}
+/**
+ * The FLAT spelling of `ObjectMapConfig`'s keys, as ObjectView / ListView emit it.
+ *
+ * Both flatteners build an `object-map` schema by spreading `options.map`'s
+ * CONTENTS at the top level (`plugin-view/src/ObjectView.tsx` `case 'map'`,
+ * `plugin-list/src/ListView.tsx` `case 'map'`) — the product carries these keys
+ * and NO `map` key at all. That is an internal transport form, not an authoring
+ * surface, so it is declared here in the consumer rather than in
+ * `ObjectMapSchema` (maintainer ruling on objectui#5018, 2026-08-17).
+ *
+ * `locationField` / `titleField` are the two that `ObjectMapSchema` still
+ * publishes as well, from before the ruling; the rest exist only here.
+ */
+type FlatMapConfigKeys = Omit< ObjectMapConfig, 'style' >;
+
+/** What `getMapConfig` may read: the declared schema plus the internal flat form. */
+type MapConfigSource = ObjectMapSchema & FlatMapConfigKeys;
+
+/**
+ * The flat keys, in one place, so the shadow diagnostic below and the reader
+ * cannot fall out of step.
+ */
+const FLAT_MAP_CONFIG_KEYS = [
+  'latitudeField',
+  'longitudeField',
+  'locationField',
+  'titleField',
+  'descriptionField',
+  'zoom',
+  'center',
+] as const satisfies readonly (keyof FlatMapConfigKeys)[];
 
 /**
  * Helper to get data configuration from schema
  */
-function getDataConfig(schema: ObjectGridSchema): ViewData | null {
+function getDataConfig(schema: ObjectMapSchema): ViewData | null {
   if (schema.data) {
     return schema.data;
   }
@@ -155,22 +150,25 @@ const warnedLegacyFilterMapConfigs = new Set<string>();
  * - object-valued only. `filter: { map: 'x' }` reads as a filter on a field
  *   named `map`, not as a stashed MapConfig.
  */
-function warnOnLegacyFilterMapConfig(schema: ObjectGridSchema | any): void {
+function warnOnLegacyFilterMapConfig(schema: MapConfigSource): void {
   if (!isDev()) return;
 
-  const filter = (schema as any)?.filter;
+  // `filter` is declared as a JSON-Rules array; the legacy stash this probe
+  // exists for is an OBJECT, which is why the shape is re-tested at runtime
+  // rather than trusted from the declaration.
+  const filter: unknown = schema.filter;
   if (!filter || typeof filter !== 'object' || Array.isArray(filter)) return;
   if (!Object.prototype.hasOwnProperty.call(filter, 'map')) return;
 
-  const legacy = (filter as any).map;
+  const legacy = (filter as Record<string, unknown>).map;
   if (!legacy || typeof legacy !== 'object') return;
 
   let memo: string;
   try {
-    memo = `${(schema as any).type ?? 'map'}::${(schema as any).objectName ?? ''}::${JSON.stringify(legacy)}`;
+    memo = `${schema.type ?? 'map'}::${schema.objectName ?? ''}::${JSON.stringify(legacy)}`;
   } catch {
     // Circular author data — still worth one warning, just not a keyed one.
-    memo = `${(schema as any).type ?? 'map'}::${(schema as any).objectName ?? ''}::<unserializable>`;
+    memo = `${schema.type ?? 'map'}::${schema.objectName ?? ''}::<unserializable>`;
   }
   if (warnedLegacyFilterMapConfigs.has(memo)) return;
   warnedLegacyFilterMapConfigs.add(memo);
@@ -188,42 +186,153 @@ function warnOnLegacyFilterMapConfig(schema: ObjectGridSchema | any): void {
 }
 
 /**
- * Helper to get map configuration from schema
+ * Warn once per distinct dropped URL, for the same reason the diagnostics
+ * around it warn once: this runs on every render of the map.
  */
-function getMapConfig(schema: ObjectGridSchema | any): MapConfig {
+const warnedTopLevelStyleUrls = new Set<string>();
+
+/**
+ * Top-level `style` is `BaseSchema.style` — inline CSS — and is NOT a map style
+ * (objectui#5017).
+ *
+ * `getMapConfig` used to read it FIRST, ahead of both declared spellings, so a
+ * map node carrying the base face's own `style: { height: '400px' }` handed that
+ * object to MapGL's `mapStyle` prop: no validation, no diagnostic, and a
+ * collision `@object-ui/types` had already gone out of its way to avoid — it
+ * named the key `mapStyle` (not `style`) for exactly this reason
+ * (`objectql.ts`, `ObjectMapSchema.mapStyle`). The consumer contradicted the
+ * declaration it was named after; that read is gone.
+ *
+ * The OBJECT form needs no diagnostic: it is legal base-face authoring, and
+ * dropping it is the fix. The STRING form does, because it is the one shape
+ * that used to work:
+ * - `ObjectView` / `ListView` build an `object-map` schema by spreading the
+ *   CONTENTS of `options.map` at the top level (see `FlatMapConfigKeys`), so a
+ *   view authored with `map: { style: '<url>' }` arrives here as a top-level
+ *   STRING `style` — the flatten crosses the two keys' namespaces. That shape
+ *   is not spec-authorable (`@objectstack/spec`'s list-view schemas are strict
+ *   and declare no `map` block at all), but it is runtime-reachable, so say
+ *   what happened instead of silently painting the demo tiles.
+ * - A string is not valid `BaseSchema.style` either (that is a record), so a
+ *   string here is unambiguously "the author meant a map style" — there is no
+ *   legitimate CSS reading to mistake it for.
+ */
+function warnOnTopLevelStyleUrl(schema: MapConfigSource): void {
+  if (!isDev()) return;
+
+  // Re-tested at runtime rather than trusted from the declaration: the
+  // declaration says this key is a CSS record, and the shape this probe exists
+  // for is precisely the one that violates it.
+  const raw: unknown = schema.style;
+  if (typeof raw !== 'string' || raw === '') return;
+
+  const memo = `${schema.type ?? 'map'}::${schema.objectName ?? ''}::${raw}`;
+  if (warnedTopLevelStyleUrls.has(memo)) return;
+  warnedTopLevelStyleUrls.add(memo);
+
+  console.warn(
+    '[ObjectMap] A top-level `style` is NOT read as a map style, so this map is rendering with ' +
+      `the DEFAULT public demo tiles and \`${raw}\` was dropped. \`style\` is the base schema's ` +
+      'INLINE CSS key (a record of CSS properties), which every node may carry; the map style is ' +
+      '`mapStyle` — named that way precisely to avoid this collision. Write `mapStyle: ' +
+      `'${raw}'\` at the top level, or \`map: { style: '${raw}' }\` in the declared config block. ` +
+      'On a view, note that `options.map` is FLATTENED into the top level, so its `style` lands ' +
+      'here as this same top-level key — spell it `map: { mapStyle }` there. objectui#5017.',
+  );
+}
+
+/**
+ * Warn once per distinct shadowing, for the same reason `getMapConfig` warns
+ * once per legacy stash: this runs on every render of the map.
+ */
+const warnedShadowedFlatKeys = new Set<string>();
+
+/**
+ * The `map` block won and the internal flat keys alongside it were ignored —
+ * say which ones, in dev.
+ *
+ * Silence here is what the precedence rule costs if it is not diagnosed: two
+ * spellings of the same configuration in one schema, one of them inert. The
+ * ruling picks the author's block over the flatten product deliberately
+ * (maintainer, objectui#5018, 2026-08-17), so the diagnostic names what was
+ * dropped rather than leaving the author to discover it from the markers.
+ *
+ * It cannot fire on the ordinary ObjectView / ListView path: both flatteners
+ * emit the flat keys and NO `map` key, so this branch is not even reached for
+ * their output. Reaching it means one schema carries both spellings.
+ */
+function warnOnShadowedFlatMapKeys(schema: MapConfigSource): void {
+  if (!isDev()) return;
+
+  const shadowed = FLAT_MAP_CONFIG_KEYS.filter(
+    (key) => (schema as Record<string, unknown>)[key] !== undefined,
+  );
+  if (shadowed.length === 0) return;
+
+  const memo = `${schema.type ?? 'map'}::${schema.objectName ?? ''}::${shadowed.join(',')}`;
+  if (warnedShadowedFlatKeys.has(memo)) return;
+  warnedShadowedFlatKeys.add(memo);
+
+  console.warn(
+    `[ObjectMap] The \`map\` block configures this map, so these top-level keys are ` +
+      `IGNORED: ${shadowed.map((k) => `\`${k}\``).join(', ')}. The \`map\` block is the ` +
+      'authoring shape; the flat top-level spelling is the internal form ObjectView/ListView ' +
+      'produce when they flatten `options.map`, and what the author wrote outranks it. Move ' +
+      'anything you still need into `map`, or drop the `map` block. objectui#5018.',
+  );
+}
+
+/**
+ * Helper to get map configuration from schema
+ *
+ * PRECEDENCE (maintainer ruling on objectui#5018, 2026-08-17): the declared
+ * `map` block is checked FIRST and wins outright; the flat top-level spelling
+ * is consulted only when no `map` block is present. This is the reverse of the
+ * pre-#5018 order, which let the internal flatten product silently shadow an
+ * authored block. Safe for the producer path because neither flattener emits a
+ * `map` key at all — see `FlatMapConfigKeys`.
+ */
+function getMapConfig(schema: MapConfigSource): ObjectMapConfig {
   warnOnLegacyFilterMapConfig(schema);
+  warnOnTopLevelStyleUrl(schema);
 
   // A custom style may be set alongside any of the shapes below — read it
   // once so every return path can carry it through.
-  const style: string | undefined =
-    (schema as any).style || (schema as any).mapStyle || (schema as any).map?.style;
+  //
+  // The two DECLARED spellings, and only those: `mapStyle` on the schema
+  // (`ObjectMapSchema.mapStyle`) and `style` inside the declared config block
+  // (`ObjectMapConfig.style`). The top-level `style` this used to read first is
+  // `BaseSchema.style` — inline CSS, a different key with a different meaning —
+  // and is no longer consumed here at all (objectui#5017; see
+  // `warnOnTopLevelStyleUrl`).
+  const style: string | undefined = schema.mapStyle || schema.map?.style;
 
-  // 1. Check top-level properties (ObjectMapSchema style)
-  if (schema.locationField || schema.latitudeField) {
-      return {
-          locationField: schema.locationField,
-          latitudeField: schema.latitudeField,
-          longitudeField: schema.longitudeField,
-          titleField: schema.titleField || 'name',
-          descriptionField: schema.descriptionField,
-          zoom: schema.zoom,
-          center: schema.center,
-          style,
-      };
-  }
-
-  // 2. The declared configuration input: `{ name: 'map', type: 'object' }` at
-  // the `object-map` / `map` registrations. The only shape consumed here.
-  const config: MapConfig | null = (schema as any).map
-    ? ((schema as any).map as MapConfig)
-    : null;
+  // 1. The declared configuration input: `{ name: 'map', type: 'object' }` at
+  // the `object-map` / `map` registrations. The author face, and the winner
+  // whenever it is present.
+  const config: ObjectMapConfig | null = schema.map ?? null;
 
   if (config) {
-     const result = MapConfigSchema.safeParse(config);
-     if (!result.success) {
-       console.warn(`[ObjectMap] Invalid map configuration:`, result.error.format());
-     }
-     return { ...config, style: config.style || style };
+    const result = ObjectMapConfigSchema.safeParse(config);
+    if (!result.success) {
+      console.warn(`[ObjectMap] Invalid map configuration:`, result.error.format());
+    }
+    warnOnShadowedFlatMapKeys(schema);
+    return { ...config, style: config.style || style };
+  }
+
+  // 2. The internal flat form — the ObjectView / ListView flatten product.
+  if (schema.locationField || schema.latitudeField) {
+    return {
+      locationField: schema.locationField,
+      latitudeField: schema.latitudeField,
+      longitudeField: schema.longitudeField,
+      titleField: schema.titleField || 'name',
+      descriptionField: schema.descriptionField,
+      zoom: schema.zoom,
+      center: schema.center,
+      style,
+    };
   }
 
   // Default configuration — field names only. No camera is synthesized here
@@ -247,7 +356,7 @@ function getMapConfig(schema: ObjectGridSchema | any): MapConfig {
 /**
  * Extract coordinates from a record based on configuration
  */
-function extractCoordinates(record: any, config: MapConfig): [number, number] | null {
+function extractCoordinates(record: any, config: ObjectMapConfig): [number, number] | null {
   // Try latitude/longitude fields
   if (config.latitudeField && config.longitudeField) {
     const lat = record[config.latitudeField];
@@ -440,8 +549,8 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
         }
 
         // Check schema.data next
-        if ((schema as any).data) {
-             const passed = (schema as any).data;
+        if (schema.data) {
+             const passed: unknown = schema.data;
              if (Array.isArray(passed)) {
                  setData(passed);
                  setLoading(false);
@@ -551,7 +660,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
   const [currentZoom, setCurrentZoom] = useState(mapConfig.zoom || 3);
 
   const navigation = useNavigationOverlay({
-    navigation: (schema as any).navigation,
+    navigation: schema.navigation,
     objectName: schema.objectName,
     onRowClick,
   });
@@ -567,7 +676,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
 
   // Cluster markers when clustering is enabled
   const clusteredData = useMemo(() => {
-    const shouldCluster = enableClustering ?? ((schema as any).enableClustering || filteredMarkers.length > 100);
+    const shouldCluster = enableClustering ?? (schema.enableClustering || filteredMarkers.length > 100);
     if (!shouldCluster) {
       return filteredMarkers.map(m => ({
         id: m.id,

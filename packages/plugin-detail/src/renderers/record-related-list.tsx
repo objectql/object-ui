@@ -233,6 +233,11 @@ const RecordRelatedListBody: React.FC<RecordRelatedListRendererProps> = ({
         // Create a new child, pre-linked to this parent (增). Host omits when
         // create is denied by lifecycle/permissions, hiding the "New" button.
         onNew={handlers?.onCreate}
+        // [#4646] …and greys it — without hiding it — when the child object's
+        // `userActions.create.disabledWhen` holds for THIS parent record. The
+        // host owns both verdicts (it is the side that has the parent record
+        // and the predicate evaluator); this renderer only wires them.
+        newDisabled={handlers?.createDisabled}
         // Open the child record's detail page on row click (查看记录详情).
         onRowClick={
           handlers?.onView

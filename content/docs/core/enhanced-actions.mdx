@@ -80,24 +80,19 @@ const confirmAction: ActionSchema = {
   type: 'action',
   label: 'Delete Record',
   actionType: 'confirm',
-  confirm: {
-    title: 'Confirm Deletion',
-    message: 'Are you sure you want to delete this record?',
-    confirmText: 'Yes, Delete',
-    cancelText: 'Cancel',
-    confirmVariant: 'destructive'
-  },
+  confirmText: 'Are you sure you want to delete this record?',
   api: '/api/records/123',
   method: 'DELETE'
 };
 ```
 
 **Confirm Properties:**
-- `title` - Dialog title
-- `message` - Confirmation message
-- `confirmText` - Confirm button text
-- `cancelText` - Cancel button text
-- `confirmVariant` - Button style
+- `confirmText` - Confirmation message shown in the dialog. This is the one
+  confirm spelling — it is what the translation bundle addresses
+  (`{ns}.objects.{obj}._actions.{name}.confirmText`), matching
+  `@objectstack/spec`'s action surface. A structured `confirm` object
+  (`{ title, message, ... }`) was retired in objectui#4314: it had no
+  translation key, so its dialogs could never be localized.
 
 ### Dialog Actions
 
@@ -231,10 +226,7 @@ const conditionalAction: ActionSchema = {
       type: 'action',
       label: 'Require Manager Approval',
       actionType: 'confirm',
-      confirm: {
-        title: 'Manager Approval Required',
-        message: 'Amount exceeds $1000. Manager approval needed.'
-      }
+      confirmText: 'Amount exceeds $1000. Manager approval needed.'
     },
     else: {
       type: 'action',
@@ -348,12 +340,7 @@ const complexAction: ActionSchema = {
   
   // Confirm before processing
   actionType: 'confirm',
-  confirm: {
-    title: 'Confirm Order',
-    message: 'Process this order for ${data.customerName}?',
-    confirmText: 'Process Order',
-    confirmVariant: 'default'
-  },
+  confirmText: 'Process this order for ${data.customerName}?',
   
   // Conditional logic
   condition: {

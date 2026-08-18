@@ -881,6 +881,16 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.edit.refsScanning': 'Scanning references…',
   'engine.edit.refsEmptyTitle': 'No references found',
   'engine.edit.refsEmptyDesc': 'Nothing in the metadata graph points at this item. Safe to delete.',
+  // …and its FAILED state (objectui#5110), which must never be confusable with
+  // the empty one above: the copy states that the check did not complete and
+  // deliberately makes no claim — in either direction — about whether deleting
+  // is safe, because the question was not answered. Any wording change here
+  // must keep that property; "no references were found" is exactly the
+  // sentence this state exists to avoid.
+  'engine.edit.refsErrorTitle': 'Reference check failed',
+  'engine.edit.refsErrorDesc':
+    'The reference scan did not complete, so what depends on this item is unknown. This is not a statement that deleting it is safe — run the check again before you decide.',
+  'engine.edit.refsRetry': 'Retry check',
   // Destructive-change (force save) dialog (ResourceEditPage).
   'engine.edit.destructiveTitle': 'Destructive change detected',
   'engine.edit.destructiveDesc':
@@ -2680,6 +2690,13 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.edit.refsScanning': '正在扫描引用…',
   'engine.edit.refsEmptyTitle': '未找到引用',
   'engine.edit.refsEmptyDesc': '元数据图中没有任何项指向它,可以安全删除。',
+  // …以及它的失败态(objectui#5110):必须与上面的空态不可混淆 —— 文案只说明检查
+  // 没有完成,对「删除是否安全」不做任何方向的断言,因为这个问题根本没有被回答。
+  // 后续改写务必保留这一性质;「未找到引用」正是此状态要避免的那句话。
+  'engine.edit.refsErrorTitle': '引用检查失败',
+  'engine.edit.refsErrorDesc':
+    '引用扫描没有完成，因此无法得知哪些内容依赖此项。这并不表示删除它是安全的 —— 请重新执行检查后再做决定。',
+  'engine.edit.refsRetry': '重新检查',
   // 破坏性变更(强制保存)对话框(ResourceEditPage)。
   'engine.edit.destructiveTitle': '检测到破坏性变更',
   'engine.edit.destructiveDesc': '框架拒绝了本次保存,因为它会丢弃或收窄正在使用的数据。请检查这些问题并确认以强制覆盖。',

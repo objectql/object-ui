@@ -21,7 +21,7 @@ The `@object-ui/plugin-map` plugin provides map visualization for ObjectQL data 
 
 ## Features
 
-- **ObjectQL Integration**: Works seamlessly with object/api/value data providers
+- **ObjectQL Integration**: Works seamlessly with object/value data providers
 - **Automatic Field Mapping**: Maps database fields to map markers
 - **Location Support**: Handle latitude/longitude or combined location fields
 - **Marker Customization**: Configurable marker titles and descriptions
@@ -101,16 +101,21 @@ const schema = {
 ```plaintext
 {
   type: 'object-map',
-  objectName?: string,              // ObjectQL object name
+  objectName: string,               // ObjectQL object name
   staticData?: Array<any>,          // Static data array
   data?: ViewData,                  // Advanced data configuration
-  map?: MapConfig,                  // Map-specific configuration
+  filter?: Array<any>,              // Query filter, sent as $filter
+  sort?: string | SortConfig[],     // Sort, sent as $orderby
+  map?: ObjectMapConfig,            // Map-specific configuration
+  enableClustering?: boolean,       // Cluster nearby markers (auto past 100)
+  navigation?: NavigationConfig,    // Record navigation (drawer/dialog/page)
+  mapStyle?: string,                // MapLibre style URL/spec
   onMarkerClick?: (record: any) => void,
   className?: string
 }
 ```
 
-### MapConfig
+### ObjectMapConfig
 
 ```plaintext
 {
@@ -120,7 +125,8 @@ const schema = {
   titleField?: string,         // Field to use as marker title
   descriptionField?: string,   // Field for marker description
   zoom?: number,               // Zoom level (1-20) — opts out of the auto-fit
-  center?: [number, number]    // Center coordinates [lat, lng] — opts out of the auto-fit
+  center?: [number, number],   // Center coordinates [lat, lng] — opts out of the auto-fit
+  style?: string               // MapLibre style URL/spec (overrides the demo default)
 }
 ```
 
@@ -229,23 +235,16 @@ the centre of the records, `center` on its own at a continental zoom.
 }
 ```
 
-### API Provider
+### API Provider — not implemented
 
-```tsx
-{
-  type: 'object-map',
-  data: {
-    provider: 'api',
-    endpoint: '/api/locations',
-    method: 'GET'
-  },
-  map: {
-    latitudeField: 'latitude',
-    longitudeField: 'longitude',
-    titleField: 'locationName'
-  }
-}
-```
+`data.provider: 'api'` has no fetch implementation in `ObjectMap`. A schema that
+reaches this branch logs `API provider not yet implemented for ObjectMap`, sets
+the record set to empty and renders a map with no markers; `endpoint` and
+`method` have no read point anywhere in the package. Without a `DataSource` it
+fails one step earlier, with `DataSource required for object/api providers`.
+
+Read from the database with the **Object Provider** above, or pass records you
+already hold with the **Value Provider**.
 
 ## Event Handling
 
@@ -470,9 +469,9 @@ Consider using one of the full-featured mapping libraries above.
 ## TypeScript Support
 
 ```plaintext
-import type { ObjectGridSchema, MapConfig } from '@object-ui/types'
+import type { ObjectMapSchema, ObjectMapConfig } from '@object-ui/types'
 
-const mapConfig: MapConfig = {
+const mapConfig: ObjectMapConfig = {
   latitudeField: 'lat',
   longitudeField: 'lng',
   titleField: 'name',
@@ -481,7 +480,7 @@ const mapConfig: MapConfig = {
   center: [37.7749, -122.4194]
 }
 
-const mapSchema: ObjectGridSchema = {
+const mapSchema: ObjectMapSchema = {
   type: 'object-map',
   objectName: 'locations',
   map: mapConfig

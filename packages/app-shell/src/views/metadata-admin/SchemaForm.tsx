@@ -712,6 +712,20 @@ export interface SchemaFormProps {
   /** JSONSchema for the root object. */
   schema: JsonSchema | undefined;
   /**
+   * Ancestor id path this form is nested under. Two kinds of caller set it:
+   *
+   *  - the recursive render inside {@link FieldControl}, which passes the path
+   *    of the field hosting this form (objectui#5062);
+   *  - a host that mounts a SECOND form into a document that already has one,
+   *    which passes an artificial ancestor SEGMENT to scope the whole instance
+   *    (objectui#5092 — see {@link DRAWER_METADATA_ID_SCOPE}). The semantics
+   *    are unchanged: it is still just an ancestor path.
+   *
+   * The PAGE-level form leaves it undefined, which is what keeps top-level ids
+   * spelled `mdf-{field}`.
+   */
+  idPath?: string;
+  /**
    * Optional FormView layout (sections, tabs, widget hints, visibleOn)
    * shipped by the framework alongside `schema`. When present, fields
    * are grouped into sections and visibility predicates are honoured.
@@ -739,7 +753,7 @@ export interface SchemaFormProps {
   widgetContext?: WidgetContext;
 }
 
-export function SchemaForm({
+function SchemaFormBody({
   schema,
   form,
   value,
@@ -750,6 +764,7 @@ export function SchemaForm({
   readOnly = false,
   createMode = false,
   widgetContext,
+  idPath,
 }: SchemaFormProps) {
   // Live app locale (follows the i18next language, not just the browser) —
   // hoisted above the no-schema early return so the hook order is stable.
@@ -833,6 +848,7 @@ export function SchemaForm({
         <SectionedSchemaForm
           form={form}
           props={props}
+          idPath={idPath}
           required={required}
           hiddenFields={hiddenFields}
           issuesByPath={issuesByPath}
@@ -861,6 +877,7 @@ export function SchemaForm({
         <FieldRow
           key={key}
           name={key}
+          idPath={idPath}
           schema={props[key]}
           value={(v as Record<string, unknown>)[key]}
           required={required.includes(key)}
@@ -876,6 +893,115 @@ export function SchemaForm({
         />
       ))}
     </div>
+  );
+}
+
+/* ----- instance scoping (objectui#5092) ----------------------------------- */
+
+/**
+ * Scope segments for the SECOND `SchemaForm` a metadata-admin document can
+ * host (objectui#5092).
+ *
+ * `MetadataDetailDrawer` is a Radix `Sheet`: when it opens, the page's own
+ * form STAYS IN THE DOM behind it. Both forms render top-level fields, and
+ * top-level ids are `mdf-{field}` with no instance dimension — so a field
+ * name both forms have (`name`, `label`, `description` — nearly always) is
+ * one id twice, and a `label[for]` resolves to the FIRST match in document
+ * order, i.e. the PAGE form. The drawer's labels then name and focus the
+ * controls of the form hidden behind the drawer.
+ *
+ * The fix is the ancestor path {@link joinIdPath} already threads: each
+ * drawer-side mount point passes a scope segment as its form's `idPath`, so
+ * its top-level fields become `mdf-{scope}.{field}`. The PAGE form passes
+ * nothing and its ids are byte-for-byte what they always were — the selector
+ * surface the metadata-admin tests read does not move (the same additive
+ * contract objectui#5062 kept for nested rows).
+ *
+ * Requirements on a segment, and why these two satisfy them:
+ *
+ *  - **Distinct per mount point** — two scoped forms must not collide with
+ *    each other either. Pinned by `SchemaForm.instanceIdScope.test.tsx`.
+ *  - **Whitespace-free** — these ids are consumed as `aria-labelledby` IDREFs,
+ *    which tokenize on whitespace (objectui#5062, `joinIdPath`).
+ *  - **Cannot be spelled by a real field** — a segment equal to some top-level
+ *    field name would let `mdf-{scope}.{field}` be reached from two different
+ *    paths. Both segments contain `-`, which is outside the metadata
+ *    machine-name grammar (`^[a-z][a-z0-9_]*$`) and outside the camelCase
+ *    property names the metadata JSON-Schemas use.
+ */
+export const DRAWER_METADATA_ID_SCOPE = 'drawer-metadata';
+
+/** @see DRAWER_METADATA_ID_SCOPE — the drawer's embedded-item editor. */
+export const DRAWER_EMBEDDED_ITEM_ID_SCOPE = 'drawer-embedded-item';
+
+/**
+ * True inside any `SchemaForm`, so the OUTERMOST form of a subtree runs the
+ * duplicate-id scan and the nested ones (a composite/repeater page mounts
+ * dozens) do not repeat it.
+ *
+ * Per SUBTREE, not per document: the page form and the drawer's form are
+ * siblings, so both are outermost and both scan. That is intended — the scan
+ * is precisely what tells the two of them apart.
+ */
+const SchemaFormNestingContext = React.createContext(false);
+
+const isDevBuild = (): boolean =>
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+    ?.NODE_ENV !== 'production';
+
+/**
+ * Dev-only: say out loud that two field host ids collide in this document.
+ *
+ * Scoping by mount point (above) relies on every host that mounts a SECOND
+ * form remembering to pass a segment — a new mount point that forgets brings
+ * the cross-wiring back SILENTLY, because a duplicate id is not an error to
+ * the DOM and the association still resolves, just to the wrong element.
+ * This is the half that makes that failure loud. Production is untouched:
+ * the whole body is behind the dev gate, so the effect does no work.
+ */
+function useDuplicateFieldHostIdCheck(enabled: boolean): void {
+  // Report a given collision set once per form instance instead of on every
+  // keystroke; a fresh mount reports again, which is what makes it visible.
+  const lastReported = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!enabled || !isDevBuild() || typeof document === 'undefined') return;
+    const seen = new Set<string>();
+    const duplicates: string[] = [];
+    for (const el of Array.from(document.querySelectorAll('[id^="mdf-"]'))) {
+      const id = el.id;
+      if (!seen.has(id)) seen.add(id);
+      else if (!duplicates.includes(id)) duplicates.push(id);
+    }
+    const signature = duplicates.join(',');
+    if (signature === lastReported.current) return;
+    lastReported.current = signature;
+    if (duplicates.length === 0) return;
+    console.error(
+      `[SchemaForm] duplicate field host id(s) in this document: ${duplicates.join(', ')}. ` +
+        'Two SchemaForm instances are mounted at once — the metadata detail drawer sits on ' +
+        'top of the page form, which stays in the DOM — and at least one of them renders ' +
+        'unscoped top-level ids. A `label[for]` resolves to the FIRST match in the document, ' +
+        "so the later form's labels name and focus the earlier form's controls " +
+        '(objectui#5092). Give the secondary form a distinct `idPath` scope segment — see ' +
+        'DRAWER_METADATA_ID_SCOPE / DRAWER_EMBEDDED_ITEM_ID_SCOPE in SchemaForm.tsx.',
+    );
+  });
+}
+
+/**
+ * Renders a metadata form for `schema` (see {@link SchemaFormProps}).
+ *
+ * The wrapper exists for the two document-level concerns above: it marks the
+ * subtree as "inside a SchemaForm" so nested forms know they are not the
+ * outermost one, and it runs the dev-only duplicate-host-id check.
+ */
+export function SchemaForm(props: SchemaFormProps) {
+  const nested = React.useContext(SchemaFormNestingContext);
+  useDuplicateFieldHostIdCheck(!nested);
+  return (
+    <SchemaFormNestingContext.Provider value={true}>
+      <SchemaFormBody {...props} />
+    </SchemaFormNestingContext.Provider>
   );
 }
 
@@ -895,6 +1021,7 @@ function SectionedSchemaForm({
   readOnly,
   createMode,
   widgetContext,
+  idPath,
   onChange,
 }: {
   form: FormViewSpec;
@@ -906,6 +1033,8 @@ function SectionedSchemaForm({
   readOnly?: boolean;
   createMode?: boolean;
   widgetContext?: WidgetContext;
+  /** Ancestor id path, forwarded from the hosting `SchemaForm` (#5062). */
+  idPath?: string;
   onChange: (key: string, val: unknown) => void;
 }) {
   const locale = useMetadataLocale();
@@ -958,6 +1087,7 @@ function SectionedSchemaForm({
               >
                 <FieldRow
                   name={f.field}
+                  idPath={idPath}
                   schema={{
                     ...propSchema,
                     ...(f.label ? { title: f.label } : {}),
@@ -1073,10 +1203,48 @@ function SectionedSchemaForm({
   return <div className="space-y-4">{sections.map(renderSection)}</div>;
 }
 
+/* ----- id scoping (objectui#5062) ----------------------------------------- */
+
+/**
+ * Extend an ancestor id path with one more segment.
+ *
+ * DOM ids in this form are derived from the field's PATH, not from its local
+ * name: `FieldRow` is called recursively (composite sub-rows, repeater card
+ * rows, record items, the recursive `SchemaForm`), and two same-named
+ * sub-fields under different parents used to build the same id
+ * (`mdf-field` twice). A duplicate id is not a cosmetic problem here — a
+ * `<label for>` resolves to the FIRST match in the document, so the second
+ * field's label named and focused the first field's control: an association
+ * that is present, closed-looking to tooling, and cross-wired (objectui#5062;
+ * same failure class as the fixed-id collision objectui#3343 fixed in
+ * `packages/fields`).
+ *
+ * A TOP-LEVEL field passes no parent and keeps its historical `mdf-{field}`
+ * id — the selector surface the metadata-admin tests read stays exactly as it
+ * was; only nested rows gain a prefix.
+ *
+ * Segments are machine names (schema property / form-spec field names) and
+ * numeric row indices — the same class of input the flat `mdf-{field}` id
+ * already carried, so the ids stay derivable from the data path and
+ * whitespace-free for identifier-shaped names. Runtime user input is
+ * deliberately NOT a segment: a `record` item contributes its INDEX, never its
+ * author-typed key, which may contain spaces that an `aria-labelledby` IDREF
+ * would tokenize into two references.
+ */
+function joinIdPath(parent: string | undefined, segment: string | number): string {
+  return parent ? `${parent}.${segment}` : String(segment);
+}
+
+/** The host DOM id for a field at `path` — the `mdf-` namespace, path-scoped. */
+function fieldHostId(path: string): string {
+  return `mdf-${path}`;
+}
+
 /* ----- inner field row ---------------------------------------------------- */
 
 function FieldRow({
   name,
+  idPath,
   schema,
   value,
   required,
@@ -1088,6 +1256,14 @@ function FieldRow({
   onChange,
 }: {
   name: string;
+  /**
+   * The path of this row's ANCESTOR field, or undefined at the top level
+   * (objectui#5062). Each recursion point knows its own segment: a composite
+   * passes its own path, a repeater card row appends the row index, a record
+   * item appends the item index, and the recursive `SchemaForm` forwards the
+   * path of the field that hosts it.
+   */
+  idPath?: string;
   schema: JsonSchema;
   value: unknown;
   required: boolean;
@@ -1109,7 +1285,10 @@ function FieldRow({
   const description =
     (fieldSpec?.helpText as string | undefined) ||
     translateSchemaFieldHelp(name, schema?.description as string | undefined, locale);
-  const id = `mdf-${name}`;
+  // This row's own path — its id, and the ancestor path every nested row this
+  // field renders builds on (objectui#5062).
+  const path = joinIdPath(idPath, name);
+  const id = fieldHostId(path);
 
   // Auto-infer widget from fieldSpec.type or schema
   let widget = inferWidget(fieldSpec, schema);
@@ -1164,8 +1343,9 @@ function FieldRow({
   //    the id onto the radiogroup instead).
   const labelling = faceLabelling(face);
   const groupLabelled = labelling === 'group';
-  // Whitespace-free by construction (`mdf-` + a field name), and consumed as an
-  // `aria-labelledby` IDREF — a space in it would silently resolve to two ids.
+  // Whitespace-free by construction (`mdf-` + a dotted path of field names and
+  // row indices — see `joinIdPath`), and consumed as an `aria-labelledby`
+  // IDREF: a space in it would silently resolve to two ids.
   const labelId = groupLabelled ? `${id}-label` : undefined;
   // Exactly one of these two reaches the widget, ever.
   const channel = groupLabelled
@@ -1205,6 +1385,7 @@ function FieldRow({
           id={channel.id}
           ariaLabelledBy={channel.ariaLabelledBy}
           fieldName={name}
+          idPath={path}
           schema={schema}
           value={value}
           onChange={onChange}
@@ -1238,6 +1419,7 @@ function FieldRow({
         id={channel.id}
         ariaLabelledBy={channel.ariaLabelledBy}
         fieldName={name}
+        idPath={path}
         schema={schema}
         value={value}
         onChange={onChange}
@@ -1263,6 +1445,7 @@ function FieldControl({
   id,
   ariaLabelledBy,
   fieldName,
+  idPath,
   schema,
   value,
   onChange,
@@ -1273,17 +1456,34 @@ function FieldControl({
   formData,
 }: {
   /**
-   * The host field id — present only on the `labelling: 'control'` channel,
-   * `undefined` on the `'group'` one (objectui#4871). Every builtin branch below
-   * renders a labelable element and spreads it unconditionally; so does the JSON
-   * editor, whose `<textarea>` is exactly such an element (objectui#5039). The
-   * `'group'` faces never read it — `FieldRow` doesn't hand it to them.
+   * The host field id. From `FieldRow` it is present only on the
+   * `labelling: 'control'` channel and `undefined` on the `'group'` one
+   * (objectui#4871): every builtin branch below renders a labelable element and
+   * spreads it unconditionally, as does the JSON editor whose `<textarea>` is
+   * exactly such an element (objectui#5039), while the `'group'` faces never
+   * read it because `FieldRow` doesn't hand it to them.
    */
   id?: string;
-  /** The host label's id, on the `'group'` channel only. */
+  /**
+   * An IDREF naming whatever this control renders.
+   *
+   * From `FieldRow` this is the host label's id on the `'group'` channel only,
+   * and exactly one of `id` / `ariaLabelledBy` is ever defined — that mutual
+   * exclusion is `FieldRow`'s rule about a LABEL, not a rule about this
+   * component. A grid/table repeater cell has no `<label>` at all: its name is
+   * the column header, reached by IDREF, while the id stays on the control as a
+   * plain anchor. So a cell passes BOTH, and every branch below emits the IDREF
+   * alongside the id rather than treating them as alternatives (objectui#5063).
+   */
   ariaLabelledBy?: string;
   /** Machine field name — keys enum-option localization (e.g. flow `type`). */
   fieldName?: string;
+  /**
+   * The PATH of the field this control renders (objectui#5062) — the ancestor
+   * path for every nested row the structured faces below render. Distinct from
+   * `fieldName`, which is the local segment and keys localization only.
+   */
+  idPath?: string;
   schema: JsonSchema;
   value: unknown;
   onChange: (v: unknown) => void;
@@ -1322,6 +1522,7 @@ function FieldControl({
         widgetContext={widgetContext}
         fieldSpec={fieldSpec}
         ariaLabelledBy={ariaLabelledBy}
+        idPath={idPath}
         onChange={onChange}
       />
     );
@@ -1348,6 +1549,7 @@ function FieldControl({
         widgetContext={widgetContext}
         widget={fieldSpec?.widget}
         ariaLabelledBy={ariaLabelledBy}
+        idPath={idPath}
         onChange={onChange}
       />
     );
@@ -1371,6 +1573,7 @@ function FieldControl({
         keyField={(fieldSpec as any)?.keyField}
         formData={formData}
         ariaLabelledBy={ariaLabelledBy}
+        idPath={idPath}
         onChange={onChange}
       />
     );
@@ -1417,6 +1620,7 @@ function FieldControl({
           onChange={(v) => onChange(v)}
           readOnly={readOnly}
           widgetContext={widgetContext}
+          idPath={idPath}
         />
       </div>
     );
@@ -1434,6 +1638,7 @@ function FieldControl({
         widgetContext={widgetContext}
         widget={fieldSpec?.widget}
         ariaLabelledBy={ariaLabelledBy}
+        idPath={idPath}
         onChange={onChange}
       />
     );
@@ -1448,6 +1653,7 @@ function FieldControl({
         <div className="space-y-1">
           <RawJsonEditor
             id={id}
+            ariaLabelledBy={ariaLabelledBy}
             value={value as any}
             onChange={(v) => onChange(v)}
             readOnly={readOnly}
@@ -1458,7 +1664,9 @@ function FieldControl({
         </div>
       );
     }
-    return <RawJsonEditor id={id} value={value} onChange={onChange} readOnly={readOnly} small />;
+    return (
+      <RawJsonEditor id={id} ariaLabelledBy={ariaLabelledBy} value={value} onChange={onChange} readOnly={readOnly} small />
+    );
   }
 
   // The builtin scalar chain. For schemas authored as `anyOf` / `oneOf` (e.g.
@@ -1480,7 +1688,7 @@ function FieldControl({
         onValueChange={(v) => onChange(v)}
         disabled={readOnly}
       >
-        <SelectTrigger id={id}>
+        <SelectTrigger id={id} aria-labelledby={ariaLabelledBy}>
           <SelectValue placeholder={t('engine.form.selectEllipsis', locale)} />
         </SelectTrigger>
         <SelectContent>
@@ -1508,7 +1716,7 @@ function FieldControl({
         onValueChange={(v) => onChange(v)}
         disabled={readOnly}
       >
-        <SelectTrigger id={id}>
+        <SelectTrigger id={id} aria-labelledby={ariaLabelledBy}>
           <SelectValue placeholder={t('engine.form.selectEllipsis', locale)} />
         </SelectTrigger>
         <SelectContent>
@@ -1537,6 +1745,7 @@ function FieldControl({
     return (
       <Switch
         id={id}
+        aria-labelledby={ariaLabelledBy}
         checked={!!value}
         onCheckedChange={(c) => onChange(c)}
         disabled={readOnly}
@@ -1551,6 +1760,7 @@ function FieldControl({
     return (
       <Input
         id={id}
+        aria-labelledby={ariaLabelledBy}
         type="number"
         value={value == null ? '' : String(value)}
         min={min}
@@ -1577,6 +1787,7 @@ function FieldControl({
       return (
         <Textarea
           id={id}
+          aria-labelledby={ariaLabelledBy}
           rows={4}
           value={(value as string | undefined) ?? ''}
           maxLength={maxLength}
@@ -1588,6 +1799,7 @@ function FieldControl({
     return (
       <Input
         id={id}
+        aria-labelledby={ariaLabelledBy}
         value={(value as string | undefined) ?? ''}
         maxLength={maxLength}
         onChange={(e) => onChange(e.target.value || undefined)}
@@ -1608,6 +1820,7 @@ function FieldControl({
       return (
         <Input
           id={id}
+          aria-labelledby={ariaLabelledBy}
           value={arr.map(String).join(', ')}
           placeholder={t('engine.form.arrayPlaceholder', locale)}
           onChange={(e) => {
@@ -1641,7 +1854,9 @@ function FieldControl({
   // prove that correspondence, so this terminal stays — spelled as the same
   // `'control'`-channel JSON editor the `raw-json` face renders, so that if a
   // future edit did make it reachable the label channel would still be right.
-  return <RawJsonEditor id={id} value={value} onChange={onChange} readOnly={readOnly} small />;
+  return (
+    <RawJsonEditor id={id} ariaLabelledBy={ariaLabelledBy} value={value} onChange={onChange} readOnly={readOnly} small />
+  );
 }
 
 /* ----- composite / repeater (embedded structured values) ----------------- */
@@ -1690,6 +1905,7 @@ function CompositeField({
   widgetContext,
   fieldSpec,
   ariaLabelledBy,
+  idPath,
   onChange,
 }: {
   value: unknown;
@@ -1704,6 +1920,8 @@ function CompositeField({
    * here is addressed by a SUB-field's own label.
    */
   ariaLabelledBy?: string;
+  /** This composite's own path — the ancestor path of its sub-rows (#5062). */
+  idPath?: string;
   onChange: (v: unknown) => void;
 }) {
   const obj = (value && typeof value === 'object' && !Array.isArray(value))
@@ -1717,6 +1935,7 @@ function CompositeField({
       <FieldRow
         key={spec.field}
         name={spec.field}
+        idPath={idPath}
         schema={subSchema}
         value={obj[spec.field]}
         required={Boolean(spec.required)}
@@ -1770,6 +1989,7 @@ function RepeaterField({
   widgetContext,
   widget,
   ariaLabelledBy,
+  idPath,
   onChange,
 }: {
   value: unknown;
@@ -1784,6 +2004,12 @@ function RepeaterField({
    * that label themselves, so the name belongs on the list, not on a control.
    */
   ariaLabelledBy?: string;
+  /**
+   * This repeater's own path. Each ROW appends its index to it, so two rows —
+   * and two repeaters carrying the same sub-field names — cannot build the same
+   * id (objectui#5062).
+   */
+  idPath?: string;
   onChange: (v: unknown) => void;
 }) {
   const locale = useMetadataLocale();
@@ -1794,6 +2020,23 @@ function RepeaterField({
   // Default to card layout (one fieldset per row). `widget: 'grid'` opts
   // into compact inline-table layout for short, atomic sub-fields.
   const useGrid = widget === 'grid' || widget === 'table';
+
+  /**
+   * Ids for the grid/table layout, path-scoped exactly like the card layout's
+   * rows (objectui#5062), so the same data cell has the same id under either
+   * layout and two repeaters carrying the same column names cannot collide.
+   *
+   * `cellId` replaces the flat `rep-{row}-{field}`, which was duplicated
+   * verbatim by every other grid repeater in the form
+   * (`DUPLICATES: ["rep-0-field"]`, measured).
+   *
+   * `columnHeaderId` names the `<th>` so the cells under it can point at it.
+   * The `-col` suffix (rather than `FieldRow`'s `-label`) says what it is: one
+   * header shared by a whole column, not one field's label — and it cannot be
+   * confused with the label id of a row at the same path.
+   */
+  const cellId = (idx: number, field: string) => fieldHostId(joinIdPath(joinIdPath(idPath, idx), field));
+  const columnHeaderId = (field: string) => `${fieldHostId(joinIdPath(idPath, field))}-col`;
 
   const update = (i: number, patch: Record<string, unknown>) => {
     const next = rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r));
@@ -1814,13 +2057,29 @@ function RepeaterField({
           <table className="w-full text-sm">
             <thead className="bg-muted/40">
               <tr>
+                {/*
+                  The column name is written ONCE, here, and every cell below
+                  points at it by IDREF (objectui#5063). Before, the name existed
+                  only as this header's visible text: no `label`, no `id` to
+                  reference, no `scope` — so each cell control had `label[for]`,
+                  `aria-label` and `aria-labelledby` all absent and read out as an
+                  unnamed edit box. Per-cell `aria-label` was the rejected
+                  alternative: it copies the column name into every row and drifts
+                  the moment a column is renamed.
+                */}
                 {specs.map((s) => (
-                  <th key={s.field} className="px-2 py-1.5 text-left text-xs font-medium">
+                  <th
+                    key={s.field}
+                    id={columnHeaderId(s.field)}
+                    scope="col"
+                    className="px-2 py-1.5 text-left text-xs font-medium"
+                  >
                     {s.label || prettify(s.field)}
                     {s.required && <span className="text-destructive ml-0.5">*</span>}
                   </th>
                 ))}
-                {!readOnly && <th className="w-8" />}
+                {/* Row actions: no name to publish, but still a column header. */}
+                {!readOnly && <th scope="col" className="w-8" />}
               </tr>
             </thead>
             <tbody>
@@ -1836,8 +2095,12 @@ function RepeaterField({
                     return (
                       <td key={s.field} className="p-1.5">
                         <FieldControl
-                          id={`rep-${idx}-${s.field}`}
+                          id={cellId(idx, s.field)}
+                          // This cell's only naming channel — there is no
+                          // `<label>` in a grid row (objectui#5063).
+                          ariaLabelledBy={columnHeaderId(s.field)}
                           fieldName={s.field}
+                          idPath={joinIdPath(joinIdPath(idPath, idx), s.field)}
                           schema={sub}
                           value={row?.[s.field]}
                           readOnly={readOnly || s.readonly}
@@ -1911,6 +2174,7 @@ function RepeaterField({
                     <FieldRow
                       key={s.field}
                       name={s.field}
+                      idPath={joinIdPath(idPath, idx)}
                       schema={sub}
                       value={row?.[s.field]}
                       required={Boolean(s.required)}
@@ -1964,6 +2228,7 @@ function RecordField({
   keyField,
   formData,
   ariaLabelledBy,
+  idPath,
   onChange,
 }: {
   value: unknown;
@@ -1978,6 +2243,12 @@ function RecordField({
    * declaration holds in BOTH of this face's shapes.
    */
   ariaLabelledBy?: string;
+  /**
+   * This record field's own path. Each item appends its INDEX in display order
+   * — never its author-typed key, which is runtime user input and may contain
+   * whitespace an IDREF would tokenize (objectui#5062, `joinIdPath`).
+   */
+  idPath?: string;
   keyField?: {
     field?: string;
     label?: string;
@@ -2117,7 +2388,7 @@ function RecordField({
           {t('engine.list.empty', locale)}
         </div>
       )}
-      {entries.map(([key, row]) => {
+      {entries.map(([key, row], idx) => {
         const isOpen = openKey === key;
         const summary = specs
           .map((s) => row?.[s.field])
@@ -2180,6 +2451,7 @@ function RecordField({
               <div className="p-3 space-y-3">
                 <FieldRow
                   name={keyProp}
+                  idPath={joinIdPath(idPath, idx)}
                   schema={{ type: 'string' }}
                   value={key}
                   required
@@ -2197,6 +2469,7 @@ function RecordField({
                     <FieldRow
                       key={s.field}
                       name={s.field}
+                      idPath={joinIdPath(idPath, idx)}
                       schema={sub}
                       value={row?.[s.field]}
                       required={Boolean(s.required)}
@@ -2237,6 +2510,7 @@ function RecordField({
 
 function RawJsonEditor({
   id,
+  ariaLabelledBy,
   value,
   onChange,
   readOnly,
@@ -2251,6 +2525,12 @@ function RawJsonEditor({
    * label to associate.
    */
   id?: string;
+  /**
+   * An IDREF that names the `<textarea>` when the host has no `<label for>` to
+   * give it — a grid/table repeater cell, named by its column header
+   * (objectui#5063).
+   */
+  ariaLabelledBy?: string;
   value: unknown;
   onChange: (v: any) => void;
   readOnly?: boolean;
@@ -2272,6 +2552,7 @@ function RawJsonEditor({
     <div className="space-y-1">
       <Textarea
         id={id}
+        aria-labelledby={ariaLabelledBy}
         rows={small ? 4 : 12}
         className="font-mono text-xs"
         value={text}

@@ -166,7 +166,7 @@ describe('ActionRunner', () => {
         onClick,
       });
 
-      expect(confirmHandler).toHaveBeenCalledWith('Are you sure?', undefined);
+      expect(confirmHandler).toHaveBeenCalledWith('Are you sure?');
       expect(result.success).toBe(true);
       expect(onClick).toHaveBeenCalledOnce();
     });
@@ -186,25 +186,25 @@ describe('ActionRunner', () => {
       expect(onClick).not.toHaveBeenCalled();
     });
 
-    it('should support structured confirmation', async () => {
-      const confirmHandler = vi.fn().mockResolvedValue(true);
+    it('ignores the retired structured confirm object (objectui#4314)', async () => {
+      const confirmHandler = vi.fn().mockResolvedValue(false);
       runner.setConfirmHandler(confirmHandler);
 
-      await runner.execute({
-        confirm: {
-          title: 'Delete',
-          message: 'Delete this item?',
-          confirmText: 'Yes, delete',
-          cancelText: 'Cancel',
-        },
-        onClick: vi.fn(),
-      });
+      const onClick = vi.fn();
+      // Metadata that still carries the retired arm (e.g. stored before the
+      // retirement) — cast, because `ActionDef.confirm` is a `never` tombstone
+      // and the key cannot be AUTHORED in TypeScript at all.
+      const result = await runner.execute({
+        confirm: { title: 'Delete', message: 'Delete this item?' },
+        onClick,
+      } as unknown as ActionDef);
 
-      expect(confirmHandler).toHaveBeenCalledWith('Delete this item?', {
-        title: 'Delete',
-        confirmText: 'Yes, delete',
-        cancelText: 'Cancel',
-      });
+      // No confirm gate: the runner reads only `confirmText`. Under the old
+      // precedence read, the REJECTING handler above would have cancelled the
+      // action — success here is what pins the read's removal.
+      expect(confirmHandler).not.toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      expect(onClick).toHaveBeenCalledOnce();
     });
   });
 

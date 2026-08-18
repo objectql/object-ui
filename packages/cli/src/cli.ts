@@ -45,7 +45,7 @@ program
 program
   .command('serve')
   .description('Start a development server with your JSON/YAML schema')
-  .argument('[schema]', 'Path to JSON/YAML schema file', 'app.json')
+  .argument('[schema]', 'Path to JSON/YAML schema file, or a project / pages directory', 'app.json')
   .option('-p, --port <port>', 'Port to run the server on', '3000')
   .option('-h, --host <host>', 'Host to bind the server to', 'localhost')
   .action(async (schema, options) => {
@@ -60,7 +60,7 @@ program
 program
   .command('dev')
   .description('Start development server (alias for serve)')
-  .argument('[schema]', 'Path to JSON/YAML schema file', 'app.json')
+  .argument('[schema]', 'Path to JSON/YAML schema file, or a project / pages directory', 'app.json')
   .option('-p, --port <port>', 'Port to run the server on', '3000')
   .option('-h, --host <host>', 'Host to bind the server to', 'localhost')
   .option('--no-open', 'Do not open browser automatically')
@@ -76,7 +76,7 @@ program
 program
   .command('build')
   .description('Build application for production')
-  .argument('[schema]', 'Path to JSON/YAML schema file', 'app.json')
+  .argument('[schema]', 'Path to JSON/YAML schema file, or a project / pages directory', 'app.json')
   .option('-o, --out-dir <dir>', 'Output directory', 'dist')
   .option('--clean', 'Clean output directory before build', false)
   .action(async (schema, options) => {

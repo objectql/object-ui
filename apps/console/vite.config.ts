@@ -126,6 +126,12 @@ const workspaceAliases: Record<string, string> = {
   '@object-ui/plugin-form': path.resolve(import.meta.dirname, '../../packages/plugin-form/src'),
   '@object-ui/plugin-grid': path.resolve(import.meta.dirname, '../../packages/plugin-grid/src'),
   '@object-ui/react': path.resolve(import.meta.dirname, '../../packages/react/src'),
+  // The `/zod` subpath must be aliased BEFORE the bare package: a vite string
+  // alias matches by PREFIX, so `@object-ui/types/zod` would otherwise resolve to
+  // the `src/zod` DIRECTORY, which has no `index.ts` (the barrel is
+  // `index.zod.ts`) — UNLOADABLE_DEPENDENCY at build time. Mirrors the pairing
+  // in the root `vitest.config.mts`.
+  '@object-ui/types/zod': path.resolve(import.meta.dirname, '../../packages/types/src/zod/index.zod.ts'),
   '@object-ui/types': path.resolve(import.meta.dirname, '../../packages/types/src'),
   '@object-ui/data-objectstack': path.resolve(import.meta.dirname, '../../packages/data-objectstack/src'),
   '@object-ui/auth': path.resolve(import.meta.dirname, '../../packages/auth/src'),

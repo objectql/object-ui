@@ -27,7 +27,7 @@ import { isSystemManagedField } from '@object-ui/types';
 import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useSafeFieldLabel, usePredicateScope, useRelatedRecordActions } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
-import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES, coerceToSafeValue } from '@object-ui/fields';
+import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, getBadgeHexAppearance, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES, coerceToSafeValue } from '@object-ui/fields';
 import { useLocalization, useDisplayLocale, resolveFieldCurrency } from '@object-ui/i18n';
 import { stateMachineNextValues, isFieldInlineEditable } from './inline-edit-options';
 import {
@@ -36,7 +36,7 @@ import {
   RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, listViewPredicates, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, listViewPredicates, isObjectInlineEditable, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
@@ -729,6 +729,61 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // data source), which leaves the affordance verdict untouched.
   const permissionUpdate = objectName ? perms.can(objectName, 'update') : undefined;
   const permissionDelete = objectName ? perms.can(objectName, 'delete') : undefined;
+
+  // [#5143] Whether THIS principal may edit THIS object's rows in place — the
+  // single verdict behind every inline-edit affordance this grid renders
+  // (`editable`, the cell editor, and the save/cancel column that serves them).
+  //
+  // `permissionUpdate` above was resolved for the row kebab and consumed by
+  // nothing else, while the inline-edit props read `schema.editable` raw. That
+  // left one component answering "may this user write these records?" two
+  // opposite ways on the same rows: the kebab hid Edit for a read-only
+  // principal, and a declaratively-authored `object-grid` block carrying
+  // `editable: true` dropped that same principal straight into editable cells,
+  // to be stopped only by the server's 403. No data ever landed (the server
+  // gate is solid) — the cost was a round-trip the UI guaranteed would fail.
+  //
+  // #4647 closed the ListView door with this exact conjunction (PR #5145,
+  // `inlineEditOffered`); the SDUI-authored grid schema is a SECOND, independent
+  // door into the same state that never passes through ListView. Spelling the
+  // gate identically here is what keeps the two from drifting: the object's
+  // resolved affordance — ADR-0103 bucket ∧ `userActions.edit` ∧ the server's
+  // effective API operations (#3391/#3546), which is what `isObjectInlineEditable`
+  // names — AND the current principal's own grant (#4096).
+  //
+  // Fail-open, like every sibling gate in this file. `can()` answers `true`
+  // with no `PermissionProvider`, and `isObjectInlineEditable` resolves the
+  // default-writable bucket for a null/absent object schema, so a standalone
+  // embed, the Studio designer, and a pure inline-data grid with no object
+  // semantics at all keep today's behavior. The narrowing only ever engages
+  // where there IS an object to have a verdict about.
+  const objectInlineEditable =
+    isObjectInlineEditable(objectSchema, effectiveApiOps) &&
+    (objectName ? perms.can(objectName, 'update') : true);
+
+  // [#5143] The authored request ∧ the verdict — resolved ONCE and read by all
+  // three inline-edit props below (`editable`, `renderCellEditor`, and the
+  // save/cancel `rowActions` column). Three sites re-deriving `schema.editable`
+  // is how they came to disagree in the first place; one name is what keeps a
+  // future prop from being added on the raw key again.
+  //
+  // The authored key stays the gate's left half, so this narrows and never
+  // widens: no verdict can turn inline editing ON for a grid that did not ask
+  // for it.
+  //
+  // When ListView owns this grid it has already ANDed its own copy of this
+  // conjunction into the `editable` it hands down (#4647 / PR #5145), so on
+  // that path the second application is idempotent — A ∧ B, then ∧ B again.
+  // The two are NOT the same predicate everywhere, though, and the difference
+  // runs in the safe direction: ListView reads `schema.objectName`, while
+  // `objectName` here is `dataConfig.object ?? schema.objectName`. A grid whose
+  // object identity arrives only through its data config (`{ provider:
+  // 'object', object: … }`, no top-level `objectName`) falls through ListView's
+  // `schema.objectName ? … : true` branch OPEN and is judged solely here. This
+  // gate is therefore the only one on that shape, not a redundant copy of
+  // ListView's — verified rather than assumed, since "it's already gated
+  // upstream" is exactly the reasoning that left this door open to begin with.
+  const inlineEditable = (schema.editable ?? false) && objectInlineEditable;
 
   // When the consumer wired onEdit/onDelete callbacks but the view schema
   // omits an explicit `operations` block, default to allowing those actions.
@@ -2672,17 +2727,32 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     // RowActionMenu column (from columnsWithActions) already handles edit/delete
     // actions via onEdit/onDelete props. Only enable DataTable's built-in action
     // column for inline-editing save/cancel (editable grids with onRowSave).
-    rowActions: !!(schema.editable && hasActions),
+    //
+    // [#5143] …which is exactly why it follows `inlineEditable` and not the raw
+    // schema key. This column's ONLY populated state is the save/cancel pair,
+    // shown when a row has pending changes: ObjectGrid never passes DataTable
+    // the `onRowEdit`/`onRowDelete`/`rowActionDefs` its built-in menu needs
+    // (they go to `columnsWithActions` instead), so `DataTableRowActionsMenu`
+    // renders `null` here on every row. Gate the editing but not this column and
+    // a read-only principal gets a permanently empty trailing column plus its
+    // header — a grid shape that has never existed, since a schema WITHOUT
+    // `editable` produces no such column today. Following the same verdict is
+    // what makes the gated grid identical to the non-editable one.
+    rowActions: !!(inlineEditable && hasActions),
     resizableColumns: schema.resizable ?? schema.resizableColumns ?? true,
     reorderableColumns: schema.reorderableColumns ?? false,
-    editable: schema.editable ?? false,
+    // [#5143] The authored key ∧ this principal's write verdict on the object.
+    editable: inlineEditable,
     // In-place cell editor: render the dedicated @object-ui/fields widget for
     // the field's type — the SAME control the form uses (select→dropdown,
     // boolean→checkbox, date→date picker, multi-select, …). Returning null lets
     // DataTable fall back to its built-in text/number/date inputs. Discrete
     // pickers commit-and-close on choose; everything else stages and closes when
     // the user moves on.
-    renderCellEditor: schema.editable
+    // [#5143] Same verdict as `editable` above: withholding the mode but still
+    // handing DataTable an editor factory would leave the built-in fallback
+    // editors as the only reachable ones if any future path re-opened the mode.
+    renderCellEditor: inlineEditable
       ? (ctx: { column: any; value: any; stage: (v: any) => void; commit: (v?: any) => void }) => {
           const fieldDef = (objectSchema as any)?.fields?.[ctx.column?.accessorKey];
           if (!fieldDef || !hasFieldEditWidget(fieldDef.type)) return null;
@@ -3054,17 +3124,29 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
                     {stageCol && row[stageCol.accessorKey] && (() => {
                       const rawValue = row[stageCol.accessorKey];
                       const optMeta = resolveOptionMeta(stageCol.accessorKey, rawValue);
-                      // Explicit option color wins (matches desktop grid via
-                      // getBadgeColorClasses); fall back to the pipeline-stage
-                      // heuristics keyed on the raw value, which stays stable
-                      // across locales.
-                      const badgeClasses = optMeta.color
-                        ? getBadgeColorClasses(optMeta.color, rawValue)
-                        : stageBadgeColor(String(rawValue));
+                      // Explicit option color wins, resolved EXACTLY as the
+                      // desktop cell resolves it (`SelectCellRenderer` in
+                      // `@object-ui/fields`): a declared hex renders as
+                      // declared via `getBadgeHexAppearance` (objectui#5141,
+                      // adopted here by objectui#5183), a family name keeps
+                      // going through `getBadgeColorClasses`. The `style` is
+                      // load-bearing — the hex ships as CSS custom properties
+                      // that the returned className reads, so dropping it
+                      // yields a badge referencing undefined variables.
+                      // With no declared colour at all we keep the
+                      // pipeline-stage heuristic keyed on the raw value,
+                      // which stays stable across locales.
+                      const hexBadge = getBadgeHexAppearance(optMeta.color);
+                      const badgeClasses = hexBadge
+                        ? hexBadge.className
+                        : optMeta.color
+                          ? getBadgeColorClasses(optMeta.color, rawValue)
+                          : stageBadgeColor(String(rawValue));
                       return (
                         <Badge
                           variant="outline"
                           className={`text-xs shrink-0 max-w-[140px] truncate ${badgeClasses}`}
+                          style={hexBadge?.style}
                         >
                           {optMeta.label}
                         </Badge>
@@ -3250,6 +3332,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
       ? resolveFieldLabel(schema.objectName, field, fieldDef?.label || field)
       : (fieldDef?.label || field);
     let labelColorClass: string | undefined;
+    let labelColorStyle: React.CSSProperties | undefined;
     const ftype = fieldDef?.type;
     if (ftype === 'select' || ftype === 'status') {
       const opts = fieldDef?.options
@@ -3258,13 +3341,22 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
       const matched = Array.isArray(opts)
         ? opts.find((o: any) => String(o.label) === label || String(o.value) === label)
         : undefined;
-      labelColorClass = getBadgeColorClasses(matched?.color, matched?.value ?? label);
+      // Same resolution as the cell below the header (`SelectCellRenderer`):
+      // a declared hex renders as declared (objectui#5141/#5183), everything
+      // else keeps resolving to a palette family. `labelColorStyle` carries
+      // the CSS custom properties the hex className reads — the pill needs
+      // BOTH halves or it references undefined variables.
+      const hexBadge = getBadgeHexAppearance(matched?.color);
+      labelColorClass = hexBadge
+        ? hexBadge.className
+        : getBadgeColorClasses(matched?.color, matched?.value ?? label);
+      labelColorStyle = hexBadge?.style;
     }
-    return { fieldLabel, labelColorClass };
+    return { fieldLabel, labelColorClass, labelColorStyle };
   };
 
   const renderGroup = (group: typeof groups[number]): React.ReactNode => {
-    const { fieldLabel, labelColorClass } = resolveGroupHeader(group.field, group.label);
+    const { fieldLabel, labelColorClass, labelColorStyle } = resolveGroupHeader(group.field, group.label);
     return (
       <div key={group.key}>
         <GroupRow
@@ -3275,6 +3367,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
           aggregations={group.aggregations}
           fieldLabel={group.depth === 0 ? fieldLabel : undefined}
           labelColorClass={labelColorClass}
+          labelColorStyle={labelColorStyle}
           onToggle={toggleGroup}
         >
           {group.subgroups.length > 0 ? (

@@ -20,6 +20,8 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@object-ui/core': path.resolve(__dirname, '../core/src'),
+      // Subpath before bare package — see the note in `apps/console/vite.config.ts`.
+      '@object-ui/types/zod': path.resolve(__dirname, '../types/src/zod/index.zod.ts'),
       '@object-ui/types': path.resolve(__dirname, '../types/src'),
       '@object-ui/react': path.resolve(__dirname, '../react/src'),
       '@object-ui/components': path.resolve(__dirname, '../components/src'),

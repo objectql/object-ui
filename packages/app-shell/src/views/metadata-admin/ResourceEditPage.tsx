@@ -88,7 +88,11 @@ import { PageShell } from './PageShell';
 import { MetadataTypeActions } from './MetadataTypeActions';
 import { LayeredDiff, countOverlaidFields } from './LayeredDiff';
 import { DraftReviewPanel, computeDraftChangeCount } from './DraftReviewPanel';
-import { SchemaForm, type SchemaFormIssue } from './SchemaForm';
+import {
+  SchemaForm,
+  DRAWER_METADATA_ID_SCOPE,
+  type SchemaFormIssue,
+} from './SchemaForm';
 import { collectPageComponentIds } from './widgets';
 import {
   useMetadataClient,
@@ -236,6 +240,40 @@ export function MetadataResourceEditPage({
   );
 }
 
+/**
+ * References panel data — one discriminated union, not a `refs` / `refsLoading`
+ * pair (objectui#5110).
+ *
+ * The pair could only spell two of the three facts this panel has to tell
+ * apart. `refs == null` was already overloaded as "still loading", so a failed
+ * `client.references()` call had nowhere to go: the catch wrote `setRefs([])`,
+ * which is byte-identical to a *successful* scan that found nothing — and the
+ * panel renders that state as "Nothing in the metadata graph points at this
+ * item. Safe to delete." A refused request, a dropped connection, an expired
+ * session and a `501 NOT_IMPLEMENTED` were therefore all shown to the operator
+ * as an affirmative, measured all-clear, with a `console.error` nobody reads as
+ * the only trace. The operator is on this panel precisely because they are
+ * about to delete something.
+ *
+ * `status` makes the third fact representable, and makes the wrong combination
+ * unrepresentable: no value of this type is both `error` and `loaded`, so no
+ * render path can read a failure as a measurement. The `error` arm carries the
+ * cause and asserts NOTHING about deletion safety — the honest answer when the
+ * question was never answered — and the panel offers a retry so the operator
+ * can ask it again.
+ *
+ * `idle` is deliberately distinct from `loading`: the sheet is lazy, and
+ * "never asked" is what re-enables a retry after a failure (see
+ * `loadReferences`'s re-entry guard).
+ *
+ * ADR-0110 D3 — a miss and a fault are different facts.
+ */
+type ReferencesState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'loaded'; items: MetadataReference[] }
+  | { status: 'error'; message: string };
+
 interface MetadataResourceEditPageImplProps {
   type: string;
   name: string;
@@ -284,7 +322,7 @@ function MetadataResourceEditPageImpl({
   const [draft, setDraft] = React.useState<Record<string, unknown>>(() =>
     createMode ? { ...(config.createDefaults ?? {}), [identityField]: '' } : {},
   );
-  const [refs, setRefs] = React.useState<MetadataReference[] | null>(null);
+  const [refsState, setRefsState] = React.useState<ReferencesState>({ status: 'idle' });
   const [loading, setLoading] = React.useState(!createMode);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -787,19 +825,22 @@ function MetadataResourceEditPageImpl({
   }, [client, type, name, ownerPackageId, createMode, reloadKey, locale]);
 
   // Lazy-load references the first time the References sheet opens.
-  const [refsLoading, setRefsLoading] = React.useState(false);
+  //
+  // Re-entry guard: a request already in flight is not duplicated, and a
+  // completed scan is not re-run when the sheet is reopened. `idle` and
+  // `error` both fall through — which is what makes the panel's Retry work
+  // without a second code path: it calls this same loader (objectui#5110).
   async function loadReferences() {
-    if (refs != null || refsLoading) return;
-    setRefsLoading(true);
+    if (refsState.status === 'loading' || refsState.status === 'loaded') return;
+    setRefsState({ status: 'loading' });
     try {
       const r = await client.references(type, name);
-      setRefs(r);
+      setRefsState({ status: 'loaded', items: r });
     } catch (err: any) {
-      // Surface as empty list; non-blocking.
-      setRefs([]);
-      console.error('references() failed', err);
-    } finally {
-      setRefsLoading(false);
+      // NOT `{ status: 'loaded', items: [] }`: an unanswered question is not
+      // an answer of "nothing". The panel renders this arm as a failed check
+      // with a retry and says nothing about whether deleting is safe.
+      setRefsState({ status: 'error', message: String(err?.message ?? err) });
     }
   }
 
@@ -1602,6 +1643,14 @@ function MetadataResourceEditPageImpl({
       ? getMetadataPreview(type)
       : undefined;
 
+  // The id scope for THIS editor's form (objectui#5092). Embedded means we are
+  // mounted inside `MetadataDetailDrawer`, which slides over a page that is
+  // still rendering its own form: without a scope segment both forms emit the
+  // same `mdf-{field}` ids for every field name they share, and the drawer's
+  // labels — later in document order — resolve to the page's controls.
+  // The page editor passes `undefined` and its ids stay exactly as they were.
+  const formIdPath = embedded ? DRAWER_METADATA_ID_SCOPE : undefined;
+
   // Optional scoped inspector for the selected sub-element (e.g. a
   // dashboard widget). Registered separately via
   // `registerMetadataInspector()` so a type can opt in independently
@@ -1712,9 +1761,9 @@ function MetadataResourceEditPageImpl({
               className="h-7 w-7 p-0 relative"
             >
               <Link2 className="h-3.5 w-3.5" />
-              {refs && refs.length > 0 && (
+              {refsState.status === 'loaded' && refsState.items.length > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-muted text-foreground text-[9px] leading-[14px] text-center font-medium border">
-                  {refs.length}
+                  {refsState.items.length}
                 </span>
               )}
             </Button>
@@ -2458,6 +2507,7 @@ function MetadataResourceEditPageImpl({
                         ) : (
                           <SchemaForm
                             schema={schema}
+                            idPath={formIdPath}
                             form={createMode && config.createSchema ? undefined : (entry?.form as any)}
                             value={draft}
                             onChange={handleCreateAwareChange}
@@ -2481,6 +2531,7 @@ function MetadataResourceEditPageImpl({
             ) : (
               <SchemaForm
                 schema={schema}
+                idPath={formIdPath}
                 form={createMode && config.createSchema ? undefined : (entry?.form as any)}
                 value={draft}
                 onChange={handleCreateAwareChange}
@@ -2548,9 +2599,15 @@ function MetadataResourceEditPageImpl({
           <SheetHeader className="px-4 py-3 border-b">
             <SheetTitle className="text-base">
               {t('engine.edit.references', locale)}
-              {refs && (
-                <Badge variant="outline" className="ml-2 text-[10px]">
-                  {refs.length}
+              {/* Only a completed scan may show a count — a `0` badge over a
+                  failed check is the same false measurement in miniature. */}
+              {refsState.status === 'loaded' && (
+                <Badge
+                  variant="outline"
+                  className="ml-2 text-[10px]"
+                  data-testid="refs-count-badge"
+                >
+                  {refsState.items.length}
                 </Badge>
               )}
             </SheetTitle>
@@ -2559,7 +2616,11 @@ function MetadataResourceEditPageImpl({
             </SheetDescription>
           </SheetHeader>
           <div className="flex-1 min-h-0 overflow-auto p-4">
-            <ReferencesPanel refs={refs} loading={refsLoading} locale={locale} />
+            <ReferencesPanel
+              state={refsState}
+              locale={locale}
+              onRetry={() => void loadReferences()}
+            />
           </div>
         </SheetContent>
       </Sheet>
@@ -2702,25 +2763,64 @@ function MetadataResourceEditPageImpl({
   );
 }
 
+/**
+ * Renders exactly one arm of `ReferencesState` — the union is the whole point
+ * (objectui#5110), so the error arm is checked FIRST and there is no path from
+ * a failure to the empty state's "Safe to delete."
+ */
 function ReferencesPanel({
-  refs,
-  loading,
+  state,
   locale,
+  onRetry,
 }: {
-  refs: MetadataReference[] | null;
-  loading: boolean;
+  state: ReferencesState;
   locale?: string;
+  onRetry: () => void;
 }) {
-  if (loading || refs == null) {
+  if (state.status === 'error') {
     return (
-      <div className="text-sm text-muted-foreground flex items-center gap-2">
+      <Empty data-testid="refs-error">
+        <EmptyTitle className="flex items-center justify-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          {t('engine.edit.refsErrorTitle', locale)}
+        </EmptyTitle>
+        <EmptyDescription>
+          {t('engine.edit.refsErrorDesc', locale)}
+        </EmptyDescription>
+        {state.message ? (
+          <p
+            data-testid="refs-error-cause"
+            className="mt-2 max-w-full break-words font-mono text-xs text-muted-foreground"
+          >
+            {state.message}
+          </p>
+        ) : null}
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-3"
+          data-testid="refs-retry"
+          onClick={onRetry}
+        >
+          {t('engine.edit.refsRetry', locale)}
+        </Button>
+      </Empty>
+    );
+  }
+  if (state.status !== 'loaded') {
+    return (
+      <div
+        data-testid="refs-scanning"
+        className="text-sm text-muted-foreground flex items-center gap-2"
+      >
         <Loader2 className="h-4 w-4 animate-spin" /> {t('engine.edit.refsScanning', locale)}
       </div>
     );
   }
+  const refs = state.items;
   if (refs.length === 0) {
     return (
-      <Empty>
+      <Empty data-testid="refs-empty">
         <EmptyTitle>{t('engine.edit.refsEmptyTitle', locale)}</EmptyTitle>
         <EmptyDescription>
           {t('engine.edit.refsEmptyDesc', locale)}

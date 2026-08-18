@@ -48,9 +48,9 @@ Then configure the required files (see "Essential configuration files" below).
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.0.0",
-    "vite": "^6.0.0",
-    "@vitejs/plugin-react": "^4.0.0"
+    "typescript": "^6.0.3",
+    "vite": "^8.2.1",
+    "@vitejs/plugin-react": "^6.0.5"
   }
 }
 ```

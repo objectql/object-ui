@@ -58,6 +58,8 @@ interface SpanSchema {
   // Content
   value?: string;                        // Text content
   children?: SchemaNode | SchemaNode[];  // Child components (the child key this component reads)
+  // Both keys are read. When both are authored, child content wins and `value`
+  // is ignored — the same precedence `text` uses for `content` over `value`.
   
   // Styling
   className?: string;                    // Tailwind CSS classes

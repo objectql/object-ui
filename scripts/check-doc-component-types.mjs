@@ -312,12 +312,18 @@ const DOC_TYPE_EXEMPTIONS = {
     comment: 'FeedItem kind in a `FeedItem[]` literal — `@object-ui/types` activity feed vocabulary.',
     field_change: 'FeedItem kind in a `FeedItem[]` literal — activity feed vocabulary.',
   },
-  'content/docs/plugins/plugin-form.mdx': {
-    minLength: 'ValidationRule discriminant under a field\'s `validation[]`, not a node type.',
-    maxLength: 'ValidationRule discriminant under a field\'s `validation[]`, not a node type.',
-  },
+  // `content/docs/plugins/plugin-form.mdx` used to need `minLength` / `maxLength`
+  // exempted here, as "ValidationRule discriminants under a field's
+  // `validation[]`". Both halves of that reason were fiction (objectui#5118): no
+  // `ValidationRule` type exists in this repository, and `validation` is not an
+  // array — it is `FieldValidationRules`, an object keyed by rule name, so a
+  // rule never carries a `type` discriminant at all. The page now authors the
+  // real shape, which spells no `type` there, and the entries went stale.
   'content/docs/plugins/plugin-grid.mdx': {
     count_unique: 'Column summary aggregation under `columns[].summary`, not a node type.',
+    multiple:
+      'SelectionConfig mode under `selection` — the spec\'s `none` / `single` / `multiple` ' +
+      'vocabulary (`SelectionConfigSchema`, @objectstack/spec/ui), not a node type.',
   },
   'content/docs/plugins/plugin-report.mdx': {
     matrix: 'ReportInput kind — a report definition\'s shape, sibling of `joined` / `summary`.',

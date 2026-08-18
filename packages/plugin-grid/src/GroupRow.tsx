@@ -29,12 +29,24 @@ export interface GroupRowProps {
    */
   fieldLabel?: string;
   /**
-   * Optional Tailwind class string applied to the group label "pill". Use
-   * `getBadgeColorClasses(...)` from `@object-ui/fields` to derive a color
-   * matching the cell badge of the same field value. When omitted, the
-   * label renders as plain text with a subtle muted background.
+   * Optional Tailwind class string applied to the group label "pill".
+   *
+   * Derive it the way the cell renderer of the same field value derives it,
+   * or the header and the cell under it disagree on one option's colour
+   * (objectui#5183): prefer `getBadgeHexAppearance(color)` from
+   * `@object-ui/fields` and use its `className`, falling back to
+   * `getBadgeColorClasses(color, value)` when it returns `undefined`. When
+   * omitted, the label renders as plain text with a subtle muted background.
    */
   labelColorClass?: string;
+  /**
+   * Inline style accompanying `labelColorClass`. **Required whenever the
+   * class string came from `getBadgeHexAppearance`** — that className reads
+   * CSS custom properties which only this style declares, so passing the
+   * class alone paints a pill against undefined variables. Pass the helper's
+   * `style` verbatim; leave unset on the palette-family path.
+   */
+  labelColorStyle?: React.CSSProperties;
   /** Callback when the group header is clicked to toggle collapse */
   onToggle: (key: string) => void;
   /** Children to render when not collapsed (the group content) */
@@ -58,6 +70,7 @@ export const GroupRow: React.FC<GroupRowProps> = ({
   aggregations,
   fieldLabel,
   labelColorClass,
+  labelColorStyle,
   onToggle,
   children,
 }) => {
@@ -81,7 +94,7 @@ export const GroupRow: React.FC<GroupRowProps> = ({
         {collapsed
           ? <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           : <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-        <span className={cn(pillClass, 'group-label')}>{label}</span>
+        <span className={cn(pillClass, 'group-label')} style={labelColorStyle}>{label}</span>
         <span className="text-xs text-muted-foreground tabular-nums group-count">{count}</span>
         {aggregations && aggregations.length > 0 && (
           <span className="ml-2 text-xs text-muted-foreground group-aggregations">

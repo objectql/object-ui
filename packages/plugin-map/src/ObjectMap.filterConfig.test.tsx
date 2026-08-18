@@ -161,7 +161,26 @@ describe('the declared `map` input is what configures the map (control)', () => 
     expect(warnings()).not.toContain('[ObjectMap]');
   });
 
-  it('keeps the top-level `latitudeField` branch intact', async () => {
+  /**
+   * History — objectui#5018, maintainer ruling 2026-08-17 (「同意」).
+   *
+   * This pin predates that ruling, which reversed `getMapConfig`'s order: the
+   * declared `map` block is now consulted FIRST and wins outright, and the flat
+   * top-level spelling is the internal form (ObjectView / ListView flattening
+   * `options.map`) consulted only in its absence.
+   *
+   * What this pin asserts is UNCHANGED by the flip and was never the precedence
+   * itself: the schema below carries no `map` block, so the flat branch is the
+   * only branch there is. The card that dispatched #5018 read this pin as
+   * recording the old top-level-wins precedence — it does not, and no pin did;
+   * the old order was unpinned. The precedence, in both directions, is now
+   * pinned in `ObjectMap.schemaAlignment.test.tsx`, and the producer path that
+   * makes the flip safe in `plugin-view/src/__tests__/ObjectView.mapFlatten.test.tsx`.
+   *
+   * Keeping this one is the point: the internal form still has to render, or
+   * every ObjectView/ListView map goes blank.
+   */
+  it('keeps the top-level `latitudeField` branch intact (internal flat form)', async () => {
     await renderMap({
       type: 'object-map',
       data: { provider: 'value', items: ROWS },

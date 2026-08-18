@@ -764,8 +764,21 @@ export interface FieldValidationRules {
   max?: { value: number; message: string };
   /**
    * Pattern validation (regex)
+   *
+   * `value` must be a compiled `RegExp` on this hand-written surface — never a
+   * string. react-hook-form's field validator applies `pattern` only when
+   * `value instanceof RegExp` (verified against the installed 7.85.0 bundle),
+   * so a string here type-checked and then validated NOTHING, silently: the
+   * form looked validated while the rule never ran (objectui#5099, maintainer
+   * ruling 2026-08-18). String patterns belong to the metadata route's field
+   * declaration (`FieldSchema.pattern`), which `buildValidationRules` in
+   * `@object-ui/fields` compiles via `new RegExp(...)` before it reaches this
+   * shape. The renderer deliberately does NOT compile strings at its read
+   * point — that consumer-side tolerance would harden the ambiguous
+   * declaration into contract (AGENTS.md #0.1); the declaration is narrowed
+   * at the producer instead.
    */
-  pattern?: { value: string | RegExp; message: string };
+  pattern?: { value: RegExp; message: string };
   /**
    * Custom validation function
    * @param value - The field value to validate

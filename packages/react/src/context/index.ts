@@ -9,4 +9,5 @@ export * from './RecordContext';
 export * from './InlineEditContext';
 export * from './DiscussionContext';
 export * from './DrillNavigationContext';
+export * from './HostNavigationContext';
 export * from './RelatedRecordActionsContext';

@@ -25,6 +25,10 @@ import type { DataSource, FormField } from '@object-ui/types';
 import { Button } from '@object-ui/components';
 import { CheckCircle2, Lock, Loader2, ShieldCheck } from 'lucide-react';
 import { ObjectForm } from './ObjectForm';
+import {
+  useThankYouRedirectNavigation,
+  type PendingThankYouRedirect,
+} from './thankYouRedirectNavigation';
 
 export interface EmbeddableFormTexts {
   submit?: string;
@@ -223,9 +227,22 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
   // `config.thankYouPage` at wait time: the value honoured is the one declared
   // when the write was accepted, so a host re-rendering with a different
   // `redirectDelay` mid-wait cannot restart the pause under the submitter.
-  const [pendingRedirect, setPendingRedirect] = useState<
-    { url: string; delayMs: number } | null
-  >(null);
+  const [pendingRedirect, setPendingRedirect] = useState<PendingThankYouRedirect | null>(null);
+
+  // Whether the guard below refused the authored destination (objectui#5073).
+  //
+  // Held apart from `error` on purpose. The refusal used to be recorded as
+  // `setError(texts.redirectBlocked ?? null)`, but the error banner lives in the
+  // form branch and `setSubmitted(true)` has already run one statement earlier —
+  // so that assignment, the only one of that key anywhere, could never reach a
+  // screen in any locale. This flag is read by the thank-you panel, which is the
+  // screen the submitter is actually looking at when a redirect is refused.
+  //
+  // A fact, not a copy of the string: the panel's other copy is read from
+  // `config.texts` at render time, and the author's `redirectBlocked` wording is
+  // read the same way. Only `pendingRedirect` captures its value at accept time,
+  // and for a reason that does not apply here — it feeds a running timer.
+  const [redirectRefused, setRedirectRefused] = useState(false);
 
   const honeypotRef = useRef<HTMLInputElement | null>(null);
   // Seeded lazily by the mount effect below — Date.now() is impure and must not
@@ -237,20 +254,20 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
     if (!submitted) mountedAtRef.current = Date.now();
   }, [submitted]);
 
-  // The delayed leg of a thank-you redirect.
+  // The delayed leg of a thank-you redirect: the wait, and who travels at the
+  // end of it (`thankYouRedirectNavigation.ts`).
   //
   // Which destinations are followed and which are refused is decided before a
   // destination ever reaches this state (`isRedirectUrlSafe` in the submit
-  // handler); nothing here re-judges a URL. What changed is who owns the wait:
-  // unmounting, or dropping the destination, cancels it instead of leaving it to
-  // fire into a page the submitter has moved on from.
-  useEffect(() => {
-    if (!pendingRedirect) return;
-    const timer = setTimeout(() => {
-      window.location.href = pendingRedirect.url;
-    }, pendingRedirect.delayMs);
-    return () => clearTimeout(timer);
-  }, [pendingRedirect]);
+  // handler); nothing downstream re-judges a URL, and the seam is never a route
+  // around that verdict. What the hook owns is the wait — unmounting, or
+  // dropping the destination, cancels it (objectui#5049) — and the arm split
+  // objectui#5112 added on top of it: an app-relative destination goes through
+  // the host's injected navigate when a host supplied one, so a mounted host
+  // keeps the submitter inside the application, while an external destination
+  // admitted by `allowedRedirectHosts` stays a browser-level navigation
+  // unconditionally.
+  useThankYouRedirectNavigation(pendingRedirect);
 
   const honeypotName = config.honeypot === false ? null : config.honeypot || DEFAULT_HONEYPOT_NAME;
   const minFillTime = config.minFillTime ?? DEFAULT_MIN_FILL_MS;
@@ -349,7 +366,12 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
             setPendingRedirect({ url: rawRedirect, delayMs: delay });
           } else {
             console.warn('[EmbeddableForm] Blocked unsafe redirect target:', rawRedirect);
-            setError(config.texts?.redirectBlocked ?? null);
+            // The author keeps their console channel; the submitter gets the
+            // panel to match the verdict (objectui#5073). Nothing here re-judges
+            // the URL — `isRedirectUrlSafe` and `allowedRedirectHosts` are
+            // untouched; only the record of what they decided is now readable
+            // where the copy is rendered.
+            setRedirectRefused(true);
           }
         }
       } catch (err) {
@@ -371,6 +393,10 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
     // destination re-runs the effect above, whose cleanup clears the timer —
     // the cancellation is done by that `clearTimeout`, not by this line alone.
     setPendingRedirect(null);
+    // This is the only route back to the form, so it is also the only place the
+    // refusal has to be forgotten: a later submit that IS accepted must not
+    // inherit the previous attempt's refusal notice next to its countdown.
+    setRedirectRefused(false);
   }, []);
 
   // Branding styles
@@ -386,11 +412,23 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
   if (submitted) {
     const thankYou = config.thankYouPage;
     const texts = config.texts ?? {};
-    const redirectSeconds = Math.ceil((thankYou?.redirectDelay ?? 3000) / 1000);
-    const redirectingText = (texts.redirecting ?? 'Redirecting in {{seconds}} seconds…').replace(
-      '{{seconds}}',
-      String(redirectSeconds),
-    );
+    // The countdown describes the destination that was ACCEPTED, not the one
+    // that was authored (objectui#5073). Keyed on `thankYou?.redirectUrl`, this
+    // line told a submitter `Redirecting in 3 seconds…` even when the guard in
+    // the submit handler had just refused that destination — on the terminal
+    // screen of a public form, where nothing comes after to correct it.
+    //
+    // Reading the delay off `pendingRedirect` rather than re-deriving it from
+    // `config.thankYouPage` also leaves exactly one default for it (the `?? 3000`
+    // in the submit handler): the seconds displayed are the seconds being
+    // served, and a host that re-renders with a different `redirectDelay`
+    // mid-wait cannot make the two disagree.
+    const redirectingText = pendingRedirect
+      ? (texts.redirecting ?? 'Redirecting in {{seconds}} seconds…').replace(
+          '{{seconds}}',
+          String(Math.ceil(pendingRedirect.delayMs / 1000)),
+        )
+      : null;
     return (
       <div
         className={`min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-muted/40 via-background to-background ${className || ''}`}
@@ -411,8 +449,16 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
               {texts.submitAnother ?? 'Submit Another Response'}
             </Button>
           )}
-          {thankYou?.redirectUrl && (
+          {redirectingText && (
             <p className="text-xs text-muted-foreground">{redirectingText}</p>
+          )}
+          {/* Refused destination: the author's own words to the public, shown
+              only because the author declared them for this case. Undeclared
+              means silence here — an operational message the author did not
+              write is not the submitter's to read, and `console.warn` above
+              already told the one person who can fix the declaration. */}
+          {redirectRefused && texts.redirectBlocked && (
+            <p className="text-xs text-muted-foreground">{texts.redirectBlocked}</p>
           )}
         </div>
       </div>

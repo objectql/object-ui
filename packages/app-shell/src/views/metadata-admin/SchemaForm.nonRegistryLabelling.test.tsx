@@ -36,7 +36,8 @@
  * out uniform:
  *
  *  - `composite` and `nested-object` do contain one labelable `<input>`, but it
- *    belongs to a SUB-field's own `<label for>` (`mdf-sub` / `mdf-inner`). The
+ *    belongs to a SUB-field's own `<label for>` (`mdf-probe.sub` /
+ *    `mdf-probe.inner` — path-scoped since objectui#5062). The
  *    outer field owns nothing of its own to address → container, `'group'`;
  *  - `repeater` / `array-of-obj` / `record` own only auxiliary buttons — collapse,
  *    add, remove — and just the collapse toggles when read-only → `'group'`;
@@ -442,9 +443,11 @@ describe('a group name does not swallow the sub-fields it contains', () => {
 
     // The inner field is a plain control on its own `control` channel, reached by
     // its own label — not by the outer one, and not by `aria-labelledby`.
+    // Its id is scoped under the host field's path (objectui#5062): a nested
+    // `inner` and a top-level `inner` are two fields and must not share an id.
     const innerLabel = within(group as HTMLElement).getByText('Inner').closest('label')!;
-    expect(innerLabel).toHaveAttribute('for', 'mdf-inner');
-    const innerInput = document.getElementById('mdf-inner')!;
+    expect(innerLabel).toHaveAttribute('for', `${HOST_ID}.inner`);
+    const innerInput = document.getElementById(`${HOST_ID}.inner`)!;
     expect(innerInput.tagName).toBe('INPUT');
     expect(innerInput).not.toHaveAttribute('aria-labelledby');
     expect(innerInput).toHaveAccessibleName('Inner');
@@ -475,9 +478,10 @@ describe('a group name does not swallow the sub-fields it contains', () => {
 
     const group = document.querySelector(`[aria-labelledby="${LABEL_ID}"]`)!;
     expect(group).toHaveAccessibleName(TITLE);
-    const subInput = document.getElementById('mdf-sub')!;
+    // Path-scoped under the composite's own field (objectui#5062).
+    const subInput = document.getElementById(`${HOST_ID}.sub`)!;
     expect(subInput.tagName).toBe('INPUT');
     expect(subInput).toHaveAccessibleName('Sub');
-    expect(within(group as HTMLElement).getByText('Sub').closest('label')).toHaveAttribute('for', 'mdf-sub');
+    expect(within(group as HTMLElement).getByText('Sub').closest('label')).toHaveAttribute('for', `${HOST_ID}.sub`);
   });
 });
