@@ -1,5 +1,7 @@
 // Copyright (c) 2026 ObjectStack. Licensed under the Apache-2.0 license.
 
+import * as React from 'react';
+
 /**
  * `LoadState<T>` — the one shape the metadata-admin loaders use to keep a
  * FAULT and a MEASUREMENT distinguishable (objectui#5170, objectui#5169).
@@ -90,4 +92,72 @@ export function isLoading(state: LoadState<unknown>): boolean {
 /** The failure message when this load failed, otherwise `undefined`. */
 export function loadErrorOf(state: LoadState<unknown>): string | undefined {
   return state.status === 'error' ? state.message : undefined;
+}
+
+/**
+ * The one loader every metadata-admin option-picker catalog shares
+ * (objectui#5170, objectui#5227).
+ *
+ * Each catalog used to hand-roll the same effect, and each hand-rolled the same
+ * bug in it: the `catch` wrote the empty array — the value a *successful*
+ * response with nothing in it writes — and the `finally` flipped loading to
+ * false. The picker then rendered a completed, empty list, and an operator
+ * authoring a view, a permission row or an action read that as the metadata
+ * graph's answer ("this object has no fields") and went and created one.
+ *
+ * Sharing one hook is what makes that unrepeatable: the catch is written once,
+ * and it can only produce the `error` arm. Copy-pasted unions are how the next
+ * drift starts — which is exactly what happened: `FieldSelectorWidget` in
+ * `widgets.tsx` was a fourth loader with the same swallow, missed by
+ * objectui#5170 because it does not go through `MetadataClient` at all. It now
+ * calls this hook too, so the hook lives here rather than private to
+ * `ResourceEditPage` (`widgets.tsx` cannot import that module — `ResourceEditPage`
+ * imports `widgets`).
+ *
+ * The loaders differ only in what they fetch and in whether they are gated on a
+ * bound source object, and both differences fit through the argument:
+ *
+ *   • `load` is the request, memoised by the caller — its identity is the
+ *     dependency, so the caller keeps its own explicit dep list and this hook
+ *     needs no dep-array passthrough.
+ *   • `load === null` means "not applicable" (no source object is bound). That
+ *     is the `idle` arm: a question never asked, which is NOT a failure and
+ *     must not render as one.
+ *
+ * The initial state follows `load` rather than defaulting to `idle`, so an
+ * enabled loader is already `loading` on first paint. Starting at `idle` would
+ * flash one frame of "not loading, zero results" before the effect runs — the
+ * exact false reading this card is about, just briefly.
+ *
+ * The `cancelled` guard is load-bearing, not hygiene: once a failure has its
+ * own arm, a late response for a PREVIOUS question can no longer only stale a
+ * list — it can post a failure banner over a catalog that loaded fine, or hide
+ * a real one behind a stale success.
+ */
+export function usePickerLoad<T>(load: (() => Promise<T>) | null): LoadState<T> {
+  const [state, setState] = React.useState<LoadState<T>>(() =>
+    load ? { status: 'loading' } : { status: 'idle' },
+  );
+  React.useEffect(() => {
+    if (!load) {
+      setState({ status: 'idle' });
+      return;
+    }
+    let cancelled = false;
+    setState({ status: 'loading' });
+    void (async () => {
+      try {
+        const data = await load();
+        if (!cancelled) setState({ status: 'loaded', data });
+      } catch (err) {
+        // NOT `{ status: 'loaded', data: [] }`. An unanswered question is not
+        // an answer of "nothing" — that substitution is the entire defect.
+        if (!cancelled) setState({ status: 'error', message: loadErrorMessage(err) });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [load]);
+  return state;
 }

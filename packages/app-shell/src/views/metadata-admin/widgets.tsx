@@ -51,6 +51,7 @@ import { foldFilterGroupToSpecRules, FILTER_FOLD_REFUSAL_KEYS } from '../viewFil
 import { ColorVariantPicker } from './color-variant-field';
 import { ConditionBuilder } from './inspectors/ConditionBuilder';
 import { expressionSource, writeExpressionSource } from './inspectors/expression-envelope';
+import { isLoading, loadErrorOf, loadedData, usePickerLoad } from './loadState';
 
 /**
  * Load failures for the option catalogs on {@link WidgetContext}, by catalog
@@ -560,6 +561,63 @@ function ObjectSelectorWidget({
 /* field-selector — smart field picker (depends on selected object)          */
 /* -------------------------------------------------------------------------- */
 
+/** One entry of the `field-selector` catalog, as the REST endpoint spells it. */
+interface FieldSelectorOption {
+  name: string;
+  label: string;
+  type: string;
+}
+
+/** Stable identity for the non-`loaded` arms, so no consumer re-renders on a fresh `[]`. */
+const EMPTY_FIELD_SELECTOR_OPTIONS: FieldSelectorOption[] = [];
+
+/**
+ * Fetch the bound object's field catalog for {@link FieldSelectorWidget}
+ * (objectui#5227).
+ *
+ * This is the one loader in this family that does NOT go through
+ * `MetadataClient` — it is a raw `fetch` to a REST path no other widget here
+ * uses — which is why objectui#5170 missed it and why the `catalogErrors`
+ * channel on {@link WidgetContext} does not reach it. It had TWO ways to render
+ * a fault as a measurement, and a union that guarded only the first would have
+ * left the second wide open:
+ *
+ *   1. the `catch` wrote `setFields([])` — byte-identical to a successful
+ *      response with no fields — and cleared the loading flag, so a dropped
+ *      connection rendered as a completed, empty picker;
+ *   2. it never checked `res.ok`, so a 4xx/5xx whose body happens to parse as
+ *      JSON landed in the SUCCESS branch with `data.fields` undefined, and the
+ *      old `|| []` rendered that refusal as "no fields" — worse than (1),
+ *      because no error was ever raised for the `catch` to swallow.
+ *
+ * Both now leave through the same door: a throw, which {@link usePickerLoad}
+ * can only turn into the `error` arm. The message follows the convention the
+ * other raw-`fetch` callers in this package already use (`useRecordApprovals`,
+ * `suggestedBindingsApi`, `studio-design/packages-io`): the server's own
+ * message when it sent one, otherwise the status.
+ */
+async function fetchFieldSelectorOptions(objectName: string): Promise<FieldSelectorOption[]> {
+  const res = await fetch(`/api/v1/objects/${objectName}/fields`);
+  // Read the body BEFORE branching on `ok`: a refusal usually carries the more
+  // useful sentence, and a non-JSON body must not be mistaken for a refusal
+  // that said nothing (it still throws below — it just cannot add a cause).
+  let payload: any = null;
+  try {
+    payload = await res.json();
+  } catch {
+    /* empty or non-JSON body */
+  }
+  if (!res.ok) {
+    const detail = payload?.error?.message ?? payload?.error ?? payload?.message;
+    throw new Error(
+      typeof detail === 'string' && detail ? detail : `HTTP ${res.status}`,
+    );
+  }
+  // `payload.fields` narrows to the list; anything else is an answer we cannot
+  // read, and the completed-load arm is the only one that reaches here.
+  return Array.isArray(payload?.fields) ? (payload.fields as FieldSelectorOption[]) : [];
+}
+
 function FieldSelectorWidget({
   id,
   value,
@@ -569,37 +627,26 @@ function FieldSelectorWidget({
   formData,
 }: WidgetProps) {
   const locale = useMetadataLocale();
-  const [fields, setFields] = React.useState<Array<{ name: string; label: string; type: string }>>([]);
-  const [loading, setLoading] = React.useState(false);
-  
+
   // Resolve dependency: fieldSpec.dependsOn or fieldSpec.reference or 'objectName'
   const dependsOnRaw = fieldSpec?.dependsOn || fieldSpec?.reference || 'objectName';
   const dependsOnField = Array.isArray(dependsOnRaw) ? dependsOnRaw[0] : dependsOnRaw;
   const objectName = formData?.[dependsOnField] as string | undefined;
 
-  // Load fields when objectName changes
-  React.useEffect(() => {
-    if (!objectName) {
-      setFields([]);
-      return;
-    }
-
-    setLoading(true);
-    fetch(`/api/v1/objects/${objectName}/fields`)
-      .then(r => r.json())
-      .then(data => {
-        setFields(data.fields || []);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to load fields:', err);
-        setFields([]);
-        setLoading(false);
-      });
-  }, [objectName]);
+  // Four structurally distinct arms, one per `LoadState` — the shape this
+  // directory landed for the other pickers (objectui#5170) and for the
+  // References panel before them (objectui#5110). `null` while no object is
+  // bound is the `idle` arm: a question never asked is not a failure.
+  const loadFields = React.useMemo(
+    () => (objectName ? () => fetchFieldSelectorOptions(objectName) : null),
+    [objectName],
+  );
+  const fieldsState = usePickerLoad<FieldSelectorOption[]>(loadFields);
+  const fields = loadedData(fieldsState, EMPTY_FIELD_SELECTOR_OPTIONS);
+  const loadError = loadErrorOf(fieldsState);
 
   const multiple = fieldSpec?.multiple ?? false;
-  
+
   // Parse value
   const selectedValues = React.useMemo(() => {
     if (!value) return [];
@@ -609,7 +656,7 @@ function FieldSelectorWidget({
 
   const handleToggle = (fieldName: string) => {
     if (readOnly) return;
-    
+
     if (!multiple) {
       onChange(fieldName);
       return;
@@ -618,7 +665,7 @@ function FieldSelectorWidget({
     const newSelection = selectedValues.includes(fieldName)
       ? selectedValues.filter(v => v !== fieldName)
       : [...selectedValues, fieldName];
-    
+
     onChange(newSelection);
   };
 
@@ -632,40 +679,60 @@ function FieldSelectorWidget({
     return <Input id={id} value={t('engine.form.selectObjectFirst', locale)} readOnly disabled />;
   }
 
-  if (loading) {
+  if (isLoading(fieldsState)) {
     return <Input id={id} value={t('engine.form.loadingFields', locale)} readOnly disabled />;
+  }
+
+  /* Whatever is already stored, kept visible and removable in EVERY completed
+     arm — a failed catalog must not also block authoring. */
+  const selectedChips = selectedValues.length > 0 && (
+    <div className="flex flex-wrap gap-2">
+      {selectedValues.map(field => {
+        const fieldMeta = fields.find(f => f.name === field);
+        return (
+          <div
+            key={field}
+            className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-sm"
+          >
+            <span>{fieldMeta?.label || field}</span>
+            <code className="text-xs text-muted-foreground">{fieldMeta?.type}</code>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() => handleRemove(field)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // The catalog FAILED to load — not the same fact as "this object has no
+  // fields". The picker below is REPLACED rather than decorated (the shape
+  // `field-ref` uses): with no options it could only render as a dead,
+  // disabled dropdown next to a banner saying the options are unknown, which
+  // is the very conflation this arm exists to end.
+  if (loadError) {
+    return (
+      <div className="space-y-2">
+        {selectedChips}
+        <PickerLoadFailure message={loadError} testId="field-selector-load-failed" />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-2">
       {/* Selected fields */}
-      {selectedValues.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {selectedValues.map(field => {
-            const fieldMeta = fields.find(f => f.name === field);
-            return (
-              <div
-                key={field}
-                className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-sm"
-              >
-                <span>{fieldMeta?.label || field}</span>
-                <code className="text-xs text-muted-foreground">{fieldMeta?.type}</code>
-                {!readOnly && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(field)}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {selectedChips}
 
-      {/* Field picker */}
+      {/* Field picker. `fields.length === 0` here means a load that COMPLETED
+          and found nothing — the disabled trigger is that measurement, and it
+          is now reachable only from the `loaded` arm. */}
       <Select
         value=""
         onValueChange={handleToggle}
