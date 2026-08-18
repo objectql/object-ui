@@ -30,8 +30,14 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
-import { ObjectView } from '../ObjectView';
+import { ObjectView, FLAT_MAP_CONFIG_KEYS } from '../ObjectView';
 import type { ObjectViewSchema } from '@object-ui/types';
+// Test-only: `ObjectView.tsx` hand-lists `FLAT_MAP_CONFIG_KEYS` rather than
+// importing this schema at runtime, precisely so this module never appears in
+// `examples/console-starter`'s walked import graph (see the comment on the
+// constant). A test file is explicitly excluded from that walk, so pinning
+// against the real declaration HERE is safe.
+import { ObjectMapConfigSchema } from '@object-ui/types/zod';
 
 /** Every schema the view hands to SchemaRenderer, in order. */
 const rendered: any[] = [];
@@ -146,5 +152,24 @@ describe('ObjectView flattens `map` through a whitelist, not a raw spread (objec
     expect(schema.latitudeField).toBe('lat');
     expect(schema.totallyUndeclaredKey).toBeUndefined();
     expect(Object.prototype.hasOwnProperty.call(schema, 'totallyUndeclaredKey')).toBe(false);
+  });
+});
+
+/**
+ * `FLAT_MAP_CONFIG_KEYS` is hand-listed in `ObjectView.tsx` itself (not
+ * derived at runtime — see the comment on the constant for why), so THIS is
+ * the mechanism that keeps it from silently drifting off `ObjectMapConfigSchema`
+ * — the same role `packages/core/src/actions/__tests__/actionKeys.pin.test.ts`
+ * plays for `SPEC_ACTION_KEYS`. A key added to or removed from the schema
+ * fails this test by name, without requiring a runtime import of
+ * `@object-ui/types/zod` from production code that reaches
+ * `examples/console-starter`.
+ */
+describe('FLAT_MAP_CONFIG_KEYS pins against ObjectMapConfigSchema (objectui#5177)', () => {
+  it('matches the schema minus `style`, so the hand list cannot silently drift', () => {
+    const declared = Object.keys(ObjectMapConfigSchema.shape)
+      .filter((key) => key !== 'style')
+      .sort();
+    expect([...FLAT_MAP_CONFIG_KEYS].sort()).toEqual(declared);
   });
 });

@@ -18,9 +18,8 @@ import { UserFilters } from './UserFilters';
 import { SchemaRenderer, useNavigationOverlay, classifyLoadError } from '@object-ui/react';
 import type { LoadErrorKind } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
-import type { ListViewSchema } from '@object-ui/types';
+import type { ListViewSchema, ObjectMapConfig } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
-import { ObjectMapConfigSchema } from '@object-ui/types/zod';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
@@ -34,17 +33,37 @@ import { usePermissions } from '@object-ui/permissions';
  * spreading the raw `map` block collapsed the two namespaces onto one key
  * (objectui#5177).
  *
- * DERIVED, not hand-listed: `ObjectMapConfigSchema` (`@object-ui/types/zod`) is
- * the same declaration `plugin-map`'s `ObjectMap.tsx` validates the `map` block
- * against and derives its own `FLAT_MAP_CONFIG_KEYS` from, so a key added there
- * reaches this flattener without a second edit. Read from `@object-ui/types`
- * rather than imported from `@object-ui/plugin-map` deliberately: `plugin-map`
- * is loaded lazily (`ComponentRegistry.registerLazy('object-map', ...)`)
- * specifically so its `maplibre-gl` / `react-map-gl` weight is paid only when a
- * map view actually renders — a static import here would defeat that for every
- * `ListView`, map or not.
+ * HAND-LISTED, not derived at runtime — deliberately, and only here (`plugin-
+ * map`'s own `FLAT_MAP_CONFIG_KEYS` in `ObjectMap.tsx` DOES derive from
+ * `ObjectMapConfigSchema.shape`, and should stay that way): this file is
+ * reachable from `examples/console-starter`'s own `src/`, so it is part of the
+ * import graph `vite-alias-closure.test.ts` walks. That walker resolves a bare
+ * `@object-ui/*` specifier with plain `index.<ext>` conventions and cannot find
+ * `@object-ui/types/zod`'s actual barrel file (`zod/index.zod.ts` — a
+ * non-standard name) — a REAL runtime import of it here reproducibly fails
+ * that gate (measured on objectui#5177's first PR, PR #5231, CI run
+ * 32160288416), even though Vite's own alias table already resolves the
+ * specifier correctly (`examples/console-starter/vite.config.ts` has carried
+ * an explicit `@object-ui/types/zod` entry since PR #5156). `ObjectMap.tsx`
+ * gets away with the runtime import only because nothing in
+ * console-starter's graph reaches `@object-ui/plugin-map` today.
+ *
+ * Anti-drift is a TEST, not this comment: `ListView.mapFlatten.test.tsx` pins
+ * this exact list against `ObjectMapConfigSchema.shape` — imported only from
+ * that TEST file, which the alias-closure walker explicitly excludes from
+ * traversal — so a key added to or removed from the declaration still fails
+ * here, loudly and by name, without reintroducing the runtime edge that
+ * breaks the walker.
  */
-const FLAT_MAP_CONFIG_KEYS = Object.keys(ObjectMapConfigSchema.shape).filter((key) => key !== 'style');
+export const FLAT_MAP_CONFIG_KEYS = [
+  'latitudeField',
+  'longitudeField',
+  'locationField',
+  'titleField',
+  'descriptionField',
+  'zoom',
+  'center',
+] as const satisfies readonly (keyof Omit<ObjectMapConfig, 'style'>)[];
 
 /** Pick only the declared flat map keys present on an authored `map` block. */
 function pickFlatMapConfig(mapConfig: unknown): Record<string, unknown> {

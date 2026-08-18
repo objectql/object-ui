@@ -16,12 +16,13 @@
  * legal on every node), so a `map: { style: '<url>' }` authoring intent
  * arrived at the top level as that CSS-shaped key.
  *
- * These pin the whitelist (`FLAT_MAP_CONFIG_KEYS`, derived from
- * `ObjectMapConfigSchema` in `@object-ui/types/zod` — the same declaration
- * `ObjectMap.tsx`'s own `FLAT_MAP_CONFIG_KEYS` derives from) rather than the
- * raw spread: a declared key still travels, `style` does not, and neither
- * does an arbitrary undeclared one. Mirrors
- * `ObjectView.mapFlatten.test.tsx`'s #5177 coverage for the sibling
+ * These pin the whitelist (`FLAT_MAP_CONFIG_KEYS`, hand-listed in
+ * `ListView.tsx` itself — see the comment on that constant for why it is not
+ * derived from `ObjectMapConfigSchema` at runtime there) rather than the raw
+ * spread: a declared key still travels, `style` does not, and neither does an
+ * arbitrary undeclared one. The bottom of this file also pins the hand list
+ * against `ObjectMapConfigSchema` directly, so it cannot silently drift.
+ * Mirrors `ObjectView.mapFlatten.test.tsx`'s #5177 coverage for the sibling
  * flattener.
  */
 
@@ -29,8 +30,14 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
 import { render, waitFor } from '@testing-library/react';
-import { ListView } from '../ListView';
+import { ListView, FLAT_MAP_CONFIG_KEYS } from '../ListView';
 import { SchemaRendererProvider } from '@object-ui/react';
+// Test-only: `ListView.tsx` hand-lists `FLAT_MAP_CONFIG_KEYS` rather than
+// importing this schema at runtime, precisely so this module never appears in
+// `examples/console-starter`'s walked import graph (see the comment on the
+// constant). A test file is explicitly excluded from that walk, so pinning
+// against the real declaration HERE is safe.
+import { ObjectMapConfigSchema } from '@object-ui/types/zod';
 
 let captured: Array<Record<string, any>> = [];
 
@@ -112,5 +119,24 @@ describe('ListView flattens `options.map` through a whitelist, not a raw spread 
     const schema = await mapSchemaFor({});
 
     expect(schema.locationField).toBe('location');
+  });
+});
+
+/**
+ * `FLAT_MAP_CONFIG_KEYS` is hand-listed in `ListView.tsx` itself (not derived
+ * at runtime — see the comment on the constant for why), so THIS is the
+ * mechanism that keeps it from silently drifting off `ObjectMapConfigSchema`
+ * — the same role `packages/core/src/actions/__tests__/actionKeys.pin.test.ts`
+ * plays for `SPEC_ACTION_KEYS`. A key added to or removed from the schema
+ * fails this test by name, without requiring a runtime import of
+ * `@object-ui/types/zod` from production code that reaches
+ * `examples/console-starter`.
+ */
+describe('FLAT_MAP_CONFIG_KEYS pins against ObjectMapConfigSchema (objectui#5177)', () => {
+  it('matches the schema minus `style`, so the hand list cannot silently drift', () => {
+    const declared = Object.keys(ObjectMapConfigSchema.shape)
+      .filter((key) => key !== 'style')
+      .sort();
+    expect([...FLAT_MAP_CONFIG_KEYS].sort()).toEqual(declared);
   });
 });
