@@ -165,7 +165,7 @@ npm install @object-ui/plugin-calendar-view
 - ObjectQL integration
 - Automatic field mapping
 - Database-driven events
-- Works with object/api/value providers
+- Works with object/value providers
 
 ```bash
 npm install @object-ui/plugin-calendar

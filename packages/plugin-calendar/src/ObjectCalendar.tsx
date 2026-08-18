@@ -19,7 +19,7 @@
  * - Date range filtering
  * - Event click handling
  * - Color coding support
- * - Works with object/api/value data providers
+ * - Works with object/value data providers
  */
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
