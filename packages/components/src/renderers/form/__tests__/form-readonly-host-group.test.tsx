@@ -349,13 +349,23 @@ describe('nothing else changed shape (the paths this issue does not touch)', () 
     expect(document.querySelector('[role="group"]')).toBeNull();
   });
 
-  it('a bare-name SDUI component is not a field widget and is left alone', () => {
+  it('a bare-name SDUI component is not a field widget and gets no group', () => {
     renderForm([FIELD('barenameprobe', { readonly: true })], { f_barenameprobe: 'Hello' });
 
-    // Its contract is `schema`, not `FieldWidgetComponentProps`; the ruling
-    // scoped the wrapper to registered FIELD widgets.
+    // #4788's assertion, unchanged: the wrapper is scoped to registered FIELD
+    // widgets, and this type is not one.
     expect(group('f_barenameprobe')).toBeNull();
-    expect(screen.getByTestId('bare-name')).toBeInTheDocument();
+
+    // The SECOND half of this test used to be `getByTestId('bare-name')` — it
+    // asserted that a form field REACHED the bare-name component, which was
+    // true only because of the cross-namespace fallback objectui#5254's ruling
+    // removed. A form field's type now resolves a `field:` widget or nothing,
+    // so this type takes the builtin `default` input branch instead. The probe
+    // is still registered (bare, no namespace) and still resolvable as an SDUI
+    // NODE — it is simply no longer reachable as a FIELD.
+    expect(ComponentRegistry.get('barenameprobe')).toBeTruthy(); // counter-probe
+    expect(screen.queryByTestId('bare-name')).toBeNull();
+    expect(item('f_barenameprobe').querySelector('input')).toBeTruthy();
   });
 });
 

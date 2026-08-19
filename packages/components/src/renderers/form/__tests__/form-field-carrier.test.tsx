@@ -163,27 +163,40 @@ describe('form renderer — `field` is the single metadata carrier (objectui#323
   });
 });
 
-describe('form renderer — retiring the carrier did NOT touch the SDUI `schema` contract', () => {
-  it('still passes `schema` to a plain component reached by the bare-name fallback', () => {
-    // The load-bearing distinction, and the one a "just delete `schema`"
-    // refactor gets wrong: `renderFieldComponent`'s registry lookup can answer
-    // with two different KINDS of component.
+describe('form renderer — a form field no longer reaches a plain SDUI component at all', () => {
+  it('does not render a bare-name component in the field slot (objectui#5254)', () => {
+    // This block used to assert the INVERSE of the tests above: that a form
+    // field resolving through the BARE-NAME fallback was handed the universal
+    // `schema` node, because such a component's contract is `schema` and not
+    // `FieldWidgetComponentProps`. That was a correct reading of a resolution
+    // rule that no longer exists — objectui#5254's ruling (maintainer,
+    // 2026-08-19) removed the fallback itself, so a form field's type resolves
+    // a `field:` widget or takes the builtin `default` input branch.
     //
-    //  - a `field:<type>` entry is a field widget — `field` only, since v17;
-    //  - the bare-name fallback is an ordinary SDUI component (the display
-    //    `text` widget, `alert`, `badge` …), whose contract is the universal
-    //    `schema` node. That key is NOT retired, and dropping it here rendered
-    //    `undefined.className` for every form field that resolves this way
-    //    (caught by `form-write-error-message.test.tsx`, whose fields are
-    //    `type: 'text'` with `@object-ui/fields` not loaded).
-    //
-    // So this asserts the INVERSE of the tests above, on purpose.
+    // The `schema` contract is untouched where it actually applies: rendering
+    // one of these components as an SDUI NODE. What changed is only that a
+    // FORM FIELD is no longer one of the ways to get there.
     ComponentRegistry.register('plaindisplay', CarrierProbe);
 
     renderForm([{ name: 'note', label: 'Note', type: 'plaindisplay' }], { note: '' });
 
-    expect(captured.props).not.toBeNull();
-    expect(captured.props!.schema).toBeTruthy();
-    expect(captured.props!.schema.name).toBe('note');
+    // Counter-probe for the two negatives below: the component IS registered
+    // and IS resolvable — it is simply not resolvable as a FIELD.
+    expect(ComponentRegistry.get('plaindisplay')).toBeTruthy();
+    expect(captured.props).toBeNull();
+    expect(screen.queryByTestId('probe-note')).toBeNull();
+  });
+
+  it('renders the builtin default input for that field instead', () => {
+    ComponentRegistry.register('plaindisplay2', CarrierProbe);
+
+    const { container } = renderForm([{ name: 'note', label: 'Note', type: 'plaindisplay2' }], { note: '' });
+
+    const el = container.querySelector('input')!;
+    expect(el).toBeTruthy();
+    expect(el.getAttribute('name')).toBe('note');
+    // And none of the field-widget prop bundle rides onto it.
+    expect(el.getAttributeNames()).not.toContain('field');
+    expect(el.getAttributeNames()).not.toContain('schema');
   });
 });

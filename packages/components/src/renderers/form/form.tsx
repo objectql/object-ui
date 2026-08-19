@@ -2798,6 +2798,36 @@ interface RenderFieldProps {
 // box so they behave like the other field widgets (click-anywhere-to-edit).
 const NATIVE_PICKER_INPUT_TYPES = new Set(['date', 'datetime-local', 'time', 'month', 'week']);
 
+/**
+ * Field types whose native `<input type>` the `default` branch must resolve
+ * from the field's own declared `type` (objectui#5254).
+ *
+ * Both are declared field types in `@object-ui/types`
+ * (`EmailFieldMetadata` / `PasswordFieldMetadata`), and both used to reach a
+ * native input only by ACCIDENT: the bare-name fallback handed the field to
+ * the `ui`-namespace SDUI node renderer registered under the same short name
+ * (./input.tsx), which hard-codes `inputType`. With that fallback gone
+ * (see `renderFieldComponent`) they take this branch, where `inputType` is
+ * whatever the AUTHOR wrote — `undefined` for a plain
+ * `{ name, type: 'password' }`, which would render `type="text"` and put a
+ * secret on screen in clear text.
+ *
+ * So this table is not a new tolerance (AGENTS.md #0.1): it is what keeps the
+ * VISIBLE rendering of these two types byte-identical to what the fallback
+ * produced, while the leak, the duplicate `<label>` and the dead `max_length`
+ * go away. An explicitly authored `inputType` still wins over it.
+ *
+ * Deliberately just these two. Every other declared field type with a native
+ * HTML equivalent (`url`, `phone`, `number`, `color`, `date` …) ALREADY takes
+ * this branch as `type="text"` on the built-in path and is untouched by
+ * objectui#5254 — widening the table here would change fields this card
+ * neither moved nor measured.
+ */
+const NATIVE_INPUT_FIELD_TYPES: Record<string, string> = {
+  email: 'email',
+  password: 'password',
+};
+
 function openNativePickerOnClick(inputType: string | undefined) {
   if (!inputType || !NATIVE_PICKER_INPUT_TYPES.has(inputType)) return undefined;
   return (e: React.MouseEvent<HTMLInputElement>) => {
@@ -2943,57 +2973,67 @@ const BuiltinSelectControl = React.forwardRef<HTMLButtonElement, BuiltinSelectCo
 );
 
 function renderFieldComponent(type: string, props: RenderFieldProps) {
-  // 1. Try to resolve specialized field widget from registry first.
-  //    Form fields should always prefer the `field:<type>` namespace when
-  //    available (e.g. so { type: 'text' } in a form schema resolves to the
-  //    text input field, not the display text widget that shares the same
-  //    short name in the global registry).
+  // 1. Resolve the specialized FIELD WIDGET — and only a field widget.
+  //    A form field's type either names a `field:`-namespaced widget or takes
+  //    the declared `default` input branch below; it never resolves a plain
+  //    SDUI node renderer (objectui#5254, maintainer ruling of 2026-08-19 —
+  //    option B of the measured option set).
   //
-  //    Which entry answered decides which CONTRACT the resolved component
-  //    implements, so the lookups are kept apart rather than folded into one
-  //    `||` chain (objectui#3233):
+  //    The bare `field:<type>` preference was always the point (so { type:
+  //    'text' } in a form schema resolves to the text INPUT, not the display
+  //    `text` widget sharing that short name in the global registry). What is
+  //    gone is the `|| ComponentRegistry.get(type)` tail behind it: a form
+  //    field that missed the `field:` namespace fell through to whatever
+  //    happened to hold the bare name in ANY namespace, which is a
+  //    cross-namespace fallback no contract states.
   //
-  //      - a `field:` entry is a FIELD WIDGET — `FieldWidgetComponentProps`,
-  //        whose metadata carrier is `field` and nothing else since v17;
-  //      - the bare-name fallback is a plain SDUI COMPONENT (the display
-  //        `text` widget, `alert`, `badge` …). Its contract is the universal
-  //        `schema` node every registered component receives from
-  //        `SchemaRenderer`. That key is NOT retired and must still be passed,
-  //        or such a field renders `undefined.className`.
+  //    Measured on `origin/main` at 3fbbea1f3, that tail answered 126 bare
+  //    names on the built-in (no-`registerAllFields()`) path — `div`, `h1`,
+  //    `card`, `button`, even `form` — and 116 of them with the fields package
+  //    registered too. The two that mattered in practice were `email` and
+  //    `password`, registered as `ui`-namespace SDUI node renderers for
+  //    top-level `{ type: 'email' }` nodes (see ./input.tsx). Reached as a
+  //    FIELD they got the field-widget prop bundle they do not implement and
+  //    spread it straight onto the element, so a hand-authored
+  //    `{ name, type: 'email', max_length: 50 }` rendered:
+  //
+  //      attrs=["class","id","max_length","field","aria-describedby",
+  //             "aria-invalid","type","value","name"]   maxlength=null
+  //
+  //    i.e. the raw metadata OBJECT as `field="[object Object]"`, an inert
+  //    `max_length` that capped nothing, and — because that renderer draws its
+  //    own `<Label>` on top of the form's `<FormLabel>` — a SECOND `<label>`
+  //    naming the same control.
+  //
+  //    A `field:` entry is a FIELD WIDGET (`FieldWidgetComponentProps`, whose
+  //    metadata carrier is `field` and nothing else since v17), which is now
+  //    the only contract this function dispatches to. `resolveFieldLabelling`
+  //    and `resolvesToRegisteredFieldWidget` above mirror this resolution and
+  //    already spelled the rule this way; they now agree with it exactly.
   const namespacedWidget = !BUILTIN_FIELD_TYPES.has(type) && !type.includes(':')
     ? ComponentRegistry.get(`field:${type}`)
     : undefined;
+  // A colon-qualified type resolves directly, and only when it names the
+  // `field` namespace (`type: 'field:textarea'`). `ui:email` is not a field
+  // widget any more than the bare `email` was.
   const RegisteredComponent = !BUILTIN_FIELD_TYPES.has(type)
-    ? (namespacedWidget || ComponentRegistry.get(type))
+    ? (namespacedWidget || (type.startsWith('field:') ? ComponentRegistry.get(type) : undefined))
     : undefined;
-  // A colon-qualified type resolves directly, and is a field widget only when
-  // it names the `field` namespace (`type: 'field:textarea'`).
-  const isFieldWidget = !!namespacedWidget || type.startsWith('field:');
 
   if (RegisteredComponent) {
-    const registeredProps = stripRegisteredFieldProps(type, props);
-
-    if (isFieldWidget) {
-      // `field` is the single metadata carrier (objectui#3233). It rides in
-      // `registeredProps` untouched — the caller always sets it (`field.field
-      // || field`, i.e. the raw metadata object, never undefined) and
-      // `stripRegisteredFieldProps` keeps it.
-      //
-      // This used to ALSO pass `schema={props.field || props.schema || props}`,
-      // a second key carrying the *same* object: `props.field` is truthy at the
-      // only call site, so the two chain terms after it were unreachable and
-      // `schema` was always `=== props.field`. Widgets therefore resolved
-      // `field || schema` to `field` on this path every time — which is why
-      // dropping the key here changes no payload, only the number of spellings
-      // a widget author has to know.
-      return <RegisteredComponent {...registeredProps} />;
-    }
-
-    // Non-field component reached through the bare-name fallback: `schema` is
-    // ITS contract, not the retired field-widget carrier, so the original
-    // resolution is preserved verbatim.
-    const nodeSchema = props.field || props.schema || props;
-    return <RegisteredComponent schema={nodeSchema} {...registeredProps} />;
+    // `field` is the single metadata carrier (objectui#3233). It rides in
+    // `registeredProps` untouched — the caller always sets it (`field.field
+    // || field`, i.e. the raw metadata object, never undefined) and
+    // `stripRegisteredFieldProps` keeps it.
+    //
+    // This used to ALSO pass `schema={props.field || props.schema || props}`,
+    // a second key carrying the *same* object: `props.field` is truthy at the
+    // only call site, so the two chain terms after it were unreachable and
+    // `schema` was always `=== props.field`. Widgets therefore resolved
+    // `field || schema` to `field` on this path every time — which is why
+    // dropping the key here changes no payload, only the number of spellings
+    // a widget author has to know.
+    return <RegisteredComponent {...stripRegisteredFieldProps(type, props)} />;
   }
 
   const { inputType, options = [], placeholder, readonly, emptyHint, ...fieldProps } = props;
@@ -3255,7 +3295,13 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       const maxLength = (fieldProps as any).maxLength ?? (fieldProps as any).max_length;
       return (
         <Input
-          type={inputType || 'text'}
+          // An authored `inputType` first, then the native type this field's
+          // own declared `type` names (objectui#5254 — `email` / `password`
+          // reach this branch since the cross-namespace fallback was removed,
+          // and must keep rendering the native input they always rendered:
+          // without this a `type: 'password'` field would show the secret as
+          // clear text). `'text'` for everything else, exactly as before.
+          type={inputType || NATIVE_INPUT_FIELD_TYPES[type] || 'text'}
           placeholder={placeholder}
           className={cn(readonlyInputClass)}
           {...fallbackProps}
