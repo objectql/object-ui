@@ -119,24 +119,75 @@ object through. Anything else you put in them is ignored:
 
 | Sub-config | Keys `ObjectView` forwards |
 | --- | --- |
-| `table` | `columns`, `fields`, `title`, `description`, `defaultFilters`, `defaultSort`, `pageSize`, `selectable`, `operations`, `className` |
+| `table` | `columns`, `fields`, `title`, `description`, `filter`, `defaultFilters`, `sort`, `defaultSort`, `pagination`, `pageSize`, `selection`, `selectable`, `operations`, `className` |
 | `form` | `fields`, `customFields`, `sections`, `groups`, `layout`, `columns`, `title`, `description`, `subforms`, `buttons`, `defaults`, `initialValues`, `readOnly`, `showSubmit`, `submitText`, `showCancel`, `cancelText`, `showReset`, `className` |
 
-The forwarding is literal, key by key (`ObjectView.tsx:833-848` for `table`,
-`:857-890` for `form`), which is why the list is worth reading: page size is
-`table.pageSize` and **not** `table.pagination` — the latter is a declared
-`ObjectGridSchema` key, but it is not one of the keys `ObjectView` forwards, so
-on an `object-view` node it has no effect.
+The forwarding is literal, key by key, spread across three sites in
+`ObjectView.tsx` — the non-grid data fetch (around `:604-611`), the grid
+schema (around `:1041-1078`), and the schema handed to a host-supplied list
+renderer (around `:1201-1209`) — so the four keys below behave the same on
+every rendering path.
 
-That is one instance of a general point: several of the forwarded `table` keys
-are the ones `ObjectGridSchema` marks legacy — `fields`, `pageSize`,
-`selectable`, `defaultFilters` and `defaultSort` each have a newer counterpart
-there (`columns`, `pagination`, `selection`, `filter`, `sort`). `ObjectView`
-forwards the legacy spellings, so on an `object-view` node those are the ones
-that take effect. `columns` is the exception — it is forwarded alongside
-`fields` and preferred over it. Shapes follow `ObjectGridSchema`:
-`defaultSort` is a single `{ field, order }` object and `defaultFilters` is a
-plain record of field to value.
+#### Canonical keys now take effect (objectui#5102)
+
+Four of the forwarded `table` keys are pairs — a canonical `ObjectGridSchema`
+key and the `@deprecated` legacy spelling it replaced. Both now work; write
+the canonical one:
+
+| write this (canonical) | not this (legacy alias — still works) |
+| --- | --- |
+| `pagination: { pageSize, pageSizeOptions? }` | `pageSize: number` |
+| `selection: { type: 'single' \| 'multiple' \| 'none' }` | `selectable: boolean \| 'single' \| 'multiple'` |
+| `filter: [{ field, operator, value }, …]` (same shape as a named view's `filter`) | `defaultFilters: Record<field, value>` (equality-only) |
+| `sort: 'field direction'` or `SortConfig[]` | `defaultSort: { field, order }` (**no string form** — that arity only exists on `sort`) |
+
+Before objectui#5102, `pagination` / `selection` / `filter` / `sort` had **no
+read point at all** in this file: an author who wrote the canonical shape
+`ObjectGridSchema`'s own JSDoc recommends got a view that compiled, read
+correctly, and silently did nothing. That is fixed — the legacy spellings on
+the right are not going away, they are simply no longer the ones to reach for.
+
+**When a key is written both ways, the canonical spelling wins** — that is
+`ObjectGrid`'s own existing resolution (`schema.pagination?.pageSize ||
+schema.pageSize`; `if (schema.selection?.type) … else if (schema.selectable
+!== undefined)`; `schemaFilter !== undefined ? … : schema.defaultFilters`;
+`schemaSort ?? (schema.defaultSort ? [schema.defaultSort] : undefined)`), and
+`ObjectView` defers to it by forwarding both slots rather than re-resolving
+the pair itself:
+
+```typescript
+import type { ObjectViewSchema } from '@object-ui/types';
+
+const bothSpellingsWritten: ObjectViewSchema = {
+  type: 'object-view',
+  objectName: 'products',
+  table: {
+    pagination: { pageSize: 10 }, // wins
+    pageSize: 50, // ignored while `pagination` is present
+  },
+};
+```
+
+⚠️ **`filter` / `sort` have one more tier ahead of `table` entirely**, and it
+predates this change: an **active named view's own** `filter` / `sort`
+(`listViews.<name>.filter` / `.sort`) always outranks anything written on
+`table` — `table.filter` does **not** universally win over the legacy
+`table.defaultFilters`, it wins only when no active named view supplies its
+own filter. In order, highest first: the active named view's `filter`/`sort`,
+then `table.filter`/`table.sort`, then
+`table.defaultFilters`/`table.defaultSort`. If you never write `listViews`,
+that first tier never applies.
+
+`pagination` and `selection` have no such tier, and no effect outside the
+grid: `defaultViewType: 'kanban' | 'gallery' | 'calendar' | 'timeline' |
+'gantt' | 'map'` don't page or multi-select, so `ObjectView` never forwards
+either spelling to those renderers.
+
+`columns` is the one forwarded `table` key that is **not** part of this
+canonical/legacy story, and its gap is still open: it is forwarded on the grid
+path only (the row above, and the section below), so on a non-grid
+`defaultViewType` the field list still comes from `table.fields`
+(objectui#5269).
 
 ## Usage
 
@@ -209,7 +260,7 @@ const userDirectory: ObjectViewSchema = {
   defaultViewType: 'grid',
   table: {
     columns: ['name', 'email', 'role', 'created_at'],
-    defaultSort: { field: 'created_at', order: 'desc' },
+    sort: 'created_at desc', // or [{ field: 'created_at', order: 'desc' }]
   },
 };
 ```
@@ -301,8 +352,8 @@ opening a drawer, so the host route owns the form.
 
 ### Read/List
 
-Search, filter and sort are toolbar toggles; the column set, default filter,
-default sort and page size live in `table`:
+Search, filter and sort are toolbar toggles; the column set, filter, sort and
+page size live in `table`:
 
 ```typescript
 import type { ObjectViewSchema } from '@object-ui/types';
@@ -316,8 +367,8 @@ const productList: ObjectViewSchema = {
   showSort: true,
   table: {
     columns: ['name', 'price', 'category'],
-    defaultFilters: { category: 'electronics' },
-    pageSize: 25,
+    filter: [{ field: 'category', operator: 'equals', value: 'electronics' }],
+    pagination: { pageSize: 25 },
   },
 };
 ```
@@ -492,7 +543,7 @@ const contactView: ObjectViewSchema = {
   showSort: true,
   table: {
     columns: ['first_name', 'last_name', 'email', 'company'],
-    pageSize: 25,
+    pagination: { pageSize: 25 },
   },
 };
 
