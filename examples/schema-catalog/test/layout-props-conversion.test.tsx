@@ -14,9 +14,10 @@
  * Three different facts get pinned:
  *
  *  1. RATCHET — no `div` anywhere in the catalog carries layout-intent classes,
- *     except three nodes that cannot be converted and say why (below). This is
- *     the "keep the 107th out" guard, and the allowlist is what keeps it honest:
- *     a future conversion that regresses to `div` fails here.
+ *     except two nodes that cannot be converted and say why (below; the third
+ *     was recycled by objectui#4889). This is the "keep the 107th out" guard,
+ *     and the allowlist is what keeps it honest: a future conversion that
+ *     regresses to `div` fails here.
  *  2. NO DEAD SLOT — no `flex` / `stack` / `grid` / `container` node carries a
  *     `body` key. `div` renders `children || body`; all four layout renderers
  *     render `children` ONLY, so a body-keyed node re-typed naively renders
@@ -46,7 +47,7 @@
  * §测试纪律): registering the renderers is an unbounded module load and must not
  * be billed to a bounded hook timeout.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 import '@object-ui/components';
 import { SchemaRenderer } from '@object-ui/react';
@@ -57,7 +58,7 @@ type Node = Record<string, unknown>;
 const LAYOUT_TYPES = new Set(['flex', 'stack', 'grid', 'container']);
 
 /**
- * The three `div` nodes that keep layout-intent classes, each for a reason that
+ * The two `div` nodes that keep layout-intent classes, each for a reason that
  * survives any terminal state of #3965.
  *
  *   `components-basic-div/custom-card` (2 nodes) — rendered by
@@ -65,18 +66,21 @@ const LAYOUT_TYPES = new Set(['flex', 'stack', 'grid', 'container']);
  *   Only)". They exist to SHOW the deprecated spelling; converting them deletes
  *   the thing the page documents.
  *
- *   `components-layout-page/documentation-page` (1 node) — `prose prose-slate
- *   max-w-none`. `max-w-none` REMOVES a max-width (it cancels the typography
- *   plugin's own), the opposite of what `container.maxWidth` constrains, and no
- *   `maxWidth` value renders it: `ContainerSchema` declares `false` for the
- *   no-constraint case, but `container.tsx` reads it as `schema.maxWidth || 'xl'`,
- *   so `false` renders `max-w-xl`. Converting it would change the rendering; it
- *   is tracked separately rather than forced.
+ * RECYCLED (objectui#4889). `components-layout-page/documentation-page` (1 node,
+ * `prose prose-slate max-w-none`) was the third entry, and it was the one
+ * measured victim of a defect rather than a documented intent: `max-w-none`
+ * REMOVES a max-width — it cancels the typography plugin's own — and no
+ * `maxWidth` value rendered it. `ContainerSchema` declared `false` for the
+ * no-constraint case, but `container.tsx` read it as `schema.maxWidth || 'xl'`,
+ * so `false` rendered `max-w-xl`; converting the node would have changed what
+ * it rendered. #4889 made `false` reachable AND made it emit `max-w-none` (an
+ * explicit cancel, not an omitted class — the distinction this very node
+ * depends on), so the node is now authored as a `container` and the exemption
+ * is gone. An exemption outliving its cause is an exemption nobody can audit.
  */
 const DIV_EXEMPTIONS: ReadonlyArray<readonly [string, string]> = [
   ['components-basic-div/custom-card', 'max-w-sm rounded-lg border bg-card text-card-foreground shadow-sm'],
   ['components-basic-div/custom-card', 'p-6 space-y-2'],
-  ['components-layout-page/documentation-page', 'prose prose-slate max-w-none'],
 ];
 
 /** Does this className spell a capability one of the four layout types owns? */
@@ -206,6 +210,16 @@ describe('converted nodes render what their div rendered (#4003)', () => {
       'w-full max-w-4xl p-0 border rounded-lg overflow-hidden',
     ],
     [
+      // The #4889 recycle: this is the node the allowlist used to exempt. Its
+      // `max-w-none` now comes from `maxWidth: false` instead of a hand-written
+      // class, and `prose prose-slate` stays in `className` because that is
+      // typography, not layout.
+      'components-layout-page/documentation-page',
+      'prose prose-slate max-w-none',
+      'container',
+      'w-full max-w-none p-0 prose prose-slate',
+    ],
+    [
       'ecommerce/product-grid',
       'grid sm:grid-cols-2 lg:grid-cols-4 gap-6',
       'grid',
@@ -253,5 +267,55 @@ describe('converted nodes render what their div rendered (#4003)', () => {
     // that a naive re-type of a body-keyed node would fail.
     expect(after.innerHTML).toBe(before.innerHTML);
     expect(after.className).toBe(expectedClass);
+  });
+});
+
+/**
+ * The recycled node, measured on the fact it was exempted FOR (objectui#4889).
+ *
+ * The exemption was never "this node prefers a div" — it was "no `maxWidth`
+ * value can express cancelling an inherited max-width". So the conversion is
+ * only genuinely done if this node, as authored today, still computes
+ * `max-width: none` under the typography plugin's `.prose`. Asserting the class
+ * string alone would not show that: an implementation that merely stopped
+ * emitting a max-width class produces a perfectly reasonable-looking class list
+ * and leaves `.prose`'s 65ch standing.
+ *
+ * happy-dom resolves author stylesheets in `getComputedStyle`, so the cascade
+ * below is real. Values are the shipped ones (`.prose` → `maxWidth: '65ch'`
+ * from the plugin's `DEFAULT`; `--container-xl: 36rem` from Tailwind's theme),
+ * and the utilities are declared after `.prose` because that is the layer order
+ * Tailwind emits — equal specificity, so source order decides, as in the real
+ * CSS. Renderer-level coverage of the same rule lives in
+ * `packages/components/src/__tests__/container-max-width-false.test.tsx`.
+ */
+describe('the recycled documentation-page node still cancels prose\'s max-width (#4889)', () => {
+  let sheet: HTMLStyleElement;
+
+  beforeEach(() => {
+    sheet = document.createElement('style');
+    sheet.textContent = [
+      '.prose { max-width: 65ch; }',
+      '.max-w-none { max-width: none; }',
+      '.max-w-xl { max-width: 36rem; }',
+    ].join('\n');
+    document.head.appendChild(sheet);
+  });
+
+  afterEach(() => {
+    sheet.remove();
+  });
+
+  it('computes max-width: none, not the 65ch it would inherit', () => {
+    const example = allExamples().find((e) => e.id === 'components-layout-page/documentation-page');
+    expect(example, 'documentation-page is missing from the catalog').toBeTruthy();
+
+    const node = collect(example!.schema, (n) => n.type === 'container')[0];
+    expect(node, 'documentation-page no longer authors a container').toBeTruthy();
+    expect(node!.maxWidth, 'the node must author the declared no-constraint value').toBe(false);
+
+    const { container } = render(<SchemaRenderer schema={node as never} />);
+    const el = container.firstElementChild as HTMLElement;
+    expect(getComputedStyle(el).maxWidth).toBe('none');
   });
 });

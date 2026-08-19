@@ -4,8 +4,11 @@
   "description": "Learn how to use the platform",
   "body": [
     {
-      "type": "div",
-      "className": "prose prose-slate max-w-none",
+      "type": "container",
+      "maxWidth": false,
+      "centered": false,
+      "padding": 0,
+      "className": "prose prose-slate",
       "children": [
         {
           "type": "text",
