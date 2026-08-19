@@ -753,6 +753,17 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // data source), which leaves the affordance verdict untouched.
   const permissionUpdate = objectName ? perms.can(objectName, 'update') : undefined;
   const permissionDelete = objectName ? perms.can(objectName, 'delete') : undefined;
+  // [#5148] …and the same verdict for `create`, the third face of the shape.
+  // Its two siblings above have carried the principal's own grant since #4096
+  // while the inline add-record row below rode on the author-declared
+  // `operations.create` ALONE — a flag that says whether the affordance was
+  // WIRED, never a permission grant. One component therefore answered "may
+  // this user create records here?" two opposite ways on the same screen: the
+  // toolbar's New button hid itself for a principal with no grant, while the
+  // add row underneath stayed live and walked that user through a write it
+  // already knew the server would 403. Resolved here beside its siblings so
+  // the three read as one block rather than drifting apart again.
+  const permissionCreate = objectName ? perms.can(objectName, 'create') : undefined;
 
   // [#5143] Whether THIS principal may edit THIS object's rows in place — the
   // single verdict behind every inline-edit affordance this grid renders
@@ -2824,7 +2835,34 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
             ? 'px-3 py-3.5 text-sm leading-relaxed'
             : 'px-3 py-1.5 text-[13px] leading-normal',
     showRowNumbers: true,
-    showAddRow: !!operations?.create,
+    // [#5148] The authored request ∧ the principal's verdict — the conjunction
+    // #5143 spelled for `editable` and #4646 / PR #5145 spelled for the
+    // related-list "+ New" (`objectCanCreate = affordances.create ∧
+    // can(obj,'create')`), with the operation moved to `create`.
+    //
+    // The authored key stays the gate's LEFT half, so this narrows and never
+    // widens: no verdict can turn the add row ON for a grid that did not ask
+    // for it, and a grid declaring no `operations` at all keeps falling through
+    // the `{ update: !!onEdit, delete: !!onDelete }` default that carries no
+    // `create` key.
+    //
+    // Fail-open, like every sibling gate in this file. `can()` answers `true`
+    // with no `PermissionProvider` mounted, and `permissionCreate` is
+    // `undefined` when no object name resolved (element/inline data source) —
+    // both leave today's behaviour exactly as it was. That fallback is
+    // load-bearing rather than incidental: `plugin-designer`'s `FieldDesigner`
+    // and `ObjectManager` both build grids with `operations: { create: true,
+    // update: true, delete: true }` when not read-only, and those surfaces
+    // typically render with no provider. Pinned by test `d` in
+    // `addRowCreatePermissionGate.test.tsx`.
+    //
+    // The object-level layers stop here deliberately. `resolveCrudAffordances`
+    // also emits `createPredicates`, but PR #5145 binds those ONCE PER TOOLBAR
+    // against the host record in scope — an add-record row is not a toolbar and
+    // has no record to bind, and that precedent surfaces predicates only AFTER
+    // the object-level verdict passed. The conjunct that was missing here is
+    // that verdict, which is what this adds.
+    showAddRow: !!operations?.create && (permissionCreate ?? true),
     onAddRecord: onAddRecord,
     rowClassName: schema.rowColor ? (row: any, _idx: number) => getRowClassName(row) : undefined,
     rowStyle: schema.conditionalFormatting?.length ? (row: any, _idx: number) => getRowStyle(row) : undefined,
