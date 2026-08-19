@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useFilterScope } from '@object-ui/react';
-import { extractRecords, isDrillEnabled } from '@object-ui/core';
+import { extractRecords, isDrillEnabled, columnIdentity } from '@object-ui/core';
 import type { DrillDownConfig } from '@object-ui/types';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
 import { useSafeFieldLabel, useObjectTranslation, useLocalization, useDisplayLocale } from '@object-ui/i18n';
@@ -51,7 +51,38 @@ interface NormalizedColumn {
  *
  * - `string[]` entries are converted to `{ header, accessorKey }` objects,
  *   handling both snake_case and camelCase for header generation.
- * - Object entries are returned as-is.
+ * - Object entries have their field identity RESOLVED here, at the producer,
+ *   and stamped onto the data-table adapter's own key.
+ *
+ * Object entries used to be returned raw (objectui#5120). `accessorKey` is the
+ * table LIBRARY's column key — `column-identity.ts` names it
+ * `TABLE_ADAPTER_COLUMN_KEY` and deliberately holds the metadata-identity fold
+ * away from it — so a column authored in the spec-canonical spelling
+ * (`{ field: 'stage' }`) reached the adapter carrying no `accessorKey` at all
+ * and rendered a header over `row[undefined]`: blank cells, no warning. The
+ * `$expand` whitelist in `computeLookupExpand` missed it for the same reason,
+ * so a `field`-spelled lookup column also lost its related record.
+ *
+ * Resolving it HERE is the move objectui#5022 made in `RelatedList` and
+ * objectui#5068 generalized in `ObjectGrid`: metadata vocabulary in, adapter
+ * vocabulary out, one translation in one place. The adapter stays monolingual;
+ * the producer owns the translation.
+ *
+ * Mirror, don't move — the same three rules `RelatedList` states:
+ *  - an author-supplied `accessorKey` is NEVER overwritten; a deliberate
+ *    divergence between the table slot and the metadata key belongs to the
+ *    author;
+ *  - the authored spelling is left in place, so a host reading `field` / `name`
+ *    back off these columns keeps working;
+ *  - an entry with no resolvable identity is returned UNTOUCHED — nothing is
+ *    invented for it. It behaves exactly as it does today: a header (from
+ *    `header` / `label`) over empty cells, silently. Whether that silence
+ *    deserves a dev-time diagnostic is objectui#5349's question, and is
+ *    deliberately NOT answered here.
+ *
+ * Returning the INPUT entry by reference when there is nothing to add is load
+ * bearing: data-table re-seeds its column state whenever the list is a new
+ * object (objectui#4618), and this widget rebuilds its node on every render.
  */
 export function normalizeColumns(columns: (string | Record<string, any>)[]): NormalizedColumn[] {
   return columns.map((col) => {
@@ -60,7 +91,10 @@ export function normalizeColumns(columns: (string | Record<string, any>)[]): Nor
       // widget family spell a header the same way (objectui#4618).
       return { header: humanizeFieldKey(col), accessorKey: col };
     }
-    return col as NormalizedColumn;
+    if (!col || col.accessorKey) return col as NormalizedColumn;
+    const key = columnIdentity(col);
+    if (!key) return col as NormalizedColumn;
+    return { ...col, accessorKey: key } as NormalizedColumn;
   });
 }
 
@@ -106,8 +140,15 @@ export function computeLookupExpand(
 
   if (cols.length > 0) {
     // Explicit columns whitelist: only expand the relations the user asked for.
+    // One reader for identity, the same one `normalizeColumns` stamps with
+    // (objectui#5120). This used to be `c.accessorKey || c.name` — name-first,
+    // and blind to the spec-canonical `field` — so a `field`-spelled lookup
+    // column was left out of `$expand` and its cell showed a raw FK id while
+    // the whitelist claimed the author had not asked for it. The adapter key
+    // still wins when the author supplied one, exactly as it does in
+    // `normalizeColumns`, so both halves resolve the same column.
     const accessors = cols
-      .map((c: any) => (typeof c === 'string' ? c : (c.accessorKey || c.name)))
+      .map((c: any) => (typeof c === 'string' ? c : (c?.accessorKey || columnIdentity(c))))
       .filter(Boolean);
     for (const acc of accessors) {
       const def = fieldsByName[acc];
