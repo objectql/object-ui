@@ -50,6 +50,15 @@ export interface ObjectMapProps {
   schema: ObjectMapSchema;
   dataSource?: DataSource;
   className?: string;
+  /**
+   * Records to render directly, bypassing this component's own fetch — the
+   * shape `ListView` passes when it already holds the rows. Declared as its
+   * own prop (not read off the `rest` spread) so the fetch effect can depend
+   * on this one value: naming the whole `rest` object in that effect's deps
+   * instead would refetch on every render, since `rest` is a fresh object
+   * each render (objectui#5003).
+   */
+  data?: any[];
   onMarkerClick?: (record: any) => void;
   onRowClick?: (record: any) => void;
   onEdit?: (record: any) => void;
@@ -474,13 +483,13 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
   schema,
   dataSource,
   className,
+  data: dataProp,
   onMarkerClick,
   onRowClick,
   onEdit,
   onDelete,
   enableClustering,
   clusterRadius = 50,
-  ...rest
 }) => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -542,14 +551,14 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
       try {
         setLoading(true);
         
-        // Prioritize data passed via props (from ListView)
-        if ((rest as any).data) { // Check props.data directly first
-             const passed = (rest as any).data;
-             if (Array.isArray(passed)) {
-                 setData(passed);
-                 setLoading(false);
-                 return;
-             }
+        // Prioritize data passed via props (from ListView). `dataProp` is a
+        // declared prop (not the `rest` spread), so it can sit in this
+        // effect's dependency array below without turning into a
+        // refetch-every-render trap (objectui#5003).
+        if (Array.isArray(dataProp)) {
+          setData(dataProp);
+          setLoading(false);
+          return;
         }
 
         // Check schema.data next
@@ -597,7 +606,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     };
 
     fetchData();
-  }, [dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, objectSchema]);
+  }, [dataProp, dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, objectSchema]);
 
   // Fetch object schema for field metadata
   useEffect(() => {
@@ -662,6 +671,28 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
   [markers, selectedMarkerId]);
 
   const [currentZoom, setCurrentZoom] = useState(mapConfig.zoom || 3);
+
+  /**
+   * Seed `currentZoom` from the camera MapLibre actually applies at mount,
+   * instead of leaving it at the nominal `mapConfig.zoom || 3` above until
+   * the user's first zoom. `initialViewState` (computed below) — including a
+   * `bounds` fit — is resolved by the constructor before react-map-gl attaches
+   * its React event handlers, so no `onZoom` fires for that first camera.
+   * `onLoad` fires once the style has loaded and the initial camera has
+   * settled (fit-bounds included), so reading the zoom off that event
+   * captures the real applied value without waiting on user interaction
+   * (objectui#5003).
+   */
+  const handleMapLoad = useCallback((e: { target?: { getZoom?: () => number } }) => {
+    try {
+      const zoom = e?.target?.getZoom?.();
+      if (typeof zoom === 'number' && Number.isFinite(zoom)) {
+        setCurrentZoom(Math.round(zoom));
+      }
+    } catch {
+      /* ignore — falls back to the nominal seed / next onZoom */
+    }
+  }, []);
 
   const navigation = useNavigationOverlay({
     navigation: schema.navigation,
@@ -789,6 +820,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
             touchZoomRotate={true}
             dragRotate={true}
             touchPitch={true}
+            onLoad={handleMapLoad}
             onZoom={(e) => setCurrentZoom(Math.round(e.viewState.zoom))}
             onError={handleMapError}
          >
