@@ -158,7 +158,7 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
   const { isMobile, setOpenMobile } = useSidebar();
   const location = useLocation();
   const { t, language } = useObjectTranslation();
-  const { objectLabel: resolveNavObjectLabel, dashboardLabel: resolveNavDashboardLabel, navGroupLabel: resolveNavGroupLabel, viewLabel: resolveNavViewLabel } = useObjectLabel();
+  const { objectLabel: resolveNavObjectLabel, dashboardLabel: resolveNavDashboardLabel, viewLabel: resolveNavViewLabel } = useObjectLabel();
   const { context, currentAppName } = useNavigationContext();
   const { user, activeOrganization } = useAuth();
   const isWorkspaceAdmin = useIsWorkspaceAdmin();
@@ -548,12 +548,6 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
              onReorder={handleReorder}
              resolveObjectLabel={(objectName, fallback) => resolveNavObjectLabel({ name: objectName, label: fallback })}
              resolveDashboardLabel={(dashboardName, fallback) => resolveNavDashboardLabel({ name: dashboardName, label: fallback })}
-             resolveGroupLabel={activeApp ? (groupId, fallback) => resolveNavGroupLabel(activeApp.name, groupId, fallback) : undefined}
-             resolveItemLabel={activeApp ? (itemId, fallback) => (
-               activeApp.name === 'studio' && fallback === t('sidebar.packageManagement', { defaultValue: 'Package management' })
-                 ? fallback
-                 : resolveNavGroupLabel(activeApp.name, itemId, fallback)
-             ) : undefined}
              resolveViewLabel={(objectName, viewName, fallback) => resolveNavViewLabel(objectName, viewName, fallback)}
              onAction={dispatchNavAction}
              t={t}
@@ -668,10 +662,10 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
                  order. A pinned section would also land directly above this
                  arm's own "Starred" group. Separate product decisions, not part
                  of unflattening a group.
-               - `resolveGroupLabel` / `resolveItemLabel` — keyed on
-                 `activeApp.name`, which does not denote this context. Home
-                 labels are already resolved through `t()` where the items are
-                 constructed. */}
+               (Until objectui#5197 this list also named `resolveGroupLabel` /
+               `resolveItemLabel`. Those props are gone from the renderer
+               entirely — they were unreachable for every real nav entry, and
+               app-nav localization belongs to the server `/meta` boundary.) */}
            <NavigationRenderer
              items={homeNavigation}
              basePath=""

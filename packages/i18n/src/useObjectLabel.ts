@@ -300,13 +300,27 @@ export function useObjectLabel() {
     },
 
     /**
-     * Resolve translated label for a navigation group within an app.
-     * Convention: `{ns}.apps.{appName}.navigation.{groupId}.label`.
+     * Read `{ns}.apps.{appName}.navigation.{groupId}.label` out of the loaded
+     * CLIENT translation resources, falling back to `fallback`.
      *
-     * Mirrors `objectLabel`/`dashboardLabel` so app metadata can keep
-     * English fallbacks while translation packs supply localised
-     * sidebar group labels (e.g. "Sales" → "销售") without explicit
-     * I18nLabel `{ key, defaultValue }` annotations.
+     * ⚠️ This does NOT localize the sidebar, and adding a translation pack
+     * keyed this way will not change a single rendered nav label.
+     * **App-navigation localization is owned solely by the server-side
+     * `/meta` boundary**: `translateApp` in `@objectstack/spec`
+     * (`src/system/i18n-resolver.ts`) rewrites every navigation node's
+     * `label` by id, and `@objectstack/rest` applies it before the metadata
+     * reaches this client — so nav labels arrive already localized. One
+     * owner, not two. To translate a sidebar group, translate it there.
+     *
+     * History (objectui#5197): until then this docstring promised
+     * `"Sales" → "销售"` for sidebar groups, and `NavigationRenderer`
+     * accepted `resolveGroupLabel`/`resolveItemLabel` to wire it up. Those
+     * props could never fire — the renderer's `isCustomized` guard compared a
+     * node's authored label against its own `id` (`Workspace` vs
+     * `grp_workspace`), which never match, so the guard was true for every
+     * real entry. The props are gone; the promise was false, not merely
+     * unused. This helper is kept as a plain key reader for a consumer that
+     * renders navigation itself — it has no first-party caller.
      */
     navGroupLabel: (appName: string, groupId: string, fallback: string) =>
       resolve(`apps.${appName}.navigation.${groupId}.label`, fallback),

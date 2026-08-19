@@ -197,23 +197,11 @@ export interface NavigationRendererProps {
    */
   resolveViewLabel?: (objectName: string, viewName: string, fallbackLabel: string) => string;
 
-  /**
-   * Optional label resolver for navigation group items.
-   * Called with `(groupId, fallbackLabel)` for items where
-   * `item.type === 'group'` and `item.label` is a plain string.
-   * Enables convention-based i18n via
-   * `{ns}.apps.{appName}.navigation.{groupId}.label`.
-   */
-  resolveGroupLabel?: (groupId: string, fallbackLabel: string) => string;
-
-  /**
-   * Optional label resolver for non-object/non-dashboard/non-group nav
-   * items (url, page, report, custom). Called with `(itemId, fallbackLabel)`
-   * for items that have a plain-string label and a stable `id`.
-   * Convention: `{ns}.apps.{appName}.navigation.{itemId}.label` — same
-   * key shape as `resolveGroupLabel` so a single i18n helper covers both.
-   */
-  resolveItemLabel?: (itemId: string, fallbackLabel: string) => string;
+  // RETIRED (objectui#5197): `resolveGroupLabel` / `resolveItemLabel`, the two
+  // id-keyed label resolvers. They were unreachable by construction — see the
+  // note on `resolveNavItemLabel` below — and app-navigation localization is
+  // owned solely by the server-side `/meta` boundary. Do not re-add them; a
+  // sidebar label that needs translating is translated there.
 
   /**
    * Optional i18n translation function for resolving I18nLabel objects
@@ -287,15 +275,28 @@ export function resolveLabel(
  * 3. Otherwise, the schema-authored explicit label always wins — an app
  *    author who wrote a custom label (e.g. a plural 'Projects') must never
  *    have it silently overridden by an `objects.<name>.label` translation.
+ *
+ * Deliberately NOT here: id-keyed resolution for `group` items and for
+ * url/page/report/custom leaves. Those two hooks existed until objectui#5197
+ * and could never fire: the `isCustomized` guard below compares the authored
+ * label against the branch's comparison target, and on an id-keyed branch
+ * that target is the node's own `id` (`grp_workspace`) while the label is its
+ * text (`Workspace`). Those never compare equal, so the guard was true for
+ * every real entry and the resolver under it was dead code with a live
+ * docstring promising localization.
+ *
+ * App-navigation localization is owned solely by the server-side `/meta`
+ * boundary: `translateApp` in `@objectstack/spec`
+ * (`src/system/i18n-resolver.ts`) rewrites every navigation node's `label` by
+ * id before the metadata reaches this renderer, so `base` is already
+ * localized when it arrives. One owner, not two — localize nav labels there.
  */
 function resolveNavItemLabel(
   item: NavigationItem,
   resolver?: (objectName: string, fallbackLabel: string) => string,
   t?: (key: string, options?: any) => string,
   dashboardResolver?: (dashboardName: string, fallbackLabel: string) => string,
-  groupResolver?: (groupId: string, fallbackLabel: string) => string,
   viewResolver?: (objectName: string, viewName: string, fallbackLabel: string) => string,
-  itemResolver?: (itemId: string, fallbackLabel: string) => string,
 ): string {
   const base = resolveLabel(item.label, t);
   // Only apply convention-based resolution for items with plain string labels.
@@ -325,15 +326,9 @@ function resolveNavItemLabel(
     if (isCustomized((item as any).dashboardName)) return base;
     if (dashboardResolver) return dashboardResolver((item as any).dashboardName, base);
   }
-  if (item.type === 'group' && item.id) {
-    if (isCustomized(item.id)) return base;
-    if (groupResolver) return groupResolver(item.id, base);
-  }
-  // Fallback for non-object/non-dashboard/non-group items (url, page, report,
-  // custom) with a stable id — translate via the per-app navigation namespace.
-  if (itemResolver && item.id && !isCustomized(item.id)) {
-    return itemResolver(item.id, base);
-  }
+  // `group` items and non-object/non-dashboard leaves (url, page, report,
+  // custom) return the authored label untouched — their localization already
+  // happened at the server `/meta` boundary (see the note above).
   return base;
 }
 
@@ -838,9 +833,7 @@ function SortableNavigationItem({
   enableReorder,
   resolveObjectLabel,
   resolveDashboardLabel,
-  resolveGroupLabel,
   resolveViewLabel,
-  resolveItemLabel,
   t: tProp,
   templateContext,
 }: {
@@ -855,9 +848,7 @@ function SortableNavigationItem({
   enableReorder?: boolean;
   resolveObjectLabel?: (objectName: string, fallbackLabel: string) => string;
   resolveDashboardLabel?: (dashboardName: string, fallbackLabel: string) => string;
-  resolveGroupLabel?: (groupId: string, fallbackLabel: string) => string;
   resolveViewLabel?: (objectName: string, viewName: string, fallbackLabel: string) => string;
-  resolveItemLabel?: (itemId: string, fallbackLabel: string) => string;
   t?: (key: string, options?: any) => string;
   templateContext?: NavTemplateContext;
 }) {
@@ -891,9 +882,7 @@ function SortableNavigationItem({
         dragListeners={enableReorder ? listeners : undefined}
         resolveObjectLabel={resolveObjectLabel}
         resolveDashboardLabel={resolveDashboardLabel}
-        resolveGroupLabel={resolveGroupLabel}
         resolveViewLabel={resolveViewLabel}
-        resolveItemLabel={resolveItemLabel}
         t={tProp}
         templateContext={templateContext}
       />
@@ -917,9 +906,7 @@ function NavigationItemRenderer({
   dragListeners,
   resolveObjectLabel,
   resolveDashboardLabel,
-  resolveGroupLabel,
   resolveViewLabel,
-  resolveItemLabel,
   t: tProp,
   templateContext,
 }: {
@@ -934,9 +921,7 @@ function NavigationItemRenderer({
   dragListeners?: Record<string, any>;
   resolveObjectLabel?: (objectName: string, fallbackLabel: string) => string;
   resolveDashboardLabel?: (dashboardName: string, fallbackLabel: string) => string;
-  resolveGroupLabel?: (groupId: string, fallbackLabel: string) => string;
   resolveViewLabel?: (objectName: string, viewName: string, fallbackLabel: string) => string;
-  resolveItemLabel?: (itemId: string, fallbackLabel: string) => string;
   t?: (key: string, options?: any) => string;
   templateContext?: NavTemplateContext;
 }) {
@@ -1006,7 +991,7 @@ function NavigationItemRenderer({
       .slice()
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-    const groupLabel = resolveNavItemLabel(item, resolveObjectLabel, tProp, resolveDashboardLabel, resolveGroupLabel, resolveViewLabel, resolveItemLabel);
+    const groupLabel = resolveNavItemLabel(item, resolveObjectLabel, tProp, resolveDashboardLabel, resolveViewLabel);
 
     return (
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -1035,9 +1020,7 @@ function NavigationItemRenderer({
                     onPinToggle={onPinToggle}
                     resolveObjectLabel={resolveObjectLabel}
                     resolveDashboardLabel={resolveDashboardLabel}
-                    resolveGroupLabel={resolveGroupLabel}
                     resolveViewLabel={resolveViewLabel}
-                    resolveItemLabel={resolveItemLabel}
                     t={tProp}
                     templateContext={templateContext}
                   />
@@ -1114,7 +1097,7 @@ function NavigationItemRenderer({
   const Icon = resolveIcon(item.icon);
   const { href, external } = resolveHref(item, basePath, templateContext);
   const isActive = activeNavId !== null && item.id === activeNavId;
-  const itemLabel = resolveNavItemLabel(item, resolveObjectLabel, tProp, resolveDashboardLabel, resolveGroupLabel, resolveViewLabel, resolveItemLabel);
+  const itemLabel = resolveNavItemLabel(item, resolveObjectLabel, tProp, resolveDashboardLabel, resolveViewLabel);
 
   const content = (
     <>
@@ -1222,9 +1205,7 @@ export function NavigationRenderer({
   onReorder,
   resolveObjectLabel,
   resolveDashboardLabel,
-  resolveGroupLabel,
   resolveViewLabel,
-  resolveItemLabel,
   t: tProp,
   templateContext,
 }: NavigationRendererProps) {
@@ -1286,9 +1267,7 @@ export function NavigationRenderer({
     onPinToggle,
     resolveObjectLabel,
     resolveDashboardLabel,
-    resolveGroupLabel,
     resolveViewLabel,
-    resolveItemLabel,
     t: tProp,
     templateContext,
   };
