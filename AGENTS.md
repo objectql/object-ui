@@ -248,7 +248,7 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
 
   两条不是并列的两个建议:前缀与删除要求每个作者每一次都记得,记性会衰减,而衰减是静默的(见上:撞车不报错);`git commit -F -` 那种形式让撞车**不可能发生**,不依赖任何人的记性。所以能用形式解决的,就别退回到纪律。这一族目前**没有钩子**兜底(上面 worktree 与 stash 两条各有一个 PreToolUse 钩子),因此这条规则的全部效力就在于你选哪种形式。
 - **一个任务一个 feature 分支 + 一个 PR**;**绝不**把任务改动直接提交到 `main`。
-- **绝不 `git push --force`/`--force-with-lease`,绝不推 `main`**(会覆盖并行 agent 的工作;`main` 共享,一律走 PR)。
+- **绝不 `git push --force`/`--force-with-lease`,绝不推 `main`**(会覆盖并行 agent 的工作;`main` 共享,一律走 PR)。**禁令不按「这条分支是不是只有我一个人用」分档**:那个判断评估错的时候没有任何症状,而错掉的代价正是本节要防的那类静默丢工作 —— 所以它一律绝对,单人 feature 分支同样不例外。**要把自己的分支同步到当前 `main`,合规路线是 merge,不是 rebase**:`git fetch origin && git merge origin/main`,解完冲突照常 push。代价只是一个 merge commit —— 本仓 PR 一律 `--squash` 入队合并,它不会留到 `main` 上;换来的是任何一次 push 都不重写已经推上去的历史。**「要同步分支」从来不是 force-push 的理由**,别用 `git rebase origin/main` + `--force-with-lease` 去「把历史弄干净」。(入队合并本身并不要求你同步 —— 队列会在当前 `main` 上重建,见下面「不必为了合并去 rebase 其他在途分支」那条;主动同步的价值在于提前撞出别人刚落地的破坏。)
 - **每次 commit/push 前先确认当前分支**(`git rev-parse --abbrev-ref HEAD`);HEAD 可能被别的 agent 切走 —— 不是你的分支就停下重新 checkout。
 - 改**共享文件**(barrel/注册表):编辑→`git add`→commit 一气呵成,并核验提交确实含你的改动(`git show HEAD:<file> | grep <你的改动>`);真冲突只重加*你自己*那几行,其余交给 PR 合并。
 - **要做反向验证(删掉修复 → 看预期的钉子变红 → 还原)就先把修复 commit 掉。** 提交之后,还原是 `git checkout <你的分支> -- <path>`,对着一个真实存在的 commit 取回;直接对**未提交**的改动做同一个删除(`git checkout origin/main -- <path>`)则没有任何还原点 —— 工作区就是唯一副本,而 `git stash` 一律禁用(共享 stash 栈,见本节上面「绝不 `git stash`」那条),改动当场就没了。同一天两次踩实:#4278(PR #4293)、#4243(PR #4299),两次都靠会话 transcript 逐行重打才找回来 —— transcript 不全就是净损失。#4243 那次是先 commit、再重跑一遍反向验证,最终那组红绿数字才可信。
