@@ -193,7 +193,7 @@ export interface GanttTask {
   hasOwnDates?: boolean
 }
 
-/** Timeline granularity — one column per day, week, month, or quarter. */
+/** Timeline granularity — one column per day, week, month, quarter, or year. */
 export type GanttViewMode = 'day' | 'week' | 'month' | 'quarter' | 'year';
 
 const VIEW_MODES: GanttViewMode[] = ['day', 'week', 'month', 'quarter', 'year'];

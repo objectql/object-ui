@@ -326,8 +326,8 @@ const DOC_TYPE_EXEMPTIONS = {
       'vocabulary (`SelectionConfigSchema`, @objectstack/spec/ui), not a node type.',
   },
   'content/docs/plugins/plugin-report.mdx': {
-    matrix: 'ReportInput kind — a report definition\'s shape, sibling of `joined` / `summary`.',
-    joined: 'ReportInput kind — a report definition\'s shape, sibling of `matrix` / `summary`.',
+    matrix: 'ReportSchema.type kind — a report definition\'s shape, sibling of `joined` / `summary`.',
+    joined: 'ReportSchema.type kind — a report definition\'s shape, sibling of `matrix` / `summary`.',
   },
   'content/docs/utilities/runner.mdx': {
     'my-component':
