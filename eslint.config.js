@@ -217,4 +217,35 @@ export default tseslint.config({
   rules: {
     'object-ui/no-inline-spec-config': 'error',
   },
+}, {
+  // objectui#5191 ratchet — `getBadgeColorClasses(color, value)` returns a
+  // class string and therefore cannot carry an author-declared hex: it
+  // quantizes the declared colour onto one of nine palette families. The
+  // correct answer is `getBadgeHexAppearance(color)`, whose `className` reads
+  // CSS custom properties that only its `style` half supplies. A class-only
+  // call compiles, renders, and looks right for family-name declarations (the
+  // common case), so it fails only for authors who declared a hex — and it
+  // fails by rendering a plausible NEIGHBOURING colour rather than by breaking.
+  // objectui#5141 fixed that in the cell renderer and objectui#5183 fixed four
+  // more sites; both rounds were per-site, because nothing rejected the
+  // class-only call at write time. Error so the fifth badge surface fails CI
+  // instead of shipping a quietly wrong colour — `.github/workflows/lint.yml`
+  // sets no `--max-warnings`, so a `warn` here could not fail anything. Every
+  // live call site pairs the two helpers already (plugin-grid ObjectGrid group
+  // header + compact card, plugin-kanban card badges), so this lints clean
+  // today with no allowlist.
+  //
+  // `packages/fields` is ignored because it OWNS both helpers: it defines them,
+  // its own badge renderer pairs them anyway, and
+  // `src/__tests__/badge-hex-fidelity-5141.test.tsx` deliberately exercises
+  // each half in isolation — that is the helper's own coverage, not a badge
+  // surface. Everywhere else, including tests, is in scope: outside `fields` a
+  // call to this helper IS a badge surface, and the repo is at zero unpaired
+  // instances today.
+  files: ['**/*.{ts,tsx}'],
+  ignores: ['packages/fields/**'],
+  plugins: { 'object-ui': objectUi },
+  rules: {
+    'object-ui/no-unpaired-badge-color-classes': 'error',
+  },
 });
