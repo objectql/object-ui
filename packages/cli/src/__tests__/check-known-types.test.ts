@@ -25,14 +25,23 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { check } from '../commands/check.js';
+import { check, OBJECTUI_SCHEMA_URL } from '../commands/check.js';
 
 let cwd: string;
 let lines: string[];
 let restoreLog: () => void;
 
-function writeSchema(name: string, body: unknown): void {
-  writeFileSync(join(cwd, name), JSON.stringify(body));
+/**
+ * Every fixture declares the ObjectUI `$schema` URL, because objectui#5127
+ * gated type judgement behind a positive marker: a bare `{"type": ...}` file is
+ * not judged at all now. Without the declaration the three warning assertions
+ * below would fail and — worse — the two SILENCE assertions would keep passing
+ * while measuring nothing, which is the shape of a test that survives the
+ * deletion of the feature it covers. The gate is pinned separately, in
+ * `check-schema-marker.test.ts`; this file is about the derived key set.
+ */
+function writeSchema(name: string, body: Record<string, unknown>): void {
+  writeFileSync(join(cwd, name), JSON.stringify({ $schema: OBJECTUI_SCHEMA_URL, ...body }));
 }
 
 /** Warnings only, with the ANSI colouring chalk may add stripped off. */

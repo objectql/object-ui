@@ -31,7 +31,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { check } from '../commands/check.js';
+import { check, OBJECTUI_SCHEMA_URL } from '../commands/check.js';
 
 let cwd: string;
 let lines: string[];
@@ -194,9 +194,18 @@ describe('objectui check — genuinely malformed JSON still fails the run', () =
   });
 });
 
+/**
+ * These fixtures declare `$schema` because objectui#5127 gated the warning arm
+ * behind a positive ObjectUI marker: a bare `{"type": ...}` file is no longer
+ * judged at all, so without the declaration every assertion below would pass
+ * for the wrong reason — including the two that assert SILENCE, which would
+ * then be measuring nothing. The gate itself is pinned in
+ * `check-schema-marker.test.ts`; this section is about the warning arm the gate
+ * admits files to.
+ */
 describe('objectui check — the unknown-type warning arm is untouched (objectui#5127)', () => {
   it('still warns for an unrecognised root type, and still does not fail the run', async () => {
-    writeFile('bogus.json', '{"type":"totally-made-up-xyz"}');
+    writeFile('bogus.json', `{"$schema":"${OBJECTUI_SCHEMA_URL}","type":"totally-made-up-xyz"}`);
 
     await check(cwd);
 
@@ -210,7 +219,10 @@ describe('objectui check — the unknown-type warning arm is untouched (objectui
     // Files that previously died at the parse step now reach the type check —
     // the warning arm's reach grows, but its verdict and its exit-code
     // neutrality are unchanged.
-    writeFile('commented.json', '{\n  // a comment\n  "type": "totally-made-up-xyz",\n}\n');
+    writeFile(
+      'commented.json',
+      `{\n  // a comment\n  "$schema": "${OBJECTUI_SCHEMA_URL}",\n  "type": "totally-made-up-xyz",\n}\n`
+    );
 
     await check(cwd);
 
@@ -219,7 +231,10 @@ describe('objectui check — the unknown-type warning arm is untouched (objectui
   });
 
   it('stays silent for a registered type', async () => {
-    writeFile('grid.json', '{"type":"object-grid","objectApiName":"account"}');
+    writeFile(
+      'grid.json',
+      `{"$schema":"${OBJECTUI_SCHEMA_URL}","type":"object-grid","objectApiName":"account"}`
+    );
 
     await check(cwd);
 
@@ -230,7 +245,10 @@ describe('objectui check — the unknown-type warning arm is untouched (objectui
   it('does not run the type check on a file that failed to parse', async () => {
     // A parse failure short-circuits before the schema arm, exactly as the
     // thrown `JSON.parse` used to.
-    writeFile('broken-typed.json', '{ "type": "totally-made-up-xyz", }}');
+    writeFile(
+      'broken-typed.json',
+      `{ "$schema": "${OBJECTUI_SCHEMA_URL}", "type": "totally-made-up-xyz", }}`
+    );
 
     await check(cwd);
 
