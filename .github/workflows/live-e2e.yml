@@ -146,13 +146,20 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
+      # Same provisioning shape as `ci.yml`'s `Build & E2E`, and it carries the
+      # same exposure: `--with-deps` / `install-deps` run `apt-get update` with
+      # nothing bounding it. That is what hung `Build & E2E` three times on
+      # 2026-08-19 for the full job ceiling (objectui#5304); this job's ceiling
+      # is 40 minutes, so the same mirror stall would cost even more here. The
+      # browsers come from the cache step above, and the launch probe in the
+      # script is what proves a browser exists. See the script header for the
+      # measured incident log.
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install chromium
 
-      - name: Install Playwright system dependencies
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
+      - name: Ensure Chromium can launch
+        run: bash scripts/ensure-chromium-ready.sh
 
       - name: Run live E2E allowlist
         run: pnpm test:e2e:live:ci

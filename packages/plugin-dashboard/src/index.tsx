@@ -334,17 +334,18 @@ ComponentRegistry.register(
   }
 );
 
-// Standard Export Protocol - for manual integration
+// Standard Export Protocol - for manual integration. Keyed by the schema
+// `type` each entry serves (objectui#5064 — aligned with the four sibling
+// `*Components` maps); every value is the exact component the side-effect
+// import registers for that type, including the two internal
+// data-source-gate wrappers for the `object-*` types.
 export const dashboardComponents = {
-  DashboardRenderer,
-  DashboardGridLayout,
-  MetricWidget,
-  MetricCard,
-  ObjectMetricWidget,
-  PivotTable,
-  ObjectPivotTable,
-  ObjectDataTable,
-  DashboardConfigPanel,
-  WidgetConfigPanel,
-  DashboardWithConfig,
+  'dashboard': DashboardRenderer,
+  'metric': MetricWidget,
+  'metric-card': MetricCard,
+  'object-metric': ObjectMetricBlock,
+  'pivot': PivotTable,
+  'object-pivot': ObjectPivotBlock,
+  'dashboard-grid': DashboardGridLayout,
+  'object-data-table': ObjectDataTable,
 };
