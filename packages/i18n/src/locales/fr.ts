@@ -2742,6 +2742,9 @@ const fr = {
       declined: "Invitation refusée",
       declineFailed: "Impossible de refuser l'invitation",
     },
+    current: {
+      label: "Organisation actuelle",
+    },
     switcher: {
       label: "Changer d'organisation",
       groupLabel: "Organisation de travail",

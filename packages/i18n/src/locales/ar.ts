@@ -2747,6 +2747,9 @@ const ar = {
       declined: "تم رفض الدعوة",
       declineFailed: "فشل رفض الدعوة",
     },
+    current: {
+      label: "المؤسسة الحالية",
+    },
     switcher: {
       label: "تبديل المؤسسة",
       groupLabel: "مؤسسة العمل",

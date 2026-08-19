@@ -2740,6 +2740,9 @@ const ja = {
       declined: "招待を辞退しました",
       declineFailed: "招待の辞退に失敗しました",
     },
+    current: {
+      label: "現在の組織",
+    },
     switcher: {
       label: "組織を切り替え",
       groupLabel: "作業中の組織",

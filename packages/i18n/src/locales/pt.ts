@@ -2739,6 +2739,9 @@ const pt = {
       declined: "Convite recusado",
       declineFailed: "Falha ao recusar o convite",
     },
+    current: {
+      label: "Organização atual",
+    },
     switcher: {
       label: "Trocar de organização",
       groupLabel: "Organização de trabalho",

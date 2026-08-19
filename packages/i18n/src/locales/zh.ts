@@ -2860,6 +2860,9 @@ const zh = {
       declined: '邀请已拒绝',
       declineFailed: '拒绝邀请失败',
     },
+    current: {
+      label: '当前组织',
+    },
     switcher: {
       label: '切换组织',
       groupLabel: '当前工作组织',

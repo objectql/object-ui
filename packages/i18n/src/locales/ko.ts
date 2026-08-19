@@ -2739,6 +2739,9 @@ const ko = {
       declined: "초대를 거절함",
       declineFailed: "초대 거절 실패",
     },
+    current: {
+      label: "현재 조직",
+    },
     switcher: {
       label: "조직 전환",
       groupLabel: "작업 중인 조직",

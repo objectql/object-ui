@@ -56,6 +56,7 @@ import { useOffline } from '@object-ui/react';
 import { PresenceAvatars, useTenantPresence, type PresenceUser } from '@object-ui/collaboration';
 import { ModeToggle } from './ModeToggle';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { CurrentOrganizationIndicator } from './CurrentOrganizationIndicator';
 import { LocaleSwitcher } from './LocaleSwitcher';
 import { ConnectionStatus } from './ConnectionStatus';
 import type { ActivityItem } from './ActivityFeed';
@@ -544,11 +545,14 @@ export function AppHeader({
             renders nothing once runtime-config reports GA. */}
         <PreviewBadge className="ml-2 hidden sm:inline-flex" />
 
-        {/* Workspace (organization) switcher — the global "which org am I in /
-            switch org" affordance. Renders just the org name for single-org
-            users, a switch dropdown for multi-org. Sits right after the brand,
-            before the app/section breadcrumb. */}
+        {/* Organization context — "which org am I in", right after the brand and
+            before the app/section breadcrumb. Two mutually exclusive renderers:
+            the switcher for multi-membership users (name + switch dropdown),
+            and the read-only indicator for the single-membership case the
+            switcher declines to render, on walled deployments only
+            (objectui#5287 — the switcher's own visibility rule is unchanged). */}
         <WorkspaceSwitcher />
+        <CurrentOrganizationIndicator />
 
         {resolvedVariant === 'orgs' && (
           <>

@@ -2744,6 +2744,9 @@ const es = {
       declined: "Invitación rechazada",
       declineFailed: "No se pudo rechazar la invitación",
     },
+    current: {
+      label: "Organización actual",
+    },
     switcher: {
       label: "Cambiar de organización",
       groupLabel: "Organización de trabajo",

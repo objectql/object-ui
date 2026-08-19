@@ -3041,6 +3041,9 @@ const en = {
       declined: 'Invitation declined',
       declineFailed: 'Failed to decline invitation',
     },
+    current: {
+      label: 'Current organization',
+    },
     switcher: {
       label: 'Switch organization',
       groupLabel: 'Working organization',

@@ -22,6 +22,36 @@ import type { TenancyPosture } from '@object-ui/auth';
 
 const POSTURES: readonly TenancyPosture[] = ['single', 'group', 'isolated'];
 
+/**
+ * The postures that put an organization wall in force — ADR-0105's
+ * `postureEnforcesWall`, which is `true` for `group` and `isolated` and `false`
+ * for `single`. This is what "organization context is active" means to the
+ * console: under `single` the wall is inert, so an organization is not a scope
+ * the user is inside and the chrome must not imply one.
+ *
+ * ## Why the rule is restated here instead of imported
+ *
+ * `@objectstack/spec/security` exports the predicate, and importing it would be
+ * the drift-proof spelling — but measured with the repo's esbuild, adding that
+ * subpath to a graph that already holds the whole spec root entry costs
+ * **+237 KB** minified (1271.8 → 1509.1 KB): its schema modules are not shared
+ * with the entries the console already reaches, and nothing tree-shakes them
+ * (`@objectstack/spec` declares no `sideEffects`). The consumers here are the
+ * top bar — the eager closure that `apps/console/vite.config.ts`'s
+ * `assertLazyLinterStaysLazy` guard exists to keep lean — so a quarter megabyte
+ * on every page load to spell one three-value predicate is the wrong trade.
+ *
+ * The drift risk that import would have removed is paid for at test time
+ * instead: `__tests__/tenancyPostureWall.parity.test.ts` imports the spec's
+ * real `postureEnforcesWall` and `TENANCY_POSTURES` and asserts this function
+ * agrees for every posture the protocol declares — so a posture added or
+ * reclassified upstream fails CI here rather than silently rendering the wrong
+ * chrome. Tests are not bundled; that assertion is free.
+ */
+export function postureHasOrgWall(posture: TenancyPosture | undefined): boolean {
+  return posture === 'group' || posture === 'isolated';
+}
+
 export function useTenancyPosture(): TenancyPosture | undefined {
   const { getAuthConfig } = useAuth();
   const [posture, setPosture] = useState<TenancyPosture | undefined>(undefined);

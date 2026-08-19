@@ -2740,6 +2740,9 @@ const de = {
       declined: "Einladung abgelehnt",
       declineFailed: "Einladung konnte nicht abgelehnt werden",
     },
+    current: {
+      label: "Aktuelle Organisation",
+    },
     switcher: {
       label: "Organisation wechseln",
       groupLabel: "Arbeitsorganisation",
