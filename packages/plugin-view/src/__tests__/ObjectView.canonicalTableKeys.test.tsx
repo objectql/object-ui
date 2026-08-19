@@ -239,11 +239,16 @@ describe('grid path: both spellings written — each rides its own slot', () => 
 });
 
 describe('grid path: a named view still outranks the table segment', () => {
-  // The two segments ahead of `table` (`listViews` entry, then `activeView`)
-  // are untouched by objectui#5102 — they keep riding the legacy slots. The
+  // The FILTER segments ahead of `table` (`listViews` entry, then `activeView`)
+  // are untouched by objectui#5102 — they keep riding the legacy slot. The
   // canonical slot must therefore stay EMPTY while one of them is active:
   // ObjectGrid prefers the canonical slot, so a `table.filter` forwarded
   // unconditionally would outrank the view the user is looking at.
+  //
+  // The SORT half moved in objectui#5270 — see the sort assertion below for
+  // why, and `ObjectView.namedViewSortArity.test.tsx` for the two consumers
+  // that made the old slot unreadable. What is pinned here either way is the
+  // PRECEDENCE, which the move preserves: the view still outranks `table`.
   const namedView = {
     listViews: {
       won: {
@@ -265,12 +270,33 @@ describe('grid path: a named view still outranks the table segment', () => {
   });
 
   it('keeps the named view sort in force over a table.sort', () => {
+    // objectui#5102 pinned this as `sort: undefined` +
+    // `defaultSort: [{ field: 'name', order: 'desc' }]` and said in so many
+    // words that the pin should be UPDATED, not deleted, by whoever fixed the
+    // arity. Updated here: the array now rides the canonical slot — the only
+    // one of the two whose declared type (`string | SortConfig[]`) can hold
+    // more than one key — and the legacy slot carries the `table` segment
+    // alone. Precedence is what this block asserts and it is unchanged:
+    // ObjectGrid resolves `schemaSort ?? defaultSort`, so the named view wins
+    // over `table.sort` because it is what reaches the canonical slot.
     const grid = forwardedGridSchema({
       ...namedView,
       table: { sort: 'created asc' } as any,
     } as any);
-    expect(grid.sort).toBeUndefined();
-    expect(grid.defaultSort).toEqual([{ field: 'name', order: 'desc' }]);
+    expect(grid.sort).toEqual([{ field: 'name', order: 'desc' }]);
+    expect(grid.defaultSort).toBeUndefined();
+  });
+
+  it('keeps the named view sort in force over a legacy table.defaultSort too', () => {
+    // The other side of the same precedence: the `table` segment holds the
+    // legacy slot alone, and ObjectGrid prefers the canonical one, so the view
+    // still wins. Without this the move could have inverted the pair silently.
+    const grid = forwardedGridSchema({
+      ...namedView,
+      table: { defaultSort: { field: 'created', order: 'asc' } } as any,
+    } as any);
+    expect(grid.sort).toEqual([{ field: 'name', order: 'desc' }]);
+    expect(grid.defaultSort).toEqual({ field: 'created', order: 'asc' });
   });
 });
 

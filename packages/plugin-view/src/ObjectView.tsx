@@ -1038,13 +1038,42 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // free choice here: emitting both slots lets ObjectGrid's existing
   // canonical-wins rule decide, which is the only answer that keeps the two
   // layers saying the same thing.
+  //
+  // objectui#5270: the two segments AHEAD of `table` had a second, separate
+  // problem — an ARITY mismatch, not a spelling one. Both of them carry an
+  // ARRAY of sort keys (`NamedListView.sort` is `Array< { field, order } >`;
+  // the `views` prop declares an array too) and both were being written into
+  // `defaultSort`, which is declared a SINGLE `{ field, order }`. Neither of
+  // ObjectGrid's two readers survives that:
+  //
+  //   header  `parseSchemaSort(schemaSort ?? [schema.defaultSort])` becomes
+  //           `parseSchemaSort([[{ field, order }]])`. The outer array is
+  //           iterated and each entry must be a string or an object with a
+  //           string `field`; a nested ARRAY is neither, so the entry is
+  //           dropped and the result is `[]` — no arrow, the view arrives
+  //           looking unsorted.
+  //   fetch   `` `${(schema.defaultSort as any).field} ${….order}` `` reads two
+  //           missing keys off an array and sends the literal string
+  //           `"undefined undefined"` as `$orderby`.
+  //
+  // So the view's sort now rides the CANONICAL slot, which is declared
+  // `string | SortConfig[]` and therefore already holds the arity a view
+  // carries. That is also the shape the shared sort sink accepts
+  // (`convertSortToQueryParams`, `string | SortConfig[]` — objectui#4869), so
+  // this converges on the normalized dialect instead of introducing another.
+  // Precedence is unchanged: ObjectGrid resolves `sort ?? defaultSort`, so a
+  // view sort still outranks a `table.defaultSort`, and `table.sort` still
+  // outranks it too — the same order `mergedSort` and the non-grid fetch use.
   const gridSchema: ObjectGridSchema = useMemo(() => {
-    // The two segments ahead of the `table` one, resolved once. They keep
-    // riding the LEGACY slots they ride today: `filter`/`defaultFilters` are
-    // not interchangeable downstream — ObjectGrid lowers the canonical slot
-    // through `toFilterNode` and raw-assigns the legacy one — so moving a
-    // named-view filter across would change the wire shape of a path this
-    // card does not own.
+    // The two segments ahead of the `table` one, resolved once.
+    //
+    // `viewFilter` keeps riding the LEGACY slot it rides today:
+    // `filter`/`defaultFilters` are not interchangeable downstream —
+    // ObjectGrid lowers the canonical slot through `toFilterNode` and
+    // raw-assigns the legacy one — so moving a named-view filter across would
+    // change the wire shape of a path objectui#5270 does not own. The sort
+    // pair has no such asymmetry: both slots reach `$orderby` unlowered, and
+    // only the canonical one can hold more than a single key.
     const viewFilter = currentNamedViewConfig?.filter || activeView?.filter;
     const viewSort = currentNamedViewConfig?.sort || activeView?.sort;
 
@@ -1060,15 +1089,23 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         create: false, // Create is handled by the view's create button
       },
       defaultFilters: viewFilter || schema.table?.defaultFilters,
-      defaultSort: viewSort || schema.table?.defaultSort,
-      // Canonical `table` keys, at last forwarded. `filter`/`sort` carry the
-      // `table` segment ONLY: a view segment resolved above already occupies
+      // Legacy slot, `table` segment ONLY (objectui#5270). The view segments
+      // moved to the canonical `sort` below because this one holds a single
+      // `{ field, order }` and they carry arrays; ObjectGrid resolves
+      // `sort ?? defaultSort`, so a view sort still outranks this default.
+      defaultSort: schema.table?.defaultSort,
+      // Canonical `table` keys, at last forwarded. `filter` carries the
+      // `table` segment ONLY: the view segment resolved above already occupies
       // the legacy slot, and ObjectGrid prefers this slot over that one — so
       // handing it `table.filter` while a named view is active would let the
       // table default outrank the view, inverting the precedence the two
       // untouched segments exist to express.
       filter: viewFilter ? undefined : schema.table?.filter,
-      sort: viewSort ? undefined : schema.table?.sort,
+      // `sort` carries the WHOLE chain instead — view segments first, then the
+      // `table` one. Same precedence as `mergedSort` and the non-grid fetch
+      // express; what changes is only WHICH slot a view's sort arrives in, and
+      // this is the one whose declared arity can hold it.
+      sort: viewSort || schema.table?.sort,
       pagination: schema.table?.pagination,
       selection: schema.table?.selection,
       pageSize: schema.table?.pageSize,
