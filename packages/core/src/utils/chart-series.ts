@@ -36,6 +36,13 @@
  * label used to serve as its own key, which conflated two pairs of genuinely
  * different groups; see {@link chartBucketId} for the identity, and
  * {@link CHART_BUCKET_ID_KEY} for how it reaches a click handler.
+ *
+ * Key ABSENCE survives the pivot as of objectui#4507: an emitted bucket carries
+ * the x-axis key exactly when some row of it did. A first dimension that was
+ * grouped by but never PROJECTED therefore still reaches the renderer key-less,
+ * where `hasNoCategoryKey` (framework#4033) names it instead of drawing an axis
+ * with no marks. "Known to be empty" draws under the bucket label, "cannot
+ * know" refuses — one doctrine, and now BOTH branches state it.
  */
 import { pivotBucketId, pivotDimensionValue } from './dataset-pivot.js';
 
@@ -463,11 +470,54 @@ export function buildChartSeries(
       // defect, one branch below). Key and display value are two different
       // things here, and now they are two different KINDS of thing.
       //
-      // The bucket takes its label from the row that CREATED it, exactly as it
-      // took its raw value before.
+      // The bucket takes its label from the first row that CARRIES the key,
+      // exactly as it took the CREATING row's raw value before — the same row
+      // in every bucket a projected dimension produces, because a row whose
+      // `xKey` is absent reads `xRaw === undefined` and therefore lands in the
+      // `[null]` bucket and nowhere else.
+      //
+      // A bucket carries `xKey` exactly when SOME row of it did, and that is
+      // objectui#4507: the write used to be unconditional, so a first dimension
+      // GROUPED BY BUT NEVER PROJECTED (framework#4033 — no row carries the key
+      // at all) reached the renderer as `{ [xKey]: undefined }`, `key in row`
+      // answered true, and `hasNoCategoryKey` could not fire for a pivoted
+      // chart. The defence was dead exactly where the defect it guards against
+      // lands: every row collapsed into one bucket painting a blank tick, which
+      // is the silent shape the placeholder exists to replace. The single-
+      // dimension branch never had the problem — it passes rows through, so
+      // key-absent rows stay key-absent — and this is that same answer here.
+      //
+      // MEASURED end to end before it was written (objectui#4507): the strategy
+      // that maps engine rows to result rows writes a dimension key only when
+      // the engine actually returned that column (`if (shortName in row)`), the
+      // native-SQL strategy returns driver rows that carry only the columns the
+      // statement selected, and JSON cannot transport `undefined` in the first
+      // place — so an unprojected dimension arrives as an ABSENT key, while an
+      // explicit `null` means the column WAS projected and its value is null.
+      // Those are the two shapes, they are cleanly separated at the source, and
+      // this branch now keeps them apart instead of merging them.
+      //
+      // Why the bug was invisible to every pin that "saw" the emitted row: both
+      // `JSON.stringify` and `toEqual` DROP an undefined-valued key, so the
+      // pivot's output read as key-absent everywhere except in the one test
+      // that decides the placeholder — `key in row`.
+      //
+      // The upgrade in the second clause is not cosmetic. `chartBucketId`
+      // encodes an absent value and a stored `null` identically (`[null]`, by
+      // ADR-0021's normalization), so ONE bucket can collect both key-absent
+      // rows and rows whose category is genuinely null. If any of its rows
+      // carried the key, the bucket is "known to be empty" and draws under the
+      // label; refusing there would tell the author their query never projected
+      // a dimension that it did project — a false sentence, and the mirror of
+      // the false sentence objectui#4497 refused to print by NOT relabelling a
+      // key-absent row `(None)`. Both halves of that doctrine are now live in
+      // this branch: key absent everywhere → the framework#4033 placeholder;
+      // key present with a null value → the bucket label.
       const xId = chartBucketId(xRaw);
-      if (!byX.has(xId)) {
-        byX.set(xId, { [xKey]: isNullCategory(row, xKey) ? nullLabel : xRaw });
+      let bucket = byX.get(xId);
+      if (!bucket) byX.set(xId, (bucket = {}));
+      if (carriesKey(row, xKey) && !carriesKey(bucket, xKey)) {
+        bucket[xKey] = isNullCategory(row, xKey) ? nullLabel : xRaw;
       }
       // The group's own column, or nothing at all when the row carries no
       // second dimension to be grouped BY. Nothing at all is the point: the
@@ -477,7 +527,7 @@ export function buildChartSeries(
       const column = carriesKey(row, groupKey)
         ? columnById.get(chartBucketId(row[groupKey]))
         : undefined;
-      if (column !== undefined) byX.get(xId)![column] = row[measure];
+      if (column !== undefined) bucket[column] = row[measure];
     }
 
     // Two DISTINCT buckets can still render the same axis text — the null
