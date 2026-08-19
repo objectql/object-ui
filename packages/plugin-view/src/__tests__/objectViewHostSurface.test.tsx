@@ -158,20 +158,45 @@ describe('the forwarded key set equals the documented exemption (objectui#5097)'
     expect(exempt.filter((k) => declared.includes(k))).toEqual([]);
   });
 
-  it('`conditionalFormatting` is the ONLY exempt key also read outside the fence', () => {
-    // The measured asymmetry recorded on objectui#5248: `generateViewSchema`'s
-    // kanban branch reads it too, and that branch runs exactly when no host
-    // supplied `renderListView` — i.e. on the path the registered renderer
-    // takes. For this one key the ruling's "the authored path cannot reach it"
-    // basis is narrower than for its 26 neighbours. Pinned so the exception
-    // cannot be lost, and so a SECOND such read cannot appear unnoticed.
+  it('NO exempt key is read outside the fence — the objectui#5248 resolution', () => {
+    // This assertion used to read `.toEqual(['conditionalFormatting'])`.
+    //
+    // objectui#5097 measured one asymmetry: `generateViewSchema`'s kanban
+    // branch read `conditionalFormatting` off the object-view node too, and
+    // that branch runs exactly when no host supplied `renderListView` — i.e. on
+    // the path the REGISTERED renderer takes. For that one key the ruling's
+    // "the authored path cannot reach it" basis was narrower than for its 26
+    // neighbours, and objectui#5248 was filed to settle it.
+    //
+    // Maintainer ruling 2026-08-19 (verbatim 「全部接受」): Option 2, gated on a
+    // liveness check — which came back empty (no authored document in either
+    // repo puts the key on an object-view node), so the fallback read was
+    // dropped rather than the key declared. The set of exempt keys read outside
+    // the fence is therefore EMPTY, and the exemption's basis now holds for all
+    // 27 without exception. That is what this pins.
+    //
+    // ⛔ Do not "fix" a failure here by re-listing a key. A key read out here is
+    // author-reachable; putting it back on this list is how the exemption stops
+    // describing anything.
     const outside = castReadsIn(SOURCE.replace(regionSlice(), ''));
     expect(
       outside,
-      'A host-composition key is now read outside the objectui#5097 fence. Reads out there are on\n'
+      'A host-composition key is read outside the objectui#5097 fence again. Reads out there are on\n'
         + 'the AUTHOR-reachable path, which is the basis the exemption rests on — so this is a\n'
-        + 'contract change, not a refactor. See objectui#5248 before widening this list.',
-    ).toEqual(['conditionalFormatting']);
+        + 'contract change, not a refactor. objectui#5248 closed the one asymmetry that existed\n'
+        + '(the kanban branch\'s `conditionalFormatting` fallback); re-opening one needs a ruling,\n'
+        + 'not an edit to this expectation.',
+    ).toEqual([]);
+  });
+
+  it('`conditionalFormatting` in particular is no longer read outside the fence (objectui#5248)', () => {
+    // Named separately from the property above: the property would also pass if
+    // the whole file stopped using the cast form, and this key is the one the
+    // ruling is about. Its read inside the fence is asserted by the tests above
+    // and by the delegation test at the bottom of this file — the key stays
+    // host surface, it just stopped being author-reachable.
+    expect(castReadsIn(SOURCE.replace(regionSlice(), ''))).not.toContain('conditionalFormatting');
+    expect(castReadsIn(regionSlice())).toContain('conditionalFormatting');
   });
 });
 

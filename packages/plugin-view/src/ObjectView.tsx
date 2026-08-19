@@ -378,17 +378,39 @@ type FormMode = 'create' | 'edit' | 'view';
  * `inputs` list at `./index.tsx:71-86` (15 names; the alias `view` declares no
  * `inputs` at all), and none of the 27 appears on either registration.
  *
- * ## The one asymmetry — `conditionalFormatting`
+ * ## The one asymmetry — `conditionalFormatting` — RESOLVED (objectui#5248)
  *
- * 26 of the 27 are read ONLY inside the host-only branch. `conditionalFormatting`
- * has a SECOND read site, in `generateViewSchema`'s kanban branch (see
- * `kanbanConditionalFormatting`), which IS reachable through the registered
- * renderer. For that one key the ruling's "the authored path cannot reach it"
- * basis is therefore narrower than for its 26 neighbours. Recorded here rather
- * than acted on: the exemption preserves the status quo either way (nothing
- * declared, nothing removed), and whether that second read makes
- * `conditionalFormatting` authored surface on the kanban path is a fresh
- * contract question, filed separately as objectui#5248.
+ * As ruled on 2026-08-18, 26 of the 27 were read ONLY inside the host-only
+ * branch, and `conditionalFormatting` had a SECOND read site in
+ * `generateViewSchema`'s kanban branch — reachable through the REGISTERED
+ * renderer, so for that one key the ruling's "the authored path cannot reach
+ * it" basis was narrower than for its 26 neighbours. objectui#5097 recorded the
+ * gap rather than acting on it and filed the contract question as
+ * objectui#5248.
+ *
+ * That question is now answered, and the gap is closed. Maintainer ruling of
+ * 2026-08-19 (verbatim 「全部接受」, recorded on objectui#5248): a conditional —
+ * Option 2 gated on a liveness check, Option 1 (declare the key) had the check
+ * found real authored usage. The liveness check came back EMPTY:
+ *
+ *   - objectui `content/docs/**`, `skills/**`, `examples/**`, `apps/**`:
+ *     `conditionalFormatting` occurs in exactly two files, on `object-grid`
+ *     (`content/docs/plugins/plugin-grid.mdx`) and on `list-view`
+ *     (`skills/objectui/guides/schema-expressions.md`) — both DECLARED homes,
+ *     neither an object-view node.
+ *   - objectstack: no authored `object-view` node exists at all (two prose
+ *     mentions repo-wide), against 54 files carrying `object-form` and 19
+ *     carrying `object-grid` as the control.
+ *   - No in-repo fixture or catalog schema carries both an object-view node and
+ *     the key: the only files carrying both are this one, its pin test, the
+ *     type declarations, app-shell's host (which reads the key into the
+ *     delegated `list-view` node, not onto the object-view node) and prose.
+ *
+ * So the fallback read was dropped from the kanban branch (see
+ * `kanbanConditionalFormatting`). Every one of the 27 is now read ONLY inside
+ * the `#region` fence, and the exemption's stated basis holds for all of them
+ * without exception. The pin in `objectViewHostSurface.test.tsx` asserts the
+ * resolution directly: ZERO exempt keys are read outside the fence.
  */
 export const OBJECT_VIEW_HOST_COMPOSITION_KEYS = [
   'addDeleteRecordsInline',
@@ -953,24 +975,39 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
             : baseProps.fields) || [];
         const { columns: _kanbanColumns, groupByField: _gbf, groupField: _gf, titleField: _tf, conditionalFormatting: _kanbanCf, ...restKanban } = kanbanCfg;
         // Forward conditional formatting to kanban (issue #1584): nested
-        // `options.kanban.conditionalFormatting` wins, then the view-level, then
-        // the schema-level rule — matching how the grid branch resolves it.
-        // Previously the top-level rule was dropped for kanban entirely.
+        // `options.kanban.conditionalFormatting` wins, then the view-level rule.
+        // Those are the two places the key is DECLARED — `ObjectKanbanSchema`
+        // for the nested block, the named/active view for the other.
         //
-        // ⚠️ objectui#5097 — this is the ONLY read of one of the 27
-        // host-composition keys that sits OUTSIDE the `#region` fence below,
-        // and the only one on a path the REGISTERED renderer can reach:
-        // `generateViewSchema` runs precisely when no host supplied
-        // `renderListView`. So for `conditionalFormatting` alone, the
-        // exemption's "the authored path cannot reach it" basis is narrower
-        // than for its 26 neighbours. Recorded, not acted on — see
-        // `OBJECT_VIEW_HOST_COMPOSITION_KEYS` ("The one asymmetry") and
-        // objectui#5248, which owns the contract question. ⛔ Do not delete
-        // this read, and ⛔ do not move it inside the fence to quiet the pin.
+        // objectui#5248 — a THIRD fallback used to sit at the end of this chain,
+        // `(schema as any).conditionalFormatting`, reading the key off the
+        // object-view node itself. It was the ONLY read of one of the 27
+        // objectui#5097 host-composition keys outside the `#region` fence below,
+        // and the only one on a path the REGISTERED renderer can reach
+        // (`generateViewSchema` runs precisely when no host supplied
+        // `renderListView`). That made the exemption's stated basis — "the
+        // authored path cannot reach these keys" — false for this one key.
+        //
+        // The maintainer ruled on 2026-08-19 (verbatim 「全部接受」, recorded on
+        // objectui#5248): a conditional, Option 2 gated on a liveness check.
+        // The check came back EMPTY — no authored document in either repo puts
+        // `conditionalFormatting` on an object-view node (objectui: it appears
+        // in `content/docs` only on `object-grid`, and in `skills/` only on
+        // `list-view`; objectstack: `object-view` is not authored anywhere, 2
+        // prose mentions and no node, while `object-form` appears in 54 files
+        // and `object-grid` in 19). So the fallback was dropped: the key is now
+        // genuinely host-only, and the objectui#5097 basis holds for all 27.
+        //
+        // ⛔ Do not restore this fallback as a convenience. Authoring
+        // kanban conditional formatting has two declared homes; a top-level key
+        // that nothing declares, nothing publishes in the registry `inputs` and
+        // tsc cannot see (BaseSchema's index signature) is precisely the
+        // "renderer reads it, manifest denies it" condition objectui#4648 /
+        // objectui#5091 exist to close. The host `renderListView` delegation
+        // below still reads and forwards the key — that half is NOT narrowed.
         const kanbanConditionalFormatting =
           kanbanCfg.conditionalFormatting ??
-          activeView?.conditionalFormatting ??
-          (schema as any).conditionalFormatting;
+          activeView?.conditionalFormatting;
         return {
           type: 'object-kanban',
           ...baseProps,
@@ -1333,11 +1370,13 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     // deleted read silently blanks a stored app-shell document.
     //
     // The list, the two supplier `file:line`s, the contract's (non-)verdict and
-    // the `conditionalFormatting` asymmetry live with
-    // `OBJECT_VIEW_HOST_COMPOSITION_KEYS` at the top of this file. The `#region`
-    // fence is load-bearing: `src/__tests__/objectViewHostSurface.test.tsx`
+    // the now-resolved `conditionalFormatting` asymmetry (objectui#5248) live
+    // with `OBJECT_VIEW_HOST_COMPOSITION_KEYS` at the top of this file. The
+    // `#region` fence is load-bearing: `src/__tests__/objectViewHostSurface.test.tsx`
     // re-derives the read set from between these two markers, so adding or
-    // removing a read here fails that pin BY NAME.
+    // removing a read here fails that pin BY NAME — and since objectui#5248 it
+    // also fails if any exempt key is read OUTSIDE the fence, which is where
+    // the author-reachable paths live.
     if (renderListView) {
       return renderListView({
         schema: {
