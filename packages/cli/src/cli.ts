@@ -48,6 +48,7 @@ program
   .argument('[schema]', 'Path to JSON/YAML schema file, or a project / pages directory', 'app.json')
   .option('-p, --port <port>', 'Port to run the server on', '3000')
   .option('-h, --host <host>', 'Host to bind the server to', 'localhost')
+  .option('--no-open', 'Do not open browser automatically')
   .action(async (schema, options) => {
     try {
       await serve(schema, options);

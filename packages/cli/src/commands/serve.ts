@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { createServer } from 'vite';
+import { createServer, createLogger, type Logger } from 'vite';
 import react from '@vitejs/plugin-react';
 import { mkdirSync } from 'fs';
 import { join } from 'path';
@@ -19,6 +19,62 @@ import { isWorkspaceRoot, prepareWorkspaceTempApp } from '../utils/workspace-vit
 interface ServeOptions {
   port: string;
   host: string;
+  open?: boolean;
+}
+
+/**
+ * Mirrors `dev`'s existing `open: options.open !== false` (commander's
+ * `--no-open` sets `options.open` to `false`; every other case — the flag
+ * omitted, or `true` — must keep opening a browser, which is the default
+ * `serve` has always had and must not change) — pulled out so it can be
+ * unit-tested without booting a real Vite server (objectui#4924).
+ */
+export function resolveServeOpenOption(open?: boolean): boolean {
+  return open !== false;
+}
+
+/**
+ * Vite's own browser-open step (`startBrowserProcess` in
+ * `src/node/server/openBrowser.ts`) already catches a failed `open(url)` —
+ * but it reports it as `logger.error(err.stack || err.message)` with no
+ * `{ timestamp: true }`, so the default logger prints the bare Node stack
+ * with no `[vite]` prefix and no context. That promise chain is
+ * fire-and-forget from `server.listen()`, so the message lands on a later
+ * tick — after our own success banner — reading like a crash even though
+ * the server is fine. There's nothing to try/catch: the error never leaves
+ * Vite. `customLogger` is the supported interception point, so this wraps
+ * Vite's default logger and replaces exactly that message with a short,
+ * contextual line; every other log call passes through unchanged
+ * (objectui#4924, reproduced live: `Error: spawn xdg-open ENOENT` after
+ * "✓ Server started successfully!" with `BROWSER` pointed at a missing
+ * binary).
+ */
+const BROWSER_OPEN_SPAWN_ENOENT = /^Error: spawn (\S+) ENOENT/;
+
+export function createServeLogger(base: Logger): Logger {
+  return {
+    info: (msg, opts) => base.info(msg, opts),
+    warn: (msg, opts) => base.warn(msg, opts),
+    warnOnce: (msg, opts) => base.warnOnce(msg, opts),
+    error(msg, opts) {
+      const match = BROWSER_OPEN_SPAWN_ENOENT.exec(msg);
+      if (match) {
+        const [, command] = match;
+        console.log(
+          chalk.dim(
+            `  (could not open the browser automatically — '${command}' is not available in this environment; open the URL above manually)`
+          )
+        );
+        return;
+      }
+      base.error(msg, opts);
+    },
+    clearScreen: (type) => base.clearScreen(type),
+    hasErrorLogged: (error) => base.hasErrorLogged(error),
+    get hasWarned() {
+      return base.hasWarned;
+    },
+  };
 }
 
 export async function serve(schemaPath: string, options: ServeOptions) {
@@ -80,13 +136,14 @@ export async function serve(schemaPath: string, options: ServeOptions) {
     server: {
       port: parseInt(options.port),
       host: options.host,
-      open: true,
+      open: resolveServeOpenOption(options.open),
       fs: {
         // Allow serving the workspace sources the aliases point at
         allow: [cwd],
       },
     },
     plugins: [react()],
+    customLogger: createServeLogger(createLogger()),
     ...workspaceConfig,
   };
 
