@@ -33,15 +33,21 @@ type AnyProps = { schema: any; className?: string; [key: string]: any };
 const VOID_TAGS = new Set(['img', 'hr', 'br']);
 
 // The safe set we own here. Deliberately excludes anything already registered
-// (div, span, table, code, label, the semantic sectioning tags, html) and
+// (div, span, table, code, label, kbd, the semantic sectioning tags, html) and
 // anything that can execute or escape (script, style, iframe, object, embed,
 // link, meta, form, input, button — button is the shadcn component).
+//
+// `kbd` was in this list until objectui#5125 despite the exclusion above:
+// `data-display/kbd.tsx` already owns `ui:kbd`, and because `renderers/index.ts`
+// imports `./basic` before `./data-display`, the entry here was overwritten and
+// never ran. `renderers/__tests__/registration-uniqueness.test.tsx` now fails on
+// any tag added here that another renderer already registers.
 const TAGS = [
   'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
   'p', 'a', 'blockquote', 'pre',
   'strong', 'em', 'b', 'i', 'u', 'small', 'mark', 'sub', 'sup', 'del', 'ins', 'abbr',
   'ul', 'ol', 'li', 'dl', 'dt', 'dd',
-  'figure', 'figcaption', 'img', 'hr', 'br', 'time', 'address', 'cite', 'kbd', 'q',
+  'figure', 'figcaption', 'img', 'hr', 'br', 'time', 'address', 'cite', 'q',
 ] as const;
 
 const PER_TAG_INPUTS: Record<string, Array<{ name: string; type: 'string' | 'number'; label: string }>> = {
