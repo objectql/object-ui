@@ -29,6 +29,7 @@ import {
   useThankYouRedirectNavigation,
   type PendingThankYouRedirect,
 } from './thankYouRedirectNavigation';
+import { useRedirectCountdownSeconds } from './thankYouRedirectCountdown';
 
 export interface EmbeddableFormTexts {
   submit?: string;
@@ -269,6 +270,14 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
   // unconditionally.
   useThankYouRedirectNavigation(pendingRedirect);
 
+  // The ticking half of the same promise: "Redirecting in {{seconds}}
+  // seconds…" is documented, in all ten locale packs, as counting down the
+  // REMAINING wait — not a number frozen at the instant the panel first
+  // paints (objectui#5083). Owned the same way as the wait above: an effect
+  // keyed on `pendingRedirect`, cancelled on unmount and on `handleReset`
+  // dropping the destination (`thankYouRedirectCountdown.ts`).
+  const remainingRedirectSeconds = useRedirectCountdownSeconds(pendingRedirect);
+
   const honeypotName = config.honeypot === false ? null : config.honeypot || DEFAULT_HONEYPOT_NAME;
   const minFillTime = config.minFillTime ?? DEFAULT_MIN_FILL_MS;
 
@@ -423,10 +432,15 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
     // in the submit handler): the seconds displayed are the seconds being
     // served, and a host that re-renders with a different `redirectDelay`
     // mid-wait cannot make the two disagree.
-    const redirectingText = pendingRedirect
+    //
+    // The number itself now TICKS (objectui#5083): `remainingRedirectSeconds`
+    // is owned by the effect above, counting down once per second rather than
+    // being computed once from `pendingRedirect.delayMs` and left to go stale
+    // for the whole wait.
+    const redirectingText = pendingRedirect && remainingRedirectSeconds !== null
       ? (texts.redirecting ?? 'Redirecting in {{seconds}} seconds…').replace(
           '{{seconds}}',
-          String(Math.ceil(pendingRedirect.delayMs / 1000)),
+          String(remainingRedirectSeconds),
         )
       : null;
     return (
