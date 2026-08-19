@@ -3,7 +3,7 @@
 // `vite`'s own `UserConfigExport` has no `test` property. Importing it from
 // `vite` left that whole block unchecked (objectui#3305).
 import { defineConfig } from 'vitest/config';
-import type { Plugin } from 'vite';
+import type { Plugin, Rollup } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
@@ -45,6 +45,96 @@ function preloadCriticalChunks(): Plugin {
       }
       if (preloadTags.length === 0) return html;
       return html.replace('</head>', `    ${preloadTags.join('\n    ')}\n  </head>`);
+    },
+  };
+}
+
+/**
+ * Build-time guard: `@objectstack/lint` must stay OUT of the eager closure.
+ *
+ * `packages/app-shell/src/preview/capabilityLint.ts` reaches the linter through
+ * a deliberate `await import('@objectstack/lint')` — it runs only when an
+ * author publishes in the metadata designer. That laziness is worth ~89 KiB
+ * gzipped on every console page load, and it is defeated silently: an
+ * `advancedChunks` group whose `test` matches the linter overrides the
+ * module's async-only reachability and folds it in beside the synchronously
+ * reached `@objectstack/spec`, whose chunk the entry imports STATICALLY
+ * (objectui#5266). Nothing about the source changes, no warning is emitted,
+ * and the existing bundle budget cannot see it — that budget weighs the
+ * `index-*.js` entry chunk alone, and these bytes land in a vendor chunk.
+ *
+ * So the invariant is asserted where it is decided, on the emitted graph, in
+ * the spirit of `viteMaplibreWorker` above: a regression must fail the BUILD
+ * rather than ship an extra half-megabyte only a profiler would find.
+ *
+ * The check is deliberately two-part. Asserting "no eager chunk holds the
+ * linter" alone would also pass if the walk found nothing at all — a green
+ * check with no subject. The counter-probe runs first and demands a KNOWN
+ * eager `@objectstack/spec`, so the linter verdict is only ever read after the
+ * closure walk has proven it can see the very chunk the linter used to hide in.
+ */
+function assertLazyLinterStaysLazy(): Plugin {
+  const LINT = /@objectstack[\\/+]lint/;
+  const SPEC = /@objectstack[\\/+]spec/;
+
+  return {
+    name: 'assert-lazy-linter-stays-lazy',
+    generateBundle(_options, bundle) {
+      const chunks = new Map<string, Rollup.OutputChunk>();
+      for (const [fileName, output] of Object.entries(bundle)) {
+        if (output.type === 'chunk') chunks.set(fileName, output);
+      }
+
+      // The eager closure: every chunk reachable from an entry chunk through
+      // STATIC imports only. `dynamicImports` is deliberately not followed —
+      // that edge is precisely the boundary the linter is meant to sit behind.
+      const eager = new Set<string>();
+      const queue = [...chunks.values()].filter((c) => c.isEntry).map((c) => c.fileName);
+      while (queue.length > 0) {
+        const fileName = queue.pop() as string;
+        if (eager.has(fileName)) continue;
+        eager.add(fileName);
+        for (const imported of chunks.get(fileName)?.imports ?? []) {
+          if (!eager.has(imported)) queue.push(imported);
+        }
+      }
+
+      const chunksHolding = (test: RegExp): string[] =>
+        [...chunks.values()]
+          .filter((chunk) => Object.keys(chunk.modules).some((id) => test.test(id)))
+          .map((chunk) => chunk.fileName);
+
+      const eagerSpec = chunksHolding(SPEC).filter((fileName) => eager.has(fileName));
+      if (eagerSpec.length === 0) {
+        this.error(
+          `[assert-lazy-linter-stays-lazy] counter-probe failed: no eagerly loaded chunk ` +
+            `contains an \`@objectstack/spec\` module. The spec is reached synchronously ` +
+            `from the app entry, so it must be in the eager closure — its absence means ` +
+            `this walk is reading the graph wrongly, not that the bundle improved. ` +
+            `Fix the walk before trusting the linter assertion below. ` +
+            `(entry chunks: ${[...chunks.values()].filter((c) => c.isEntry).map((c) => c.fileName).join(', ') || 'NONE'}; ` +
+            `eager chunks: ${eager.size}/${chunks.size})`,
+        );
+      }
+
+      const eagerLint = chunksHolding(LINT).filter((fileName) => eager.has(fileName));
+      if (eagerLint.length > 0) {
+        this.error(
+          `[assert-lazy-linter-stays-lazy] \`@objectstack/lint\` is in the EAGER closure ` +
+            `(${eagerLint.join(', ')}), so every console page load pays for it — ~89 KiB ` +
+            `gzipped, measured in objectui#5266.\n\n` +
+            `The linter is imported lazily on purpose (app-shell's capabilityLint.ts). It ` +
+            `becomes eager when an \`advancedChunks\` group claims it, which overrides that ` +
+            `laziness. Check \`VENDOR_OBJECTSTACK_TEST\`: under pnpm the module id is\n` +
+            `  .../node_modules/.pnpm/@objectstack+lint@<v>/node_modules/@objectstack/lint/dist/index.js\n` +
+            `— it matches BOTH of that regex's alternatives, so BOTH need the negative ` +
+            `lookahead. Guarding one alternative alone leaves the other matching and looks ` +
+            `like a fix while changing nothing.\n\n` +
+            `Do NOT "fix" this by switching the import to \`@objectstack/lint/runtime\` — that ` +
+            `subpath reaches 70 of the 72 modules the main entry does, is 93.6% of its size, ` +
+            `and does not export \`validateCapabilityReferences\` at all (objectstack#9772).`,
+        );
+      }
     },
   };
 }
@@ -191,7 +281,28 @@ const OPTIMIZE_DEPS_INCLUDE = [
 // Baseline `vendor-objectstack` grouping: the installed spec/client, reached
 // either through `node_modules/@objectstack/` or through pnpm's flattened
 // `@objectstack+<pkg>` store path.
-const VENDOR_OBJECTSTACK_TEST = /([\\/]node_modules[\\/]@objectstack[\\/]|[\\/]@objectstack\+)/;
+//
+// `@objectstack/lint` is excluded. It is reached from exactly one place —
+// `packages/app-shell/src/preview/capabilityLint.ts`, through a deliberate
+// `await import('@objectstack/lint')` that runs only when an author publishes
+// in the metadata designer. Without the exclusion this group overrides that
+// async-only reachability and folds the linter in beside `@objectstack/spec`
+// and `@objectstack/client`, which the app entry reaches synchronously — so
+// the group's chunk is a STATIC import of the entry and every console page
+// load downloads and parses the whole linter (objectui#5266).
+//
+// BOTH alternatives need the guard, and that is not redundancy: under pnpm a
+// dependency resolves through the store, so the module's id is
+//   .../node_modules/.pnpm/@objectstack+lint@<v>/node_modules/@objectstack/lint/dist/index.js
+// — one path containing BOTH `/@objectstack+` and `/node_modules/@objectstack/`.
+// Guarding either alternative alone leaves the other one matching, and the
+// linter stays in the eager chunk with no visible symptom.
+//
+// The lookaheads are deliberately tight: `lint[\\/]` and `lint@` match the
+// `lint` package only, so a future `@objectstack/lint-*` sibling still groups
+// here rather than silently scattering into its importers' chunks.
+const VENDOR_OBJECTSTACK_TEST =
+  /([\\/]node_modules[\\/]@objectstack[\\/](?!lint[\\/])|[\\/]@objectstack\+(?!lint@))/;
 
 // Opt-in override of the installed `@objectstack/spec` — the spec twin of
 // OBJECTSTACK_CLIENT_DIST above, so a framework build can bundle the console
@@ -249,6 +360,10 @@ export default defineConfig({
     react(),
     // Inject <link rel="modulepreload"> for critical chunks
     preloadCriticalChunks(),
+    // Fails the build if the lazily-imported linter is folded back into an
+    // eagerly-loaded chunk. Runs on CI/Vercel too — it costs microseconds and
+    // the regression it catches is invisible in every other signal.
+    assertLazyLinterStaysLazy(),
     // maplibre-gl loads its worker as a sibling of its own chunk URL — an
     // edge no bundler can see — so the worker (and the shared module it
     // imports) must be copied into assets/ or every map page 404s
