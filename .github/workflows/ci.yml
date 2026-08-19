@@ -585,13 +585,46 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
+      # ── No `apt-get` on this path any more (objectui#5304) ────────────────
+      # `playwright install --with-deps` / `install-deps` shell out to
+      # `apt-get update` as root. On 2026-08-19 that hung this job three times,
+      # each for the full 30-minute ceiling, with a byte-identical last line —
+      # `Get:5 https://archive.ubuntu.com/ubuntu noble-security InRelease
+      # [126 kB]` — after the runner's Azure mirror answered `Ign:` for all four
+      # noble indexes and apt fell back to archive.ubuntu.com:
+      #   #5290 job 95986117935  07:05:48 -> cancelled 07:34:39 (30m14s)
+      #   #5290 job 95993643751  07:38:31 -> cancelled 08:07:32 (30m18s, re-run)
+      #   #5294 job 95988703670  07:17:27 -> cancelled 07:46:21 (30m17s)
+      # apt has no timeout covering a mirror that connects and then trickles, so
+      # the only backstop was `timeout-minutes: 30` — which converts a transient
+      # network fault into a CANCELLED check: a gate that reports nothing at all.
+      #
+      # A transient, not a property of the workflow: on #5290 the
+      # `Live E2E (informational)` job (95986118258) ran the same `install-deps`
+      # on the same commit in the same minute and went green in 3m26s. Which is
+      # why the call has to be bounded rather than trusted.
+      #
+      # Browser binaries come from the cache step above, never from apt
+      # (measured on the run that then hung: `Cache hit for:
+      # playwright-Linux-1.62.1`, 269 MB restored). `install` without
+      # `--with-deps` fetches them from Playwright's CDN and touches no mirror,
+      # so the cache-miss path is safe as spelled.
       - name: Install Playwright browsers
         if: steps.relevant.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install chromium
 
-      - name: Install Playwright system dependencies
-        if: steps.relevant.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
+      # The system libraries are on the `ubuntu-latest` image already — it ships
+      # Chrome, Edge and Firefox, whose shared-library closure is the one
+      # `install-deps chromium` asks for. Rather than assume that, this step
+      # PROVES it on every run by launching the same bundled Chromium the suite
+      # launches, and reaches for apt only if the launch fails — bounded, so a
+      # stalled mirror costs seconds instead of the job. It is not a softener:
+      # if no browser can be made to launch the script exits non-zero and this
+      # job goes red. Rationale and the incident log: the script's header;
+      # behaviour pinned by `scripts/__tests__/ensure-chromium-ready.test.ts`.
+      - name: Ensure Chromium can launch
+        if: steps.relevant.outputs.should_run == 'true'
+        run: bash scripts/ensure-chromium-ready.sh
 
       - name: Run E2E tests
         if: steps.relevant.outputs.should_run == 'true'
