@@ -138,17 +138,6 @@ export const SERVICE_ENDPOINT_CATALOG: Record<string, { group: string; defaultRo
       { method: 'GET', path: '/usage', desc: 'AI quota headroom per meter (console usage indicator)' },
     ],
   },
-  workflow: {
-    group: 'Workflow',
-    defaultRoute: '/api/v1/workflow',
-    endpoints: [
-      { method: 'GET', path: '/:object/config', desc: 'Get workflow configuration' },
-      { method: 'GET', path: '/:object/:recordId/state', desc: 'Get workflow state' },
-      { method: 'POST', path: '/:object/:recordId/transition', desc: 'Execute workflow transition', bodyTemplate: { targetState: '' } },
-      { method: 'POST', path: '/:object/:recordId/approve', desc: 'Approve workflow step', bodyTemplate: { comment: '' } },
-      { method: 'POST', path: '/:object/:recordId/reject', desc: 'Reject workflow step', bodyTemplate: { comment: '' } },
-    ],
-  },
   realtime: {
     group: 'Realtime',
     defaultRoute: '/api/v1/realtime',
@@ -207,14 +196,6 @@ export const SERVICE_ENDPOINT_CATALOG: Record<string, { group: string; defaultRo
       { method: 'POST', path: '/views', desc: 'Create view', bodyTemplate: { name: '', object: '', type: 'list' } },
       { method: 'PATCH', path: '/views/:id', desc: 'Update view', bodyTemplate: { name: '' } },
       { method: 'DELETE', path: '/views/:id', desc: 'Delete view' },
-    ],
-  },
-  feed: {
-    group: 'Feed',
-    defaultRoute: '/api/v1/feed',
-    endpoints: [
-      { method: 'GET', path: '/:object/:recordId', desc: 'Get feed items' },
-      { method: 'POST', path: '/:object/:recordId', desc: 'Post feed item', bodyTemplate: { body: '' } },
     ],
   },
   // The KEY is the canonical service-slot name, because it is looked up

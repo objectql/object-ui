@@ -158,18 +158,6 @@ describe('useApiDiscovery — fail-closed posture is preserved (ADR-0076 D12)', 
 describe('SERVICE_ENDPOINT_CATALOG keys are canonical service-slot names', () => {
   const SLOTS = new Set<string>(CoreServiceName.options);
 
-  /**
-   * Catalog keys that are NOT slots and are known-dead, with the finding that
-   * tracks them: objectui#4303. `workflow`'s slot was retired in
-   * objectstack#4451 and `feed` never was one, so neither can ever appear in
-   * `/discovery` — there is no correctly-spelled name to rename them to, which
-   * is why they are excepted here instead of fixed in #4240.
-   *
-   * This is a subset check, so REMOVING either key keeps this green; only
-   * adding a new non-slot key goes red.
-   */
-  const KNOWN_DEAD_NON_SLOT_KEYS = new Set(['workflow', 'feed']);
-
   it('the spec exports a usable slot vocabulary (guards the derivation itself)', () => {
     expect(SLOTS.size).toBeGreaterThan(5);
     expect(SLOTS.has('file-storage'), 'file-storage must be a declared CoreServiceName slot').toBe(true);
@@ -181,15 +169,14 @@ describe('SERVICE_ENDPOINT_CATALOG keys are canonical service-slot names', () =>
     expect(SERVICE_ENDPOINT_CATALOG['file-storage'].defaultRoute).toBe('/api/v1/storage');
   });
 
-  it('every service-gated catalog key is a canonical slot, except the documented dead ones (#4303)', () => {
+  it('every service-gated catalog key is a canonical slot', () => {
     const nonSlot = Object.keys(SERVICE_ENDPOINT_CATALOG).filter(k => !SLOTS.has(k));
-    const undocumented = nonSlot.filter(k => !KNOWN_DEAD_NON_SLOT_KEYS.has(k));
 
     expect(
-      undocumented,
+      nonSlot,
       'these catalog keys name no CoreServiceName slot, so /discovery can never report them '
         + 'and their groups will never render on any host — key them by the canonical slot name, '
-        + 'or retire the entry (see objectui#4303)',
+        + 'or retire the entry',
     ).toEqual([]);
   });
 });
