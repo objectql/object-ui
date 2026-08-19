@@ -51,67 +51,104 @@ import { foldFilterGroupToSpecRules, FILTER_FOLD_REFUSAL_KEYS } from '../viewFil
 import { ColorVariantPicker } from './color-variant-field';
 import { ConditionBuilder } from './inspectors/ConditionBuilder';
 import { expressionSource, writeExpressionSource } from './inspectors/expression-envelope';
-import { isLoading, loadErrorOf, loadedData, usePickerLoad } from './loadState';
+import {
+  type LoadState,
+  isLoading,
+  loadErrorOf,
+  loadedData,
+  NOT_ASKED,
+  offeredOptions,
+  usePickerLoad,
+} from './loadState';
 
-/**
- * Load failures for the option catalogs on {@link WidgetContext}, by catalog
- * (objectui#5170).
- *
- * A key is present **only** when that catalog's load FAILED. It is absent for a
- * catalog that completed and found nothing, and absent for one that was never
- * asked (no source object bound) — a miss and a fault are different facts
- * (ADR-0110 D3).
- *
- * ⚠️ A picker MUST consult this **before** it renders its catalog. The catalog
- * arrays are still empty on failure, so `objectFields.length === 0` on its own
- * cannot tell "this object has no fields" from "we could not ask" — that
- * conflation is the defect this type exists to close. `ResourceEditPage` holds
- * the authoritative four-arm `LoadState` (see `./loadState`) and projects the
- * failure arm here; the empty array is the fallback for consumers that cannot
- * render a failure, never a claim that the catalog is empty.
- *
- * `fields` covers the action catalog as well: both come from the one
- * `client.get('object', …)` request, so they fail together.
- */
-export interface CatalogErrors {
-  /** The object-name list could not be loaded (`ref:object`, `object-selector`). */
-  objects?: string;
-  /** The bound object's field AND action catalogs could not be loaded. */
-  fields?: string;
-  /** The bound object's view catalog could not be loaded (`view-ref`). */
-  views?: string;
+/* -------------------------------------------------------------------------- */
+/* The option catalogs a picker reads off {@link WidgetContext}                */
+/* -------------------------------------------------------------------------- */
+
+/** One entry of the bound object's field catalog (`field-ref`, `field-multi`). */
+export interface ObjectFieldOption {
+  name: string;
+  label?: string;
+  type?: string;
 }
 
+/** One entry of the source object's view catalog (`view-ref`). */
+export interface ObjectViewOption {
+  name: string;
+  label?: string;
+}
+
+/** One entry of the source object's action catalog (`action-multi`). */
+export interface ObjectActionOption {
+  name: string;
+  label?: string;
+  locations?: string[];
+}
+
+/**
+ * A catalog handed to the pickers, in whichever of the four states its load is
+ * actually in (objectui#5228).
+ *
+ * ## What this replaced, and why the replacement is a type and not a rule
+ *
+ * Until objectui#5228 this boundary spelled a catalog as a plain array plus two
+ * side channels — a `*Loading` flag and a `catalogErrors` record — which meant a
+ * FAILED load arrived here as `[]`, byte-identical to a load that completed and
+ * found nothing. Nothing in the types said the failure channel existed: the
+ * requirement lived in `CatalogErrors`' own doc comment, which had to open with
+ * "a picker MUST consult this before it renders its catalog". That is a comment
+ * doing a type's job, and it is one line away from being ignored —
+ *
+ * ```ts
+ * const fields = context?.objectFields ?? [];   // type-correct, reads fine,
+ * ```
+ *
+ * — which renders a refusal, a dropped connection or an expired session as the
+ * metadata graph's own answer of "this object has no fields", the defect
+ * objectui#5170 and objectui#5169 were filed for.
+ *
+ * As a union that read does not compile: `LoadState<T>` is not an array, so
+ * every site that wants the list has to go through {@link offeredOptions},
+ * whose parameter type excludes the `error` arm. The failure decision stops
+ * being a rule a reviewer has to remember and becomes a precondition the
+ * compiler checks, at exactly the sites that must decide what a failure looks
+ * like.
+ *
+ * ## Absent still means something
+ *
+ * The catalogs stay optional — a host that never fetches views omits
+ * `objectViews` — and absence reads as {@link NOT_ASKED}, the `idle` arm. A
+ * question never asked is not a failure and must not render as one (ADR-0110
+ * D3).
+ */
 export interface WidgetContext {
-  /** Names of all object metadata records (for `ref:object`). */
-  objectNames?: string[];
-  /** Loading flag for the object list. */
-  objectsLoading?: boolean;
+  /** Names of all object metadata records (for `ref:object`, `object-selector`). */
+  objectNames?: LoadState<string[]>;
   /**
-   * Field catalog of the bound object. Drives the `field-ref` /
-   * `field-multi` pickers so View config props that reference a field
-   * (kanban.groupByField, calendar.startDateField, chart.xAxisField, …)
-   * render as dropdowns of the object's real fields instead of free text.
+   * Field catalog of the bound object. Drives the `field-ref` / `field-multi`
+   * pickers so View config props that reference a field (kanban.groupByField,
+   * calendar.startDateField, chart.xAxisField, …) render as dropdowns of the
+   * object's real fields instead of free text.
    */
-  objectFields?: Array<{ name: string; label?: string; type?: string }>;
-  /** Loading flag for the field catalog. */
-  objectFieldsLoading?: boolean;
+  objectFields?: LoadState<ObjectFieldOption[]>;
   /**
-   * View catalog of the bound/source object. Drives the `view-ref` picker
-   * so `interfaceConfig.sourceView` renders as a dropdown of the source
-   * object's real views instead of a free-text name the author can typo.
+   * View catalog of the bound/source object. Drives the `view-ref` picker so
+   * `interfaceConfig.sourceView` renders as a dropdown of the source object's
+   * real views instead of a free-text name the author can typo.
    */
-  objectViews?: Array<{ name: string; label?: string }>;
-  /** Loading flag for the view catalog. */
-  objectViewsLoading?: boolean;
+  objectViews?: LoadState<ObjectViewOption[]>;
   /**
    * Action catalog of the bound/source object. Drives the `action-multi`
    * picker so interface-page toolbar `buttons` reference the object's real
    * actions (ActionSchema) instead of free-text — correct-by-construction.
+   *
+   * Rides the same request as {@link WidgetContext.objectFields} today, and
+   * `ResourceEditPage` derives both from that one state (see `mapLoaded`), so
+   * the two agree by construction rather than by the reader knowing they share
+   * a fetch — which is what the old `catalogErrors.fields` key, consulted by
+   * the *action* picker to learn whether *actions* had failed, asked of them.
    */
-  objectActions?: Array<{ name: string; label?: string; locations?: string[] }>;
-  /** Loading flag for the action catalog. */
-  objectActionsLoading?: boolean;
+  objectActions?: LoadState<ObjectActionOption[]>;
   /**
    * Per-value sub-schemas for the `dynamic-config` widget: a map from a parent
    * field's value (e.g. the chosen driver id) to the JSON-Schema describing the
@@ -127,12 +164,16 @@ export interface WidgetContext {
    * free-text id the author can typo.
    */
   componentIds?: Array<{ id: string; type?: string; label?: string }>;
-  /**
-   * Which of the catalogs above FAILED to load. See {@link CatalogErrors} —
-   * a picker checks this before it renders an empty catalog as "none exist".
-   */
-  catalogErrors?: CatalogErrors;
 }
+
+/* Stable empties for the arms that have no catalog to offer yet — `idle` and
+   `loading`. Module-level so {@link offeredOptions} returns the SAME array
+   across renders and a memo downstream of it does not churn. Never a failure
+   fallback: no failure can reach `offeredOptions` at all. */
+const NO_OBJECT_NAMES: string[] = [];
+const NO_OBJECT_FIELDS: ObjectFieldOption[] = [];
+const NO_OBJECT_VIEWS: ObjectViewOption[] = [];
+const NO_OBJECT_ACTIONS: ObjectActionOption[] = [];
 
 export interface WidgetProps {
   /**
@@ -270,27 +311,20 @@ function RefObjectWidget({
   context,
 }: WidgetProps) {
   const locale = useMetadataLocale();
-  const names = context?.objectNames ?? [];
+  const objectsState = context?.objectNames ?? NOT_ASKED;
   const v = value == null ? '' : String(value);
-  if (context?.objectsLoading) {
-    return (
-      <Input
-        id={id}
-        value={v}
-        disabled
-        placeholder={t('engine.form.loadingObjects', locale)}
-      />
-    );
-  }
   // The object list FAILED to load — not the same fact as "there are no
   // objects", which is what the empty branch below says out loud (objectui#5170).
   // The freeform input is kept, and enabled, so a failed catalog does not also
   // block authoring.
-  const loadError = context?.catalogErrors?.objects;
-  if (loadError) {
+  //
+  // objectui#5228: this arm is now checked because the compiler makes it be —
+  // `offeredOptions` below refuses a state that still carries the `error` arm,
+  // so the list cannot be read until this decision is written down.
+  if (objectsState.status === 'error') {
     return (
       <div className="space-y-1.5">
-        <PickerLoadFailure message={loadError} testId="ref-object-load-failed" />
+        <PickerLoadFailure message={objectsState.message} testId="ref-object-load-failed" />
         <Input
           id={id}
           value={v}
@@ -300,6 +334,17 @@ function RefObjectWidget({
       </div>
     );
   }
+  if (isLoading(objectsState)) {
+    return (
+      <Input
+        id={id}
+        value={v}
+        disabled
+        placeholder={t('engine.form.loadingObjects', locale)}
+      />
+    );
+  }
+  const names = offeredOptions(objectsState, NO_OBJECT_NAMES);
   // If list is empty (e.g. no objects defined yet), fall back to a
   // freeform text input so the user can still type a value.
   if (names.length === 0) {
@@ -465,7 +510,7 @@ function ObjectSelectorWidget({
   fieldSpec,
 }: WidgetProps) {
   const locale = useMetadataLocale();
-  const names = context?.objectNames ?? [];
+  const objectsState = context?.objectNames ?? NOT_ASKED;
   const multiple = fieldSpec?.multiple ?? false;
   
   // Parse value: string[], string (comma-separated), or empty
@@ -496,7 +541,7 @@ function ObjectSelectorWidget({
     onChange(multiple ? newSelection : '');
   };
 
-  if (context?.objectsLoading) {
+  if (isLoading(objectsState)) {
     return <Input id={id} value={t('engine.form.loadingObjects', locale)} readOnly disabled />;
   }
 
@@ -504,55 +549,65 @@ function ObjectSelectorWidget({
   // otherwise render as a completed, empty dropdown — indistinguishable from an
   // install that genuinely has no objects. Already-selected values stay visible
   // and removable; only the "add" picker is replaced.
-  const loadError = context?.catalogErrors?.objects;
+  /* Whatever is already selected, kept visible and removable in EVERY arm —
+     the shape objectui#5227 landed for `field-selector`: a failed catalog must
+     not also block authoring. */
+  const selectedChips = selectedValues.length > 0 && (
+    <div className="flex flex-wrap gap-2">
+      {selectedValues.map(obj => (
+        <div
+          key={obj}
+          className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-sm"
+        >
+          <span>{obj}</span>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => handleRemove(obj)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  if (objectsState.status === 'error') {
+    return (
+      <div className="space-y-2">
+        {selectedChips}
+        <PickerLoadFailure message={objectsState.message} testId="object-selector-load-failed" />
+      </div>
+    );
+  }
+
+  const names = offeredOptions(objectsState, NO_OBJECT_NAMES);
 
   return (
     <div className="space-y-2">
       {/* Selected items */}
-      {selectedValues.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {selectedValues.map(obj => (
-            <div
-              key={obj}
-              className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-sm"
-            >
-              <span>{obj}</span>
-              {!readOnly && (
-                <button
-                  type="button"
-                  onClick={() => handleRemove(obj)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      {selectedChips}
 
       {/* Object picker */}
-      {loadError ? (
-        <PickerLoadFailure message={loadError} testId="object-selector-load-failed" />
-      ) : (
-        <Select
-          value=""
-          onValueChange={handleToggle}
-          disabled={readOnly || names.length === 0}
-        >
-          <SelectTrigger id={id}>
-            <SelectValue placeholder={multiple ? t('engine.form.addObjects', locale) : t('engine.form.selectObject', locale)} />
-          </SelectTrigger>
-          <SelectContent>
-            {names.map(name => (
-              <SelectItem key={name} value={name} disabled={!multiple && selectedValues.includes(name)}>
-                {name}
-                {selectedValues.includes(name) && ' ✓'}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
+      <Select
+        value=""
+        onValueChange={handleToggle}
+        disabled={readOnly || names.length === 0}
+      >
+        <SelectTrigger id={id}>
+          <SelectValue placeholder={multiple ? t('engine.form.addObjects', locale) : t('engine.form.selectObject', locale)} />
+        </SelectTrigger>
+        <SelectContent>
+          {names.map(name => (
+            <SelectItem key={name} value={name} disabled={!multiple && selectedValues.includes(name)}>
+              {name}
+              {selectedValues.includes(name) && ' ✓'}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
@@ -577,8 +632,8 @@ const EMPTY_FIELD_SELECTOR_OPTIONS: FieldSelectorOption[] = [];
  *
  * This is the one loader in this family that does NOT go through
  * `MetadataClient` — it is a raw `fetch` to a REST path no other widget here
- * uses — which is why objectui#5170 missed it and why the `catalogErrors`
- * channel on {@link WidgetContext} does not reach it. It had TWO ways to render
+ * uses — which is why objectui#5170 missed it and why the option catalogs on
+ * {@link WidgetContext} do not reach it. It had TWO ways to render
  * a fault as a measurement, and a union that guarded only the first would have
  * left the second wide open:
  *
@@ -1182,24 +1237,24 @@ const NO_FIELD = '__none__';
  */
 function FieldRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
   const locale = useMetadataLocale();
-  const fields = context?.objectFields ?? [];
+  const fieldsState = context?.objectFields ?? NOT_ASKED;
   const current = value == null ? '' : String(value);
-  const inCatalog = !current || fields.some((f) => f.name === current);
   // Four structurally distinct arms, one per `LoadState` (objectui#5170), so a
   // fault can never be read as a measurement. Note what the empty placeholder
   // below claims: "No object bound" — on a failed load an object IS bound, so
   // that sentence names a cause that is not the real one, which is why the
   // failure arm replaces the picker rather than decorating it (the shape #5110
   // landed for the References panel).
-  const loadError = context?.catalogErrors?.fields;
-  if (loadError) {
-    return <PickerLoadFailure message={loadError} testId="field-ref-load-failed" />;
+  if (fieldsState.status === 'error') {
+    return <PickerLoadFailure message={fieldsState.message} testId="field-ref-load-failed" />;
   }
   // Same in-file precedent as `ref:object` / `object-selector`: an unanswered
   // question renders as "asking", never as an answer of none.
-  if (context?.objectFieldsLoading) {
+  if (isLoading(fieldsState)) {
     return <Input id={id} value={t('engine.form.loadingOptions', locale)} readOnly disabled />;
   }
+  const fields = offeredOptions(fieldsState, NO_OBJECT_FIELDS);
+  const inCatalog = !current || fields.some((f) => f.name === current);
   return (
     <Select
       value={current || NO_FIELD}
@@ -1262,24 +1317,24 @@ export function resolveStoredViewRef(
  */
 function ViewRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
   const locale = useMetadataLocale();
-  const views = context?.objectViews ?? [];
+  const viewsState = context?.objectViews ?? NOT_ASKED;
   const current = value == null ? '' : String(value);
+  // objectui#5170 — same four arms as {@link FieldRefWidget}. The empty
+  // placeholder says "No object bound", which is false when the object IS bound
+  // and only its view catalog could not be fetched.
+  if (viewsState.status === 'error') {
+    return <PickerLoadFailure message={viewsState.message} testId="view-ref-load-failed" />;
+  }
+  if (isLoading(viewsState)) {
+    return <Input id={id} value={t('engine.form.loadingOptions', locale)} readOnly disabled />;
+  }
+  const views = offeredOptions(viewsState, NO_OBJECT_VIEWS);
   // Mirror the runtime resolver (InterfaceListPage.resolveSourceView): a stored
   // value resolves if it's an exact view name, OR a bare name matching a view's
   // `<object>.<name>` suffix, OR the special `default`/`list` (→ object default
   // view). Only a value that resolves to NOTHING gets the "(not in object)" tag —
   // so a working bare value like `default` is no longer mislabelled.
   const { suffixMatch, resolves, showStored } = resolveStoredViewRef(views, current);
-  // objectui#5170 — same four arms as {@link FieldRefWidget}. The empty
-  // placeholder says "No object bound", which is false when the object IS bound
-  // and only its view catalog could not be fetched.
-  const loadError = context?.catalogErrors?.views;
-  if (loadError) {
-    return <PickerLoadFailure message={loadError} testId="view-ref-load-failed" />;
-  }
-  if (context?.objectViewsLoading) {
-    return <Input id={id} value={t('engine.form.loadingOptions', locale)} readOnly disabled />;
-  }
   return (
     <Select
       value={current || NO_FIELD}
@@ -1327,7 +1382,14 @@ function ViewRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) 
  */
 function FieldRefMultiWidget({ value, onChange, readOnly, context, ariaLabelledBy }: WidgetProps) {
   const locale = useMetadataLocale();
-  const fields = context?.objectFields ?? [];
+  const fieldsState = context?.objectFields ?? NOT_ASKED;
+  // objectui#5228 — the failure is decided here, before the catalog is read:
+  // `offeredOptions` below does not accept a state that still carries the
+  // `error` arm, so the add picker cannot be fed a list without this line.
+  const loadError = loadErrorOf(fieldsState);
+  const fields = fieldsState.status === 'error'
+    ? NO_OBJECT_FIELDS
+    : offeredOptions(fieldsState, NO_OBJECT_FIELDS);
   const selected: string[] = Array.isArray(value)
     ? value.map(String)
     : typeof value === 'string' && value
@@ -1335,7 +1397,6 @@ function FieldRefMultiWidget({ value, onChange, readOnly, context, ariaLabelledB
       : [];
   const labelFor = (name: string) => fields.find((f) => f.name === name)?.label || name;
   const remaining = fields.filter((f) => !selected.includes(f.name));
-  const loadError = context?.catalogErrors?.fields;
 
   const add = (name: string) => {
     if (!selected.includes(name)) onChange([...selected, name]);
@@ -1654,11 +1715,15 @@ const slugifyTabName = (s: string): string =>
 function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }: WidgetProps) {
   const uf = (value && typeof value === 'object' ? value : undefined) as UFValue | undefined;
   const mode: 'none' | UFElement = uf?.element ?? (uf ? 'dropdown' : 'none');
-  const objectFields = context?.objectFields ?? [];
+  const fieldsState = context?.objectFields ?? NOT_ASKED;
   // objectui#5170 — every "Bind a source object…" line below is a CAUSE claim.
   // On a failed catalog load a source object IS bound, so each of them names
-  // the wrong reason; the failure state replaces them.
-  const loadError = context?.catalogErrors?.fields;
+  // the wrong reason; the failure state replaces them. objectui#5228: reading
+  // the catalog at all now requires having written this decision first.
+  const loadError = loadErrorOf(fieldsState);
+  const objectFields = fieldsState.status === 'error'
+    ? NO_OBJECT_FIELDS
+    : offeredOptions(fieldsState, NO_OBJECT_FIELDS);
 
   const setMode = (next: 'none' | UFMode) => {
     if (readOnly) return;
@@ -1906,11 +1971,16 @@ function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }
 /* -------------------------------------------------------------------------- */
 function ActionMultiWidget({ value, onChange, readOnly, context, ariaLabelledBy }: WidgetProps) {
   const locale = useMetadataLocale();
-  const actions = context?.objectActions ?? [];
-  // The action catalog rides the SAME `client.get('object', …)` request as the
-  // field catalog, so it has no separate failure — one request, one fault
-  // (objectui#5170).
-  const loadError = context?.catalogErrors?.fields;
+  const actionsState = context?.objectActions ?? NOT_ASKED;
+  // objectui#5228 — this picker used to read `catalogErrors.fields` to learn
+  // whether the ACTION catalog had failed, because the two ride the same
+  // `client.get('object', …)` request. That is still true, but it is now the
+  // producer's job to say so (`ResourceEditPage` derives both catalogs from the
+  // one `LoadState`), and this picker simply reads its own.
+  const loadError = loadErrorOf(actionsState);
+  const actions = actionsState.status === 'error'
+    ? NO_OBJECT_ACTIONS
+    : offeredOptions(actionsState, NO_OBJECT_ACTIONS);
   const selected: string[] = Array.isArray(value)
     ? value.map(String)
     : typeof value === 'string' && value
@@ -2087,6 +2157,11 @@ function FilterBuilderField({ value, onChange, fields, readOnly, id, loadError }
 }
 
 function FilterBuilderWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
+  const fieldsState = context?.objectFields ?? NOT_ASKED;
+  const loadError = loadErrorOf(fieldsState);
+  const fields = fieldsState.status === 'error'
+    ? NO_OBJECT_FIELDS
+    : offeredOptions(fieldsState, NO_OBJECT_FIELDS);
   return (
     // The whole face is ONE labelable element — a popover trigger `<button>` —
     // so this stays on the plain `<label for>` channel and simply stops dropping
@@ -2095,8 +2170,8 @@ function FilterBuilderWidget({ id, value, onChange, readOnly, context }: WidgetP
       id={id}
       value={value as FilterRuleLite[] | undefined}
       onChange={(rules) => onChange(rules.length ? rules : undefined)}
-      fields={context?.objectFields ?? []}
-      loadError={context?.catalogErrors?.fields}
+      fields={fields}
+      loadError={loadError}
       readOnly={readOnly}
     />
   );
@@ -2233,6 +2308,14 @@ function ColorInputWidget({ id, value, onChange, readOnly }: WidgetProps) {
  * also serves keep round-tripping as strings.
  */
 function ConditionWidget({ value, onChange, readOnly, context, ariaLabelledBy }: WidgetProps) {
+  // objectui#5228 — `ConditionBuilder` renders a field dropdown and has no
+  // failure state of its own, so a failed catalog reaches it as "no fields to
+  // pick from". Passing `undefined` rather than an empty array is what it
+  // already treats as "no catalog wired": the two arms it cannot tell apart are
+  // collapsed onto the one that does NOT assert the object has no fields.
+  const fieldsState = context?.objectFields ?? NOT_ASKED;
+  const conditionFields =
+    fieldsState.status === 'loaded' ? fieldsState.data : undefined;
   return (
     // `ConditionBuilder` is a multi-control composite (field / operator / value
     // rows plus add-condition buttons) shared with the curated inspectors, so
@@ -2242,7 +2325,7 @@ function ConditionWidget({ value, onChange, readOnly, context, ariaLabelledBy }:
       <ConditionBuilder
         value={expressionSource(value)}
         onCommit={(cel) => onChange(writeExpressionSource(value, cel))}
-        fields={context?.objectFields}
+        fields={conditionFields}
         disabled={readOnly}
       />
     </div>

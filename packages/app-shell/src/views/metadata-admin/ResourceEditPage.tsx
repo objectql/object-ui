@@ -93,13 +93,13 @@ import {
   DRAWER_METADATA_ID_SCOPE,
   type SchemaFormIssue,
 } from './SchemaForm';
-import { collectPageComponentIds, type CatalogErrors } from './widgets';
 import {
-  loadErrorOf,
-  loadedData,
-  isLoading,
-  usePickerLoad,
-} from './loadState';
+  collectPageComponentIds,
+  type ObjectActionOption,
+  type ObjectFieldOption,
+  type WidgetContext,
+} from './widgets';
+import { mapLoaded, usePickerLoad } from './loadState';
 import {
   useMetadataClient,
   useMetadataTypes,
@@ -282,16 +282,9 @@ type ReferencesState =
 
 /** The two catalogs the single `client.get('object', …)` call yields. */
 type ObjectCatalog = {
-  fields: Array<{ name: string; label?: string; type?: string }>;
-  actions: Array<{ name: string; label?: string; locations?: string[] }>;
+  fields: ObjectFieldOption[];
+  actions: ObjectActionOption[];
 };
-
-// Module-level empties so the derived catalogs keep a stable identity across
-// renders — `widgetContext` memoises on them, and a fresh `[]` per render would
-// defeat that for every consumer downstream.
-const EMPTY_OBJECT_NAMES: string[] = [];
-const EMPTY_OBJECT_VIEWS: Array<{ name: string; label?: string }> = [];
-const EMPTY_OBJECT_CATALOG: ObjectCatalog = { fields: [], actions: [] };
 
 interface MetadataResourceEditPageImplProps {
   type: string;
@@ -659,8 +652,6 @@ function MetadataResourceEditPageImpl({
       return list.map((x) => x?.name).filter((n): n is string => !!n).sort();
     }, [client]),
   );
-  const objectNames = loadedData(objectsState, EMPTY_OBJECT_NAMES);
-  const objectsLoading = isLoading(objectsState);
   // Field catalog of the draft's bound/source object — fuels field-picker
   // widgets (e.g. the interface-page filter-mode selector). For a page the
   // source is `interfaceConfig.source` (interface mode) or the bound
@@ -695,9 +686,6 @@ function MetadataResourceEditPageImpl({
       [client, sourceObjectName],
     ),
   );
-  const objectFields = loadedData(objectCatalogState, EMPTY_OBJECT_CATALOG).fields;
-  const objectActions = loadedData(objectCatalogState, EMPTY_OBJECT_CATALOG).actions;
-  const objectFieldsLoading = isLoading(objectCatalogState);
 
   // View catalog of the source object — fuels the `view-ref` picker for
   // `interfaceConfig.sourceView` so the author chooses an existing view
@@ -723,8 +711,6 @@ function MetadataResourceEditPageImpl({
       [client, sourceObjectName],
     ),
   );
-  const objectViews = loadedData(objectViewsState, EMPTY_OBJECT_VIEWS);
-  const objectViewsLoading = isLoading(objectViewsState);
 
   // Component ids placed on the page being edited — fuels the `ref:component`
   // picker so a page variable's `source` (the component that writes it) is
@@ -736,30 +722,31 @@ function MetadataResourceEditPageImpl({
     [type, draft],
   );
 
-  // `catalogErrors` is the failure arm of the three loaders above, carried to
-  // the pickers (objectui#5170). A key is present ONLY when that catalog's load
-  // FAILED — never for a catalog that completed and found nothing, and never for
-  // one that was never asked (no source object bound). The catalog arrays stay
-  // empty on failure, which is exactly why the pickers must consult this first:
-  // an empty array can no longer be read as "the answer is none" without also
-  // checking whether the question was answered at all.
+  // Each loader's `LoadState` reaches the pickers WHOLE (objectui#5228).
   //
-  // `fields` covers `objectActions` too — both come from the single
-  // `client.get('object', …)` call, so there is one failure, not two.
-  const catalogErrors = React.useMemo<CatalogErrors>(() => {
-    const errors: CatalogErrors = {};
-    const objects = loadErrorOf(objectsState);
-    const fields = loadErrorOf(objectCatalogState);
-    const views = loadErrorOf(objectViewsState);
-    if (objects) errors.objects = objects;
-    if (fields) errors.fields = fields;
-    if (views) errors.views = views;
-    return errors;
-  }, [objectsState, objectCatalogState, objectViewsState]);
-
-  const widgetContext = React.useMemo(
-    () => ({ objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading, objectActions, componentIds, catalogErrors }),
-    [objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading, objectActions, componentIds, catalogErrors],
+  // This used to project each one down into a pair — the catalog array plus a
+  // `*Loading` flag — with the failure arm sent alongside on a separate
+  // `catalogErrors` record. That projection is what let a failed load arrive as
+  // `[]`, byte-identical to a load that completed and found nothing, with the
+  // rule that a picker must consult the side channel first living in a doc
+  // comment. Handing the union over intact deletes both the projection and the
+  // rule: a consumer cannot reach the list without the compiler having seen it
+  // decide what a failure renders as.
+  //
+  // `objectFields` and `objectActions` are DERIVED FROM ONE STATE rather than
+  // loaded twice, because they come from one `client.get('object', …)` request:
+  // they succeed together and fail together, and `mapLoaded` is what makes that
+  // true by construction instead of by two independent states happening to
+  // agree.
+  const widgetContext = React.useMemo<WidgetContext>(
+    () => ({
+      objectNames: objectsState,
+      objectFields: mapLoaded(objectCatalogState, (catalog) => catalog.fields),
+      objectActions: mapLoaded(objectCatalogState, (catalog) => catalog.actions),
+      objectViews: objectViewsState,
+      componentIds,
+    }),
+    [objectsState, objectCatalogState, objectViewsState, componentIds],
   );
 
   // Load layered view + initial draft.

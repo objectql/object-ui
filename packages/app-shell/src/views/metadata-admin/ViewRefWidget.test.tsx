@@ -3,6 +3,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { WIDGETS, resolveStoredViewRef } from './widgets';
+import { loaded } from './loadState';
 
 afterEach(cleanup);
 
@@ -26,10 +27,10 @@ describe('view-ref widget', () => {
         value="default"
         onChange={() => {}}
         schema={{ type: 'string' }}
-        context={{ objectViews: [
+        context={{ objectViews: loaded([
           { name: 'default', label: 'All records' },
           { name: 'mine', label: 'My records' },
-        ] }}
+        ]) }}
       />,
     );
     expect(screen.getByRole('combobox')).toBeInTheDocument();
@@ -41,7 +42,7 @@ describe('view-ref widget', () => {
         value={undefined}
         onChange={() => {}}
         schema={{ type: 'string' }}
-        context={{ objectViews: [] }}
+        context={{ objectViews: loaded([]) }}
       />,
     );
     expect(screen.getByRole('combobox')).toBeInTheDocument();
@@ -53,7 +54,7 @@ describe('view-ref widget', () => {
         value="renamed_view"
         onChange={() => {}}
         schema={{ type: 'string' }}
-        context={{ objectViews: [{ name: 'default', label: 'All records' }] }}
+        context={{ objectViews: loaded([{ name: 'default', label: 'All records' }]) }}
       />,
     );
     expect(screen.getByRole('combobox')).toBeInTheDocument();

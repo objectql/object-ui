@@ -297,6 +297,13 @@ function detectFieldRefWidget(
   schema: JsonSchema | undefined,
   widgetContext?: WidgetContext,
 ): string | undefined {
+  // Tests WIRING, not contents: is a field catalog plumbed to this form at all?
+  // Deliberately NOT a read of the catalog — under objectui#5228's union every
+  // arm (`idle` / `loading` / `loaded` / `error`) answers yes, and it must, or a
+  // FAILED catalog would silently demote the picker back to the free-text input
+  // whose typos the picker exists to prevent. The picker itself renders the
+  // failure. (Before the union this line read the same way for a different
+  // reason: the array was `[]` on failure, and `[]` is truthy.)
   if (!widgetContext?.objectFields) return undefined;
   if (Array.isArray(schema?.enum)) return undefined;
 

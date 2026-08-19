@@ -63,6 +63,7 @@ import {
   type RegisteredWidgetKey,
   type WidgetContext,
 } from './widgets';
+import { loaded } from './loadState';
 
 afterEach(cleanup);
 
@@ -114,19 +115,19 @@ function renderCase(c: Case, readOnly: boolean) {
  * added without a probe fails here as well as at the declaration.
  */
 const CASES: Case[] = [
-  { key: 'ref:object', schema: { type: 'string', title: TITLE }, ctx: { objectNames: ['account'] }, value: 'account' },
+  { key: 'ref:object', schema: { type: 'string', title: TITLE }, ctx: { objectNames: loaded(['account']) }, value: 'account' },
   { key: 'ref:object', variant: 'no-objects', schema: { type: 'string', title: TITLE }, ctx: {}, value: 'x' },
   { key: 'ref:component', schema: { type: 'string', title: TITLE }, ctx: { componentIds: [{ id: 'c1' }] }, value: 'c1' },
   { key: 'ref:component', variant: 'no-components', schema: { type: 'string', title: TITLE }, ctx: {}, value: 'c1' },
-  { key: 'filter-mode', schema: { type: 'object', title: TITLE }, ctx: { objectFields: [{ name: 'status' }] }, value: { element: 'dropdown' } },
-  { key: 'object-selector', schema: { type: 'string', title: TITLE }, ctx: { objectNames: ['account'] }, value: 'account' },
-  { key: 'object-selector', variant: 'multiple', schema: { type: 'array', title: TITLE }, spec: { multiple: true }, ctx: { objectNames: ['account', 'contact'] }, value: ['account'] },
+  { key: 'filter-mode', schema: { type: 'object', title: TITLE }, ctx: { objectFields: loaded([{ name: 'status' }]) }, value: { element: 'dropdown' } },
+  { key: 'object-selector', schema: { type: 'string', title: TITLE }, ctx: { objectNames: loaded(['account']) }, value: 'account' },
+  { key: 'object-selector', variant: 'multiple', schema: { type: 'array', title: TITLE }, spec: { multiple: true }, ctx: { objectNames: loaded(['account', 'contact']) }, value: ['account'] },
   { key: 'field-selector', schema: { type: 'string', title: TITLE }, spec: { dependsOn: 'objectName' }, formData: { objectName: '' }, value: '' },
-  { key: 'field-ref', schema: { type: 'string', title: TITLE }, ctx: { objectFields: [{ name: 'status' }] }, value: 'status' },
-  { key: 'field-multi', schema: { type: 'array', title: TITLE }, ctx: { objectFields: [{ name: 'status' }, { name: 'owner' }] }, value: ['status'] },
-  { key: 'action-multi', schema: { type: 'array', title: TITLE }, ctx: { objectActions: [{ name: 'approve' }, { name: 'reject' }] }, value: ['approve'] },
-  { key: 'filter-builder', schema: { type: 'array', title: TITLE }, ctx: { objectFields: [{ name: 'status' }] }, value: [] },
-  { key: 'view-ref', schema: { type: 'string', title: TITLE }, ctx: { objectViews: [{ name: 'all' }] }, value: 'all' },
+  { key: 'field-ref', schema: { type: 'string', title: TITLE }, ctx: { objectFields: loaded([{ name: 'status' }]) }, value: 'status' },
+  { key: 'field-multi', schema: { type: 'array', title: TITLE }, ctx: { objectFields: loaded([{ name: 'status' }, { name: 'owner' }]) }, value: ['status'] },
+  { key: 'action-multi', schema: { type: 'array', title: TITLE }, ctx: { objectActions: loaded([{ name: 'approve' }, { name: 'reject' }]) }, value: ['approve'] },
+  { key: 'filter-builder', schema: { type: 'array', title: TITLE }, ctx: { objectFields: loaded([{ name: 'status' }]) }, value: [] },
+  { key: 'view-ref', schema: { type: 'string', title: TITLE }, ctx: { objectViews: loaded([{ name: 'all' }]) }, value: 'all' },
   { key: 'icon', schema: { type: 'string', title: TITLE }, value: 'check' },
   { key: 'color-picker', schema: { type: 'string', title: TITLE, enum: ['default', 'blue'] }, value: 'blue' },
   { key: 'color-input', schema: { type: 'string', title: TITLE }, value: '#112233' },

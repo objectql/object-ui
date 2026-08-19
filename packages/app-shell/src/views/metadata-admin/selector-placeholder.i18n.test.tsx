@@ -3,6 +3,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { WIDGETS } from './widgets';
+import { loaded } from './loadState';
 import { t } from './i18n';
 
 afterEach(() => {
@@ -35,7 +36,7 @@ describe('metadata-admin selector placeholders (objectui#4387 key collapse)', ()
         schema={{ type: 'string' }}
         value=""
         onChange={() => {}}
-        context={{ objectNames: ['account', 'contact'] }}
+        context={{ objectNames: loaded(['account', 'contact']) }}
         fieldSpec={{ field: 'objectName', multiple: false }}
       />,
     );

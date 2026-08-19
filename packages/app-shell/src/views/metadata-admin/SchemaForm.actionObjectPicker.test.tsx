@@ -3,6 +3,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
 import { SchemaForm } from './SchemaForm';
+import { loaded } from './loadState';
 import { registerBuiltinAnchors } from './anchors';
 import { resolveResourceConfig } from './registry';
 
@@ -34,8 +35,10 @@ describe('SchemaForm — action objectName renders as an object selector (#2325)
         createMode
         onChange={() => {}}
         widgetContext={{
-          objectNames: ['showcase_task', 'showcase_account'],
-          objectsLoading: false,
+          // objectui#5228: the object catalog carries its own load state, so
+          // the separate `objectsLoading: false` this fixture used to set is
+          // now expressed by the arm itself — a load that COMPLETED.
+          objectNames: loaded(['showcase_task', 'showcase_account']),
         }}
       />,
     );

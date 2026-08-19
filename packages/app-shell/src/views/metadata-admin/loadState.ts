@@ -50,11 +50,106 @@ import * as React from 'react';
  *
  * ADR-0110 D3 — a miss and a fault are different facts.
  */
-export type LoadState<T> =
+export type LoadState<T> = FaultFreeLoadState<T> | { status: 'error'; message: string };
+
+/**
+ * Every arm of {@link LoadState} EXCEPT the failure.
+ *
+ * This exists to make one sentence checkable by the compiler instead of asked
+ * for in a doc comment: **a picker may not read its catalog until it has
+ * decided what a failure looks like.** {@link offeredOptions} takes this type,
+ * so a call site that has not narrowed the `error` arm away cannot call it at
+ * all — the decision is a precondition of the read, not a convention around it.
+ *
+ * `LoadState` is declared in terms of this rather than the other way round so
+ * the two can never drift: adding an arm to the union adds it here, and an arm
+ * added HERE is automatically one a picker is allowed to reach the catalog
+ * from. Structurally the union is byte-identical to what it was before the
+ * split (`idle | loading | loaded | error`), so no consumer of `LoadState`
+ * sees a change.
+ *
+ * Note what is NOT in the name: these are not the "successful" arms. `idle` and
+ * `loading` are here because a picker renders its own copy for them (the
+ * "(Select an object first)" / "Loading…" states) — what they share with
+ * `loaded` is only that no fault has been reported, which is exactly the
+ * precondition being enforced.
+ */
+export type FaultFreeLoadState<T> =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'loaded'; data: T }
-  | { status: 'error'; message: string };
+  | { status: 'loaded'; data: T };
+
+/**
+ * The `idle` arm, as the value a consumer substitutes for a catalog slot its
+ * host never wired at all (objectui#5228).
+ *
+ * `WidgetContext`'s catalogs are optional: a host that does not fetch object
+ * views simply omits `objectViews`. That absence is a question never asked —
+ * the same fact `idle` carries — so it resolves to the same arm rather than to
+ * a fabricated empty list. One shared value so the substitution is also
+ * referentially stable: a fresh `{ status: 'idle' }` per render would defeat
+ * the memo on any consumer that keys off catalog identity.
+ */
+export const NOT_ASKED: FaultFreeLoadState<never> = { status: 'idle' };
+
+/**
+ * The options a picker may OFFER, for a state whose failure arm the caller has
+ * already handled (objectui#5228).
+ *
+ * The parameter type is {@link FaultFreeLoadState}, not {@link LoadState}, and
+ * that is the entire point: a caller still holding the `error` arm cannot pass
+ * it, so `const fields = offeredOptions(state, EMPTY)` does not compile until
+ * the line above it has decided what a failure renders as. That is the
+ * difference between this and {@link loadedData}, which accepts any arm and
+ * therefore can only *ask* (in prose) for the same discipline — the shape
+ * objectui#5228 was filed about, a comment doing a type's job.
+ *
+ * `empty` is what the `idle` and `loading` arms offer: nothing yet. It is NOT a
+ * failure fallback — no failure can reach this function.
+ */
+export function offeredOptions<T>(state: FaultFreeLoadState<T>, empty: T): T {
+  return state.status === 'loaded' ? state.data : empty;
+}
+
+/**
+ * Project the data of a COMPLETED load through `select`, passing every other
+ * arm through untouched.
+ *
+ * Used where one request answers two questions: `ResourceEditPage` fetches an
+ * object's fields and its actions in a single `client.get('object', …)`, and
+ * hands the pickers one catalog each. Deriving both from the one state is what
+ * makes them agree by construction — two independently-built states could
+ * report a fault for the fields and success for the actions, which no single
+ * request can actually produce.
+ */
+export function mapLoaded<A, B>(state: LoadState<A>, select: (data: A) => B): LoadState<B> {
+  return state.status === 'loaded' ? { status: 'loaded', data: select(state.data) } : state;
+}
+
+/**
+ * A load that COMPLETED, carrying `data`.
+ *
+ * Mostly a fixture constructor: a test that means "this catalog loaded and
+ * holds these three fields" writes `loaded([...])` instead of restating the
+ * arm's shape, and — the reason it is worth a helper — cannot accidentally
+ * spell a *failed* catalog the same way, which is the defect objectui#5170 and
+ * objectui#5228 are both about.
+ */
+export function loaded<T>(data: T): LoadState<T> {
+  return { status: 'loaded', data };
+}
+
+/**
+ * A load that FAILED, carrying the cause.
+ *
+ * The counterpart to {@link loaded}, and the reason both exist: a suite that
+ * pins "an empty catalog and a failed catalog render differently" needs to
+ * write the two of them side by side, and they must be visibly different
+ * values rather than the same `[]` distinguished by a second argument.
+ */
+export function failed<T>(message: string): LoadState<T> {
+  return { status: 'error', message };
+}
 
 /**
  * Normalise a thrown value into the message the failure state shows.
