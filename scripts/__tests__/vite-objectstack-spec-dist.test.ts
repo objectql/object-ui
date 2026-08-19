@@ -60,8 +60,26 @@ import {
 const require_ = createRequire(import.meta.url);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-/** The baseline `vendor-objectstack` group test, as the console config spells it. */
-const BASE_VENDOR_TEST = /([\\/]node_modules[\\/]@objectstack[\\/]|[\\/]@objectstack\+)/;
+/**
+ * The baseline `vendor-objectstack` group test, as the console config spells it.
+ *
+ * Mirror of `VENDOR_OBJECTSTACK_TEST` in `apps/console/vite.config.ts`. When
+ * that constant changes this one must change with it — but do NOT treat the two
+ * assertions below as a string to re-paste. They pin two different things:
+ * `.source` equality pins that the spec-dist override left the baseline INERT,
+ * and `startsWith` pins that the override WIDENED the baseline instead of
+ * replacing it. The semantic assertions beside them say which modules the
+ * grouping is supposed to catch, so a future edit that keeps the shape while
+ * changing the membership still fails.
+ *
+ * The negative lookaheads exclude `@objectstack/lint` from the group: it is
+ * imported lazily (app-shell's `capabilityLint.ts`) and a group that claims it
+ * overrides that laziness, putting ~89 KiB gzipped on every console page load
+ * (objectui#5266). Both alternatives need the guard — under pnpm the module id
+ * contains both `/@objectstack+` and `/node_modules/@objectstack/`.
+ */
+const BASE_VENDOR_TEST =
+  /([\\/]node_modules[\\/]@objectstack[\\/](?!lint[\\/])|[\\/]@objectstack\+(?!lint@))/;
 
 /** The installed spec package — a real, fully built override target. */
 const installedSpecDir = path.dirname(require_.resolve('@objectstack/spec/package.json'));
@@ -206,6 +224,12 @@ describe('objectui#4854: OBJECTSTACK_SPEC_DIST is subpath-aware', () => {
     expect(outOfTreeInjection.vendorChunkTest.test('/repo/node_modules/.pnpm/@objectstack+spec@1/x.mjs')).toBe(true);
     // And it stays a spec-shaped test, not a catch-all.
     expect(injection.vendorChunkTest.test('/repo/packages/core/src/index.ts')).toBe(false);
+    // The baseline arms' `@objectstack/lint` exclusion survives the widening.
+    expect(
+      outOfTreeInjection.vendorChunkTest.test(
+        '/repo/node_modules/.pnpm/@objectstack+lint@17.0.0/node_modules/@objectstack/lint/dist/index.js'
+      )
+    ).toBe(false);
   });
 
   it('accepts a `dist/` or entry-file spelling of the same package', () => {
@@ -307,6 +331,20 @@ describe('objectui#4854: the four flagged surfaces in the console config', () =>
     const vendor = groups.find((g) => g.name === 'vendor-objectstack');
     expect(vendor).toBeDefined();
     expect(vendor!.test.source).toBe(BASE_VENDOR_TEST.source);
+    // …and what that literal MEANS, so a future rewrite that keeps the shape
+    // but changes the membership cannot pass by pasting a new string in.
+    // Reads off the live config's own regex, never the mirror above.
+    const LINT_ID =
+      '/repo/node_modules/.pnpm/@objectstack+lint@17.0.0/node_modules/@objectstack/lint/dist/index.js';
+    expect(vendor!.test.test(LINT_ID)).toBe(false);
+    // Counter-probe: the packages that DO belong in the group still match, via
+    // both spellings — otherwise the line above would also pass if the group
+    // test had been broken into matching nothing at all.
+    expect(vendor!.test.test('/repo/node_modules/@objectstack/spec/dist/index.js')).toBe(true);
+    expect(vendor!.test.test('/repo/node_modules/.pnpm/@objectstack+spec@17.0.0/x.js')).toBe(true);
+    expect(vendor!.test.test('/repo/node_modules/@objectstack/client/dist/index.js')).toBe(true);
+    // The exclusion is scoped to the `lint` package, not a `lint*` prefix.
+    expect(vendor!.test.test('/repo/node_modules/@objectstack/lint-utils/dist/index.js')).toBe(true);
 
     // 4. server.fs — absent, so Vite keeps its own default allow-list.
     expect(config.server.fs).toBeUndefined();
@@ -350,6 +388,14 @@ describe('objectui#4854: the four flagged surfaces in the console config', () =>
       )!.test;
     expect(vendorOf(injected).source.startsWith(BASE_VENDOR_TEST.source)).toBe(true);
     expect(vendorOf(injected).test(`${fs.realpathSync(installedSpecDir)}/dist/ui/index.mjs`)).toBe(true);
+    // Widening appends an arm; it must not resurrect the lint exclusion the
+    // baseline arms carry, or a spec-dist build would silently re-eagerize the
+    // linter while a released build stayed lazy (objectui#5266).
+    expect(
+      vendorOf(injected).test(
+        '/repo/node_modules/.pnpm/@objectstack+lint@17.0.0/node_modules/@objectstack/lint/dist/index.js'
+      )
+    ).toBe(false);
 
     // 4. server.fs.allow — the workspace root plus the injected package.
     expect(injected.server.fs.allow).toEqual([repoRoot, fs.realpathSync(installedSpecDir)]);
