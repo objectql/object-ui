@@ -839,7 +839,33 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   const generateViewSchema = useCallback((viewType: string): any => {
     const baseProps: Record<string, any> = {
       objectName: schema.objectName,
-      fields: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.fields,
+      // objectui#5269 — the `table` segment reads the CANONICAL key first.
+      //
+      // `ObjectGridSchema.columns` is the canonical spelling and `fields` is
+      // its `@deprecated` alias ("@deprecated Use columns instead"), and
+      // `ObjectViewSchema.table` is `Partial< Omit< ObjectGridSchema, … > >`,
+      // so `table: { columns: [...] }` is the shape the type recommends. It
+      // reached the grid path (which forwards `table.columns` into its own
+      // `columns` slot) and stopped here: this line read the deprecated half
+      // alone, so an author who wrote the canonical key on a non-grid view got
+      // an empty field list from a compile-clean, semantically correct schema.
+      // Same user-visible shape as objectui#5102, different mechanism — not a
+      // whitelist that knows only legacy spellings, but one that disagreed
+      // with itself between two rendering paths.
+      //
+      // Forwarding, not translation, exactly as objectui#5102 settled it: the
+      // value is handed on unchanged and the two segments ahead of `table`
+      // keep their precedence. Both spellings stay working; only the ORDER
+      // between them is stated, canonical first.
+      //
+      // Reach, measured rather than assumed: of the surfaces this `baseProps`
+      // feeds, `object-kanban` consumes it (via `cardFields`, below) and
+      // `object-tree` consumes it (as its own `fields`). `object-gallery` /
+      // `object-calendar` / `object-timeline` / `object-gantt` / `object-map`
+      // read NO field list off their schema at all, so the value is inert
+      // there — before this change and after it.
+      fields: currentNamedViewConfig?.columns || activeView?.columns
+        || schema.table?.columns || schema.table?.fields,
       className: 'h-full w-full',
       showSearch: activeView?.showSearch ?? schema.showSearch ?? false,
       showSort: activeView?.showSort ?? schema.showSort ?? false,
@@ -1018,7 +1044,10 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       default:
         return null;
     }
-  }, [schema.objectName, schema.table?.fields, currentNamedViewConfig, activeView]);
+    // `schema.table?.columns` joins the list with the read added for
+    // objectui#5269: a memo that reads a key but does not depend on it keeps
+    // serving the field list the author has already replaced.
+  }, [schema.objectName, schema.table?.columns, schema.table?.fields, currentNamedViewConfig, activeView]);
 
   // Build grid schema (default content renderer)
   //
@@ -1281,7 +1310,15 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           // Spec-canonical key (#2890) — the view configs this reads from are
           // already `columns`-keyed, so emitting `fields` here was a pure
           // canonical→legacy downgrade.
-          columns: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.fields,
+          //
+          // objectui#5269: the `table` segment reads the canonical key first
+          // here too. This slot is `list-view`'s `columns`, declared
+          // `string[] | ListColumn[]` — the same union `table.columns` carries
+          // — so the canonical value arrives in a slot already shaped to hold
+          // it, and `ListView` reads it (`schema.columns`, its whole column
+          // set). The deprecated `table.fields` stays a working alias.
+          columns: currentNamedViewConfig?.columns || activeView?.columns
+            || schema.table?.columns || schema.table?.fields,
           filter: mergedFilters,
           sort: mergedSort,
           // Propagate appearance/view-config properties for live preview
