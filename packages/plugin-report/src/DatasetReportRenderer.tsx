@@ -79,12 +79,23 @@ import {
   pivotBucketId,
   pivotDimensionValue,
   pivotCellKey,
+  // objectui#4906 — the report chart's per-category derivation, reusing the
+  // exact chain `DatasetWidget` already runs (see the call site below): the
+  // category dimension's own option COLOURS (`buildOptionColorMap`) and its
+  // declared picklist ORDER (`buildCategoryOrder`, framework#3588), fed
+  // LOCALIZED options (`localizeFieldOptions` + `dimensionOptionTranslator`) so
+  // they key by the same string the relabeled rows carry.
+  buildOptionColorMap,
+  buildCategoryOrder,
+  localizeFieldOptions,
+  dimensionOptionTranslator,
+  deriveDimensionLabelMaps,
   type DatasetResultField,
   type DatasetDrillRange,
 } from '@object-ui/core';
 import { useSafeFieldLabel, useSafeTranslate, useDisplayLocale, useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { mergeFilters } from './mergeFilters';
-import { useDatasetDimensionLabels } from './useDatasetDimensionLabels';
+import { useDatasetDimensionLabels, useDatasetDimensionMeta } from './useDatasetDimensionLabels';
 
 type Row = Record<string, unknown>;
 
@@ -792,6 +803,30 @@ function authoredSeriesLabel(series: unknown, measure: string, language: string 
  *
  * Both helpers live in `@object-ui/core` beside each other, which is what keeps
  * this surface and the dashboard widget lowering ONE vocabulary once.
+ *
+ * ## The category dimension's own colours + declared order (objectui#4906)
+ *
+ * `chartConfigPresentation` takes a SECOND argument — the category dimension's
+ * own option colours, resolved from its select/lookup field metadata — and
+ * merges it UNDER an explicit author `colors` map, never over it (the
+ * precedence `chartConfigPresentation`'s own doc comment states). Until this
+ * card the report chart called it with no second argument at all, so a
+ * dimension like `health` never painted its own green/amber/red the way the
+ * SAME dimension does on a dashboard chart — only an authored `colors` record
+ * ever reached the renderer, and with none authored the chart fell to the
+ * positional palette.
+ *
+ * `categoryOrder` (framework#3588 — a picklist's declared option order IS the
+ * domain order) is the same story: derived below from the SAME field metadata
+ * and spread onto the chart schema, so a funnel's stages render in the
+ * declared pipeline order instead of sorting by value.
+ *
+ * Both are derived through `useDatasetDimensionMeta` — the exact hook and the
+ * exact `localizeFieldOptions` → `buildOptionColorMap` / `buildCategoryOrder`
+ * chain `DatasetWidget` (plugin-dashboard) already runs for its own chart —
+ * reused here rather than re-derived, which is the whole point: a second,
+ * independently-written copy of the same rule is the defect shape this repo
+ * keeps paying for (objectui#5301's four-copy resolver, one of them inverted).
  */
 function DatasetReportChart({
   dataset,
@@ -831,7 +866,7 @@ function DatasetReportChart({
     order,
   );
   const ChartComponent = useRegistryComponent('chart');
-  const { fieldLabel } = useSafeFieldLabel();
+  const { fieldLabel, fieldOptionLabel } = useSafeFieldLabel();
   // objectui#4878 — the null-category bucket's LABEL. `@object-ui/core` is
   // React-free and cannot read the locale bundle, so `buildChartSeries` falls
   // back to the English `NULL_CATEGORY_LABEL`; the resolved string has to come
@@ -854,11 +889,31 @@ function DatasetReportChart({
   // put the two spellings of one value on one screen, which is the defect this
   // family exists to close.
   const chartDimensions = React.useMemo(() => (xAxis ? [xAxis] : []), [xAxis]);
-  const dimensionLabels = useDatasetDimensionLabels(
-    state.object,
-    state.dimensionFields,
-    chartDimensions,
-  );
+  // objectui#4906 — `useDatasetDimensionMeta`, NOT the label-only
+  // `useDatasetDimensionLabels` above: this chart derives more from the
+  // resolved field metadata than label maps (see the file-level doc comment
+  // above this component). Mirrors `DatasetWidget`'s own call exactly.
+  const dimensionMeta = useDatasetDimensionMeta(state.object, state.dimensionFields, chartDimensions);
+  const { categoryColors, dimensionLabels, categoryOrder } = React.useMemo(() => {
+    if (!dimensionMeta) return { categoryColors: null, dimensionLabels: null, categoryOrder: null };
+    const { metaByPath, relabel } = dimensionMeta;
+    // Colours and declared order read `option.label`, so they are fed the
+    // LOCALIZED options — the same "translate the options, then render them"
+    // shape `DatasetWidget` uses — which is what keeps them keyed by the
+    // string the relabeled rows below actually carry. `relabel[0]` is the
+    // chart's one x-axis dimension: `chartDimensions` above is at most one
+    // entry, so `relabel` never has a second.
+    const firstDimPath = relabel[0]?.path;
+    const firstDimMeta = firstDimPath ? metaByPath[firstDimPath] : undefined;
+    const firstDimOptions = firstDimPath
+      ? localizeFieldOptions(firstDimMeta?.options, dimensionOptionTranslator(firstDimMeta, fieldOptionLabel))
+      : undefined;
+    return {
+      categoryColors: buildOptionColorMap(firstDimOptions),
+      dimensionLabels: deriveDimensionLabelMaps(metaByPath, relabel, fieldOptionLabel),
+      categoryOrder: buildCategoryOrder(firstDimOptions),
+    };
+  }, [dimensionMeta, fieldOptionLabel]);
 
   const title = typeof chart.title === 'string' ? chart.title : undefined;
 
@@ -992,7 +1047,12 @@ function DatasetReportChart({
   // would draw a SECOND one inside the chart's own frame. `aria` is not lowered
   // by the whitelist at all — nothing on this path reads it (see that helper's
   // header for the ruling and where it is tracked).
-  const { title: _chartOwnTitle, ...chrome } = chartConfigPresentation(chart);
+  //
+  // objectui#4906 — `categoryColors` (derived above) is the SECOND argument,
+  // exactly as `DatasetWidget` passes its own. `chartConfigPresentation` merges
+  // it UNDER any explicit author `colors` map found on `chart`, so an authored
+  // colour still wins per category (objectui#4877's precedence, preserved).
+  const { title: _chartOwnTitle, ...chrome } = chartConfigPresentation(chart, categoryColors);
 
   return (
     <div className="rounded-md border bg-card p-3" data-testid="dataset-report-chart">
@@ -1018,6 +1078,11 @@ function DatasetReportChart({
           // chart freezes at frame 0 (pie/donut would show no ring).
           isAnimationActive: false,
           ...chrome,
+          // objectui#4906 — the category dimension's DECLARED picklist order
+          // (framework#3588), derived above. Omitted (rather than `undefined`)
+          // when the dimension carries no options, so an ordered-sequence
+          // chart's own default (value-descending) still applies.
+          ...(categoryOrder ? { categoryOrder } : {}),
         }}
       />
     </div>
