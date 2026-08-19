@@ -82,15 +82,18 @@ ComponentRegistry.register('my-metric', MetricCard, {
 });
 ```
 
-There is also a `dashboardComponents` export, and two measured facts about it
-are worth stating, because iterating it is not the manual registration above:
-its eleven keys are **component class names** (`DashboardRenderer`,
-`MetricCard`, `WidgetConfigPanel`, …) rather than schema types, and passing each
-key straight to `ComponentRegistry.register` therefore registers eleven names no
-schema author writes — while the eight types in the table stay untouched, having
-already been registered by the import. Each such call also passes no `meta`, so
-it trips the no-namespace deprecation warning in `register`
-(`packages/core/src/registry/Registry.ts:198`).
+There is also a `dashboardComponents` export: the manual-integration map, keyed
+by the **same eight schema types** as the table above (objectui#5064 re-keyed it
+from component class names). Each key maps to the exact component the import
+registers for that type — for the two `object-*` types that is the internal
+data-source-gate wrapper, not the exported widget. Iterating it with
+`ComponentRegistry.register(type, component)` therefore re-registers the eight
+types the import has already claimed, which is still not the manual registration
+above: each such call passes no `meta`, so it trips the no-namespace deprecation
+warning in `register` (`packages/core/src/registry/Registry.ts:198`) and
+rewrites each bare-name registry entry without its `label`/`category` metadata
+(the `namespace:type` entries are untouched). The side-effect import remains the
+whole of registration.
 
 ## Schema API
 
