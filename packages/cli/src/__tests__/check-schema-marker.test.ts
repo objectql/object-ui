@@ -134,10 +134,37 @@ describe('objectui check — foreign root-`type` vocabularies are never judged',
     expect(skippedCount()).toBe(2);
   });
 
-  it('says nothing about an `.eslintrc.json`', async () => {
-    writeSchema('.eslintrc.json', { root: true, type: 'commonjs', rules: {} });
+  it('says nothing about a deployment resource descriptor', async () => {
+    // The third big root-`type` vocabulary after package manifests and JSON
+    // Schema: infrastructure resources. `properties` is deliberately not a
+    // marker key, so this file is not admitted by the structural arm.
+    writeSchema('bucket.json', {
+      type: 'aws:s3/bucket:Bucket',
+      properties: { acl: 'private' },
+    });
     await check(cwd);
     expect(unknownTypeWarnings()).toEqual([]);
+    expect(skippedCount()).toBe(1);
+  });
+
+  it('never even sees a dot-prefixed config — those are outside the scan', async () => {
+    // `.eslintrc.json` is the obvious fixture for this suite and it would be a
+    // PHANTOM: `globSync` does not match dot-prefixed names without `dot: true`,
+    // so the file is not scanned at all and an assertion of silence over it
+    // holds whatever the marker does. Measured, and it is why this test asserts
+    // the scope rather than the marker.
+    //
+    // The scanned sibling is the counter-probe: without it, "no warnings" here
+    // would be indistinguishable from a scan that read nothing.
+    writeSchema('.eslintrc.json', { root: true, type: 'totally-made-up-xyz', rules: {} });
+    writeSchema('page.json', { type: 'totally-made-up-xyz', children: [] });
+    await check(cwd);
+    // Exactly one warning, from the scanned file — the dotfile contributed
+    // neither a warning nor a skip.
+    expect(unknownTypeWarnings()).toEqual([
+      expect.stringContaining('Unknown schema type "totally-made-up-xyz" in page.json'),
+    ]);
+    expect(skippedCount()).toBe(0);
   });
 
   it('says nothing about a tsconfig-derived file, and does not count it as skipped', async () => {
