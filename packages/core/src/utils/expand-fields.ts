@@ -23,17 +23,21 @@ import { columnIdentity } from './column-identity.js';
  * belongs in this set; whether the backend materialises the expanded object
  * for it is a server concern — requesting it is harmless and forward-compatible.
  *
- * ## One family, three consumers
+ * ## One family, four consumers
  *
  * This is the reference-bearing FAMILY, not the `$expand` builder's private
- * list, and three concerns already read it under three different words:
+ * list, and four concerns already read it under three different words:
  *
  *  - `$expand` construction — `buildExpandFields` below ("expandable");
  *  - predicate-record projection — `predicate-record.ts` ("relational");
  *  - the object form's data-source wiring — `needsDataSourceWiring` in
  *    `packages/components/src/renderers/form/form.tsx`, which decides which
  *    registered widget gets `dataSource` / `dependentValues` /
- *    `dependsOnLabels` threaded to it.
+ *    `dependsOnLabels` threaded to it;
+ *  - the grid's bulk-action dialog — `widgetNeedsDataSource` in
+ *    `packages/plugin-grid/src/components/bulkParamToField.ts`, which decides
+ *    which param widget is handed the grid's `DataSource` and which param field
+ *    shape carries `reference_to` / `display_field`.
  *
  * The third one used to be a second hand-maintained copy, and this comment used
  * to claim the set "mirrors the form layer's `DATA_SOURCE_FIELD_TYPES`
@@ -52,6 +56,18 @@ import { columnIdentity } from './column-identity.js';
  * declarable field types (`widgetHintOnly: true` in
  * `app-shell/src/utils/paramValueShape.ts`), so no object schema can produce a
  * field whose `type` is one of them.
+ *
+ * The fourth was a hand-maintained copy too, one member set removed from BOTH
+ * of the above (`lookup` / `master_detail` / `user` — no `tree`, no pickers, and
+ * for a while a fifth spelling, `owner`, that objectui#4814 retired). It now
+ * derives from this set with NO extension, because the bulk dialog's params
+ * cannot produce the three widget-hint names (objectui#4815):
+ *
+ *     bulk dialog's data-source rule  ==  EXPANDABLE_FIELD_TYPES
+ *
+ * Neither consumer copies the set — both call `.has()` on THIS object, and both
+ * carry an identity pin (a spy on this `has`) so a member-identical private copy
+ * fails rather than quietly re-forking the table.
  *
  * Stated so it reads as a decision rather than a surprise: **adding a member
  * here also grants that type the form's data-source wiring.** That is the
