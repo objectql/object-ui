@@ -202,17 +202,57 @@ object through. Anything else you put in them is ignored:
 
 | Sub-config | Keys `ObjectView` forwards |
 | --- | --- |
-| `table` | `columns`, `fields`, `title`, `description`, `defaultFilters`, `defaultSort`, `pageSize`, `selectable`, `operations`, `className` |
+| `table` | `columns`, `fields`, `title`, `description`, `filter`, `defaultFilters`, `sort`, `defaultSort`, `pagination`, `pageSize`, `selection`, `selectable`, `operations`, `className` |
 | `form` | `fields`, `customFields`, `sections`, `groups`, `layout`, `columns`, `title`, `description`, `subforms`, `buttons`, `defaults`, `initialValues`, `readOnly`, `showSubmit`, `submitText`, `showCancel`, `cancelText`, `showReset`, `className` |
 
-Note that several of the forwarded `table` keys are the ones `ObjectGridSchema`
-marks legacy — `fields`, `pageSize`, `selectable`, `defaultFilters` and
-`defaultSort` each have a newer counterpart there (`columns`, `pagination`,
-`selection`, `filter`, `sort`). `ObjectView` forwards the legacy spellings, so
-on an `object-view` node those are the ones that take effect; `columns` is the
-exception, forwarded alongside `fields` and preferred here. Shapes follow
-`ObjectGridSchema`: `defaultSort` is a single `{ field, order }` object and
-`defaultFilters` is a plain `Record` of field to value.
+Four of the forwarded `table` keys are pairs — a canonical `ObjectGridSchema`
+key and the `@deprecated` legacy spelling it replaced. As of objectui#5102 the
+canonical spelling **takes effect** on every rendering path (the grid, and the
+non-grid `kanban` / `gallery` / `calendar` / `timeline` / `gantt` / `map`
+renderers); the legacy spelling on the right keeps working as an alias, it is
+just no longer the one to reach for:
+
+| write this (canonical) | not this (legacy alias — still works) |
+| --- | --- |
+| `pagination: { pageSize, pageSizeOptions? }` | `pageSize: number` |
+| `selection: { type: 'single' \| 'multiple' \| 'none' }` | `selectable: boolean \| 'single' \| 'multiple'` |
+| `filter: [{ field, operator, value }, …]` (same shape as a named view's `filter`) | `defaultFilters: Record<field, value>` (equality-only) |
+| `sort: 'field direction'` or `SortConfig[]` | `defaultSort: { field, order }` (**no string form** — that arity only exists on `sort`) |
+
+**Precedence when a key is written both ways** — `table: { pagination: {
+pageSize: 10 }, pageSize: 50 }`, say — the canonical spelling wins. That is
+`ObjectGrid`'s own existing resolution (`schema.pagination?.pageSize ||
+schema.pageSize`; `if (schema.selection?.type) … else if (schema.selectable
+!== undefined)`; `schemaFilter !== undefined ? … : schema.defaultFilters`;
+`schemaSort ?? (schema.defaultSort ? [schema.defaultSort] : undefined)`), and
+`ObjectView` defers to it by forwarding both slots rather than re-resolving
+the pair itself:
+
+```typescript
+const schema: ObjectViewSchema = {
+  type: 'object-view',
+  objectName: 'products',
+  table: {
+    pagination: { pageSize: 10 }, // wins
+    pageSize: 50, // ignored while `pagination` is present
+  },
+};
+```
+
+`filter` / `sort` have one more tier ahead of `table` entirely, and it
+predates this change: an **active named view's own** `filter` / `sort`
+(`listViews.<name>.filter` / `.sort`) always outranks anything written on
+`table`. In order, highest first: the active named view's `filter`/`sort`,
+then `table.filter`/`table.sort`, then `table.defaultFilters`/
+`table.defaultSort`. (If you never write `listViews`, that first tier never
+applies.) `pagination` and `selection` have no such tier, and no effect
+outside the grid — the non-grid renderers don't page or multi-select, so
+`ObjectView` never forwards either spelling to them.
+
+`columns` is the one forwarded `table` key that is **not** part of this
+canonical/legacy story, and it has an unrelated gap: it is forwarded on the
+grid path only, so on a non-grid `defaultViewType` the field list still comes
+from `table.fields` (objectui#5269, open).
 
 ### ViewSwitcher
 
@@ -285,7 +325,7 @@ const schema: ObjectViewSchema = {
   defaultViewType: 'grid',
   table: {
     columns: ['name', 'email', 'role', 'created_at'],
-    defaultSort: { field: 'created_at', order: 'desc' },
+    sort: 'created_at desc', // or [{ field: 'created_at', order: 'desc' }]
   },
 };
 ```
@@ -367,8 +407,8 @@ opening a drawer, so the host route owns the form.
 
 ### Read/List
 
-Search, filter and sort are toolbar toggles; column set, default filter,
-default sort and page size live in `table`:
+Search, filter and sort are toolbar toggles; column set, filter, sort and page
+size live in `table`:
 
 ```typescript
 const schema: ObjectViewSchema = {
@@ -380,8 +420,8 @@ const schema: ObjectViewSchema = {
   showSort: true,
   table: {
     columns: ['name', 'price', 'category'],
-    defaultFilters: { category: 'electronics' },
-    pageSize: 25,
+    filter: [{ field: 'category', operator: 'equals', value: 'electronics' }],
+    pagination: { pageSize: 25 },
   },
 };
 ```
@@ -459,7 +499,7 @@ const schema: ObjectViewSchema = {
   showSort: true,
   table: {
     columns: ['first_name', 'last_name', 'email', 'company'],
-    pageSize: 25,
+    pagination: { pageSize: 25 },
   },
 };
 
