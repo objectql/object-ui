@@ -1,5 +1,5 @@
 ---
-'@object-ui/plugin-dashboard': major
+'@object-ui/plugin-dashboard': minor
 ---
 
 BREAKING: `dashboardComponents` is re-keyed from 11 PascalCase component class
@@ -14,5 +14,7 @@ three config-panel components (`DashboardConfigPanel`, `WidgetConfigPanel`,
 `DashboardWithConfig`) leave the map; they remain named exports. Any code
 reading the old keys (e.g. `dashboardComponents.DashboardRenderer`) breaks —
 two independent word-boundary greps measured zero such consumers in-tree.
-The maintainer authorized a one-PR exception to `check-changeset-no-major`
-for this re-key; the `major` score here is that exception.
+Per AGENTS.md §版本号策略, objectui's major tracks `@objectstack`'s major, not
+its own breaking-change count — this package's own breaking changes are
+scored `minor` with the break spelled out in this body, which is what makes
+this a `minor` (maintainer ruling, 2026-08-19).
