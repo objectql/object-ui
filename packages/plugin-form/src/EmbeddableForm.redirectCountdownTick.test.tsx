@@ -76,6 +76,17 @@
  *    reverted code — the suite fails at (1) before getting there — so they
  *    are not independently informative in THIS reversion; they are pinned by
  *    the fact that (1) already fails.
+ *
+ * Measured (reverting `EmbeddableForm.tsx` only, to
+ * `de4e29a81` — one commit before this fix, keeping every test in this file
+ * unchanged): all three tests fail, each with the identical
+ * `AssertionError: expected +0 to be 1` at the `armed.length` check inside
+ * `submitAndWaitForCountdown` — exactly (1). The `Redirecting in 4 seconds`
+ * `vi.waitFor` immediately above it did not itself report a failure in any
+ * of the three runs, consistent with (2): it is satisfied by the reverted
+ * code too, so its own green tells you nothing about whether this fix is
+ * present. Restoring the committed `EmbeddableForm.tsx` returns all three
+ * tests to green with no other changes.
  */
 
 import React from 'react';
