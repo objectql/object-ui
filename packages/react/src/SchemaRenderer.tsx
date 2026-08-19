@@ -119,6 +119,93 @@ function resolveAriaProps(schema: Record<string, any>): Record<string, string | 
 }
 
 /**
+ * Keys the `properties` hoist deliberately refuses to copy onto the node — they
+ * identify WHICH renderer to dispatch to, so an inner `properties.type` (e.g. a
+ * tab's visual style `line` | `card` | `pill`) must never shadow the outer
+ * component descriptor. See the hoist in the evaluation memo below.
+ */
+const HOIST_PROTECTED_KEYS = new Set(['type', 'id']);
+
+/**
+ * The legacy `props` bag, minus every key the canonical `properties` bag also
+ * declares (objectui#5123).
+ *
+ * A node may spell its config bag `properties` (the spec spelling) or `props`
+ * (the annotated legacy alias). A node that writes BOTH used to get a DIFFERENT
+ * answer for the same key depending on which channel read it, and the two
+ * channels' precedence was exactly OPPOSITE:
+ *
+ *   - config bag: `readProps()` in the `element:*` family merges
+ *     `{ ...schema.props, ...schema.properties }` — `properties` wins.
+ *   - React prop: `createElement` below spread `...componentProps` (which
+ *     carries the hoisted `properties.*` values) and then
+ *     `...(evaluatedSchema.props || {})` LAST, which overwrote them —
+ *     `props` won.
+ *
+ * Measured on one render of one node carrying both:
+ * `bagRead(properties.content)="FROM_PROPERTIES"` while
+ * `reactPropRead(content)="FROM_PROPS"`. Which one reached the screen depended
+ * only on whether the renderer happened to be in the `readProps()` family.
+ *
+ * Maintainer ruling 2026-08-18: **`properties` wins on BOTH channels — one
+ * answer per key.** The config-bag order was already correct and is untouched;
+ * this narrowing is the React-prop half. It restores the declared posture
+ * (`props` is an annotated legacy alias) rather than changing it.
+ *
+ * Implemented by REMOVING the overlapping keys from the alias spread rather
+ * than by re-spreading `properties` after it. That matters: `properties.*` is
+ * already on the node via the hoist, so the values are in `componentProps`
+ * having passed the metadata strip. Re-spreading the raw bag would push
+ * stripped schema metadata back out as React props — exactly the regression
+ * that made a spec-documented `dataSource` binding shadow the injected adapter
+ * and break the component (objectstack#5576). Subtracting adds no key to the
+ * outgoing bag; it only decides which of two co-present values a key carries.
+ *
+ * Scope, deliberately narrow — this only moves a reading where BOTH bags
+ * declare the same key:
+ *   - a key only `props` declares is untouched (the alias keeps working);
+ *   - a key only `properties` declares is untouched (it already won);
+ *   - `type`/`id` are skipped, because the hoist never copied a canonical value
+ *     up for them, so dropping the alias would DELETE the prop rather than
+ *     replace it;
+ *   - a degenerate (non-object) `properties` is left alone — the hoist and
+ *     `readProps()` both merely object-spread it, and there is no canonical bag
+ *     to prefer.
+ *
+ * Adjacent but NOT decided here: objectui#4795's pending question ② (whether
+ * the `properties` envelope is an official `ui:*` authoring channel at all).
+ * This is a precedence rule between two co-present spellings and takes no
+ * position on whether either should exist.
+ */
+function propsWithoutCanonicalKeys(
+  propsBag: Record<string, any> | undefined,
+  propertiesBag: unknown
+): Record<string, any> {
+  if (!propsBag) return {};
+  // Only a real object bag can win a key. `typeof null === 'object'` is covered
+  // by the truthiness check; arrays are excluded for the same reason the
+  // evaluation guard excludes them — a degenerate `properties` must not have
+  // its shape reinterpreted here.
+  if (
+    !propertiesBag ||
+    typeof propertiesBag !== 'object' ||
+    Array.isArray(propertiesBag)
+  ) {
+    return propsBag;
+  }
+  let narrowed: Record<string, any> | null = null;
+  for (const key of Object.keys(propertiesBag)) {
+    if (HOIST_PROTECTED_KEYS.has(key)) continue;
+    if (!Object.prototype.hasOwnProperty.call(propsBag, key)) continue;
+    // Copy lazily: the overwhelmingly common node declares one bag or neither,
+    // and this runs on every render of every node.
+    if (!narrowed) narrowed = { ...propsBag };
+    delete narrowed[key];
+  }
+  return narrowed ?? propsBag;
+}
+
+/**
  * Per-component Error Boundary for SchemaRenderer.
  * Catches render errors in individual components, preventing one broken
  * component from crashing the entire page.
@@ -689,7 +776,12 @@ export const SchemaRenderer: ForwardRefExoticComponent<
       {React.createElement(Component, {
         schema: schemaForComponent,
         ...componentProps,  // Spread non-metadata schema properties as props
-        ...(evaluatedSchema.props || {}),  // Override with explicit props if provided
+        // The legacy `props` alias still overrides plain top-level keys, but no
+        // longer overrides the canonical `properties` bag: for a key BOTH bags
+        // declare, `properties` wins here exactly as it already wins in
+        // `readProps()`, so one key has one answer on both channels
+        // (objectui#5123, maintainer ruling 2026-08-18).
+        ...propsWithoutCanonicalKeys(evaluatedSchema.props, evaluatedSchema.properties),
         ...ariaProps,  // Inject ARIA attributes from AriaPropsSchema
         ...debugAttrs, // Debug-mode data attributes
         disabled: __disabled || undefined,
