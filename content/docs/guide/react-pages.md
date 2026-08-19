@@ -177,6 +177,7 @@ only way the new adapter reaches the blocks inside the page. So a host that
 constructs a new adapter on every render resets every react page on every
 render. Provide it from state or a module constant:
 
+<!-- doc-snippet: fragment — a bad/good contrast of two bare JSX opening tags: neither half is a closed element, and showing them closed would hide the difference the section is about -->
 ```tsx
 // ❌ new adapter object every render — every react page below loses its state
 <AdapterCtx.Provider value={new ObjectStackAdapter(config)}>

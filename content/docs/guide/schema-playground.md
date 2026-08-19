@@ -26,12 +26,11 @@ Add the playground to any React project with ObjectUI installed:
 ```tsx
 import { useState } from 'react';
 import { SchemaRenderer } from '@object-ui/react';
-import { registerDefaultRenderers } from '@object-ui/components';
-import { registerAllFields } from '@object-ui/fields';
-import { Registry } from '@object-ui/core';
+import { initializeComponents } from '@object-ui/components';
+// Side-effect import: loading the package runs its own field registration.
+import '@object-ui/fields';
 
-registerDefaultRenderers();
-registerAllFields(Registry);
+initializeComponents();
 
 function SchemaPlayground() {
   const [schema, setSchema] = useState('{\n  "type": "button",\n  "label": "Click me"\n}');

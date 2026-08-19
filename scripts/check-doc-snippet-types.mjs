@@ -155,13 +155,31 @@
  *               types, unbuilt tree) turns every document red at once and reads
  *               as "the docs are full of defects".
  *
- * ## Coverage is declared, never assumed
+ * ## Coverage is declared, never assumed — and the scan surface is stated here
  *
  * A document is covered unless it is named in `UNGATED_DOCS` with a reason. The
  * default is therefore COVERED: a new page is compiled from the day it lands,
  * and opting one out is an edit a reviewer can see. Entries are re-derived every
  * run — an entry naming a file that does not exist, or that holds no `ts` / `tsx`
  * block at all, fails as a stale entry, so the list can only shrink.
+ *
+ * That rule is only true of documents the walk actually reaches, so the SCAN
+ * SURFACE is stated in the same breath as the coverage rule rather than left to
+ * be read off the collector:
+ *
+ *     every `.mdx` and `.md` page under `content/docs`, plus every
+ *     `packages/<name>/README.md`.
+ *
+ * Stating it here is objectui#5174's finding, and the finding was not the missing
+ * extension — it was that a reader had to open `listDocuments` to learn that
+ * "covered by default" meant "covered if the filename ends in `.mdx`". The
+ * collector admitted 143 `.mdx` under `content/docs` and silently excluded 40
+ * `.md` guides — the getting-started pages a reader copies from most. None of
+ * them was in the ledger, so they were neither covered NOR declared ungated:
+ * they were invisible to this gate's own accounting, and the summary line below
+ * could not mention them. That is precisely the silent skip the fragment rule
+ * exists to prevent, arriving one level up, at the document instead of the block.
+ * Anything added to the scan surface later belongs in that list, on the same day.
  *
  * ⚠️ The honest limit, stated because a reader of a green run needs it: an
  * ungated document is NOT compiled and NOT counted. Its snippets are unverified,
@@ -187,8 +205,18 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** Documentation surfaces read by this gate. Kept identical in spirit to
  *  `check-doc-links.mjs`: the pages a reader lands on, plus every published
  *  package README (which ships to npm inside the package's `files`). */
-const MDX_ROOT = 'content/docs';
+const DOCS_ROOT = 'content/docs';
 const PACKAGES_DIR = 'packages';
+
+/** Page extensions collected under `DOCS_ROOT`. BOTH are collected, and that is
+ *  the whole content of the scan surface: `content/docs` is authored in a mix of
+ *  `.mdx` and `.md` — the same guide tree, the same renderer, the same reader —
+ *  and an extension is not a coverage decision. Collecting only `.mdx` is how
+ *  objectui#5174 happened: 40 `.md` guides sat outside the ledger, so they were
+ *  neither covered nor declared ungated, which is precisely the silent skip the
+ *  fragment rule below exists to prevent. Anything else under the tree (`.json`
+ *  sidecars) holds no prose and is not a page. */
+const DOC_EXTENSIONS = ['.mdx', '.md'];
 
 /** Fence languages treated as compilable TypeScript. `js` / `jsx` are NOT in the
  *  set: they are not type-annotated, so a strict program judges them on rules
@@ -198,6 +226,14 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
 /**
  * Documents whose snippets are NOT compiled, each with the reason. The default
  * is covered; this list is the debt, by name, and it can only shrink.
+ *
+ * ⚠️ 20 of these entries are `.md` pages under `content/docs` that objectui#5174
+ * made visible: the collector now reads `.md`, and an entry with a measured reason
+ * is what a page that cannot pass yet is owed. They are DISCLOSED debt, not new
+ * debt — every one of them was equally unverified before, just unnamed. Their
+ * reasons carry the same measured diagnostic mix as the rest, and several name
+ * the missing export by hand, because a documented symbol a package does not
+ * export is the reader-visible half (objectui#5160).
  *
  * The reasons are deliberately concrete about WHAT would have to change, because
  * "does not compile" is three different jobs: a page whose snippets reference
@@ -210,6 +246,53 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * @type {Record<string, string>}
  */
 const UNGATED_DOCS = {
+  'content/docs/api/schema-reference.md':
+    '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; plus TS2305x1 TS2724x1 — candidate real defects, un-triaged. The ' +
+    'missing-export diagnostics name `DashboardSchema` (@object-ui/types), `PageSchema` ' +
+    '(@object-ui/types) — the reader-visible half of this entry',
+  'content/docs/guide/architecture-overview.md':
+    '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 5 ' +
+    'undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 1 unresolved-module diagnostic(s); plus TS2686x1 — candidate real ' +
+    'defects, un-triaged',
+  'content/docs/guide/architecture.md':
+    '8 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
+    '13 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 3 unresolved-module diagnostic(s); plus TS2322x1 — candidate real ' +
+    'defects, un-triaged',
+  'content/docs/guide/building-crud-app.md':
+    '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
+    '20 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 4 unresolved-module diagnostic(s); plus TS2305x2 TS2339x1 TS2345x1 ' +
+    'TS2554x1 TS2724x1 TS2882x1 — candidate real defects, un-triaged. The missing-export ' +
+    'diagnostics name `Field` (@object-ui/types), `ObjectSchema` (@object-ui/types), ' +
+    '`registerAllComponents` (@object-ui/components) — the reader-visible half of this entry',
+  'content/docs/guide/component-registry.md':
+    '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
+    '51 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 6 unresolved-module diagnostic(s); plus TS2305x13 TS2339x1 — candidate ' +
+    'real defects, un-triaged. The missing-export diagnostics name `getComponentRegistry` ' +
+    '(@object-ui/react) x5, `registerDefaultRenderers` (@object-ui/components) x4, `BaseSchema` ' +
+    '(@object-ui/core) x3, `InputRenderer` (@object-ui/components) — the reader-visible half of ' +
+    'this entry',
+  'content/docs/guide/deployment.md':
+    '6 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 1 unresolved-module diagnostic(s); plus TS2322x1 — candidate real ' +
+    'defects, un-triaged',
+  'content/docs/guide/expressions.md':
+    '8 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 6 ' +
+    'undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; plus TS2724x1 TS7006x3 — candidate real defects, un-triaged. The ' +
+    'missing-export diagnostics name `getExpressionEvaluator` (@object-ui/core) — the ' +
+    'reader-visible half of this entry',
+  'content/docs/guide/layout.md':
+    '21 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
+    '20 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 4 unresolved-module diagnostic(s)',
+  'content/docs/guide/notifications.md':
+    '9 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 1 unresolved-module diagnostic(s)',
   'content/docs/guide/objectos-integration.mdx':
     '36 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
     '10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
@@ -221,6 +304,52 @@ const UNGATED_DOCS = {
     'this page still needs the 8 parse-failing blocks re-fenced or declared, the undefined-name ' +
     'blocks made self-contained, and the `@objectstack/*` runtime imports resolvable — none of ' +
     'which this repo can do from here.',
+  'content/docs/guide/plugin-development.md':
+    '10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 6 unresolved-module diagnostic(s); plus TS2339x5 TS2882x1 TS7006x3 — ' +
+    'candidate real defects, un-triaged',
+  'content/docs/guide/plugins.md':
+    '10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 6 unresolved-module diagnostic(s); plus TS2882x1 TS7006x3 — candidate ' +
+    'real defects, un-triaged',
+  'content/docs/guide/public-forms.md':
+    '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 8 ' +
+    'undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 1 unresolved-module diagnostic(s)',
+  'content/docs/guide/schema-overview.md':
+    '9 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 2 ' +
+    'undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; plus TS2305x2 TS2724x6 — candidate real defects, un-triaged. The ' +
+    'missing-export diagnostics name `AppSchema` (@object-ui/types) x2, `ThemeSchema` ' +
+    '(@object-ui/types) x2, `AppSchema` (@object-ui/types/zod), `ReportSchema` ' +
+    '(@object-ui/types), `ReportSchema` (@object-ui/types/zod), `ThemeSchema` ' +
+    '(@object-ui/types/zod) — the reader-visible half of this entry',
+  'content/docs/guide/schema-rendering.md':
+    '8 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
+    '10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 1 unresolved-module diagnostic(s); plus TS2305x4 TS2322x1 TS2451x2 ' +
+    'TS7006x5 — candidate real defects, un-triaged. The missing-export diagnostics name ' +
+    '`FormSchema` (@object-ui/core), `getComponentRegistry` (@object-ui/react), `PageSchema` ' +
+    '(@object-ui/core), `registerDefaultRenderers` (@object-ui/components) — the reader-visible ' +
+    'half of this entry',
+  'content/docs/guide/theming.md':
+    '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
+    '23 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 1 unresolved-module diagnostic(s); plus TS2339x1 TS2353x1 — candidate ' +
+    'real defects, un-triaged',
+  'content/docs/guide/troubleshooting.md':
+    '8 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 1 unresolved-module diagnostic(s); plus TS2322x1 TS2339x2 TS2559x1 ' +
+    'TS2724x1 — candidate real defects, un-triaged. The missing-export diagnostics name ' +
+    '`componentSchema` (@object-ui/types/zod) — the reader-visible half of this entry',
+  'content/docs/guide/user-state-persistence.md':
+    '10 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
+    '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; plus TS2353x2 TS7031x1 — candidate real defects, un-triaged',
+  'content/docs/plugins/index.md':
+    '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 1 unresolved-module diagnostic(s); plus TS7006x1 — candidate real ' +
+    'defects, un-triaged',
   'content/docs/plugins/plugin-calendar-view.mdx':
     '2 unresolved-module diagnostic(s) — and NOT a defect: the page is a migration guide whose ' +
     '"Before" blocks quote the retired `@object-ui/plugin-calendar-view` import on purpose. Covering ' +
@@ -240,10 +369,19 @@ const UNGATED_DOCS = {
     '43 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'content/docs/plugins/plugin-timeline.mdx':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
+  'content/docs/rfcs/0001-clipboard-paste.md':
+    '7 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
+    '11 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; plus TS18004x1 TS2391x3 TS7006x1 — candidate real defects, un-triaged',
   'content/docs/utilities/create-plugin.mdx':
     '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s)',
   'content/docs/utilities/data-objectstack.mdx':
     '16 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2391x1 — candidate real defects, un-triaged',
+  'content/docs/utilities/index.md':
+    '2 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; plus TS2724x1 — candidate real defects, un-triaged. The missing-export ' +
+    'diagnostics name `ObjectStackProvider` (@object-ui/data-objectstack) — the reader-visible ' +
+    'half of this entry',
   'content/docs/utilities/runner.mdx':
     '5 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 3 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 3 unresolved-module diagnostic(s)',
   'packages/app-shell/README.md':
@@ -390,11 +528,12 @@ export function listDocuments(root = repoRoot) {
     for (const entry of readdirSync(dir).sort()) {
       const p = join(dir, entry);
       if (statSync(p).isDirectory()) walk(p);
-      else if (entry.endsWith('.mdx')) out.push(relative(root, p).split(sep).join('/'));
+      else if (DOC_EXTENSIONS.some((ext) => entry.endsWith(ext)))
+        out.push(relative(root, p).split(sep).join('/'));
     }
   };
-  const mdxRoot = join(root, MDX_ROOT);
-  if (existsSync(mdxRoot)) walk(mdxRoot);
+  const docsRoot = join(root, DOCS_ROOT);
+  if (existsSync(docsRoot)) walk(docsRoot);
   const pkgDir = join(root, PACKAGES_DIR);
   if (existsSync(pkgDir)) {
     for (const entry of readdirSync(pkgDir).sort()) {

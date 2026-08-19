@@ -11,7 +11,7 @@ This keeps the renderer backend-agnostic: ObjectStack, REST, GraphQL, and propri
 The canonical interface lives in `@object-ui/types`:
 
 ```typescript
-import type { QueryParams, QueryResult } from '@object-ui/types';
+import type { BatchTransactionOperation, QueryParams, QueryResult } from '@object-ui/types';
 
 export interface DataSource<T = unknown> {
   find(resource: string, params?: QueryParams): Promise<QueryResult<T>>;
@@ -82,10 +82,13 @@ import '@object-ui/components';
 import '@object-ui/fields';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+import type { BaseSchema } from '@object-ui/types';
 
 const dataSource = createObjectStackAdapter({
   baseUrl: 'https://api.example.com'
 });
+
+const mySchema: BaseSchema = { type: 'table', objectName: 'users' };
 
 function App() {
   return (
@@ -159,6 +162,7 @@ class UserDataSource implements DataSource<User> {
 
 ObjectUI uses OData-style query keys for broad compatibility:
 
+<!-- doc-snippet: fragment — continues the adapter block above: dataSource is the adapter created there, and repeating its construction here would bury the query keys this section is about -->
 ```typescript
 await dataSource.find('users', {
   $select: ['id', 'name', 'email'],

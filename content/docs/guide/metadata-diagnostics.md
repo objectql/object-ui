@@ -62,6 +62,8 @@ GET /api/v1/meta/diagnostics?severity=error
 Response:
 
 ```ts
+import type { MetadataDiagnostics } from '@object-ui/data-objectstack';
+
 interface MetadataDiagnosticsSummary {
   entries: Array<{
     type: string;
@@ -196,7 +198,7 @@ A few high-leverage patterns:
 ```ts
 import { MetadataClient } from '@object-ui/data-objectstack';
 
-const client = new MetadataClient(/* config */);
+const client = new MetadataClient({ baseUrl: 'https://api.example.com' });
 const summary = await client.diagnostics({ severity: 'error' });
 console.log(summary.total, 'invalid item(s)');
 ```

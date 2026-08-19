@@ -33,7 +33,7 @@ const MyRatingField = ({ value, onChange }: CellRendererProps) => {
       {[1, 2, 3, 4, 5].map(star => (
         <span 
           key={star} 
-          onClick={() => onChange(star)}
+          onClick={() => onChange?.(star)}
           style={{ color: star <= value ? 'gold' : 'grey' }}
         >
           ★
@@ -91,7 +91,7 @@ If you are building your own custom component (like a Kanban board card), you ca
 ```tsx
 import { getCellRenderer } from '@object-ui/fields';
 
-export const KanbanCard = ({ task }) => {
+export const KanbanCard = ({ task }: { task: { name: string; assignee: string } }) => {
   // Get the standard renderer for a 'user' type field
   const UserRenderer = getCellRenderer('user');
   
@@ -101,7 +101,7 @@ export const KanbanCard = ({ task }) => {
       <div className="assignee">
         <UserRenderer 
           value={task.assignee} 
-          field={{ type: 'user' }} 
+          field={{ type: 'user', name: 'assignee' }} 
         />
       </div>
     </div>

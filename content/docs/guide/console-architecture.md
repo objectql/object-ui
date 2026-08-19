@@ -129,6 +129,8 @@ Navigation items can be conditionally hidden using expressions:
 Actions are typed with `ActionDef` from `@object-ui/core`:
 
 ```ts
+import { useActionRunner } from '@object-ui/react';
+
 const { execute } = useActionRunner({
   context: { objectName: 'contacts' },
 });
@@ -182,6 +184,7 @@ items exist only in `AppSidebar`, which the console no longer mounts (`ConsoleLa
 
 Per-app branding is applied via `AppShell`'s `branding` prop:
 
+<!-- doc-snippet: fragment — a bare JSX opening tag: the section is about the shape of the branding prop, and the element is never closed -->
 ```tsx
 <AppShell branding={{
   primaryColor: '#3B82F6',
