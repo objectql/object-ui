@@ -77,7 +77,7 @@
 
 import * as React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { I18nProvider } from '@object-ui/i18n';
 // Imported from the package barrel at MODULE scope: the drill drawer renders
 // its body through `SchemaRenderer`, which resolves `object-data-table` from
