@@ -103,6 +103,7 @@ import {
   type ApprovalActionRow,
   type ApprovalActionAttachment,
 } from '../../services/approvalsApi';
+import { useRecordReadability } from './recordReadability';
 
 type TabKey = 'pending' | 'submitted' | 'all';
 
@@ -478,6 +479,25 @@ export function ApprovalsInboxPage() {
   const [selected, setSelected] = useState<ApprovalRequestRow | null>(null);
   const [actions, setActions] = useState<ApprovalActionRow[]>([]);
   const [drawerLoading, setDrawerLoading] = useState(false);
+
+  /**
+   * objectui#5211 — an approver can be routed a request about a record they
+   * cannot read (approver routing goes by position; record visibility is a
+   * separate gate). The link below then dead-ends on the record page's
+   * "may have been deleted", so it is suppressed for exactly those rows.
+   *
+   * One batched list read per distinct object covers the whole page — see
+   * `recordReadability.ts` for the cost model, the fail-open rule, and why
+   * nothing here says anything about WHY a target is unreadable.
+   *
+   * `selected` joins the loaded rows because the drawer can be deep-linked
+   * (`?request=<id>`) to a request that is not in the current row set.
+   */
+  const readabilityTargets = useMemo(
+    () => (selected ? [...rows, selected] : rows),
+    [rows, selected],
+  );
+  const readability = useRecordReadability(readabilityTargets);
   // Approve/reject/reassign/send-back/… are server-declared actions rendered by
   // DeclaredActionsBar (objectui#2697 + framework#3300); their param dialog
   // collects the comment and — since the shared upload-widget renderer (#2700/
@@ -1080,17 +1100,25 @@ export function ApprovalsInboxPage() {
     // Surface the decision-relevant amount inline so a reviewer can triage the
     // queue without opening each request (#2762 P1-3).
     const amount = decisionAmountEntry(r);
+    // objectui#5211: no link into a record this viewer cannot open. The title
+    // still shows — it comes from the request's own payload snapshot, which the
+    // approver was already given — it just stops being an anchor.
+    const title = r.record_title || formatIdentity(r.record_id);
     return (
       <div className="min-w-0">
+        {readability.isUnreadable(r) ? (
+          <div className="text-sm truncate max-w-full" title={r.record_id}>{title}</div>
+        ) : (
         <Link
           to={recordHref(r)}
           onClick={(e) => e.stopPropagation()}
           className="inline-flex items-center gap-1 text-sm hover:underline truncate max-w-full"
           title={r.record_id}
         >
-          <span className="truncate">{r.record_title || formatIdentity(r.record_id)}</span>
+          <span className="truncate">{title}</span>
           <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
         </Link>
+        )}
         <div className="text-xs text-muted-foreground truncate">
           {objectDisplay(r)}
           {amount && (
@@ -1680,6 +1708,15 @@ export function ApprovalsInboxPage() {
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
+                      {/* Same suppression as the row (objectui#5211) — the drawer
+                          offers the same link to the same record for the same
+                          viewer, so fixing only the row would move the dead end
+                          one click deeper instead of removing it. */}
+                      {readability.isUnreadable(selected) ? (
+                        <div className="text-base font-semibold truncate">
+                          {selected.record_title || formatIdentity(selected.record_id)}
+                        </div>
+                      ) : (
                       <Link
                         to={recordHref(selected)}
                         className="text-base font-semibold hover:underline inline-flex items-center gap-1.5"
@@ -1687,6 +1724,7 @@ export function ApprovalsInboxPage() {
                         <span className="truncate">{selected.record_title || formatIdentity(selected.record_id)}</span>
                         <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       </Link>
+                      )}
                       <div className="text-xs text-muted-foreground">{objectDisplay(selected)}</div>
                     </div>
                     <div className="text-right text-xs text-muted-foreground shrink-0">
@@ -2064,6 +2102,12 @@ export function ApprovalsInboxPage() {
                       {tr('returnedHint', 'An approver sent this back to you. The record is unlocked — fix the data, then resubmit to start a new approval round.')}
                     </div>
                     <div className="flex gap-2 flex-wrap items-center">
+                      {/* NOT readability-suppressed (objectui#5211), deliberately:
+                          this branch renders only for the SUBMITTER of a returned
+                          request, whose whole job here is to edit that record —
+                          a different persona from the approver the suppression is
+                          for, and one who demonstrably reached the record to
+                          submit it. */}
                       <Button asChild size="sm" variant="outline">
                         <Link to={recordHref(selected)}>
                           <ExternalLink className="h-4 w-4 mr-1" />
