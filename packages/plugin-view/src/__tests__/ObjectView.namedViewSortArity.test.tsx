@@ -51,12 +51,14 @@ import '@testing-library/jest-dom';
 import React from 'react';
 
 import { ObjectView } from '../ObjectView';
-import { registerAllFields } from '@object-ui/fields';
 import { ActionProvider } from '@object-ui/react';
 import type { ObjectViewSchema } from '@object-ui/types';
 
-registerAllFields();
-
+// No `registerAllFields()` here, deliberately: `@object-ui/fields` is not a
+// dependency of this package, and nothing asserted below needs a registered
+// cell renderer. The header cells and `$orderby` are produced by ObjectGrid
+// itself; an unregistered column still renders its label and its sort
+// affordance.
 beforeAll(() => {
   if (!Element.prototype.hasPointerCapture) {
     Element.prototype.hasPointerCapture = vi.fn(() => false) as any;
