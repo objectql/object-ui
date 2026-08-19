@@ -467,6 +467,51 @@ function applyNavTemplate(
 }
 
 /**
+ * The wire encoding of the declared `runAction` nav slot — ONE definition,
+ * sited with `resolveHref` because that is the only thing that writes it.
+ *
+ * `ObjectNavItemSchema.runAction` (objectstack#7253) declares WHICH action an
+ * object nav entry auto-runs on arrival; the URL is how that declaration
+ * survives the navigation, because the list surface mounts in a fresh render
+ * tree with nothing but the location to read. Naming the param after the slot
+ * is deliberate: the slot owns the name, so producer and consumer cannot drift.
+ *
+ * Before this constant existed, the name was a bare `'runAction'` literal
+ * hand-written at both ends — a private convention no schema declared, so
+ * `objectui validate` could not see it, `RESERVED_URL_PARAMS` did not list it,
+ * and a page could have repurposed the name with nothing to catch the
+ * collision. Import this; never re-spell it. `@object-ui/app-shell`'s
+ * `urlParams` re-exports it into the reserved registry rather than restating
+ * it, so there is still exactly one definition.
+ */
+export const NAV_RUN_ACTION_PARAM = 'runAction';
+
+/**
+ * Encode a declared `runAction` onto a LIST-surface href.
+ *
+ * Applied to the two list landings (`filters` slice and bare/named view) and
+ * deliberately NOT to the record deep-link above it: the spec defines the slot
+ * as running "on arrival at the object's list surface", and a `recordId` entry
+ * arrives at a record detail page, which has no list toolbar to answer to it.
+ * Encoding it there would put an unanswerable param on the URL that the
+ * consumer would then have to decide whether to strip — a one-shot intent spent
+ * on a surface that never had the action. The installed `@objectstack/spec@17.0.0`
+ * still ACCEPTS `runAction` + `recordId` together (measured — the parse-level
+ * exclusivity the card describes is not in this pin), so this precedence is
+ * load-bearing rather than merely defensive.
+ *
+ * An empty string is treated as absent: the spec's `z.string()` accepts `''`
+ * (measured), and no action can be named it, so encoding it would produce a
+ * param that arms nothing.
+ */
+function withRunAction(href: string, item: NavigationItem): string {
+  const name = (item as { runAction?: unknown }).runAction;
+  if (typeof name !== 'string' || name === '') return href;
+  const sep = href.includes('?') ? '&' : '?';
+  return `${href}${sep}${NAV_RUN_ACTION_PARAM}=${encodeURIComponent(name)}`;
+}
+
+/**
  * Resolve a NavigationItem to an absolute href (relative to `basePath`).
  *
  * Single source of truth for nav → URL mapping across the shell. Other
@@ -514,9 +559,18 @@ export function resolveHref(
           if (resolved !== null) usp.set(`filter[${field}]`, resolved);
         }
         const qs = usp.toString();
-        return { href: qs ? `${objectPath}/data?${qs}` : `${objectPath}/data`, external: false };
+        return {
+          href: withRunAction(qs ? `${objectPath}/data?${qs}` : `${objectPath}/data`, item),
+          external: false,
+        };
       }
-      return { href: item.viewName ? `${objectPath}/view/${item.viewName}` : objectPath, external: false };
+      return {
+        href: withRunAction(
+          item.viewName ? `${objectPath}/view/${item.viewName}` : objectPath,
+          item,
+        ),
+        external: false,
+      };
     }
     case 'dashboard':
       return { href: item.dashboardName ? `${basePath}/dashboard/${item.dashboardName}` : '#', external: false };

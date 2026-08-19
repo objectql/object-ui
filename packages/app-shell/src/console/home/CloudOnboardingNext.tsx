@@ -33,6 +33,7 @@ import { useAuth } from '@object-ui/auth';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import { ComponentRegistry } from '@object-ui/core';
 import { useObjectTranslation } from '@object-ui/i18n';
+import { navRunActionHref } from '../../hooks/useNavRunAction';
 
 interface CloudOnboardingNextProps {
   properties?: {
@@ -40,6 +41,14 @@ interface CloudOnboardingNextProps {
     openProductionUrl?: string;
     /** SPA route to the environments list (create / open / manage). */
     environmentsRoute?: string;
+    /**
+     * Name of the action the "Create your environment" CTA deep-links into on
+     * that list — the same slot an object nav entry declares as `runAction`.
+     * Defaults to `create_environment`, which is the name the Cloud app's
+     * transitional pin test guards, so this is safe to ship ahead of the page
+     * metadata that will supply it (#5216).
+     */
+    createAction?: string;
     /**
      * Optional backend pre-warm endpoint. When set and the caller already has
      * a production env, the widget fires a best-effort GET the moment it knows
@@ -59,6 +68,13 @@ type Resolved =
 
 const DEFAULT_OPEN_PRODUCTION_URL = '/api/v1/cloud/environments/production/sso-open';
 const DEFAULT_ENVIRONMENTS_ROUTE = '/apps/cloud_control/sys_environment';
+
+/**
+ * The environment list's create action. Cloud-owned name, guarded by cloud's
+ * transitional pin test (cloud#1048) — kept as the default so page metadata
+ * that predates `properties.createAction` still deep-links correctly.
+ */
+const DEFAULT_CREATE_ACTION = 'create_environment';
 
 /** Resolve the active locale's string (cheap; the page uses {en,zh} pairs). */
 /**
@@ -132,6 +148,7 @@ export function CloudOnboardingNext({ properties }: CloudOnboardingNextProps) {
   const state = useProductionEnvState(properties?.warmUrl);
   const openUrl = properties?.openProductionUrl || DEFAULT_OPEN_PRODUCTION_URL;
   const envsRoute = properties?.environmentsRoute || DEFAULT_ENVIRONMENTS_ROUTE;
+  const createAction = properties?.createAction || DEFAULT_CREATE_ACTION;
 
   // Loading — a neutral skeleton sized like the button row, so the hero doesn't
   // jump when the real CTA lands.
@@ -157,11 +174,20 @@ export function CloudOnboardingNext({ properties }: CloudOnboardingNextProps) {
       <div className="flex flex-wrap items-center justify-center gap-3">
         {showCreatePrimary ? (
           // Deep-link straight INTO the create dialog (#844): the environments
-          // list consumes `runAction=create_environment` and auto-opens its
-          // create action once entitlements resolve — "Create your environment"
-          // used to be a plain navigation that left the user hunting for a
-          // second create button on the list page.
-          <Button size="lg" onClick={() => navigate(`${envsRoute}?runAction=create_environment`)}>
+          // list consumes the declared `runAction` slot and auto-opens the named
+          // action once entitlements resolve — "Create your environment" used to
+          // be a plain navigation that left the user hunting for a second create
+          // button on the list page.
+          //
+          // [#5216] Both halves are declared now. The action NAME comes from page
+          // metadata (`properties.createAction`, same bag that already owns
+          // `environmentsRoute` — the Cloud app owns its URLs and now its deep
+          // link too), and the ENCODING comes from `navRunActionHref`, which
+          // spells the param through `NAV_RUN_ACTION_PARAM`. What this retires is
+          // the hand-concatenated `?runAction=create_environment` literal: a
+          // private convention whose only definition was this template string
+          // and a matching literal in the toolbar.
+          <Button size="lg" onClick={() => navigate(navRunActionHref(envsRoute, createAction))}>
             <Plus className="mr-2 h-4 w-4" />
             {t('cloudOnboarding.createEnvironment')}
           </Button>

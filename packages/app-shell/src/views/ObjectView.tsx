@@ -75,6 +75,8 @@ import { ActionProvider, useNavigationOverlay, SchemaRenderer, useActionTextLoca
 import type { RelatedRecordActionsValue, RelatedRecordHandlers } from '@object-ui/react';
 import { toast } from 'sonner';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
+import { useNavRunAction } from '../hooks/useNavRunAction';
+import { actionRendersAt } from '@object-ui/types';
 import { useEnvironmentEntitlements } from '../environment/useEnvironmentEntitlements';
 import { EnvironmentListToolbar } from '../environment/EnvironmentListToolbar';
 
@@ -926,6 +928,35 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const localizedToolbarActions = useMemo(
         () => (objectDef.actions || []).map((a: any) => localizeActionTexts(objectDef.name, a)),
         [objectDef, localizeActionTexts],
+    );
+
+    // [#5216] The DECLARED nav `runAction` slot, consumed generically.
+    // An object nav entry declaring `runAction: '<name>'` resolves (via
+    // `resolveHref`) to this list's href carrying `?runAction=`; landing here
+    // runs that action once, through the ordinary execute path.
+    //
+    // Arm only on an action THIS toolbar actually renders — `list_toolbar` is
+    // the slot's surface, so a name that only exists at `record_header` cannot
+    // be triggered from here and must not spend the one-shot intent (#4123).
+    // `sys_environment` is excluded because `EnvironmentListToolbar` owns the
+    // arming there: it must additionally wait for entitlements to resolve, and
+    // two consumers of one param would race to strip it.
+    const navRunAction = useNavRunAction((requested) =>
+        !isEnvironmentList &&
+        localizedToolbarActions.some(
+            (a: any) => a?.name === requested && actionRendersAt(a, 'list_toolbar'),
+        ),
+    );
+    // Mark exactly the requested action `autoTrigger`, leaving every other
+    // action's identity untouched so the bar's ordering/overflow is unchanged.
+    const toolbarActionsWithDeepLink = useMemo(
+        () =>
+            navRunAction === null
+                ? localizedToolbarActions
+                : localizedToolbarActions.map((a: any) =>
+                      a?.name === navRunAction ? { ...a, autoTrigger: true } : a,
+                  ),
+        [localizedToolbarActions, navRunAction],
     );
 
     // Resolve which generic CRUD affordances belong in the toolbar for
@@ -2291,7 +2322,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                       <SchemaRenderer schema={{
                         type: 'action:bar',
                         location: 'list_toolbar',
-                        actions: localizedToolbarActions,
+                        actions: toolbarActionsWithDeepLink,
                         size: 'sm',
                         variant: 'outline',
                         // On mobile, collapse all schema-driven toolbar actions

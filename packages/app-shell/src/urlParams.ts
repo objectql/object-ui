@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { NAV_RUN_ACTION_PARAM } from '@object-ui/layout';
+
 /**
  * urlParams — the single registry of RESERVED console URL query params
  * (objectui#2269 P3; ADR-0054 C3 "URL-addressable state").
@@ -61,6 +63,14 @@
  * Page-scoped params (`q`, `limit`, `offset`, `view`, `type`, `review`,
  * `package`, …) belong to their page's own contract and are NOT reserved
  * here — but they must not collide with the names above.
+ *
+ * One reserved param is DEFINED ELSEWHERE and only re-exported here:
+ * `runAction` (see {@link NAV_RUN_ACTION_PARAM}). It is the wire encoding of a
+ * spec-declared nav slot, written by `@object-ui/layout`'s `resolveHref`, which
+ * sits below this package — so the constant lives there and this registry
+ * references it rather than restating it. Restating would give the console's
+ * hottest collision check a second spelling to drift from, which is the exact
+ * failure this file exists to prevent.
  */
 
 /**
@@ -107,6 +117,18 @@ export const KEYBOARD_SHORTCUTS_PARAM = 'shortcuts';
 export const RECORD_TRAIL_PARAM = 'from';
 
 /**
+ * Auto-run deep link on an object list (`?runAction=<actionName>`) — the wire
+ * encoding of the spec-declared `ObjectNavItemSchema.runAction` nav slot.
+ *
+ * Re-exported, not restated: `@object-ui/layout`'s `resolveHref` is the only
+ * writer and owns the definition. Listed in {@link RESERVED_URL_PARAMS} below
+ * so the collision check is complete — before objectui#5216 it was a bare
+ * literal at both ends and this registry did not know the name existed.
+ * Consume it with `useNavRunAction`, never by reading the raw string.
+ */
+export { NAV_RUN_ACTION_PARAM };
+
+/**
  * All reserved params, for collision checks (e.g. a lint or a dev-time
  * assertion that a page-scoped param doesn't shadow the console contract).
  */
@@ -119,6 +141,7 @@ export const RESERVED_URL_PARAMS: readonly string[] = [
   COMMAND_PALETTE_PARAM,
   KEYBOARD_SHORTCUTS_PARAM,
   RECORD_TRAIL_PARAM,
+  NAV_RUN_ACTION_PARAM,
 ];
 
 /**
