@@ -147,6 +147,7 @@ import { ObjectMap } from '@object-ui/plugin-map';
 | `schema` | The map schema — the keys above. |
 | `dataSource` | Resolves the `object` provider. Not needed for `staticData` or an inline `data` array. |
 | `className` | Classes for the wrapper around the map. |
+| `data` | Records to render directly, bypassing the component's own fetch — the shape `ListView` passes when it already holds the rows. Tracked live: passing a new array after mount (e.g. once a host's own in-flight query resolves) updates the map. |
 | `onMarkerClick` | Called with the clicked record. |
 | `onRowClick` | Record click handler; takes priority over the `navigation` overlay. |
 | `onEdit` / `onDelete` | Passing either adds that button to the marker popup (and to the mobile record sheet). |
