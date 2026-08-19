@@ -104,22 +104,46 @@ describe('SpecBridge', () => {
       expect(node.id).toBe('accounts_list');
       expect(node.label).toBe('All Accounts');
       expect(node.columns).toHaveLength(2);
-      expect(node.columns[0].accessorKey).toBe('name');
-      expect(node.columns[0].header).toBe('Account Name');
+      // The DECLARED spelling, and only it (objectui#5068). `accessorKey` /
+      // `header` is the data-table adapter's vocabulary, which `ObjectGrid`
+      // applies on the way OUT; a producer of `object-grid` metadata emits the
+      // spec's `ListColumn` — the shape it was handed in the first place.
+      expect(node.columns[0].field).toBe('name');
+      expect(node.columns[0].label).toBe('Account Name');
+      expect(node.columns[0].accessorKey).toBeUndefined();
+      expect(node.columns[0].header).toBeUndefined();
       expect(node.columns[0].width).toBe(200);
       expect(node.columns[0].sortable).toBe(true);
-      expect(node.columns[1].accessorKey).toBe('industry');
+      expect(node.columns[1].field).toBe('industry');
       expect(node.data).toEqual({ provider: 'object', object: 'Account' });
       expect(node.selection).toEqual({ mode: 'multiple' });
       expect(node.pagination).toEqual({ pageSize: 25 });
     });
 
-    it('uses field name as header fallback', () => {
+    it('leaves a bare column bare — no label is invented (#5068)', () => {
+      // This used to assert `header === 'email'`: the down-translation wrote
+      // `header: col.label ?? col.field`, so "the author declared no label"
+      // arrived downstream as "the author declared the machine name". That
+      // synthesized value pre-empted `ObjectGrid`'s own header chain
+      // (`col.label` → the object FIELD's label → the prettified name), which
+      // exists precisely for a column authored as a bare `{ field }` — see the
+      // localized-label comment at `ObjectGrid.tsx`'s ListColumn arm. The
+      // bridge now forwards what the view declared and nothing else; the
+      // rendered consequence is pinned in `@object-ui/plugin-grid`'s
+      // `specBridgeColumnSpelling.test.tsx`.
       const node = bridgeListView(
         { columns: [{ field: 'email' }] },
         {},
       );
-      expect(node.columns[0].header).toBe('email');
+      expect(node.columns[0]).toEqual({ field: 'email' });
+    });
+
+    it('maps the spec shorthand string column to a declared field column (#5068)', () => {
+      const node = bridgeListView(
+        { columns: ['email'] as any },
+        {},
+      );
+      expect(node.columns[0]).toEqual({ field: 'email' });
     });
 
     it('maps column properties correctly', () => {

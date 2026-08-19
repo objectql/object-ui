@@ -20,17 +20,49 @@ import type { ListView, ListColumn, RowHeight } from '@objectstack/spec/ui';
  */
 type ListViewSpec = Partial<ListView>;
 
+/**
+ * A spec `ListColumn` in, the same column out — in the spelling the spec
+ * declares (objectui#5068).
+ *
+ * This used to down-translate every column to the data-table adapter's
+ * `{ accessorKey, header }` before handing it to an `object-grid` node, and
+ * `ObjectGrid` translated it straight back through a tolerance branch that
+ * sniffed `columns[0]`. A round trip whose input was ALREADY canonical: the
+ * bridge's own parameter is `@objectstack/spec/ui`'s `ListColumn`, where
+ * `field` is required and `accessorKey` / `header` are refused by name
+ * (`ListColumnSchema` is a strict object). So the producer emitted a spelling
+ * the contract rejects, and the renderer grew a second de-facto contract to
+ * read it back — exactly the shape AGENTS.md #0.1 forbids, and the disposition
+ * objectui#3951 already settled: unify at the producer, no consumer-side alias.
+ *
+ * `accessorKey` is not retired as a concept — it is the TanStack adapter key
+ * `@object-ui/core` deliberately keeps OUT of the metadata identity fold
+ * (`column-identity.ts`'s `TABLE_ADAPTER_COLUMN_KEY`). `ObjectGrid` still
+ * applies it on the way OUT, at the one boundary that owns it. Metadata
+ * vocabulary comes in; adapter vocabulary goes out; one translation, one place.
+ *
+ * Nothing is invented on the way through, which is the second half of the fix.
+ * `header: col.label ?? col.field` used to turn "no label declared" into "the
+ * machine name was declared as the label", and that synthesized value then
+ * pre-empted `ObjectGrid`'s own header chain — `col.label` → the OBJECT
+ * FIELD's label → the prettified name — whose whole purpose is a column
+ * authored as a bare `{ field }`, and whose middle step exists so a localized
+ * field label wins over the name-derived English one on a non-English app. A
+ * bridged view therefore rendered raw machine names where a directly authored
+ * `object-grid` rendered the field's real, localizable label. It now forwards
+ * the declaration and lets the renderer resolve what was left unsaid.
+ */
 function mapColumn(col: ListColumn | string): Record<string, any> {
-  // Spec-legacy shorthand: a bare field name stands for a default column.
+  // Spec shorthand: a bare field name stands for a default column.
   if (typeof col === 'string') {
-    return { accessorKey: col, header: col };
+    return { field: col };
   }
 
   const mapped: Record<string, any> = {
-    accessorKey: col.field,
-    header: col.label ?? col.field,
+    field: col.field,
   };
 
+  if (col.label != null) mapped.label = col.label;
   if (col.width != null) mapped.width = col.width;
   if (col.align) mapped.align = col.align;
   if (col.hidden != null) mapped.hidden = col.hidden;

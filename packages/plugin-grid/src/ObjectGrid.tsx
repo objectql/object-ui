@@ -1448,224 +1448,207 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     const cols = normalizeColumns(schemaColumns);
     
     if (cols) {
-      // Check if columns are already in data-table format (have 'accessorKey')
-      // vs ListColumn format (have 'field')
+      // ObjectStack's DECLARED column spelling is the only one read
+      // (objectui#5068). `ObjectGridSchema.columns` is `string[] | ListColumn[]`,
+      // and `ListColumnSchema` in `@objectstack/spec/ui` is a STRICT object:
+      // `field` is required, `accessorKey` / `header` are refused BY NAME with
+      // `unrecognized_keys`. A branch here used to accept that refused spelling
+      // anyway — it sniffed `columns[0]` for an `accessorKey` and synthesized a
+      // `ListColumn` from it — so one key had two spellings, one the schema
+      // admits and one only the runtime did. That second de-facto contract is
+      // what AGENTS.md #0.1 forbids, and objectui#3951 already settled the
+      // shape of the fix for this defect family: unify at the PRODUCER, no
+      // consumer-side tolerance alias. The one in-repo producer that spoke it,
+      // `bridgeListView` in `@object-ui/react`, was migrated in the same PR.
+      //
+      // The `columns[0]` sniff goes with it. Column identity is a per-column
+      // property, and the filter below is the one place that judges it: a
+      // mis-spelled column is now dropped alone, where the sniff let the FIRST
+      // entry decide the fate of the whole array (a declared column standing
+      // behind an undeclared one was lost with it; the reverse order threw).
+      //
+      // `accessorKey` keeps its job on the way OUT — it is the data-table
+      // adapter's key, which `@object-ui/core` deliberately holds outside the
+      // metadata identity fold (`TABLE_ADAPTER_COLUMN_KEY`) and which this
+      // component still writes below. Metadata vocabulary in, adapter
+      // vocabulary out, one translation.
       if (cols.length > 0 && typeof cols[0] === 'object' && cols[0] !== null) {
-        const firstCol = cols[0] as any;
-        
-        // Already in data-table format - apply type inference for columns without custom cell renderers
-        if ('accessorKey' in firstCol) {
-          return (cols as any[]).map((col) => {
-            if (col.cell) return col; // already has custom renderer
+        return (cols as ListColumn[])
+          .filter((col) => col?.field && typeof col.field === 'string' && !col.hidden)
+          .map((col, colIndex) => {
+            // Fall back to the SCHEMA FIELD's label before prettifying the machine
+            // name — otherwise a column declared as bare { field } shows an English
+            // name-derived header (e.g. "Request title") even when the field has a
+            // localized label (e.g. "申请标题") on a non-English app.
+            const rawHeader = resolveColumnLabel(col.label)
+              || resolveColumnLabel(objectSchema?.fields?.[col.field]?.label)
+              || col.field.charAt(0).toUpperCase() + col.field.slice(1).replace(/_/g, ' ');
+            const header = schema.objectName ? resolveFieldLabel(schema.objectName, col.field, rawHeader) : rawHeader;
 
-            const syntheticCol: ListColumn = { field: col.accessorKey, label: col.header, type: col.type };
-            const inferredType = inferColumnType(syntheticCol);
-            if (!inferredType) return col;
+            // Build custom cell renderer based on column configuration
+            let cellRenderer: ((value: any, row: any) => React.ReactNode) | undefined;
 
-            const CellRenderer = getCellRenderer(inferredType);
-            const fieldMeta: Record<string, any> = { name: col.accessorKey, type: inferredType };
+            // Type-based cell renderer: explicit col type > objectDef type > heuristic inference.
+            // Format hints (e.g. `text` + `format: 'phone'`) promote to the
+            // richer renderer (PhoneCellRenderer) via resolveCellRendererType.
+            const objectDefField = objectSchema?.fields?.[col.field];
+            const baseInferredType = col.type || objectDefField?.type || inferColumnType({ field: col.field }) || null;
+            const formatHint = (col as any).format ?? objectDefField?.format;
+            const inferredType = baseInferredType
+              ? resolveCellRendererType({ type: baseInferredType, format: formatHint })
+              : null;
+            const CellRenderer = inferredType ? getCellRenderer(inferredType) : null;
 
-            if (inferredType === 'select') {
-              const uniqueValues = Array.from(new Set(data.map(row => row[col.accessorKey]).filter(Boolean)));
-              fieldMeta.options = uniqueValues.map((v: any) => ({ value: v, label: humanizeLabel(String(v)) }));
+            // Build field metadata for cell renderers with objectDef enrichment
+            const fieldMeta: Record<string, any> = { name: col.field, type: inferredType || 'text' };
+            // Merge objectDef field properties (options with colors, currency, precision, etc.)
+            if (objectDefField) {
+              if (objectDefField.label) fieldMeta.label = objectDefField.label;
+              if (objectDefField.currency) fieldMeta.currency = objectDefField.currency;
+              if (objectDefField.precision !== undefined) fieldMeta.precision = objectDefField.precision;
+              if ((objectDefField as any).scale !== undefined) (fieldMeta as any).scale = (objectDefField as any).scale;
+              if (objectDefField.format) fieldMeta.format = objectDefField.format;
+              if (objectDefField.options) fieldMeta.options = translateOptions(schema.objectName, col.field, objectDefField.options);
             }
-            // Pass through metadata-defined appearance only — never override
-            // the field's display style from the renderer. This keeps list
-            // cells visually consistent with detail / form rendering.
-            if ((col as any).appearance != null) {
-              fieldMeta.appearance = (col as any).appearance;
+            // Preserve relational metadata (reference_to, display_field, …) so
+            // lookup cells resolve ids to names and the inline picker can query.
+            applyRelationalMeta(fieldMeta, objectDefField as any);
+            // Auto-generate options from data for inferred select without existing options
+            if (inferredType === 'select' && !fieldMeta.options) {
+              const uniqueValues = Array.from(new Set(data.map(row => row[col.field]).filter(Boolean)));
+              fieldMeta.options = uniqueValues.map(v => ({ value: v, label: humanizeLabel(String(v)) }));
             }
+            if ((col as any).options) {
+              fieldMeta.options = translateOptions(schema.objectName, col.field, (col as any).options);
+            }
+            // Honor metadata-defined appearance only (col.appearance or
+            // objectDef field.appearance). When unset, the cell renders
+            // its default badge style — same as detail / form views.
+            const explicitAppearance = (col as any).appearance ?? objectDefField?.appearance;
+            if (explicitAppearance != null) {
+              fieldMeta.appearance = explicitAppearance;
+            }
+
+            // Auto-link primary field (first column) to record detail (Airtable-style)
+            const isPrimaryField = colIndex === 0 && !col.link && !col.action;
+            const isLinked = col.link || isPrimaryField;
+
+            if ((col.link && col.action) || (isPrimaryField && col.action)) {
+              // Both link and action: link takes priority for navigation, action executes on secondary interaction
+              cellRenderer = (value: any, row: any) => {
+                const displayContent = CellRenderer
+                  ? <CellRenderer value={value} field={fieldMeta as any} />
+                  : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>);
+                return (
+                  <LinkCell
+                    testId={isPrimaryField ? 'primary-field-link' : 'link-cell'}
+                    onActivate={() => navigation.handleClick(row)}
+                    objectName={schema.objectName}
+                    recordId={rowRecordId(row)}
+                  >
+                    {displayContent}
+                  </LinkCell>
+                );
+              };
+            } else if (isLinked) {
+              // Link column: clicking navigates to the record detail
+              cellRenderer = (value: any, row: any) => {
+                const displayContent = CellRenderer
+                  ? <CellRenderer value={value} field={fieldMeta as any} />
+                  : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>);
+                return (
+                  <LinkCell
+                    testId={isPrimaryField ? 'primary-field-link' : 'link-cell'}
+                    onActivate={() => navigation.handleClick(row)}
+                    objectName={schema.objectName}
+                    recordId={rowRecordId(row)}
+                  >
+                    {displayContent}
+                  </LinkCell>
+                );
+              };
+            } else if (col.action) {
+              // Action column: render as action button
+              cellRenderer = (value: any, row: any) => {
+                return (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    data-testid="action-cell"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      executeAction({
+                        type: col.action!,
+                        params: { record: row, field: col.field, value },
+                      });
+                    }}
+                  >
+                    {formatActionLabel(col.action!)}
+                  </Button>
+                );
+              };
+            } else if (CellRenderer) {
+              // Type-only cell renderer (no link/action)
+              cellRenderer = (value: any) => (
+                <CellRenderer value={value} field={fieldMeta as any} />
+              );
+            } else {
+              // Default renderer with empty value handling
+              cellRenderer = (value: any) => (
+                value != null && value !== ''
+                  ? <span>{String(value)}</span>
+                  : <EmptyValue />
+              );
+            }
+
+            // Wrap with prefix compound cell renderer (Airtable-style: [Badge] Text in same cell)
+            const prefixConfig = (col as any).prefix;
+            if (prefixConfig?.field) {
+              const baseCellRenderer = cellRenderer;
+              const PrefixRenderer = prefixConfig.type === 'badge' ? getCellRenderer('select') : null;
+              cellRenderer = (value: any, row: any) => {
+                const prefixValue = row[prefixConfig.field];
+                const prefixEl = prefixValue != null && prefixValue !== ''
+                  ? PrefixRenderer
+                    ? <PrefixRenderer value={prefixValue} field={{ name: prefixConfig.field, type: 'select' } as any} />
+                    : <span className="text-muted-foreground text-xs mr-1.5">{String(prefixValue)}</span>
+                  : null;
+                return (
+                  <span className="flex items-center gap-1.5">
+                    {prefixEl}
+                    {baseCellRenderer(value, row)}
+                  </span>
+                );
+              };
+            }
+
+            // Auto-infer alignment from field type if not explicitly set
+            const numericTypes = ['number', 'currency', 'percent'];
+            const effectiveType = inferredType || col.type;
+            const inferredAlign = col.align || (effectiveType && numericTypes.includes(effectiveType) ? 'right' as const : undefined);
+
+            // Determine if column should be hidden on mobile
+            const isEssential = colIndex === 0 || (col as any).essential === true;
 
             return {
-              ...col,
-              // Forward the resolved type so the inline editor (data-table) can
-              // pick a type-aware control (date picker, number, ...).
-              type: col.type ?? inferredType,
+              header,
+              accessorKey: col.field,
+              // Forward the resolved (base) field type so the inline editor can
+              // pick a type-aware control. Use baseInferredType (date/number/...)
+              // rather than the renderer type so e.g. `date` stays `date`.
+              ...(baseInferredType && { type: baseInferredType }),
               ...(schema.showColumnTypeIcons && { headerIcon: getTypeIcon(inferredType) }),
-              cell: (value: any) => <CellRenderer value={value} field={fieldMeta as any} />,
+              ...(!isEssential && { className: 'hidden sm:table-cell' }),
+              ...(col.width && { width: col.width }),
+              ...(inferredAlign && { align: inferredAlign }),
+              sortable: col.sortable !== false,
+              ...(col.resizable !== undefined && { resizable: col.resizable }),
+              ...(col.wrap !== undefined && { wrap: col.wrap }),
+              ...(cellRenderer && { cell: cellRenderer }),
+              ...(col.pinned && { pinned: col.pinned }),
             };
           });
-        }
-        
-        // ListColumn format - convert to data-table format with full feature support
-        if ('field' in firstCol) {
-          return (cols as ListColumn[])
-            .filter((col) => col?.field && typeof col.field === 'string' && !col.hidden)
-            .map((col, colIndex) => {
-              // Fall back to the SCHEMA FIELD's label before prettifying the machine
-              // name — otherwise a column declared as bare { field } shows an English
-              // name-derived header (e.g. "Request title") even when the field has a
-              // localized label (e.g. "申请标题") on a non-English app.
-              const rawHeader = resolveColumnLabel(col.label)
-                || resolveColumnLabel(objectSchema?.fields?.[col.field]?.label)
-                || col.field.charAt(0).toUpperCase() + col.field.slice(1).replace(/_/g, ' ');
-              const header = schema.objectName ? resolveFieldLabel(schema.objectName, col.field, rawHeader) : rawHeader;
-
-              // Build custom cell renderer based on column configuration
-              let cellRenderer: ((value: any, row: any) => React.ReactNode) | undefined;
-
-              // Type-based cell renderer: explicit col type > objectDef type > heuristic inference.
-              // Format hints (e.g. `text` + `format: 'phone'`) promote to the
-              // richer renderer (PhoneCellRenderer) via resolveCellRendererType.
-              const objectDefField = objectSchema?.fields?.[col.field];
-              const baseInferredType = col.type || objectDefField?.type || inferColumnType({ field: col.field }) || null;
-              const formatHint = (col as any).format ?? objectDefField?.format;
-              const inferredType = baseInferredType
-                ? resolveCellRendererType({ type: baseInferredType, format: formatHint })
-                : null;
-              const CellRenderer = inferredType ? getCellRenderer(inferredType) : null;
-
-              // Build field metadata for cell renderers with objectDef enrichment
-              const fieldMeta: Record<string, any> = { name: col.field, type: inferredType || 'text' };
-              // Merge objectDef field properties (options with colors, currency, precision, etc.)
-              if (objectDefField) {
-                if (objectDefField.label) fieldMeta.label = objectDefField.label;
-                if (objectDefField.currency) fieldMeta.currency = objectDefField.currency;
-                if (objectDefField.precision !== undefined) fieldMeta.precision = objectDefField.precision;
-                if ((objectDefField as any).scale !== undefined) (fieldMeta as any).scale = (objectDefField as any).scale;
-                if (objectDefField.format) fieldMeta.format = objectDefField.format;
-                if (objectDefField.options) fieldMeta.options = translateOptions(schema.objectName, col.field, objectDefField.options);
-              }
-              // Preserve relational metadata (reference_to, display_field, …) so
-              // lookup cells resolve ids to names and the inline picker can query.
-              applyRelationalMeta(fieldMeta, objectDefField as any);
-              // Auto-generate options from data for inferred select without existing options
-              if (inferredType === 'select' && !fieldMeta.options) {
-                const uniqueValues = Array.from(new Set(data.map(row => row[col.field]).filter(Boolean)));
-                fieldMeta.options = uniqueValues.map(v => ({ value: v, label: humanizeLabel(String(v)) }));
-              }
-              if ((col as any).options) {
-                fieldMeta.options = translateOptions(schema.objectName, col.field, (col as any).options);
-              }
-              // Honor metadata-defined appearance only (col.appearance or
-              // objectDef field.appearance). When unset, the cell renders
-              // its default badge style — same as detail / form views.
-              const explicitAppearance = (col as any).appearance ?? objectDefField?.appearance;
-              if (explicitAppearance != null) {
-                fieldMeta.appearance = explicitAppearance;
-              }
-
-              // Auto-link primary field (first column) to record detail (Airtable-style)
-              const isPrimaryField = colIndex === 0 && !col.link && !col.action;
-              const isLinked = col.link || isPrimaryField;
-
-              if ((col.link && col.action) || (isPrimaryField && col.action)) {
-                // Both link and action: link takes priority for navigation, action executes on secondary interaction
-                cellRenderer = (value: any, row: any) => {
-                  const displayContent = CellRenderer
-                    ? <CellRenderer value={value} field={fieldMeta as any} />
-                    : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>);
-                  return (
-                    <LinkCell
-                      testId={isPrimaryField ? 'primary-field-link' : 'link-cell'}
-                      onActivate={() => navigation.handleClick(row)}
-                      objectName={schema.objectName}
-                      recordId={rowRecordId(row)}
-                    >
-                      {displayContent}
-                    </LinkCell>
-                  );
-                };
-              } else if (isLinked) {
-                // Link column: clicking navigates to the record detail
-                cellRenderer = (value: any, row: any) => {
-                  const displayContent = CellRenderer
-                    ? <CellRenderer value={value} field={fieldMeta as any} />
-                    : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>);
-                  return (
-                    <LinkCell
-                      testId={isPrimaryField ? 'primary-field-link' : 'link-cell'}
-                      onActivate={() => navigation.handleClick(row)}
-                      objectName={schema.objectName}
-                      recordId={rowRecordId(row)}
-                    >
-                      {displayContent}
-                    </LinkCell>
-                  );
-                };
-              } else if (col.action) {
-                // Action column: render as action button
-                cellRenderer = (value: any, row: any) => {
-                  return (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      data-testid="action-cell"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        executeAction({
-                          type: col.action!,
-                          params: { record: row, field: col.field, value },
-                        });
-                      }}
-                    >
-                      {formatActionLabel(col.action!)}
-                    </Button>
-                  );
-                };
-              } else if (CellRenderer) {
-                // Type-only cell renderer (no link/action)
-                cellRenderer = (value: any) => (
-                  <CellRenderer value={value} field={fieldMeta as any} />
-                );
-              } else {
-                // Default renderer with empty value handling
-                cellRenderer = (value: any) => (
-                  value != null && value !== ''
-                    ? <span>{String(value)}</span>
-                    : <EmptyValue />
-                );
-              }
-
-              // Wrap with prefix compound cell renderer (Airtable-style: [Badge] Text in same cell)
-              const prefixConfig = (col as any).prefix;
-              if (prefixConfig?.field) {
-                const baseCellRenderer = cellRenderer;
-                const PrefixRenderer = prefixConfig.type === 'badge' ? getCellRenderer('select') : null;
-                cellRenderer = (value: any, row: any) => {
-                  const prefixValue = row[prefixConfig.field];
-                  const prefixEl = prefixValue != null && prefixValue !== ''
-                    ? PrefixRenderer
-                      ? <PrefixRenderer value={prefixValue} field={{ name: prefixConfig.field, type: 'select' } as any} />
-                      : <span className="text-muted-foreground text-xs mr-1.5">{String(prefixValue)}</span>
-                    : null;
-                  return (
-                    <span className="flex items-center gap-1.5">
-                      {prefixEl}
-                      {baseCellRenderer(value, row)}
-                    </span>
-                  );
-                };
-              }
-
-              // Auto-infer alignment from field type if not explicitly set
-              const numericTypes = ['number', 'currency', 'percent'];
-              const effectiveType = inferredType || col.type;
-              const inferredAlign = col.align || (effectiveType && numericTypes.includes(effectiveType) ? 'right' as const : undefined);
-
-              // Determine if column should be hidden on mobile
-              const isEssential = colIndex === 0 || (col as any).essential === true;
-
-              return {
-                header,
-                accessorKey: col.field,
-                // Forward the resolved (base) field type so the inline editor can
-                // pick a type-aware control. Use baseInferredType (date/number/...)
-                // rather than the renderer type so e.g. `date` stays `date`.
-                ...(baseInferredType && { type: baseInferredType }),
-                ...(schema.showColumnTypeIcons && { headerIcon: getTypeIcon(inferredType) }),
-                ...(!isEssential && { className: 'hidden sm:table-cell' }),
-                ...(col.width && { width: col.width }),
-                ...(inferredAlign && { align: inferredAlign }),
-                sortable: col.sortable !== false,
-                ...(col.resizable !== undefined && { resizable: col.resizable }),
-                ...(col.wrap !== undefined && { wrap: col.wrap }),
-                ...(cellRenderer && { cell: cellRenderer }),
-                ...(col.pinned && { pinned: col.pinned }),
-              };
-            });
-        }
       }
       
       // String array format - enrich with objectDef field metadata for type-aware rendering
