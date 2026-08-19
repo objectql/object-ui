@@ -2132,6 +2132,43 @@ export function DataPillar({
     [objDraft.fields],
   );
 
+  /**
+   * The design-mode FORM's fields: the object's own fields, dropping
+   * framework-managed/audit fields — the same base set `gridColumns` above
+   * uses, but WITHOUT its `actions` exclusion. The grid drops a field named
+   * `actions` because the grid always pins its own row-actions column headed
+   * "Actions"; the form has no such column, so a data field literally named
+   * `actions` stays editable here. That filter difference is why this is a
+   * SECOND memo rather than a reuse of `gridColumns` — sharing it would
+   * silently drop an `actions` field from the rendered form.
+   *
+   * Memoized for an IDENTITY reason, not a fetch reason (objectui#4574,
+   * ruled to the objectui#4567 producer-side pattern above). `ObjectForm`
+   * lists `schema.fields` in its field-generation effect's dependency array
+   * BY IDENTITY (plugin-form/src/ObjectForm.tsx). Built inline, this
+   * allocated a fresh array on every render of the pillar, so that effect
+   * (ending in `setFormFields(generatedFields)`) re-ran on every keystroke —
+   * redundant recomputation, NOT a duplicate query: the effect is a pure
+   * derivation, and the object-schema fetch and the record load are separate
+   * effects, neither of which depends on `schema.fields`. Unlike #4567,
+   * there is no `dataSource` call in this effect's dependency chain today —
+   * but there is a latent hazard: if one is ever added there, this becomes a
+   * #4567 with no producer-side change needed, because the identity is
+   * already stable.
+   *
+   * Keyed on `objDraft.fields` rather than `objDraft`, same reasoning as
+   * `gridColumns`: `onPatch` replaces the draft object while keeping
+   * `fields` identical, so the looser key would churn (and re-run the form's
+   * field-generation effect) on every unrelated draft edit (icon, label).
+   */
+  const formFields = React.useMemo(
+    () =>
+      readFields(objDraft.fields)
+        .entries.map((e) => e.name)
+        .filter((n) => !STUDIO_SYSTEM_FIELD_NAMES.has(n)),
+    [objDraft.fields],
+  );
+
   const onPatch = React.useCallback((patch: Record<string, unknown>) => {
     setObjDraft((d) => ({ ...d, ...patch }));
     setDirty(true);
@@ -2701,9 +2738,11 @@ export function DataPillar({
                           type: 'object-form',
                           objectName: current.name,
                           mode: 'create',
-                          fields: readFields(objDraft.fields)
-                            .entries.map((e) => e.name)
-                            .filter((n) => !STUDIO_SYSTEM_FIELD_NAMES.has(n)),
+                          // Memoized above at the top of the component: this array's
+                          // IDENTITY is a dependency of ObjectForm's field-generation
+                          // effect, so rebuilding it inline here re-ran that effect on
+                          // every keystroke-level render of the pillar (objectui#4574).
+                          fields: formFields,
                         } as never
                       }
                       dataSource={adapter as never}
