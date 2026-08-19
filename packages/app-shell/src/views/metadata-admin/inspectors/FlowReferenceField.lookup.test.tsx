@@ -16,7 +16,9 @@
  *   3. without an adapter (offline preview gallery) it degrades to free text
  *      and does NOT fall back to the metadata list;
  *   4. `org-membership-level` is a STRICT select (free text is how
- *      `sales_manager` got stored into a three-value enum);
+ *      `sales_manager` got stored into a closed enum). The tier VOCABULARY —
+ *      published-enum-first, spec-derived fallback — is covered in
+ *      `FlowReferenceField.membershipTier.test.tsx` (objectui#5309);
  *   5. `manager` is auto-resolved (disabled cell + explanation);
  *   6. `queue` warns that the runtime resolves it to nobody.
  */

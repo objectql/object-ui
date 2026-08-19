@@ -40,6 +40,7 @@ import {
 } from '@object-ui/components';
 import { Pencil, Search } from 'lucide-react';
 import { APPROVER_VALUE_SOURCES } from '@objectstack/spec/automation';
+import { BUILTIN_MEMBERSHIP_ROLE_OPTIONS } from '@objectstack/spec/identity';
 import { useAdapter } from '@object-ui/react';
 import { LookupField } from '@object-ui/fields';
 import type { FlowReferenceSpec, ReferenceKind, RefValueSource } from './flow-node-config';
@@ -158,19 +159,68 @@ export const KIND_TO_RECORD_LOOKUP: Partial<Record<ReferenceKind, RecordLookupBi
   );
 
 /**
- * better-auth org-membership tiers. `org-membership-level` is intentionally NOT
- * in {@link KIND_TO_META_TYPE}: it used to map to `client.list('role')`, but
- * ADR-0090 D3 removed the `role` metadata type, so that call returned nothing
- * and the picker silently degraded to a free-text box — which is how
- * `sales_manager` got typed into a field that only ever accepts these three.
- * The tier is a closed enum, so it renders as a STRICT select over these
- * options (framework #3508) — free text would re-open the same trap.
+ * The membership-tier vocabulary, DERIVED from the spec — never restated here.
+ *
+ * `org-membership-level` is intentionally NOT in {@link KIND_TO_META_TYPE}: it
+ * used to map to `client.list('role')`, but ADR-0090 D3 removed the `role`
+ * metadata type, so that call returned nothing and the picker silently
+ * degraded to a free-text box — which is how `sales_manager` got typed into a
+ * closed enum. The tier renders as a STRICT select (framework #3508); free
+ * text would re-open the same trap.
+ *
+ * This list used to be hand-spelled `owner` / `admin` / `member` under a
+ * comment attributing the set to better-auth ("only ever accepts these
+ * three"). That copy went stale the moment ADR-0105 D8 added
+ * `delegated_admin` to `sys_member.role`: the picker offered a quarter less
+ * than the column stores, and a legitimately-saved `delegated_admin` approver
+ * rendered as `delegated_admin (invalid)` — a spec-valid, runtime-resolvable
+ * value labelled invalid to the author's face (objectui#5309).
+ *
+ * It now reads `BUILTIN_MEMBERSHIP_ROLE_OPTIONS`, which the spec publishes as
+ * the complete option list for `sys_member.role` and calls "the picker's
+ * vocabulary" in as many words — values AND labels — so the same drift cannot
+ * recur by construction. Same move, and the same reason, as
+ * {@link KIND_TO_RECORD_LOOKUP}.
  */
-const ORG_MEMBERSHIP_LEVEL_OPTIONS: Option[] = [
-  { value: 'owner', label: 'Owner' },
-  { value: 'admin', label: 'Admin' },
-  { value: 'member', label: 'Member' },
-];
+const ORG_MEMBERSHIP_LEVEL_OPTIONS: Option[] = BUILTIN_MEMBERSHIP_ROLE_OPTIONS.map(
+  ({ value, label }) => ({ value, label }),
+);
+
+/**
+ * Label a tier the SERVER published. A value the spec already knows keeps the
+ * spec's own label; an unknown one is humanized (`delegated_admin` →
+ * "Delegated Admin") rather than shown as a raw token, so a vocabulary this
+ * package's pin predates still reads as a real choice.
+ */
+function membershipLevelLabel(value: string): string {
+  const known = ORG_MEMBERSHIP_LEVEL_OPTIONS.find((o) => o.value === value);
+  if (known) return known.label;
+  return value
+    .split('_')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+/**
+ * The tier options to offer, preferring the SERVER-published enum.
+ *
+ * The same precedence rule this file already states for record lookups (see
+ * {@link recordLookupFor}): the schema's own `xRef.sources` entry wins,
+ * because it cannot drift from the vocabulary the engine actually accepts.
+ * {@link ORG_MEMBERSHIP_LEVEL_OPTIONS} is the fallback for a server predating
+ * the annotation — and, being spec-derived, is not a second source of truth.
+ *
+ * An enum source publishing NO values falls back rather than rendering an
+ * empty strict select: a select with nothing in it traps the author with no
+ * way to express a value at all, the one thing this control must never do.
+ */
+export function membershipLevelOptions(source: RefValueSource | undefined): Option[] {
+  if (source?.source === 'enum' && source.values.length > 0) {
+    return source.values.map((value) => ({ value, label: membershipLevelLabel(value) }));
+  }
+  return ORG_MEMBERSHIP_LEVEL_OPTIONS;
+}
 
 /** A concrete (non-polymorphic) reference resolution. */
 export interface ResolvedRef {
@@ -640,14 +690,18 @@ export function ReferenceCombobox({ resolved, value, onCommit, onBlur, onSelect,
   }
 
   // Closed enum → strict select, never free text: `sales_manager` typed into
-  // a membership-tier box matches nobody at runtime. A stored value outside
-  // the enum (legacy dirty data) still renders, flagged, so editing an old
-  // row never silently blanks it — mirroring the repeater's select cells.
+  // a membership-tier box matches nobody at runtime. The vocabulary comes from
+  // the SERVER when it publishes one and from the spec-derived fallback
+  // otherwise — never from a list hand-spelled here (objectui#5309). A stored
+  // value outside the enum (legacy dirty data) still renders, flagged, so
+  // editing an old row never silently blanks it — mirroring the repeater's
+  // select cells.
   if (kind === 'org-membership-level') {
     const current = value != null ? String(value) : '';
-    const shown = current && !ORG_MEMBERSHIP_LEVEL_OPTIONS.some((o) => o.value === current)
-      ? [...ORG_MEMBERSHIP_LEVEL_OPTIONS, { value: current, label: `${current} (invalid)` }]
-      : ORG_MEMBERSHIP_LEVEL_OPTIONS;
+    const tiers = membershipLevelOptions(resolved?.source);
+    const shown = current && !tiers.some((o) => o.value === current)
+      ? [...tiers, { value: current, label: `${current} (invalid)` }]
+      : tiers;
     return (
       <Select value={current || undefined} onValueChange={commitSelection} disabled={disabled}>
         <SelectTrigger className="h-8 w-full text-sm">
