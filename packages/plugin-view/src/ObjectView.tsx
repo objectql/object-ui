@@ -57,7 +57,7 @@ import {
 } from '@object-ui/components';
 import { Plus } from 'lucide-react';
 import { useObjectTranslation, createSafeTranslation } from '@object-ui/i18n';
-import { buildExpandFields, normalizeListViewSchema, mergeFilterNodes } from '@object-ui/core';
+import { buildExpandFields, normalizeListViewSchema, mergeFilterNodes, columnIdentity } from '@object-ui/core';
 import { SchemaRenderer as ImportedSchemaRenderer } from '@object-ui/react';
 import { ViewSwitcher } from './ViewSwitcher';
 import { deriveRecordSurface } from './recordSurface';
@@ -112,6 +112,40 @@ function pickFlatMapConfig(mapConfig: unknown): Record<string, unknown> {
   if (!mapConfig || typeof mapConfig !== 'object') return {};
   const source = mapConfig as Record<string, unknown>;
   return Object.fromEntries(FLAT_MAP_CONFIG_KEYS.filter((key) => key in source).map((key) => [key, source[key]]));
+}
+
+/**
+ * `table.columns` as a FIELD-NAME list — the shape the non-grid field slot
+ * declares (objectui#5269).
+ *
+ * `ObjectGridSchema.columns` is `string[] | ListColumn[]`, but the slot the
+ * non-grid branch forwards into is a names slot: both segments ahead of the
+ * `table` one declare `string[]` (`NamedListView.columns`, the `views` prop),
+ * and its consumers treat every entry as a field name — `ObjectKanban` indexes
+ * the record by it (`resolveKanbanCardFields` casts straight to `string[]`).
+ * Handing a `ListColumn[]` down raw would therefore arrive as a non-empty card
+ * field list naming nothing, which renders WORSE than the empty one this card
+ * fixes: `ObjectKanban` skips its `highlightFields` fallback whenever the list
+ * is non-empty. That is the objectui#5270 failure again — a value forwarded
+ * into a slot whose declared shape it does not have — and it is answered the
+ * same way, at the boundary.
+ *
+ * `columnIdentity` is the repo's single converged reader for "which field does
+ * this column entry name" (objectui#3104), and it is what `ObjectGrid` already
+ * applies to the SAME `table.columns` value on the grid path (its `$select`
+ * derivation) and what `ObjectTree` applies downstream. So this narrows a
+ * declared union to the branch this slot can hold; it does not widen the set
+ * of accepted spellings, and it keeps the two paths resolving one value the
+ * same way.
+ *
+ * `undefined` — never `[]` — when nothing resolves, so the `||` chain falls
+ * through to the deprecated `table.fields` instead of stopping on a truthy
+ * empty array.
+ */
+function tableColumnFieldNames(columns: unknown): string[] | undefined {
+  if (!Array.isArray(columns) || columns.length === 0) return undefined;
+  const names = columns.map(columnIdentity).filter((n): n is string => !!n);
+  return names.length > 0 ? names : undefined;
 }
 
 /**
@@ -864,8 +898,14 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       // `object-calendar` / `object-timeline` / `object-gantt` / `object-map`
       // read NO field list off their schema at all, so the value is inert
       // there — before this change and after it.
+      //
+      // The `table` segment arrives through `tableColumnFieldNames` because
+      // THIS slot is a names slot and `table.columns` is a union — see that
+      // function for why raw forwarding would regress the `ListColumn[]` half.
+      // The delegated `list-view` slot below declares the same union, so it
+      // takes the value raw; each site gets the shape its slot declares.
       fields: currentNamedViewConfig?.columns || activeView?.columns
-        || schema.table?.columns || schema.table?.fields,
+        || tableColumnFieldNames(schema.table?.columns) || schema.table?.fields,
       className: 'h-full w-full',
       showSearch: activeView?.showSearch ?? schema.showSearch ?? false,
       showSort: activeView?.showSort ?? schema.showSort ?? false,

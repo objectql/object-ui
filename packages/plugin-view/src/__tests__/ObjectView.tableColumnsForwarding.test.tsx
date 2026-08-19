@@ -48,6 +48,16 @@
  * (The card objectui#5269 names kanban / gallery / calendar as the affected
  * surfaces; the measurable set is kanban / tree / delegated.)
  *
+ * ## One asymmetry between the two changed sites
+ *
+ * `table.columns` is `string[] | ListColumn[]`. The delegated `list-view`
+ * slot declares that same union and `ListView` reads both, so it takes the
+ * value RAW — flattening there would throw away the width/label the author
+ * wrote. The non-grid `baseProps` slot is a names slot (both segments ahead of
+ * `table` declare `string[]`; `ObjectKanban` indexes records by each entry), so
+ * the `ListColumn[]` half is resolved to names with `columnIdentity` — the
+ * same fold `ObjectGrid` applies to this very value. Both halves are pinned.
+ *
  * ## Precedence
  *
  * Unchanged, and pinned below: the two segments ahead of `table`
@@ -174,6 +184,32 @@ describe('kanban: a canonical table.columns reaches the cards (objectui#5269)', 
       table: { columns: ['stage'], fields: ['owner'] } as any,
     });
     expect(s.cardFields).toEqual(['stage']);
+  });
+
+  it('resolves the ListColumn[] form of table.columns to field NAMES', async () => {
+    // `ObjectGridSchema.columns` is `string[] | ListColumn[]`, but this slot is
+    // a names slot: `resolveKanbanCardFields` casts to `string[]` and the card
+    // loop indexes the record by each entry. Forwarding the objects raw would
+    // produce a non-empty card field list naming nothing — and a non-empty list
+    // suppresses ObjectKanban's `highlightFields` fallback, so the cards would
+    // come out emptier than before this card. Resolved at the boundary with
+    // `columnIdentity`, the same fold ObjectGrid applies to this very value.
+    const s = await generatedSchema({
+      ...KANBAN,
+      table: { columns: [{ field: 'stage', label: 'Stage', width: 120 }] } as any,
+    });
+    expect(s.cardFields).toEqual(['stage']);
+  });
+
+  it('falls through to table.fields when no column entry names a field', async () => {
+    // The empty-array trap: `[] || x` is `[]`, so a `columns` whose entries all
+    // fail to resolve must yield `undefined`, not an empty list that stops the
+    // chain on a falsy-looking truthy value.
+    const s = await generatedSchema({
+      ...KANBAN,
+      table: { columns: [{ label: 'no identity here' }], fields: ['owner'] } as any,
+    });
+    expect(s.cardFields).toEqual(['owner']);
   });
 
   it('keeps a named view outranking the table segment', async () => {

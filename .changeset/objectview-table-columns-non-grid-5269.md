@@ -25,3 +25,14 @@ card fields) and `object-tree` (its flat columns) consume the shared
 `object-gallery`, `object-calendar`, `object-timeline`, `object-gantt` and
 `object-map` read no field list off their schema at all, so the forwarded value
 is inert there — before this change and after it.
+
+One shape question the forwarding raised, answered at the boundary:
+`table.columns` is `string[] | ListColumn[]`, and the non-grid slot is a
+names slot (`ObjectKanban` indexes the record by each entry). The object form
+is therefore resolved to field names there with `columnIdentity` — the same
+fold `ObjectGrid` applies to this very value — so one authored `table.columns`
+resolves identically on both paths, and a `ListColumn[]` cannot arrive as a
+non-empty card field list naming nothing (which would suppress ObjectKanban's
+`highlightFields` fallback and render emptier than the bug being fixed). The
+delegated `list-view` slot declares the same union and keeps the value raw, so
+an author's per-column `label` / `width` still reach the list renderer.
