@@ -10,8 +10,8 @@ import React, { useState, useEffect, useContext, useCallback, useMemo } from 're
 import { SchemaRendererContext, SchemaRenderer, useFilterScope } from '@object-ui/react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle } from '@object-ui/components';
 import { isDrillEnabled, resolveDrillTitle } from '@object-ui/core';
-import type { DrillDownConfig } from '@object-ui/types';
-import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
+import type { DrillDownConfig, I18nLabel } from '@object-ui/types';
+import { useLocalization, resolveFieldCurrency, useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { MetricWidget } from './MetricWidget';
 import { OpenInListButton } from './OpenInListButton';
 import {
@@ -44,22 +44,40 @@ export interface ObjectMetricWidgetProps {
   aggregate?: { field: string; function: string; groupBy?: string };
   /** Filter conditions */
   filter?: any;
-  /** Static label for the metric */
-  label: string | { key?: string; defaultValue?: string };
+  /**
+   * The KPI's heading, in @objectstack/spec's `I18nLabel` vocabulary — a plain
+   * string or an inline per-locale map (`{ en: 'Revenue', 'zh-CN': '收入' }`).
+   *
+   * Was `string | { key?, defaultValue? }` — the key-reference form
+   * objectstack#5055 RETIRED at rc.6. The sibling `MetricWidgetProps` was
+   * migrated for this reason in objectui#4358; this interface was missed in
+   * that pass, and the omission was not inert (objectui#5264). This component
+   * forwards `label` straight to `MetricWidget`, which resolves it with
+   * `pickLocalized`. The retired object hits no locale limb, so resolution
+   * falls through to the last resort — the FIRST string property in insertion
+   * order — and `{ key, defaultValue }` written in that natural order paints
+   * the raw dotted translation key onto the card as its visible label.
+   *
+   * The producer side already says so: `ObjectMetricPropsSchema.label` in
+   * `@objectstack/spec/ui` is `I18nLabelSchema`, and its inline-map key regex
+   * rejects `key`/`defaultValue` by name. This declaration now agrees with it.
+   */
+  label: string | I18nLabel;
   /** Fallback static value (used when no dataSource or in demo mode) */
   fallbackValue?: string | number;
   /** Trend info */
   trend?: {
     value: number;
-    label?: string | { key?: string; defaultValue?: string };
+    /** Trend caption, same `I18nLabel` vocabulary as {@link ObjectMetricWidgetProps.label}. */
+    label?: string | I18nLabel;
     direction?: 'up' | 'down' | 'neutral';
   };
   /** Icon name or ReactNode */
   icon?: React.ReactNode | string;
   /** Additional CSS class */
   className?: string;
-  /** Description */
-  description?: string | { key?: string; defaultValue?: string };
+  /** Sub-caption under the value, same `I18nLabel` vocabulary as {@link ObjectMetricWidgetProps.label}. */
+  description?: string | I18nLabel;
   /** External data source (overrides context) */
   dataSource?: any;
   /** Visual color variant for the icon container */
@@ -85,8 +103,13 @@ export interface ObjectMetricWidgetProps {
    * to this metric, filtered by the same `filter` used for aggregation.
    */
   drillDown?: DrillDownConfig;
-  /** Title for the drill-down panel; defaults to the metric label. */
-  title?: string | { key?: string; defaultValue?: string };
+  /**
+   * Title for the drill-down panel; defaults to the metric label. Same
+   * `I18nLabel` vocabulary as {@link ObjectMetricWidgetProps.label}, and
+   * resolved through the same `pickLocalized` — see `drawerTitle` below, which
+   * used to read the retired form's `defaultValue` limb directly.
+   */
+  title?: string | I18nLabel;
   /**
    * Period-over-period comparison configuration — the executor's own
    * `{ kind, dimension? }` contract since objectstack#5011. When set, the
@@ -182,6 +205,10 @@ export const ObjectMetricWidget: React.FC<ObjectMetricWidgetProps> = ({
   // Tenant default currency (localization.currency, ADR-0053) backstops a
   // currency field that declares no explicit code of its own.
   const { currency: tenantCurrency } = useLocalization();
+  // The UI language — what label TEXT follows (distinct from the tenant's
+  // number/currency locale above). Same source `MetricWidget` resolves its own
+  // heading against, so the drill-down drawer cannot disagree with the tile.
+  const { language } = useObjectTranslation();
   const inferredCurrency = useMemo(() => {
     if (currency) return currency;
     if (valueFieldDef?.type !== 'currency') return undefined;
@@ -347,11 +374,19 @@ export const ObjectMetricWidget: React.FC<ObjectMetricWidgetProps> = ({
   // — the whole metric is the slice). Falls back to the metric label as
   // drawer title when no explicit `drillDown.title` template is set.
   const drillEnabled = isDrillEnabled(drillDown) && !!objectName && !!dataSource;
+  //
+  // `title` and `label` are `I18nLabel` (see the interface above), so they are
+  // resolved with `pickLocalized` — the same seam `MetricWidget` uses for the
+  // tile's own heading, so the drawer and the card it opened from agree on one
+  // locale. These two reads previously destructured `defaultValue` off the
+  // RETIRED key-reference form: an inline per-locale map has no such limb, so
+  // an authored `title` resolved to `''` and the drawer silently fell back to
+  // the literal word "Details" (objectui#5264).
   const drawerTitle = useMemo(() => {
-    const labelText = typeof label === 'string' ? label : (label?.defaultValue || '');
-    const titleText = typeof title === 'string' ? title : (title?.defaultValue || '');
+    const labelText = pickLocalized(label, language);
+    const titleText = pickLocalized(title, language);
     return resolveDrillTitle(drillDown, {}, titleText || labelText || 'Details');
-  }, [drillDown, label, title]);
+  }, [drillDown, label, title, language]);
 
   const drillDrawer = useMemo(() => {
     if (!drillEnabled) return null;
