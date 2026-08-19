@@ -15,8 +15,8 @@
  *  - ordering (framework#3916): `report.order` / `blocks[].order` lowered onto
  *    the selection, scoped per sub-selection, and part of the refetch key
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { I18nProvider } from '@object-ui/i18n';
 import { DatasetReportRenderer, isDatasetReport } from '../DatasetReportRenderer';
@@ -53,6 +53,99 @@ function makeSource(byDataset: Record<string, MockRows | MockResult>) {
     }),
   };
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * objectui#5225 — the metadata probe this file used to send to the REAL network
+ *
+ * Nothing in `packages/plugin-report/src` calls `fetch`, yet this file made 8
+ * live TCP connections per run to `http://localhost:3000` (16 stderr lines —
+ * two per attempt). The path, traced with a `net.Socket.prototype.connect`
+ * probe:
+ *
+ *   DatasetReportRenderer  (tabular / matrix / chart branches)
+ *     → useDatasetDimensionLabels        (re-export of @object-ui/react's hook)
+ *       → useDatasetDimensionMeta        packages/react/src/hooks/useDatasetDimensionLabels.ts
+ *         → `const doFetch = apiFetch ?? fetch`  ← the escape
+ *           → loadDimensionFieldMeta     packages/core/src/utils/chart-series.ts
+ *             GET /api/v1/meta/object/<object>
+ *
+ * The hook reads the host's AUTHENTICATED `apiFetch` off `SchemaRendererContext`
+ * and, with no `SchemaRendererProvider` in the tree, degrades to the GLOBAL
+ * `fetch` on purpose (objectui#4121 property 1 — a standalone embed must keep
+ * rendering, not crash). Under happy-dom that global `fetch` is a real HTTP
+ * client, and vitest's happy-dom environment defaults the document URL to
+ * `http://localhost:3000`, so the relative `/api/v1/...` resolved to a live
+ * request to whatever happens to own port 3000 in a shared container.
+ *
+ * Why the tests' own mock never intercepted it: this read is a SECOND data
+ * channel. `dataSource.queryDataset` (the prop double below) serves the report
+ * ROWS; the dimension-label metadata never goes through `dataSource` at all.
+ * Only the ~8 cases whose mock result carries `object` reach it — that field is
+ * what the hook keys on.
+ *
+ * The read is best-effort (`catch {}` leaves rows exactly as the server sent
+ * them), which is why 42 tests stayed green while the request always failed.
+ *
+ * Answer it from a RECORDING double, the shape objectui#3339 / #4106 settled on
+ * and this package's own `DatasetReportRenderer.localSelectI18n.test.tsx`
+ * already uses. It is deliberately NOT a blanket network stub: it records every
+ * URL it is handed, `afterEach` fails on any URL that is not the metadata route,
+ * and the probe's shape — previously asserted by nobody — is pinned below.
+ *
+ * The default document declares no option-bearing fields, so
+ * `deriveDimensionLabelMaps` resolves nothing and `relabelDimensions` returns
+ * the rows by identity: byte-identical to what the failing request produced.
+ * No pre-existing assertion changes meaning.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const META_OBJECT_ROUTE = /^\/api\/v1\/meta\/object\/(.+)$/;
+
+type MetaFieldDoc = { type?: string; options?: Array<{ value: string; label?: string }> };
+type MetaObjectDoc = { name: string; fields?: Record<string, MetaFieldDoc> };
+
+let metaCalls: Array<{ url: string; init?: { headers?: Record<string, string>; credentials?: string } }> = [];
+let metaDocs: Record<string, MetaObjectDoc> = {};
+
+/** Serve `/api/v1/meta/object/<name>` from `metaDocs`; record everything. */
+function installMetaObjectDouble() {
+  metaCalls = [];
+  metaDocs = {};
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown, init?: unknown) => {
+      const url = String(
+        input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+      );
+      metaCalls.push({ url, init: init as { headers?: Record<string, string>; credentials?: string } });
+      const m = META_OBJECT_ROUTE.exec(url);
+      if (!m) return { ok: false, status: 404, json: async () => ({}) };
+      const name = decodeURIComponent(m[1]);
+      const doc = metaDocs[name] ?? { name, fields: {} };
+      return { ok: true, status: 200, json: async () => ({ item: doc }) };
+    }),
+  );
+}
+
+/** The object names this render probed, in request order. */
+const probedObjects = () =>
+  metaCalls.map((c) => META_OBJECT_ROUTE.exec(c.url)?.[1]).filter((n): n is string => Boolean(n)).map(decodeURIComponent);
+
+beforeEach(() => {
+  installMetaObjectDouble();
+});
+
+afterEach(() => {
+  // The double is a router, not a sink: an escape to any OTHER endpoint fails
+  // here instead of vanishing into the hook's best-effort `catch`.
+  expect(metaCalls.filter((c) => !META_OBJECT_ROUTE.test(c.url)).map((c) => c.url)).toEqual([]);
+  // Unmount BEFORE restoring the real `fetch`. Vitest runs `afterEach` hooks in
+  // reverse registration order, so the setup file's RTL cleanup runs after this
+  // one: unstubbing first leaves the tree mounted with the real global back in
+  // place, and a metadata effect that settles in that window escapes again.
+  // Measured — one run in six leaked a single attempt that way.
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('isDatasetReport', () => {
   it('matches a report bound to a dataset', () => {
@@ -1005,5 +1098,81 @@ describe('DatasetReportRenderer — matrix bucket encoding (objectstack#5665)', 
     await waitFor(() => expect(screen.getByTestId('dataset-matrix')).toBeInTheDocument());
     expect(screen.getAllByTestId('matrix-row-total').map((el) => el.textContent)).toEqual(['1', '2']);
     expect(screen.getByTestId('matrix-grand-total')).toHaveTextContent('3');
+  });
+});
+
+/**
+ * objectui#5225 — the dimension-metadata probe's own shape.
+ *
+ * Before this file answered the probe from the double above, the request went
+ * to the real network and always failed, so nothing here had ever asserted it
+ * and its SUCCESS path had never once executed in this suite. These three pins
+ * state what the renderer's own wiring asks for — which object, how many times,
+ * and that a resolved document actually reaches the rendered cells — so a
+ * future widening of the read shows up as a red test rather than as a silent
+ * extra request to whatever owns port 3000.
+ *
+ * (The label-resolution RULES are `@object-ui/core`'s and are unit-tested
+ * there; the locale half is pinned in `DatasetReportRenderer.localSelectI18n.test.tsx`.
+ * What is new here is only this renderer's request wiring.)
+ */
+describe('DatasetReportRenderer — dimension metadata probe (objectui#5225)', () => {
+  it('probes exactly the result-declared object, once, over the metadata route', async () => {
+    const src = makeSource({
+      task_metrics: {
+        rows: [{ status: 'Backlog', est_hours: 30 }],
+        object: 'task',
+        dimensionFields: { status: 'status' },
+      },
+    });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'r', type: 'summary', dataset: 'task_metrics', rows: ['status'], values: ['est_hours'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('Backlog')).toBeInTheDocument());
+    await waitFor(() => expect(probedObjects()).toEqual(['task']));
+    // The rows come from `dataSource`; the metadata is a separate channel that
+    // never touches it, which is why the prop double could not intercept this.
+    expect(metaCalls.map((c) => c.url)).toEqual(['/api/v1/meta/object/task']);
+    expect(metaCalls[0].init?.headers).toMatchObject({ accept: 'application/json' });
+  });
+
+  it('issues no metadata probe when the result declares no object', async () => {
+    const src = makeSource({ task_metrics: [{ status: 'Backlog', est_hours: 30 }] });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'r', type: 'summary', dataset: 'task_metrics', rows: ['status'], values: ['est_hours'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('Backlog')).toBeInTheDocument());
+    expect(metaCalls).toEqual([]);
+  });
+
+  it('applies the probed document: a select dimension renders its option label', async () => {
+    metaDocs.task = {
+      name: 'task',
+      fields: { status: { type: 'select', options: [{ value: 'in_progress', label: 'In Progress' }] } },
+    };
+    const src = makeSource({
+      task_metrics: {
+        // The server sent the STORED value here; the probe is what turns it
+        // into the authored label — the path that never ran while the request
+        // was failing.
+        rows: [{ status: 'in_progress', est_hours: 30 }],
+        object: 'task',
+        dimensionFields: { status: 'status' },
+      },
+    });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'r', type: 'summary', dataset: 'task_metrics', rows: ['status'], values: ['est_hours'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('In Progress')).toBeInTheDocument());
+    expect(screen.queryByText('in_progress')).not.toBeInTheDocument();
   });
 });
