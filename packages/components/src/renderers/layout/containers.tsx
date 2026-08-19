@@ -1400,12 +1400,34 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     //      (see the headerActions memo above), so the first `maxVisible`
     //      claim the inline slots.
     // `maxVisible` / `mobileMaxVisible` are overridable on the page:header
-    // schema and default to 3 / 1 — the same contract as action:bar. This
-    // still keeps the header from drowning in 4–5 buttons on every record
-    // page, while letting multi-action objects surface several primary
-    // buttons at once.
+    // schema and default to 3 / 1. This still keeps the header from drowning
+    // in 4–5 buttons on every record page, while letting multi-action objects
+    // surface several primary buttons at once.
+    //
+    // `readMax` enforces the SPEC's value domain rather than a laxer renderer
+    // tolerance (objectui#5006). Measured on `ComponentPropsMap['page:header']`
+    // at @objectstack/spec 17.0.0, both keys are a POSITIVE SAFE INTEGER
+    // (`{format:'safeint'}` + `{check:'greater_than',value:0,inclusive:false}`),
+    // so `0`, `-1`, `1.5` and anything past `Number.MAX_SAFE_INTEGER` are all
+    // rejected by the contract. This reader used to be the loosest of the three
+    // authorities — it accepted `0` and floored fractions — so a value that
+    // `os validate` / `os build` rejects outright still changed what rendered
+    // here, and the loosest layer decided behaviour. A contract-rejected value
+    // now falls back to the default instead of taking effect.
+    //
+    // `Number.isSafeInteger` is the exact translation of `safeint`, not an
+    // approximation: plain `Number.isInteger` would admit `2**53 + 2` and
+    // `1e21`, both of which spec rejects (`Too big: expected int to be
+    // <= 9007199254740991`). It also subsumes the old `Number.isFinite` guard,
+    // since Infinity and NaN are not safe integers.
+    //
+    // ⛔ Do NOT re-lax this into a tolerant read. objectui's authoring-time
+    // gates stay coarse by ruling (maintainer, 2026-08-17): `ComponentInput`
+    // keeps its single `number` arm and `checkType` is not bound to spec, so
+    // SPEC IS THE SOLE JUDGE OF VALUES — which makes agreeing with it this
+    // renderer's job. Rejections are pinned in `page-header-actions.test.tsx`.
     const readMax = (v: any): number | undefined =>
-      typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : undefined;
+      typeof v === 'number' && Number.isSafeInteger(v) && v > 0 ? v : undefined;
     const maxVisible = isMobile
       ? (readMax(schema?.mobileMaxVisible ?? schema?.properties?.mobileMaxVisible) ?? 1)
       : (readMax(schema?.maxVisible ?? schema?.properties?.maxVisible) ?? 3);
@@ -1748,10 +1770,13 @@ ComponentRegistry.register('header', PageHeaderRenderer, {
     // `ComponentPropsMap['page:header']` on the installed GA pin, both are
     // `z.number()` constrained to a POSITIVE SAFE INTEGER — `0`, `-1` and `2.5`
     // are all rejected by value, which is why the descriptions say so instead
-    // of leaving an author to discover it from a parse error. (`readMax` here is
-    // laxer than that — it accepts `0` and floors fractions — but a renderer
-    // tolerance is not an authoring surface, and the contract is what `inputs`
-    // publishes.)
+    // of leaving an author to discover it from a parse error. (`readMax` at the
+    // inline/overflow split above now enforces exactly that domain — objectui#5006
+    // closed the gap where this renderer accepted `0` and floored fractions while
+    // the contract rejected both. The coarse `number` arm here still cannot
+    // express the domain: `ComponentInput.type` has no integer/min/max slot, so
+    // `description` stays the only authoring-time expression of it, and spec
+    // stays the sole judge of values.)
     { name: 'maxVisible', type: 'number', label: 'Max Inline Actions', defaultValue: 3, description: 'How many header actions render as inline buttons on desktop before the rest fold into the overflow menu. A positive integer — the contract rejects 0 and fractional values. Two kinds of action are routed to the overflow menu regardless of this budget and never occupy an inline slot: an action whose locations declare record_more without record_header, and any action with component action:menu.' },
     { name: 'mobileMaxVisible', type: 'number', label: 'Max Inline Actions (Mobile)', defaultValue: 1, description: 'The same inline-button budget on mobile viewports, where horizontal room is scarce. A positive integer, defaulting to 1; the desktop half is Max Inline Actions, and the overflow routing rules stated there apply unchanged.' },
   ],

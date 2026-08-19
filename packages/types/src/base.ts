@@ -410,6 +410,35 @@ export interface ComponentInput {
    * one-element array back to the bare string, so the published
    * `sdui.manifest.json` gains arrays only where a union was really declared.
    *
+   * ## The arms are COARSE KINDS — and that is the ceiling (objectui#5006)
+   *
+   * An arm names a value's *kind*, never its *domain*. `'number'` is the only
+   * numeric arm and `ComponentInput` has no `integer` / `min` / `max` slot to
+   * pair with it, so a key whose contract is narrower than "some number" has
+   * no way to say so here. Worked example — `page:header.maxVisible`, whose
+   * spec type is a POSITIVE SAFE INTEGER: `@objectstack/spec` rejects `0`,
+   * `-1` and `1.5`, while this declaration's `'number'` arm admits all three
+   * and `checkType` raises no diagnostic on any of them.
+   *
+   * **Ruled (maintainer, 2026-08-17): the coarse arm plus `description` IS the
+   * publication face's expression ceiling today, and SPEC IS THE SOLE JUDGE OF
+   * VALUES.** So spell the domain out in `description`, in the author's own
+   * terms ("A positive integer — the contract rejects 0 and fractional
+   * values"), and let `os validate` / `os build` be the gate that enforces it.
+   * `description` documents, it does not check: objectui deliberately raises
+   * no authoring-time diagnostic on an out-of-domain value. A *renderer*
+   * reading such a key should therefore agree with spec rather than tolerate
+   * what spec rejects — `page:header`'s `readMax` was tightened to exactly the
+   * contract for this reason, so the loosest layer stops deciding behaviour.
+   *
+   * Two directions were **deferred**, not rejected on merit: giving
+   * `ComponentInput` real constraint slots (two sources of truth, free to
+   * drift), and binding `checkType` to spec's Zod member when a
+   * `ComponentPropsMap` entry exists (one truth, but couples `sdui-parser` to
+   * spec). The ruling names the reopen condition: **a measured case of an
+   * author — human or agent — shipping a spec-rejected value that objectui's
+   * silence let through.** Until that is measured, do not widen this field.
+   *
    * @example 'string'
    * @example ['string', 'object']   // a string or an inline translation map
    * @example ['string', 'number']   // element:text_input.defaultValue
