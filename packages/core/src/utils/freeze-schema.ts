@@ -45,6 +45,38 @@ export type DeepReadonly<T> = T extends (...args: any[]) => any
       : T;
 
 /**
+ * The inverse of `DeepReadonly<T>`: recursively strip `readonly` at every depth.
+ *
+ * Named `DeepMutable` rather than `Mutable` for the same reason the type above
+ * is not called `Readonly` — TS' built-in `Readonly<T>` is SHALLOW, so a bare
+ * `Mutable` would understate what this does by exactly the depth gap that made
+ * `cloneAsOverride` wrong in the first place. A type whose name misreports its
+ * own reach is the defect this pair exists to close, not a naming preference.
+ *
+ * Symmetric with `DeepReadonly` arm for arm, deliberately including its two
+ * limits: a tuple widens to an array (`DeepReadonly` widens it the same way, so
+ * an inverse that preserved tuples would not be an inverse), and `Date`,
+ * `RegExp`, `Map` and `Set` are mapped as plain objects even though
+ * `isFreezableObject` skips them at runtime.
+ *
+ * One thing it deliberately does NOT do: drop the `SYSTEM_VIEW_MARKER` key.
+ * `cloneAsOverride` never copies the symbol, so a clone's marker is always
+ * absent — but the key is declared optional (`?: true`), and carrying it
+ * therefore states "may be absent", which is true. Excluding it needs
+ * `Exclude<keyof T, typeof SYSTEM_VIEW_MARKER>`, a NON-homomorphic mapped type
+ * that drops the `?` modifier from every other property and turns optional keys
+ * required — a strictly worse type, and a real break for callers, traded for
+ * removing a key that already reads as optional.
+ */
+export type DeepMutable<T> = T extends (...args: any[]) => any
+  ? T
+  : T extends ReadonlyArray<infer U>
+    ? DeepMutable<U>[]
+    : T extends object
+      ? { -readonly [K in keyof T]: DeepMutable<T[K]> }
+      : T;
+
+/**
  * A schema that has been frozen by `defineSystemView()`. The marker symbol is
  * non-enumerable and therefore invisible to consumers, but its presence
  * lets us discriminate at runtime.
@@ -159,15 +191,25 @@ export function isSystemView(value: unknown): boolean {
  * Produce a deep, mutable clone of a System View so callers can apply
  * Tenant/User overrides without touching the source schema.
  *
+ * Returns `DeepMutable<T>`, not `T`. The declaration used to hand back the
+ * input type unchanged, which meant cloning a `SystemView<S>` returned
+ * something still typed deep-readonly even though the implementation had always
+ * produced a plain mutable object — so the override flow this function exists
+ * for, `draft.columns.push(...)`, did not type-check (TS2339). The return type
+ * now relaxes TOWARD what the runtime already does, never away from it, which
+ * is why the change adds capability to a caller's type rather than removing it.
+ *
  * Implementation note: uses `structuredClone` when available (Node 17+, all
  * evergreen browsers) and falls back to a JSON round-trip. The marker
  * symbol is intentionally NOT copied — the clone is no longer a System View.
+ * Neither path can copy it by accident: `structuredClone` ignores symbol keys,
+ * and `JSON.stringify` never sees them.
  */
-export function cloneAsOverride<T>(view: T): T {
-  if (view == null || typeof view !== 'object') return view;
+export function cloneAsOverride<T>(view: T): DeepMutable<T> {
+  if (view == null || typeof view !== 'object') return view as DeepMutable<T>;
   const clone =
     typeof structuredClone === 'function'
       ? structuredClone(view)
       : (JSON.parse(JSON.stringify(view)) as T);
-  return clone;
+  return clone as DeepMutable<T>;
 }

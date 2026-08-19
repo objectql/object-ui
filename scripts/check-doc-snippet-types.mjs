@@ -246,7 +246,15 @@ const UNGATED_DOCS = {
   'packages/components/README.md':
     '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/core/README.md':
-    '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2339x2 — candidate real defects, un-triaged',
+    '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; plus TS2339x1 — TRIAGED, and NOT a defect: the remaining one is ' +
+    '`userListView.columns.push(...) // ❌ TypeError (strict mode)`, the System-View immutability ' +
+    'demonstration, so a readonly rejection there is the documentation working as written. ' +
+    'This entry read TS2339x2 until objectui#5257: the second one, on the `cloneAsOverride` draft ' +
+    'one block below, was a real signature defect — `cloneAsOverride` returned its input type, so ' +
+    'the documented override flow did not compile. It now returns `DeepMutable<T>` and that ' +
+    'diagnostic is gone. Covering this page still needs the 5 undefined-name blocks made ' +
+    'self-contained or declared, plus a way to declare a block whose rejection IS the point.',
   'packages/data-objectstack/README.md':
     '10 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 41 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/fields/README.md':
