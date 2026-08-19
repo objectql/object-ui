@@ -176,6 +176,50 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm lint
 
+      # ── The cross-repo closer's outcome contract (#5261) ──────────────────
+      # `cross-repo-issue-closer.yml` carries ~250 lines of inline
+      # github-script, and until this step existed it was code nobody had ever
+      # seen run: it fires only on a merge, its conclusion is required by
+      # nothing, and every one of its runs so far has been green. That last part
+      # is the problem rather than the reassurance — measured over every merged
+      # pull request in this repository, its close loop has had a live target
+      # roughly one and a half times a day since it landed, took the same
+      # `already closed -- skipping` exit every time, and left no backlink on
+      # any of them. Greenly. The header of the workflow carries the figures.
+      #
+      # This step is the exercise: the shipped script is extracted from the YAML
+      # with a real parser (never retyped) and run under doubles the way
+      # actions/github-script runs it, as one AsyncFunction body. The scenarios
+      # pin the target parse, the target KIND, and the outcome of every exit —
+      # which of setFailed / warning / job summary fires, and which API calls
+      # were made.
+      #
+      # Assertion 0 is the compile, and it is not theoretical: the framework's
+      # copy of this workflow was taken down twice in one day by a `SyntaxError`
+      # in the inline block, i.e. a script that never ran at all, on a
+      # post-merge workflow whose red nothing else in CI can see.
+      #
+      # `--self-test` runs FIRST and is the half that stops the battery rotting
+      # into decoration: it mutates the shipped script — downgrade the verdict
+      # to a warning, break out of the loop instead of isolating, drop the
+      # same-repo skip, collapse the already-closed branch, strip the backlink
+      # marker, drop the pull-request guard, and the rest — and requires the
+      # battery to go RED for each, naming the scenario that catches it. Neither
+      # the mutations nor the scenarios are counted here: a hand-copied
+      # enumeration drifts by construction, which is the lesson this workflow's
+      # own header records. A mutation whose anchor no longer exists is a
+      # failure too, so rewriting the workflow cannot leave them silently
+      # matching nothing.
+      #
+      # Invoked as `node` rather than through a `pnpm check:*` alias, matching
+      # `check-lint-coverage.mjs` above. No network, no build; well under a
+      # second.
+      - name: Cross-repo closer outcome contract
+        if: steps.relevant.outputs.should_run == 'true'
+        run: |
+          node scripts/check-cross-repo-closer-outcome.mjs --self-test
+          node scripts/check-cross-repo-closer-outcome.mjs
+
       # ── The product's own check command, on the product's own tree ────────
       # `objectui check` is what a consumer runs against their schema tree, and
       # the root `check` script points that same command at this repository.
