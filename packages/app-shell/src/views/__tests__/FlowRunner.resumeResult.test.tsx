@@ -176,8 +176,13 @@ describe('#5417 — a refused resume is readable, and keeps the input', () => {
     setup(authFetch);
     await fillAndSubmit();
 
-    // Inline: the sentence lives in the dialog, beside the values that caused it.
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(FLOW_FAILED_MESSAGE));
+    // Queried by TEXT first, on purpose. `getByRole('alert')` would fail with
+    // "unable to find role alert", which reads the same whether the sentence was
+    // dropped or the markup moved; querying the sentence makes the reverse
+    // verification NAME what went missing. The role is then asserted on the node
+    // that was found, so the announcement is still pinned.
+    await waitFor(() => expect(screen.getByText(FLOW_FAILED_MESSAGE)).toBeInTheDocument());
+    expect(screen.getByText(FLOW_FAILED_MESSAGE).closest('[role="alert"]')).not.toBeNull();
     // Toast: the carrier that survives a scrolled-away dialog header.
     expect(toastError).toHaveBeenCalledWith(FLOW_FAILED_MESSAGE);
   });
