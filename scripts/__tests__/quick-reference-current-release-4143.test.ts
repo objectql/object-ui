@@ -38,13 +38,40 @@ import { fileURLToPath } from 'node:url';
  *
  * ## The two directions
  *
- * Forward: each anchored row must state what its manifest says. Bump the manifest
- * without touching the block and the row that lies goes red, naming the file to edit.
+ * Forward: each anchored row must state EXACTLY the version literals its manifest
+ * produces — a row's literals are extracted as whole tokens and compared to the derived
+ * set by equality. Bump the manifest without touching the block and the row that lies
+ * goes red, naming the file to edit.
+ *
+ * That sentence used to be false, and objectui#4913 is the accounting. The forward
+ * assertions asked `toContain`, which accepts any row carrying the derived value as a
+ * SUBSTRING — so every PREFIX SUPERSET of the anchor passed. Measured on this file:
+ * GA manifests against a doc still reading `^17.0.0-rc.6` kept both range rows green,
+ * because `'^17.0.0-rc.6'.includes('^17.0.0')`. `^17.0.0.1` and `^17.0.0-beta` passed
+ * identically, and so did a `≥ 220` Node row against an `engines.node` floor of 22 —
+ * the hole was the comparison, not the prerelease suffix, so it was in every anchored
+ * row here rather than in the two that happened to get caught. What did catch the drift
+ * was the reverse sweep, answering a different question and covering this one only by
+ * accident: of the two directions, the broken one was the one this header guaranteed.
  *
  * Reverse (the last `it` below): no version literal may appear in the block that this
  * test did not derive. Without it the gate covers only the rows that exist today — a
  * new hand-written `- **Turbo:** 2.x` row would sail in beside them and rot on the
  * same schedule, which is the whole defect class, re-created one bullet to the left.
+ * The forward equality does not make it redundant and it must not be dropped on that
+ * argument: forward asks whether THIS row still says what its anchor says, reverse asks
+ * whether anything here was never derived at all. A brand-new row is invisible to the
+ * first and caught by the second — two directions, two questions.
+ *
+ * ## Where the forward direction still stops
+ *
+ * Both directions reason about version LITERALS (`VERSION_LITERAL` below), so prose
+ * wrapped around a correct literal is pinned by neither. A row hedged to
+ * `^17.0.0 or higher` states its anchor's literal and no other one, and passes — that
+ * is measured too, not assumed. Closing it would mean writing the rows' wording into
+ * this file, and the rows carry hand-written anchor notes precisely so they can be
+ * reworded; the boundary is recorded here instead, so the next reader knows where the
+ * guarantee above runs out.
  *
  * ## The one row nothing here can hold to account
  *
@@ -155,6 +182,51 @@ function row(label: string): string {
   return value as string;
 }
 
+/**
+ * A version literal, in the spellings this block uses. Deliberately narrow in the same
+ * way `doc-version-claims.test.ts` argues for: a bare integer is not a version (the
+ * rows contain `§2`, and prose elsewhere counts things), so a literal must be
+ * operator-prefixed or dotted.
+ *
+ * Both directions read the block through this one regex: the forward assertions extract
+ * a row's literals with it, and the reverse sweep collects the same tokens across every
+ * row. One tokenizer means the two cannot disagree about what a version literal IS — a
+ * spelling neither can see is one hole to record (see the header), not two to discover
+ * separately.
+ */
+const VERSION_LITERAL = /(?:\^|~|>=|<=|>|<|≥|≤)\s*v?\d[\w.-]*|\bv?\d+\.[A-Za-z0-9][\w.-]*/g;
+
+const normalize = (literal: string): string => literal.replace(/\s+/g, '');
+
+/**
+ * The version literals a row states, as WHOLE tokens — de-duplicated and sorted, so the
+ * comparison below is about WHICH literals a row states, not the order it states them
+ * in or how often. `matchAll` does not advance `VERSION_LITERAL.lastIndex` (it iterates
+ * over an internal clone), so the shared global regex is safe to reuse per row.
+ */
+function statedLiterals(value: string): string[] {
+  return [...new Set([...value.matchAll(VERSION_LITERAL)].map((match) => normalize(match[0])))].sort();
+}
+
+/**
+ * The forward direction, for one anchored row: the literals the row states must be
+ * EXACTLY the literals its anchor produced.
+ *
+ * Equality on extracted tokens, never `toContain` over the raw row (objectui#4913, and
+ * the header's first section for the measurements). Two properties follow from
+ * comparing the whole set rather than asking "does it include":
+ *
+ * - A row may not smuggle in a SECOND, un-anchored literal beside the right one. That
+ *   is the reverse sweep's rule applied per row, so the failure names the row to edit
+ *   instead of pointing at the block.
+ * - A derivation that produces a literal the row does not state fails LOUD here. In the
+ *   reverse set an over-broad derivation only widens what the block is allowed to say
+ *   (see `peerMajors` above for the shape of that mistake).
+ */
+function expectRowStates(label: string, derived: string[], message: string): void {
+  expect(statedLiterals(row(label)), message).toEqual([...new Set(derived.map(normalize))].sort());
+}
+
 describe('QUICK_REFERENCE.md "Current Release" — package + spec versions', () => {
   /**
    * Every `@object-ui/*` package is one `fixed` group in `.changeset/config.json`, so
@@ -189,10 +261,11 @@ describe('QUICK_REFERENCE.md "Current Release" — package + spec versions', () 
     ).toHaveLength(1);
 
     const workspaceVersion = [...distinct][0];
-    expect(
-      row('Version'),
-      `${docRel} must state the workspace version as "${workspaceVersion}"`,
-    ).toContain(workspaceVersion);
+    expectRowStates(
+      'Version',
+      [workspaceVersion],
+      `${docRel} must state the workspace version as exactly "${workspaceVersion}"`,
+    );
   });
 
   it('quotes the `@objectstack/spec` range the manifests declare', () => {
@@ -209,7 +282,7 @@ describe('QUICK_REFERENCE.md "Current Release" — package + spec versions', () 
         `${docRel}'s Spec row names both as its anchor and can no longer state one value`,
     ).toBe(fromRoot);
 
-    expect(row('Spec'), `${docRel} must state the spec range as "${fromRoot}"`).toContain(fromRoot as string);
+    expectRowStates('Spec', [fromRoot as string], `${docRel} must state the spec range as exactly "${fromRoot}"`);
   });
 
   it('quotes the `@objectstack/client` range the manifests declare', () => {
@@ -223,8 +296,10 @@ describe('QUICK_REFERENCE.md "Current Release" — package + spec versions', () 
         `${docRel}'s Client row names both as its anchor and can no longer state one value`,
     ).toBe(fromConsole);
 
-    expect(row('Client'), `${docRel} must state the client range as "${fromConsole}"`).toContain(
-      fromConsole as string,
+    expectRowStates(
+      'Client',
+      [fromConsole as string],
+      `${docRel} must state the client range as exactly "${fromConsole}"`,
     );
   });
 });
@@ -241,10 +316,11 @@ describe('QUICK_REFERENCE.md "Current Release" — toolchain rows', () => {
 
     const floor = (engine as string).match(/(\d+)/)?.[1];
     expect(floor, `engines.node must still carry a numeric floor (got "${engine}")`).toBeDefined();
-    expect(
-      row('Node.js'),
-      `${docRel} must state the Node floor as "≥ ${floor}" to match engines.node "${engine}"`,
-    ).toContain(`≥ ${floor}`);
+    expectRowStates(
+      'Node.js',
+      [`≥ ${floor}`],
+      `${docRel} must state the Node floor as exactly "≥ ${floor}" to match engines.node "${engine}"`,
+    );
   });
 
   it('states the pnpm floor and the pinned `packageManager`', () => {
@@ -254,10 +330,20 @@ describe('QUICK_REFERENCE.md "Current Release" — toolchain rows', () => {
 
     const pinned = rootManifest.packageManager;
     expect(pinned, 'root package.json must still declare packageManager').toBeDefined();
+    // Split off the version the same way the reverse sweep does, so one derivation
+    // serves both directions and they cannot drift apart on this row.
+    const pinnedVersion = (pinned as string).split('@').pop() as string;
 
-    const value = row('pnpm');
-    expect(value, `${docRel} must state the pnpm floor as "≥ ${floor}"`).toContain(`≥ ${floor}`);
-    expect(value, `${docRel} must quote the pinned packageManager "${pinned}"`).toContain(pinned as string);
+    expectRowStates(
+      'pnpm',
+      [`≥ ${floor}`, pinnedVersion],
+      `${docRel}'s pnpm row must state exactly the floor "≥ ${floor}" and the pinned "${pinned}"`,
+    );
+
+    // Containment deliberately, and only over the part that is NOT a version literal:
+    // the equality above holds the digits, this holds the tool they belong to, so a row
+    // quoting the right version against the wrong package manager still goes red.
+    expect(row('pnpm'), `${docRel} must quote the pinned packageManager "${pinned}"`).toContain(pinned as string);
   });
 
   /**
@@ -273,10 +359,12 @@ describe('QUICK_REFERENCE.md "Current Release" — toolchain rows', () => {
     const majors = peerMajors(peer as string);
     expect(majors.length, `could not read majors out of the react peer range "${peer}"`).toBeGreaterThan(0);
 
-    const value = row('React');
-    for (const major of majors) {
-      expect(value, `${docRel} must name React ${major}.x — the peer range is "${peer}"`).toContain(`${major}.x`);
-    }
+    const expected = majors.map((major) => `${major}.x`);
+    expectRowStates(
+      'React',
+      expected,
+      `${docRel} must name exactly React ${expected.join(' + ')} — the peer range is "${peer}"`,
+    );
   });
 });
 
@@ -309,27 +397,18 @@ describe('QUICK_REFERENCE.md "Current Release" — the unanchored TypeScript row
         'has an anchor at last and must be pinned to it here, replacing this exemption',
     ).toEqual([]);
 
-    const value = row('TypeScript');
-    expect(value, `${docRel}'s TypeScript row must still state "${UNANCHORED_LITERAL}"`).toContain(
-      UNANCHORED_LITERAL,
+    expectRowStates(
+      'TypeScript',
+      [UNANCHORED_LITERAL],
+      `${docRel}'s TypeScript row must still state exactly "${UNANCHORED_LITERAL}"`,
     );
     expect(
-      value,
+      row('TypeScript'),
       `${docRel}'s TypeScript row is the one unanchored claim in the block and must keep saying so, ` +
         'so a reader can tell it apart from the rows a test holds to account',
     ).toMatch(/not a manifest fact/i);
   });
 });
-
-/**
- * A version literal, in the spellings this block uses. Deliberately narrow in the same
- * way `doc-version-claims.test.ts` argues for: a bare integer is not a version (the
- * rows contain `§2`, and prose elsewhere counts things), so a literal must be
- * operator-prefixed or dotted.
- */
-const VERSION_LITERAL = /(?:\^|~|>=|<=|>|<|≥|≤)\s*v?\d[\w.-]*|\bv?\d+\.[A-Za-z0-9][\w.-]*/g;
-
-const normalize = (literal: string): string => literal.replace(/\s+/g, '');
 
 describe('QUICK_REFERENCE.md "Current Release" — no un-derived literal', () => {
   it('contains only version literals this test derives from a manifest', () => {
