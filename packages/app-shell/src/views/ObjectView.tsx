@@ -12,9 +12,9 @@
 import { useMemo, useState, useCallback, useEffect, useRef, lazy, Suspense, type ComponentType } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { resolveFilterPlaceholders, DENSITY_MODE_TO_ROW_HEIGHT, normalizeListViewSchema, type FilterTokenScope } from '@object-ui/core';
-import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
-import { buildListFilterKey, readListFilterState, writeListFilterState } from './listFilterStorage';
-import { VALUELESS_FILTER_OPERATORS } from './viewFilterFold';
+import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState.js';
+import { buildListFilterKey, readListFilterState, writeListFilterState } from './listFilterStorage.js';
+import { VALUELESS_FILTER_OPERATORS } from './viewFilterFold.js';
 import { narrowPersonalizationOverlay } from '@object-ui/data-objectstack';
 const ObjectChart = lazy(() =>
   import('@object-ui/plugin-charts').then((m) => ({ default: m.ObjectChart })),
@@ -25,7 +25,7 @@ const ImportWizard = lazy(() =>
 import { ListView } from '@object-ui/plugin-list';
 import { ObjectView as PluginObjectView, ViewTabBar, ManageViewsDialog, deriveRecordSurface, overlayWidthFor } from '@object-ui/plugin-view';
 import type { ViewTabItem } from '@object-ui/plugin-view';
-import { RECORD_DRAWER_PARAM } from '../urlParams';
+import { RECORD_DRAWER_PARAM } from '../urlParams.js';
 // Plugin registration is handled by the host app (e.g. apps/console/src/main.tsx
 // uses ComponentRegistry.registerLazy so heavy plugins stay code-split).
 // Do NOT add eager `import '@object-ui/plugin-*'` side-effect imports here.
@@ -37,36 +37,36 @@ import {
   NavigationOverlay,
 } from '@object-ui/components';
 import { Plus, Upload, Star, StarOff, Table as TableIcon, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3 } from 'lucide-react';
-import { useFavorites } from '../hooks/useFavorites';
-import { useTenancyPosture } from '../hooks/useTenancyPosture';
-import { getIcon } from '../utils/getIcon';
+import { useFavorites } from '../hooks/useFavorites.js';
+import { useTenancyPosture } from '../hooks/useTenancyPosture.js';
+import { getIcon } from '../utils/getIcon.js';
 import type { ListViewSchema, ViewNavigationConfig, FeedItem } from '@object-ui/types';
 import { detectStatusField, isSystemManagedField } from '@object-ui/types';
-import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
-import { ViewConfigPanel } from './ViewConfigPanel';
-import { useMetadataClient } from './metadata-admin/useMetadata';
-import { persistRuntimeMetadata, createRuntimeMetadata, viewEnvelope } from './runtime-metadata-persistence';
-import { CreateViewDialog } from './CreateViewDialog';
+import { MetadataPanel, useMetadataInspector } from './MetadataInspector.js';
+import { ViewConfigPanel } from './ViewConfigPanel.js';
+import { useMetadataClient } from './metadata-admin/useMetadata.js';
+import { persistRuntimeMetadata, createRuntimeMetadata, viewEnvelope } from './runtime-metadata-persistence.js';
+import { CreateViewDialog } from './CreateViewDialog.js';
 import {
   usePreviewDrafts,
   PREVIEW_QUERY_FLAG,
   PREVIEW_QUERY_VALUE,
-} from '../preview/PreviewModeContext';
-import { PageHeader } from '../layout/PageHeader';
-import { useMobileViewSwitcherRegistration } from '../layout/MobileViewSwitcherContext';
-import type { MobileViewSwitcherItem } from '../layout/MobileViewSwitcherContext';
-import { ManagedByBadge } from '../components/ManagedByBadge';
-import { RecordDetailView } from './RecordDetailView';
-import { resolveEffectiveCrudAffordances, type RowCrudPredicates } from '../utils/crudAffordances';
-import { createIdentityImportDataSource, IDENTITY_IMPORT_OBJECT, type IdentityPasswordPolicy } from './identityImport';
-import { IdentityImportOptions, IdentityImportResultExtra, identityImportFields } from './IdentityImportPanels';
-import { importTargetFields } from './importTargetFields';
-import { useExpressionContext } from '../providers/ExpressionProvider';
-import { resolveManagedByEmptyState } from '../utils/managedByEmptyState';
-import { resolveViewId } from '../utils/resolveViewId';
-import { defaultListViewId, viewRowId, isSavedViewId, viewEntry } from '../utils/viewIdentity';
-import { warnSuppressedListNav } from '../utils/warnSuppressedListNav';
-import { useObjectActions } from '../hooks/useObjectActions';
+} from '../preview/PreviewModeContext.js';
+import { PageHeader } from '../layout/PageHeader.js';
+import { useMobileViewSwitcherRegistration } from '../layout/MobileViewSwitcherContext.js';
+import type { MobileViewSwitcherItem } from '../layout/MobileViewSwitcherContext.js';
+import { ManagedByBadge } from '../components/ManagedByBadge.js';
+import { RecordDetailView } from './RecordDetailView.js';
+import { resolveEffectiveCrudAffordances, type RowCrudPredicates } from '../utils/crudAffordances.js';
+import { createIdentityImportDataSource, IDENTITY_IMPORT_OBJECT, type IdentityPasswordPolicy } from './identityImport.js';
+import { IdentityImportOptions, IdentityImportResultExtra, identityImportFields } from './IdentityImportPanels.js';
+import { importTargetFields } from './importTargetFields.js';
+import { useExpressionContext } from '../providers/ExpressionProvider.js';
+import { resolveManagedByEmptyState } from '../utils/managedByEmptyState.js';
+import { resolveViewId } from '../utils/resolveViewId.js';
+import { defaultListViewId, viewRowId, isSavedViewId, viewEntry } from '../utils/viewIdentity.js';
+import { warnSuppressedListNav } from '../utils/warnSuppressedListNav.js';
+import { useObjectActions } from '../hooks/useObjectActions.js';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
@@ -74,11 +74,11 @@ import { useRealtimeSubscription, useConflictResolution } from '@object-ui/colla
 import { ActionProvider, useNavigationOverlay, SchemaRenderer, useActionTextLocalizer, useRowPredicate, RelatedRecordActionsProvider } from '@object-ui/react';
 import type { RelatedRecordActionsValue, RelatedRecordHandlers } from '@object-ui/react';
 import { toast } from 'sonner';
-import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
-import { useNavRunAction } from '../hooks/useNavRunAction';
+import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime.js';
+import { useNavRunAction } from '../hooks/useNavRunAction.js';
 import { actionRendersAt } from '@object-ui/types';
-import { useEnvironmentEntitlements } from '../environment/useEnvironmentEntitlements';
-import { EnvironmentListToolbar } from '../environment/EnvironmentListToolbar';
+import { useEnvironmentEntitlements } from '../environment/useEnvironmentEntitlements.js';
+import { EnvironmentListToolbar } from '../environment/EnvironmentListToolbar.js';
 
 /** Map view types to Lucide icons (Airtable-style) */
 const VIEW_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {

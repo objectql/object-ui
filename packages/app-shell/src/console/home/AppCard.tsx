@@ -9,9 +9,9 @@
 import { Star, StarOff, ArrowUpRight } from 'lucide-react';
 import { Card, CardContent, Button, Badge } from '@object-ui/components';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
-import { resolveKeyedI18nLabel, appRouteSegment } from '../../utils';
-import { useFavorites } from '../../hooks/useFavorites';
-import { getIcon } from '../../utils/getIcon';
+import { resolveKeyedI18nLabel, appRouteSegment } from '../../utils/index.js';
+import { useFavorites } from '../../hooks/useFavorites.js';
+import { getIcon } from '../../utils/getIcon.js';
 import { cn } from '@object-ui/components';
 
 interface AppCardProps {

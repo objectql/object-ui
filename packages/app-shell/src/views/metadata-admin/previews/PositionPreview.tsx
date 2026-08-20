@@ -18,8 +18,8 @@
 
 import * as React from 'react';
 import { ShieldCheck, Users } from 'lucide-react';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 
 export function PositionPreview({ name, draft }: MetadataPreviewProps) {
   const d = draft as Record<string, unknown>;

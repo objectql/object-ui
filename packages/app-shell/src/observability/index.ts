@@ -7,7 +7,7 @@
  * @module
  */
 
-export { initSentry, captureError, setSentryUser, getSentry } from './sentry';
+export { initSentry, captureError, setSentryUser, getSentry } from './sentry.js';
 export {
   beginRequest,
   endRequest,
@@ -18,4 +18,4 @@ export {
   withSettleSignal,
   installSettleSignalGlobal,
   type ObjectUiGlobal,
-} from './settleSignal';
+} from './settleSignal.js';

@@ -51,9 +51,9 @@ import {
   clearFieldGroup,
   type FieldEntry,
   type FieldsView,
-} from '../metadata-admin/previews/object-fields-io';
+} from '../metadata-admin/previews/object-fields-io.js';
 import { useSafeFieldLabel } from '@object-ui/i18n';
-import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
+import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n.js';
 
 const UNGROUPED = '__ungrouped__';
 const cid = (key: string) => `g:${key}`; // container (section) droppable id

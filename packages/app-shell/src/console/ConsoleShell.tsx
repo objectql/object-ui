@@ -16,29 +16,29 @@ import { AuthGuard, useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { SchemaRendererProvider, ActionProvider, NotificationProvider } from '@object-ui/react';
 import { NotificationAlerts, NotificationSnackbar } from '@object-ui/components';
-import { presentNotificationToast } from '../chrome/notificationToast';
-import { useActionModal } from '../hooks/useActionModal';
-import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
+import { presentNotificationToast } from '../chrome/notificationToast.js';
+import { useActionModal } from '../hooks/useActionModal.js';
+import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime.js';
 import { createObjectStackUserStateAdapter } from '@object-ui/data-objectstack';
-import { AdapterProvider, useAdapter } from '../providers/AdapterProvider';
-import { withSettleSignal } from '../observability/settleSignal';
-import { MetadataProvider, useMetadata } from '../providers/MetadataProvider';
-import { appRouteSegment } from '../utils/appRoute';
-import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
-import { PreviewModeProvider } from '../preview/PreviewModeContext';
-import { NavigationProvider } from '../context/NavigationContext';
-import { FavoritesProvider } from '../context/FavoritesProvider';
-import { RecentItemsProvider } from '../context/RecentItemsProvider';
-import { FlowPaletteRecentsProvider } from '../context/FlowPaletteRecentsProvider';
+import { AdapterProvider, useAdapter } from '../providers/AdapterProvider.js';
+import { withSettleSignal } from '../observability/settleSignal.js';
+import { MetadataProvider, useMetadata } from '../providers/MetadataProvider.js';
+import { appRouteSegment } from '../utils/appRoute.js';
+import { useAiSurfaceEnabled } from '../hooks/useAiSurface.js';
+import { PreviewModeProvider } from '../preview/PreviewModeContext.js';
+import { NavigationProvider } from '../context/NavigationContext.js';
+import { FavoritesProvider } from '../context/FavoritesProvider.js';
+import { RecentItemsProvider } from '../context/RecentItemsProvider.js';
+import { FlowPaletteRecentsProvider } from '../context/FlowPaletteRecentsProvider.js';
 import {
   UserStateAdaptersProvider,
   useAttachUserStateAdapters,
-} from '../context/UserStateAdapters';
-import { ThemeProvider } from '../chrome/ThemeProvider';
-import { LoadingScreen } from '../chrome/LoadingScreen';
-import { RemediationOverlay } from './RemediationOverlay';
-import { HostNavigationBridge } from './HostNavigationBridge';
-import { ImpersonationBanner } from '../layout/ImpersonationBanner';
+} from '../context/UserStateAdapters.js';
+import { ThemeProvider } from '../chrome/ThemeProvider.js';
+import { LoadingScreen } from '../chrome/LoadingScreen.js';
+import { RemediationOverlay } from './RemediationOverlay.js';
+import { HostNavigationBridge } from './HostNavigationBridge.js';
+import { ImpersonationBanner } from '../layout/ImpersonationBanner.js';
 
 // The console's every pre-React / pre-auth gate (Suspense fallback, adapter
 // not ready, org/auth loading) renders this. It used to be a bare, unbranded

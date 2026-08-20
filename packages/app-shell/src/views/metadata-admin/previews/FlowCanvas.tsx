@@ -25,8 +25,8 @@
 import * as React from 'react';
 import { AlertCircle, AlertTriangle, Maximize2, Plus, ZoomIn, ZoomOut } from 'lucide-react';
 import { cn } from '@object-ui/components';
-import { uniqueId, appendArray, spliceArray } from '../inspectors/_shared';
-import { t as tr, tFormat } from '../i18n';
+import { uniqueId, appendArray, spliceArray } from '../inspectors/_shared.js';
+import { t as tr, tFormat } from '../i18n.js';
 import {
   computeLayoutWithGeometry,
   NODE_W,
@@ -47,12 +47,12 @@ import {
   type FlowDesignerEdge,
   type Point,
   type LabeledRegion,
-} from './flow-canvas-layout';
-import { predictExpandedNodeHeight } from './flow-region-metrics';
-import { NodeCard, NodePalette, defaultNodeLabel, defaultNodeExtras } from './flow-canvas-parts';
-import { useFlowNodePalette } from './useFlowNodePalette';
-import { indexProblemBadges, edgeProblemKey, type FlowProblem } from './flow-problems';
-import type { NestedNodePath } from '../inspectors/flow-nested-selection';
+} from './flow-canvas-layout.js';
+import { predictExpandedNodeHeight } from './flow-region-metrics.js';
+import { NodeCard, NodePalette, defaultNodeLabel, defaultNodeExtras } from './flow-canvas-parts.js';
+import { useFlowNodePalette } from './useFlowNodePalette.js';
+import { indexProblemBadges, edgeProblemKey, type FlowProblem } from './flow-problems.js';
+import type { NestedNodePath } from '../inspectors/flow-nested-selection.js';
 
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 1.6;

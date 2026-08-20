@@ -29,12 +29,12 @@ import {
 import { Maximize2, MessagesSquare, PanelRightClose } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAgents } from '@object-ui/plugin-chatbot';
-import { ChatPane, resolveApiBase, type PendingFirstMessage } from '../console/ai/AiChatPage';
-import { AiUsageIndicator } from './AiUsageIndicator';
-import { useChatConversation } from '../hooks';
-import { chatConversationScope, chatProductOfAgent } from '../hooks/chatScope';
-import { resolveSurfaceAgent } from '../hooks/surfaceAgent';
-import { getRuntimeConfig } from '../runtime-config';
+import { ChatPane, resolveApiBase, type PendingFirstMessage } from '../console/ai/AiChatPage.js';
+import { AiUsageIndicator } from './AiUsageIndicator.js';
+import { useChatConversation } from '../hooks/index.js';
+import { chatConversationScope, chatProductOfAgent } from '../hooks/chatScope.js';
+import { resolveSurfaceAgent } from '../hooks/surfaceAgent.js';
+import { getRuntimeConfig } from '../runtime-config.js';
 import {
   clampDockWidth,
   maximizedDockWidth,
@@ -42,7 +42,7 @@ import {
   writeStoredDockExpanded,
   DOCK_DEFAULT_WIDTH,
   DOCK_WIDTH_STORAGE_KEY,
-} from './chatDockState';
+} from './chatDockState.js';
 
 function readStoredWidth(key: string): number {
   try {

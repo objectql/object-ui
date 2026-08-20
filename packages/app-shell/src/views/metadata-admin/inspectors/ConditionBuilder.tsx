@@ -21,10 +21,10 @@ import {
   Select, SelectTrigger, SelectContent, SelectItem, SelectValue,
 } from '@object-ui/components';
 import { Plus, X, Code2, ListFilter } from 'lucide-react';
-import { useObjectFields } from '../previews/useObjectFields';
-import { CelPredicateField } from '../CelPredicateField';
-import type { CelLintIssue } from '../celAuthoring';
-import { t, useMetadataLocale } from '../i18n';
+import { useObjectFields } from '../previews/useObjectFields.js';
+import { CelPredicateField } from '../CelPredicateField.js';
+import type { CelLintIssue } from '../celAuthoring.js';
+import { t, useMetadataLocale } from '../i18n.js';
 
 type Op = '==' | '!=' | '>' | '<' | '>=' | '<=' | 'truthy' | 'falsy';
 

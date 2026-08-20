@@ -46,11 +46,11 @@ import { AlertTriangle, ChevronDown, ChevronsUpDown, ChevronUp, Eye, EyeOff, Plu
 import { iconNames } from 'lucide-react/dynamic.mjs';
 import { toast } from 'sonner';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { useMetadataLocale, t, tFormat } from './i18n';
-import { foldFilterGroupToSpecRules, FILTER_FOLD_REFUSAL_KEYS } from '../viewFilterFold';
-import { ColorVariantPicker } from './color-variant-field';
-import { ConditionBuilder } from './inspectors/ConditionBuilder';
-import { expressionSource, writeExpressionSource } from './inspectors/expression-envelope';
+import { useMetadataLocale, t, tFormat } from './i18n.js';
+import { foldFilterGroupToSpecRules, FILTER_FOLD_REFUSAL_KEYS } from '../viewFilterFold.js';
+import { ColorVariantPicker } from './color-variant-field.js';
+import { ConditionBuilder } from './inspectors/ConditionBuilder.js';
+import { expressionSource, writeExpressionSource } from './inspectors/expression-envelope.js';
 import {
   type LoadState,
   isLoading,
@@ -59,7 +59,7 @@ import {
   NOT_ASKED,
   offeredOptions,
   usePickerLoad,
-} from './loadState';
+} from './loadState.js';
 
 /* -------------------------------------------------------------------------- */
 /* The option catalogs a picker reads off {@link WidgetContext}                */

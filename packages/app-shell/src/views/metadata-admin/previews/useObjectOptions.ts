@@ -6,7 +6,7 @@
  * picker then falls back to a free-text input).
  */
 import * as React from 'react';
-import { useMetadataClient } from '../useMetadata';
+import { useMetadataClient } from '../useMetadata.js';
 
 export interface ObjectOption {
   value: string;

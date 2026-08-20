@@ -26,8 +26,8 @@
 
 import { z } from 'zod';
 import { ManifestSchema } from '@objectstack/spec/kernel';
-import type { FormViewSpec } from './SchemaForm';
-import { t } from './i18n';
+import type { FormViewSpec } from './SchemaForm.js';
+import { t } from './i18n.js';
 
 type JsonSchema = Record<string, any>;
 

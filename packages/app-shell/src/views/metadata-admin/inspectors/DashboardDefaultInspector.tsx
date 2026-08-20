@@ -37,14 +37,14 @@ import {
   moveArray,
   spliceArray,
   uniqueId,
-} from './_shared';
-import { AddWidgetPicker } from '../previews/AddWidgetPicker';
-import { WIDGET_TYPE_META, UnknownWidgetIcon } from '../previews/widget-types';
-import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
-import { SchemaForm } from '../SchemaForm';
-import { getDashboardForm, getDashboardSchema } from '../dashboard-schema';
-import { mergeServerFields } from '../mergeServerFields';
-import { t } from '../i18n';
+} from './_shared.js';
+import { AddWidgetPicker } from '../previews/AddWidgetPicker.js';
+import { WIDGET_TYPE_META, UnknownWidgetIcon } from '../previews/widget-types.js';
+import type { MetadataDefaultInspectorProps } from '../default-inspector-registry.js';
+import { SchemaForm } from '../SchemaForm.js';
+import { getDashboardForm, getDashboardSchema } from '../dashboard-schema.js';
+import { mergeServerFields } from '../mergeServerFields.js';
+import { t } from '../i18n.js';
 // `DashboardWidget.title` is the spec's `I18nLabel`, which @objectstack/spec
 // 17.0.0-rc.6 widened from plain `string` to `string | Record<string, string>`
 // (the inline per-locale map, folded in from the retired `I18nObject`). Every

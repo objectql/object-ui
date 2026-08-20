@@ -35,11 +35,11 @@ import { Button, Empty, EmptyTitle, EmptyDescription } from '@object-ui/componen
 import { ArrowLeft, Building2, Database } from 'lucide-react';
 import { toast } from 'sonner';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
-import { useMetadata } from '../providers/MetadataProvider';
-import { useAdapter } from '../providers/AdapterProvider';
-import { ExpressionProvider, evaluateVisibility } from '../providers/ExpressionProvider';
-import { SkeletonDetail } from '../skeletons';
-import { ManagedByBadge } from '../components/ManagedByBadge';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { useAdapter } from '../providers/AdapterProvider.js';
+import { ExpressionProvider, evaluateVisibility } from '../providers/ExpressionProvider.js';
+import { SkeletonDetail } from '../skeletons/index.js';
+import { ManagedByBadge } from '../components/ManagedByBadge.js';
 import { useAuth } from '@object-ui/auth';
 import { ExpressionEvaluator } from '@object-ui/core';
 

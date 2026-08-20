@@ -44,33 +44,33 @@ import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { resolveFilterPlaceholders } from '@object-ui/core';
 import { normalizeFilterOperator, ViewFilterRuleSchema } from '@objectstack/spec/ui';
 import type { ViewFilterRule } from '@objectstack/spec/ui';
-import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
+import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState.js';
 import {
   parseUrlFilterTriples,
   groupFilterChips,
   deleteFieldFilterParams,
   URL_FILTER_OPS,
   type FilterTriple,
-} from './drillUrlFilters';
+} from './drillUrlFilters.js';
 import {
   defaultColumnsFromObject,
   defaultKanbanFromObject,
   defaultCalendarFromObject,
   defaultGalleryFromObject,
-} from './InterfaceListPage';
-import { RecordDetailView } from './RecordDetailView';
-import { PageHeader } from '../layout/PageHeader';
-import { getIcon } from '../utils/getIcon';
-import { useMetadataClient } from './metadata-admin/useMetadata';
-import { createRuntimeMetadata, viewEnvelope } from './runtime-metadata-persistence';
-import { CreateViewDialog } from './CreateViewDialog';
+} from './InterfaceListPage.js';
+import { RecordDetailView } from './RecordDetailView.js';
+import { PageHeader } from '../layout/PageHeader.js';
+import { getIcon } from '../utils/getIcon.js';
+import { useMetadataClient } from './metadata-admin/useMetadata.js';
+import { createRuntimeMetadata, viewEnvelope } from './runtime-metadata-persistence.js';
+import { CreateViewDialog } from './CreateViewDialog.js';
 import {
   usePreviewDrafts,
   PREVIEW_QUERY_FLAG,
   PREVIEW_QUERY_VALUE,
-} from '../preview/PreviewModeContext';
-import { useTenancyPosture } from '../hooks/useTenancyPosture';
-import { resolveEffectiveCrudAffordances, type RowCrudPredicates } from '../utils/crudAffordances';
+} from '../preview/PreviewModeContext.js';
+import { useTenancyPosture } from '../hooks/useTenancyPosture.js';
+import { resolveEffectiveCrudAffordances, type RowCrudPredicates } from '../utils/crudAffordances.js';
 
 /** Field types the auto-derived user-filter bar offers as dropdowns. */
 const USER_FILTER_TYPES = new Set(['select', 'multiselect', 'radio', 'enum', 'boolean']);

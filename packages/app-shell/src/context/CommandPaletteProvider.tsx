@@ -24,8 +24,8 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
-import { useUrlOverlay } from '../hooks/useUrlOverlay';
-import { COMMAND_PALETTE_PARAM } from '../urlParams';
+import { useUrlOverlay } from '../hooks/useUrlOverlay.js';
+import { COMMAND_PALETTE_PARAM } from '../urlParams.js';
 
 export interface CommandPaletteContextValue {
   /** Whether the palette is currently open (derived from the URL). */

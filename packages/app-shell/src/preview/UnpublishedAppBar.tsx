@@ -47,10 +47,10 @@ import { EyeOff, History, Rocket } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { useMetadata } from '../providers/MetadataProvider';
-import { matchAppBySegment } from '../utils/appRoute';
-import { CommitTimeline } from './CommitTimeline';
-import { usePreviewDrafts } from './PreviewModeContext';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { matchAppBySegment } from '../utils/appRoute.js';
+import { CommitTimeline } from './CommitTimeline.js';
+import { usePreviewDrafts } from './PreviewModeContext.js';
 
 export function UnpublishedAppBar() {
   const preview = usePreviewDrafts();

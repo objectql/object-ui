@@ -24,9 +24,9 @@
 
 import React from 'react';
 import { Zap, Plus, Trash2 } from 'lucide-react';
-import { getIcon } from '../../utils/getIcon';
-import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry';
-import { t, useMetadataLocale } from '../metadata-admin/i18n';
+import { getIcon } from '../../utils/getIcon.js';
+import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry.js';
+import { t, useMetadataLocale } from '../metadata-admin/i18n.js';
 
 interface ActionItem {
   name?: string;

@@ -20,10 +20,10 @@
 import * as React from 'react';
 import { Plus, X } from 'lucide-react';
 import { Button, Input, Label } from '@object-ui/components';
-import { uniqueId } from './_shared';
-import { VariableTextInput } from './VariableTextInput';
-import type { ScopeGroup } from './useFlowScope';
-import { FlowExprIssue } from './FlowExprIssue';
+import { uniqueId } from './_shared.js';
+import { VariableTextInput } from './VariableTextInput.js';
+import type { ScopeGroup } from './useFlowScope.js';
+import { FlowExprIssue } from './FlowExprIssue.js';
 
 export interface Row {
   id: string;

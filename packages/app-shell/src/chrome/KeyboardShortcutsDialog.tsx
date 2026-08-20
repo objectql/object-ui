@@ -14,8 +14,8 @@ import {
   DialogDescription,
 } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { useUrlOverlay } from '../hooks/useUrlOverlay';
-import { KEYBOARD_SHORTCUTS_PARAM } from '../urlParams';
+import { useUrlOverlay } from '../hooks/useUrlOverlay.js';
+import { KEYBOARD_SHORTCUTS_PARAM } from '../urlParams.js';
 
 interface ShortcutEntry {
   keys: string[];

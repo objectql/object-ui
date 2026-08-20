@@ -20,8 +20,8 @@
  */
 
 import * as React from 'react';
-import { useMetadataClient } from '../useMetadata';
-import { readFields } from '../previews/object-fields-io';
+import { useMetadataClient } from '../useMetadata.js';
+import { readFields } from '../previews/object-fields-io.js';
 
 /* ─────────────── Types ─────────────── */
 

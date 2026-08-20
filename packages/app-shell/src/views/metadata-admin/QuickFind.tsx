@@ -36,8 +36,8 @@ import {
   useMetadataClient,
   useMetadataTypes,
   type RichMetadataTypeEntry,
-} from './useMetadata';
-import { useMetadataLocale, t as tr, translateMetadataType } from './i18n';
+} from './useMetadata.js';
+import { useMetadataLocale, t as tr, translateMetadataType } from './i18n.js';
 
 type ItemResult = {
   kind: 'item';

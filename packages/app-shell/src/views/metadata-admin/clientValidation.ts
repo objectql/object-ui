@@ -20,9 +20,9 @@
  * the user still gets server-side diagnostics on save.
  */
 
-import type { SchemaFormIssue } from './SchemaForm';
-import { lintCelPredicate } from './celAuthoring';
-import { readFields } from './previews/object-fields-io';
+import type { SchemaFormIssue } from './SchemaForm.js';
+import { lintCelPredicate } from './celAuthoring.js';
+import { readFields } from './previews/object-fields-io.js';
 
 /**
  * The structural slice of a Zod issue this module reads.

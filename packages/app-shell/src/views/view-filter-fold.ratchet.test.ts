@@ -109,7 +109,9 @@ describe('objectui#4155 ratchet — the filter panel persists nothing', () => {
 
 describe('objectstack#5159 ratchet — no raw FilterGroup on any persist path', () => {
     it('the Studio inspector still folds through the shared module — one dialect, not two', () => {
-        expect(widgetsSrc).toMatch(/import\s*\{[^}]*foldFilterGroupToSpecRules[^}]*\}\s*from\s*'\.\.\/viewFilterFold'/);
+        expect(widgetsSrc).toMatch(
+            /import\s*\{[^}]*foldFilterGroupToSpecRules[^}]*\}\s*from\s*'\.\.\/viewFilterFold\.js'/,
+        );
         // The local operator table it used to carry is gone: a second table is
         // how the runtime toolbar ended up with no fold at all. (Matched on the
         // DECLARATION so the comment explaining the removal doesn't trip it.)

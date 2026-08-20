@@ -24,10 +24,10 @@ import { Database } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { isSystemManagedField } from '@object-ui/types';
 import type { ListViewSchema } from '@object-ui/types';
-import { useMetadata } from '../providers/MetadataProvider';
-import { useTenancyPosture } from '../hooks/useTenancyPosture';
-import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
-import { RecordDetailView } from './RecordDetailView';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { useTenancyPosture } from '../hooks/useTenancyPosture.js';
+import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState.js';
+import { RecordDetailView } from './RecordDetailView.js';
 
 interface InterfaceListPageProps {
   page: any;

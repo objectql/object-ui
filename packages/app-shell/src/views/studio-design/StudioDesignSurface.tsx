@@ -17,9 +17,9 @@
 import * as React from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAdapter, SchemaRendererProvider } from '@object-ui/react';
-import { StudioChatDock } from './StudioAiCopilot';
-import { nextCenterTab, type StudioCenterTab } from './centerTab';
-import { useIsWideViewport } from './wideViewport';
+import { StudioChatDock } from './StudioAiCopilot.js';
+import { nextCenterTab, type StudioCenterTab } from './centerTab.js';
+import { useIsWideViewport } from './wideViewport.js';
 import {
   GridFieldAuthoringProvider,
   cn,
@@ -70,52 +70,52 @@ import {
   PanelRightOpen,
   type LucideIcon,
 } from 'lucide-react';
-import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
-import { getStudioCanvasPreview } from './studio-canvas-preview';
-import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor';
-import { AccessExplainPanel } from '../metadata-admin/AccessExplainPanel';
-import { getMetadataInspector } from '../metadata-admin/inspector-registry';
-import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry';
-import { useMetadataClient, useMetadataTypes } from '../metadata-admin/useMetadata';
+import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry.js';
+import { getStudioCanvasPreview } from './studio-canvas-preview.js';
+import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor.js';
+import { AccessExplainPanel } from '../metadata-admin/AccessExplainPanel.js';
+import { getMetadataInspector } from '../metadata-admin/inspector-registry.js';
+import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry.js';
+import { useMetadataClient, useMetadataTypes } from '../metadata-admin/useMetadata.js';
 import {
   DESIGNER_SEL_PARAM,
   parseNavSelParam,
   formatNavSelParam,
   findNavPositionById,
   navIdAtPosition,
-} from '../metadata-admin/nav-selection';
-import { SourcePageEditor } from '../metadata-admin/previews/SourcePageEditor';
-import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError';
-import { loadPackageSurfaces } from './packageSurfaces';
-import { resolveSurface, findSurfaceInTree, type NavNode, type Surface } from './navSurface';
-import { useSurfaceDeepLink, resolveSurfaceDeepLink } from './useSurfaceDeepLink';
-import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from './skeletons';
-import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
-import { SuggestedBindingsPanel } from '../../components/SuggestedBindingsPanel';
-import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
+} from '../metadata-admin/nav-selection.js';
+import { SourcePageEditor } from '../metadata-admin/previews/SourcePageEditor.js';
+import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError.js';
+import { loadPackageSurfaces } from './packageSurfaces.js';
+import { resolveSurface, findSurfaceInTree, type NavNode, type Surface } from './navSurface.js';
+import { useSurfaceDeepLink, resolveSurfaceDeepLink } from './useSurfaceDeepLink.js';
+import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from './skeletons.js';
+import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n.js';
+import { SuggestedBindingsPanel } from '../../components/SuggestedBindingsPanel.js';
+import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas.js';
 import {
   readFields,
   writeFields,
   newField,
-} from '../metadata-admin/previews/object-fields-io';
-import { CreateItemDialog } from './CreateItemDialog';
+} from '../metadata-admin/previews/object-fields-io.js';
+import { CreateItemDialog } from './CreateItemDialog.js';
 import {
   CreatePackageDialog,
   PackageDetailSheet,
   type InstalledPackageRow,
-} from '../metadata-admin/PackagesPage';
-import { ObjectFormDesigner } from './ObjectFormDesigner';
-import { ObjectGroupInspector } from './ObjectGroupInspector';
-import { ObjectValidationsPanel } from './ObjectValidationsPanel';
-import { ObjectSettingsPanel } from './ObjectSettingsPanel';
-import { PackageOwdOverviewPanel } from './PackageOwdOverviewPanel';
-import { ObjectApiPanel } from './ObjectApiPanel';
-import { ObjectHooksPanel } from './ObjectHooksPanel';
-import { ObjectActionsPanel } from './ObjectActionsPanel';
-import { getIcon } from '../../utils/getIcon';
-import { fetchPackages, prefixObjectName, type PkgEntry } from './packages-io';
-import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
-import { resolveConsoleUrl } from '../../console/organizations/resolveHomeUrl';
+} from '../metadata-admin/PackagesPage.js';
+import { ObjectFormDesigner } from './ObjectFormDesigner.js';
+import { ObjectGroupInspector } from './ObjectGroupInspector.js';
+import { ObjectValidationsPanel } from './ObjectValidationsPanel.js';
+import { ObjectSettingsPanel } from './ObjectSettingsPanel.js';
+import { PackageOwdOverviewPanel } from './PackageOwdOverviewPanel.js';
+import { ObjectApiPanel } from './ObjectApiPanel.js';
+import { ObjectHooksPanel } from './ObjectHooksPanel.js';
+import { ObjectActionsPanel } from './ObjectActionsPanel.js';
+import { getIcon } from '../../utils/getIcon.js';
+import { fetchPackages, prefixObjectName, type PkgEntry } from './packages-io.js';
+import { DraftChangesPanel } from '../../preview/DraftChangesPanel.js';
+import { resolveConsoleUrl } from '../../console/organizations/resolveHomeUrl.js';
 import { toast } from 'sonner';
 
 // ADR-0057 P3c follow-up (#2477 item 3) — the folded layout's side-by-side

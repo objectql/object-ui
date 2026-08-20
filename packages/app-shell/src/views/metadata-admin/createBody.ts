@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { MetadataResourceConfig } from './registry';
+import type { MetadataResourceConfig } from './registry.js';
 
 /**
  * Build the create-mode save body for a new metadata item.

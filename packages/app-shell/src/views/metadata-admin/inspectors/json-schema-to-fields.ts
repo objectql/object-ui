@@ -40,7 +40,7 @@
  *                                   e.g. CRUD `fields`/`filter`, assignments)
  */
 
-import type { FlowConfigField, FlowConfigColumn, FlowConfigFieldKind, FlowReferenceSpec, ReferenceKind, RefValueSource } from './flow-node-config';
+import type { FlowConfigField, FlowConfigColumn, FlowConfigFieldKind, FlowReferenceSpec, ReferenceKind, RefValueSource } from './flow-node-config.js';
 
 /** Loose JSON Schema node shape — we only read the keys we map. */
 interface JsonSchemaNode {

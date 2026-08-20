@@ -18,8 +18,8 @@ import {
   type ApprovalActionLite,
   type ApprovalActionAttachmentLite,
   type ApprovalRequestLite,
-} from '../hooks/useRecordApprovals';
-import { isViaOverrideRow } from '../utils/approvalOverride';
+} from '../hooks/useRecordApprovals.js';
+import { isViaOverrideRow } from '../utils/approvalOverride.js';
 
 /**
  * RecordApprovalsPanel — the record page's read-only approval surface

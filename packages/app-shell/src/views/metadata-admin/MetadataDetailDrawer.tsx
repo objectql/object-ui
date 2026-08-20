@@ -27,9 +27,9 @@ import {
   Badge,
   cn,
 } from '@object-ui/components';
-import { MetadataResourceEditPage } from './ResourceEditPage';
-import { EmbeddedItemEditor } from './EmbeddedItemEditor';
-import type { RelatedTarget } from './RelatedPanel';
+import { MetadataResourceEditPage } from './ResourceEditPage.js';
+import { EmbeddedItemEditor } from './EmbeddedItemEditor.js';
+import type { RelatedTarget } from './RelatedPanel.js';
 
 export interface MetadataDetailDrawerProps {
   /** When non-null, drawer is open and shows this target. */

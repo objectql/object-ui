@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react';
-import type { CreateDeriveRule } from './registry';
+import type { CreateDeriveRule } from './registry.js';
 
 // ── Pure transforms ───────────────────────────────────────────────────
 

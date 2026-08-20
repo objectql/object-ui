@@ -19,50 +19,50 @@ import { buildExpandFields, resolveRecordIdParamSeed, userActionPredicates } fro
 import { toast } from 'sonner';
 import { useRecordPresence, PresenceAvatars } from '@object-ui/collaboration';
 import { Database, ChevronLeft } from 'lucide-react';
-import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
-import { SkeletonDetail } from '../skeletons';
-import { ManagedByBadge } from '../components/ManagedByBadge';
-import { resolveEffectiveCrudAffordances } from '../utils/crudAffordances';
-import { deriveRelatedLists } from '../utils/deriveRelatedLists';
-import { hasExplicitDiscussion, hasExplicitAttachments, hasExplicitApprovals } from '../utils/pageSchemaIntrospect';
-import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDialog';
-import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog';
-import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog';
-import { FlowRunner, type ScreenFlowState, type ScreenSpec } from './FlowRunner';
-import { RelatedRecordActionsBridge } from './RelatedRecordActionsBridge';
-import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync';
-import { RECORD_DETAIL_TAB_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
-import { resolveActionParams } from '../utils/resolveActionParams';
-import { createConsoleServerActionHandler } from '../utils/consoleServerAction';
-import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics';
-import { interpretFlowResponse } from '../utils/flowResponse';
-import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
+import { MetadataPanel, useMetadataInspector } from './MetadataInspector.js';
+import { SkeletonDetail } from '../skeletons/index.js';
+import { ManagedByBadge } from '../components/ManagedByBadge.js';
+import { resolveEffectiveCrudAffordances } from '../utils/crudAffordances.js';
+import { deriveRelatedLists } from '../utils/deriveRelatedLists.js';
+import { hasExplicitDiscussion, hasExplicitAttachments, hasExplicitApprovals } from '../utils/pageSchemaIntrospect.js';
+import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDialog.js';
+import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog.js';
+import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog.js';
+import { FlowRunner, type ScreenFlowState, type ScreenSpec } from './FlowRunner.js';
+import { RelatedRecordActionsBridge } from './RelatedRecordActionsBridge.js';
+import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync.js';
+import { RECORD_DETAIL_TAB_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams.js';
+import { resolveActionParams } from '../utils/resolveActionParams.js';
+import { createConsoleServerActionHandler } from '../utils/consoleServerAction.js';
+import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics.js';
+import { interpretFlowResponse } from '../utils/flowResponse.js';
+import { useRecordBreadcrumbTitle } from '../context/NavigationContext.js';
 // Audit provenance renders as the one-line <RecordMetaFooter>; the other
 // framework-injected bookkeeping columns are hidden from the body outright.
 // Both sets are derived, not restated — see record-detail-system-fields.ts.
-import { AUDIT_FIELD_NAMES, HIDDEN_SYSTEM_FIELD_NAMES } from './record-detail-system-fields';
+import { AUDIT_FIELD_NAMES, HIDDEN_SYSTEM_FIELD_NAMES } from './record-detail-system-fields.js';
 import type { FeedItem } from '@object-ui/types';
 import type { ActionDef, ActionParamDef } from '@object-ui/core';
-import { useRecordApprovals, recordLockedByApproval } from '../hooks/useRecordApprovals';
-import { RecordAttachmentsPanel } from './RecordAttachmentsPanel';
-import { RecordApprovalsPanel } from './RecordApprovalsPanel';
-import { DeclaredActionsBar } from './DeclaredActionsBar';
+import { useRecordApprovals, recordLockedByApproval } from '../hooks/useRecordApprovals.js';
+import { RecordAttachmentsPanel } from './RecordAttachmentsPanel.js';
+import { RecordApprovalsPanel } from './RecordApprovalsPanel.js';
+import { DeclaredActionsBar } from './DeclaredActionsBar.js';
 import {
   SYS_APPROVAL_REQUEST_OBJECT,
   RECORD_APPROVAL_ACTION_LOCATION,
   RECORD_APPROVAL_EXCLUDED_ACTIONS,
-} from './recordApprovalActions';
+} from './recordApprovalActions.js';
 // Side-effect registration of `record:approvals` — synthesized record pages
 // reference the node whenever the record has approval requests (#3461), so
 // the type must resolve wherever this view renders, not only under hosts
 // that import the app-shell barrel.
-import './record-approvals-renderer';
-import { RecordPermissionAssignmentsRenderer } from './metadata-admin/RecordPermissionAssignmentsRenderer';
-import { getRecordDisplayName } from '../utils';
-import { parseAuditValue, collectAuditChanges, collectLookupIds, formatAuditValue } from '../utils/auditHistoryDisplay';
-import { useFavorites } from '../hooks/useFavorites';
-import { useActionModal } from '../hooks/useActionModal';
-import { useRecentItems } from '../hooks/useRecentItems';
+import './record-approvals-renderer.js';
+import { RecordPermissionAssignmentsRenderer } from './metadata-admin/RecordPermissionAssignmentsRenderer.js';
+import { getRecordDisplayName } from '../utils/index.js';
+import { parseAuditValue, collectAuditChanges, collectLookupIds, formatAuditValue } from '../utils/auditHistoryDisplay.js';
+import { useFavorites } from '../hooks/useFavorites.js';
+import { useActionModal } from '../hooks/useActionModal.js';
+import { useRecentItems } from '../hooks/useRecentItems.js';
 
 interface RecordDetailViewProps {
   dataSource: any;

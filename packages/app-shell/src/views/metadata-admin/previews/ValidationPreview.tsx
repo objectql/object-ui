@@ -71,8 +71,8 @@ import {
   Workflow,
   XOctagon,
 } from 'lucide-react';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 
 type Severity = 'error' | 'warning' | 'info';
 

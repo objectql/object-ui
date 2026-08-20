@@ -10,7 +10,7 @@
 
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useCallback, useRef, lazy, Suspense, useMemo, type ReactNode } from 'react';
-import { useAssistant } from '../assistant/assistantBus';
+import { useAssistant } from '../assistant/assistantBus.js';
 import { ModalForm } from '@object-ui/plugin-form';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
 import { toast } from 'sonner';
@@ -18,49 +18,49 @@ import { useActionRunner, useGlobalUndo, useMutationInvalidationBridge, notifyDa
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { AppAccessVerdict, ConnectionState } from '@object-ui/data-objectstack';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
-import { useMetadata } from '../providers/MetadataProvider';
-import { useAdapter } from '../providers/AdapterProvider';
-import { usePreviewDrafts } from '../preview/PreviewModeContext';
-import { PreviewDraftEmptyState } from '../preview/PreviewDraftEmptyState';
-import { ExpressionProvider, evaluateVisibility } from '../providers/ExpressionProvider';
-import { useTrackRouteAsRecent } from '../hooks/useTrackRouteAsRecent';
-import { resolveRecordFormTarget, resolveFormViewLayout, resolveNavigateCreateUrl, resolveNavigateEditUrl, resolvePostCreateTarget } from '../utils/recordFormNavigation';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { useAdapter } from '../providers/AdapterProvider.js';
+import { usePreviewDrafts } from '../preview/PreviewModeContext.js';
+import { PreviewDraftEmptyState } from '../preview/PreviewDraftEmptyState.js';
+import { ExpressionProvider, evaluateVisibility } from '../providers/ExpressionProvider.js';
+import { useTrackRouteAsRecent } from '../hooks/useTrackRouteAsRecent.js';
+import { resolveRecordFormTarget, resolveFormViewLayout, resolveNavigateCreateUrl, resolveNavigateEditUrl, resolvePostCreateTarget } from '../utils/recordFormNavigation.js';
 import { deriveRecordSurface, deriveRecordFlowSurface } from '@object-ui/plugin-view';
-import { RECORD_FORM_PARAM, RECORD_FORM_OBJECT_PARAM, RECORD_FORM_LINK_PARAM } from '../urlParams';
-import { matchAppBySegment } from '../utils/appRoute';
+import { RECORD_FORM_PARAM, RECORD_FORM_OBJECT_PARAM, RECORD_FORM_LINK_PARAM } from '../urlParams.js';
+import { matchAppBySegment } from '../utils/appRoute.js';
 import { resolveHref, type NavTemplateContext } from '@object-ui/layout';
 import { ExpressionEvaluator } from '@object-ui/core';
 
 // Components (eagerly loaded — always needed)
-import { ConsoleLayout } from '../layout/ConsoleLayout';
-import { CommandPalette } from '../chrome/CommandPalette';
-import { ErrorBoundary } from '../chrome/ErrorBoundary';
-import { LoadingScreen } from '../chrome/LoadingScreen';
-import { ObjectView } from '../views/ObjectView';
-import { KeyboardShortcutsDialog } from '../chrome/KeyboardShortcutsDialog';
-import { OnboardingWalkthrough } from '../chrome/OnboardingWalkthrough';
-import { RouteFader } from '../chrome/RouteFader';
-import { NavigationSyncEffect } from '../hooks/useNavigationSync';
+import { ConsoleLayout } from '../layout/ConsoleLayout.js';
+import { CommandPalette } from '../chrome/CommandPalette.js';
+import { ErrorBoundary } from '../chrome/ErrorBoundary.js';
+import { LoadingScreen } from '../chrome/LoadingScreen.js';
+import { ObjectView } from '../views/ObjectView.js';
+import { KeyboardShortcutsDialog } from '../chrome/KeyboardShortcutsDialog.js';
+import { OnboardingWalkthrough } from '../chrome/OnboardingWalkthrough.js';
+import { RouteFader } from '../chrome/RouteFader.js';
+import { NavigationSyncEffect } from '../hooks/useNavigationSync.js';
 
 // Route-based code splitting — lazy-load less-frequently-used routes
-const RecordDetailView = lazy(() => import('../views/RecordDetailView').then(m => ({ default: m.RecordDetailView })));
-const DashboardView = lazy(() => import('../views/DashboardView').then(m => ({ default: m.DashboardView })));
-const PageView = lazy(() => import('../views/PageView').then(m => ({ default: m.PageView })));
-const ReportView = lazy(() => import('../views/ReportView').then(m => ({ default: m.ReportView })));
-const SearchResultsPage = lazy(() => import('../views/SearchResultsPage').then(m => ({ default: m.SearchResultsPage })));
-const RecordFormPage = lazy(() => import('../views/RecordFormPage').then(m => ({ default: m.RecordFormPage })));
-const ComponentNavView = lazy(() => import('../views/ComponentNavView').then(m => ({ default: m.ComponentNavView })));
-const ObjectDataPage = lazy(() => import('../views/ObjectDataPage').then(m => ({ default: m.ObjectDataPage })));
+const RecordDetailView = lazy(() => import('../views/RecordDetailView.js').then(m => ({ default: m.RecordDetailView })));
+const DashboardView = lazy(() => import('../views/DashboardView.js').then(m => ({ default: m.DashboardView })));
+const PageView = lazy(() => import('../views/PageView.js').then(m => ({ default: m.PageView })));
+const ReportView = lazy(() => import('../views/ReportView.js').then(m => ({ default: m.ReportView })));
+const SearchResultsPage = lazy(() => import('../views/SearchResultsPage.js').then(m => ({ default: m.SearchResultsPage })));
+const RecordFormPage = lazy(() => import('../views/RecordFormPage.js').then(m => ({ default: m.RecordFormPage })));
+const ComponentNavView = lazy(() => import('../views/ComponentNavView.js').then(m => ({ default: m.ComponentNavView })));
+const ObjectDataPage = lazy(() => import('../views/ObjectDataPage.js').then(m => ({ default: m.ObjectDataPage })));
 
 // Metadata admin — mounted under /apps/:app/metadata. Lives at the top
 // level so URLs read like a normal nested resource (RFC-style) instead of
 // piggy-backing on the legacy ComponentRegistry fan-out.
-const MetadataDirectoryPage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.MetadataDirectoryPage })));
-const StudioHomePage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.StudioHomePage })));
-const MetadataResourceListPage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.MetadataResourceListPage })));
-const MetadataResourceEditPage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.MetadataResourceEditPage })));
-const MetadataResourceHistoryPage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.MetadataResourceHistoryPage })));
-const MetadataDiagnosticsPage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.MetadataDiagnosticsPage })));
+const MetadataDirectoryPage = lazy(() => import('../views/metadata-admin/index.js').then(m => ({ default: m.MetadataDirectoryPage })));
+const StudioHomePage = lazy(() => import('../views/metadata-admin/index.js').then(m => ({ default: m.StudioHomePage })));
+const MetadataResourceListPage = lazy(() => import('../views/metadata-admin/index.js').then(m => ({ default: m.MetadataResourceListPage })));
+const MetadataResourceEditPage = lazy(() => import('../views/metadata-admin/index.js').then(m => ({ default: m.MetadataResourceEditPage })));
+const MetadataResourceHistoryPage = lazy(() => import('../views/metadata-admin/index.js').then(m => ({ default: m.MetadataResourceHistoryPage })));
+const MetadataDiagnosticsPage = lazy(() => import('../views/metadata-admin/index.js').then(m => ({ default: m.MetadataDiagnosticsPage })));
 
 // App authoring + dashboard editor pages — sourced from
 // @object-ui/plugin-designer so third-party hosts can opt out by not
@@ -71,9 +71,9 @@ const DashboardDesignPage = lazy(() => import('@object-ui/plugin-designer').then
 
 // Marketplace pages — first-class platform feature; mounted at `system/marketplace`
 // under any active app so admins can browse + install from inside the runtime.
-const MarketplacePage = lazy(() => import('./marketplace/MarketplacePage').then(m => ({ default: m.MarketplacePage })));
-const MarketplacePackagePage = lazy(() => import('./marketplace/MarketplacePackagePage').then(m => ({ default: m.MarketplacePackagePage })));
-const MarketplaceInstalledPage = lazy(() => import('./marketplace/MarketplaceInstalledPage').then(m => ({ default: m.MarketplaceInstalledPage })));
+const MarketplacePage = lazy(() => import('./marketplace/MarketplacePage.js').then(m => ({ default: m.MarketplacePage })));
+const MarketplacePackagePage = lazy(() => import('./marketplace/MarketplacePackagePage.js').then(m => ({ default: m.MarketplacePackagePage })));
+const MarketplaceInstalledPage = lazy(() => import('./marketplace/MarketplaceInstalledPage.js').then(m => ({ default: m.MarketplaceInstalledPage })));
 
 interface AppContentProps {
   /**

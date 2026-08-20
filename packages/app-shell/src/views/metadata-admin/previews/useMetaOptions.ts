@@ -8,7 +8,7 @@
  * `null` to skip fetching.
  */
 import * as React from 'react';
-import { useMetadataClient } from '../useMetadata';
+import { useMetadataClient } from '../useMetadata.js';
 
 export interface MetaOption {
   value: string;

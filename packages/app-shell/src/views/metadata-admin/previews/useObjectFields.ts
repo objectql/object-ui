@@ -15,8 +15,8 @@
  */
 
 import * as React from 'react';
-import { useMetadataClient } from '../useMetadata';
-import { readFields } from './object-fields-io';
+import { useMetadataClient } from '../useMetadata.js';
+import { readFields } from './object-fields-io.js';
 
 export interface ObjectFieldInfo {
   /** snake_case API name. */

@@ -11,7 +11,7 @@
  * the two at the designer boundary; positions never leave component state.
  */
 
-import { APP_NAV_ROOT_KEYS } from './inspectors/AppNavInspector';
+import { APP_NAV_ROOT_KEYS } from './inspectors/AppNavInspector.js';
 
 /** Search param carrying the designer's selected element. */
 export const DESIGNER_SEL_PARAM = 'sel';

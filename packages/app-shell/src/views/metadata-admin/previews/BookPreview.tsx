@@ -32,8 +32,8 @@ import {
   MoreHorizontal,
   Package,
 } from 'lucide-react';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewErrorBoundary, PreviewEmptyState } from './PreviewShell';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewErrorBoundary, PreviewEmptyState } from './PreviewShell.js';
 
 type Audience = 'org' | 'public' | { permissionSet: string } | undefined;
 type Include = string | { tag: string } | undefined;

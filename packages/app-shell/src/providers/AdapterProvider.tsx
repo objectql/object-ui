@@ -13,9 +13,9 @@ import { ObjectStackAdapter } from '@object-ui/data-objectstack';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import { AdapterCtx } from '@object-ui/react';
 import { useObjectTranslation, useSafeFieldLabel } from '@object-ui/i18n';
-import { installSettleSignalGlobal, withSettleSignal } from '../observability/settleSignal';
-import { emitWriteWarning, type TranslateFn } from './writeWarningToast';
-import { emitSaveAdvisories } from './saveAdvisoryToast';
+import { installSettleSignalGlobal, withSettleSignal } from '../observability/settleSignal.js';
+import { emitWriteWarning, type TranslateFn } from './writeWarningToast.js';
+import { emitSaveAdvisories } from './saveAdvisoryToast.js';
 
 export { useAdapter } from '@object-ui/react';
 

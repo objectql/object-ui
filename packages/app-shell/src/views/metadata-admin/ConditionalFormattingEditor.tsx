@@ -27,8 +27,8 @@
 import * as React from 'react';
 import { Button, Input, cn } from '@object-ui/components';
 import { Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
-import { CelPredicateField } from './CelPredicateField';
-import type { CelLintIssue } from './celAuthoring';
+import { CelPredicateField } from './CelPredicateField.js';
+import type { CelLintIssue } from './celAuthoring.js';
 
 /**
  * Scope roots bound at RUNTIME for a row predicate, advertised to autocomplete.

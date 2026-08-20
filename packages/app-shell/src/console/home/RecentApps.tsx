@@ -10,8 +10,8 @@ import { useNavigate } from 'react-router-dom';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Card, CardContent, cn } from '@object-ui/components';
 import { Clock, ArrowUpRight, Database, FileText, LayoutDashboard, File } from 'lucide-react';
-import { capitalizeFirst } from '../../utils';
-import type { RecentItem } from '../../hooks/useRecentItems';
+import { capitalizeFirst } from '../../utils/index.js';
+import type { RecentItem } from '../../hooks/useRecentItems.js';
 
 interface RecentAppsProps {
   items: RecentItem[];

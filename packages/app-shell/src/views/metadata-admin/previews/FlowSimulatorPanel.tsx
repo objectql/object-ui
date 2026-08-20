@@ -10,10 +10,10 @@
 import * as React from 'react';
 import { Play, StepForward, RotateCcw, ChevronRight, AlertTriangle, CircleAlert, Plus, Trash2 } from 'lucide-react';
 import { Button, Input, Label, cn } from '@object-ui/components';
-import { t as tr, tFormat } from '../i18n';
-import { FlowSimulator } from './simulator/flow-simulator';
-import { ScreenPreview } from './ScreenPreview';
-import type { FlowValidation, SimEdge, SimNode, SimState, SimStep } from './simulator/flow-sim-types';
+import { t as tr, tFormat } from '../i18n.js';
+import { FlowSimulator } from './simulator/flow-simulator.js';
+import { ScreenPreview } from './ScreenPreview.js';
+import type { FlowValidation, SimEdge, SimNode, SimState, SimStep } from './simulator/flow-sim-types.js';
 
 export interface FlowVariableDecl {
   name: string;

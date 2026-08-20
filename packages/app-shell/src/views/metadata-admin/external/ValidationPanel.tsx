@@ -20,7 +20,7 @@ import {
   ExternalServiceUnavailableError,
   type SchemaValidationResult,
   type SchemaDiffEntry,
-} from './api';
+} from './api.js';
 
 export interface ValidationPanelProps {
   datasource: string;

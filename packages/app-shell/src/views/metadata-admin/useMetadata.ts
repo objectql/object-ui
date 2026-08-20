@@ -19,9 +19,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type MetadataClient, type MetadataDiagnosticsSummary, type MetadataDiagnosticsEntry, type MetadataSaveAdvisoryEvent } from '@object-ui/data-objectstack';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { toast } from 'sonner';
-import { usePreviewDrafts } from '../../preview/PreviewModeContext';
-import { createConsoleMetadataClient } from './metadataClientFactory';
-import { emitSaveAdvisories, type TranslateFn } from '../../providers/saveAdvisoryToast';
+import { usePreviewDrafts } from '../../preview/PreviewModeContext.js';
+import { createConsoleMetadataClient } from './metadataClientFactory.js';
+import { emitSaveAdvisories, type TranslateFn } from '../../providers/saveAdvisoryToast.js';
 
 /**
  * A declarative **type-level** action surfaced on a metadata type by the

@@ -36,11 +36,11 @@ import {
 import { ArrowLeft, ExternalLink, Download, AlertCircle, Package, Trash2, MoreHorizontal, CheckCircle2, ArrowUpCircle, Database, Loader2 } from 'lucide-react';
 import { useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { PackageIcon } from './PackageIcon';
-import { MarkdownText } from './MarkdownText';
-import { PluginDisclosure } from './PluginDisclosure';
-import { MarketplaceAccessDenied } from './MarketplaceAccessDenied';
-import { localizePackage } from './usePackageL10n';
+import { PackageIcon } from './PackageIcon.js';
+import { MarkdownText } from './MarkdownText.js';
+import { PluginDisclosure } from './PluginDisclosure.js';
+import { MarketplaceAccessDenied } from './MarketplaceAccessDenied.js';
+import { localizePackage } from './usePackageL10n.js';
 import {
   getMarketplacePackage,
   installPackage,
@@ -59,12 +59,12 @@ import {
   type CloudEnvironment,
   type LocalInstallEntry,
   type CloudInstallationInfo,
-} from './marketplaceApi';
-import { getRuntimeConfig } from '../../runtime-config';
-import { emitMetadataRefresh } from '../../assistant/assistantBus';
-import { useMetadata } from '../../providers/MetadataProvider';
-import { SuggestedBindingsPanel, type SuggestedBindingsStrings } from '../../components/SuggestedBindingsPanel';
-import type { SuggestedBinding } from '../../services/suggestedBindingsApi';
+} from './marketplaceApi.js';
+import { getRuntimeConfig } from '../../runtime-config.js';
+import { emitMetadataRefresh } from '../../assistant/assistantBus.js';
+import { useMetadata } from '../../providers/MetadataProvider.js';
+import { SuggestedBindingsPanel, type SuggestedBindingsStrings } from '../../components/SuggestedBindingsPanel.js';
+import type { SuggestedBinding } from '../../services/suggestedBindingsApi.js';
 import { errorCodeIs } from '@object-ui/types';
 
 export function MarketplacePackagePage() {

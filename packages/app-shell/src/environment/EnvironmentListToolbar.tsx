@@ -64,13 +64,13 @@ import { actionRendersAt } from '@object-ui/types';
 import { Button, Skeleton } from '@object-ui/components';
 import { Plus } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { useNavRunAction } from '../hooks/useNavRunAction';
+import { useNavRunAction } from '../hooks/useNavRunAction.js';
 import {
   decideEnvironmentCta,
   upgradeDialogSpec,
   type EntitlementDialogSpec,
   type EnvironmentEntitlementsState,
-} from './entitlements';
+} from './entitlements.js';
 
 const CREATE_ACTION = 'create_environment';
 

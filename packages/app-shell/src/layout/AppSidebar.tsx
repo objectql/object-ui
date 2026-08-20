@@ -12,7 +12,7 @@
 import * as React from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Layers } from 'lucide-react';
-import { getIcon as resolveIcon } from '../utils/getIcon';
+import { getIcon as resolveIcon } from '../utils/getIcon.js';
 import {
   Sidebar,
   SidebarHeader,
@@ -55,14 +55,14 @@ import {
 } from 'lucide-react';
 import { NavigationRenderer, resolveHref, resolveActiveNavItem, hasVisibleNavigationItems } from '@object-ui/layout';
 import type { NavigationArea, NavigationItem } from '@object-ui/types';
-import { useMetadata } from '../providers/MetadataProvider';
-import { useExpressionContext, evaluateVisibility } from '../providers/ExpressionProvider';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { useExpressionContext, evaluateVisibility } from '../providers/ExpressionProvider.js';
 import { useAuth, useIsWorkspaceAdmin, getUserInitials } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
-import { useRecentItems } from '../hooks/useRecentItems';
-import { useFavorites } from '../hooks/useFavorites';
-import { useNavPins } from '../hooks/useNavPins';
-import { resolveKeyedI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
+import { useRecentItems } from '../hooks/useRecentItems.js';
+import { useFavorites } from '../hooks/useFavorites.js';
+import { useNavPins } from '../hooks/useNavPins.js';
+import { resolveKeyedI18nLabel, matchAppBySegment, appRouteSegment } from '../utils/index.js';
 // Two resolvers, two vocabularies, and since objectui#4167 the NAMES carry the
 // distinction rather than a comment: `resolveKeyedI18nLabel` above is objectui's
 // own and resolves a TRANSLATION-KEY ref (`{ key, defaultValue, params }`)
@@ -73,7 +73,7 @@ import { resolveKeyedI18nLabel, matchAppBySegment, appRouteSegment } from '../ut
 // than load-bearing disambiguation — Keyed and Inline, side by side.
 import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
-import { useAppContextSelectors } from './ContextSelectors';
+import { useAppContextSelectors } from './ContextSelectors.js';
 
 // ---------------------------------------------------------------------------
 // useNavOrder – localStorage-persisted drag-and-drop reorder for nav items

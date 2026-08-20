@@ -21,9 +21,9 @@
 
 import * as React from 'react';
 import { Badge, Label } from '@object-ui/components';
-import { appendArray, moveArray, spliceArray } from '../inspectors/_shared';
-import { useObjectFields, type ObjectFieldInfo } from './useObjectFields';
-import { AddFieldPopover, FieldListRow } from './ViewColumnPanes';
+import { appendArray, moveArray, spliceArray } from '../inspectors/_shared.js';
+import { useObjectFields, type ObjectFieldInfo } from './useObjectFields.js';
+import { AddFieldPopover, FieldListRow } from './ViewColumnPanes.js';
 import {
   colFieldName,
   colLabel,
@@ -31,7 +31,7 @@ import {
   remapIndexAfterMove,
   remapIndexAfterRemove,
   usedFieldNames,
-} from './view-column-io';
+} from './view-column-io.js';
 
 export interface FieldsListEditorProps {
   /** Top-level variant key the columns belong to (e.g. 'list'). */

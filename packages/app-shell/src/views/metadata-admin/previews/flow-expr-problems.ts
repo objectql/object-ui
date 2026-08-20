@@ -20,11 +20,11 @@
  * such a template surface and is likewise skipped here.
  */
 
-import { fieldsForNodeType, getFieldValue } from '../inspectors/flow-node-config';
-import { resolveFlowScope } from '../inspectors/flow-scope';
-import { scopeRoots, findUnknownRefs, describeUnknownRefs } from '../inspectors/flow-ref-check';
-import { validateExpressionClient } from '../inspectors/expression-validate';
-import type { DiagnosticLevel } from './simulator/flow-sim-types';
+import { fieldsForNodeType, getFieldValue } from '../inspectors/flow-node-config.js';
+import { resolveFlowScope } from '../inspectors/flow-scope.js';
+import { scopeRoots, findUnknownRefs, describeUnknownRefs } from '../inspectors/flow-ref-check.js';
+import { validateExpressionClient } from '../inspectors/expression-validate.js';
+import type { DiagnosticLevel } from './simulator/flow-sim-types.js';
 
 export interface ExprProblem {
   target: { kind: 'node'; nodeId: string } | { kind: 'edge'; source: string; target: string };

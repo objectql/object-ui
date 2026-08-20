@@ -37,13 +37,13 @@ import {
   scopedKey,
   useStorageSync,
   useUserStateAdapter,
-} from './UserStateAdapters';
+} from './UserStateAdapters.js';
 import {
   readPaletteRecents,
   recordPaletteRecent,
   MAX_PALETTE_RECENTS,
   PALETTE_RECENTS_KEY,
-} from '../views/metadata-admin/previews/flowPaletteRecents';
+} from '../views/metadata-admin/previews/flowPaletteRecents.js';
 
 // ---------------------------------------------------------------------------
 // Types

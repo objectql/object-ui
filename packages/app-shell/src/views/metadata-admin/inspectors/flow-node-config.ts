@@ -29,7 +29,7 @@
  * `configSchema` fields, since built-in nodes share the same field ids.
  */
 
-import { flowFieldZh, isZhLocale } from '../i18n';
+import { flowFieldZh, isZhLocale } from '../i18n.js';
 
 export type FlowConfigFieldKind =
   | 'text'

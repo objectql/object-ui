@@ -21,15 +21,15 @@
 
 import * as React from 'react';
 import { Plus } from 'lucide-react';
-import type { MetadataInspectorProps } from '../inspector-registry';
-import { t } from '../i18n';
+import type { MetadataInspectorProps } from '../inspector-registry.js';
+import { t } from '../i18n.js';
 import {
   InspectorShell,
   InspectorTextField,
   InspectorSelectField,
   InspectorRemoveButton,
   InspectorEmptyState,
-} from './_shared';
+} from './_shared.js';
 import {
   mergeServerFlowFields,
   localizeFlowFields,
@@ -38,9 +38,9 @@ import {
   configKeyOf,
   FLOW_NODE_TYPE_OPTIONS,
   type FlowConfigField,
-} from './flow-node-config';
-import { translateNodeLabel } from '../i18n';
-import { jsonSchemaToFlowFields } from './json-schema-to-fields';
+} from './flow-node-config.js';
+import { translateNodeLabel } from '../i18n.js';
+import { jsonSchemaToFlowFields } from './json-schema-to-fields.js';
 import {
   applyConnectorInputForm,
   connectorActionInputSchema,
@@ -48,14 +48,14 @@ import {
   connectorInputFields,
   mergeConnectorInputExtras,
   useConnectorRegistry,
-} from './connector-input-fields';
-import { applyDecisionBranches, syncDecisionEdgesByOrder, withBranchTargets } from './flow-decision-edges';
-import { useActionConfigSchemas } from '../previews/useFlowNodePalette';
-import { FlowNodeConfigField } from './FlowNodeConfigField';
-import { useFlowScope } from './useFlowScope';
-import { nodeOutputRefs, type ScopeRef } from './flow-scope';
-import { NESTED_NODE_KIND, parseNestedNodeId, locateFlowNode } from './flow-nested-selection';
-import { ScreenPreview } from '../previews/ScreenPreview';
+} from './connector-input-fields.js';
+import { applyDecisionBranches, syncDecisionEdgesByOrder, withBranchTargets } from './flow-decision-edges.js';
+import { useActionConfigSchemas } from '../previews/useFlowNodePalette.js';
+import { FlowNodeConfigField } from './FlowNodeConfigField.js';
+import { useFlowScope } from './useFlowScope.js';
+import { nodeOutputRefs, type ScopeRef } from './flow-scope.js';
+import { NESTED_NODE_KIND, parseNestedNodeId, locateFlowNode } from './flow-nested-selection.js';
+import { ScreenPreview } from '../previews/ScreenPreview.js';
 
 interface FlowNode {
   id: string;

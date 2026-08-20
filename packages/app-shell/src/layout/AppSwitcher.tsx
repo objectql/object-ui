@@ -16,10 +16,10 @@ import {
   DropdownMenuSeparator,
 } from '@object-ui/components';
 import { ChevronDown, Check } from 'lucide-react';
-import { useMetadata } from '../providers/MetadataProvider';
-import { resolveKeyedI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { resolveKeyedI18nLabel, matchAppBySegment, appRouteSegment } from '../utils/index.js';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
-import { getIcon } from '../utils/getIcon';
+import { getIcon } from '../utils/getIcon.js';
 
 export interface AppSwitcherProps {
   activeAppName: string;

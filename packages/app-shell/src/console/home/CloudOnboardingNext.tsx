@@ -33,7 +33,7 @@ import { useAuth } from '@object-ui/auth';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import { ComponentRegistry } from '@object-ui/core';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { navRunActionHref } from '../../hooks/useNavRunAction';
+import { navRunActionHref } from '../../hooks/useNavRunAction.js';
 
 interface CloudOnboardingNextProps {
   properties?: {

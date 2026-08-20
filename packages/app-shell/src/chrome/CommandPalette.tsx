@@ -29,13 +29,13 @@ import {
   Search,
 } from 'lucide-react';
 import { useRecordSearch } from '@object-ui/react';
-import { useTheme } from './ThemeProvider';
-import { useExpressionContext, evaluateVisibility } from '../providers/ExpressionProvider';
+import { useTheme } from './ThemeProvider.js';
+import { useExpressionContext, evaluateVisibility } from '../providers/ExpressionProvider.js';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { resolveKeyedI18nLabel, getRecordDisplayName, appRouteSegment } from '../utils';
-import { getIcon } from '../utils/getIcon';
-import { useRecentItems } from '../context/RecentItemsProvider';
-import { useCommandPalette } from '../context/CommandPaletteProvider';
+import { resolveKeyedI18nLabel, getRecordDisplayName, appRouteSegment } from '../utils/index.js';
+import { getIcon } from '../utils/getIcon.js';
+import { useRecentItems } from '../context/RecentItemsProvider.js';
+import { useCommandPalette } from '../context/CommandPaletteProvider.js';
 import { resolveHref } from '@object-ui/layout';
 import { useAuth } from '@object-ui/auth';
 

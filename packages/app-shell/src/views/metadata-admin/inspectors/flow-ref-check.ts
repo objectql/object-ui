@@ -22,9 +22,9 @@
  * set means "scope unknown" and the check is skipped (returns nothing).
  */
 
-import type { ExprFieldRole } from './expression-validate';
-import type { ScopeRef } from './flow-scope';
-import { tFormat } from '../i18n';
+import type { ExprFieldRole } from './expression-validate.js';
+import type { ScopeRef } from './flow-scope.js';
+import { tFormat } from '../i18n.js';
 
 /** CEL keywords / literals that are never flow references. */
 const CEL_RESERVED = new Set(['true', 'false', 'null', 'in']);

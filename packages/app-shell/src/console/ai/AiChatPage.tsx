@@ -19,11 +19,11 @@ import { useAuth } from '@object-ui/auth';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { toast } from 'sonner';
 import { Package as PackageIcon, Sparkles as SparklesIcon } from 'lucide-react';
-import { useAdapter } from '../../providers/AdapterProvider';
-import { useMetadata } from '../../providers/MetadataProvider';
-import { formatPublishFailures, type PublishFailure } from '../../views/studio-design/metadataError';
-import { resolveKeyedI18nLabel } from '../../utils';
-import { ExcelImportBar } from './ExcelImportBar';
+import { useAdapter } from '../../providers/AdapterProvider.js';
+import { useMetadata } from '../../providers/MetadataProvider.js';
+import { formatPublishFailures, type PublishFailure } from '../../views/studio-design/metadataError.js';
+import { resolveKeyedI18nLabel } from '../../utils/index.js';
+import { ExcelImportBar } from './ExcelImportBar.js';
 import {
   Select,
   SelectContent,
@@ -95,13 +95,13 @@ import {
   type ChatbotEnhancedMessage as ChatMessage,
 } from '@object-ui/plugin-chatbot';
 
-import { AppHeader } from '../../layout/AppHeader';
-import { armChatDockExpanded, readDockReturnLocation } from '../../layout/chatDockState';
-import { fetchPendingDraftCount } from '../../preview/draftStatus';
-import { emitMetadataRefresh } from '../../assistant/assistantBus';
-import { getRuntimeConfig } from '../../runtime-config';
-import { cloudPricingDeepLink } from '../marketplace/marketplaceApi';
-import { useNavigationContext } from '../../context/NavigationContext';
+import { AppHeader } from '../../layout/AppHeader.js';
+import { armChatDockExpanded, readDockReturnLocation } from '../../layout/chatDockState.js';
+import { fetchPendingDraftCount } from '../../preview/draftStatus.js';
+import { emitMetadataRefresh } from '../../assistant/assistantBus.js';
+import { getRuntimeConfig } from '../../runtime-config.js';
+import { cloudPricingDeepLink } from '../marketplace/marketplaceApi.js';
+import { useNavigationContext } from '../../context/NavigationContext.js';
 import {
   fetchConversation,
   sanitizeChatMessagesForCache,
@@ -109,15 +109,15 @@ import {
   writeConversationMessagesCache,
   type HydratedUIMessage,
   type HydratedUIMessagePart,
-} from '../../hooks/useChatConversation';
-import { useReconcileOnError } from '../../hooks/useReconcileOnError';
-import { chatConversationScope, chatProductOfAgent } from '../../hooks/chatScope';
-import { ConversationsSidebar } from './ConversationsSidebar';
-import { LiveCanvas } from './LiveCanvas';
-import { artifactStudioPath } from './artifactStudioPath';
-import { BuildDebugDrawer } from './BuildDebugDrawer';
-import { isConversationZh } from './conversationLanguage';
-import { resolveOutboundAgentText, type OutboundAgentTextKey } from './outboundAgentText';
+} from '../../hooks/useChatConversation.js';
+import { useReconcileOnError } from '../../hooks/useReconcileOnError.js';
+import { chatConversationScope, chatProductOfAgent } from '../../hooks/chatScope.js';
+import { ConversationsSidebar } from './ConversationsSidebar.js';
+import { LiveCanvas } from './LiveCanvas.js';
+import { artifactStudioPath } from './artifactStudioPath.js';
+import { BuildDebugDrawer } from './BuildDebugDrawer.js';
+import { isConversationZh } from './conversationLanguage.js';
+import { resolveOutboundAgentText, type OutboundAgentTextKey } from './outboundAgentText.js';
 
 const DEFAULT_AI_PATH = '/api/v1/ai';
 

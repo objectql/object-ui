@@ -15,7 +15,7 @@
 
 import { useMemo } from 'react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import type { MarketplacePackageSummary, MarketplacePackageTranslation } from './marketplaceApi';
+import type { MarketplacePackageSummary, MarketplacePackageTranslation } from './marketplaceApi.js';
 
 type L10nField = keyof MarketplacePackageTranslation;
 

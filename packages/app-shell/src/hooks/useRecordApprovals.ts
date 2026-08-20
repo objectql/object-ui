@@ -28,8 +28,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { bearerAuthHeaders } from '../utils/authToken';
-import type { DecisionOutputDef } from '../utils/decisionOutputParams';
+import { bearerAuthHeaders } from '../utils/authToken.js';
+import type { DecisionOutputDef } from '../utils/decisionOutputParams.js';
 
 export interface ApprovalRequestLite {
   id: string;

@@ -61,9 +61,9 @@ import {
   useHumanActivityFeed,
   useSharedInboxFeed,
   useSharedPendingApprovalsCount,
-} from './sharedUserFeeds';
-import { groupNotifications } from '../layout/inboxGrouping';
-import type { ActivityItem } from '../layout/ActivityFeed';
+} from './sharedUserFeeds.js';
+import { groupNotifications } from '../layout/inboxGrouping.js';
+import type { ActivityItem } from '../layout/ActivityFeed.js';
 
 export interface HomeNotification {
   id: string;

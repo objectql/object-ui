@@ -18,8 +18,8 @@
  */
 
 import * as React from 'react';
-import type { MetadataInspectorProps } from '../inspector-registry';
-import { t } from '../i18n';
+import type { MetadataInspectorProps } from '../inspector-registry.js';
+import { t } from '../i18n.js';
 import {
   InspectorShell,
   InspectorReorderButtons,
@@ -29,11 +29,11 @@ import {
   InspectorEmptyState,
   spliceArray,
   moveArray,
-} from './_shared';
-import { SchemaForm } from '../SchemaForm';
-import { getListColumnSchema } from '../view-schema';
-import { useObjectFields } from '../previews/useObjectFields';
-import { FieldsListEditor } from '../previews/FieldsListEditor';
+} from './_shared.js';
+import { SchemaForm } from '../SchemaForm.js';
+import { getListColumnSchema } from '../view-schema.js';
+import { useObjectFields } from '../previews/useObjectFields.js';
+import { FieldsListEditor } from '../previews/FieldsListEditor.js';
 
 interface ViewColumn {
   // ObjectStack canonical shape

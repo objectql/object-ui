@@ -31,18 +31,18 @@ import {
   Variable,
   Zap,
 } from 'lucide-react';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
-import { uniqueId, appendArray } from '../inspectors/_shared';
-import { t as tr, translateFlowMeta } from '../i18n';
-import { FlowCanvas } from './FlowCanvas';
-import { defaultNodeLabel } from './flow-canvas-parts';
-import { edgeKey, type FlowDesignerEdge, type FlowDesignerNode } from './flow-canvas-layout';
-import { NESTED_NODE_KIND, parseNestedNodeId, encodeNestedNodeId } from '../inspectors/flow-nested-selection';
-import { FlowSimulatorPanel } from './FlowSimulatorPanel';
-import { FlowRunsPanel } from './FlowRunsPanel';
-import { ProblemsPanel } from './ProblemsPanel';
-import { buildFlowProblems, deriveInvalidElements, type FlowProblem } from './flow-problems';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
+import { uniqueId, appendArray } from '../inspectors/_shared.js';
+import { t as tr, translateFlowMeta } from '../i18n.js';
+import { FlowCanvas } from './FlowCanvas.js';
+import { defaultNodeLabel } from './flow-canvas-parts.js';
+import { edgeKey, type FlowDesignerEdge, type FlowDesignerNode } from './flow-canvas-layout.js';
+import { NESTED_NODE_KIND, parseNestedNodeId, encodeNestedNodeId } from '../inspectors/flow-nested-selection.js';
+import { FlowSimulatorPanel } from './FlowSimulatorPanel.js';
+import { FlowRunsPanel } from './FlowRunsPanel.js';
+import { ProblemsPanel } from './ProblemsPanel.js';
+import { buildFlowProblems, deriveInvalidElements, type FlowProblem } from './flow-problems.js';
 
 /**
  * This preview reads the draft's nodes and edges and hands them straight to

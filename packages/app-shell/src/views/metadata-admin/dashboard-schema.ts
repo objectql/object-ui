@@ -23,7 +23,7 @@
 
 import { z } from 'zod';
 import { DashboardSchema, dashboardForm as specDashboardForm } from '@objectstack/spec/ui';
-import type { FormViewSpec } from './SchemaForm';
+import type { FormViewSpec } from './SchemaForm.js';
 
 type JsonSchema = Record<string, any>;
 

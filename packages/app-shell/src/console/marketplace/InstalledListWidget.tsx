@@ -33,8 +33,8 @@ import {
   listInstalledPackages,
   uninstallLocal,
   type LocalInstallEntry,
-} from './marketplaceApi';
-import { MarketplaceAccessDenied } from './MarketplaceAccessDenied';
+} from './marketplaceApi.js';
+import { MarketplaceAccessDenied } from './MarketplaceAccessDenied.js';
 
 export function InstalledList() {
   const navigate = useNavigate();

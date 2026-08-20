@@ -34,9 +34,9 @@ import type { ActionLocation } from '@objectstack/spec/ui';
 import {
   Button, Label, Textarea,
 } from '@object-ui/components';
-import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
-import { SchemaForm } from '../SchemaForm';
-import { t } from '../i18n';
+import type { MetadataDefaultInspectorProps } from '../default-inspector-registry.js';
+import { SchemaForm } from '../SchemaForm.js';
+import { t } from '../i18n.js';
 import {
   InspectorShell,
   InspectorTextField,
@@ -45,13 +45,13 @@ import {
   appendArray,
   moveArray,
   spliceArray,
-} from './_shared';
-import { useObjectOptions } from '../previews/useObjectOptions';
-import { useObjectFields } from '../previews/useObjectFields';
-import { useMetaOptions } from '../previews/useMetaOptions';
-import { ConditionBuilder } from './ConditionBuilder';
-import { expressionSource, writeExpressionSource } from './expression-envelope';
-import { IconPickerWidget } from '../widgets';
+} from './_shared.js';
+import { useObjectOptions } from '../previews/useObjectOptions.js';
+import { useObjectFields } from '../previews/useObjectFields.js';
+import { useMetaOptions } from '../previews/useMetaOptions.js';
+import { ConditionBuilder } from './ConditionBuilder.js';
+import { expressionSource, writeExpressionSource } from './expression-envelope.js';
+import { IconPickerWidget } from '../widgets.js';
 
 /* ─────────────── constants ─────────────── */
 

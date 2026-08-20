@@ -17,7 +17,7 @@
  */
 
 import * as React from 'react';
-import { ColorVariantPicker } from '../color-variant-field';
+import { ColorVariantPicker } from '../color-variant-field.js';
 import { X } from 'lucide-react';
 import {
   Button,
@@ -31,16 +31,16 @@ import {
 } from '@object-ui/components';
 import type { DashboardWidgetSchema } from '@object-ui/types';
 import { resolveDashboardFilterDefs, type DashboardFilterDef, type ComponentMeta } from '@object-ui/core';
-import type { MetadataInspectorProps } from '../inspector-registry';
-import { t, tFormat } from '../i18n';
+import type { MetadataInspectorProps } from '../inspector-registry.js';
+import { t, tFormat } from '../i18n.js';
 // The spec's `I18nLabel` resolver (new in @objectstack/spec 17.0.0-rc.6),
 // aliased apart from objectui's same-named translation-KEY resolver.
 import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
-import { InspectorCheckboxField, InspectorReorderButtons, moveArray } from './_shared';
-import { InspectorComboField, type InspectorComboOption } from './InspectorComboField';
-import { DatasetNamesEditor } from './ReportDefaultInspector';
-import { useDatasetCatalog, useDatasetSemantics } from '../previews/useDatasetCatalog';
-import type { ObjectFieldInfo } from '../previews/useObjectFields';
+import { InspectorCheckboxField, InspectorReorderButtons, moveArray } from './_shared.js';
+import { InspectorComboField, type InspectorComboOption } from './InspectorComboField.js';
+import { DatasetNamesEditor } from './ReportDefaultInspector.js';
+import { useDatasetCatalog, useDatasetSemantics } from '../previews/useDatasetCatalog.js';
+import type { ObjectFieldInfo } from '../previews/useObjectFields.js';
 
 // ADR-0021: dashboard widgets author the semantic-layer dataset shape only
 // (dataset + dimensions + values). The pre-ADR-0021 inline single-object query

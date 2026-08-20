@@ -17,7 +17,7 @@
  */
 
 import * as React from 'react';
-import { useMetadataClient } from '../useMetadata';
+import { useMetadataClient } from '../useMetadata.js';
 
 export interface DatasetDimensionInfo {
   /** Dimension name (snake_case, referenced by `report.rows`). */

@@ -8,7 +8,7 @@
 
 import { Toaster as Sonner } from 'sonner';
 import { CircleCheck, Info, LoaderCircle, OctagonX, TriangleAlert } from 'lucide-react';
-import { useTheme } from './ThemeProvider';
+import { useTheme } from './ThemeProvider.js';
 import { useObjectTranslation } from '@object-ui/i18n';
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;

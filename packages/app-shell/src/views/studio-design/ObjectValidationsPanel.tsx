@@ -35,10 +35,10 @@
 import React from 'react';
 import { Plus, Trash2, ShieldAlert, ChevronDown } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@object-ui/components';
-import { ConditionBuilder } from '../metadata-admin/inspectors/ConditionBuilder';
-import { expressionSource, writeExpressionSource } from '../metadata-admin/inspectors/expression-envelope';
-import { readFields } from '../metadata-admin/previews/object-fields-io';
-import { t, useMetadataLocale } from '../metadata-admin/i18n';
+import { ConditionBuilder } from '../metadata-admin/inspectors/ConditionBuilder.js';
+import { expressionSource, writeExpressionSource } from '../metadata-admin/inspectors/expression-envelope.js';
+import { readFields } from '../metadata-admin/previews/object-fields-io.js';
+import { t, useMetadataLocale } from '../metadata-admin/i18n.js';
 import type { ExpressionInput } from '@objectstack/spec/shared';
 
 type RuleType = 'script' | 'cross_field' | 'state_machine' | 'format' | 'json_schema' | 'conditional';

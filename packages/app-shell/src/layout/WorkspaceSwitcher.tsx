@@ -34,9 +34,9 @@ import {
   DropdownMenuSeparator,
 } from '@object-ui/components';
 import { ChevronsUpDown, Check, Plus, Users } from 'lucide-react';
-import { resolveRootUrl } from '../console/organizations/resolveHomeUrl';
-import { useTenancyPosture } from '../hooks/useTenancyPosture';
-import { OrgBadge } from './OrgBadge';
+import { resolveRootUrl } from '../console/organizations/resolveHomeUrl.js';
+import { useTenancyPosture } from '../hooks/useTenancyPosture.js';
+import { OrgBadge } from './OrgBadge.js';
 
 export function WorkspaceSwitcher() {
   const { t } = useObjectTranslation();

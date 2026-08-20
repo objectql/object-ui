@@ -21,8 +21,8 @@
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { publishHealthFromResponse, type PublishHealth } from '@object-ui/plugin-chatbot';
-import { useMetadataClient } from '../views/metadata-admin/useMetadata';
-import { lintDraftCapabilityReferences } from './capabilityLint';
+import { useMetadataClient } from '../views/metadata-admin/useMetadata.js';
+import { lintDraftCapabilityReferences } from './capabilityLint.js';
 
 type TranslateFn = (key: string, opts?: Record<string, unknown>) => string;
 

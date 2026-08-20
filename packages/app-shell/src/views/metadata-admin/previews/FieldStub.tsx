@@ -17,9 +17,9 @@ import { Input, Switch, Badge } from '@object-ui/components';
 import {
   Calendar, Clock, Link2, Image as ImageIcon, Paperclip, MapPin, Star, ChevronDown, Search, Hash, Phone, AtSign, Globe, Lock, Palette,
 } from 'lucide-react';
-import type { FieldTypeId } from './field-types';
-import { FIELD_TYPE_META } from './field-types';
-import { t, tFormat } from '../i18n';
+import type { FieldTypeId } from './field-types.js';
+import { FIELD_TYPE_META } from './field-types.js';
+import { t, tFormat } from '../i18n.js';
 
 interface FieldStubProps {
   type: string;

@@ -38,8 +38,8 @@ import {
   RotateCcw,
   Timer,
 } from 'lucide-react';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 
 const CRON_ALIASES: Record<string, string> = {
   '@yearly': '0 0 1 1 *',

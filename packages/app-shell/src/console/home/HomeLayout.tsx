@@ -10,14 +10,14 @@
 
 import React, { useCallback, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useNavigationContext } from '../../context/NavigationContext';
-import { AppHeader } from '../../layout/AppHeader';
-import { useAiSurfaceEnabled } from '../../hooks/useAiSurface';
+import { useNavigationContext } from '../../context/NavigationContext.js';
+import { AppHeader } from '../../layout/AppHeader.js';
+import { useAiSurfaceEnabled } from '../../hooks/useAiSurface.js';
 import { useObjectTranslation } from '@object-ui/i18n';
 
 // The ChatDock's launcher (dependency-free button).
-import { ConsoleChatbotFab } from '../../layout/ConsoleChatbotFab';
-import { rememberDockReturnLocation } from '../../layout/chatDockState';
+import { ConsoleChatbotFab } from '../../layout/ConsoleChatbotFab.js';
+import { rememberDockReturnLocation } from '../../layout/chatDockState.js';
 
 interface HomeLayoutProps {
   children: React.ReactNode;

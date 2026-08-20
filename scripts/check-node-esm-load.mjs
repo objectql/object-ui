@@ -184,18 +184,26 @@ export function buildPreservesSpecifiers(buildScript, pkgDir) {
 /**
  * Packages measured to carry this defect that objectui#4538 did NOT fix.
  *
- * objectui#4538's own scope was `@object-ui/react` plus the dependency closure
- * its entry evaluates through (`types`, `core`, `i18n`) — without those three
- * the card's own package stayed unloadable, so they were in scope by necessity
- * rather than by choice. Seven more packages carried the identical defect and
- * were left for their own cards; six of them (`auth`, `collaboration`,
- * `fields`, `mobile`, `permissions`, `providers`) were cleared, and only
+ * **Empty — every measured package has been cleared.** objectui#4538's own
+ * scope was `@object-ui/react` plus the dependency closure its entry evaluates
+ * through (`types`, `core`, `i18n`) — without those three the card's own
+ * package stayed unloadable, so they were in scope by necessity rather than by
+ * choice. Seven more packages carried the identical defect and were left for
+ * their own cards: six (`auth`, `collaboration`, `fields`, `mobile`,
+ * `permissions`, `providers`) were cleared under objectui#5214, and
  * `app-shell` — an order of magnitude larger than any of them, and split off
- * for its own card — is still owed.
+ * for its own card — under objectui#5357.
  *
- * This is a RATCHET, not a mute button. A package named here that is now clean
- * is a FINDING — the entry must be deleted in the commit that fixes it, so the
- * ledger cannot outlive the debt it records.
+ * An empty ledger is not a formality: while a name sat here the specifier leg
+ * was a RATCHET, and with none it is a HARD REQUIREMENT. Any extensionless
+ * relative specifier in any specifier-preserving package now fails the run on
+ * the pull request that writes it, with no grandfathering left to hide behind.
+ * Re-adding a name is therefore a deliberate act that owes a card and a reason,
+ * not a way to get a red run green.
+ *
+ * It stays a ratchet in the other direction too: a package named here that is
+ * now clean is itself a FINDING — the entry must be deleted in the commit that
+ * fixes it, so the ledger cannot outlive the debt it records.
  *
  * Deliberately no per-package counts. This repository has been bitten by
  * hand-maintained numbers that nothing recomputes (see the note in
@@ -204,10 +212,10 @@ export function buildPreservesSpecifiers(buildScript, pkgDir) {
  * hidden: growth INSIDE an already-ledgered package is not caught. Those
  * packages are red-listed already, and the entry is removed only when the
  * package reaches zero.
+ *
+ * @type {Map<string, string>}
  */
-export const SPECIFIER_DEBT = new Map([
-  ['@object-ui/app-shell', 'objectui#5214; 1259 specifiers, large enough to deserve its own card'],
-]);
+export const SPECIFIER_DEBT = new Map();
 
 /**
  * Packages whose published entry cannot evaluate under plain Node for a reason
@@ -219,6 +227,16 @@ export const SPECIFIER_DEBT = new Map([
  * defect it exists for stops being visible.
  */
 export const LOAD_DEBT = new Map([
+  [
+    '@object-ui/app-shell',
+    "reaches react-grid-layout's stylesheet through the STATIC `@object-ui/plugin-dashboard` imports in " +
+      'DashboardView and ReportView, so it fails for the same reason that package does. Uncovered by ' +
+      'objectui#5357: while app-shell emitted extensionless specifiers its first error was ' +
+      'ERR_MODULE_NOT_FOUND on its own file, which masked this one entirely — the first-failure shape ' +
+      'objectui#5214 measured (5 predicted red, 10 observed). Its specifier debt is paid and its own ' +
+      'artifact is clean; what is left is the `.css` question, and it clears the moment ' +
+      '@object-ui/plugin-dashboard does',
+  ],
   [
     '@object-ui/plugin-dashboard',
     "imports react-grid-layout's stylesheet; Node cannot load `.css` at all, which is a question " +

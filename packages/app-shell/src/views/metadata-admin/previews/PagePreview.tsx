@@ -13,13 +13,13 @@ import * as React from 'react';
 import { SchemaRenderer, RecordContextProvider } from '@object-ui/react';
 import { buildExpandFields } from '@object-ui/core';
 import { buildDefaultPageSchema } from '@object-ui/plugin-detail';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewErrorBoundary, PreviewMessage } from './PreviewShell';
-import { OutlineStrip } from './OutlineStrip';
-import { SourcePageEditor } from './SourcePageEditor';
-import { PageBlockCanvas } from './PageBlockCanvas';
-import { InterfaceListPage } from '../../InterfaceListPage';
-import { t as tr } from '../i18n';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewErrorBoundary, PreviewMessage } from './PreviewShell.js';
+import { OutlineStrip } from './OutlineStrip.js';
+import { SourcePageEditor } from './SourcePageEditor.js';
+import { PageBlockCanvas } from './PageBlockCanvas.js';
+import { InterfaceListPage } from '../../InterfaceListPage.js';
+import { t as tr } from '../i18n.js';
 
 interface Block { type?: string; id?: string; children?: Block[]; [k: string]: unknown }
 

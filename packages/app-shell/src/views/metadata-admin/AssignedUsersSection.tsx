@@ -25,7 +25,7 @@ import { Button } from '@object-ui/components';
 import { RecordPickerDialog } from '@object-ui/fields';
 import { useAdapter } from '@object-ui/react';
 import { Plus, X, Users, Loader2, AlertCircle } from 'lucide-react';
-import { useMetadataLocale } from './i18n';
+import { useMetadataLocale } from './i18n.js';
 
 export interface AssignedUsersSectionProps {
   /** The permission set's machine name (e.g. `ai_seat`, `admin_full_access`). */

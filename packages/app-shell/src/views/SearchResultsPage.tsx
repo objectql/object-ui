@@ -25,11 +25,11 @@ import {
 } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useRecordSearch } from '@object-ui/react';
-import { useMetadata } from '../providers/MetadataProvider';
-import { useAdapter } from '../providers/AdapterProvider';
-import { matchAppBySegment } from '../utils/appRoute';
-import { resolveKeyedI18nLabel, getRecordDisplayName } from '../utils';
-import { getIcon } from '../utils/getIcon';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { useAdapter } from '../providers/AdapterProvider.js';
+import { matchAppBySegment } from '../utils/appRoute.js';
+import { resolveKeyedI18nLabel, getRecordDisplayName } from '../utils/index.js';
+import { getIcon } from '../utils/getIcon.js';
 import { resolveHref } from '@object-ui/layout';
 import { useAuth } from '@object-ui/auth';
 

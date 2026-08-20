@@ -26,7 +26,7 @@ import {
   Button,
 } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
-import type { EntitlementCta, EntitlementDialogSpec } from './entitlements';
+import type { EntitlementCta, EntitlementDialogSpec } from './entitlements.js';
 
 export interface EntitlementDialogState {
   open: boolean;

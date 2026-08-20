@@ -14,11 +14,11 @@
  */
 
 import * as React from 'react';
-import type { MetadataInspectorProps } from '../inspector-registry';
-import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
-import { ViewColumnInspector } from './ViewColumnInspector';
-import { ViewVariantInspector } from './ViewVariantInspector';
-import { bindingForStoreKey, primaryVariantBinding } from '../view-variant-model';
+import type { MetadataInspectorProps } from '../inspector-registry.js';
+import type { MetadataDefaultInspectorProps } from '../default-inspector-registry.js';
+import { ViewColumnInspector } from './ViewColumnInspector.js';
+import { ViewVariantInspector } from './ViewVariantInspector.js';
+import { bindingForStoreKey, primaryVariantBinding } from '../view-variant-model.js';
 
 /** Scoped inspector: a selection is always present here. */
 export function ViewInspector(props: MetadataInspectorProps) {

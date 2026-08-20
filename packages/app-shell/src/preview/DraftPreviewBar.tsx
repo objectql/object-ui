@@ -19,9 +19,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Eye, X, Rocket, GitCompareArrows, Sparkles } from 'lucide-react';
 import { Button, cn } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { usePreviewDrafts, markPreviewExit, PREVIEW_QUERY_FLAG } from './PreviewModeContext';
-import { usePublishAllDrafts } from './usePublishAllDrafts';
-import { DraftChangesPanel } from './DraftChangesPanel';
+import { usePreviewDrafts, markPreviewExit, PREVIEW_QUERY_FLAG } from './PreviewModeContext.js';
+import { usePublishAllDrafts } from './usePublishAllDrafts.js';
+import { DraftChangesPanel } from './DraftChangesPanel.js';
 
 export function DraftPreviewBar() {
   const preview = usePreviewDrafts();

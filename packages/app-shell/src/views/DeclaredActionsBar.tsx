@@ -43,8 +43,8 @@ import {
 import type { ActionDef } from '@object-ui/core';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, ShieldAlert } from 'lucide-react';
-import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
-import { useAdapter } from '../providers/AdapterProvider';
+import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime.js';
+import { useAdapter } from '../providers/AdapterProvider.js';
 // Straight from `@object-ui/react`, NOT through `../providers/MetadataProvider`
 // (which merely re-exports it). The provider module pulls in the console
 // metadata client factory, and that module builds its shared authenticated
@@ -55,9 +55,9 @@ import { useAdapter } from '../providers/AdapterProvider';
 // 'authFetchSpy' before initialization`, the side effect running inside the
 // hoisted `@object-ui/auth` mock factory before the spy existed.
 import { useMetadataItem } from '@object-ui/react';
-import { decisionOutputDefs, decisionOutputParams } from '../utils/decisionOutputParams';
-import { getIcon } from '../utils/getIcon';
-import { isOverrideDecision, bypassedApproverNames } from '../utils/approvalOverride';
+import { decisionOutputDefs, decisionOutputParams } from '../utils/decisionOutputParams.js';
+import { getIcon } from '../utils/getIcon.js';
+import { isOverrideDecision, bypassedApproverNames } from '../utils/approvalOverride.js';
 
 export interface DeclaredActionsBarProps {
   /** Object whose declared actions to render (e.g. `sys_approval_request`). */

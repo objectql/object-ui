@@ -25,7 +25,7 @@ import {
   DEFAULT_UPGRADE_URL,
   type EnvironmentEntitlementsState,
   type EnvironmentEntitlementsSummary,
-} from './entitlements';
+} from './entitlements.js';
 
 const TERMINAL_STATUSES = new Set(['archived', 'failed']);
 

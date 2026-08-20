@@ -32,7 +32,7 @@
  * `properties` AND the form (as a trailing section) to actually surface.
  */
 
-import type { FormViewSpec } from './SchemaForm';
+import type { FormViewSpec } from './SchemaForm.js';
 
 type JsonSchema = Record<string, any>;
 

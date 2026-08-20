@@ -12,8 +12,8 @@ import { useAuth } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@object-ui/components';
-import { useNavigationContext } from '../../../context/NavigationContext';
-import { AppHeader } from '../../../layout/AppHeader';
+import { useNavigationContext } from '../../../context/NavigationContext.js';
+import { AppHeader } from '../../../layout/AppHeader.js';
 
 export function OrganizationLayout() {
   const { t } = useObjectTranslation();

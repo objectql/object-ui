@@ -9,7 +9,7 @@ import {
   confirmSuggestedBinding,
   dismissSuggestedBinding,
   type SuggestedBinding,
-} from '../services/suggestedBindingsApi';
+} from '../services/suggestedBindingsApi.js';
 
 /**
  * SuggestedBindingsPanel — pending audience-binding suggestions

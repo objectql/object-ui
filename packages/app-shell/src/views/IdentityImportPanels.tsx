@@ -17,7 +17,7 @@ import {
   buildTemporaryPasswordCsv,
   collectTemporaryPasswords,
   type IdentityPasswordPolicy,
-} from './identityImport';
+} from './identityImport.js';
 
 const POLICY_FALLBACKS: Record<IdentityPasswordPolicy, { label: string; hint: string }> = {
   auto: {

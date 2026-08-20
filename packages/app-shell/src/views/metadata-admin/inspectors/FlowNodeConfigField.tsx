@@ -7,22 +7,22 @@
  */
 
 import * as React from 'react';
-import type { FlowConfigField } from './flow-node-config';
-import { t } from '../i18n';
+import type { FlowConfigField } from './flow-node-config.js';
+import { t } from '../i18n.js';
 import {
   InspectorNumberField,
   InspectorSelectField,
   InspectorCheckboxField,
-} from './_shared';
+} from './_shared.js';
 import { Label } from '@object-ui/components';
-import { FlowKeyValueField } from './FlowKeyValueField';
-import { FlowStringListField } from './FlowStringListField';
-import { FlowObjectListField } from './FlowObjectListField';
-import { FlowReferenceField, type FlowReferenceContext } from './FlowReferenceField';
-import { validateExpressionClient } from './expression-validate';
-import { VariableTextInput } from './VariableTextInput';
-import type { ScopeGroup } from './useFlowScope';
-import { findUnknownRefs, scopeRoots, describeUnknownRefs } from './flow-ref-check';
+import { FlowKeyValueField } from './FlowKeyValueField.js';
+import { FlowStringListField } from './FlowStringListField.js';
+import { FlowObjectListField } from './FlowObjectListField.js';
+import { FlowReferenceField, type FlowReferenceContext } from './FlowReferenceField.js';
+import { validateExpressionClient } from './expression-validate.js';
+import { VariableTextInput } from './VariableTextInput.js';
+import type { ScopeGroup } from './useFlowScope.js';
+import { findUnknownRefs, scopeRoots, describeUnknownRefs } from './flow-ref-check.js';
 
 export interface FlowNodeConfigFieldProps {
   field: FlowConfigField;

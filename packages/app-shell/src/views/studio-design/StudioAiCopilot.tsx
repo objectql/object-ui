@@ -5,22 +5,22 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@object-ui/auth';
 import { useIsMobile } from '@object-ui/components';
 import { useAgents } from '@object-ui/plugin-chatbot';
-import { useChatConversation } from '../../hooks/useChatConversation';
-import { chatConversationScope, chatProductOfAgent } from '../../hooks/chatScope';
-import { resolveSurfaceAgent } from '../../hooks/surfaceAgent';
-import { t } from '../metadata-admin/i18n';
-import { ChatPane, resolveApiBase, type PendingFirstMessage } from '../../console/ai/AiChatPage';
+import { useChatConversation } from '../../hooks/useChatConversation.js';
+import { chatConversationScope, chatProductOfAgent } from '../../hooks/chatScope.js';
+import { resolveSurfaceAgent } from '../../hooks/surfaceAgent.js';
+import { t } from '../metadata-admin/i18n.js';
+import { ChatPane, resolveApiBase, type PendingFirstMessage } from '../../console/ai/AiChatPage.js';
 import {
   ChatDockPanel,
   ChatDockLauncher,
   ChatDockMobileSheet,
   useChatDockState,
-} from '../../layout/ChatDock';
+} from '../../layout/ChatDock.js';
 import {
   rememberDockReturnLocation,
   DOCK_STUDIO_EXPANDED_STORAGE_KEY,
   DOCK_STUDIO_WIDTH_STORAGE_KEY,
-} from '../../layout/chatDockState';
+} from '../../layout/chatDockState.js';
 
 interface StudioCopilotConversationProps {
   /** The package the Studio surface is editing — scopes the build agent to it. */

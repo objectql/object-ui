@@ -34,17 +34,17 @@ import {
 } from '@object-ui/components';
 import { Bell, CheckSquare, Activity as ActivityIcon, ChevronRight } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import type { ActivityItem } from './ActivityFeed';
-import { useNavigationContext } from '../context/NavigationContext';
-import { useMetadata } from '../providers/MetadataProvider';
-import { resolveHostAppSegment, resolveNotificationTarget } from '../utils/appRoute';
-import { timeAgo } from '../utils/relativeTime';
-import { groupNotifications } from './inboxGrouping';
-import type { InboxNotification, NotificationGroup } from './inboxGrouping';
+import type { ActivityItem } from './ActivityFeed.js';
+import { useNavigationContext } from '../context/NavigationContext.js';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { resolveHostAppSegment, resolveNotificationTarget } from '../utils/appRoute.js';
+import { timeAgo } from '../utils/relativeTime.js';
+import { groupNotifications } from './inboxGrouping.js';
+import type { InboxNotification, NotificationGroup } from './inboxGrouping.js';
 
 // Re-exported so importers of the notification/group shapes keep resolving
 // through this module (the pure logic itself lives in inboxGrouping.ts).
-export type { InboxNotification, NotificationGroup } from './inboxGrouping';
+export type { InboxNotification, NotificationGroup } from './inboxGrouping.js';
 
 export interface InboxPopoverProps {
   notifications: InboxNotification[];

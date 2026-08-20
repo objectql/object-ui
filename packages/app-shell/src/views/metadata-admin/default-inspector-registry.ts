@@ -15,8 +15,8 @@
  * sub-element (a column) still swaps in the scoped inspector.
  */
 import type { ComponentType } from 'react';
-import type { SupportedLocale } from './i18n';
-import type { MetadataSelection } from './preview-registry';
+import type { SupportedLocale } from './i18n.js';
+import type { MetadataSelection } from './preview-registry.js';
 
 export interface MetadataDefaultInspectorProps {
   /** Metadata type, e.g. 'view'. */

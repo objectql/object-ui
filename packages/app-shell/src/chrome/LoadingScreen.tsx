@@ -2,7 +2,7 @@
 import { Spinner, Button } from '@object-ui/components';
 import { Database, CheckCircle2, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
-import { getProductName, getLogoUrl } from '../runtime-config';
+import { getProductName, getLogoUrl } from '../runtime-config.js';
 import { en as enLocale, builtInLocales } from '@object-ui/i18n';
 
 interface LoadingScreenProps {

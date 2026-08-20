@@ -21,7 +21,7 @@
  * codec is not a backward-compat contract.
  */
 
-import { spliceArray } from './_shared';
+import { spliceArray } from './_shared.js';
 
 /** The `MetadataSelection.kind` for a node nested inside a container region. */
 export const NESTED_NODE_KIND = 'nested-node';

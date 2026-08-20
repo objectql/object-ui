@@ -36,9 +36,9 @@
 
 import React from 'react';
 import { Settings2, ShieldCheck, Sparkles, ToggleRight, X } from 'lucide-react';
-import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry';
-import { readFields } from '../metadata-admin/previews/object-fields-io';
-import { t, tFormat, type SupportedLocale } from '../metadata-admin/i18n';
+import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry.js';
+import { readFields } from '../metadata-admin/previews/object-fields-io.js';
+import { t, tFormat, type SupportedLocale } from '../metadata-admin/i18n.js';
 
 export function ObjectSettingsPanel({
   name,

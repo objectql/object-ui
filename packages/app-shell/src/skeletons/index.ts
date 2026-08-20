@@ -1,3 +1,3 @@
-export { SkeletonGrid } from './SkeletonGrid';
-export { SkeletonDashboard } from './SkeletonDashboard';
-export { SkeletonDetail } from './SkeletonDetail';
+export { SkeletonGrid } from './SkeletonGrid.js';
+export { SkeletonDashboard } from './SkeletonDashboard.js';
+export { SkeletonDetail } from './SkeletonDetail.js';

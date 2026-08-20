@@ -23,12 +23,12 @@
 
 import * as React from 'react';
 import { Button, cn } from '@object-ui/components';
-import { useAdapter } from '../../../providers/AdapterProvider';
-import { useMetadata } from '../../../providers/MetadataProvider';
-import { ScreenView, isObjectFormScreen, initialScreenValues, screenFields, type ScreenSpec } from '../../ScreenView';
-import { buildScreenSpec, interpolate, hiddenFieldCount, type ScreenPreviewNode } from './screen-spec';
+import { useAdapter } from '../../../providers/AdapterProvider.js';
+import { useMetadata } from '../../../providers/MetadataProvider.js';
+import { ScreenView, isObjectFormScreen, initialScreenValues, screenFields, type ScreenSpec } from '../../ScreenView.js';
+import { buildScreenSpec, interpolate, hiddenFieldCount, type ScreenPreviewNode } from './screen-spec.js';
 
-export type { ScreenPreviewNode } from './screen-spec';
+export type { ScreenPreviewNode } from './screen-spec.js';
 
 export interface ScreenPreviewProps {
   /** The screen node to preview. */

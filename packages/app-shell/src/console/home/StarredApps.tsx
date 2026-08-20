@@ -10,8 +10,8 @@ import { useNavigate } from 'react-router-dom';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Card, CardContent, cn } from '@object-ui/components';
 import { Star, ArrowUpRight, Database, FileText, LayoutDashboard, File } from 'lucide-react';
-import { capitalizeFirst } from '../../utils';
-import type { FavoriteItem } from '../../hooks/useFavorites';
+import { capitalizeFirst } from '../../utils/index.js';
+import type { FavoriteItem } from '../../hooks/useFavorites.js';
 
 interface StarredAppsProps {
   items: FavoriteItem[];

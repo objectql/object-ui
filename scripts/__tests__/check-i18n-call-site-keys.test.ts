@@ -367,6 +367,29 @@ export const Page = () => t('engine.directory.title');
     expect(counters.packCallSites).toBe(0);
   });
 
+  it('reaches the same module through the ESM-correct `./i18n.js` spelling', () => {
+    // objectui#5357: `@object-ui/app-shell` ships a `tsc` build, so Node's
+    // resolver requires the EMITTED extension on every relative specifier and
+    // `./i18n` had to become `./i18n.js`. The registry names the SOURCE file,
+    // so a resolver that does not strip the emitted extension resolves the
+    // import to `…/metadata-admin/i18n.js` — a path with no file behind it —
+    // and every call site through that table becomes an
+    // `unregistered-translator` finding. Measured before the fix: the real
+    // repository reported them in the hundreds while the specifier was right.
+    const localModule = EXCLUDED_TRANSLATORS[0].module;
+    const localScope = EXCLUDED_TRANSLATORS[0].forwardedScope[0];
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      [localModule]: `export function t(key: string): string { return key; }\n`,
+      [`${localScope}Page.tsx`]: `import { t } from './i18n.js';
+export const Page = () => t('engine.directory.title');
+`,
+    });
+    const { findings, counters } = analyze(root);
+    expect(findings).toEqual([]);
+    expect(counters.skippedLocalTable).toBeGreaterThanOrEqual(1);
+  });
+
   it('fails on a `t` imported from a module nobody registered', () => {
     const root = repoWith({
       'packages/i18n/src/locales/en.ts': EN_FIXTURE,

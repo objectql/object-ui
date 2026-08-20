@@ -59,9 +59,9 @@
 
 import * as React from 'react';
 import { Activity, Database, HardDrive, Lock, Power, ShieldCheck } from 'lucide-react';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
-import { ExternalDatasourcePanel } from '../external/ExternalDatasourcePanel';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
+import { ExternalDatasourcePanel } from '../external/ExternalDatasourcePanel.js';
 
 const SECRET_RE = /pass|secret|key|token|credential|auth/i;
 

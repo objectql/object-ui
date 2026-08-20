@@ -32,8 +32,8 @@
  * the `isDefault` edge; otherwise match by condition text, then by label.
  */
 
-import { conditionText, type FlowDesignerEdge } from '../previews/flow-canvas-layout';
-import { uniqueId } from './unique-id';
+import { conditionText, type FlowDesignerEdge } from '../previews/flow-canvas-layout.js';
+import { uniqueId } from './unique-id.js';
 
 export interface DecisionEdge {
   id?: string;

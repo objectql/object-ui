@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { NODE_PALETTE, nodeCategory, type PaletteItem } from './flow-canvas-parts';
+import { NODE_PALETTE, nodeCategory, type PaletteItem } from './flow-canvas-parts.js';
 
 /** Minimal shape of an engine action descriptor we consume. */
 interface ActionDescriptorLite {

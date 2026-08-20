@@ -18,10 +18,10 @@
  * too: listed in the panel, but without a badge.
  */
 
-import { validateFlowDraft } from './simulator/flow-sim-validate';
-import type { Diagnostic, DiagnosticLevel, SimEdge, SimNode } from './simulator/flow-sim-types';
-import { edgeKey, type FlowDesignerEdge, type FlowDesignerNode } from './flow-canvas-layout';
-import { flowExpressionProblems } from './flow-expr-problems';
+import { validateFlowDraft } from './simulator/flow-sim-validate.js';
+import type { Diagnostic, DiagnosticLevel, SimEdge, SimNode } from './simulator/flow-sim-types.js';
+import { edgeKey, type FlowDesignerEdge, type FlowDesignerNode } from './flow-canvas-layout.js';
+import { flowExpressionProblems } from './flow-expr-problems.js';
 
 /** What a problem points at on the canvas — drives badge placement + reveal. */
 export type FlowProblemTarget =

@@ -24,9 +24,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@object-ui/components';
-import { resolveFieldTypeMeta, resolveCategoryTone } from './field-types';
-import type { ObjectFieldInfo } from './useObjectFields';
-import { useMetadataLocale, t, tFormat } from '../i18n';
+import { resolveFieldTypeMeta, resolveCategoryTone } from './field-types.js';
+import type { ObjectFieldInfo } from './useObjectFields.js';
+import { useMetadataLocale, t, tFormat } from '../i18n.js';
 
 const DND_MIME = 'text/x-objectui-viewcol';
 

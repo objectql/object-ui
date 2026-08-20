@@ -18,7 +18,7 @@
  * `defaultSchema`).
  */
 
-import { registerMetadataResource } from './registry';
+import { registerMetadataResource } from './registry.js';
 
 /** Shared header fields every metadata item has. */
 const headerProps = {

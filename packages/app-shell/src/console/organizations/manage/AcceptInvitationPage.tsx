@@ -17,8 +17,8 @@ import type { AuthInvitation } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, Building2, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { resolveOrgRoleLabel } from '../orgRoleLabel';
-import { resolveOrgErrorMessage } from '../orgErrorMessage';
+import { resolveOrgRoleLabel } from '../orgRoleLabel.js';
+import { resolveOrgErrorMessage } from '../orgErrorMessage.js';
 
 type InvitationWithOrg = AuthInvitation & {
   organizationName?: string;

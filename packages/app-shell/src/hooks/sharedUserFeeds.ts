@@ -50,10 +50,10 @@ import { useAuth } from '@object-ui/auth';
 import { errorCodeIs } from '@object-ui/types';
 // Re-exported from `@object-ui/react` — import it through the provider module
 // so a consumer that stubs the provider stubs this too.
-import { useAdapter } from '../providers/AdapterProvider';
-import { bearerAuthHeaders } from '../utils/authToken';
-import type { ActivityItem } from '../layout/ActivityFeed';
-import type { InboxNotification } from '../layout/inboxGrouping';
+import { useAdapter } from '../providers/AdapterProvider.js';
+import { bearerAuthHeaders } from '../utils/authToken.js';
+import type { ActivityItem } from '../layout/ActivityFeed.js';
+import type { InboxNotification } from '../layout/inboxGrouping.js';
 
 /** Approvals poll cadence — the bell's original 30s (M11.C15). */
 const APPROVALS_POLL_MS = 30_000;

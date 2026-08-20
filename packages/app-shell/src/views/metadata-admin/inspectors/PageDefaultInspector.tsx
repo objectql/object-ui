@@ -21,11 +21,11 @@
  */
 
 import * as React from 'react';
-import { SchemaForm } from '../SchemaForm';
-import { getPageSchema, getPageForm, PAGE_FIELDS_OWNED_ELSEWHERE } from '../page-schema';
-import { mergeServerFields } from '../mergeServerFields';
-import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
-import { t } from '../i18n';
+import { SchemaForm } from '../SchemaForm.js';
+import { getPageSchema, getPageForm, PAGE_FIELDS_OWNED_ELSEWHERE } from '../page-schema.js';
+import { mergeServerFields } from '../mergeServerFields.js';
+import type { MetadataDefaultInspectorProps } from '../default-inspector-registry.js';
+import { t } from '../i18n.js';
 
 export function PageDefaultInspector({
   draft,

@@ -346,7 +346,7 @@ describe('objectui#3546 slice five — the marketplace and preview namespaces', 
       // `Record<string, …>` or a hand-written union here would be the drift this
       // family exists to catch.
       expect(src, 'the tier map stopped answering to the spec type').toMatch(
-        /import type \{[^}]*\bPluginRuntime\b[^}]*\} from '\.\/marketplaceApi'/,
+        /import type \{[^}]*\bPluginRuntime\b[^}]*\} from '\.\/marketplaceApi\.js'/,
       );
       const members = [...block![1].matchAll(/(\w+):\s*'([^']*)'/g)].map((m) => m[1]);
       expect(members.sort()).toEqual(['node', 'sandbox', 'worker']);

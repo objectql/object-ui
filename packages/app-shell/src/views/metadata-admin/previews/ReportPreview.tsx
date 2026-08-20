@@ -20,9 +20,9 @@
 
 import * as React from 'react';
 import { Database, Loader2 } from 'lucide-react';
-import { useAdapter } from '../../../providers/AdapterProvider';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewErrorBoundary, PreviewEmptyState } from './PreviewShell';
+import { useAdapter } from '../../../providers/AdapterProvider.js';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewErrorBoundary, PreviewEmptyState } from './PreviewShell.js';
 
 const ReportRenderer = React.lazy(() =>
   import('@object-ui/plugin-report').then((m) => ({ default: m.ReportRenderer })),

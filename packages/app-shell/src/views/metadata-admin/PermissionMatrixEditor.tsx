@@ -70,11 +70,11 @@ import {
 } from '@object-ui/components';
 import { useAdapter } from '@object-ui/react';
 import { CapabilityMultiSelectField, parseCapabilityNames } from '@object-ui/fields';
-import { PageShell } from './PageShell';
-import { HistoryPanel } from './ResourceHistoryPage';
-import { useMetadataClient, useMetadataTypes, type RichMetadataTypeEntry } from './useMetadata';
-import { t as translate, useMetadataLocale } from './i18n';
-import { PermissionAdvancedFacets } from './PermissionAdvancedFacets';
+import { PageShell } from './PageShell.js';
+import { HistoryPanel } from './ResourceHistoryPage.js';
+import { useMetadataClient, useMetadataTypes, type RichMetadataTypeEntry } from './useMetadata.js';
+import { t as translate, useMetadataLocale } from './i18n.js';
+import { PermissionAdvancedFacets } from './PermissionAdvancedFacets.js';
 import { errorCodeIs } from '@object-ui/types';
 import {
   mergePermissionSlice,
@@ -82,7 +82,7 @@ import {
   type ObjectPerm,
   type FieldPerm,
   type PermissionSetDraft,
-} from './permission-slice';
+} from './permission-slice.js';
 
 /* ────────────────────────────────────────────────────────────────── */
 /* Domain shapes                                                      */

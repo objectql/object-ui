@@ -6,22 +6,22 @@ const ReportRenderer = lazy(() =>
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 // Runtime report editor — hosts the studio's spec-driven report inspector
 // (lives in app-shell to avoid a circular dep on plugin-report).
-import { ReportConfigPanel } from './ReportConfigPanel';
+import { ReportConfigPanel } from './ReportConfigPanel.js';
 import { Pencil, BarChart3, Loader2 } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
-import { useMetadata } from '../providers/MetadataProvider';
-import { useExpressionContext } from '../providers/ExpressionProvider';
-import { preferLocal } from '../utils/preferLocal';
-import { useAdapter } from '../providers/AdapterProvider';
-import { useMetadataClient } from './metadata-admin/useMetadata';
-import { persistRuntimeMetadata } from './runtime-metadata-persistence';
+import { MetadataPanel, useMetadataInspector } from './MetadataInspector.js';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { useExpressionContext } from '../providers/ExpressionProvider.js';
+import { preferLocal } from '../utils/preferLocal.js';
+import { useAdapter } from '../providers/AdapterProvider.js';
+import { useMetadataClient } from './metadata-admin/useMetadata.js';
+import { persistRuntimeMetadata } from './runtime-metadata-persistence.js';
 import { useIsWorkspaceAdmin } from '@object-ui/auth';
 import type { DataSource } from '@object-ui/types';
 import type { DatasetDrillArgs } from '@object-ui/plugin-report';
 import { DrillDownDrawer } from '@object-ui/plugin-dashboard';
 import { DrillNavigationProvider } from '@object-ui/react';
-import { useOpenRecordList } from './useOpenRecordList';
+import { useOpenRecordList } from './useOpenRecordList.js';
 
 // Fallback fields when no schema is available
 const FALLBACK_FIELDS = [

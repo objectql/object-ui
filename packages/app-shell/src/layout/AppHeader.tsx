@@ -54,37 +54,37 @@ import {
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useOffline } from '@object-ui/react';
 import { PresenceAvatars, useTenantPresence, type PresenceUser } from '@object-ui/collaboration';
-import { ModeToggle } from './ModeToggle';
-import { WorkspaceSwitcher } from './WorkspaceSwitcher';
-import { CurrentOrganizationIndicator } from './CurrentOrganizationIndicator';
-import { LocaleSwitcher } from './LocaleSwitcher';
-import { ConnectionStatus } from './ConnectionStatus';
-import type { ActivityItem } from './ActivityFeed';
-import { InboxPopover } from './InboxPopover';
-import { AppSwitcher } from './AppSwitcher';
+import { ModeToggle } from './ModeToggle.js';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher.js';
+import { CurrentOrganizationIndicator } from './CurrentOrganizationIndicator.js';
+import { LocaleSwitcher } from './LocaleSwitcher.js';
+import { ConnectionStatus } from './ConnectionStatus.js';
+import type { ActivityItem } from './ActivityFeed.js';
+import { InboxPopover } from './InboxPopover.js';
+import { AppSwitcher } from './AppSwitcher.js';
 import type { ConnectionState } from '@object-ui/data-objectstack';
-import { useAdapter } from '../providers/AdapterProvider';
+import { useAdapter } from '../providers/AdapterProvider.js';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@object-ui/types';
 import { useAuth, getUserInitials, useIsWorkspaceAdmin } from '@object-ui/auth';
-import { useMetadata } from '../providers/MetadataProvider';
-import { resolveKeyedI18nLabel, preferLocal, matchAppBySegment, appRouteSegment, appStudioRoutePath } from '../utils';
-import { getIcon } from '../utils/getIcon';
-import { bearerAuthHeaders } from '../utils/authToken';
-import { useMobileViewSwitcher } from './MobileViewSwitcherContext';
-import { useNavigationContext } from '../context/NavigationContext';
-import { useCommandPalette } from '../context/CommandPaletteProvider';
-import { useUrlOverlay } from '../hooks/useUrlOverlay';
-import { KEYBOARD_SHORTCUTS_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
-import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { resolveKeyedI18nLabel, preferLocal, matchAppBySegment, appRouteSegment, appStudioRoutePath } from '../utils/index.js';
+import { getIcon } from '../utils/getIcon.js';
+import { bearerAuthHeaders } from '../utils/authToken.js';
+import { useMobileViewSwitcher } from './MobileViewSwitcherContext.js';
+import { useNavigationContext } from '../context/NavigationContext.js';
+import { useCommandPalette } from '../context/CommandPaletteProvider.js';
+import { useUrlOverlay } from '../hooks/useUrlOverlay.js';
+import { KEYBOARD_SHORTCUTS_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams.js';
+import { useAiSurfaceEnabled } from '../hooks/useAiSurface.js';
 import {
   useSharedActivityFeed,
   useSharedInboxFeed,
   useSharedPendingApprovalsCount,
-} from '../hooks/sharedUserFeeds';
-import { getProductName, getLogoUrl } from '../runtime-config';
-import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger';
-import { PreviewBadge } from './PreviewBadge';
+} from '../hooks/sharedUserFeeds.js';
+import { getProductName, getLogoUrl } from '../runtime-config.js';
+import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger.js';
+import { PreviewBadge } from './PreviewBadge.js';
 
 function humanizeSlug(slug: string): string {
   return slug.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());

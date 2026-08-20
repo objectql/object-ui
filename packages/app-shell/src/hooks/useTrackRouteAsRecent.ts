@@ -25,7 +25,7 @@
  * @module
  */
 import { useEffect, useRef } from 'react';
-import { useRecentItems } from '../context/RecentItemsProvider';
+import { useRecentItems } from '../context/RecentItemsProvider.js';
 
 interface ObjectLike {
   name: string;

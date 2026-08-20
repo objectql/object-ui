@@ -22,8 +22,8 @@
 import React from 'react';
 import { Skeleton } from '@object-ui/components';
 import * as jsonc from 'jsonc-parser';
-import { useMetadataLocale, t } from './i18n';
-import { useMonacoFallback } from './useMonacoFallback';
+import { useMetadataLocale, t } from './i18n.js';
+import { useMonacoFallback } from './useMonacoFallback.js';
 
 // Lazy: Monaco's React wrapper itself pulls in the editor core
 // (~3MB), so we keep it out of the initial app-shell chunk.

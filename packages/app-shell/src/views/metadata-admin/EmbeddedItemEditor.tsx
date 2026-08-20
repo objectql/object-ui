@@ -32,10 +32,10 @@ import {
   SchemaForm,
   DRAWER_EMBEDDED_ITEM_ID_SCOPE,
   type SchemaFormIssue,
-} from './SchemaForm';
-import { getMetadataPreview } from './preview-registry';
-import { useMetadataClient, useMetadataTypes } from './useMetadata';
-import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n';
+} from './SchemaForm.js';
+import { getMetadataPreview } from './preview-registry.js';
+import { useMetadataClient, useMetadataTypes } from './useMetadata.js';
+import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n.js';
 import { errorCodeIsAnyOf } from '@object-ui/types';
 
 export interface EmbeddedItemEditorProps {

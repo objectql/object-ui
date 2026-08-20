@@ -600,13 +600,32 @@ function enclosingScope(node) {
   return null;
 }
 
-/** Resolve a relative import specifier to a repo-relative file path. */
+/**
+ * Resolve a relative import specifier to a repo-relative file path.
+ *
+ * An ESM-correct specifier addresses the EMITTED file: `./i18n.js` is how a
+ * package whose build preserves specifiers has to spell `i18n.ts`, because
+ * Node's resolver does not extension-search relative specifiers (objectui#4538,
+ * enforced per pull request by `pnpm check:esm-specifiers`). So the emitted
+ * extension is stripped back to its source before the candidate walk.
+ *
+ * Not cosmetic: `@object-ui/app-shell` converted under objectui#5357 and its
+ * registered local translator started resolving to
+ * `…/metadata-admin/i18n.js` — a path with no file behind it — which turned
+ * every call site through that table into an `unregistered-translator` finding.
+ * The specifier was right and this resolver was wrong.
+ */
 function resolveImport(root, fromFile, specifier) {
   if (!specifier.startsWith('.')) return specifier;
   const base = resolve(dirname(fromFile), specifier);
-  for (const suffix of ['.ts', '.tsx', '/index.ts', '/index.tsx', '']) {
-    const candidate = base + suffix;
-    if (existsSync(candidate) && statSync(candidate).isFile()) return relative(root, candidate);
+  const asSource = base.replace(/\.(js|jsx|mjs|cjs)$/, '');
+  // Source spelling first, then the literal one, so a package that really does
+  // ship a `.js` file next to its TypeScript still resolves to that file.
+  for (const candidateBase of asSource === base ? [base] : [asSource, base]) {
+    for (const suffix of ['.ts', '.tsx', '/index.ts', '/index.tsx', '']) {
+      const candidate = candidateBase + suffix;
+      if (existsSync(candidate) && statSync(candidate).isFile()) return relative(root, candidate);
+    }
   }
   return relative(root, base);
 }

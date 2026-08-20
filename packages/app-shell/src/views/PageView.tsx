@@ -16,12 +16,12 @@ import { Empty, EmptyTitle, EmptyDescription, Spinner } from '@object-ui/compone
 import { FileText, Pencil } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useIsWorkspaceAdmin } from '@object-ui/auth';
-import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
-import { useMetadata } from '../providers/MetadataProvider';
-import { useExpressionContext } from '../providers/ExpressionProvider';
-import { preferLocal } from '../utils/preferLocal';
-import { ConsoleActionRuntimeProvider } from '../hooks/useConsoleActionRuntime';
-import { InterfaceListPage } from './InterfaceListPage';
+import { MetadataPanel, useMetadataInspector } from './MetadataInspector.js';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { useExpressionContext } from '../providers/ExpressionProvider.js';
+import { preferLocal } from '../utils/preferLocal.js';
+import { ConsoleActionRuntimeProvider } from '../hooks/useConsoleActionRuntime.js';
+import { InterfaceListPage } from './InterfaceListPage.js';
 
 export function PageView() {
   const { t } = useObjectTranslation();

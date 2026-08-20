@@ -43,9 +43,9 @@ import { APPROVER_VALUE_SOURCES } from '@objectstack/spec/automation';
 import { BUILTIN_MEMBERSHIP_ROLE_OPTIONS } from '@objectstack/spec/identity';
 import { useAdapter } from '@object-ui/react';
 import { LookupField } from '@object-ui/fields';
-import type { FlowReferenceSpec, ReferenceKind, RefValueSource } from './flow-node-config';
-import { useMetadataClient } from '../useMetadata';
-import { useObjectFields } from '../previews/useObjectFields';
+import type { FlowReferenceSpec, ReferenceKind, RefValueSource } from './flow-node-config.js';
+import { useMetadataClient } from '../useMetadata.js';
+import { useObjectFields } from '../previews/useObjectFields.js';
 
 /** Context the reference picker needs to resolve dynamic option sources. */
 export interface FlowReferenceContext {

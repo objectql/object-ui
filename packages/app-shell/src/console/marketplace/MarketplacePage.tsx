@@ -22,9 +22,9 @@ import {
 import { Package, Search, RefreshCcw, Store, AlertCircle, CheckCircle2, Settings } from 'lucide-react';
 import { useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { PackageIcon } from './PackageIcon';
-import { MarketplaceAccessDenied } from './MarketplaceAccessDenied';
-import { localizePackage } from './usePackageL10n';
+import { PackageIcon } from './PackageIcon.js';
+import { MarketplaceAccessDenied } from './MarketplaceAccessDenied.js';
+import { localizePackage } from './usePackageL10n.js';
 import {
   listMarketplacePackages,
   listLocalInstalls,
@@ -35,9 +35,9 @@ import {
   type MarketplacePackageSummary,
   type LocalInstallEntry,
   type OrgPackageSummary,
-} from './marketplaceApi';
-import { getRuntimeConfig } from '../../runtime-config';
-import { emitMetadataRefresh } from '../../assistant/assistantBus';
+} from './marketplaceApi.js';
+import { getRuntimeConfig } from '../../runtime-config.js';
+import { emitMetadataRefresh } from '../../assistant/assistantBus.js';
 
 /**
  * Format a published-at timestamp as a localized relative string.

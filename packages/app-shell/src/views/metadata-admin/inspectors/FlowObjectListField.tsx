@@ -22,13 +22,13 @@ import {
   Button, Input, Label, Checkbox,
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@object-ui/components';
-import { uniqueId } from './_shared';
-import type { FlowConfigColumn } from './flow-node-config';
-import { ReferenceCombobox, resolveRefKind, type FlowReferenceContext } from './FlowReferenceField';
-import { FlowStringListField } from './FlowStringListField';
-import { VariableTextInput } from './VariableTextInput';
-import type { ScopeGroup } from './useFlowScope';
-import { FlowExprIssue } from './FlowExprIssue';
+import { uniqueId } from './_shared.js';
+import type { FlowConfigColumn } from './flow-node-config.js';
+import { ReferenceCombobox, resolveRefKind, type FlowReferenceContext } from './FlowReferenceField.js';
+import { FlowStringListField } from './FlowStringListField.js';
+import { VariableTextInput } from './VariableTextInput.js';
+import type { ScopeGroup } from './useFlowScope.js';
+import { FlowExprIssue } from './FlowExprIssue.js';
 
 /** A cell is a scalar (string/boolean) or, for a nested-list column, an array. */
 type Cell = string | boolean | unknown[];

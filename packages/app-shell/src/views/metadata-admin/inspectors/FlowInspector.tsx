@@ -11,9 +11,9 @@
  */
 
 import * as React from 'react';
-import type { MetadataInspectorProps } from '../inspector-registry';
-import { FlowNodeInspector } from './FlowNodeInspector';
-import { FlowEdgeInspector } from './FlowEdgeInspector';
+import type { MetadataInspectorProps } from '../inspector-registry.js';
+import { FlowNodeInspector } from './FlowNodeInspector.js';
+import { FlowEdgeInspector } from './FlowEdgeInspector.js';
 
 export function FlowInspector(props: MetadataInspectorProps) {
   if (props.selection.kind === 'edge') {

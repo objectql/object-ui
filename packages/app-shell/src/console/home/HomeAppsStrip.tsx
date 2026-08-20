@@ -16,9 +16,9 @@ import { useMemo, useState } from 'react';
 import { LayoutGrid, Store, Star } from 'lucide-react';
 import { Button, cn } from '@object-ui/components';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
-import { resolveKeyedI18nLabel } from '../../utils';
-import { getIcon } from '../../utils/getIcon';
-import type { FavoriteItem } from '../../hooks/useFavorites';
+import { resolveKeyedI18nLabel } from '../../utils/index.js';
+import { getIcon } from '../../utils/getIcon.js';
+import type { FavoriteItem } from '../../hooks/useFavorites.js';
 
 const COMPACT_LIMIT = 19;
 

@@ -24,8 +24,8 @@
 import * as React from 'react';
 import { Skeleton } from '@object-ui/components';
 import { SchemaRenderer } from '@object-ui/react';
-import { PreviewShell, PreviewErrorBoundary } from './PreviewShell';
-import { useMonacoFallback } from '../useMonacoFallback';
+import { PreviewShell, PreviewErrorBoundary } from './PreviewShell.js';
+import { useMonacoFallback } from '../useMonacoFallback.js';
 
 const LazyMonaco = React.lazy(async () => {
   const mod = await import('@monaco-editor/react');

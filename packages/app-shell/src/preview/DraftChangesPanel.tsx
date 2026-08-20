@@ -49,7 +49,7 @@ import { useObjectTranslation } from '@object-ui/i18n';
 // spec-named local declaration is what `scripts/check-spec-symbol-derivation.mjs`
 // refuses, and a faithful copy is exactly the fork that guard exists to prevent.
 import { canonicalMetaUrlType } from '@objectstack/spec/shared';
-import { diffFields } from '../views/metadata-admin/previews/object-fields-io';
+import { diffFields } from '../views/metadata-admin/previews/object-fields-io.js';
 
 export interface DraftChangeEntry {
   /**

@@ -25,7 +25,7 @@
 
 import { z } from 'zod';
 import { PageSchema, pageForm as specPageForm } from '@objectstack/spec/ui';
-import type { FormViewSpec } from './SchemaForm';
+import type { FormViewSpec } from './SchemaForm.js';
 
 type JsonSchema = Record<string, any>;
 

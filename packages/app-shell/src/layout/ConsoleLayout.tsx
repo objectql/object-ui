@@ -16,25 +16,25 @@ import { useIsMobile } from '@object-ui/components';
 // Lightweight FAB stub — the heavy chat chunk graph (plugin-chatbot,
 // shiki, streamdown, mermaid, @ai-sdk, ~20MB) only downloads on first
 // hover/click. See ConsoleChatbotFab.tsx.
-import { ConsoleChatbotFab } from './ConsoleChatbotFab';
-import { useChatDockState, ChatDockPanel, ChatDockMobileSheet } from './ChatDock';
+import { ConsoleChatbotFab } from './ConsoleChatbotFab.js';
+import { useChatDockState, ChatDockPanel, ChatDockMobileSheet } from './ChatDock.js';
 import {
   matchChatDockShortcut,
   rememberDockReturnLocation,
   DOCK_EXPANDED_STORAGE_KEY,
-} from './chatDockState';
-import { DraftPreviewBar } from '../preview/DraftPreviewBar';
-import { UnpublishedAppBar } from '../preview/UnpublishedAppBar';
-import { ConsoleNotificationBanners } from './ConsoleNotificationBanners';
-import { UnifiedSidebar } from './UnifiedSidebar';
-import { AppHeader } from './AppHeader';
-import { MobileViewSwitcherProvider } from './MobileViewSwitcherContext';
-import { useResponsiveSidebar } from '../hooks/useResponsiveSidebar';
-import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
-import { useNavigationContext } from '../context/NavigationContext';
-import { CommandPaletteProvider } from '../context/CommandPaletteProvider';
-import { resolveKeyedI18nLabel } from '../utils';
-import { getProductName } from '../runtime-config';
+} from './chatDockState.js';
+import { DraftPreviewBar } from '../preview/DraftPreviewBar.js';
+import { UnpublishedAppBar } from '../preview/UnpublishedAppBar.js';
+import { ConsoleNotificationBanners } from './ConsoleNotificationBanners.js';
+import { UnifiedSidebar } from './UnifiedSidebar.js';
+import { AppHeader } from './AppHeader.js';
+import { MobileViewSwitcherProvider } from './MobileViewSwitcherContext.js';
+import { useResponsiveSidebar } from '../hooks/useResponsiveSidebar.js';
+import { useAiSurfaceEnabled } from '../hooks/useAiSurface.js';
+import { useNavigationContext } from '../context/NavigationContext.js';
+import { CommandPaletteProvider } from '../context/CommandPaletteProvider.js';
+import { resolveKeyedI18nLabel } from '../utils/index.js';
+import { getProductName } from '../runtime-config.js';
 import type { ConnectionState } from '@object-ui/data-objectstack';
 
 /** Minimal object shape used by the chatbot context */

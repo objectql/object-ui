@@ -21,8 +21,8 @@
  *   // → host renders <DashboardWidgetInspector ... /> on the right
  */
 import type { ComponentType } from 'react';
-import type { MetadataSelection } from './preview-registry';
-import type { SupportedLocale } from './i18n';
+import type { MetadataSelection } from './preview-registry.js';
+import type { SupportedLocale } from './i18n.js';
 
 export interface MetadataInspectorProps {
   /** Metadata type, e.g. 'dashboard'. */

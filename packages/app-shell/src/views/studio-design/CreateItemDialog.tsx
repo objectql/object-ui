@@ -31,8 +31,8 @@ import {
   Input,
   Label,
 } from '@object-ui/components';
-import { t, type SupportedLocale } from '../metadata-admin/i18n';
-import { toFieldName, toFieldNameLoose } from '../metadata-admin/previews/object-fields-io';
+import { t, type SupportedLocale } from '../metadata-admin/i18n.js';
+import { toFieldName, toFieldNameLoose } from '../metadata-admin/previews/object-fields-io.js';
 
 export interface CreateItemDialogProps {
   open: boolean;

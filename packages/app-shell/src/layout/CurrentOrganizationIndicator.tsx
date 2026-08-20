@@ -40,8 +40,8 @@
 
 import { useAuth } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { OrgBadge } from './OrgBadge';
-import { postureHasOrgWall, useTenancyPosture } from '../hooks/useTenancyPosture';
+import { OrgBadge } from './OrgBadge.js';
+import { postureHasOrgWall, useTenancyPosture } from '../hooks/useTenancyPosture.js';
 
 export function CurrentOrganizationIndicator() {
   const { t } = useObjectTranslation();

@@ -47,7 +47,7 @@ import {
 } from '@object-ui/core';
 import { usePredicateScope } from '@object-ui/react';
 import { getLazyFieldWidget, fileIdOf } from '@object-ui/fields';
-import { paramToField } from '../utils/paramToField';
+import { paramToField } from '../utils/paramToField.js';
 
 export interface ParamDialogState {
   open: boolean;

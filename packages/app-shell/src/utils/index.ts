@@ -19,19 +19,19 @@ export type { RecordDisplayNameOptions } from '@object-ui/core';
 export {
   resolveRecordFormTarget,
   resolveFormViewLayout,
-} from './recordFormNavigation';
+} from './recordFormNavigation.js';
 export type {
   ObjectDefinitionForNavigation,
   RecordFormTarget,
   ObjectDefinitionForFormView,
   FormViewDefinition,
   FormViewModalLayout,
-} from './recordFormNavigation';
+} from './recordFormNavigation.js';
 
-export { deriveRelatedLists } from './deriveRelatedLists';
-export type { DerivedRelatedList } from './deriveRelatedLists';
+export { deriveRelatedLists } from './deriveRelatedLists.js';
+export type { DerivedRelatedList } from './deriveRelatedLists.js';
 
-export { preferLocal } from './preferLocal';
+export { preferLocal } from './preferLocal.js';
 
 // Admin-override affordance + audit marker (objectui#5178). Exported because
 // the Approval Center (`apps/console`) renders the second timeline and must ask
@@ -43,7 +43,7 @@ export {
   isOverrideDecision,
   bypassedApproverNames,
   isViaOverrideRow,
-} from './approvalOverride';
+} from './approvalOverride.js';
 export {
   appRouteSegment,
   matchAppBySegment,
@@ -53,8 +53,8 @@ export {
   appStudioSurfacePath,
   appStudioRoutePath,
   resolveNotificationTarget,
-} from './appRoute';
-export type { NotificationTarget } from './appRoute';
+} from './appRoute.js';
+export type { NotificationTarget } from './appRoute.js';
 
 /**
  * Resolves objectui's KEYED i18n label to a plain string.

@@ -12,9 +12,9 @@ import { type ObjectStackAdapter } from '@object-ui/data-objectstack';
 import { normalizeSchemaReferenceKeys } from '@object-ui/core';
 import { resolveInlineMode } from '@object-ui/plugin-form';
 import { MetadataCtx, useMetadata, type MetadataContextValue, type MetadataCacheState } from '@object-ui/react';
-import { usePreviewDrafts } from '../preview/PreviewModeContext';
-import { createConsoleMetadataClient } from '../views/metadata-admin/metadataClientFactory';
-import { subscribeCanvasInvalidate, subscribeMetadataRefresh } from '../assistant/assistantBus';
+import { usePreviewDrafts } from '../preview/PreviewModeContext.js';
+import { createConsoleMetadataClient } from '../views/metadata-admin/metadataClientFactory.js';
+import { subscribeCanvasInvalidate, subscribeMetadataRefresh } from '../assistant/assistantBus.js';
 
 export type { MetadataCacheState, MetadataContextValue };
 export { useMetadataItem } from '@object-ui/react';

@@ -81,8 +81,8 @@ import {
 } from '@object-ui/react';
 import { evalRowPredicate, type ActionDef, type RowCrudPredicates } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
-import { resolveEffectiveCrudAffordances } from '../utils/crudAffordances';
-import { RECORD_FORM_PARAM, RECORD_FORM_OBJECT_PARAM, RECORD_FORM_LINK_PARAM, RECORD_TRAIL_PARAM, appendRecordTrail } from '../urlParams';
+import { resolveEffectiveCrudAffordances } from '../utils/crudAffordances.js';
+import { RECORD_FORM_PARAM, RECORD_FORM_OBJECT_PARAM, RECORD_FORM_LINK_PARAM, RECORD_TRAIL_PARAM, appendRecordTrail } from '../urlParams.js';
 
 /**
  * Notify open related lists for `objectName` to refetch.

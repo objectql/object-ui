@@ -42,9 +42,9 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import type { MetadataSelection } from '../preview-registry';
-import { requestAssistantOpen } from '../../../assistant/assistantBus';
-import { useAiSurfaceEnabled } from '../../../hooks/useAiSurface';
+import type { MetadataSelection } from '../preview-registry.js';
+import { requestAssistantOpen } from '../../../assistant/assistantBus.js';
+import { useAiSurfaceEnabled } from '../../../hooks/useAiSurface.js';
 import {
   readFields,
   writeFields,
@@ -62,7 +62,7 @@ import {
   type ObjectFieldGroup,
   type FieldsDiff,
   type FieldDiffStatus,
-} from './object-fields-io';
+} from './object-fields-io.js';
 import {
   FIELD_TYPE_META,
   TYPES_BY_CATEGORY,
@@ -70,9 +70,9 @@ import {
   type FieldTypeId,
   type FieldTypeMeta,
   type FieldTypeCategory,
-} from './field-types';
-import { FieldStub } from './FieldStub';
-import { t, tFormat } from '../i18n';
+} from './field-types.js';
+import { FieldStub } from './FieldStub.js';
+import { t, tFormat } from '../i18n.js';
 
 /* ─── locale helpers ─── */
 // Both resolve through the Studio catalog now. They used to read a `labelZh`

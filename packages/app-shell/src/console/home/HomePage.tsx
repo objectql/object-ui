@@ -17,28 +17,28 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMetadata } from '../../providers/MetadataProvider';
-import { useRecentItems } from '../../hooks/useRecentItems';
-import { useFavorites } from '../../hooks/useFavorites';
+import { useMetadata } from '../../providers/MetadataProvider.js';
+import { useRecentItems } from '../../hooks/useRecentItems.js';
+import { useFavorites } from '../../hooks/useFavorites.js';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
 import { useAgents, isAskAgent, agentHasCapability } from '@object-ui/plugin-chatbot';
-import { HomeAppsStrip } from './HomeAppsStrip';
-import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail';
-import { useHomeInbox } from '../../hooks/useHomeInbox';
-import { useNavigationContext } from '../../context/NavigationContext';
+import { HomeAppsStrip } from './HomeAppsStrip.js';
+import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail.js';
+import { useHomeInbox } from '../../hooks/useHomeInbox.js';
+import { useNavigationContext } from '../../context/NavigationContext.js';
 import {
   appRouteSegment,
   filterActiveApps,
   resolveHostAppSegment,
   resolveNotificationTarget,
-} from '../../utils';
+} from '../../utils/index.js';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
 import { Sparkles, ShieldAlert, X, UploadCloud, MessageSquareText, Hammer, LayoutTemplate } from 'lucide-react';
-import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
-import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts';
-import { resolveAiApiBase } from '../../hooks/useAiSurface';
+import { useMetadataClient } from '../../views/metadata-admin/useMetadata.js';
+import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts.js';
+import { resolveAiApiBase } from '../../hooks/useAiSurface.js';
 
 /**
  * Which AI home CTAs to surface, driven by the live agent catalog (the single

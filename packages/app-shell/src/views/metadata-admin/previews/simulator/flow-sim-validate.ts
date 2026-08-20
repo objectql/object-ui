@@ -12,9 +12,9 @@
  */
 
 import { ExpressionEvaluator } from '@object-ui/core';
-import type { Diagnostic, FlowValidation, SimEdge, SimNode } from './flow-sim-types';
-import { conditionText } from '../flow-canvas-layout';
-import { t as tr, tFormat } from '../../i18n';
+import type { Diagnostic, FlowValidation, SimEdge, SimNode } from './flow-sim-types.js';
+import { conditionText } from '../flow-canvas-layout.js';
+import { t as tr, tFormat } from '../../i18n.js';
 
 /** Evaluate a CEL condition, capturing (not swallowing) any failure. */
 export function evalCondition(

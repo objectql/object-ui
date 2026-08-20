@@ -20,7 +20,7 @@ import {
   cn,
 } from '@object-ui/components';
 import { agentAliasGroup, agentRouteName } from '@object-ui/plugin-chatbot';
-import { useConversationList, type ConversationListItem } from '../../hooks/useConversationList';
+import { useConversationList, type ConversationListItem } from '../../hooks/useConversationList.js';
 
 export interface ConversationsSidebarProps {
   userId: string | undefined;

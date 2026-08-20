@@ -25,7 +25,7 @@ import {
   PopoverTrigger,
 } from '@object-ui/components';
 import { GripVertical, Plus } from 'lucide-react';
-import type { MetadataSelection } from '../preview-registry';
+import type { MetadataSelection } from '../preview-registry.js';
 import {
   BLOCK_TYPE_META,
   TYPES_BY_CATEGORY,
@@ -33,11 +33,11 @@ import {
   UnknownBlockIcon,
   resolveBlockTone,
   type BlockTypeId,
-} from './block-types';
-import { parsePath, hopsToPath, getByPath, setByPath } from '../inspectors/PageBlockInspector';
+} from './block-types.js';
+import { parsePath, hopsToPath, getByPath, setByPath } from '../inspectors/PageBlockInspector.js';
 import { SchemaRenderer, PreviewModeProvider } from '@object-ui/react';
-import { PreviewErrorBoundary } from './PreviewShell';
-import { isOverlayFormType } from './form-preview';
+import { PreviewErrorBoundary } from './PreviewShell.js';
+import { isOverlayFormType } from './form-preview.js';
 
 /** Build the schema handed to SchemaRenderer, neutralising overlay form types so
  *  a live form block never mounts a modal over the design canvas. SchemaRenderer

@@ -28,7 +28,7 @@ import {
   formatNavSelParam,
   findNavPositionById,
   navIdAtPosition,
-} from './nav-selection';
+} from './nav-selection.js';
 import {
   Save,
   RotateCcw,
@@ -84,47 +84,47 @@ import type {
   MetadataLayered,
   MetadataReference,
 } from '@object-ui/data-objectstack';
-import { PageShell } from './PageShell';
-import { MetadataTypeActions } from './MetadataTypeActions';
-import { LayeredDiff, countOverlaidFields } from './LayeredDiff';
-import { DraftReviewPanel, computeDraftChangeCount } from './DraftReviewPanel';
+import { PageShell } from './PageShell.js';
+import { MetadataTypeActions } from './MetadataTypeActions.js';
+import { LayeredDiff, countOverlaidFields } from './LayeredDiff.js';
+import { DraftReviewPanel, computeDraftChangeCount } from './DraftReviewPanel.js';
 import {
   SchemaForm,
   DRAWER_METADATA_ID_SCOPE,
   type SchemaFormIssue,
-} from './SchemaForm';
+} from './SchemaForm.js';
 import {
   collectPageComponentIds,
   type ObjectActionOption,
   type ObjectFieldOption,
   type WidgetContext,
-} from './widgets';
-import { mapLoaded, usePickerLoad } from './loadState';
+} from './widgets.js';
+import { mapLoaded, usePickerLoad } from './loadState.js';
 import {
   useMetadataClient,
   useMetadataTypes,
   type RichMetadataTypeEntry,
-} from './useMetadata';
+} from './useMetadata.js';
 import {
   getMetadataResource,
   resolveResourceConfig,
   listAnchorsFor,
-} from './registry';
-import { useCreateDerive, deriveDefaultCreateFields } from './createDerive';
-import { RelatedPanel, type RelatedTarget } from './RelatedPanel';
-import { MetadataDetailDrawer } from './MetadataDetailDrawer';
-import { HistoryPanel } from './ResourceHistoryPage';
-import { AuditPanel } from './AuditPanel';
-import { getMetadataPreview, type MetadataSelection } from './preview-registry';
-import { readFields } from './previews/object-fields-io';
-import { useRegisterAssistantEditor, type AssistantEditorContext } from '../../assistant/assistantBus';
-import { getMetadataInspector } from './inspector-registry';
-import { getMetadataDefaultInspector } from './default-inspector-registry';
-import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n';
-import { JsonSourceEditor } from './JsonSourceEditor';
-import { validateMetadataDraft, hasClientValidator, type DraftMode } from './clientValidation';
-import { describeIssuePath } from './issuePath';
-import { buildCreateModeBody } from './createBody';
+} from './registry.js';
+import { useCreateDerive, deriveDefaultCreateFields } from './createDerive.js';
+import { RelatedPanel, type RelatedTarget } from './RelatedPanel.js';
+import { MetadataDetailDrawer } from './MetadataDetailDrawer.js';
+import { HistoryPanel } from './ResourceHistoryPage.js';
+import { AuditPanel } from './AuditPanel.js';
+import { getMetadataPreview, type MetadataSelection } from './preview-registry.js';
+import { readFields } from './previews/object-fields-io.js';
+import { useRegisterAssistantEditor, type AssistantEditorContext } from '../../assistant/assistantBus.js';
+import { getMetadataInspector } from './inspector-registry.js';
+import { getMetadataDefaultInspector } from './default-inspector-registry.js';
+import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n.js';
+import { JsonSourceEditor } from './JsonSourceEditor.js';
+import { validateMetadataDraft, hasClientValidator, type DraftMode } from './clientValidation.js';
+import { describeIssuePath } from './issuePath.js';
+import { buildCreateModeBody } from './createBody.js';
 import { errorCodeIs, errorCodeIsAnyOf } from '@object-ui/types';
 
 /**

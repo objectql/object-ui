@@ -39,8 +39,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Badge, cn } from '@object-ui/components';
-import { appendArray, moveArray, spliceArray } from '../inspectors/_shared';
-import { t, useMetadataLocale } from '../i18n';
+import { appendArray, moveArray, spliceArray } from '../inspectors/_shared.js';
+import { t, useMetadataLocale } from '../i18n.js';
 
 const DND_MIME = 'text/x-objectui-nav';
 

@@ -13,9 +13,9 @@
  */
 
 import * as React from 'react';
-import { validateExpressionClient, type ExprFieldRole } from './expression-validate';
-import { findUnknownRefs, scopeRoots, describeUnknownRefs } from './flow-ref-check';
-import type { ScopeGroup } from './useFlowScope';
+import { validateExpressionClient, type ExprFieldRole } from './expression-validate.js';
+import { findUnknownRefs, scopeRoots, describeUnknownRefs } from './flow-ref-check.js';
+import type { ScopeGroup } from './useFlowScope.js';
 
 export interface FlowExprIssueProps {
   value: unknown;

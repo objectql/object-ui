@@ -26,21 +26,21 @@ import {
   SelectValue,
 } from '@object-ui/components';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
-import { PageShell } from './PageShell';
-import { MetadataTypeActions } from './MetadataTypeActions';
-import { CreatePackageDialog } from './PackagesPage';
+import { PageShell } from './PageShell.js';
+import { MetadataTypeActions } from './MetadataTypeActions.js';
+import { CreatePackageDialog } from './PackagesPage.js';
 import {
   useMetadataClient,
   useMetadataTypes,
   matchesQuery,
   type RichMetadataTypeEntry,
-} from './useMetadata';
+} from './useMetadata.js';
 import {
   getMetadataResource,
   resolveResourceConfig,
-} from './registry';
-import { t, tFormat, translateMetadataType, useMetadataLocale } from './i18n';
-import { buildPackageScopeOptions } from './package-scope';
+} from './registry.js';
+import { t, tFormat, translateMetadataType, useMetadataLocale } from './i18n.js';
+import { buildPackageScopeOptions } from './package-scope.js';
 
 export interface MetadataResourceListPageProps {
   type?: string;
@@ -623,7 +623,7 @@ function DefaultMetadataList({ type, appName }: { type: string; appName?: string
   );
 }
 
-function defaultColumns(primaryKey: string): NonNullable<import('./registry').MetadataResourceConfig['listColumns']> {
+function defaultColumns(primaryKey: string): NonNullable<import('./registry.js').MetadataResourceConfig['listColumns']> {
   return [
     { key: primaryKey, label: primaryKey, width: '30%' },
     { key: 'label', label: 'Label', width: '30%' },

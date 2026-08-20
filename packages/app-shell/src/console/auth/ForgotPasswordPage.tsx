@@ -5,7 +5,7 @@
 import { Link } from 'react-router-dom';
 import { ForgotPasswordForm, type AuthLinkComponentProps } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { AuthPageLayout } from './AuthPageLayout';
+import { AuthPageLayout } from './AuthPageLayout.js';
 
 const RouterLink = ({ href, className, children }: AuthLinkComponentProps) => (
   <Link to={href} className={className}>{children}</Link>

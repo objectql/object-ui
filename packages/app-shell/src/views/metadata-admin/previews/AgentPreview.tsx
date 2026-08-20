@@ -47,8 +47,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { cn } from '@object-ui/components';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 
 interface ModelConfig {
   provider?: string;

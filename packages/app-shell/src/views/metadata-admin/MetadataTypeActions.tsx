@@ -38,10 +38,10 @@ import { Button } from '@object-ui/components';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import type { ActionParamDef } from '@object-ui/core';
 import { actionRendersAt, type ActionLocation } from '@object-ui/types';
-import { getIcon } from '../../utils/getIcon';
-import { ActionParamDialog, type ParamDialogState } from '../ActionParamDialog';
-import { ActionResultDialog, type ResultDialogState } from '../ActionResultDialog';
-import type { MetadataTypeAction, RichMetadataTypeEntry } from './useMetadata';
+import { getIcon } from '../../utils/getIcon.js';
+import { ActionParamDialog, type ParamDialogState } from '../ActionParamDialog.js';
+import { ActionResultDialog, type ResultDialogState } from '../ActionResultDialog.js';
+import type { MetadataTypeAction, RichMetadataTypeEntry } from './useMetadata.js';
 
 /** Map the spec's action variants onto the Shadcn Button variants. */
 const VARIANT_MAP: Record<NonNullable<MetadataTypeAction['variant']>, React.ComponentProps<typeof Button>['variant']> = {

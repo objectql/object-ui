@@ -24,10 +24,10 @@ import * as React from 'react';
 import { resolveHref } from '@object-ui/layout';
 import type { NavigationItem } from '@object-ui/types';
 import { Plus, X } from 'lucide-react';
-import type { MetadataInspectorProps } from '../inspector-registry';
-import { t } from '../i18n';
-import { useMetadataClient } from '../useMetadata';
-import { useObjectFields } from '../previews/useObjectFields';
+import type { MetadataInspectorProps } from '../inspector-registry.js';
+import { t } from '../i18n.js';
+import { useMetadataClient } from '../useMetadata.js';
+import { useObjectFields } from '../previews/useObjectFields.js';
 import {
   InspectorShell,
   InspectorReorderButtons,
@@ -37,8 +37,8 @@ import {
   InspectorEmptyState,
   spliceArray,
   moveArray,
-} from './_shared';
-import { InspectorComboField } from './InspectorComboField';
+} from './_shared.js';
+import { InspectorComboField } from './InspectorComboField.js';
 import {
   NAV_ITEM_TYPES,
   NAV_TYPE_TARGETS,
@@ -51,7 +51,7 @@ import {
   clearedTargetPatch,
   ensureNavId,
   isStaticPageOption,
-} from './nav-target';
+} from './nav-target.js';
 
 interface NavItem {
   id?: string;

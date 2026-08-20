@@ -12,7 +12,7 @@
  * DOM-free, so both surfaces can share one validated implementation.
  */
 
-import { readFields } from '../metadata-admin/previews/object-fields-io';
+import { readFields } from '../metadata-admin/previews/object-fields-io.js';
 
 /**
  * The four canonical OWD values (ADR-0090 D4). The legacy `read` / `read_write`

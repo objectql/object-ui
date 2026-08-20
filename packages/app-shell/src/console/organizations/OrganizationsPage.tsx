@@ -23,8 +23,8 @@ import { useAuth } from '@object-ui/auth';
 import type { AuthOrganization } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
-import { resolveRootUrl } from './resolveHomeUrl';
+import { CreateWorkspaceDialog } from './CreateWorkspaceDialog.js';
+import { resolveRootUrl } from './resolveHomeUrl.js';
 
 function getOrgInitials(name: string): string {
   return name

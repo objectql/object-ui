@@ -15,18 +15,18 @@
  * metadata type.
  */
 
-import { registerAppComponent } from './componentRegistry';
+import { registerAppComponent } from './componentRegistry.js';
 import {
   MetadataDirectoryPage,
   MetadataResourceRouter,
   registerMetadataResource,
-} from '../views/metadata-admin';
-import { PermissionMatrixEditPage } from '../views/metadata-admin/PermissionMatrixEditor';
-import { PackagesPage } from '../views/metadata-admin/PackagesPage';
+} from '../views/metadata-admin/index.js';
+import { PermissionMatrixEditPage } from '../views/metadata-admin/PermissionMatrixEditor.js';
+import { PackagesPage } from '../views/metadata-admin/PackagesPage.js';
 import {
   isAggregatedViewContainer,
   viewDisplayType,
-} from '../views/metadata-admin/view-item-normalize';
+} from '../views/metadata-admin/view-item-normalize.js';
 
 /* -------------------------------------------------------------------------- */
 /* 1) Top-level admin pages — bound to `metadata:directory` + `metadata:resource` */

@@ -29,7 +29,7 @@ import {
   DESIGNER_SURFACE_PARAM,
   parseSurfaceParam,
   formatSurfaceParam,
-} from '../metadata-admin/nav-selection';
+} from '../metadata-admin/nav-selection.js';
 
 /** The surface identity carried in the URL param. */
 export interface SurfaceTarget {

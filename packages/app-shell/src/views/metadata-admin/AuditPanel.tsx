@@ -28,8 +28,8 @@ import type {
   MetadataClient,
   MetadataAuditEntry,
 } from '@object-ui/data-objectstack';
-import { t, translateConsoleValue, type SupportedLocale } from './i18n';
-import { type LoadState, loadErrorMessage } from './loadState';
+import { t, translateConsoleValue, type SupportedLocale } from './i18n.js';
+import { type LoadState, loadErrorMessage } from './loadState.js';
 
 export interface AuditPanelProps {
   type: string;

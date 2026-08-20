@@ -40,18 +40,18 @@ import type {
   ToastHandler,
 } from '@object-ui/core';
 import { actionErrorDetail, isRecordScopedAction, resolveRecordIdParamSeed } from '@object-ui/core';
-import { useActionModal } from './useActionModal';
-import { ActionConfirmDialog, type ConfirmDialogState } from '../views/ActionConfirmDialog';
-import { ActionParamDialog, type ParamDialogState } from '../views/ActionParamDialog';
-import { ActionResultDialog, type ResultDialogState } from '../views/ActionResultDialog';
-import { FlowRunner, type ScreenFlowState, type ScreenSpec } from '../views/FlowRunner';
-import { resolveActionParams } from '../utils/resolveActionParams';
-import { EnvironmentEntitlementDialog, type EntitlementDialogState } from '../environment/EnvironmentEntitlementDialog';
-import { entitlementDialogFromError, type EntitlementDialogSpec } from '../environment/entitlements';
-import { resolvePageVarTokens } from '../utils/resolvePageVarTokens';
-import { interpretFlowResponse } from '../utils/flowResponse';
-import { createConsoleServerActionHandler } from '../utils/consoleServerAction';
-import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics';
+import { useActionModal } from './useActionModal.js';
+import { ActionConfirmDialog, type ConfirmDialogState } from '../views/ActionConfirmDialog.js';
+import { ActionParamDialog, type ParamDialogState } from '../views/ActionParamDialog.js';
+import { ActionResultDialog, type ResultDialogState } from '../views/ActionResultDialog.js';
+import { FlowRunner, type ScreenFlowState, type ScreenSpec } from '../views/FlowRunner.js';
+import { resolveActionParams } from '../utils/resolveActionParams.js';
+import { EnvironmentEntitlementDialog, type EntitlementDialogState } from '../environment/EnvironmentEntitlementDialog.js';
+import { entitlementDialogFromError, type EntitlementDialogSpec } from '../environment/entitlements.js';
+import { resolvePageVarTokens } from '../utils/resolvePageVarTokens.js';
+import { interpretFlowResponse } from '../utils/flowResponse.js';
+import { createConsoleServerActionHandler } from '../utils/consoleServerAction.js';
+import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics.js';
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User', isPlatformAdmin: false };
 

@@ -1,16 +1,16 @@
-export { NavigationProvider, useNavigationContext } from './NavigationContext';
-export { FavoritesProvider, useFavorites } from './FavoritesProvider';
-export type { FavoriteItem } from './FavoritesProvider';
-export { RecentItemsProvider, useRecentItems } from './RecentItemsProvider';
-export type { RecentItem } from './RecentItemsProvider';
+export { NavigationProvider, useNavigationContext } from './NavigationContext.js';
+export { FavoritesProvider, useFavorites } from './FavoritesProvider.js';
+export type { FavoriteItem } from './FavoritesProvider.js';
+export { RecentItemsProvider, useRecentItems } from './RecentItemsProvider.js';
+export type { RecentItem } from './RecentItemsProvider.js';
 export {
   CommandPaletteProvider,
   useCommandPalette,
-} from './CommandPaletteProvider';
-export type { CommandPaletteContextValue } from './CommandPaletteProvider';
+} from './CommandPaletteProvider.js';
+export type { CommandPaletteContextValue } from './CommandPaletteProvider.js';
 export {
   UserStateAdaptersProvider,
   useUserStateAdapter,
   useAttachUserStateAdapters,
-} from './UserStateAdapters';
-export type { UserDataAdapter, UserStateKind } from './UserStateAdapters';
+} from './UserStateAdapters.js';
+export type { UserDataAdapter, UserStateKind } from './UserStateAdapters.js';

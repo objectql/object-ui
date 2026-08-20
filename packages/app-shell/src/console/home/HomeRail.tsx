@@ -17,10 +17,10 @@ import {
   FileText, Database, LayoutDashboard, File, CircleAlert,
 } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import type { ActivityItem } from '../../layout/ActivityFeed';
-import type { HomeInboxStatus, HomeNotification } from '../../hooks/useHomeInbox';
-import type { RecentItem } from '../../hooks/useRecentItems';
-import { timeAgo } from '../../utils/relativeTime';
+import type { ActivityItem } from '../../layout/ActivityFeed.js';
+import type { HomeInboxStatus, HomeNotification } from '../../hooks/useHomeInbox.js';
+import type { RecentItem } from '../../hooks/useRecentItems.js';
+import { timeAgo } from '../../utils/relativeTime.js';
 
 type TFn = (key: string, opts?: any) => string;
 

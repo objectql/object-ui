@@ -55,7 +55,7 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from '@object-ui/components';
-import { evaluatePredicate } from './predicate';
+import { evaluatePredicate } from './predicate.js';
 import {
   WIDGETS,
   widgetLabelling,
@@ -64,8 +64,8 @@ import {
   type WidgetContext,
   type WidgetLabelling,
   type WidgetRenderer,
-} from './widgets';
-import { useMetadataLocale, t, tFormat, translateValidationMessage, translateEnumOption, translateSchemaFieldLabel, translateSchemaFieldHelp } from './i18n';
+} from './widgets.js';
+import { useMetadataLocale, t, tFormat, translateValidationMessage, translateEnumOption, translateSchemaFieldLabel, translateSchemaFieldHelp } from './i18n.js';
 
 type JsonSchema = Record<string, any>;
 

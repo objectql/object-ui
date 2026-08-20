@@ -9,8 +9,8 @@
  */
 
 import React, { useEffect } from 'react';
-import { useNavigationContext } from '../../context/NavigationContext';
-import { AppHeader } from '../../layout/AppHeader';
+import { useNavigationContext } from '../../context/NavigationContext.js';
+import { AppHeader } from '../../layout/AppHeader.js';
 
 interface OrganizationsLayoutProps {
   children: React.ReactNode;

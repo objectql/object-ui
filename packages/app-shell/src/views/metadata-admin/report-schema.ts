@@ -23,7 +23,7 @@
 
 import { z } from 'zod';
 import { ReportSchema, reportForm as specReportForm } from '@objectstack/spec/ui';
-import type { FormViewSpec } from './SchemaForm';
+import type { FormViewSpec } from './SchemaForm.js';
 
 type JsonSchema = Record<string, any>;
 

@@ -34,7 +34,7 @@ import {
   cn,
 } from '@object-ui/components';
 import { AlertCircle, AlertTriangle, ShieldCheck, ShieldX, FlaskConical } from 'lucide-react';
-import { testRunCelPredicate, type CelTestOutcome } from './celAuthoring';
+import { testRunCelPredicate, type CelTestOutcome } from './celAuthoring.js';
 
 type Clause = 'using' | 'check';
 

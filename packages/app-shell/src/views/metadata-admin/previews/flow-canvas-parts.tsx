@@ -49,11 +49,11 @@ import {
   CommandItem,
   CommandList,
 } from '@object-ui/components';
-import { t as tr, translateNodeLabel, translateNodeHint } from '../i18n';
-import { NODE_W, NODE_H, type Point, type LabeledRegion, type FlowDesignerNode } from './flow-canvas-layout';
-import { FlowRegionView } from './flow-region-view';
-import { EXPANDED_REGION_MAX_W, NODE_REGION_GAP, REGION_PANEL_PAD } from './flow-region-metrics';
-import { useFlowPaletteRecents } from '../../../context/FlowPaletteRecentsProvider';
+import { t as tr, translateNodeLabel, translateNodeHint } from '../i18n.js';
+import { NODE_W, NODE_H, type Point, type LabeledRegion, type FlowDesignerNode } from './flow-canvas-layout.js';
+import { FlowRegionView } from './flow-region-view.js';
+import { EXPANDED_REGION_MAX_W, NODE_REGION_GAP, REGION_PANEL_PAD } from './flow-region-metrics.js';
+import { useFlowPaletteRecents } from '../../../context/FlowPaletteRecentsProvider.js';
 
 export function nodeIcon(type: string): LucideIcon {
   switch (type) {

@@ -25,11 +25,11 @@
 import React from 'react';
 import { Webhook, Plus, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import { SchemaForm } from '../metadata-admin/SchemaForm';
-import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry';
-import { useMetadataClient } from '../metadata-admin/useMetadata';
-import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
-import { formatMetadataError } from './metadataError';
+import { SchemaForm } from '../metadata-admin/SchemaForm.js';
+import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry.js';
+import { useMetadataClient } from '../metadata-admin/useMetadata.js';
+import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n.js';
+import { formatMetadataError } from './metadataError.js';
 
 interface HookItem {
   name?: string;

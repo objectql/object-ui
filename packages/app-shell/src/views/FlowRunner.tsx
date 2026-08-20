@@ -25,10 +25,10 @@ import {
   Button,
 } from '@object-ui/components';
 import { toast } from 'sonner';
-import { ScreenView, isObjectFormScreen, initialScreenValues, visibleScreenFields, type ScreenSpec } from './ScreenView';
-import { interpretFlowResponse } from '../utils/flowResponse';
+import { ScreenView, isObjectFormScreen, initialScreenValues, visibleScreenFields, type ScreenSpec } from './ScreenView.js';
+import { interpretFlowResponse } from '../utils/flowResponse.js';
 
-export type { ScreenSpec, ScreenFieldSpec } from './ScreenView';
+export type { ScreenSpec, ScreenFieldSpec } from './ScreenView.js';
 
 export interface ScreenFlowState {
   flowName: string;

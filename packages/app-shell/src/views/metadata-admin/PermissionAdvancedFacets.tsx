@@ -19,9 +19,9 @@ import {
   cn,
 } from '@object-ui/components';
 import { ChevronRight, Plus, Trash2, Shield, Lock, PanelTop, FlaskConical } from 'lucide-react';
-import { CelPredicateField } from './CelPredicateField';
-import { CelTestRunDialog } from './CelTestRunDialog';
-import type { CelLintIssue } from './celAuthoring';
+import { CelPredicateField } from './CelPredicateField.js';
+import { CelTestRunDialog } from './CelTestRunDialog.js';
+import type { CelLintIssue } from './celAuthoring.js';
 
 /**
  * Structured editors for the three "advanced" permission facets — Row-Level

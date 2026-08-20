@@ -34,7 +34,7 @@ import {
   ExternalServiceUnavailableError,
   type ObjectDraft,
   type RemoteTable,
-} from './api';
+} from './api.js';
 
 export interface ImportObjectDialogProps {
   datasource: string;

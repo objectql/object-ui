@@ -17,7 +17,7 @@
  * {@link RETIRED_FIELD_KEYS} — see the note on that constant.
  */
 
-import type { FieldTypeId } from './field-types';
+import type { FieldTypeId } from './field-types.js';
 
 export type Shape = 'array' | 'record';
 

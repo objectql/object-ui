@@ -1,4 +1,4 @@
-export { LoginPage } from './LoginPage';
-export { RegisterPage } from './RegisterPage';
-export { ForgotPasswordPage } from './ForgotPasswordPage';
-export { AuthPageLayout } from './AuthPageLayout';
+export { LoginPage } from './LoginPage.js';
+export { RegisterPage } from './RegisterPage.js';
+export { ForgotPasswordPage } from './ForgotPasswordPage.js';
+export { AuthPageLayout } from './AuthPageLayout.js';

@@ -15,7 +15,7 @@ import {
   WIDGET_CATEGORY_LABEL,
   WIDGET_TYPE_META,
   UnknownWidgetIcon,
-} from './widget-types';
+} from './widget-types.js';
 
 export interface AddWidgetPickerProps {
   onAdd: (type: string) => void;

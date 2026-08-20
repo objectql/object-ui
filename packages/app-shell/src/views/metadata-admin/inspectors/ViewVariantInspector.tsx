@@ -31,14 +31,14 @@ import {
   InspectorShell,
   InspectorTextField,
   InspectorSelectField,
-} from './_shared';
-import { InspectorComboField } from './InspectorComboField';
-import { useObjectOptions } from './useDatasetFields';
-import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
-import { SchemaForm } from '../SchemaForm';
-import { useObjectFields, type ObjectFieldInfo } from '../previews/useObjectFields';
-import { failed, loaded, type LoadState } from '../loadState';
-import type { ObjectFieldOption, WidgetContext } from '../widgets';
+} from './_shared.js';
+import { InspectorComboField } from './InspectorComboField.js';
+import { useObjectOptions } from './useDatasetFields.js';
+import type { MetadataDefaultInspectorProps } from '../default-inspector-registry.js';
+import { SchemaForm } from '../SchemaForm.js';
+import { useObjectFields, type ObjectFieldInfo } from '../previews/useObjectFields.js';
+import { failed, loaded, type LoadState } from '../loadState.js';
+import type { ObjectFieldOption, WidgetContext } from '../widgets.js';
 
 /**
  * Object picker for the view's binding — a searchable dropdown over the live
@@ -74,16 +74,16 @@ function ViewObjectPicker({
     />
   );
 }
-import { FieldsListEditor } from '../previews/FieldsListEditor';
-import { ConditionalFormattingEditor } from '../ConditionalFormattingEditor';
+import { FieldsListEditor } from '../previews/FieldsListEditor.js';
+import { ConditionalFormattingEditor } from '../ConditionalFormattingEditor.js';
 import {
   getViewForm,
   getListVariantSchema,
   getFormVariantSchema,
-} from '../view-schema';
-import { isFormFamilyKey } from '../view-variant-model';
-import { mergeServerFields } from '../mergeServerFields';
-import { t } from '../i18n';
+} from '../view-schema.js';
+import { isFormFamilyKey } from '../view-variant-model.js';
+import { mergeServerFields } from '../mergeServerFields.js';
+import { t } from '../i18n.js';
 
 /**
  * Variant-body fields this inspector renders with its own controls, pruned
