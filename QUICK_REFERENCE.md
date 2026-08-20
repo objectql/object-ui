@@ -36,8 +36,11 @@ Not `pnpm --filter <pkg> test`, not `turbo run test`, not `cd packages/x && pnpm
 vitest`, and never a path behind `--`. Each of those moved vitest's root into a package,
 where the root `unit`/`dom`/`dom-heavy` projects match nothing and only `apps/console`
 resolves: 22 foreign files passed, your package never ran, output green
-(objectui#3378/#3288). A guard in `vitest.config.mts` now **exits non-zero** on all of
-them and prints the correct invocation:
+(objectui#3378/#3288). A guard now **exits non-zero** on all of them and prints the
+correct invocation. It is wired into `vitest.config.mts` *and* into each of the 11
+standalone per-package configs (`packages/plugin-grid/vitest.config.ts` and its ten
+siblings), because Vitest loads the config in the directory it was launched from — the
+root call alone left those 11 uncovered (objectui#5406):
 
 ```
 vitest 调用被拒绝:从包目录跑 vitest 会静默跑错测试集 (objectui#3378)

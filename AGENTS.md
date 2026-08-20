@@ -186,9 +186,18 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
   pnpm 把 `--` **原样**转发进脚本,vitest 的 CLI 解析在 `--` 处停止,后面的一切(包括你的路径)
   在 vitest 看到之前就没了 —— 不是「被忽略并警告」,是压根不存在。于是退回默认集合(叠加陷阱一
   就是别人的包),新加的测试文件零执行、输出全绿。
-- **两条现在都会直接失败**,由 `scripts/vitest-invocation-guard.mjs` 在 `vitest.config.mts` 顶部
-  拦下:vitest root 不是仓根 → 拒绝;`--` 后面还有参数 → 拒绝。报错正文会指出机制并给出上面的
-  正确命令。包级 `test` 脚本的存废是 objectui#3240;在那之前它们只失败,不撒谎。
+- **两条现在都会直接失败**,由 `scripts/vitest-invocation-guard.mjs` 拦下:vitest root 不是仓根
+  → 拒绝;`--` 后面还有参数 → 拒绝。报错正文会指出机制并给出上面的正确命令。包级 `test` 脚本的
+  存废是 objectui#3240;在那之前它们只失败,不撒谎。
+  - **拦截点不止 `vitest.config.mts` 一处**(objectui#5406)。vitest 只加载「启动目录里的那份」
+    config,所以根 config 顶部那一次调用,只覆盖得到「本包没有 config(向上找到根 config)」或
+    「本包 config import 了根 config(import 即执行其模块作用域)」这两条路。11 个**独立**的
+    `packages/plugin-*/vitest.config.ts` 两条都不占——它们自带 `happy-dom` + `globals` + 本地
+    setup 且**完全没有 alias 表**,于是从包目录跑就用上了一份 CI 从不使用的 config,而 guard
+    根本没被 import。实测:`cd packages/plugin-grid && pnpm exec vitest run
+    src/__tests__/ObjectGrid.exportOptionsKeys.test.ts` 曾经报 `Test Files 1 passed (1)` /
+    `Tests 5 passed (5)` 并以 0 退出。这 11 份现在各自调用 guard;新增任何一份 `vitest.config.*`
+    若两条路都不占,`scripts/__tests__/vitest-invocation-guard.test.ts` 会红。
 - **路径过滤零匹配也不再是绿的**:一旦命令行点名了文件,`passWithNoTests` 自动关闭 ——
   写错的路径 / 相对错目录的路径 → 非零退出,而不是「跑了 0 个文件然后绿」。
 - 确需从包目录启动,把 root 显式指回仓根:`pnpm exec vitest run --root ../.. packages/<pkg>/`。
