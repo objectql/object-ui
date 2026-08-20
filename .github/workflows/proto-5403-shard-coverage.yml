@@ -39,7 +39,7 @@ jobs:
   # ── A: the shipped recipe, 4 ways ─────────────────────────────────────────
   shard:
     name: PROTO shard ${{ matrix.shard }}/4
-    if: ${{ !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') && !contains(github.event.head_commit.message, '[verdict]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
@@ -82,7 +82,7 @@ jobs:
   # and that has to be said out loud rather than shipped as decoration.
   probe-no-override:
     name: PROTO shard 1/4 WITHOUT the threshold override
-    if: ${{ !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') && !contains(github.event.head_commit.message, '[verdict]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     outputs:
@@ -112,7 +112,7 @@ jobs:
     # Measurement-only relaxation: the SHIPPED job refuses to merge unless every
     # shard is green. Here the point is to obtain a merged report to compare
     # against the unsharded one, so a red shard must not abort the measurement.
-    if: ${{ always() && !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') }}
+    if: ${{ always() && !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') && !contains(github.event.head_commit.message, '[verdict]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -185,7 +185,7 @@ jobs:
   # ── B: the status quo on the same commit — the baseline to compare against ─
   baseline:
     name: PROTO unsharded coverage baseline
-    if: ${{ !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') && !contains(github.event.head_commit.message, '[merge-only]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') && !contains(github.event.head_commit.message, '[merge-only]') && !contains(github.event.head_commit.message, '[verdict]') }}
     runs-on: ubuntu-latest
     # Instrument, not a gate: production `test-coverage` keeps its 40 minutes.
     # A timeout here would truncate the measurement, which is the one thing
@@ -225,7 +225,7 @@ jobs:
   compare:
     name: PROTO compare merged vs unsharded
     needs: [merge, baseline]
-    if: ${{ (always()) && !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') && !contains(github.event.head_commit.message, '[merge-only]') }}
+    if: ${{ (always()) && !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') && !contains(github.event.head_commit.message, '[merge-only]') && !contains(github.event.head_commit.message, '[verdict]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -325,7 +325,7 @@ jobs:
   report:
     name: PROTO write results
     needs: [shard, probe-no-override, merge, baseline, compare, red-arm-shard, red-arm-merge, red-arm-merge-without-verdict]
-    if: ${{ (always()) && !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') && !contains(github.event.head_commit.message, '[merge-only]') }}
+    if: ${{ (always()) && !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') && !contains(github.event.head_commit.message, '[merge-only]') && !contains(github.event.head_commit.message, '[verdict]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -534,3 +534,65 @@ jobs:
           git add -f proto-results/diag-shard3.md
           git commit -m "PROTO diag shard3 output ${GITHUB_RUN_ID}"
           git push origin "HEAD:refs/heads/proto-5403-diag-shard3-${GITHUB_RUN_ID}"
+
+  # [verdict]: the equivalence numbers, encoded in ARTIFACT NAMES because that
+  # is the one channel out of a run this session can actually read.
+  verdict-equivalence:
+    name: PROTO verdict - merged vs unsharded (same commit)
+    if: ${{ contains(github.event.head_commit.message, '[verdict]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          name: proto-coverage-unsharded
+          path: unsharded
+          run-id: 32388915404
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v7
+        with:
+          name: proto-coverage-merged
+          path: merged
+          run-id: 32388915404
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - id: cmp
+        run: node scripts-proto/verdict.mjs unsharded/coverage-final.json merged/coverage-final.json EQUIV
+      - run: 'echo "$RESULT" > result.txt'
+        env:
+          RESULT: ${{ steps.cmp.outputs.name }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.cmp.outputs.name }}
+          path: result.txt
+          retention-days: 1
+
+  verdict-noise-floor:
+    name: PROTO verdict - merged vs merged (two identical sharded rounds)
+    if: ${{ contains(github.event.head_commit.message, '[verdict]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          name: proto-coverage-merged
+          path: roundA
+          run-id: 32388915404
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v7
+        with:
+          name: proto-coverage-merged
+          path: roundB
+          run-id: 32391890554
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - id: cmp
+        run: node scripts-proto/verdict.mjs roundA/coverage-final.json roundB/coverage-final.json NOISE
+      - run: 'echo "$RESULT" > result.txt'
+        env:
+          RESULT: ${{ steps.cmp.outputs.name }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.cmp.outputs.name }}
+          path: result.txt
+          retention-days: 1
