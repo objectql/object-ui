@@ -13,7 +13,16 @@
     // `noEmit: true`, so `tsc` here only CHECKS; `dist` is written by
     // vite-plugin-dts, which overrides `rootDir` to `src` and clears `paths`.
     "rootDir": "..",
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+
+    // See `packages/react/tsconfig.json` for the full argument: under
+    // `nodenext` a missing relative extension is TS2835 and a bare directory
+    // import is TS2834, so the property is enforced by the compiler instead
+    // of by review. objectui#5365 is what unblocked it here — until
+    // `@object-ui/components` emitted resolvable typings, this pin turned
+    // `tsc` red with 300+ TS2305 that had nothing to do with this package.
+    "module": "nodenext",
+    "moduleResolution": "nodenext"
   },
   "include": ["src"],
   // Tests are excluded from the BUILD program so they stop being emitted into
