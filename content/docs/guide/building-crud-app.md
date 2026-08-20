@@ -25,7 +25,7 @@ Install ObjectUI core packages and the plugins you need:
 
 ```bash
 pnpm add @object-ui/react @object-ui/core @object-ui/types @object-ui/components @object-ui/fields
-pnpm add @object-ui/plugin-grid @object-ui/plugin-form
+pnpm add @object-ui/plugin-grid @object-ui/plugin-form @object-ui/plugin-detail
 ```
 
 Install Tailwind CSS:
@@ -58,16 +58,26 @@ Create `src/setup.ts` to register the built-in component and field renderers:
 
 ```ts
 import { initializeComponents } from '@object-ui/components';
-// Side-effect import: loading the package runs its own field registration.
+// Side-effect imports: loading each package runs its own registration.
 import '@object-ui/fields';
+import '@object-ui/plugin-grid';
+import '@object-ui/plugin-form';
+import '@object-ui/plugin-detail';
 
 initializeComponents();
 ```
 
-Loading each package registers what it owns — the components and the field
-widgets go into the one `ComponentRegistry` that `@object-ui/core` exports.
-`initializeComponents()` takes no arguments; it exists so a bundler cannot
-tree-shake the side-effect import away.
+Loading each package registers what it owns — the components, the field widgets
+and each plugin's blocks all go into the one `ComponentRegistry` that
+`@object-ui/core` exports. `initializeComponents()` takes no arguments; it exists
+so a bundler cannot tree-shake the side-effect import away.
+
+**Every block this tutorial renders comes from a plugin**, so the three plugin
+imports are not optional extras: `object-grid` lives in `@object-ui/plugin-grid`,
+`object-form` in `@object-ui/plugin-form` and `detail-view` in
+`@object-ui/plugin-detail`. Leave one out and `SchemaRenderer` has nothing to
+resolve that `type` to — it renders the red **Unknown component type** panel
+instead of the block.
 
 Import this file once at the top of your app entry point (`src/main.tsx` or `src/App.tsx`).
 
@@ -194,11 +204,13 @@ export class RestDataSource implements DataSource {
 
 ## Step 5: Render a CRUD Grid View
 
-Wire everything together in `src/App.tsx`. The `SchemaRenderer` takes your schema and data source and renders the appropriate view:
+Wire everything together in `src/App.tsx`. `SchemaRendererProvider` injects the
+data source once, and every `SchemaRenderer` beneath it renders its schema
+against that one adapter:
 
 ```tsx
 import './setup';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 import { TaskSchema } from './schemas/task';
 import { RestDataSource } from './data/rest-data-source';
 
@@ -206,17 +218,18 @@ const dataSource = new RestDataSource('https://api.example.com/v1');
 
 function App() {
   return (
-    <div className="min-h-screen bg-background p-6">
-      <SchemaRenderer
-        schema={{
-          type: 'object-grid',
-          object: 'task',
-          view: 'all',
-          data: { objectSchema: TaskSchema },
-        }}
-        dataSource={dataSource}
-      />
-    </div>
+    <SchemaRendererProvider dataSource={dataSource}>
+      <div className="min-h-screen bg-background p-6">
+        <SchemaRenderer
+          schema={{
+            type: 'object-grid',
+            objectName: 'task',
+            view: 'all',
+            data: { objectSchema: TaskSchema },
+          }}
+        />
+      </div>
+    </SchemaRendererProvider>
   );
 }
 
@@ -224,6 +237,22 @@ export default App;
 ```
 
 This renders a fully interactive data grid with sortable columns, pagination, and row actions — all driven by the `TaskSchema` you defined.
+
+Two details in that snippet are load-bearing, and getting either wrong produces
+a grid that draws its header and nothing else:
+
+- **The data source is injected by an ancestor, not passed to the block.**
+  `object-grid`, `object-form` and `detail-view` all read the adapter from
+  `SchemaRendererProvider`, so it has to be *above* them in the tree. A
+  `dataSource` written on the block itself reaches that one block and never
+  becomes context for anything under it.
+- **The object is named by `objectName`.** That is the key each of these blocks
+  declares as required; a differently-spelled key (`object`) is not read, so the
+  block has no object to query.
+
+Neither mistake used to say anything — the block simply rendered empty. Both now
+report themselves: a block that resolves no adapter renders a **No data source
+resolved** panel naming itself and the object it was about to read.
 
 ## Step 6: Add Create and Edit Forms
 
@@ -236,10 +265,12 @@ const [editId, setEditId] = useState<string | null>(null);
 
 Add a "New Task" button and handle row clicks to open the edit form:
 
+Both of these render inside the `SchemaRendererProvider` from Step 5, so neither
+carries a data source of its own:
+
 ```tsx
 <SchemaRenderer
-  schema={{ type: 'object-grid', object: 'task', view: 'all', data: { objectSchema: TaskSchema } }}
-  dataSource={dataSource}
+  schema={{ type: 'object-grid', objectName: 'task', view: 'all', data: { objectSchema: TaskSchema } }}
   onRowClick={(row: any) => { setEditId(row.id); setShowForm(true); }}
 />
 
@@ -247,17 +278,20 @@ Add a "New Task" button and handle row clicks to open the edit form:
   <SchemaRenderer
     schema={{
       type: 'object-form',
-      object: 'task',
+      objectName: 'task',
       mode: editId ? 'edit' : 'create',
       recordId: editId,
       data: { objectSchema: TaskSchema },
     }}
-    dataSource={dataSource}
     onSubmit={() => setShowForm(false)}
     onCancel={() => setShowForm(false)}
   />
 )}
 ```
+
+`recordId` is the key `object-form` reads to load the record it is editing — it
+is the form's own spelling and is not shared with `detail-view`, which uses
+`resourceId` (Step 8).
 
 The form automatically renders the correct field widgets (text inputs, select dropdowns, date pickers) based on your `FieldMetadata` definitions. Validation rules like `required` are enforced out of the box.
 
@@ -291,14 +325,13 @@ const [searchQuery, setSearchQuery] = useState('');
 <SchemaRenderer
   schema={{
     type: 'object-grid',
-    object: 'task',
+    objectName: 'task',
     view: activeView,
     data: {
       objectSchema: TaskSchema,
       queryParams: searchQuery ? { $search: searchQuery } : undefined,
     },
   }}
-  dataSource={dataSource}
 />
 ```
 
@@ -318,16 +351,28 @@ function TaskDetail({ taskId, onBack }: { taskId: string; onBack: () => void }) 
       <SchemaRenderer
         schema={{
           type: 'detail-view',
-          object: 'task',
-          recordId: taskId,
-          data: { objectSchema: TaskSchema },
+          objectName: 'task',
+          resourceId: taskId,
         }}
-        dataSource={dataSource}
       />
     </div>
   );
 }
 ```
+
+Render `TaskDetail` inside the same `SchemaRendererProvider` as the grid — it
+reads the injected data source from context, exactly as `object-grid` and
+`object-form` do.
+
+Two keys differ from the form above, and both matter:
+
+- **`resourceId`, not `recordId`.** `detail-view` sources the record id from
+  `resourceId`; `recordId` is `object-form`'s spelling. The two blocks are not
+  interchangeable here.
+- **No `data`.** On `detail-view`, `data` means *"here is the record already,
+  do not fetch"* — so handing it anything (including the object's metadata)
+  makes the block skip `findOne` entirely and render that value as if it were
+  the record. Omit it and the block loads the record for itself.
 
 Use this component in your main app with simple routing state, or integrate with a router like React Router or TanStack Router for URL-based navigation.
 

@@ -22,6 +22,36 @@ pnpm add @object-ui/plugin-detail
 
 ## Usage
 
+### Two ways to reach a data source
+
+`detail-view` needs a data source to load a record, and there are two ways to
+give it one. They are equivalent, and an explicit prop wins when both are
+present:
+
+```tsx
+import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
+
+// 1. Injected by an ancestor — the pattern the rest of the family uses, and the
+//    one to reach for when a page renders several data-bound blocks.
+<SchemaRendererProvider dataSource={dataSource}>
+  <SchemaRenderer schema={{ type: 'detail-view', objectName: 'account', resourceId: '42' }} />
+</SchemaRendererProvider>
+
+// 2. Handed to one placement — what `<DetailView dataSource={…} />` has always
+//    taken, and what the examples below use.
+<DetailView schema={{ type: 'detail-view', objectName: 'account', resourceId: '42' }} dataSource={dataSource} />
+```
+
+Route 1 is new as of objectui#5378: this block used to read the adapter from its
+prop ONLY, while its siblings `object-grid` and `object-form` read it from
+context only, so a page could satisfy one of them or the other and never both.
+Nothing that worked before changed — route 2 is unaffected — and a block that
+resolves neither now renders a **No data source resolved** panel naming itself
+and the object it was about to read, instead of an empty shell.
+
+Note the record id is `resourceId` here. `object-form`'s is `recordId`; the two
+blocks do not share that key.
+
 ### Basic Example
 
 ```tsx

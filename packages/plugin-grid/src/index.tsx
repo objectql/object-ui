@@ -10,9 +10,12 @@ import React from 'react';
 import { ComponentRegistry, type ComponentInput } from '@object-ui/core';
 import {
   ElementDataSourceGate,
+  noDataSourceMessage,
+  useResolvedDataSource,
   useSchemaContext,
   type ElementDataSourceMapping,
 } from '@object-ui/react';
+import type { DataSource } from '@object-ui/types';
 import { ObjectGrid } from './ObjectGrid';
 import { VirtualGrid } from './VirtualGrid';
 import { ImportWizard } from './ImportWizard';
@@ -75,9 +78,53 @@ const OBJECT_GRID_DATA_SOURCE: ElementDataSourceMapping = {
   limit: 'pagination.pageSize',
 };
 
+/**
+ * Whether THIS grid placement can only draw rows by querying — i.e. whether a
+ * missing adapter is a defect rather than a legitimate configuration
+ * (objectui#5378 item 2, the `requiresDataSource` contract).
+ *
+ * Every escape hatch `ObjectGrid` itself honours is enumerated here, and the
+ * list is the reason this predicate lives at the call site rather than in the
+ * gate. `getDataConfig` folds an array `data`, a `ViewData` with
+ * `provider: 'value'` and the legacy `staticData` into inline rows and never
+ * reaches the fetch effect; `bind` resolves rows from the surrounding data
+ * scope; and a HOST that owns the fetch — `plugin-list`'s `ListView` is the one
+ * in this repo — hands the window down as a `data` REACT PROP, which is why the
+ * prop is read here too. It is tested with `Array.isArray` because that is the
+ * exact test `ObjectGrid` applies to it (`passedData && Array.isArray(…)`) —
+ * and because `SchemaRenderer` spreads EVERY unstripped schema key as a React
+ * prop, so a mere `'data' in props` would also be true of the schema's own
+ * `data` object and would wave through a grid that really has nowhere to look.
+ *
+ * `objectName` is required last: a grid with no object named it is a different
+ * defect with a different answer, and "no data source" would be the wrong
+ * address for it.
+ */
+const gridNeedsDataSource = (schema: any, hostRows: unknown): boolean => {
+  if (Array.isArray(hostRows)) return false;
+  if (schema?.bind != null) return false;
+  if (Array.isArray(schema?.data)) return false;
+  if (schema?.data?.provider === 'value') return false;
+  if (schema?.staticData != null) return false;
+  return typeof schema?.objectName === 'string' && schema.objectName.length > 0;
+};
+
 // Register object-grid component
 export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
-  const { dataSource } = useSchemaContext() || {};
+  // ONE resolution rule for the whole family (objectui#5378): an explicit
+  // adapter first, the `SchemaRendererProvider` context second.
+  //
+  // This used to be `useSchemaContext() || {}`, and that hook THROWS without a
+  // provider — the `|| {}` could never catch it. So the exact case this card is
+  // about, an author who never wired a provider, surfaced as `SchemaRenderer`'s
+  // error boundary saying «Component "object-grid" failed to render» over a
+  // React hook message that names neither the data source nor the fix. The
+  // adapter was ALSO already reaching `ObjectGrid` as a prop whenever a provider
+  // happened to exist, because `{...props}` is spread last; pulling it out here
+  // makes that precedence explicit and identical to `detail-view`'s, instead of
+  // an accident of spread order that a reordering could silently reverse.
+  const { dataSource: dataSourceProp, ...rest } = props;
+  const dataSource = useResolvedDataSource<DataSource>(dataSourceProp);
   // The spec's `PageComponentSchema.dataSource` binding (objectstack#6953).
   // Nothing here used to map `dataSource.object` onto the `objectName` this
   // block requires, so a page that declared the binding the spec documents —
@@ -91,8 +138,10 @@ export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> =
       dataSource={dataSource}
       testId="object-grid"
       errorTitle="This grid’s data source could not be resolved"
+      requiresDataSource={gridNeedsDataSource(schema, (rest as { data?: unknown }).data)}
+      noDataSourceMessage={noDataSourceMessage('object-grid', schema?.objectName)}
     >
-      {(bound) => <ObjectGrid schema={bound} dataSource={dataSource} {...props} />}
+      {(bound) => <ObjectGrid schema={bound} {...rest} dataSource={dataSource} />}
     </ElementDataSourceGate>
   );
 };

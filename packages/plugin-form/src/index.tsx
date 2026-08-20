@@ -11,8 +11,11 @@ import { ComponentRegistry } from '@object-ui/core';
 import {
   ElementDataSourceGate,
   SchemaRendererContext,
+  noDataSourceMessage,
+  useResolvedDataSource,
   type ElementDataSourceMapping,
 } from '@object-ui/react';
+import type { DataSource } from '@object-ui/types';
 import { ObjectForm } from './ObjectForm';
 
 export { ObjectForm };
@@ -66,13 +69,22 @@ export { deriveDetail, deriveColumns, deriveFormFields, findRelationshipField, r
 export type { DerivedDetail, InlineMode } from './deriveMasterDetail';
 
 // Register object-form component
-const ObjectFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
-  // Resolve dataSource from the SchemaRendererProvider context (same as
-  // object-view): ObjectForm needs a dataSource to fetch the object schema and
-  // auto-generate its fields. Without this, an `object-form` rendered straight
-  // through SchemaRenderer (e.g. the Studio view preview) has no fields.
-  const ctx = useContext(SchemaRendererContext as React.Context<any>);
-  const dataSource = ctx?.dataSource ?? undefined;
+const ObjectFormRenderer: React.FC<{ schema: any; dataSource?: unknown }> = ({
+  schema,
+  dataSource: dataSourceProp,
+}) => {
+  // ObjectForm needs a dataSource to fetch the object schema and auto-generate
+  // its fields. Without one, an `object-form` rendered straight through
+  // SchemaRenderer (e.g. the Studio view preview) has no fields.
+  //
+  // Resolved through the family's shared rule (objectui#5378): an explicit
+  // adapter first, the `SchemaRendererProvider` context second. The explicit
+  // half is additive — this block used to read context ONLY, so nothing that
+  // worked before resolves differently now; what changes is that the three
+  // blocks in the family no longer answer "where does the adapter come from?"
+  // three different ways, which is the split that made the getting-started
+  // guide satisfiable by neither wiring.
+  const dataSource = useResolvedDataSource<DataSource>(dataSourceProp);
   // The spec's `PageComponentSchema.dataSource` binding (objectstack#6953). A
   // page that declared `dataSource: { object }` and no `objectName` rendered a
   // field-less shell: `ObjectForm` gates its whole schema fetch on `objectName`.
@@ -91,6 +103,19 @@ const ObjectFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
       dataSource={dataSource}
       testId="object-form"
       errorTitle="This form’s data source could not be resolved"
+      // `ObjectForm` builds its fields from the object's metadata, which only an
+      // adapter can serve — its own effect calls the branch it comments as
+      // "cannot proceed" and then renders a field-less card in silence
+      // (objectui#5378 item 2). The one escape hatch is inline `customFields`,
+      // which is exactly what `hasInlineFields` gates on inside the component,
+      // so the two stay in step. A form with no `objectName` is a different
+      // defect and is left to report itself.
+      requiresDataSource={
+        !(schema?.customFields?.length > 0)
+        && typeof schema?.objectName === 'string'
+        && schema.objectName.length > 0
+      }
+      noDataSourceMessage={noDataSourceMessage('object-form', schema?.objectName)}
     >
       {(bound) => <ObjectForm schema={bound} dataSource={dataSource} />}
     </ElementDataSourceGate>

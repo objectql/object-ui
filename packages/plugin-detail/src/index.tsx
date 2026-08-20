@@ -6,7 +6,13 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import * as React from 'react';
 import { ComponentRegistry, type ComponentInput } from '@object-ui/core';
+import {
+  ElementDataSourceGate,
+  noDataSourceMessage,
+  useResolvedDataSource,
+} from '@object-ui/react';
 import { withFieldCarrier } from '@object-ui/fields';
 import { DetailView } from './DetailView';
 import { DetailSection } from './DetailSection';
@@ -23,7 +29,7 @@ import { RecordHistoryRenderer } from './renderers/record-history';
 import { RecordReferenceRailRenderer } from './renderers/record-reference-rail';
 import { RecordAlertRenderer } from './renderers/record-alert';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
-import type { DetailViewSchema } from '@object-ui/types';
+import type { DataSource, DetailViewSchema } from '@object-ui/types';
 import { ACTION_LOCATIONS } from '@object-ui/types';
 
 export { DetailView, DetailSection, DetailTabs, RelatedList };
@@ -129,8 +135,103 @@ export type {
   BuildPageOptions,
 } from './synth/buildDefaultPageSchema';
 
-// Register DetailView component
-ComponentRegistry.register('detail-view', DetailView, {
+/**
+ * The registry face of `detail-view` — objectui#5378 item 1.
+ *
+ * ## What was wrong
+ *
+ * `detail-view` was registered as the RAW `DetailView` component, which reads
+ * its adapter from its own React `dataSource` PROP. Its two siblings in the
+ * family are registered through wrappers that read the adapter from
+ * `SchemaRendererContext` (`ObjectGridRenderer`, `ObjectFormRenderer`), and
+ * `SchemaRenderer` itself reads only context — an explicit `dataSource` PROP
+ * arrives through `...props` and never becomes context for anything below.
+ *
+ * So the two wirings were mutually exclusive, and a page could satisfy only one
+ * of them. Measured on the published getting-started guide's own snippets,
+ * keys held correct in every cell:
+ *
+ * | wiring                                    | `object-grid` | `detail-view` |
+ * |-------------------------------------------|---------------|---------------|
+ * | `SchemaRendererProvider dataSource={…}`    | `find` 1      | `findOne` 0   |
+ * | `SchemaRenderer dataSource={…}` (prop)     | `find` 0      | `findOne` 1   |
+ *
+ * Neither cell reported anything: one half of the page fetched, the other half
+ * rendered an empty shell in silence. The registry gave the author no signal
+ * about which wiring they were holding.
+ *
+ * ## What this is
+ *
+ * The same context-reading wrapper the siblings have, so every block in the
+ * family resolves the adapter the same way — maintainer ruling of 2026-08-20 on
+ * objectui#5378, item 1 (「其他接受你的建议。」), which also settled the
+ * compatibility question: this is ADDITIVE. The `dataSource`-PROP form stays
+ * accepted, and no prop is removed this pass.
+ *
+ * ## Precedence, when both are present
+ *
+ * The explicit prop WINS. It is the more specific signal — written on this one
+ * placement, by someone who can see it — while the context adapter is ambient
+ * and applies to every descendant of the provider. That is also the only
+ * precedence under which the ruling's \"stays accepted\" is true of the case that
+ * matters: a prop-form caller mounted somewhere inside an app that has a
+ * provider would otherwise have had its explicit choice silently overruled by
+ * an ancestor it never wrote.
+ *
+ * Measured caller population behind that judgement (objectui#5378's stated
+ * confidence gap): in this repo, every `dataSource`-prop consumer of
+ * `DetailView` — `renderers/record-details.tsx`, `RecordDetailDrawer.tsx`, and
+ * the published README's documented usage — renders the COMPONENT directly and
+ * never passes through the registry, so this wrapper does not sit between any
+ * of them and `DetailView`. Registry-routed `detail-view` nodes carrying a
+ * `dataSource` prop: zero, the getting-started guide being the one that tried.
+ * The additive shape therefore changes no measured caller's behaviour, and the
+ * precedence above is pinned by test rather than left to be discovered.
+ */
+export const DetailViewRenderer: React.FC<{
+  schema: any;
+  dataSource?: unknown;
+  [key: string]: any;
+}> = ({ schema, dataSource: dataSourceProp, ...props }) => {
+  // The family's ONE resolution rule (`@object-ui/react`): explicit adapter
+  // first, `SchemaRendererProvider` context second, and the spec BINDING never
+  // mistaken for an adapter. Sharing the hook is what keeps the three blocks
+  // from drifting back apart — the drift IS the defect this card closes.
+  const dataSource = useResolvedDataSource<DataSource>(dataSourceProp);
+  return (
+    <ElementDataSourceGate
+      schema={schema}
+      // `object` → `objectName` is the whole mapping: a detail view shows ONE
+      // record, so it has no collection query for the binding's `filter` /
+      // `sort` / `limit` to narrow and no field projection for its `columns`.
+      // Mapping them anywhere would write keys this block does not read, which
+      // is the defect the gate exists to remove.
+      dataSource={dataSource}
+      testId="detail-view"
+      errorTitle="This detail view’s data source could not be resolved"
+      // `DetailView` returns early on inline `schema.data` and fetches over
+      // `schema.api` without an adapter; either one is a legitimate placement
+      // with nothing to resolve. Everything else reaches the branch that needs
+      // `dataSource && objectName && resourceId` and, without it, renders
+      // nothing at all — the silence objectui#5378 item 2 ends.
+      requiresDataSource={
+        schema?.data == null
+        && schema?.api == null
+        && typeof schema?.objectName === 'string'
+        && schema.objectName.length > 0
+      }
+      noDataSourceMessage={noDataSourceMessage('detail-view', schema?.objectName)}
+    >
+      {(bound) => <DetailView schema={bound as DetailViewSchema} dataSource={dataSource} {...props} />}
+    </ElementDataSourceGate>
+  );
+};
+
+// Register detail-view through the wrapper above, NOT the raw component: the
+// registry entry is what a `SchemaRenderer` reaches, and the wrapper is what
+// makes context wiring work there. `DetailView` stays exported unchanged for
+// the direct React callers (`record-details`, `RecordDetailDrawer`, the README).
+ComponentRegistry.register('detail-view', DetailViewRenderer, {
   namespace: 'plugin-detail',
   label: 'Detail View',
   category: 'Views',
