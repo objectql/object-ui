@@ -835,6 +835,38 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // routes them to onEdit / onDelete instead of the generic action runner
   // (which has no 'edit' handler and a parameter-shape mismatch for 'delete').
   const rowActionsList: string[] = Array.isArray(schema.rowActions) ? schema.rowActions : [];
+  /**
+   * NON-AUTHOR SURFACE — `rowActionDefs` is deliberately absent from
+   * `GRID_QUERY_INPUTS` (`index.tsx`), by the maintainer ruling of 2026-08-19
+   * on objectui#5091. Both cast reads on the line below are therefore
+   * DELIBERATE, not missed.
+   *
+   * That ruling KNOWINGLY REVERSES one line of the 2026-08-18 ruling on the
+   * same card, which had sent this key INTO the manifest as the "symmetric
+   * partner" of the declared `bulkActionDefs`. The symmetry premise did not
+   * survive measurement, and the reversal was flagged and accepted on the
+   * record:
+   *
+   *   - The PRODUCER derives it. `app-shell/src/views/ObjectView.tsx:1968`
+   *     builds this key from `objectDef.actions` filtered by
+   *     `locations.includes('list_item')`, then localizes each def — see its
+   *     own docblock there. Twenty lines below it, `bulkActionDefs` is passed
+   *     STRAIGHT THROUGH from the view author. The two keys are asymmetric by
+   *     construction: one is computed for the grid, the other is authored.
+   *   - The contract refuses it. `ComponentPropsMap['object-grid']`
+   *     (`@objectstack/spec@17`) is a `strictObject` that accepts
+   *     `bulkActionDefs` and answers `unrecognized_keys` for THIS key, so an
+   *     author who took a published offer could not save the document.
+   *   - `@object-ui/types`' `ObjectGridSchema` declares `bulkActionDefs` and no
+   *     `rowActionDefs` — which is why this read is a cast in the first place.
+   *
+   * The AUTHORED way to put an action on a row is unchanged and stays declared:
+   * `locations: ['list_item']` on the object's own action, plus the legacy
+   * `rowActions` name list (`GRID_QUERY_INPUTS`, `index.tsx:190`) that the fold
+   * below resolves against the object. Both halves — unlisted here, rejected
+   * there — are pinned by `__tests__/gridNonAuthorKeys.test.tsx`, together with
+   * the read itself, so this exemption cannot decay into a silent drop.
+   */
   const rowActionDefsList: any[] = Array.isArray((schema as any).rowActionDefs) ? (schema as any).rowActionDefs : [];
   const wantEditAction = rowActionsList.includes('edit');
   const wantDeleteAction = rowActionsList.includes('delete');
@@ -1071,6 +1103,15 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
             const predicateFields = declared
               ? collectPredicateFieldRefs(listViewPredicates({
                   conditionalFormatting: schema.conditionalFormatting as unknown[] | undefined,
+                  // NON-AUTHOR SURFACE, same ruling as the seed above
+                  // (objectui#5091, maintainer 2026-08-19): this cast read is
+                  // deliberate, not a missed manifest entry. It is the SECOND
+                  // of the key's two read sites and the one with teeth — a def
+                  // gated on `record.<field>` puts that field in `$select`, so
+                  // deleting this read would leave the predicate's operand out
+                  // of the payload and CEL would fault on the absent key
+                  // (objectui#3501, the whole reason this harvest exists).
+                  // Pinned by `__tests__/gridNonAuthorKeys.test.tsx`.
                   rowActionDefs: (schema as any).rowActionDefs,
                   bulkActionDefs: (schema as any).bulkActionDefs,
                   objectActions: (resolvedSchema as any)?.actions,

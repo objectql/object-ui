@@ -5,7 +5,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * `object-grid` — the three keys ruled NON-AUTHOR SURFACE stay unlisted, and
+ * `object-grid` — the four keys ruled NON-AUTHOR SURFACE stay unlisted, and
  * stay read (objectui#5091).
  *
  * ## The card, and the ruling
@@ -24,16 +24,32 @@
  * not missed. This file is where that word "deliberate" is said to the tooling,
  * so the next census re-files the card only if something really changed.
  *
- * (The fourth, `rowActionDefs`, was ruled INTO the manifest on the reading that
- * it is the symmetric partner of the declared `bulkActionDefs`. It is not
- * declared here: the spec's `ObjectGridPropsSchema` is a `strictObject` that
- * accepts `bulkActionDefs` and REJECTS `rowActionDefs` by name, and
- * `app-shell/src/views/ObjectView.tsx:1924` DERIVES the grid's `rowActionDefs`
- * from `objectDef.actions` filtered by `locations: ['list_item']` rather than
- * passing an authored key through — so the two are asymmetric by construction,
- * and declaring it here would publish a key the save gate refuses. That is back
- * with the maintainer on objectui#5091; this file states only what was ruled
- * AND holds.)
+ * ## The fourth key, and the reversal that settled it (2026-08-19)
+ *
+ * `rowActionDefs` was ruled the other way on 2026-08-18 — INTO the manifest, on
+ * the reading that it is the symmetric partner of the declared
+ * `bulkActionDefs`. That premise was falsified by measurement, and on
+ * 2026-08-19 the maintainer KNOWINGLY REVERSED that one line: the key is
+ * NON-AUTHOR SURFACE, same as the other three. The reversal was flagged as a
+ * reversal when it was accepted, so a reader who finds the older ruling has
+ * found history, not a contradiction. The three measurements it rests on:
+ *
+ *   - `app-shell/src/views/ObjectView.tsx:1968` DERIVES the grid's
+ *     `rowActionDefs` from `objectDef.actions` filtered by
+ *     `locations: ['list_item']`, while passing `bulkActionDefs` straight
+ *     through from the view author twenty lines below. Asymmetric by
+ *     construction — one is computed, the other authored.
+ *   - The spec's `ObjectGridPropsSchema` is a `strictObject` that accepts
+ *     `bulkActionDefs` and REJECTS `rowActionDefs` by name, so declaring it
+ *     would publish a key the save gate refuses.
+ *   - `@object-ui/types`' `ObjectGridSchema` declares `bulkActionDefs` and no
+ *     `rowActionDefs` — which is why the read is a cast at all.
+ *
+ * So the authored way to put an action on a row stays what it already was: the
+ * object's own action with `locations: ['list_item']`, plus the declared legacy
+ * `rowActions` name list. `bulkActionDefs` keeps its job here as the DECLARED
+ * CONTROL below — the one key of the pair that IS authoring surface, which is
+ * what makes every "not published" assertion mean something.
  *
  * ## The shape of the pin — four assertions per key, and why each is needed
  *
@@ -89,25 +105,41 @@ const GRID_TAGS = [
 ] as const;
 
 /**
- * The three keys ruled NON-AUTHOR SURFACE, each with the producer that writes
- * it. The producer is the evidence: "non-author" is a claim about who WRITES
- * the key, so a reader can check it rather than trust it.
+ * The four keys ruled NON-AUTHOR SURFACE, each with the producer that writes
+ * it and the date it was ruled. The producer is the evidence: "non-author" is a
+ * claim about who WRITES the key, so a reader can check it rather than trust
+ * it. The date is here because they are NOT all from one ruling —
+ * `rowActionDefs` was ruled the other way first, and a failure message that
+ * cites the wrong date sends the next reader to the ruling that was reversed.
  */
 const NON_AUTHOR_KEYS = [
   {
     key: 'columnState',
+    ruled: '2026-08-18',
     producer: 'app-shell/src/views/ObjectView.tsx:1848 in, :1867 back out via persistViewPatch',
     sample: { order: ['name'] },
   },
   {
     key: 'hideRowHeightToggle',
+    ruled: '2026-08-18',
     producer: 'plugin-list/src/ListView.tsx:1866 — the embedding view owns density',
     sample: true,
   },
   {
     key: 'maxInlineRowActions',
+    ruled: '2026-08-18',
     producer: 'apps/console/src/dev/DevRowActions.tsx:51 — an embedder layout call',
     sample: 2,
+  },
+  {
+    key: 'rowActionDefs',
+    // Ruled 2026-08-19, REVERSING the 2026-08-18 line that had sent this one
+    // key into the manifest as `bulkActionDefs`'s symmetric partner.
+    ruled: '2026-08-19 (reversing 2026-08-18)',
+    producer:
+      "app-shell/src/views/ObjectView.tsx:1968 — DERIVED from objectDef.actions filtered by locations:['list_item'], "
+      + 'whereas bulkActionDefs twenty lines below is passed through from the author',
+    sample: [{ name: 'approve', label: 'Approve' }],
   },
 ] as const;
 
@@ -144,14 +176,14 @@ const specVerdict = (key: string, value: unknown) =>
     [key]: value,
   });
 
-describe('the three ruled non-author keys are not published (objectui#5091)', () => {
+describe('the four ruled non-author keys are not published (objectui#5091)', () => {
   it.each(GRID_TAGS)('$label publishes none of them', ({ type, namespace }) => {
     const declared = declaredInputNames(type, namespace);
-    for (const { key, producer } of NON_AUTHOR_KEYS) {
+    for (const { key, producer, ruled } of NON_AUTHOR_KEYS) {
       expect(
         declared,
         [
-          `\`${type}\` publishes \`${key}\` as authoring surface. The 2026-08-18 ruling on`,
+          `\`${type}\` publishes \`${key}\` as authoring surface. The ${ruled} ruling on`,
           'objectui#5091 put it out of the manifest deliberately: it is written by the HOST',
           `(${producer}), and the spec's \`ObjectGridPropsSchema\` rejects it by name, so an`,
           'author who accepted the offer could not save the document.',
@@ -166,10 +198,10 @@ describe('the three ruled non-author keys are not published (objectui#5091)', ()
   });
 });
 
-describe('the contract rejects the three by name — the exemption is checkable (objectui#5091)', () => {
-  it.each(NON_AUTHOR_KEYS)('the spec refuses $key as an unrecognized key', ({ key, sample }) => {
+describe('the contract rejects the four by name — the exemption is checkable (objectui#5091)', () => {
+  it.each(NON_AUTHOR_KEYS)('the spec refuses $key as an unrecognized key', ({ key, sample, ruled }) => {
     const result = specVerdict(key, sample);
-    expect(result.success, `\`@objectstack/spec\` now ACCEPTS object-grid.${key} — re-open the ruling`).toBe(false);
+    expect(result.success, `\`@objectstack/spec\` now ACCEPTS object-grid.${key} — re-open the ${ruled} ruling`).toBe(false);
     // A KEY verdict, not a document verdict: the rest of the fixture is legal,
     // so the only thing that can be reported is this key's rejection.
     const unrecognized = (result as { error: { issues: Array<{ code: string; keys?: string[] }> } }).error.issues
@@ -188,18 +220,18 @@ describe('the contract rejects the three by name — the exemption is checkable 
 });
 
 describe('the parser reports them as unknown props — the ruled outcome (objectui#5091)', () => {
-  it.each(NON_AUTHOR_KEYS)('$key draws unknown-prop from the real validator', ({ key, sample }) => {
+  it.each(NON_AUTHOR_KEYS)('$key draws unknown-prop from the real validator', ({ key, sample, ruled }) => {
     const codes = diagnose({ [key]: sample }).filter((d) => d.code === 'unknown-prop');
     expect(
       codes.map((d) => d.message).join('\n'),
       `\`${key}\` no longer draws \`unknown-prop\`. If that is deliberate it means the key was`
-        + ' declared — which the 2026-08-18 ruling forbids for this key.',
+        + ` declared — which the ${ruled} ruling forbids for this key.`,
     ).toContain(key);
   });
 
   it('a declared key draws nothing, so the diagnosis is not vacuous', () => {
     // `rowHeight` is declared and its value is legal, so a clean run here is
-    // what proves the three above are reporting the KEY and not the fixture.
+    // what proves the four above are reporting the KEY and not the fixture.
     expect(diagnose({ rowHeight: 'compact' }).filter((d) => d.code === 'unknown-prop')).toEqual([]);
   });
 });
@@ -259,7 +291,7 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-describe('the renderer still reads all three (objectui#5091 kept every read site)', () => {
+describe('the renderer still reads all four (objectui#5091 kept every read site)', () => {
   it('columnState.order still reorders the columns', async () => {
     const { container } = renderGrid({ id: 'ordered', columnState: { order: ['email', 'name'] } });
     await settled();
@@ -306,5 +338,65 @@ describe('the renderer still reads all three (objectui#5091 kept every read site
     await settled();
     await waitFor(() => expect(screen.getAllByTestId('row-action-inline-reject').length).toBe(rows.length));
     expect(screen.getAllByTestId('row-action-inline-approve').length).toBe(rows.length);
+  });
+
+  // `rowActionDefs` has TWO read sites and they are different channels, so one
+  // assertion cannot stand for both. The first renders the defs; the second
+  // decides which FIELDS the server is asked for. A deletion of either is
+  // silent in a way the other would not catch.
+
+  it('rowActionDefs still reaches the row menu — read site 1, the render channel', async () => {
+    // Passed on the SCHEMA with no matching object action, so the only path
+    // from this key to the screen is the `(schema as any).rowActionDefs` read
+    // that seeds `resolveLegacyRowActions`. A def arriving any other way (the
+    // legacy `rowActions` name list, resolved against the object) would not
+    // exercise it — which is what the `maxInlineRowActions` case above uses.
+    renderGrid({
+      id: 'row-defs-render',
+      rowActionDefs: [{ name: 'escalate', label: 'Escalate', variant: 'primary' }],
+    });
+    await settled();
+    await waitFor(() => expect(screen.getAllByTestId('row-action-inline-escalate').length).toBe(rows.length));
+    expect(screen.getAllByTestId('row-action-inline-escalate')[0]).toHaveTextContent('Escalate');
+  });
+
+  it('rowActionDefs still feeds the $select projection — read site 2, the fetch channel', async () => {
+    // The read inside `getSelectFields` harvests each def's `visible` predicate
+    // and adds the fields it names to `$select` (objectui#3501). Without it the
+    // server is asked for every field EXCEPT the one the row action is gated
+    // on, and CEL faults on the absent key — which fails CLOSED, so the button
+    // vanishes for everyone with nothing pointing at the projection. That is
+    // why deleting this read is worse than it looks, and why it is pinned
+    // separately from the render channel above.
+    const adapter = makeAdapter({
+      fields: { id: { type: 'text' }, name: { type: 'text' }, status: { type: 'select' } },
+    });
+    render(
+      <ActionProvider>
+        <ObjectGrid
+          schema={{
+            type: 'object-grid',
+            objectName: 'test_object',
+            // `status` is deliberately NOT a column: a predicate-only field is
+            // the ordinary case the harvest exists for.
+            columns: [{ field: 'name', label: 'Name' }],
+            rowActionDefs: [
+              { name: 'escalate', label: 'Escalate', visible: 'record.status == "open"' },
+            ],
+          } as any}
+          dataSource={adapter as any}
+        />
+      </ActionProvider>,
+    );
+    await waitFor(() => expect(adapter.find).toHaveBeenCalled());
+    const select = (adapter.find.mock.calls.at(-1)?.[1]?.$select ?? []) as string[];
+    expect(
+      select,
+      'the `visible` predicate\'s operand is missing from `$select` — the row action would'
+        + ' fault on an absent key and fail closed for every row.',
+    ).toContain('status');
+    // The harvest ADDS; it never replaces what the columns asked for.
+    expect(select).toContain('name');
+    expect(select).toContain('id');
   });
 });
