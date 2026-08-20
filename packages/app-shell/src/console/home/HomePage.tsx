@@ -79,8 +79,11 @@ const AUTHORING_CAPABILITY = 'manage_metadata';
  * objectstack#8270 — on the EE single-database multi-tenant deployment a
  * workspace owner holds `org_owner` + `organization_admin` but NOT
  * `manage_metadata`; that absence is the intended hosted posture (maintainer
- * ruling 2026-08-13), not a missing grant. `useIsWorkspaceAdmin` reads ROLES,
- * so it says `true` for that owner and the builder CTAs rendered — the owner
+ * ruling 2026-08-13), not a missing grant. `useIsWorkspaceAdmin` reads the
+ * session's POSITIONS (spelled `roles` until framework ADR-0090 D3 renamed it;
+ * objectui#5389 moved this hook onto the live spelling, and `org_owner` is in
+ * that array either way), so it says `true` for that owner and the builder CTAs
+ * rendered — the owner
  * followed "Build an app", filled in the new-package dialog, and hit a raw
  * capability refusal at submit. This consumes the answer the server already
  * gives (`GET /api/v1/auth/me/permissions` → `systemPermissions`, surfaced by

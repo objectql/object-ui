@@ -8,8 +8,10 @@
  *
  * On the EE single-database multi-tenant deployment a workspace owner holds
  * `org_owner` + `organization_admin` but NOT `manage_metadata`. `HomePage`
- * gated its builder cover on `useIsWorkspaceAdmin()`, which reads ROLES — so
- * that owner saw "Build an app" as the most prominent thing on their home page,
+ * gated its builder cover on `useIsWorkspaceAdmin()`, which reads the session's
+ * POSITIONS (spelled `roles` until framework ADR-0090 D3 renamed it; see
+ * objectui#5389) and finds `org_owner` there — so that owner saw "Build an app"
+ * as the most prominent thing on their home page,
  * followed it into `/studio`, filled in the new-package dialog, and got a raw
  * English capability refusal at submit.
  *

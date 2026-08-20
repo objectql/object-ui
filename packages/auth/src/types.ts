@@ -65,7 +65,23 @@ export interface AuthUser extends SpecAuthUser {
   image?: string;
   /** Primary role */
   role?: string;
-  /** All assigned roles */
+  /**
+   * NOT emitted by the protocol-17 session face. Framework ADR-0090 D3 renamed
+   * this to `positions` with no deprecation window; `GET /auth/get-session`
+   * carries `positions` (inherited here from the spec's `AuthUser`, so it
+   * cannot drift) plus the derived `isPlatformAdmin`, and no `roles` key at
+   * all — measured on a live 17.1.0 server in objectui#5389.
+   *
+   * Kept declared only because one live reader still compiles against it:
+   * `AuthGuard`'s `requiredRoles` check. Deleting the key today fails that file
+   * with TS2339 (the index signature below types the read as `unknown`), so
+   * retiring it is gated on objectui#5424, which owns that decision and the
+   * three other surviving read sites.
+   *
+   * Do NOT reach for this key in new code, and do not pair it with `positions`
+   * as a fallback: `positions` is the one published spelling, and reviving this
+   * one as an alias is what ADR-0090 D3 forbids.
+   */
   roles?: string[];
   /** Email verification status */
   emailVerified?: boolean;
