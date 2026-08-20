@@ -185,7 +185,7 @@ jobs:
   # ── B: the status quo on the same commit — the baseline to compare against ─
   baseline:
     name: PROTO unsharded coverage baseline
-    if: ${{ !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') && !contains(github.event.head_commit.message, '[merge-only]') }}
     runs-on: ubuntu-latest
     # Instrument, not a gate: production `test-coverage` keeps its 40 minutes.
     # A timeout here would truncate the measurement, which is the one thing
@@ -225,7 +225,7 @@ jobs:
   compare:
     name: PROTO compare merged vs unsharded
     needs: [merge, baseline]
-    if: ${{ (always()) && !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') }}
+    if: ${{ (always()) && !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') && !contains(github.event.head_commit.message, '[merge-only]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -325,7 +325,7 @@ jobs:
   report:
     name: PROTO write results
     needs: [shard, probe-no-override, merge, baseline, compare, red-arm-shard, red-arm-merge, red-arm-merge-without-verdict]
-    if: ${{ (always()) && !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') }}
+    if: ${{ (always()) && !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') && !contains(github.event.head_commit.message, '[merge-only]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
