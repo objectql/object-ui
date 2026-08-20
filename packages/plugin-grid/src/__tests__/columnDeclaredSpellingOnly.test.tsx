@@ -31,13 +31,20 @@
  * `TABLE_ADAPTER_COLUMN_KEY`). This card is about the way IN.
  *
  * LEGIBILITY (pinned below, deliberately, rather than left as folklore): an
- * undeclared column does not throw, does not render an empty header, and
- * produces no console line — it is simply DROPPED, so a grid whose columns are
- * all mis-spelled renders as the row-number column alone. Whether that silence
- * deserves a dev-time diagnostic is its own decision (objectui#5068 Q2) and is
- * deliberately NOT implemented here.
+ * undeclared column does not throw and does not render an empty header — it is
+ * simply DROPPED, so a grid whose columns are all mis-spelled renders as the
+ * row-number column alone. That the RENDERING is unchanged is what this file
+ * pins, and objectui#5349 left every reading below exactly as it was.
+ *
+ * What #5349 DID change is the receipt: the drop is no longer silent. It emits
+ * one `console.warn` naming the block, the object, the column index, the keys
+ * it found and the spelling that works. The message itself and the
+ * configurations that must stay quiet are pinned in
+ * `columnSpellingDiagnostics.test.ts` and `columnSpellingDiagnosticRender.test.tsx`;
+ * this file pins only that the diagnostic is a console line and NOT a thrown
+ * error or an `alert` role — the blast radius #5349 deliberately did not take.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
@@ -119,15 +126,27 @@ describe('ObjectGrid columns — the declared spelling is the only one read (#50
     expect(screen.getByText('Grace')).toBeInTheDocument();
   });
 
-  it('leaves the grid standing — and silent — when every column is undeclared', () => {
-    // The legibility pin. Not an error, not an empty header cell, not a
-    // console line: the columns are simply gone. Recorded as behaviour so the
-    // follow-up diagnostics decision (Q2) has something to measure against.
+  it('leaves the grid standing when every column is undeclared — loudly, not silently (#5349)', () => {
+    // The legibility pin, updated by objectui#5349. Still not an error and not
+    // an empty header cell: the columns are gone and the grid stands. What is
+    // no longer true is the third clause — the drop used to produce no console
+    // line either, which is exactly the failure mode #5349 removed.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { container } = renderGrid([{ accessorKey: 'name', header: 'Name' }]);
+    const diagnostics = warn.mock.calls
+      .map((call) => String(call[0]))
+      .filter((line) => line.startsWith('[ObjectUI] ObjectGrid columns:'));
+    warn.mockRestore();
 
     expect(headers()).toEqual(['#']);
     expect(container.querySelector('table')).toBeInTheDocument();
+    // The rejected escalation: a diagnostic, not a throw and not an in-page
+    // alert. A grid that renders nothing must not become a page that renders
+    // nothing.
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toContain('columns[0]');
+    expect(diagnostics[0]).toContain("Write `{ field: 'name', label: 'Name' }` instead.");
   });
 
   it('still renders a plain string[] column list', () => {
