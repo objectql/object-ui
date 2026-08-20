@@ -33,6 +33,22 @@ import {
   SheetTitle,
 } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
+// The `/meta` URL-spelling fold (objectstack#7894, #8424), applied once in
+// `listPendingDrafts` below. Measured cost of this import on the console's
+// EAGER graph — the panel is reached statically from ConsoleLayout through
+// DraftPreviewBar — is +213.4 KB minified / +60.1 KB gzipped, on a graph that
+// already holds the spec entries app-shell imports statically (`/ui`,
+// `/kernel`): each published spec subpath is a self-contained bundle and
+// nothing tree-shakes it (`@objectstack/spec` declares no `sideEffects`).
+// Lazy-loading it here would NOT move those bytes — the console's
+// `vendor-objectstack` chunk group claims every `@objectstack/*` module except
+// `@objectstack/lint`, and that group's chunk is a static import of the app
+// entry (objectui#5266). Tracked in objectui#5359.
+//
+// ⛔ Do not "optimize" this into a local copy of the spelling table: a
+// spec-named local declaration is what `scripts/check-spec-symbol-derivation.mjs`
+// refuses, and a faithful copy is exactly the fork that guard exists to prevent.
+import { canonicalMetaUrlType } from '@objectstack/spec/shared';
 import { diffFields } from '../views/metadata-admin/previews/object-fields-io';
 
 export interface DraftChangeEntry {
@@ -48,109 +64,6 @@ export interface DraftChangeEntry {
   packageId: string | null;
   /** `new` = no published version; `update` = overwrites one; undefined = probing. */
   kind?: 'new' | 'update';
-}
-
-/**
- * `/meta/:type` URL spellings the platform accepts → the canonical singular.
- *
- * ## What this mirrors
- *
- * `@objectstack/spec/shared` owns this contract and publishes it as
- * `META_URL_TO_SINGULAR` with the fold `canonicalMetaUrlType`
- * (objectstack#7894, #8424) — the ONE fold for a `/meta` type segment, and
- * deliberately NOT `PLURAL_TO_SINGULAR`: that map's keys are `defineStack()`
- * collection properties, and the four registry types with no stack-level
- * collection (`field`, `seed`, `external_catalog`, `translation`) are absent
- * from it. That absence is the hole #7894 closed, and it is also how the
- * at-rest residue this panel must fold got written: `PUT /meta/fields/...`
- * fell through to the plugin-type path and minted rows under `type='fields'`
- * while `PUT /meta/field/...` was refused. The keys below are therefore
- * exactly the spellings such residue can carry.
- *
- * ## Why it is a mirror and not an import
- *
- * Importing the real fold is the drift-proof spelling and would be the default.
- * Measured with the repo's esbuild on a graph that already holds the
- * `@objectstack/spec` entries app-shell reaches statically (`/ui`, `/kernel`),
- * adding `@objectstack/spec/shared` costs **+213.4 KB minified / +60.1 KB
- * gzipped** (1289.8 → 1503.2 KB min): every published spec subpath is a
- * self-contained bundle, so `/shared` re-ships registry and schema modules the
- * other entries already carry, and nothing tree-shakes them
- * (`@objectstack/spec` declares no `sideEffects`).
- *
- * Those bytes would be EAGER, and laziness cannot move them. This panel is
- * reached statically from `ConsoleLayout` (→ `DraftPreviewBar` → here), and the
- * console's `vendor-objectstack` `advancedChunks` group claims every
- * `@objectstack/*` module except `@objectstack/lint`, with that group's chunk a
- * static import of the app entry — so an `await import()` here would be folded
- * into the eager closure exactly as objectui#5266 documents for the linter.
- * That is the trade `postureHasOrgWall` (`hooks/useTenancyPosture.ts`) already
- * refused at +237 KB: a quarter megabyte on every console page load, for every
- * user, to spell a fold only an admin's pending-changes panel performs.
- *
- * The drift risk that an import would have removed is paid at TEST time
- * instead, the same way: `__tests__/DraftChangesPanel.test.tsx` imports the
- * real `META_URL_TO_SINGULAR` / `canonicalMetaUrlType` and asserts this table
- * equals it key for key, so a metadata type declared, renamed or respelled
- * upstream fails CI here rather than silently emitting a plural route. Tests
- * are not bundled; that assertion is free.
- *
- * ⛔ Never replace this table with a suffix rule. `capabilities` → `capability`
- * is a mapping, not a `replace(/s$/, '')` (which yields `capabilitie`), and
- * upstream refuses to contain such a "spelling GUESSER" at the boundary for
- * that reason. Fold, or leave alone — never guess.
- */
-export const META_URL_TO_SINGULAR: Readonly<Record<string, string>> = Object.freeze({
-  objects: 'object',
-  apps: 'app',
-  pages: 'page',
-  dashboards: 'dashboard',
-  reports: 'report',
-  datasets: 'dataset',
-  actions: 'action',
-  themes: 'theme',
-  flows: 'flow',
-  jobs: 'job',
-  positions: 'position',
-  permissions: 'permission',
-  capabilities: 'capability',
-  sharingRules: 'sharing_rule',
-  apis: 'api',
-  webhooks: 'webhook',
-  agents: 'agent',
-  tools: 'tool',
-  skills: 'skill',
-  ragPipelines: 'rag_pipeline',
-  hooks: 'hook',
-  mappings: 'mapping',
-  analyticsCubes: 'analytics_cube',
-  connectors: 'connector',
-  datasources: 'datasource',
-  views: 'view',
-  emailTemplates: 'email_template',
-  email_templates: 'email_template',
-  docs: 'doc',
-  books: 'book',
-  fields: 'field',
-  seeds: 'seed',
-  external_catalogs: 'external_catalog',
-  externalCatalogs: 'external_catalog',
-  translations: 'translation',
-});
-
-/**
- * Fold a stored metadata type to the spelling `/meta` routes are addressed in.
- * Returns the input unchanged when it is already canonical, or when it is a
- * plugin-registered kind (which has no plural spelling of its own) — mirroring
- * `canonicalMetaUrlType` from `@objectstack/spec/shared`, asserted in the
- * parity test.
- *
- * This is EMIT-side only. Residue stored under a plural type stays exactly as
- * it is on the server: the Console stops addressing it in the plural, and
- * nothing here writes, migrates or re-keys anything.
- */
-export function canonicalMetaUrlType(type: string): string {
-  return META_URL_TO_SINGULAR[type] ?? type;
 }
 
 /** Pending drafts straight from the ADR-0033 `_drafts` endpoint. */
@@ -170,9 +83,23 @@ async function listPendingDrafts(packageId?: string | null): Promise<DraftChange
     .filter((d) => typeof d?.type === 'string' && typeof d?.name === 'string')
     .map((d) => ({
       // The one fold, at the one boundary where a stored spelling enters this
-      // module (objectstack#9180). Everything below — both `/meta` item routes,
-      // the grouping and the heading — reads the folded value, so a route added
-      // later has no raw spelling in scope to interpolate.
+      // module: the `/meta` type segment is singular, always (objectstack#9180).
+      // Everything below — both `/meta` item routes, the grouping and the
+      // heading — reads the folded value, so a route added later has no raw
+      // spelling in scope to interpolate.
+      //
+      // `canonicalMetaUrlType` and not `pluralToSingular`: that map's keys are
+      // `defineStack()` collection properties, and `field`, `seed`,
+      // `external_catalog` and `translation` are absent from it because none is
+      // a stack-level collection. That absence is also how the residue folded
+      // here got written — `PUT /meta/fields/…` fell through to the permissive
+      // plugin-type path and minted rows under `type='fields'` while
+      // `PUT /meta/field/…` was refused (objectstack#7894).
+      //
+      // Fold, never strip: `capabilities` folds to `capability`, where a
+      // `replace(/s$/, '')` emits `capabilitie`. And this is EMIT-side only —
+      // residue stored under a plural type stays exactly as it is on the
+      // server; nothing here writes, migrates or re-keys anything.
       type: canonicalMetaUrlType(d.type as string),
       name: d.name as string,
       packageId: typeof d.packageId === 'string' && d.packageId ? (d.packageId as string) : null,
