@@ -39,6 +39,7 @@ jobs:
   # ── A: the shipped recipe, 4 ways ─────────────────────────────────────────
   shard:
     name: PROTO shard ${{ matrix.shard }}/4
+    if: ${{ !contains(github.event.head_commit.message, '[threshold-probe]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
@@ -81,6 +82,7 @@ jobs:
   # and that has to be said out loud rather than shipped as decoration.
   probe-no-override:
     name: PROTO shard 1/4 WITHOUT the threshold override
+    if: ${{ !contains(github.event.head_commit.message, '[threshold-probe]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     outputs:
@@ -107,6 +109,7 @@ jobs:
   merge:
     name: PROTO merge blob reports
     needs: shard
+    if: ${{ !contains(github.event.head_commit.message, '[threshold-probe]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -177,6 +180,7 @@ jobs:
   # ── B: the status quo on the same commit — the baseline to compare against ─
   baseline:
     name: PROTO unsharded coverage baseline
+    if: ${{ !contains(github.event.head_commit.message, '[threshold-probe]') }}
     runs-on: ubuntu-latest
     # Instrument, not a gate: production `test-coverage` keeps its 40 minutes.
     # A timeout here would truncate the measurement, which is the one thing
@@ -216,7 +220,7 @@ jobs:
   compare:
     name: PROTO compare merged vs unsharded
     needs: [merge, baseline]
-    if: always()
+    if: ${{ (always()) && !contains(github.event.head_commit.message, '[threshold-probe]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -316,7 +320,7 @@ jobs:
   report:
     name: PROTO write results
     needs: [shard, probe-no-override, merge, baseline, compare, red-arm-shard, red-arm-merge, red-arm-merge-without-verdict]
-    if: always()
+    if: ${{ (always()) && !contains(github.event.head_commit.message, '[threshold-probe]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -371,3 +375,63 @@ jobs:
           git add -f proto-results
           git commit -m "PROTO(objectui#5403): results for run ${GITHUB_RUN_ID}"
           git push origin "HEAD:refs/heads/proto-5403-results-${GITHUB_RUN_ID}"
+
+  # ── Does the threshold gate survive sharding? Two legs, one prediction each ──
+  # Both merge THE SAME four blob reports from run 32387182880 (round 1). The
+  # only difference is the threshold the merge is judged against.
+  #   enforced: the thresholds vitest.config.mts configures  -> predict SUCCESS
+  #   ablation: --coverage.thresholds.statements=99          -> predict FAILURE
+  # A green ablation would mean `--merge-reports` skips the threshold check and
+  # the shipped lane silently dropped a gate.
+  threshold-enforced-on-merge:
+    name: PROTO merged report IS judged by the configured thresholds
+    if: ${{ contains(github.event.head_commit.message, '[threshold-probe]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: proto-blob-*
+          path: .vitest-reports
+          merge-multiple: true
+          run-id: 32387182880
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: ls -la .vitest-reports/
+      - name: Merge under the configured thresholds
+        run: pnpm test:coverage --merge-reports --coverage.reporter=json --coverage.reporter=text
+
+  threshold-ablation-on-merge:
+    name: PROTO merged report under a 99% threshold (must go RED)
+    if: ${{ contains(github.event.head_commit.message, '[threshold-probe]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: proto-blob-*
+          path: .vitest-reports
+          merge-multiple: true
+          run-id: 32387182880
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Merge under an unreachable threshold
+        run: >-
+          pnpm test:coverage --merge-reports --coverage.reporter=json
+          --coverage.reporter=text --coverage.thresholds.statements=99
