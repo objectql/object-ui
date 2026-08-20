@@ -34,6 +34,8 @@ throws on anything it cannot resolve, and after the build re-parses the emitted
 declarations to assert every relative specifier both carries an extension and
 names a file the build really emitted.
 
-`packages/fields` and `packages/app-shell` take the `nodenext` pin as a result,
-the same two lines `packages/react` has carried since objectui#4538, so the
-property is enforced by the compiler on the consumer side rather than by review.
+`packages/fields` takes the `nodenext` pin as a result — the same two lines
+`packages/react` has carried since objectui#4538 — so the property is enforced by
+the compiler on the consumer side rather than by review. `packages/app-shell`
+does not: it type-checks clean without the pin and still shows 23 errors with it,
+none of them from these two packages. That residue is filed separately.
