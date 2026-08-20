@@ -387,7 +387,7 @@ Always type your schemas for better IDE support and fewer runtime errors.
 
 ```json
 {
-  "type": "empty-state",
+  "type": "empty",
   "visibleOn": "${items.length === 0}",
   "message": "No items found",
   "action": {

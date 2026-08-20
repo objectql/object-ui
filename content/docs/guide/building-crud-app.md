@@ -209,7 +209,7 @@ function App() {
     <div className="min-h-screen bg-background p-6">
       <SchemaRenderer
         schema={{
-          type: 'ObjectGrid',
+          type: 'object-grid',
           object: 'task',
           view: 'all',
           data: { objectSchema: TaskSchema },
@@ -238,7 +238,7 @@ Add a "New Task" button and handle row clicks to open the edit form:
 
 ```tsx
 <SchemaRenderer
-  schema={{ type: 'ObjectGrid', object: 'task', view: 'all', data: { objectSchema: TaskSchema } }}
+  schema={{ type: 'object-grid', object: 'task', view: 'all', data: { objectSchema: TaskSchema } }}
   dataSource={dataSource}
   onRowClick={(row: any) => { setEditId(row.id); setShowForm(true); }}
 />
@@ -246,7 +246,7 @@ Add a "New Task" button and handle row clicks to open the edit form:
 {showForm && (
   <SchemaRenderer
     schema={{
-      type: 'ObjectForm',
+      type: 'object-form',
       object: 'task',
       mode: editId ? 'edit' : 'create',
       recordId: editId,
@@ -290,7 +290,7 @@ const [searchQuery, setSearchQuery] = useState('');
 // Grid responds to view and search changes
 <SchemaRenderer
   schema={{
-    type: 'ObjectGrid',
+    type: 'object-grid',
     object: 'task',
     view: activeView,
     data: {
@@ -317,7 +317,7 @@ function TaskDetail({ taskId, onBack }: { taskId: string; onBack: () => void }) 
       </button>
       <SchemaRenderer
         schema={{
-          type: 'ObjectDetail',
+          type: 'detail-view',
           object: 'task',
           recordId: taskId,
           data: { objectSchema: TaskSchema },

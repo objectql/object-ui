@@ -208,7 +208,7 @@ Schemas can be nested to build complex layouts. Here is a dashboard that combine
   "type": "page",
   "title": "Project Dashboard",
   "body": {
-    "type": "grid-layout",
+    "type": "grid",
     "columns": 3,
     "gap": "md",
     "items": [
@@ -280,7 +280,7 @@ const schema = {
 - **Start simple** — Begin with a single `button` or `text` schema and add complexity incrementally.
 - **Use `className`** — Any schema object accepts a `className` property for Tailwind utility classes.
 - **Check the `type`** — If nothing renders, verify the `type` value matches a registered component.
-- **Nest schemas** — Use container types like `stack`, `grid-layout`, and `page` to compose multiple components.
+- **Nest schemas** — Use container types like `stack`, `grid`, and `page` to compose multiple components.
 - **Add expressions** — Use `visibleOn` and `disabledOn` for dynamic behavior: `"visibleOn": "${data.showAdvanced}"`.
 
 ## Related Resources

@@ -371,7 +371,7 @@ Available: All standard `Math` functions
 
 ```json
 {
-  "type": "empty-state",
+  "type": "empty",
   "visibleOn": "${items.length === 0}",
   "message": "No items to display",
   "description": "Start by adding your first item"

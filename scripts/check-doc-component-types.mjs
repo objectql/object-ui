@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Every `type` string literal in a `content/docs/**.mdx` code block must name a
- * component the repository actually registers — or be declared, per file, as
- * belonging to some other vocabulary.
+ * Every `type` string literal in a `content/docs/**` code block — `.mdx` and
+ * `.md` alike — must name a component the repository actually registers, or be
+ * declared, per file, as belonging to some other vocabulary.
  *
  * Run:  node scripts/check-doc-component-types.mjs   (also `pnpm check:doc-types`)
  * Exit: 0 = every teaching snippet names a registered type (or a declared
@@ -142,8 +142,28 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 
 // ── Configuration ────────────────────────────────────────────────────────────
 
-/** Where the teaching prose lives. */
+/** Where the teaching prose lives. This gate walks `content/docs` and nothing
+ *  else: not `skills/**`, not the package READMEs (`check-doc-snippet-types.mjs`
+ *  covers those for its own question), not `docs/**`. */
 const DOCS_ROOT = 'content/docs';
+
+/** Page extensions collected under `DOCS_ROOT`. BOTH are collected, and that is
+ *  the whole content of the scan surface: `content/docs` is authored in a mix of
+ *  `.mdx` and `.md` — the same guide tree, the same renderer, the same reader —
+ *  and an extension is not a coverage decision. Deliberately kept identical to
+ *  `check-doc-snippet-types.mjs`'s `DOC_EXTENSIONS`: two collectors walking one
+ *  tree two different ways is a defect one level up from either gate, and it is
+ *  how a page ends up covered by the question it passes and invisible to the one
+ *  it fails.
+ *
+ *  Collecting only `.mdx` is what objectui#5342 measured, and unlike its sibling
+ *  objectui#5174 this file was never lying about it — the sentence above used to
+ *  say `.mdx` and the ledger was keyed by `.mdx` paths throughout. It was a
+ *  stated coverage decision, not a broken promise, and the decision is now the
+ *  other way: 40 `.md` pages sat outside the ledger, so they were neither
+ *  covered nor declared ungated. Anything else under the tree (the `meta.json`
+ *  sidecars) holds no prose and is not a page. */
+const DOC_EXTENSIONS = ['.mdx', '.md'];
 
 /** Where registrations live. Every workspace source root that can register. */
 const SOURCE_ROOTS = ['packages', 'apps', 'examples'];
@@ -211,12 +231,36 @@ const OPEN_REGISTRATION_SITES = {
  * Per-file declarations that a `type` value in that page belongs to a
  * vocabulary other than the SDUI component registry.
  *
- * Keyed `<repo-relative mdx path>` -> `<type value>` -> reason. The reason must
+ * Keyed `<repo-relative doc path>` -> `<type value>` -> reason. The reason must
  * name the vocabulary and, where one exists, where it is declared — an
  * exemption that only says "not a component" teaches the next reader nothing
  * and cannot be re-checked.
  */
 const DOC_TYPE_EXEMPTIONS = {
+  'content/docs/api/schema-reference.md': {
+    action:
+      'ActionSchema discriminant under a CRUD schema\'s ACTION LISTS, never a rendered child — ' +
+      '`toolbar.actions[]`, `rowActions[]`, `batchActions[]` and a detail page\'s `actions[]` are ' +
+      'each typed `ActionSchema[]` (packages/types/src/crud.ts:175, 379, 480, 484, 561, 612), and ' +
+      'that interface declares `type: \'action\'` at crud.ts:89. Same vocabulary as the ' +
+      '`core/enhanced-actions.mdx` entry below.',
+    crud:
+      'CRUDSchema discriminant — packages/types/src/crud.ts:418 declares it, zod/crud.zod.ts:158 ' +
+      'validates it, core/src/validation/schema-validator.ts:135 has a branch for it and ' +
+      'builder/schema-builder.ts:170 constructs it. FOUR declaration faces and NO registered ' +
+      'renderer, and unlike its siblings in this table it IS on the render path (CRUDComponentSchema ' +
+      'is in the node union at types/src/index.ts:852), so a node spelling it paints OBJUI-001. ' +
+      'Ledgered rather than re-spelled because there is no registered spelling to move to: register ' +
+      'a renderer / retire CRUDSchema under ADR-0049 / demote it off the node union are three ' +
+      'different edits to this page, and picking one is a contract decision objectui#5115 left open ' +
+      'after PR objectui#5128 closed only its CLI half. Filed as objectui#5373. DELETE this entry ' +
+      'when that lands — the gate reports a stale exemption, so it cannot be forgotten.',
+    string:
+      'PageNodeSchema variable declaration\'s data type inside `variables[]`, next to `name` / ' +
+      '`defaultValue` — `PageVariable` (packages/types/src/layout.ts:566, re-exported from ' +
+      '@objectstack/spec\'s `PageVariableSchema`). Same vocabulary as blocks/block-schema.mdx\'s ' +
+      '`string`.',
+  },
   'content/docs/blocks/authentication.mdx': {
     submit:
       'ActionSchema discriminant under a button\'s `action` key, not a node type. ' +
@@ -264,6 +308,13 @@ const DOC_TYPE_EXEMPTIONS = {
       'First member of a TypeScript union of view-action ids (`\'share\' | \'settings\' | ' +
       '\'duplicate\' | \'delete\'`) in a Schema API declaration, not a node type.',
   },
+  'content/docs/components/index.md': {
+    'component-name':
+      'Metasyntactic placeholder in the page\'s "Usage Pattern" template — the block shows the SHAPE ' +
+      'every component schema has (`type` / `className` / component-specific props) and the value ' +
+      'stands for whichever key the reader picked from the catalog below it. Nothing registers the ' +
+      'literal string, by design.',
+  },
   'content/docs/core/app-schema.mdx': {
     item: 'AppSchema menu entry kind — a navigation item, sibling of `group`. Not a rendered node.',
     group: 'AppSchema menu entry kind — a navigation group holding `children` items.',
@@ -299,10 +350,128 @@ const DOC_TYPE_EXEMPTIONS = {
     array: 'JSON Schema property type inside a field\'s `schema.properties`, not a node type.',
     string: 'JSON Schema property type inside a field\'s `schema.properties`, not a node type.',
   },
+  'content/docs/guide/architecture.md': {
+    'my-grid':
+      'Deliberate placeholder in the "register your component, then address it by key" contrast — ' +
+      'the snippet\'s own line above spells `ComponentRegistry.register(\'my-grid\', MyGrid)`, so it ' +
+      'is unregistered in this repository by design.',
+    string:
+      '`ComponentInput.type` in a `register(...)` call\'s `inputs[]` — a DESIGNER input\'s coarse ' +
+      'control kind (packages/types/src/base.ts:386), sibling of `number` / `boolean` / `enum`. ' +
+      'Not a node type.',
+  },
+  'content/docs/guide/component-registry.md': {
+    custom:
+      'Placeholder discriminant in a "type your custom component" `interface CustomSchema extends ' +
+      'BaseSchema` declaration — the page is teaching the reader to declare their own schema ' +
+      'interface, so the literal is theirs to register.',
+    'my-component':
+      'Deliberate placeholder in the "register a custom component" walkthrough — the page registers ' +
+      'this key itself (`ComponentRegistry.register(\'my-component\', MyComponent, …)`) and then ' +
+      'shows the JSON that addresses it.',
+    string:
+      '`ComponentInput.type` in a `register(...)` call\'s `inputs[]` — a designer input\'s coarse ' +
+      'control kind (packages/types/src/base.ts:386), not a node type.',
+  },
+  'content/docs/guide/console-architecture.md': {
+    delete:
+      '`ActionDef.type` passed to `useActionRunner().execute(...)` — a RunnableActionType, the ' +
+      'action vocabulary declared at packages/core/src/actions/ActionRunner.ts:112. An action being ' +
+      'run, not a node being rendered.',
+  },
+  'content/docs/guide/dashboard-filters.md': {
+    bar: 'Dashboard widget kind under `widgets[]`, alongside `line` — same vocabulary as the ' +
+      'plugins/plugin-dashboard.mdx entry below. Not a node type.',
+    line: 'Dashboard widget kind under `widgets[]`, alongside `bar` — same vocabulary as the ' +
+      'plugins/plugin-dashboard.mdx entry below. Not a node type.',
+  },
   'content/docs/guide/objectos-integration.mdx': {
     'my-custom-widget':
       'Deliberate placeholder in the "register a lazy custom widget" walkthrough — the reader ' +
       'supplies this key.',
+  },
+  'content/docs/guide/plugin-development.md': {
+    array:
+      '`ComponentInput.type` in this walkthrough\'s own `register(...)` `inputs[]` — a designer ' +
+      'input\'s coarse control kind (packages/types/src/base.ts:386), not a node type.',
+    board:
+      'The walkthrough\'s OWN plugin key. This page builds `@object-ui/plugin-board` end to end, so ' +
+      'every `board` here — the `BoardSchema` interface, the `register(\'board\', BoardRenderer, …)` ' +
+      'call, the test fixture and the final JSON — is the key the READER registers by following the ' +
+      'page. Unregistered in this repository by design.',
+    enum: '`ComponentInput.type` in the walkthrough\'s `inputs[]` — the coarse kind that carries an ' +
+      '`enum` list of allowed values, not a node type.',
+    string:
+      '`ComponentInput.type` in the walkthrough\'s `inputs[]` (packages/types/src/base.ts:386), not ' +
+      'a node type.',
+  },
+  'content/docs/guide/plugins.md': {
+    module:
+      'The `package.json` manifest\'s OWN `"type": "module"` field — Node\'s ESM switch, in a block ' +
+      'showing the plugin package\'s manifest. Not a UI schema at all. objectui#5127 is the same ' +
+      'collision measured on `objectui check`, which read every JSON file\'s root `type` as a ' +
+      'component key and reported `module` as unknown in any Node project.',
+    'my-feature':
+      'Deliberate placeholder for the reader\'s own plugin schema — the page\'s `MyFeatureSchema ' +
+      'extends BaseSchema` declaration in the "author your plugin\'s types" step.',
+  },
+  'content/docs/guide/record-edit-modes.md': {
+    picklist:
+      'ObjectStack object-metadata FIELD type inside a `fields` record, alongside `text` and ' +
+      '`lookup` — the picker/lookup family spelling packages/core/src/utils/record-title.ts:101 ' +
+      'names explicitly. A field\'s data type, not a node type.',
+  },
+  'content/docs/guide/schema-overview.md': {
+    action:
+      'ActionSchema discriminant in a `const action: ActionSchema = { … }` declaration — this page ' +
+      'tours each schema family by declaring one of each, so the literal is the document\'s own ' +
+      'discriminant. Same vocabulary as core/enhanced-actions.mdx.',
+    block:
+      'BlockSchema discriminant in a `const block: BlockSchema = { … }` declaration — ' +
+      'packages/types/src/blocks.ts, validated by zod/blocks.zod.ts. A block definition is not a ' +
+      'rendered node.',
+    group: 'AppSchema menu entry kind — a navigation group holding `children` items, same ' +
+      'vocabulary as core/app-schema.mdx.',
+    item: 'AppSchema menu entry kind — a navigation item, sibling of `group`. Same vocabulary as ' +
+      'core/app-schema.mdx. Not a rendered node.',
+    string:
+      'BlockVariable.type in the BlockSchema tour\'s `variables[]` — a variable declaration\'s data ' +
+      'type, next to `name` / `defaultValue`.',
+    theme:
+      'ThemeSchema discriminant in a `const theme: ThemeComponentSchema = { … }` declaration — ' +
+      'packages/types/src/theme.ts declares the theme document\'s own `type`, validated by ' +
+      'zod/theme.zod.ts. Same vocabulary as core/theme-schema.mdx.',
+  },
+  'content/docs/guide/schema-playground.md': {
+    reset:
+      'ActionSchema discriminant under a form\'s `actions[]`, alongside `submit` — an action ' +
+      'definition in a list, not a rendered child. Same vocabulary as blocks/authentication.mdx.',
+    submit:
+      'ActionSchema discriminant under a form\'s `actions[]`, alongside `reset` — an action ' +
+      'definition in a list, not a rendered child. Same vocabulary as blocks/authentication.mdx.',
+  },
+  'content/docs/guide/schema-rendering.md': {
+    'admin-panel':
+      'Stand-in for one of the READER\'s own registered components in the "move logic to ' +
+      'expressions" pattern block, whose subject is `visibleOn` — the two nodes exist to be shown ' +
+      'and hidden, and nothing about the pattern depends on which components they are. Weaker than ' +
+      'the `my-component` placeholder above it, which the same page registers in its own snippet: ' +
+      'these two are never registered on the page, so the name alone does not announce that they ' +
+      'are the reader\'s. Recorded here as the disclosed cost of leaving the block\'s subject alone.',
+    'my-component':
+      'Deliberate placeholder — the snippet\'s own line above spells ' +
+      '`ComponentRegistry.register(\'my-component\', MyComponent)`, then shows the schema that ' +
+      'addresses it.',
+    'user-panel':
+      'Stand-in for one of the READER\'s own registered components in the `visibleOn` pattern block, ' +
+      'the `${!user.isAdmin}` half of the pair — see the `admin-panel` entry above for the full ' +
+      'reason and its known weakness.',
+  },
+  'content/docs/plugins/index.md': {
+    'plugin-component-name':
+      'Metasyntactic placeholder in the page\'s "Usage Pattern" template — the block shows the shape ' +
+      'every plugin node has and the value stands for whichever plugin key the reader picked from ' +
+      'the table above it. Nothing registers the literal string, by design.',
   },
   'content/docs/plugins/plugin-dashboard.mdx': {
     bar: 'Dashboard widget kind under `widgets[]`, alongside `line`. Not a node type.',
@@ -694,7 +863,7 @@ export function deriveRegistryKeys(root, options = {}) {
  */
 export function scanDocs(root) {
   const docsDir = join(root, DOCS_ROOT);
-  const files = walkFiles(docsDir, (f) => f.endsWith('.mdx')).sort();
+  const files = walkFiles(docsDir, (f) => DOC_EXTENSIONS.some((ext) => f.endsWith(ext))).sort();
   const sites = [];
   const counters = { files: files.length, codeBlocks: 0, typeSites: 0 };
 
@@ -837,7 +1006,7 @@ const HINTS = {
   'stale-indirect-registration':
     'An INDIRECT_REGISTRATIONS entry no longer resolves to keys, so the universe lost them silently.',
   'unterminated-code-fence':
-    'An mdx file has an unclosed ``` fence. The scan cannot separate code from prose past that point.',
+    'A doc file has an unclosed ``` fence. The scan cannot separate code from prose past that point.',
 };
 
 const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
@@ -875,7 +1044,8 @@ if (invokedDirectly) {
   }
 
   console.log(
-    `Scanned ${counters.files} mdx file(s), ${counters.codeBlocks} code block(s), ` +
+    `Scanned ${counters.files} doc file(s) (${DOC_EXTENSIONS.join(' + ')}), ` +
+      `${counters.codeBlocks} code block(s), ` +
       `${counters.typeSites} \`type\` literal(s) against ${counters.registryKeys} registered key(s) ` +
       `derived from ${counters.sourceFiles} source file(s) (${counters.resolved} resolved call site(s), ` +
       `${counters.indirect} indirect, ${counters.open} open): ` +

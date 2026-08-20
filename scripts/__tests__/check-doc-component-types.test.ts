@@ -13,8 +13,8 @@ import { analyze, deriveRegistryKeys, scanDocs } from '../check-doc-component-ty
  * objectui#4823 — the test for `scripts/check-doc-component-types.mjs`.
  *
  * The gate answers one question: does every `type` string literal in a
- * `content/docs/**.mdx` code block name a component this repository actually
- * registers. Nothing rendered or parsed those snippets before it, so the same
+ * `content/docs/**` code block — `.mdx` and `.md` alike — name a component this
+ * repository actually registers. Nothing rendered or parsed those snippets before it, so the same
  * defect landed three times (objectui#4786 `stats-card`, objectui#4796
  * `plugin:grid` and `plugin:map`) and CI was green through all three.
  *
@@ -253,6 +253,31 @@ describe('the docs scan reads code blocks, in both spellings, and only code bloc
     expect(sites).toEqual([]);
   });
 
+  it('collects `.md` pages as well as `.mdx` — the extension is not a coverage decision', () => {
+    // objectui#5342. The collector used to walk `.mdx` only, so 40 `.md` guides
+    // under the SAME tree were neither judged nor declared. This asserts the
+    // walk, not the verdict: revert `DOC_EXTENSIONS` to `['.mdx']` and the
+    // `from-md` site disappears while every other test in this file stays green.
+    const { sites, counters } = withTree((write) => {
+      write('content/docs/a.mdx', ['```json', '{ "type": "from-mdx" }', '```'].join('\n'));
+      write('content/docs/guide/b.md', ['```json', '{ "type": "from-md" }', '```'].join('\n'));
+      // Not a page: the `meta.json` sidecars fumadocs keeps beside the prose.
+      write('content/docs/meta.json', '{ "pages": ["a"] }');
+    }, (dir) => scanDocs(dir));
+    expect(sites.map((s) => s.value).sort()).toEqual(['from-md', 'from-mdx']);
+    expect(counters.files).toBe(2);
+  });
+
+  it('judges a `.md` page by the same rule, so an unregistered type there is a finding', () => {
+    const { findings } = withTree((write) => {
+      write('packages/demo/src/index.tsx', "ComponentRegistry.register('div', C, { namespace: 'ui' });\n");
+      write('content/docs/guide/b.md', ['```json', '{ "type": "not-a-component" }', '```'].join('\n'));
+    }, (dir) => analyze(dir, BARE));
+    const f = findings as Finding[];
+    expect(f.map((x) => x.reason)).toContain('unregistered-doc-type');
+    expect(f.find((x) => x.reason === 'unregistered-doc-type')?.site).toBe('content/docs/guide/b.md:2');
+  });
+
   it('reports an unterminated fence rather than guessing where code stops', () => {
     const { findings } = withTree((write) => {
       write('content/docs/x.mdx', ['```json', '{ "type": "div" }'].join('\n'));
@@ -367,6 +392,18 @@ describe('the scan cannot collapse quietly', () => {
     expect(counters.registered).toBeGreaterThan(400);
   });
 
+  it('really walks the `.md` half of this tree — the objectui#5342 widening, pinned', () => {
+    // A repo-level assertion because the fixture above proves only the
+    // mechanism. `content/docs` holds 143 `.mdx` and 40 `.md`; a revert to
+    // `.mdx`-only drops ~323 `type` literals out of the scan and this repository
+    // stays green while judging none of them.
+    const { sites, counters } = scanDocs(repoRoot);
+    const mdFiles = new Set(sites.filter((s: { file: string }) => s.file.endsWith('.md')).map((s: { file: string }) => s.file));
+    expect(mdFiles.size, 'no `.md` page carries a scanned `type` literal — the collector narrowed').toBeGreaterThan(15);
+    expect(mdFiles.has('content/docs/api/schema-reference.md')).toBe(true);
+    expect(counters.files).toBeGreaterThan(170);
+  });
+
   it('this repository is green', () => {
     const findings = analyze(repoRoot).findings as Finding[];
     expect(findings.map((f) => `${f.reason} :: ${f.site} :: ${f.value ?? ''}`)).toEqual([]);
@@ -408,6 +445,49 @@ describe('the three snippets this gate found on its first run stay fixed', () =>
 
 // ── 6. the wiring ────────────────────────────────────────────────────────────
 
+describe('objectui#5342 — the key errors the widened collector found stay fixed', () => {
+  // Named rather than left to the repo-wide green assertion, for the same reason
+  // the block above names its three: these are the live specimens the extension
+  // widening produced, and a revert would otherwise read as an unrelated
+  // regression somewhere in a 183-file scan. Each one rendered the OBJUI-001
+  // "Unknown component type" panel for a reader who copied it.
+  const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
+
+  it('the CRUD guide spells the registered keys, not the PascalCase component names', () => {
+    const body = read('content/docs/guide/building-crud-app.md');
+    for (const wrong of ['ObjectGrid', 'ObjectForm', 'ObjectDetail']) {
+      expect(body, `${wrong} is a component NAME; the registry key is lower-kebab`).not.toContain(
+        `type: '${wrong}'`,
+      );
+    }
+    expect(body).toContain("type: 'object-grid'");
+    expect(body).toContain("type: 'object-form'");
+    expect(body).toContain("type: 'detail-view'");
+  });
+
+  it('the two empty-state snippets spell `empty`, the key EmptySchema declares', () => {
+    // packages/types/src/feedback.ts declares `type: 'empty'` and
+    // packages/components/src/renderers/feedback/empty.tsx registers it.
+    for (const rel of ['content/docs/guide/expressions.md', 'content/docs/guide/schema-rendering.md']) {
+      expect(read(rel), `${rel} still teaches empty-state`).not.toContain('"type": "empty-state"');
+      expect(read(rel)).toContain('"type": "empty"');
+    }
+  });
+
+  it('the playground teaches `grid`, in the fenced snippet AND in the prose beside it', () => {
+    const body = read('content/docs/guide/schema-playground.md');
+    expect(body, 'nothing registers grid-layout').not.toContain('grid-layout');
+    expect(body).toContain('"type": "grid"');
+  });
+
+  it('the schema reference gives its Email field a field type that exists', () => {
+    // `link` is not in fieldWidgetMap; `email` and `url` are.
+    const body = read('content/docs/api/schema-reference.md');
+    expect(body).not.toContain('"label": "Email", "type": "link"');
+    expect(body).toContain('"label": "Email", "type": "email"');
+  });
+});
+
 describe('wiring — the gate is reachable and a docs-only PR starts it', () => {
   const workflowDir = path.join(repoRoot, '.github/workflows');
   const workflowPath = path.join(workflowDir, 'doc-component-types.yml');
@@ -444,7 +524,7 @@ describe('wiring — the gate is reachable and a docs-only PR starts it', () => 
   it('runs it in NO path-filtered workflow — the change that breaks it is docs-only', () => {
     // The whole reason this is its own workflow. `ci.yml`'s type-check job
     // excludes `content/**` from the diff that decides whether its gates run, so
-    // a PR editing only `content/docs/**.mdx` would start this gate nowhere.
+    // a PR editing only `content/docs/**` would start this gate nowhere.
     expect(workflowFiles.length, 'the workflow directory scan returned implausibly few files').toBeGreaterThan(5);
     for (const file of workflowFiles) {
       const yaml = yamlOf(file);
