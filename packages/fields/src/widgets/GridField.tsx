@@ -55,6 +55,12 @@ import { toHostGroupProps } from './toHostGroupProps.js';
  *    `aria-invalid` (control-channel state; this grid reports validity per CELL,
  *    with its own inline marks), answering `role="group"` only when a host
  *    actually named it — `CheckboxesField`'s split, key for key.
+ *
+ *    That strip STANDS (objectui#3318 upheld it rather than overturning it):
+ *    the container is not a control, so the host's state is not re-routed onto
+ *    it. What #3318 added is the other half the strip implied but nobody had
+ *    built — the host's failure now DRIVES the per-cell channel this comment
+ *    already claimed as the reporting path. See `hostFailedEmpty`.
  *  - readonly: the table replaces the inputs entirely, so that surface takes the
  *    name AND the description via `toHostGroupProps` — `'instead-of-the-inputs'`.
  *
@@ -416,6 +422,7 @@ export function GridField({
   readonly,
   disabled,
   className,
+  error,
   onRowExpand,
   displayMode,
   onAdd,
@@ -801,9 +808,42 @@ export function GridField({
   const hasGhost = !isList && allowAdd && (maxRows == null || rows.length < maxRows);
   const displayRows: Row[] = hasGhost ? [...rows, blankRow()] : rows;
 
+  /**
+   * FORM-level failure driving the per-CELL channel (objectui#3318).
+   *
+   * This widget reports validity per cell, and the container deliberately does
+   * NOT take the host's `aria-invalid` (objectui#4857 — it is control-channel
+   * state and the container is not a control). That left one real gap: a
+   * REQUIRED grid submitted while still EMPTY fails at the form level, renders
+   * its "is required" message, and marked nothing — every row was a ghost, and
+   * ghosts were skipped, so assistive tech was told nothing at all. A sighted
+   * user saw the red message; a screen-reader user saw no field state.
+   *
+   * So when the host reports a failure on an empty grid, the ghost row — the
+   * entry line the user would actually type into to fix it — stops being
+   * skipped and its required cells flag like any other. Deliberately narrow:
+   * a POPULATED grid already marks its own empty required cells inline, so
+   * this changes nothing there, and an empty grid that has NOT failed stays
+   * unmarked (no premature alarm before validation runs).
+   */
+  const hostFailedEmpty = !!error && rows.length === 0;
+
   /** Cell content: read-only display (list mode / computed columns) or an
-   *  editable borderless control (spreadsheet feel). */
-  const renderCellInput = (c: GridColumn, colIdx: number, rowIdx: number, row: Row) => {
+   *  editable borderless control (spreadsheet feel).
+   *
+   *  `invalid` is the cell's validity, and it lands on the CONTROL this
+   *  renders — the focusable element a keyboard user edits and the only one
+   *  assistive tech reads a control state from (objectui#3318). The read-only
+   *  branches below ignore it: list-mode and computed cells cannot be invalid
+   *  (the caller's `invalid` is false for both), and a text span is exactly
+   *  the wrapper the sweep forbids marking. */
+  const renderCellInput = (
+    c: GridColumn,
+    colIdx: number,
+    rowIdx: number,
+    row: Row,
+    invalid = false,
+  ) => {
     const val = row?.[c.name];
     // A readonlyWhen-TRUE cell is locked: treat like the form-wide `disabled`.
     const locked = disabled || cellRules(c, row).readonly;
@@ -842,6 +882,9 @@ export function GridField({
           compact
           field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField, multiple: c.multiple, options: c.options, placeholder: '—' } as any}
           disabled={locked}
+          // The published `error` slot, not a hand-rolled attribute: LookupField
+          // already puts `aria-invalid` on its own focusable trigger from it.
+          error={invalid ? `${c.label || c.name} is required` : undefined}
         />
       );
     }
@@ -849,6 +892,10 @@ export function GridField({
     // not a text input: chips for uploaded files + a compact picker button.
     if (c.type === 'file') {
       return (
+        // Not marked by `invalid`: `FileCell`'s prop set is closed and its
+        // control is its own (objectui#3318 kept the scope to the controls this
+        // file renders directly). A required FILE column therefore still marks
+        // only the cell's visual ring — tracked, not silently accepted.
         <FileCell
           value={val}
           onChange={(v: any) => setCellValue(rowIdx, c.name, v)}
@@ -863,7 +910,11 @@ export function GridField({
     if (c.type === 'select') {
       return (
         <Select value={val != null ? String(val) : ''} onValueChange={(v) => setCell(rowIdx, c, v)} disabled={locked}>
-          <SelectTrigger className="h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus:ring-1 focus:ring-ring/60" aria-label={c.label || c.name}>
+          <SelectTrigger
+            className="h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus:ring-1 focus:ring-ring/60"
+            aria-label={c.label || c.name}
+            aria-invalid={invalid || undefined}
+          >
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -881,6 +932,7 @@ export function GridField({
         )}
         <Input
           data-cell={`${rowIdx}-${colIdx}`}
+          aria-invalid={invalid || undefined}
           onKeyDown={(e) => onCellKeyDown(e, rowIdx, colIdx)}
           className={cn(
             'h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus-visible:ring-1 focus-visible:ring-ring/60',
@@ -1023,15 +1075,30 @@ export function GridField({
                     )}
                     {columns.map((c, colIdx) => {
                       // Inline validation: a required, non-computed cell that's
-                      // empty on a real (non-ghost) row flags red in place. The
-                      // "required" verdict honors a column's `requiredWhen` CEL
-                      // rule (B2), evaluated against the row + parent header.
+                      // empty flags red in place. The "required" verdict honors
+                      // a column's `requiredWhen` CEL rule (B2), evaluated
+                      // against the row + parent header.
+                      //
+                      // The ghost row joins in only when the FORM said this
+                      // grid failed while empty (objectui#3318) — see
+                      // `hostFailedEmpty`.
                       const required = cellRules(c, row).required;
-                      const invalid = !isGhost && !isList && required && !c.computed && (row[c.name] == null || row[c.name] === '');
+                      const invalid =
+                        (!isGhost || hostFailedEmpty) &&
+                        !isList &&
+                        required &&
+                        !c.computed &&
+                        (row[c.name] == null || row[c.name] === '');
                       return (
                         <td
                           key={c.name}
-                          aria-invalid={invalid || undefined}
+                          // NOTE: `aria-invalid` belongs on the cell's CONTROL,
+                          // not here. A `td` is not focusable, and assistive
+                          // tech reads a control's validity from the control —
+                          // marking the wrapper is the move the registry sweep
+                          // exists to forbid (objectui#3318 / #5223). The td
+                          // keeps the VISUAL ring and the test hook; the state
+                          // travels with `invalid` into `renderCellInput`.
                           title={invalid ? `${c.label || c.name} is required` : undefined}
                           data-testid={invalid ? `line-items-invalid-${rowIdx}-${c.name}` : undefined}
                           className={cn(
@@ -1040,7 +1107,7 @@ export function GridField({
                             invalid && 'bg-destructive/5 ring-1 ring-inset ring-destructive/50',
                           )}
                         >
-                          {renderCellInput(c, colIdx, rowIdx, row)}
+                          {renderCellInput(c, colIdx, rowIdx, row, invalid)}
                         </td>
                       );
                     })}
