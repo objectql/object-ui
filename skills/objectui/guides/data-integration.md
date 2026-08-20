@@ -193,7 +193,7 @@ the `customerNames` array from the dataSource.
 `useDataScope` is called by `list` and `tree-view` in `@object-ui/components`,
 and by the `object-*` widgets the plugin packages register (`object-grid`,
 `object-kanban`, `object-chart`, `object-data-table`, `object-gallery`,
-`object-timeline`, `object-pivot-table`). Every other component ignores `bind`
+`object-timeline`, `object-pivot`). Every other component ignores `bind`
 completely — no error, no warning, nothing in the console.
 
 `data-table` is not among them, which is the trap worth knowing by name: it

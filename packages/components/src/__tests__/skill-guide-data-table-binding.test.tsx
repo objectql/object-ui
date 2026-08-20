@@ -214,3 +214,62 @@ describe('skill guides — the taught `bind` form renders bound entries (#5126)'
     expect(items).toEqual(['Ada Lovelace', 'Grace Hopper']);
   });
 });
+
+/**
+ * The guides name seven `object-*` widgets as `bind` readers. That list is a
+ * claim about the registry, and a wrong entry there is the same silent failure
+ * this card exists to close — an author writes the type, nothing is registered
+ * under it, and the red "Unknown component type" box is the *good* case.
+ *
+ * Caught one on the way in: the widget file is `ObjectPivotTable.tsx`, but the
+ * key it registers is `object-pivot`.
+ *
+ * Granularity: the key must be registered by exactly one package, and that
+ * package must read `schema.bind` through `useDataScope`. Package-level rather
+ * than file-level on purpose — `object-pivot` and `object-data-table` are
+ * registered in their package's `index.tsx` around a component that lives in a
+ * sibling file, so a same-file assertion would fail on correct code.
+ */
+describe('skill guides — the `object-*` reader list is not stale (#5126)', () => {
+  const pluginRoots = fs
+    .readdirSync(path.join(repoRoot, 'packages'))
+    .filter((name) => name.startsWith('plugin-'))
+    .map((name) => ({ pkg: name, dir: path.join(repoRoot, 'packages', name, 'src') }))
+    .filter(({ dir }) => fs.existsSync(dir));
+
+  function sourceText(dir: string): string {
+    let out = '';
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules' || entry.name === '__tests__') continue;
+        out += sourceText(full);
+      } else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) {
+        out += fs.readFileSync(full, 'utf8');
+      }
+    }
+    return out;
+  }
+
+  const PACKAGE_TEXT = new Map(pluginRoots.map(({ pkg, dir }) => [pkg, sourceText(dir)]));
+
+  it.each([
+    'skills/objectui/guides/schema-expressions.md',
+    'skills/objectui/guides/data-integration.md',
+  ] as const)('%s names only registered widgets that read `bind`', (rel) => {
+    const md = readGuide(rel);
+    const paragraph = /the plugin packages register \(([^)]*)\)/.exec(md);
+    expect(paragraph, 'the guide must carry the reader list this test judges').toBeTruthy();
+
+    const listed = [...paragraph![1].matchAll(/`(object-[a-z-]+)`/g)].map((m) => m[1]);
+    // Counter-probe: a per-key loop over an empty list passes vacuously.
+    expect(listed.length).toBeGreaterThan(0);
+
+    for (const key of listed) {
+      const registrar = new RegExp(`ComponentRegistry\\.register\\(\\s*'${key}'`);
+      const owners = [...PACKAGE_TEXT.entries()].filter(([, text]) => registrar.test(text));
+      expect(owners.map(([pkg]) => pkg), `\`${key}\` must be registered by exactly one plugin package`).toHaveLength(1);
+      expect(owners[0][1], `\`${key}\`'s package must read schema.bind`).toContain('useDataScope(schema.bind)');
+    }
+  });
+});

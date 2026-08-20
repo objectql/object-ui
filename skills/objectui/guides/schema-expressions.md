@@ -391,7 +391,7 @@ When `SchemaRendererProvider` receives
 `useDataScope` is called by `list` and `tree-view` in `@object-ui/components`,
 and by the `object-*` widgets the plugin packages register (`object-grid`,
 `object-kanban`, `object-chart`, `object-data-table`, `object-gallery`,
-`object-timeline`, `object-pivot-table`). Every other component ignores `bind`
+`object-timeline`, `object-pivot`). Every other component ignores `bind`
 completely — no error, no warning, nothing in the console.
 
 `data-table` is the one that catches authors out. It takes its rows from an
