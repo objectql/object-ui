@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { useAuth } from './useAuth';
+import { useAuth } from './useAuth.js';
 
 const ADMIN_ROLES = new Set([
   'owner',

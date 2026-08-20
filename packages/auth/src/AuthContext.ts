@@ -7,7 +7,7 @@
  */
 
 import { createContext } from 'react';
-import type { AuthUser, AuthClientSession, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions, DelegableScope } from './types';
+import type { AuthUser, AuthClientSession, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions, DelegableScope } from './types.js';
 
 export interface AuthContextValue {
   /** Current authenticated user */

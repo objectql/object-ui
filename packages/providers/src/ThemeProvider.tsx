@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import type { ThemePreference, ThemeProviderProps } from './types';
+import type { ThemePreference, ThemeProviderProps } from './types.js';
 
 interface ThemeContextValue {
   theme: ThemePreference;

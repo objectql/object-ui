@@ -7,43 +7,43 @@
  */
 
 import React from 'react';
-import type { FieldWidgetComponentProps } from './widgets/types';
+import type { FieldWidgetComponentProps } from './widgets/types.js';
 
 // The SAME dedicated widgets the form renders — reused for in-place editing
 // (e.g. the data grid's inline cell editor) so a select edits as a dropdown, a
 // boolean as a checkbox, a date as a date picker, etc. — never a bare text box.
-import { TextField } from './widgets/TextField';
-import { TextAreaField } from './widgets/TextAreaField';
-import { NumberField } from './widgets/NumberField';
-import { CurrencyField } from './widgets/CurrencyField';
-import { PercentField } from './widgets/PercentField';
-import { SliderField } from './widgets/SliderField';
-import { RatingField } from './widgets/RatingField';
-import { BooleanField } from './widgets/BooleanField';
-import { SelectField } from './widgets/SelectField';
-import { MultiSelectField } from './widgets/MultiSelectField';
-import { RadioField } from './widgets/RadioField';
-import { CheckboxesField } from './widgets/CheckboxesField';
-import { TagsField } from './widgets/TagsField';
-import { DateField } from './widgets/DateField';
-import { DateTimeField } from './widgets/DateTimeField';
-import { TimeField } from './widgets/TimeField';
-import { EmailField } from './widgets/EmailField';
-import { PhoneField } from './widgets/PhoneField';
-import { UrlField } from './widgets/UrlField';
+import { TextField } from './widgets/TextField.js';
+import { TextAreaField } from './widgets/TextAreaField.js';
+import { NumberField } from './widgets/NumberField.js';
+import { CurrencyField } from './widgets/CurrencyField.js';
+import { PercentField } from './widgets/PercentField.js';
+import { SliderField } from './widgets/SliderField.js';
+import { RatingField } from './widgets/RatingField.js';
+import { BooleanField } from './widgets/BooleanField.js';
+import { SelectField } from './widgets/SelectField.js';
+import { MultiSelectField } from './widgets/MultiSelectField.js';
+import { RadioField } from './widgets/RadioField.js';
+import { CheckboxesField } from './widgets/CheckboxesField.js';
+import { TagsField } from './widgets/TagsField.js';
+import { DateField } from './widgets/DateField.js';
+import { DateTimeField } from './widgets/DateTimeField.js';
+import { TimeField } from './widgets/TimeField.js';
+import { EmailField } from './widgets/EmailField.js';
+import { PhoneField } from './widgets/PhoneField.js';
+import { UrlField } from './widgets/UrlField.js';
 // Relational pickers — the SAME standard widgets the form uses. They read the
 // related-object dataSource from SchemaRendererContext (which the grid already
 // provides), so they drop straight into an inline cell.
-import { LookupField } from './widgets/LookupField';
-import { UserField } from './widgets/UserField';
+import { LookupField } from './widgets/LookupField.js';
+import { UserField } from './widgets/UserField.js';
 // Structured-value editors — lightweight (no map/code-editor deps), same
 // widgets the form uses. Drop into a cell like the rest.
-import { ColorField } from './widgets/ColorField';
-import { AddressField } from './widgets/AddressField';
-import { LocationField } from './widgets/LocationField';
-import { GeolocationField } from './widgets/GeolocationField';
-import { CodeField } from './widgets/CodeField';
-import { QRCodeField } from './widgets/QRCodeField';
+import { ColorField } from './widgets/ColorField.js';
+import { AddressField } from './widgets/AddressField.js';
+import { LocationField } from './widgets/LocationField.js';
+import { GeolocationField } from './widgets/GeolocationField.js';
+import { CodeField } from './widgets/CodeField.js';
+import { QRCodeField } from './widgets/QRCodeField.js';
 // The FORM's spec-alias table (`json` → `field:code`, `tree` → `field:lookup`,
 // …) — inline resolution reuses it so spec spellings get the form's decision.
 // `RETIRED_FIELD_TYPES` / `reportRetiredFieldType` come from the same module on
@@ -55,7 +55,7 @@ import {
   mapFieldTypeToFormType,
   RETIRED_FIELD_TYPES,
   reportRetiredFieldType,
-} from './field-type-alias';
+} from './field-type-alias.js';
 
 /**
  * True when a spelling has been RETIRED by this renderer (objectui#4814's

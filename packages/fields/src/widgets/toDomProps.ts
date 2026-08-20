@@ -11,7 +11,7 @@ import {
   type SduiDomPassThroughKey,
   type DomProps as CoreDomProps,
 } from '@object-ui/core';
-import type { FieldWidgetComponentProps, FieldWidgetDomProps } from './types';
+import type { FieldWidgetComponentProps, FieldWidgetDomProps } from './types.js';
 
 /**
  * The RUNTIME EXECUTOR of the "DOM pass-through" section of

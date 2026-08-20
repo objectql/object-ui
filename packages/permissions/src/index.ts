@@ -19,13 +19,13 @@
  * @packageDocumentation
  */
 
-export { PermissionProvider, type PermissionProviderProps } from './PermissionProvider';
-export { MePermissionsProvider, type MePermissionsProviderProps, type MePermissionsResponse } from './MePermissionsProvider';
-export { usePermissions } from './usePermissions';
-export { useFieldPermissions } from './useFieldPermissions';
-export { PermissionGuard, type PermissionGuardProps } from './PermissionGuard';
-export { evaluatePermission } from './evaluator';
-export { createPermissionStore, type PermissionStore } from './store';
+export { PermissionProvider, type PermissionProviderProps } from './PermissionProvider.js';
+export { MePermissionsProvider, type MePermissionsProviderProps, type MePermissionsResponse } from './MePermissionsProvider.js';
+export { usePermissions } from './usePermissions.js';
+export { useFieldPermissions } from './useFieldPermissions.js';
+export { PermissionGuard, type PermissionGuardProps } from './PermissionGuard.js';
+export { evaluatePermission } from './evaluator.js';
+export { createPermissionStore, type PermissionStore } from './store.js';
 
 // Re-export types for convenience
 export type {

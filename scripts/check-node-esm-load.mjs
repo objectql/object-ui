@@ -187,9 +187,11 @@ export function buildPreservesSpecifiers(buildScript, pkgDir) {
  * objectui#4538's own scope was `@object-ui/react` plus the dependency closure
  * its entry evaluates through (`types`, `core`, `i18n`) — without those three
  * the card's own package stayed unloadable, so they were in scope by necessity
- * rather than by choice. The packages below carry the identical defect and are
- * left for their own cards: two of them (`app-shell`, `fields`) were held by
- * other sessions when this landed and could not have been touched.
+ * rather than by choice. Seven more packages carried the identical defect and
+ * were left for their own cards; six of them (`auth`, `collaboration`,
+ * `fields`, `mobile`, `permissions`, `providers`) were cleared, and only
+ * `app-shell` — an order of magnitude larger than any of them, and split off
+ * for its own card — is still owed.
  *
  * This is a RATCHET, not a mute button. A package named here that is now clean
  * is a FINDING — the entry must be deleted in the commit that fixes it, so the
@@ -205,12 +207,6 @@ export function buildPreservesSpecifiers(buildScript, pkgDir) {
  */
 export const SPECIFIER_DEBT = new Map([
   ['@object-ui/app-shell', 'objectui#5214; 1259 specifiers, large enough to deserve its own card'],
-  ['@object-ui/auth', 'objectui#5214'],
-  ['@object-ui/collaboration', 'objectui#5214'],
-  ['@object-ui/fields', 'objectui#5214; held by another session when objectui#4538 landed'],
-  ['@object-ui/mobile', 'objectui#5214; blocks 6 plugin packages that fail on its dist'],
-  ['@object-ui/permissions', 'objectui#5214; blocks 4 plugin packages that fail on its dist'],
-  ['@object-ui/providers', 'objectui#5214; blocks 2 packages that fail on its dist'],
 ]);
 
 /**

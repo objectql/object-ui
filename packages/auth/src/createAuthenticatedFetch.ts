@@ -6,8 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { TokenStorage } from './createAuthClient';
-import { authGateEvents, detectAuthGate } from './auth-gate-events';
+import { TokenStorage } from './createAuthClient.js';
+import { authGateEvents, detectAuthGate } from './auth-gate-events.js';
 
 /**
  * Options for creating an authenticated adapter.

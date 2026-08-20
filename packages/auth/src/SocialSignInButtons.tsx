@@ -7,9 +7,9 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { useAuth } from './useAuth';
-import { AuthSpinner } from './authStyles';
-import type { AuthSocialProvider } from './types';
+import { useAuth } from './useAuth.js';
+import { AuthSpinner } from './authStyles.js';
+import type { AuthSocialProvider } from './types.js';
 
 // Brand name overrides for providers whose `name` from the server may be unset
 // or where we want to canonicalize casing.

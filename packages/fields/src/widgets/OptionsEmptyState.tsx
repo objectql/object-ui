@@ -8,8 +8,8 @@
 
 import React from 'react';
 import { cn } from '@object-ui/components';
-import { useFieldTranslation } from './useFieldTranslation';
-import type { HostGroupProps } from './toHostGroupProps';
+import { useFieldTranslation } from './useFieldTranslation.js';
+import type { HostGroupProps } from './toHostGroupProps.js';
 
 /**
  * The "this option list cannot be filled" state shared by every fixed-option

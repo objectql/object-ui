@@ -43,8 +43,8 @@ import type { DataSource, LookupColumnDef, LookupFilterDef } from '@object-ui/ty
 // ObjectView, so a spec `ViewFilterRule[]` lowers in exactly one place.
 import { mergeFilterNodes } from '@object-ui/core';
 import { useSafeFieldLabel, useDisplayLocale } from '@object-ui/i18n';
-import { useFieldTranslation } from './useFieldTranslation';
-import { useRecordQuery } from './useRecordQuery';
+import { useFieldTranslation } from './useFieldTranslation.js';
+import { useRecordQuery } from './useRecordQuery.js';
 
 /** Default page size for the Record Picker dialog */
 const DEFAULT_PAGE_SIZE = 10;

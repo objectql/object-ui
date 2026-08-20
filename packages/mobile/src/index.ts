@@ -19,17 +19,17 @@
  * @packageDocumentation
  */
 
-export { useBreakpoint, type BreakpointState } from './useBreakpoint';
-export { useResponsive } from './useResponsive';
-export { useResponsiveConfig, type SpecResponsiveConfig, type ResolvedResponsiveState } from './useResponsiveConfig';
-export { useGesture, type UseGestureOptions } from './useGesture';
-export { useSpecGesture, type UseSpecGestureOptions } from './useSpecGesture';
-export { useTouchTarget, type UseTouchTargetOptions, type TouchTargetResult } from './useTouchTarget';
-export { usePullToRefresh, type PullToRefreshOptions } from './usePullToRefresh';
-export { MobileProvider, type MobileProviderProps } from './MobileProvider';
-export { ResponsiveContainer, type ResponsiveContainerProps } from './ResponsiveContainer';
-export { generatePWAManifest } from './pwa';
-export { registerServiceWorker, type ServiceWorkerConfig } from './serviceWorker';
+export { useBreakpoint, type BreakpointState } from './useBreakpoint.js';
+export { useResponsive } from './useResponsive.js';
+export { useResponsiveConfig, type SpecResponsiveConfig, type ResolvedResponsiveState } from './useResponsiveConfig.js';
+export { useGesture, type UseGestureOptions } from './useGesture.js';
+export { useSpecGesture, type UseSpecGestureOptions } from './useSpecGesture.js';
+export { useTouchTarget, type UseTouchTargetOptions, type TouchTargetResult } from './useTouchTarget.js';
+export { usePullToRefresh, type PullToRefreshOptions } from './usePullToRefresh.js';
+export { MobileProvider, type MobileProviderProps } from './MobileProvider.js';
+export { ResponsiveContainer, type ResponsiveContainerProps } from './ResponsiveContainer.js';
+export { generatePWAManifest } from './pwa.js';
+export { registerServiceWorker, type ServiceWorkerConfig } from './serviceWorker.js';
 export {
   createOfflineQueue,
   IndexedDbOfflineQueue,
@@ -37,20 +37,20 @@ export {
   generateOpId,
   type OfflineOperation,
   type OfflineQueueBackend,
-} from './offlineQueue';
+} from './offlineQueue.js';
 export {
   createOfflineDataSource,
   type OfflineDataSource,
   type OfflineDataSourceOptions,
   type QueueableDataSource,
-} from './createOfflineDataSource';
-export { useOfflineSync, type OfflineSyncState } from './useOfflineSync';
+} from './createOfflineDataSource.js';
+export { useOfflineSync, type OfflineSyncState } from './useOfflineSync.js';
 export {
   getServiceWorkerSource,
   requestBackgroundSync,
   type ServiceWorkerSourceOptions,
-} from './serviceWorkerSource';
-export { BREAKPOINTS, resolveResponsiveValue } from './breakpoints';
+} from './serviceWorkerSource.js';
+export { BREAKPOINTS, resolveResponsiveValue } from './breakpoints.js';
 
 // Re-export types for convenience
 export type {

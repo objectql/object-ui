@@ -1,9 +1,9 @@
 import React from 'react';
 import { Combobox, EmptyValue, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
-import type { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
-import { useFieldTranslation } from './useFieldTranslation';
+import type { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
+import { useFieldTranslation } from './useFieldTranslation.js';
 
 /**
  * RecipientPickerField — dependent record picker for a polymorphic recipient

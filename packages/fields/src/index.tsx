@@ -15,10 +15,10 @@ import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import { SchemaRendererContext as _SchemaRendererContext } from '@object-ui/react';
 import { useRelatedRecordActions } from '@object-ui/react';
-import { withFieldCarrier } from './withFieldCarrier';
+import { withFieldCarrier } from './withFieldCarrier.js';
 // Pure formatting rule shared with `AddressField`'s readonly branch — no React,
 // so this does not pull the widget out of its lazy chunk (objectui#4037).
-import { formatAddress, type AddressValue } from './widgets/address-format';
+import { formatAddress, type AddressValue } from './widgets/address-format.js';
 
 // Module-level cache so multiple renderers fetching the same lookup ID
 // only trigger one network call. Keyed by `${objectName}:${id}`.
@@ -302,8 +302,8 @@ function useFieldTranslate(): ((key: string, params?: Record<string, unknown>) =
 // through the lazy loaders in `fieldWidgetMap` below, so nothing here needs a
 // static reference; the widgets stay publicly available via the `export * from
 // './widgets/…'` block at the end of this file.
-import { ImageLightbox } from './widgets/ImageLightbox';
-import { readFileValues } from './widgets/file-value';
+import { ImageLightbox } from './widgets/ImageLightbox.js';
+import { readFileValues } from './widgets/file-value.js';
 
 /**
  * Cell renderer props
@@ -371,7 +371,7 @@ export function coerceToSafeValue(value: unknown): string | number | boolean | n
  * value of `.50` renders `.50`, not `.5`, and a yen amount renders `¥1,235`
  * rather than cents the yen does not have.
  */
-import { resolveFieldCurrency, currencyFractionDigits } from './currency';
+import { resolveFieldCurrency, currencyFractionDigits } from './currency.js';
 export { resolveFieldCurrency };
 
 export function formatCurrency(value: number, currency?: string, locale?: string): string {
@@ -2266,7 +2266,7 @@ export function ColorSwatchCellRenderer({ value }: CellRendererProps): React.Rea
   );
 }
 
-const LazyMarkdownContent = React.lazy(() => import('./widgets/MarkdownContent'));
+const LazyMarkdownContent = React.lazy(() => import('./widgets/MarkdownContent.js'));
 
 /**
  * Renders `markdown` / `richtext` values as formatted GFM markdown (lazy-loaded,
@@ -2481,17 +2481,17 @@ registerFieldRenderer('user', UserCellRenderer);
 
 // Register getCellRenderer in the bridge so RecordPickerDialog can access it
 // via LookupField without circular imports.
-import { setCellRendererResolver } from './widgets/_cell-renderer-bridge';
+import { setCellRendererResolver } from './widgets/_cell-renderer-bridge.js';
 setCellRendererResolver(getCellRenderer);
 
 
 
 // `mapFieldTypeToFormType` moved to './field-type-alias' (re-exported below) so
 // FieldEditWidget can resolve spec aliases without importing this barrel.
-export { mapFieldTypeToFormType } from './field-type-alias';
-import { mapFieldTypeToFormType } from './field-type-alias';
-export { RETIRED_FIELD_TYPES, reportRetiredFieldType, resetRetiredFieldTypeReports } from './field-type-alias';
-import { RETIRED_FIELD_TYPES, reportRetiredFieldType } from './field-type-alias';
+export { mapFieldTypeToFormType } from './field-type-alias.js';
+import { mapFieldTypeToFormType } from './field-type-alias.js';
+export { RETIRED_FIELD_TYPES, reportRetiredFieldType, resetRetiredFieldTypeReports } from './field-type-alias.js';
+import { RETIRED_FIELD_TYPES, reportRetiredFieldType } from './field-type-alias.js';
 
 /**
  * Formats file size in bytes to human-readable string
@@ -2682,73 +2682,73 @@ type FieldWidgetLoader = () => Promise<{ default: React.ComponentType<any> }>;
 // labelling is a compile error, not a silent fallback (objectui#4857).
 const fieldWidgetMap = {
   // Basic fields
-  'text': () => import('./widgets/TextField').then(m => ({ default: m.TextField })),
-  'textarea': () => import('./widgets/TextAreaField').then(m => ({ default: m.TextAreaField })),
-  'number': () => import('./widgets/NumberField').then(m => ({ default: m.NumberField })),
-  'boolean': () => import('./widgets/BooleanField').then(m => ({ default: m.BooleanField })),
-  'select': () => import('./widgets/SelectField').then(m => ({ default: m.SelectField })),
-  'date': () => import('./widgets/DateField').then(m => ({ default: m.DateField })),
-  'datetime': () => import('./widgets/DateTimeField').then(m => ({ default: m.DateTimeField })),
-  'time': () => import('./widgets/TimeField').then(m => ({ default: m.TimeField })),
+  'text': () => import('./widgets/TextField.js').then(m => ({ default: m.TextField })),
+  'textarea': () => import('./widgets/TextAreaField.js').then(m => ({ default: m.TextAreaField })),
+  'number': () => import('./widgets/NumberField.js').then(m => ({ default: m.NumberField })),
+  'boolean': () => import('./widgets/BooleanField.js').then(m => ({ default: m.BooleanField })),
+  'select': () => import('./widgets/SelectField.js').then(m => ({ default: m.SelectField })),
+  'date': () => import('./widgets/DateField.js').then(m => ({ default: m.DateField })),
+  'datetime': () => import('./widgets/DateTimeField.js').then(m => ({ default: m.DateTimeField })),
+  'time': () => import('./widgets/TimeField.js').then(m => ({ default: m.TimeField })),
   
   // Contact fields
-  'email': () => import('./widgets/EmailField').then(m => ({ default: m.EmailField })),
-  'phone': () => import('./widgets/PhoneField').then(m => ({ default: m.PhoneField })),
-  'url': () => import('./widgets/UrlField').then(m => ({ default: m.UrlField })),
+  'email': () => import('./widgets/EmailField.js').then(m => ({ default: m.EmailField })),
+  'phone': () => import('./widgets/PhoneField.js').then(m => ({ default: m.PhoneField })),
+  'url': () => import('./widgets/UrlField.js').then(m => ({ default: m.UrlField })),
   
   // Selection fields (multi-value / option groups)
-  'multiselect': () => import('./widgets/MultiSelectField').then(m => ({ default: m.MultiSelectField })),
-  'radio': () => import('./widgets/RadioField').then(m => ({ default: m.RadioField })),
-  'checkboxes': () => import('./widgets/CheckboxesField').then(m => ({ default: m.CheckboxesField })),
-  'tags': () => import('./widgets/TagsField').then(m => ({ default: m.TagsField })),
+  'multiselect': () => import('./widgets/MultiSelectField.js').then(m => ({ default: m.MultiSelectField })),
+  'radio': () => import('./widgets/RadioField.js').then(m => ({ default: m.RadioField })),
+  'checkboxes': () => import('./widgets/CheckboxesField.js').then(m => ({ default: m.CheckboxesField })),
+  'tags': () => import('./widgets/TagsField.js').then(m => ({ default: m.TagsField })),
 
   // Specialized fields
-  'currency': () => import('./widgets/CurrencyField').then(m => ({ default: m.CurrencyField })),
-  'percent': () => import('./widgets/PercentField').then(m => ({ default: m.PercentField })),
-  'password': () => import('./widgets/PasswordField').then(m => ({ default: m.PasswordField })),
-  'markdown': () => import('./widgets/RichTextField').then(m => ({ default: m.RichTextField })),
-  'html': () => import('./widgets/RichTextField').then(m => ({ default: m.RichTextField })),
-  'richtext': () => import('./widgets/RichTextField').then(m => ({ default: m.RichTextField })),
-  'lookup': () => import('./widgets/LookupField').then(m => ({ default: m.LookupField })),
+  'currency': () => import('./widgets/CurrencyField.js').then(m => ({ default: m.CurrencyField })),
+  'percent': () => import('./widgets/PercentField.js').then(m => ({ default: m.PercentField })),
+  'password': () => import('./widgets/PasswordField.js').then(m => ({ default: m.PasswordField })),
+  'markdown': () => import('./widgets/RichTextField.js').then(m => ({ default: m.RichTextField })),
+  'html': () => import('./widgets/RichTextField.js').then(m => ({ default: m.RichTextField })),
+  'richtext': () => import('./widgets/RichTextField.js').then(m => ({ default: m.RichTextField })),
+  'lookup': () => import('./widgets/LookupField.js').then(m => ({ default: m.LookupField })),
   // master_detail represents the child-side FK to its parent. In create/edit forms it
   // must render as a single-value lookup picker (it is typically NOT NULL). The legacy
   // MasterDetailField widget modelled this as a one-to-many list, which is incorrect
   // for the child-side and prevented users from filling the required parent reference.
-  'master_detail': () => import('./widgets/LookupField').then(m => ({ default: m.LookupField })),
+  'master_detail': () => import('./widgets/LookupField.js').then(m => ({ default: m.LookupField })),
   
   // File fields
-  'file': () => import('./widgets/FileField').then(m => ({ default: m.FileField })),
-  'image': () => import('./widgets/ImageField').then(m => ({ default: m.ImageField })),
+  'file': () => import('./widgets/FileField.js').then(m => ({ default: m.FileField })),
+  'image': () => import('./widgets/ImageField.js').then(m => ({ default: m.ImageField })),
   
   // Location field
-  'location': () => import('./widgets/LocationField').then(m => ({ default: m.LocationField })),
+  'location': () => import('./widgets/LocationField.js').then(m => ({ default: m.LocationField })),
   
   // Computed/Read-only fields
-  'formula': () => import('./widgets/FormulaField').then(m => ({ default: m.FormulaField })),
-  'summary': () => import('./widgets/SummaryField').then(m => ({ default: m.SummaryField })),
-  'auto_number': () => import('./widgets/AutoNumberField').then(m => ({ default: m.AutoNumberField })),
+  'formula': () => import('./widgets/FormulaField.js').then(m => ({ default: m.FormulaField })),
+  'summary': () => import('./widgets/SummaryField.js').then(m => ({ default: m.SummaryField })),
+  'auto_number': () => import('./widgets/AutoNumberField.js').then(m => ({ default: m.AutoNumberField })),
   
   // User fields. `owner` pointed at this same UserField until objectui#4814
   // retired it (see the TOMBSTONE near `registerAllFields`) — do not re-add it
   // here: membership in this map is what makes a name a renderable field type
   // (`FORM_FIELD_TYPES` is its key set).
-  'user': () => import('./widgets/UserField').then(m => ({ default: m.UserField })),
+  'user': () => import('./widgets/UserField.js').then(m => ({ default: m.UserField })),
 
   // Complex data types
-  'object': () => import('./widgets/ObjectField').then(m => ({ default: m.ObjectField })),
-  'vector': () => import('./widgets/VectorField').then(m => ({ default: m.VectorField })),
-  'grid': () => import('./widgets/GridField').then(m => ({ default: m.GridField })),
+  'object': () => import('./widgets/ObjectField.js').then(m => ({ default: m.ObjectField })),
+  'vector': () => import('./widgets/VectorField.js').then(m => ({ default: m.VectorField })),
+  'grid': () => import('./widgets/GridField.js').then(m => ({ default: m.GridField })),
   
   // Additional field types from @objectstack/spec
-  'color': () => import('./widgets/ColorField').then(m => ({ default: m.ColorField })),
-  'slider': () => import('./widgets/SliderField').then(m => ({ default: m.SliderField })),
-  'rating': () => import('./widgets/RatingField').then(m => ({ default: m.RatingField })),
-  'code': () => import('./widgets/CodeField').then(m => ({ default: m.CodeField })),
-  'avatar': () => import('./widgets/AvatarField').then(m => ({ default: m.AvatarField })),
-  'address': () => import('./widgets/AddressField').then(m => ({ default: m.AddressField })),
-  'geolocation': () => import('./widgets/GeolocationField').then(m => ({ default: m.GeolocationField })),
-  'signature': () => import('./widgets/SignatureField').then(m => ({ default: m.SignatureField })),
-  'qrcode': () => import('./widgets/QRCodeField').then(m => ({ default: m.QRCodeField })),
+  'color': () => import('./widgets/ColorField.js').then(m => ({ default: m.ColorField })),
+  'slider': () => import('./widgets/SliderField.js').then(m => ({ default: m.SliderField })),
+  'rating': () => import('./widgets/RatingField.js').then(m => ({ default: m.RatingField })),
+  'code': () => import('./widgets/CodeField.js').then(m => ({ default: m.CodeField })),
+  'avatar': () => import('./widgets/AvatarField.js').then(m => ({ default: m.AvatarField })),
+  'address': () => import('./widgets/AddressField.js').then(m => ({ default: m.AddressField })),
+  'geolocation': () => import('./widgets/GeolocationField.js').then(m => ({ default: m.GeolocationField })),
+  'signature': () => import('./widgets/SignatureField.js').then(m => ({ default: m.SignatureField })),
+  'qrcode': () => import('./widgets/QRCodeField.js').then(m => ({ default: m.QRCodeField })),
 
   // Widget-hint-only pickers (reached via a field `widget:` override, never a
   // bare field `type`). They render a *picker* over machine data an admin would
@@ -2756,9 +2756,9 @@ const fieldWidgetMap = {
   //   object-ref       → choose a registered object by name
   //   filter-condition → visual criteria builder scoped to the chosen object
   //   recipient-picker → record picker whose target follows a sibling type
-  'object-ref': () => import('./widgets/ObjectRefField').then(m => ({ default: m.ObjectRefField })),
-  'filter-condition': () => import('./widgets/FilterConditionField').then(m => ({ default: m.FilterConditionField })),
-  'recipient-picker': () => import('./widgets/RecipientPickerField').then(m => ({ default: m.RecipientPickerField })),
+  'object-ref': () => import('./widgets/ObjectRefField.js').then(m => ({ default: m.ObjectRefField })),
+  'filter-condition': () => import('./widgets/FilterConditionField.js').then(m => ({ default: m.FilterConditionField })),
+  'recipient-picker': () => import('./widgets/RecipientPickerField.js').then(m => ({ default: m.RecipientPickerField })),
 } satisfies Record<string, FieldWidgetLoader>;
 
 /** The registered field widget keys, as a literal union (objectui#4857). */
@@ -3135,79 +3135,79 @@ export function registerAllFields(): void {
 // field NAME carries ownership meaning, the type carries the widget.
 // `UserField` and `UserCellRenderer` are untouched; only the synonym is gone.
 
-export * from './widgets/types';
+export * from './widgets/types.js';
 // File field value shapes (ObjectStack ADR-0104 D3 wave 2) — the single
 // arbiter of reference vs expanded vs legacy-blob form, shared by the upload
 // widgets and by action-param serialization.
-export * from './widgets/file-value';
-export * from './FieldEditWidget';
-export * from './widgets/TextField';
-export * from './widgets/NumberField';
-export * from './widgets/BooleanField';
-export * from './widgets/SelectField';
-export * from './widgets/DateField';
-export * from './widgets/DateTimeField';
-export * from './widgets/TimeField';
-export * from './widgets/EmailField';
-export * from './widgets/PhoneField';
-export * from './widgets/UrlField';
-export * from './widgets/CurrencyField';
-export * from './widgets/PercentField';
-export * from './widgets/PasswordField';
-export * from './widgets/TextAreaField';
-export * from './widgets/RichTextField';
-export * from './widgets/LookupField';
-export * from './widgets/CapabilityMultiSelectField';
-export * from './widgets/ObjectRefField';
-export * from './widgets/FilterConditionField';
-export * from './widgets/RecipientPickerField';
-export * from './widgets/RecordPickerDialog';
+export * from './widgets/file-value.js';
+export * from './FieldEditWidget.js';
+export * from './widgets/TextField.js';
+export * from './widgets/NumberField.js';
+export * from './widgets/BooleanField.js';
+export * from './widgets/SelectField.js';
+export * from './widgets/DateField.js';
+export * from './widgets/DateTimeField.js';
+export * from './widgets/TimeField.js';
+export * from './widgets/EmailField.js';
+export * from './widgets/PhoneField.js';
+export * from './widgets/UrlField.js';
+export * from './widgets/CurrencyField.js';
+export * from './widgets/PercentField.js';
+export * from './widgets/PasswordField.js';
+export * from './widgets/TextAreaField.js';
+export * from './widgets/RichTextField.js';
+export * from './widgets/LookupField.js';
+export * from './widgets/CapabilityMultiSelectField.js';
+export * from './widgets/ObjectRefField.js';
+export * from './widgets/FilterConditionField.js';
+export * from './widgets/RecipientPickerField.js';
+export * from './widgets/RecordPickerDialog.js';
 // Shared picker-column derivation (ADR-0085 highlightFields → displayFields →
 // schema walk) — consumed by LookupField AND by RelatedList's Add-picker so a
 // lookup picker and a related-list Add dialog of the same object agree on
 // columns (#3365).
-export * from './widgets/deriveLookupColumns';
-export * from './widgets/FileField';
-export * from './widgets/ImageField';
-export { ImageCropperDialog } from './widgets/ImageCropperDialog';
-export type { ImageCropperDialogProps } from './widgets/ImageCropperDialog';
-export * from './widgets/LocationField';
-export * from './widgets/FormulaField';
-export * from './widgets/SummaryField';
-export * from './widgets/AutoNumberField';
-export * from './widgets/UserField';
-export * from './widgets/ObjectField';
-export * from './widgets/VectorField';
-export * from './widgets/GridField';
+export * from './widgets/deriveLookupColumns.js';
+export * from './widgets/FileField.js';
+export * from './widgets/ImageField.js';
+export { ImageCropperDialog } from './widgets/ImageCropperDialog.js';
+export type { ImageCropperDialogProps } from './widgets/ImageCropperDialog.js';
+export * from './widgets/LocationField.js';
+export * from './widgets/FormulaField.js';
+export * from './widgets/SummaryField.js';
+export * from './widgets/AutoNumberField.js';
+export * from './widgets/UserField.js';
+export * from './widgets/ObjectField.js';
+export * from './widgets/VectorField.js';
+export * from './widgets/GridField.js';
 // New widgets according to @objectstack/spec
-export * from './widgets/ColorField';
-export * from './widgets/SliderField';
-export * from './widgets/RatingField';
-export * from './widgets/CodeField';
-export * from './widgets/AvatarField';
-export * from './widgets/AddressField';
-export * from './widgets/GeolocationField';
-export * from './widgets/SignatureField';
-export * from './widgets/QRCodeField';
-export * from './widgets/MasterDetailField';
-export * from './widgets/MultiSelectField';
-export * from './widgets/RadioField';
-export * from './widgets/CheckboxesField';
-export * from './widgets/TagsField';
+export * from './widgets/ColorField.js';
+export * from './widgets/SliderField.js';
+export * from './widgets/RatingField.js';
+export * from './widgets/CodeField.js';
+export * from './widgets/AvatarField.js';
+export * from './widgets/AddressField.js';
+export * from './widgets/GeolocationField.js';
+export * from './widgets/SignatureField.js';
+export * from './widgets/QRCodeField.js';
+export * from './widgets/MasterDetailField.js';
+export * from './widgets/MultiSelectField.js';
+export * from './widgets/RadioField.js';
+export * from './widgets/CheckboxesField.js';
+export * from './widgets/TagsField.js';
 
 // The SDUI-node → `field` adapter every registration here goes through
 // (objectui#3233). Exported so a widget registered OUTSIDE this repo can reach
 // the same single-carrier guarantee instead of re-growing a `field || schema`
 // read of its own.
-export { withFieldCarrier } from './withFieldCarrier';
+export { withFieldCarrier } from './withFieldCarrier.js';
 
 // The whitelist that decides what a widget's `...props` spread may put on a
 // DOM element (objectui#3291) — the runtime executor of the "DOM pass-through"
 // block of `FieldWidgetComponentProps`. Exported for the same reason as
 // `withFieldCarrier` above: a widget authored outside this repo needs to reach
 // it, or it re-grows the bare spread this closed.
-export { toDomProps } from './widgets/toDomProps';
-export type { DomProps } from './widgets/toDomProps';
+export { toDomProps } from './widgets/toDomProps.js';
+export type { DomProps } from './widgets/toDomProps.js';
 
 // The native date/time control value adapters (objectui#3127). `DateTimeField`
 // is ISO-canonical on BOTH sides — it takes the record's ISO instant and hands
@@ -3223,7 +3223,7 @@ export {
   toDateInputValue,
   toDateTimeInputValue,
   fromDateTimeInputValue,
-} from './widgets/nativeDateValue';
+} from './widgets/nativeDateValue.js';
 
 // Initialize registry
 registerAllFields();

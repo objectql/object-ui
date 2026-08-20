@@ -4,9 +4,9 @@
  * Reusable context providers for ObjectUI applications
  */
 
-export { DataSourceProvider, useDataSource } from './DataSourceProvider';
-export { MetadataProvider, useMetadata } from './MetadataProvider';
-export { ThemeProvider, useTheme } from './ThemeProvider';
+export { DataSourceProvider, useDataSource } from './DataSourceProvider.js';
+export { MetadataProvider, useMetadata } from './MetadataProvider.js';
+export { ThemeProvider, useTheme } from './ThemeProvider.js';
 export {
   UploadProvider,
   useUpload,
@@ -14,14 +14,14 @@ export {
   createS3Adapter,
   createAzureBlobAdapter,
   createObjectStackUploadAdapter,
-} from './UploadProvider';
+} from './UploadProvider.js';
 
 export type {
   DataSourceProviderProps,
   MetadataProviderProps,
   ThemeProviderProps,
   ThemePreference,
-} from './types';
+} from './types.js';
 
 export type {
   UploadAdapter,
@@ -31,4 +31,4 @@ export type {
   S3AdapterOptions,
   AzureBlobAdapterOptions,
   ObjectStackUploadAdapterOptions,
-} from './UploadProvider';
+} from './UploadProvider.js';

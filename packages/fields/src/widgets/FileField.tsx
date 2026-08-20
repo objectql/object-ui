@@ -3,11 +3,11 @@ import { Button, EmptyValue } from '@object-ui/components';
 import { useUpload } from '@object-ui/providers';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Upload, X, File as FileIcon, ImageIcon, Camera, Loader2 } from 'lucide-react';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
-import { toHostGroupProps } from './toHostGroupProps';
-import { useUploadingSignal } from './useUploadingSignal';
-import { maxSizeError, type TranslateFn } from './file-size-guard';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
+import { toHostGroupProps } from './toHostGroupProps.js';
+import { useUploadingSignal } from './useUploadingSignal.js';
+import { maxSizeError, type TranslateFn } from './file-size-guard.js';
 import {
   fileValueForSubmit,
   readFileValues,
@@ -15,7 +15,7 @@ import {
   withRecentUploads,
   isImageValue,
   type FileValueView,
-} from './file-value';
+} from './file-value.js';
 
 /**
  * Shared upload pipeline for the file widgets: validates size, uploads through

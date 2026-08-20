@@ -1,8 +1,8 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
 import { NumberFieldMetadata } from '@object-ui/types';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
 
 /**
  * NumberField - Numeric input with optional decimal precision

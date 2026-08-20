@@ -12,7 +12,7 @@ import type {
   PermissionAction,
   PermissionCheckResult,
 } from '@object-ui/types';
-import { evaluatePermission } from './evaluator';
+import { evaluatePermission } from './evaluator.js';
 
 /**
  * Permission store for non-React contexts (e.g., API handlers, middleware).

@@ -1,9 +1,9 @@
 import React from 'react';
 import { FilterBuilder, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
-import type { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
-import { useFieldTranslation } from './useFieldTranslation';
+import type { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
+import { useFieldTranslation } from './useFieldTranslation.js';
 
 /**
  * FilterConditionField — visual criteria builder for a stored FilterCondition

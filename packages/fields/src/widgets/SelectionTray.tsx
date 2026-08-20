@@ -14,7 +14,7 @@ import {
   getPersonInitials,
   getPersonAvatarUrl,
   getPersonId,
-} from './personDisplay';
+} from './personDisplay.js';
 
 /**
  * "Selected" transfer-box area (穿梭框式已选区): live echo of the current

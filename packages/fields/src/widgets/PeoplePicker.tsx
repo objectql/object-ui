@@ -29,17 +29,17 @@ import {
 } from '@object-ui/components';
 import { Search, Loader2, AlertCircle } from 'lucide-react';
 import type { DataSource, LookupFilterDef } from '@object-ui/types';
-import { useRecordQuery } from './useRecordQuery';
+import { useRecordQuery } from './useRecordQuery.js';
 // The repo's single filter sink — conjoins filter sources under one `and`
 // instead of spreading them, so an id restriction can never overwrite a
 // declared filter on the same field (#5195).
 import { mergeFilterNodes } from '@object-ui/core';
-import { lookupFiltersToRecord } from './RecordPickerDialog';
-import { getPersonId } from './personDisplay';
-import { PersonRow } from './PersonRow';
-import { SelectionTray } from './SelectionTray';
-import { getRecentLookupIds, pushRecentLookupId } from './recentLookups';
-import { useFieldTranslation } from './useFieldTranslation';
+import { lookupFiltersToRecord } from './RecordPickerDialog.js';
+import { getPersonId } from './personDisplay.js';
+import { PersonRow } from './PersonRow.js';
+import { SelectionTray } from './SelectionTray.js';
+import { getRecentLookupIds, pushRecentLookupId } from './recentLookups.js';
+import { useFieldTranslation } from './useFieldTranslation.js';
 
 /**
  * PeoplePicker — the Tier 0, search-first user picker (issue #2112).

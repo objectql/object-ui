@@ -7,11 +7,11 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { authGateEvents } from './auth-gate-events';
-import type { AuthUser, AuthClient, AuthProviderOptions, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions } from './types';
-import { AuthCtx, type AuthContextValue } from './AuthContext';
-import { createAuthClient, TokenStorage } from './createAuthClient';
-import { ActiveOrganizationStorage } from './createAuthenticatedFetch';
+import { authGateEvents } from './auth-gate-events.js';
+import type { AuthUser, AuthClient, AuthProviderOptions, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions } from './types.js';
+import { AuthCtx, type AuthContextValue } from './AuthContext.js';
+import { createAuthClient, TokenStorage } from './createAuthClient.js';
+import { ActiveOrganizationStorage } from './createAuthenticatedFetch.js';
 
 /**
  * Prefix of every `MetadataProvider` seed entry in `sessionStorage`

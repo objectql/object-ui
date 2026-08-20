@@ -7,8 +7,8 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { useAuth } from './useAuth';
-import type { AuthLinkComponentProps } from './types';
+import { useAuth } from './useAuth.js';
+import type { AuthLinkComponentProps } from './types.js';
 import {
   AUTH_FIELD_LABEL_CLASS,
   AUTH_INPUT_CLASS,
@@ -18,7 +18,7 @@ import {
   AuthFormHeader,
   AuthMailIcon,
   AuthSpinner,
-} from './authStyles';
+} from './authStyles.js';
 
 /** Translatable labels for the ForgotPasswordForm */
 export interface ForgotPasswordFormLabels {

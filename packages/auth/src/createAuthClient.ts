@@ -11,8 +11,8 @@ import { organizationClient, twoFactorClient } from 'better-auth/client/plugins'
 import type {
   AuthClient, AuthClientConfig, AuthUser, AuthClientSession, SignInCredentials, SignUpData,
   AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions,
-} from './types';
-import { AUTH_INVITATION_STATUSES, isAuthInvitationStatus } from './invitation-status';
+} from './types.js';
+import { AUTH_INVITATION_STATUSES, isAuthInvitationStatus } from './invitation-status.js';
 
 const TOKEN_STORAGE_KEY = 'auth-session-token';
 
@@ -710,7 +710,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
      * `null` so the caller HIDES placement instead of offering a form the
      * server would refuse.
      */
-    async describeDelegableScope(): Promise<import('./types').DelegableScope | null> {
+    async describeDelegableScope(): Promise<import('./types.js').DelegableScope | null> {
       try {
         const securityBase = basePath.replace(/\/auth$/, '/security');
         const response = await bearerFetch(`${origin}${securityBase}/my-delegable-scope`, {
@@ -722,7 +722,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         // The server wraps some payloads as `{ success, data }`; tolerate both.
         const scope = body && typeof body === 'object' && 'data' in body ? body.data : body;
         return scope && typeof scope === 'object' && Array.isArray(scope.placeableBusinessUnitIds)
-          ? (scope as import('./types').DelegableScope)
+          ? (scope as import('./types.js').DelegableScope)
           : null;
       } catch {
         return null;

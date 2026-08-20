@@ -10,20 +10,20 @@ import { cn,
   PopoverTrigger,
   PopoverContent, EmptyValue } from '@object-ui/components';
 import { Search, X, Loader2, AlertCircle, Plus, TableProperties } from 'lucide-react';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
 import type { DataSource, QueryParams, LookupColumnDef } from '@object-ui/types';
-import { RecordPickerDialog, lookupFiltersToRecord } from './RecordPickerDialog';
-import type { RecordPickerFilterColumn } from './RecordPickerDialog';
-import { PeoplePicker } from './PeoplePicker';
-import { useRecordQuery } from './useRecordQuery';
-import { deriveLookupColumns } from './deriveLookupColumns';
+import { RecordPickerDialog, lookupFiltersToRecord } from './RecordPickerDialog.js';
+import type { RecordPickerFilterColumn } from './RecordPickerDialog.js';
+import { PeoplePicker } from './PeoplePicker.js';
+import { useRecordQuery } from './useRecordQuery.js';
+import { deriveLookupColumns } from './deriveLookupColumns.js';
 import { getRecordDisplayName, mergeFilterNodes } from '@object-ui/core';
-import { getRecentLookupIds, pushRecentLookupId } from './recentLookups';
-import { getPersonInitials } from './personDisplay';
-import { getCellRendererResolver } from './_cell-renderer-bridge';
+import { getRecentLookupIds, pushRecentLookupId } from './recentLookups.js';
+import { getPersonInitials } from './personDisplay.js';
+import { getCellRendererResolver } from './_cell-renderer-bridge.js';
 import { SchemaRendererContext as ImportedSchemaRendererContext, useAction, useHasActionProvider } from '@object-ui/react';
-import { useFieldTranslation } from './useFieldTranslation';
+import { useFieldTranslation } from './useFieldTranslation.js';
 
 export interface LookupOption {
   value: string | number;

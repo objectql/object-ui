@@ -13,7 +13,7 @@ import type {
   DelegableAdminScope,
 } from '@objectstack/spec/contracts';
 import type { TenancyPosture } from '@objectstack/spec/security';
-import type { AuthInvitationStatus } from './invitation-status';
+import type { AuthInvitationStatus } from './invitation-status.js';
 
 /**
  * Authentication types for @object-ui/auth

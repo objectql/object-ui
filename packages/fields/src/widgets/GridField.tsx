@@ -1,5 +1,5 @@
 import React, { useCallback, useRef } from 'react';
-import { FieldWidgetComponentProps } from './types';
+import { FieldWidgetComponentProps } from './types.js';
 import {
   cn,
   Button,
@@ -18,11 +18,11 @@ import {
 import { Plus, Trash2, SlidersHorizontal, Maximize2, Copy, GripVertical } from 'lucide-react';
 import { resolveFieldRuleState } from '@object-ui/core';
 import { useDisplayLocale } from '@object-ui/i18n';
-import { LookupField } from './LookupField';
-import { FileCell } from './FileField';
-import { toDateInputValue, toDateTimeInputValue, fromDateTimeInputValue } from './nativeDateValue';
-import { toDomProps } from './toDomProps';
-import { toHostGroupProps } from './toHostGroupProps';
+import { LookupField } from './LookupField.js';
+import { FileCell } from './FileField.js';
+import { toDateInputValue, toDateTimeInputValue, fromDateTimeInputValue } from './nativeDateValue.js';
+import { toDomProps } from './toDomProps.js';
+import { toHostGroupProps } from './toHostGroupProps.js';
 
 /**
  * GridField / LineItemsField — editable child-grid ("line items") widget.

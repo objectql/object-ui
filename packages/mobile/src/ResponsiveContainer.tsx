@@ -8,7 +8,7 @@
 
 import React from 'react';
 import type { BreakpointName } from '@object-ui/types';
-import { useBreakpoint } from './useBreakpoint';
+import { useBreakpoint } from './useBreakpoint.js';
 
 export interface ResponsiveContainerProps {
   /** Minimum breakpoint to show content */

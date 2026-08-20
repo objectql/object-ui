@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button, Badge, cn } from '@object-ui/components';
 import { Plus, X, ExternalLink } from 'lucide-react';
-import { FieldWidgetComponentProps } from './types';
+import { FieldWidgetComponentProps } from './types.js';
 
 // TOMBSTONE (objectui#4811): this widget is NOT in `fieldWidgetMap`
 // (packages/fields/src/index.tsx) and is unreachable from any form path —

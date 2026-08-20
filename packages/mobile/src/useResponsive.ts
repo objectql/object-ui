@@ -8,8 +8,8 @@
 
 import { useMemo } from 'react';
 import type { ResponsiveValue } from '@object-ui/types';
-import { useBreakpoint } from './useBreakpoint';
-import { resolveResponsiveValue } from './breakpoints';
+import { useBreakpoint } from './useBreakpoint.js';
+import { resolveResponsiveValue } from './breakpoints.js';
 
 /**
  * Hook that resolves a responsive value based on the current breakpoint.

@@ -7,7 +7,7 @@
  */
 
 import { useMemo } from 'react';
-import { usePermissions } from './usePermissions';
+import { usePermissions } from './usePermissions.js';
 
 /**
  * Hook to get field-level permissions for a specific object.

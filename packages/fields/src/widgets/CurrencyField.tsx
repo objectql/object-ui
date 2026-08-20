@@ -1,9 +1,9 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
 import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
-import { resolveFieldCurrency, currencyFractionDigits, currencySymbol } from '../currency';
+import { resolveFieldCurrency, currencyFractionDigits, currencySymbol } from '../currency.js';
 
 /**
  * Format currency value for display. When `currency` is undefined the value

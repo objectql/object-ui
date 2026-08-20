@@ -1,9 +1,9 @@
 import React from 'react';
 import { Star } from 'lucide-react';
 import { cn } from '@object-ui/components';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
-import { toHostGroupProps } from './toHostGroupProps';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
+import { toHostGroupProps } from './toHostGroupProps.js';
 
 /**
  * Rating field widget - provides a star rating input

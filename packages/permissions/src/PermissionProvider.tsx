@@ -14,8 +14,8 @@ import type {
   PermissionCheckResult,
   FieldLevelPermission,
 } from '@object-ui/types';
-import { PermCtx, type PermissionContextValue } from './PermissionContext';
-import { evaluatePermission } from './evaluator';
+import { PermCtx, type PermissionContextValue } from './PermissionContext.js';
+import { evaluatePermission } from './evaluator.js';
 
 export interface PermissionProviderProps {
   /** Role definitions */

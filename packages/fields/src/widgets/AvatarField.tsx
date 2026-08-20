@@ -1,8 +1,8 @@
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage, Button } from '@object-ui/components';
 import { Upload, X } from 'lucide-react';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
 
 /**
  * Avatar field widget - provides an avatar/profile picture uploader

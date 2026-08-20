@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { useAuth } from './useAuth';
+import { useAuth } from './useAuth.js';
 
 export interface AuthGuardProps {
   /** Content to render when user is not authenticated */

@@ -11,7 +11,7 @@
  * lets callers opt into local caching but is not built in here.
  */
 
-import { type OfflineQueueBackend, type OfflineOperation, generateOpId } from './offlineQueue';
+import { type OfflineQueueBackend, type OfflineOperation, generateOpId } from './offlineQueue.js';
 
 /** Minimal DataSource shape we care about. */
 export interface QueueableDataSource {

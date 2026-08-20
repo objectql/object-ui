@@ -8,7 +8,7 @@
 
 import React, { createContext, useContext, useMemo } from 'react';
 import type { PWAConfig, PWAOfflineConfig } from '@object-ui/types';
-import { useBreakpoint, type BreakpointState } from './useBreakpoint';
+import { useBreakpoint, type BreakpointState } from './useBreakpoint.js';
 
 export interface MobileContextValue extends BreakpointState {
   /** PWA configuration */

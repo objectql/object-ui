@@ -1,6 +1,6 @@
 import React from 'react';
-import { FieldWidgetComponentProps } from './types';
-import { LookupField } from './LookupField';
+import { FieldWidgetComponentProps } from './types.js';
+import { LookupField } from './LookupField.js';
 
 /**
  * UserField — person picker for the `user` field type.

@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { toDomProps } from './toDomProps';
+import { toDomProps } from './toDomProps.js';
 
 /**
  * The props that make a group-labelled widget's rendered surface the thing its

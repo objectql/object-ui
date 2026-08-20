@@ -1,8 +1,8 @@
 import React, { useId } from 'react';
 import { Textarea, EmptyValue, CharacterCount } from '@object-ui/components';
-import { FullscreenFieldEditor } from './FullscreenFieldEditor';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
+import { FullscreenFieldEditor } from './FullscreenFieldEditor.js';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
 
 /**
  * TextAreaField - Multi-line text input widget

@@ -26,7 +26,7 @@ export {
   type ConnectionState,
   type RealtimeMessage,
   type RealtimeResult,
-} from './useRealtimeSubscription';
+} from './useRealtimeSubscription.js';
 
 export {
   usePresence,
@@ -34,20 +34,20 @@ export {
   type PresenceUser,
   type PresenceConfig,
   type PresenceResult,
-} from './usePresence';
+} from './usePresence.js';
 
 export {
   useConflictResolution,
   type VersionEntry,
   type ConflictInfo,
   type ConflictResolutionResult,
-} from './useConflictResolution';
+} from './useConflictResolution.js';
 
 export {
   CommentThread,
   type Comment,
   type CommentThreadProps,
-} from './CommentThread';
+} from './CommentThread.js';
 
 // This package's i18n seam. Exported like `plugin-detail`'s
 // `useDetailTranslation` / `DETAIL_DEFAULT_TRANSLATIONS` so a host can read the
@@ -57,29 +57,29 @@ export {
   useCollaborationTranslation,
   COLLAB_DEFAULT_TRANSLATIONS,
   type CollaborationTranslate,
-} from './useCollaborationTranslation';
+} from './useCollaborationTranslation.js';
 
 export {
   useMentionNotifications,
   type MentionNotificationsConfig,
   type MentionNotificationsResult,
-} from './useMentionNotifications';
+} from './useMentionNotifications.js';
 
 export {
   useCommentSearch,
   type CommentSearchConfig,
   type CommentSearchReturn,
-} from './useCommentSearch';
+} from './useCommentSearch.js';
 
 export {
   LiveCursors,
   type LiveCursorsProps,
-} from './LiveCursors';
+} from './LiveCursors.js';
 
 export {
   PresenceAvatars,
   type PresenceAvatarsProps,
-} from './PresenceAvatars';
+} from './PresenceAvatars.js';
 
 export {
   PresenceProvider,
@@ -88,7 +88,7 @@ export {
   type PresenceSource,
   type PresenceProviderProps,
   type RecordPresenceScope,
-} from './PresenceProvider';
+} from './PresenceProvider.js';
 
 // Re-export types from @object-ui/types for convenience
 export type {

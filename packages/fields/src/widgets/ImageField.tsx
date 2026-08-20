@@ -3,23 +3,23 @@ import { Button, EmptyValue } from '@object-ui/components';
 import { useUpload } from '@object-ui/providers';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { X, Image as ImageIcon, Crop as CropIcon, Loader2 } from 'lucide-react';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
-import { ImageLightbox } from './ImageLightbox';
-import { useUploadingSignal } from './useUploadingSignal';
-import { maxSizeError, type TranslateFn } from './file-size-guard';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
+import { ImageLightbox } from './ImageLightbox.js';
+import { useUploadingSignal } from './useUploadingSignal.js';
+import { maxSizeError, type TranslateFn } from './file-size-guard.js';
 import {
   fileValueForSubmit,
   readFileValues,
   uploadResultView,
   withRecentUploads,
   type FileValueView,
-} from './file-value';
+} from './file-value.js';
 
 // Lazy-load the cropper so the dialog (canvas + crop logic) is not in the initial
 // ImageField bundle. Consumers that never crop pay zero cost.
 const ImageCropperDialog = lazy(() =>
-  import('./ImageCropperDialog').then((m) => ({ default: m.ImageCropperDialog })),
+  import('./ImageCropperDialog.js').then((m) => ({ default: m.ImageCropperDialog })),
 );
 
 /**

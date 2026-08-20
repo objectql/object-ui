@@ -1,8 +1,8 @@
 import React from 'react';
 import { Input, Textarea, EmptyValue } from '@object-ui/components';
 import { TextareaFieldMetadata } from '@object-ui/types';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
 
 /**
  * TextField - Standard single-line or multi-line text input

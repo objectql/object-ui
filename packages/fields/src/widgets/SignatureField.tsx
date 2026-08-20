@@ -1,8 +1,8 @@
 import React, { useRef, useEffect } from 'react';
 import { Button } from '@object-ui/components';
 import { Eraser } from 'lucide-react';
-import { FieldWidgetComponentProps } from './types';
-import { toHostGroupProps } from './toHostGroupProps';
+import { FieldWidgetComponentProps } from './types.js';
+import { toHostGroupProps } from './toHostGroupProps.js';
 
 /**
  * Signature field widget - provides a signature pad for capturing signatures

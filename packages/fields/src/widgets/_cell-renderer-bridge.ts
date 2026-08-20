@@ -6,7 +6,7 @@
  * index.tsx registers the resolver via setCellRendererResolver().
  * LookupField reads it via getCellRendererResolver() to pass as a prop.
  */
-import type { CellRendererResolver } from './RecordPickerDialog';
+import type { CellRendererResolver } from './RecordPickerDialog.js';
 
 let _resolver: CellRendererResolver | undefined;
 

@@ -8,7 +8,7 @@
 
 import { useContext, useMemo } from 'react';
 import type { PermissionAction, PermissionCheckResult } from '@object-ui/types';
-import { PermCtx, type PermissionContextValue } from './PermissionContext';
+import { PermCtx, type PermissionContextValue } from './PermissionContext.js';
 
 /**
  * Hook to access the permission system.

@@ -1,11 +1,11 @@
 import React, { useId, useEffect } from 'react';
 import { Checkbox, Label, EmptyValue, Badge } from '@object-ui/components';
 import type { OptionLike } from '@object-ui/core';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
-import { toHostGroupProps } from './toHostGroupProps';
-import { OptionsEmptyState } from './OptionsEmptyState';
-import { useCascadingOptions } from './useCascadingOptions';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
+import { toHostGroupProps } from './toHostGroupProps.js';
+import { OptionsEmptyState } from './OptionsEmptyState.js';
+import { useCascadingOptions } from './useCascadingOptions.js';
 
 type Option = OptionLike;
 

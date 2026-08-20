@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { useAuth } from './useAuth';
+import { useAuth } from './useAuth.js';
 
 export interface PreviewBannerProps {
   /** Custom class name for the banner */

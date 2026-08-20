@@ -7,11 +7,11 @@
  */
 
 import React, { useMemo } from 'react';
-import type { PresenceUser } from './usePresence';
+import type { PresenceUser } from './usePresence.js';
 import {
   useCollaborationTranslation,
   type CollaborationTranslate,
-} from './useCollaborationTranslation';
+} from './useCollaborationTranslation.js';
 
 export interface PresenceAvatarsProps {
   /** Present users */

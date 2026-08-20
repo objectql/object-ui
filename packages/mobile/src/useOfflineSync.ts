@@ -7,8 +7,8 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import type { OfflineDataSource } from './createOfflineDataSource';
-import type { OfflineOperation } from './offlineQueue';
+import type { OfflineDataSource } from './createOfflineDataSource.js';
+import type { OfflineOperation } from './offlineQueue.js';
 
 export interface OfflineSyncState {
   /** True if the browser reports `navigator.onLine`. */

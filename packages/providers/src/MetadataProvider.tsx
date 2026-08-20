@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import type { MetadataProviderProps } from './types';
+import type { MetadataProviderProps } from './types.js';
 
 interface MetadataContextValue {
   metadata: any;

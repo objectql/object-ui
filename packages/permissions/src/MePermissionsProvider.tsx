@@ -19,7 +19,7 @@ import type {
   PermissionCheckResult,
   FieldLevelPermission,
 } from '@object-ui/types';
-import { PermCtx, type PermissionContextValue } from './PermissionContext';
+import { PermCtx, type PermissionContextValue } from './PermissionContext.js';
 
 /**
  * Shape of the upstream `/api/v1/auth/me/permissions` response.

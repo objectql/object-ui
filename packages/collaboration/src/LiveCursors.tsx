@@ -7,7 +7,7 @@
  */
 
 import React, { useMemo } from 'react';
-import type { PresenceUser } from './usePresence';
+import type { PresenceUser } from './usePresence.js';
 
 export interface LiveCursorsProps {
   /** Other users' presence data */

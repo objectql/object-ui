@@ -2,8 +2,8 @@ import React from 'react';
 import { Badge, EmptyValue, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
 import type { DataSource, QueryParams } from '@object-ui/types';
-import { FieldWidgetComponentProps } from './types';
-import { useFieldTranslation } from './useFieldTranslation';
+import { FieldWidgetComponentProps } from './types.js';
+import { useFieldTranslation } from './useFieldTranslation.js';
 
 /**
  * CapabilityMultiSelectField — structured picker for a permission set's

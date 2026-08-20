@@ -1,9 +1,9 @@
 import React from 'react';
 import { cn, Textarea, EmptyValue, type FullscreenEditorAria } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/react';
-import { FullscreenFieldEditor } from './FullscreenFieldEditor';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps, type DomProps } from './toDomProps';
+import { FullscreenFieldEditor } from './FullscreenFieldEditor.js';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps, type DomProps } from './toDomProps.js';
 
 /**
  * The rich-text editing surface, rendered by `RichTextField` in BOTH positions:
