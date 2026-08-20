@@ -1,0 +1,349 @@
+# THROWAWAY MEASUREMENT INSTRUMENT — objectui#5403. NOT TO BE MERGED.
+#
+# Lives only on branch `claude/issue-5403-proto`. `ci.yml` is untouched here;
+# the production `test-coverage` job keeps every setting it has on `main`.
+#
+# It answers four questions with real CI runs, on the same commit, same runner
+# class, after objectui#5402 landed (which is why the numbers in #5403's body
+# are stale and must not be inherited):
+#
+#   A  what a 4-way sharded coverage run costs in wall clock, using the exact
+#      recipe #5403's PR ships
+#   B  whether the merged blob report is equivalent to the unsharded report
+#   C  whether a shard leg WITHOUT the threshold override fails on its partial
+#      coverage — the prediction the shipped recipe is built on
+#   D  whether the shipped "a skipped Codecov upload is loud" gating actually
+#      goes red when a shard fails, and stays quiet when it does not
+#
+# Results come back as a file this workflow pushes to a per-run branch: the
+# measuring session's egress proxy blocks the Actions log and artifact CDN, so
+# neither logs nor artifact bodies are readable from it.
+name: PROTO 5403 sharded coverage equivalence
+
+on:
+  push:
+    branches:
+      - 'claude/issue-5403-proto'
+
+permissions:
+  contents: write
+
+concurrency:
+  # Keyed on the SHA, and NOT cancel-in-progress: two rounds of this instrument
+  # must be able to run at once — comparing two identical sharded runs is how
+  # the noise floor gets measured.
+  group: proto-5403-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  # ── A: the shipped recipe, 4 ways ─────────────────────────────────────────
+  shard:
+    name: PROTO shard ${{ matrix.shard }}/4
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - run: corepack enable
+      - run: pnpm --version
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Run tests with coverage (shard ${{ matrix.shard }}/4)
+        run: >-
+          pnpm test:coverage --reporter=blob --shard=${{ matrix.shard }}/4
+          --coverage.thresholds.lines=0 --coverage.thresholds.functions=0
+          --coverage.thresholds.branches=0 --coverage.thresholds.statements=0
+      - name: Show what the blob reporter wrote
+        if: always()
+        run: ls -la .vitest-reports/ || echo "::error title=PROTO-5403::no .vitest-reports from shard ${{ matrix.shard }}"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: proto-blob-${{ matrix.shard }}
+          path: .vitest-reports/*
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+  # ── C: the counter-probe for the threshold override ───────────────────────
+  # Same shard, same commit, WITHOUT the four --coverage.thresholds.*=0 flags.
+  # Prediction: this fails, because vitest's generateReports() checks the
+  # configured thresholds on every coverage run and a shard holds a quarter of
+  # the suite. If it passes, the override in the shipped recipe is unnecessary
+  # and that has to be said out loud rather than shipped as decoration.
+  probe-no-override:
+    name: PROTO shard 1/4 WITHOUT the threshold override
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      outcome: ${{ steps.plain.outcome }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Run tests with coverage (shard 1/4, thresholds left alone)
+        id: plain
+        continue-on-error: true
+        run: pnpm test:coverage --reporter=blob --shard=1/4
+      - name: Say which way it went
+        if: always()
+        run: echo "::notice title=PROTO-5403-THRESHOLD-PROBE::plain shard 1/4 outcome=${{ steps.plain.outcome }}"
+
+  # ── A/B/D: merge the blobs, and the green leg of the loud-upload gating ───
+  merge:
+    name: PROTO merge blob reports
+    needs: shard
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      summary: ${{ steps.summary.outputs.summary }}
+      blobs: ${{ steps.count.outputs.blobs }}
+      verdict: ${{ steps.verdict.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: proto-blob-*
+          path: .vitest-reports
+          merge-multiple: true
+      - name: Refuse to merge a partial set of shard reports
+        id: count
+        run: |
+          blobs=$(ls -1 .vitest-reports/blob-*-4.json 2>/dev/null | wc -l)
+          echo "blobs=$blobs" >> "$GITHUB_OUTPUT"
+          ls -la .vitest-reports/
+          if [ "$blobs" -ne 4 ]; then
+            echo "::error title=PROTO-5403::expected 4 blob reports, found $blobs"
+            exit 1
+          fi
+      - name: Merge the shard reports into one coverage report
+        run: pnpm test:coverage --merge-reports --coverage.reporter=json --coverage.reporter=text
+      - name: Summarise merged coverage
+        id: summary
+        if: always()
+        run: node scripts-proto/summarise-coverage.mjs coverage/coverage-final.json MERGED
+      - name: Upload coverage to Codecov (STUBBED in the instrument)
+        id: codecov
+        # Deliberately NOT the real codecov-action: publishing a report from a
+        # throwaway branch would push a number into the dashboard, which is the
+        # one thing #5403 forbids. The `if:` expression is the shipped one; only
+        # the body is a stub.
+        run: echo "would upload coverage/coverage-final.json to Codecov"
+      - name: Say out loud whether Codecov received this commit
+        id: verdict
+        if: always()
+        env:
+          SHARDS: ${{ needs.shard.result }}
+          UPLOAD: ${{ steps.codecov.outcome }}
+        run: |
+          if [ "$SHARDS" = 'success' ] && [ "$UPLOAD" = 'success' ]; then
+            echo "verdict=updated" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Codecov updated::shards=$SHARDS upload=$UPLOAD"
+            exit 0
+          fi
+          echo "verdict=NOT-updated" >> "$GITHUB_OUTPUT"
+          echo "::error title=Codecov NOT updated::shards=$SHARDS upload=$UPLOAD"
+          exit 1
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: proto-coverage-merged
+          path: coverage/coverage-final.json
+          retention-days: 1
+          if-no-files-found: error
+
+  # ── B: the status quo on the same commit — the baseline to compare against ─
+  baseline:
+    name: PROTO unsharded coverage baseline
+    runs-on: ubuntu-latest
+    # Instrument, not a gate: production `test-coverage` keeps its 40 minutes.
+    # A timeout here would truncate the measurement, which is the one thing
+    # this file must not do.
+    timeout-minutes: 75
+    outputs:
+      summary: ${{ steps.summary.outputs.summary }}
+      present: ${{ steps.summary.outputs.present }}
+      outcome: ${{ steps.baserun.outcome }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      # Byte-for-byte the production recipe from ci.yml's `test-coverage`.
+      - name: Run tests with coverage
+        id: baserun
+        continue-on-error: true
+        run: pnpm test:coverage --coverage.reporter=json --coverage.reporter=text
+      - name: Summarise unsharded coverage
+        id: summary
+        if: always()
+        run: node scripts-proto/summarise-coverage.mjs coverage/coverage-final.json UNSHARDED
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: proto-coverage-unsharded
+          path: coverage/coverage-final.json
+          retention-days: 1
+          if-no-files-found: error
+
+  compare:
+    name: PROTO compare merged vs unsharded
+    needs: [merge, baseline]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      lines: ${{ steps.cmp.outputs.lines }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: proto-coverage-merged
+          path: merged
+      - uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: proto-coverage-unsharded
+          path: unsharded
+      - name: Compare
+        id: cmp
+        run: node scripts-proto/compare-coverage.mjs unsharded/coverage-final.json merged/coverage-final.json
+
+  # ── D: the RED leg of the loud-upload gating ─────────────────────────────
+  # No suite is run here: the point is the `if:` expressions and the verdict
+  # step, driven by a genuinely failed `needs`. Shard 2 exits 1; the merge copy
+  # below carries the SHIPPED expressions verbatim.
+  red-arm-shard:
+    name: PROTO red-arm shard ${{ matrix.shard }}/4
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - name: Stand in for a suite that fails on shard 2
+        run: |
+          if [ '${{ matrix.shard }}' = '2' ]; then
+            echo 'simulated red shard'
+            exit 1
+          fi
+          echo 'simulated green shard'
+
+  red-arm-merge:
+    name: PROTO red-arm merge (must go RED and say why)
+    needs: red-arm-shard
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download every shard's blob report
+        if: needs.red-arm-shard.result == 'success'
+        run: echo 'this must not run'
+      - name: Merge the shard reports into one coverage report
+        if: needs.red-arm-shard.result == 'success'
+        run: echo 'this must not run'
+      - name: Upload coverage to Codecov
+        id: codecov
+        if: needs.red-arm-shard.result == 'success'
+        run: echo 'this must not run'
+      - name: Say out loud whether Codecov received this commit
+        id: verdict
+        if: always()
+        env:
+          SHARDS: ${{ needs.red-arm-shard.result }}
+          UPLOAD: ${{ steps.codecov.outcome }}
+        run: |
+          if [ "$SHARDS" = 'success' ] && [ "$UPLOAD" = 'success' ]; then
+            echo "::notice title=Codecov updated::shards=$SHARDS upload=$UPLOAD"
+            exit 0
+          fi
+          echo "::error title=Codecov NOT updated::shards=$SHARDS upload=$UPLOAD"
+          exit 1
+
+  # ── the results channel: a file pushed to a per-run branch ────────────────
+  report:
+    name: PROTO write results
+    needs: [shard, probe-no-override, merge, baseline, compare, red-arm-shard, red-arm-merge]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Write the results file
+        env:
+          R_SHARD: ${{ needs.shard.result }}
+          R_PROBE: ${{ needs.probe-no-override.result }}
+          O_PROBE: ${{ needs.probe-no-override.outputs.outcome }}
+          R_MERGE: ${{ needs.merge.result }}
+          S_MERGE: ${{ needs.merge.outputs.summary }}
+          B_MERGE: ${{ needs.merge.outputs.blobs }}
+          V_MERGE: ${{ needs.merge.outputs.verdict }}
+          R_BASE: ${{ needs.baseline.result }}
+          S_BASE: ${{ needs.baseline.outputs.summary }}
+          P_BASE: ${{ needs.baseline.outputs.present }}
+          O_BASE: ${{ needs.baseline.outputs.outcome }}
+          R_CMP: ${{ needs.compare.result }}
+          L_CMP: ${{ needs.compare.outputs.lines }}
+          R_REDS: ${{ needs.red-arm-shard.result }}
+          R_REDM: ${{ needs.red-arm-merge.result }}
+        run: |
+          mkdir -p proto-results
+          {
+            echo "# PROTO 5403 results — run ${GITHUB_RUN_ID}"
+            echo
+            echo "commit: ${GITHUB_SHA}"
+            echo
+            echo '## job results'
+            echo "shard(4x)=${R_SHARD}"
+            echo "probe-no-override=${R_PROBE} stepOutcome=${O_PROBE}"
+            echo "merge=${R_MERGE} blobsFound=${B_MERGE} verdict=${V_MERGE}"
+            echo "baseline=${R_BASE} stepOutcome=${O_BASE} coveragePresent=${P_BASE}"
+            echo "compare=${R_CMP}"
+            echo "red-arm-shard=${R_REDS} red-arm-merge=${R_REDM}"
+            echo
+            echo '## merged coverage'
+            echo "${S_MERGE}"
+            echo
+            echo '## unsharded coverage'
+            echo "${S_BASE}"
+            echo
+            echo '## comparison'
+            echo "${L_CMP}"
+          } > "proto-results/run-${GITHUB_RUN_ID}.md"
+          cat "proto-results/run-${GITHUB_RUN_ID}.md"
+      - name: Push it where the measuring session can read it
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f proto-results
+          git commit -m "PROTO(objectui#5403): results for run ${GITHUB_RUN_ID}"
+          git push origin "HEAD:refs/heads/proto-5403-results-${GITHUB_RUN_ID}"
