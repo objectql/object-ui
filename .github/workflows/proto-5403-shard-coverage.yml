@@ -289,10 +289,33 @@ jobs:
           echo "::error title=Codecov NOT updated::shards=$SHARDS upload=$UPLOAD"
           exit 1
 
+  # The ablation for half 2: the SAME job, with the verdict step DELETED and
+  # nothing else changed. Prediction: conclusion=success. A job whose every step
+  # was skipped is a GREEN check — which is exactly the silence #5403 is about,
+  # and the reason the verdict step has to exist rather than the `if:` gating
+  # being considered enough on its own.
+  red-arm-merge-without-verdict:
+    name: PROTO red-arm merge WITHOUT the verdict step (must go GREEN - that IS the bug)
+    needs: red-arm-shard
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download every shard's blob report
+        if: needs.red-arm-shard.result == 'success'
+        run: echo 'this must not run'
+      - name: Merge the shard reports into one coverage report
+        if: needs.red-arm-shard.result == 'success'
+        run: echo 'this must not run'
+      - name: Upload coverage to Codecov
+        id: codecov
+        if: needs.red-arm-shard.result == 'success'
+        run: echo 'this must not run'
+
   # ── the results channel: a file pushed to a per-run branch ────────────────
   report:
     name: PROTO write results
-    needs: [shard, probe-no-override, merge, baseline, compare, red-arm-shard, red-arm-merge]
+    needs: [shard, probe-no-override, merge, baseline, compare, red-arm-shard, red-arm-merge, red-arm-merge-without-verdict]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -315,6 +338,7 @@ jobs:
           L_CMP: ${{ needs.compare.outputs.lines }}
           R_REDS: ${{ needs.red-arm-shard.result }}
           R_REDM: ${{ needs.red-arm-merge.result }}
+          R_REDA: ${{ needs.red-arm-merge-without-verdict.result }}
         run: |
           mkdir -p proto-results
           {
@@ -328,7 +352,7 @@ jobs:
             echo "merge=${R_MERGE} blobsFound=${B_MERGE} verdict=${V_MERGE}"
             echo "baseline=${R_BASE} stepOutcome=${O_BASE} coveragePresent=${P_BASE}"
             echo "compare=${R_CMP}"
-            echo "red-arm-shard=${R_REDS} red-arm-merge=${R_REDM}"
+            echo "red-arm-shard=${R_REDS} red-arm-merge=${R_REDM} red-arm-merge-without-verdict=${R_REDA}"
             echo
             echo '## merged coverage'
             echo "${S_MERGE}"
