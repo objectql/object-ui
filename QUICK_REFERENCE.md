@@ -111,7 +111,13 @@ Every value below is pinned to the manifest that owns it by
 `scripts/__tests__/quick-reference-current-release-4143.test.ts` — edit the anchor and
 that test tells you to edit this block. The one exception is called out on its row.
 
-- **Version:** 17.5.0 (the version every `@object-ui/*` manifest carries — they are one
+You rarely have to edit it by hand. `pnpm quick-reference:sync` rewrites these rows from
+the manifests, and `pnpm quick-reference:check` reports drift without writing. The
+release path runs the sync itself: `changeset:version` bumps every manifest and updates
+this block in the same commit, so a release can no longer leave the block a version
+behind (objectui#5394 — that had happened once per release, three times).
+
+- **Version:** 17.6.0 (the version every `@object-ui/*` manifest carries — they are one
   `fixed` group in `.changeset/config.json`, so a release moves all of them together)
 - **Spec:** `@objectstack/spec` ^17.0.0 (declared by the root `package.json` and by
   `apps/console/package.json`)
