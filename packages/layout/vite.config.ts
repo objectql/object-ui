@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
 
-import { createDtsExplicitExtensions } from '../../scripts/vite-dts-explicit-extensions';
+import { createDtsExplicitExtensions } from '../../scripts/vite-dts-explicit-extensions.ts';
 
 export default defineConfig({
   plugins: [

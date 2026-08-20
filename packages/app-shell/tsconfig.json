@@ -8,7 +8,17 @@
     "types": ["node", "vite/client"],
     "noEmit": false,
     "declaration": true,
-    "composite": true
+    "composite": true,
+
+    // See `packages/react/tsconfig.json` for the full argument: under
+    // `nodenext` a missing relative extension is TS2835 and a bare directory
+    // import is TS2834, so the property is enforced by the compiler instead
+    // of by review. objectui#5365 is what unblocked it here — this package
+    // pulls in both `@object-ui/components` and `@object-ui/layout`, and
+    // until their typings carried explicit extensions this pin produced
+    // 880 TS2305 across 162 files.
+    "module": "nodenext",
+    "moduleResolution": "nodenext"
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"],
