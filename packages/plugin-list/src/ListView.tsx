@@ -763,6 +763,17 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     // off unless turned on. (`hideFields`/`rowColor` default OFF is objectui's
     // historical behavior, kept deliberately — flipping it would grow two
     // buttons on every existing view.)
+    //
+    // This is the VIEW half of a NAME COLLISION, and the right half here:
+    // `userActions` on a VIEW is toolbar policy (`UserActionsConfigSchema`),
+    // while `userActions` on an OBJECT is the CRUD-predicate block
+    // (`edit`/`delete`/`create` with `visibleWhen`/`disabledWhen`). So this
+    // read stays `schema`-only and must never gain an
+    // `?? (objectDef as any)?.userActions` fallback: the object block carries
+    // no toolbar key, and the mirrored mistake — reading VIEW-first where only
+    // the object block is interpretable — is exactly what the `$select`
+    // predicate harvest below was fixed for (objectui#5398, the sibling of
+    // objectui#5240). Pinned by `__tests__/ListView.userActionsCollision.test.tsx`.
     const ua = schema.userActions as Record<string, boolean | undefined> | undefined;
     const addRecordEnabled = schema.addRecord?.enabled === true && ua?.addRecordForm !== false;
     const addRecordPlacement = resolveAddRecordPlacement(schema.addRecord?.position);
@@ -1588,7 +1599,49 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             rowActionDefs: (schema as any).rowActionDefs,
             bulkActionDefs: (schema as any).bulkActionDefs,
             objectActions: (objectDef as any)?.actions,
-            userActions: (schema as any).userActions ?? (objectDef as any)?.userActions,
+            // KEY COLLISION — `userActions` names TWO different blocks, and
+            // only the OBJECT's is interpretable here. This read is therefore
+            // `objectDef`-only; it must never regain a
+            // `(schema as any).userActions ??` left operand. Maintainer ruling
+            // of 2026-08-20 on objectui#5240 (Q1=A), whose `plugin-grid` half
+            // landed as objectui#5426 — this is the sibling read site named in
+            // that ruling (objectui#5398), carrying the same shape and the same
+            // reason on purpose rather than a second spelling of one fix. The
+            // measurements, re-taken here against `@objectstack/spec@17.0.0`:
+            //
+            //   - VIEW-level `userActions` is TOOLBAR POLICY —
+            //     `UserActionsConfigSchema` (`sort`, `search`, `filter`,
+            //     `refresh`, `rowHeight`, `addRecordForm`, `editInline`,
+            //     `buttons`), which REJECTS `edit` BY NAME
+            //     (`unrecognized_keys`). `ListViewSchema` accepts it, so it is
+            //     spec-legal and really authored — it is the very block
+            //     `toolbarFlags` and `inlineEditOffered` read above, and
+            //     `normalizeListViewSchema` MANUFACTURES one from a legacy
+            //     `show*` view that never wrote the key at all.
+            //   - OBJECT-level `userActions` is the CRUD-PREDICATE block
+            //     (`edit` / `delete` / `create` carrying `visibleWhen` /
+            //     `disabledWhen`, objectui#2614) — what
+            //     `resolveEffectiveCrudAffordances` / `isObjectInlineEditable`
+            //     consume off `objectDef` above, and the only shape
+            //     `listViewPredicates` can read: its loop skips every
+            //     non-object value, so a toolbar block yields ZERO predicates.
+            //
+            // Read view-first, a legitimately authored toolbar block therefore
+            // SHADOWED the object's CRUD predicates and dropped their operands
+            // from `$select`; CEL then faults `No such key`, fails CLOSED, and
+            // the row Edit/Delete button vanishes for everyone with nothing
+            // pointing at the projection (objectui#3501 — the whole reason this
+            // harvest exists, stated six lines up).
+            //
+            // On THIS component the shadowing was TOTAL rather than occasional:
+            // `app-shell/src/views/ObjectView.tsx` builds the `userActions` it
+            // hands down as an object literal of two spreads, so the left
+            // operand was `{}` at worst — never nullish, so `??` never fell
+            // through and the object's CRUD block was never reached AT ALL on
+            // that path.
+            //
+            // Pinned by `__tests__/ListView.userActionsCollision.test.tsx`.
+            userActions: (objectDef as any)?.userActions,
           }))) addPredicateField(f);
 
           return Array.from(required);
