@@ -16,8 +16,6 @@ export interface AppShellBranding {
   accentColor?: string;
   /** Favicon URL — replaces the <link rel="icon"> href */
   favicon?: string;
-  /** Logo URL — passed to sidebar/navbar via context */
-  logo?: string;
   /** Page title suffix (sets document.title) */
   title?: string;
 }

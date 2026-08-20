@@ -579,7 +579,6 @@ export function AppSchemaRenderer({
   const branding: AppShellBranding = {
     title: schema.title,
     favicon: schema.favicon,
-    logo: schema.logo,
   };
 
   // --- Build sidebar element ---

@@ -171,7 +171,6 @@ export function ConsoleLayout({
               primaryColor: activeApp.branding.primaryColor,
               accentColor: activeApp.branding.accentColor,
               favicon: activeApp.branding.favicon,
-              logo: activeApp.branding.logo,
               title: activeApp.label
                 ? `${resolveKeyedI18nLabel(activeApp.label)} — ${getProductName()}`
                 : undefined,

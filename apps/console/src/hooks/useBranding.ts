@@ -14,7 +14,6 @@ interface AppBranding {
   primaryColor?: string;
   accentColor?: string;
   favicon?: string;
-  logo?: string;
 }
 
 export function useBranding(app: { branding?: AppBranding; label?: string } | undefined) {
@@ -24,7 +23,6 @@ export function useBranding(app: { branding?: AppBranding; label?: string } | un
           primaryColor: app.branding.primaryColor,
           accentColor: app.branding.accentColor,
           favicon: app.branding.favicon,
-          logo: app.branding.logo,
         }
       : undefined,
     app?.label ? `${app.label} — ${getProductName()}` : undefined,
