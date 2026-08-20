@@ -52,7 +52,17 @@
  * member assertion turns RED and reads the object's authored English label —
  * the exact 17.1.0 symptom — while the free-form fallback pin and the
  * bar/pivot agreement pin stay GREEN, because neither depends on the bundle.
- * Measured result recorded in the PR body.
+ *
+ * Measured: the four zh-CN member pins went RED as predicted, and so did the
+ * bar/pivot agreement pin — a SEQUENCING dependency, not an assertion one, and
+ * this line is the correction rather than a re-run to fit the sentence. That
+ * pin captures the axis spelling by first waiting for the translated category,
+ * so it needs the bundle to get past its `waitFor` even though the property it
+ * asserts (the two surfaces agree) is direction-independent. The pin below it
+ * is the direction-independent twin: it agrees over a FREE-FORM value, waits on
+ * no translation, and stayed GREEN in both legs — which is what shows the
+ * agreement itself does not rest on a bundle entry existing. The two remaining
+ * boundaries (free-form fallback, `en` session) stayed GREEN as predicted.
  *
  * No `dist/` is involved: the root `vitest.config.mts` aliases every
  * `@object-ui/*` specifier to that package's `src/`, and this file imports
