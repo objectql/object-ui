@@ -231,9 +231,17 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * made visible: the collector now reads `.md`, and an entry with a measured reason
  * is what a page that cannot pass yet is owed. They are DISCLOSED debt, not new
  * debt — every one of them was equally unverified before, just unnamed. Their
- * reasons carry the same measured diagnostic mix as the rest, and several name
- * the missing export by hand, because a documented symbol a package does not
- * export is the reader-visible half (objectui#5160).
+ * reasons carry the same measured diagnostic mix as the rest, and a symbol a
+ * package does not export is called out by name, because that is the
+ * reader-visible half (objectui#5160).
+ *
+ * objectui#5343 then read that list back and cleared it for the getting-started
+ * pages: no entry for `content/docs/guide/**` or for
+ * `content/docs/api/schema-reference.md` names a missing export any more. Every
+ * symbol those pages documented now exists on the built `dist/index.d.ts`, so
+ * their reasons record what each fabricated name BECAME instead. Exactly one
+ * entry still names a missing export — `content/docs/utilities/index.md`
+ * (`ObjectStackProvider`), a different directory and a different card.
  *
  * The reasons are deliberately concrete about WHAT would have to change, because
  * "does not compile" is three different jobs: a page whose snippets reference
@@ -248,9 +256,10 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
 const UNGATED_DOCS = {
   'content/docs/api/schema-reference.md':
     '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; plus TS2305x1 TS2724x1 — candidate real defects, un-triaged. The ' +
-    'missing-export diagnostics name `DashboardSchema` (@object-ui/types), `PageSchema` ' +
-    '(@object-ui/types) — the reader-visible half of this entry',
+    'page never defines. This entry read TS2305x1 TS2724x1 until objectui#5343: both were ' +
+    'fabricated exports of @object-ui/types, re-spelled to the names the built `dist/index.d.ts` ' +
+    'declares — `PageSchema` → `PageNodeSchema` (renamed by objectui#3074, which split the ' +
+    'renderer NODE off the spec document type) and `DashboardSchema` → `DashboardComponentSchema`',
   'content/docs/guide/architecture-overview.md':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 5 ' +
     'undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
@@ -264,28 +273,38 @@ const UNGATED_DOCS = {
   'content/docs/guide/building-crud-app.md':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
     '20 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; 4 unresolved-module diagnostic(s); plus TS2305x2 TS2339x1 TS2345x1 ' +
-    'TS2554x1 TS2724x1 TS2882x1 — candidate real defects, un-triaged. The missing-export ' +
-    'diagnostics name `Field` (@object-ui/types), `ObjectSchema` (@object-ui/types), ' +
-    '`registerAllComponents` (@object-ui/components) — the reader-visible half of this entry',
+    'page never defines; 4 unresolved-module diagnostic(s); plus TS2339x1 TS2345x1 TS2882x1 — ' +
+    'candidate real defects, un-triaged. This entry read TS2305x2 TS2554x1 TS2724x1 until ' +
+    'objectui#5343: `registerAllComponents` (@object-ui/components) and the `ObjectSchema` / ' +
+    '`Field` builder pair (@object-ui/types) were fabricated. Registration is now what LOADING ' +
+    'the packages does (`initializeComponents()` plus the side-effect `@object-ui/fields` ' +
+    'import), which also retired the `registerAllFields(Registry)` arity error, and the object ' +
+    'metadata is the plain document a data source serves, with its `fields` record typed ' +
+    '`Record<string, FieldMetadata>`',
   'content/docs/guide/component-registry.md':
     '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
-    '51 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; 6 unresolved-module diagnostic(s); plus TS2305x13 TS2339x1 — candidate ' +
-    'real defects, un-triaged. The missing-export diagnostics name `getComponentRegistry` ' +
-    '(@object-ui/react) x5, `registerDefaultRenderers` (@object-ui/components) x4, `BaseSchema` ' +
-    '(@object-ui/core) x3, `InputRenderer` (@object-ui/components) — the reader-visible half of ' +
-    'this entry',
+    '50 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
+    'page never defines; 6 unresolved-module diagnostic(s). This entry read TS2305x13 TS2339x1 ' +
+    'until objectui#5343, which cleared the page of fabricated exports: `getComponentRegistry` ' +
+    '(@object-ui/react) x5 → the `ComponentRegistry` singleton @object-ui/core exports, ' +
+    '`registerDefaultRenderers` (@object-ui/components) x4 → `initializeComponents()` plus the ' +
+    'side-effect `@object-ui/fields` import, `BaseSchema` (@object-ui/core) x3 → @object-ui/types ' +
+    '(which is also what retired the TS2339, since the real `BaseSchema` declares `className`), ' +
+    'and `InputRenderer` (@object-ui/components), which nothing replaces — the built-in renderers ' +
+    'are registered by loading their package, never handed out one by one',
   'content/docs/guide/deployment.md':
     '6 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
     'page never defines; 1 unresolved-module diagnostic(s); plus TS2322x1 — candidate real ' +
     'defects, un-triaged',
   'content/docs/guide/expressions.md':
-    '8 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 6 ' +
+    '8 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 5 ' +
     'undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; plus TS2724x1 TS7006x3 — candidate real defects, un-triaged. The ' +
-    'missing-export diagnostics name `getExpressionEvaluator` (@object-ui/core) — the ' +
-    'reader-visible half of this entry',
+    'page never defines; plus TS7006x1 — a candidate real defect, un-triaged. This entry read ' +
+    'TS2724x1 TS7006x3 until objectui#5343: `getExpressionEvaluator` (@object-ui/core) was ' +
+    'fabricated and nothing replaces it — there is no process-level evaluator, `SchemaRenderer` ' +
+    'constructs a fresh `ExpressionEvaluator` per evaluation, so the section now teaches the real ' +
+    'surface (`evaluateExpression(expr, context)` / `new ExpressionEvaluator(context)`) and the ' +
+    'two implicit-any parameters went with the `registerOperator` example it rooted',
   'content/docs/guide/layout.md':
     '21 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
     '20 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
@@ -317,21 +336,25 @@ const UNGATED_DOCS = {
     'undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
     'page never defines; 1 unresolved-module diagnostic(s)',
   'content/docs/guide/schema-overview.md':
-    '9 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 2 ' +
+    '8 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 2 ' +
     'undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; plus TS2305x2 TS2724x6 — candidate real defects, un-triaged. The ' +
-    'missing-export diagnostics name `AppSchema` (@object-ui/types) x2, `ThemeSchema` ' +
-    '(@object-ui/types) x2, `AppSchema` (@object-ui/types/zod), `ReportSchema` ' +
-    '(@object-ui/types), `ReportSchema` (@object-ui/types/zod), `ThemeSchema` ' +
-    '(@object-ui/types/zod) — the reader-visible half of this entry',
+    'page never defines. This entry read TS2305x2 TS2724x6 until objectui#5343: `AppSchema`, ' +
+    '`ThemeSchema` and `ReportSchema` were fabricated in BOTH the type and the ' +
+    '`@object-ui/types/zod` entry, and are re-spelled `AppComponentSchema`, ' +
+    '`ThemeComponentSchema`, `ReportComponentSchema` at every site including the prose. The ' +
+    'annotations that renaming made real then rejected two more falsehoods in the theme example ' +
+    '(`mode: \'system\'`, and per-theme `light`/`dark` palettes where the spec `Theme` carries one ' +
+    '`colors` map), fixed in the same pass so the page could not get worse',
   'content/docs/guide/schema-rendering.md':
     '8 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
     '10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; 1 unresolved-module diagnostic(s); plus TS2305x4 TS2322x1 TS2451x2 ' +
-    'TS7006x5 — candidate real defects, un-triaged. The missing-export diagnostics name ' +
-    '`FormSchema` (@object-ui/core), `getComponentRegistry` (@object-ui/react), `PageSchema` ' +
-    '(@object-ui/core), `registerDefaultRenderers` (@object-ui/components) — the reader-visible ' +
-    'half of this entry',
+    'page never defines; 1 unresolved-module diagnostic(s); plus TS2322x1 TS2451x2 TS7006x5 — ' +
+    'candidate real defects, un-triaged. This entry read TS2305x4 until objectui#5343: ' +
+    '`registerDefaultRenderers` (@object-ui/components) → `initializeComponents()` plus the ' +
+    'side-effect `@object-ui/fields` import, `getComponentRegistry` (@object-ui/react) → the ' +
+    '`ComponentRegistry` singleton @object-ui/core exports, and `PageSchema` / `FormSchema` were ' +
+    'claimed from @object-ui/core while they live in @object-ui/types (`PageNodeSchema` there, ' +
+    'whose `body` is `SchemaNode[]` — the typed example is written as an array now)',
   'content/docs/guide/theming.md':
     '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
     '23 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
@@ -339,9 +362,11 @@ const UNGATED_DOCS = {
     'real defects, un-triaged',
   'content/docs/guide/troubleshooting.md':
     '8 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; 1 unresolved-module diagnostic(s); plus TS2322x1 TS2339x2 TS2559x1 ' +
-    'TS2724x1 — candidate real defects, un-triaged. The missing-export diagnostics name ' +
-    '`componentSchema` (@object-ui/types/zod) — the reader-visible half of this entry',
+    'page never defines; 1 unresolved-module diagnostic(s); plus TS2322x1 TS2339x2 TS2559x1 — ' +
+    'candidate real defects, un-triaged. This entry read TS2724x1 until objectui#5343: the zod ' +
+    'entry exports `ComponentSchema`, not `componentSchema` — and because the same block imports ' +
+    'the TYPE of that name from @object-ui/types, the validator is imported under an alias rather ' +
+    'than colliding with it',
   'content/docs/guide/user-state-persistence.md':
     '10 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
     '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +

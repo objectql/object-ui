@@ -25,7 +25,7 @@ ObjectUI includes enterprise-grade capabilities to build production-ready applic
 Define your entire application structure with navigation, branding, and global settings.
 
 ```typescript
-const app: AppSchema = {
+const app: AppComponentSchema = {
   type: 'app',
   title: 'My Application',
   layout: 'sidebar',
@@ -48,13 +48,14 @@ const app: AppSchema = {
 Dynamic theming with light/dark modes, color palettes, and typography.
 
 ```typescript
-const theme: ThemeSchema = {
+const theme: ThemeComponentSchema = {
   type: 'theme',
   mode: 'dark',
   themes: [{
-    name: 'professional',
-    light: { primary: '#3b82f6', ... },
-    dark: { primary: '#60a5fa', ... }
+    name: 'professional-dark',
+    label: 'Professional (Dark)',
+    mode: 'dark',
+    colors: { primary: '#60a5fa', background: '#0f172a', ... }
   }]
 };
 ```
@@ -105,7 +106,7 @@ const action: ActionSchema = {
 Enterprise reports with aggregation, export, and scheduling.
 
 ```typescript
-const report: ReportSchema = {
+const report: ReportComponentSchema = {
   type: 'report',
   title: 'Sales Report',
   fields: [
@@ -160,10 +161,10 @@ const block: BlockSchema = {
 
 | Schema | Purpose | Best For |
 |--------|---------|----------|
-| **AppSchema** | Application structure | Multi-page apps, dashboards |
-| **ThemeSchema** | Visual theming | Brand consistency, white-labeling |
+| **AppComponentSchema** | Application structure | Multi-page apps, dashboards |
+| **ThemeComponentSchema** | Visual theming | Brand consistency, white-labeling |
 | **Enhanced Actions** | Complex workflows | API integration, multi-step processes |
-| **ReportSchema** | Data reporting | Analytics, business intelligence |
+| **ReportComponentSchema** | Data reporting | Analytics, business intelligence |
 | **BlockSchema** | Reusable components | Marketing pages, component libraries |
 
 ## View Components
@@ -202,10 +203,10 @@ Import the type definitions you need:
 
 ```typescript
 import type { 
-  AppSchema, 
-  ThemeSchema, 
+  AppComponentSchema, 
+  ThemeComponentSchema, 
   ActionSchema,
-  ReportSchema,
+  ReportComponentSchema,
   BlockSchema 
 } from '@object-ui/types';
 ```
@@ -216,14 +217,14 @@ For runtime validation, use the included Zod schemas:
 
 ```typescript
 import { 
-  AppSchema,
-  ThemeSchema,
+  AppComponentSchema,
+  ThemeComponentSchema,
   ActionSchema,
-  ReportSchema,
+  ReportComponentSchema,
   BlockSchema
 } from '@object-ui/types/zod';
 
-const result = AppSchema.safeParse(myConfig);
+const result = AppComponentSchema.safeParse(myConfig);
 if (result.success) {
   // Valid configuration
   const app = result.data;
@@ -238,10 +239,10 @@ if (result.success) {
 Here's a complete example showing how to build a simple CRM application using ObjectUI schemas:
 
 ```typescript
-import type { AppSchema, ThemeSchema } from '@object-ui/types';
+import type { AppComponentSchema, ThemeComponentSchema } from '@object-ui/types';
 
 // Define your application structure
-const app: AppSchema = {
+const app: AppComponentSchema = {
   type: 'app',
   name: 'enterprise-crm',
   title: 'Enterprise CRM',
@@ -277,14 +278,23 @@ const app: AppSchema = {
 };
 
 // Configure your theme
-const theme: ThemeSchema = {
+const theme: ThemeComponentSchema = {
   type: 'theme',
-  mode: 'system',
-  themes: [{
-    name: 'professional',
-    light: { primary: '#3b82f6', background: '#fff' },
-    dark: { primary: '#60a5fa', background: '#0f172a' }
-  }],
+  mode: 'auto',
+  themes: [
+    {
+      name: 'professional-light',
+      label: 'Professional (Light)',
+      mode: 'light',
+      colors: { primary: '#3b82f6', background: '#ffffff' }
+    },
+    {
+      name: 'professional-dark',
+      label: 'Professional (Dark)',
+      mode: 'dark',
+      colors: { primary: '#60a5fa', background: '#0f172a' }
+    }
+  ],
   allowSwitching: true,
   persistPreference: true
 };
@@ -304,9 +314,9 @@ ObjectUI provides advanced schemas and capabilities for enterprise applications:
 
 ObjectUI includes these top-level schemas:
 
-- **`AppSchema`** - Define your entire application structure
-- **`ThemeSchema`** - Configure themes and color palettes
-- **`ReportSchema`** - Create data reports with aggregation
+- **`AppComponentSchema`** - Define your entire application structure
+- **`ThemeComponentSchema`** - Configure themes and color palettes
+- **`ReportComponentSchema`** - Create data reports with aggregation
 - **`BlockSchema`** - Build reusable component blocks
 
 ### Enhanced ActionSchema
@@ -338,9 +348,9 @@ ObjectUI includes enhanced view components:
    npm install @object-ui/types@latest
    ```
 
-2. **Configure application** - Define your app structure with AppSchema (optional)
+2. **Configure application** - Define your app structure with AppComponentSchema (optional)
    
-3. **Set up theming** - Add a ThemeSchema for consistent styling (optional)
+3. **Set up theming** - Add a ThemeComponentSchema for consistent styling (optional)
 
 4. **Implement actions** - Use advanced action features like `confirm` and callbacks
 

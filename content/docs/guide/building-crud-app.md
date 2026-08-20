@@ -57,13 +57,17 @@ Add to your `src/index.css`:
 Create `src/setup.ts` to register the built-in component and field renderers:
 
 ```ts
-import { Registry } from '@object-ui/core';
-import { registerAllComponents } from '@object-ui/components';
-import { registerAllFields } from '@object-ui/fields';
+import { initializeComponents } from '@object-ui/components';
+// Side-effect import: loading the package runs its own field registration.
+import '@object-ui/fields';
 
-registerAllComponents(Registry);
-registerAllFields(Registry);
+initializeComponents();
 ```
+
+Loading each package registers what it owns — the components and the field
+widgets go into the one `ComponentRegistry` that `@object-ui/core` exports.
+`initializeComponents()` takes no arguments; it exists so a bundler cannot
+tree-shake the side-effect import away.
 
 Import this file once at the top of your app entry point (`src/main.tsx` or `src/App.tsx`).
 
@@ -72,31 +76,46 @@ Import this file once at the top of your app entry point (`src/main.tsx` or `src
 Create `src/schemas/task.ts`. This is the metadata that drives the entire UI — grid columns, form fields, validation, and views are all derived from this schema:
 
 ```ts
-import { ObjectSchema, Field } from '@object-ui/types';
+import type { FieldMetadata } from '@object-ui/types';
 
-export const TaskSchema = ObjectSchema.create({
+const fields: Record<string, FieldMetadata> = {
+  title: { name: 'title', type: 'text', label: 'Title', required: true },
+  status: {
+    name: 'status',
+    type: 'select',
+    label: 'Status',
+    defaultValue: 'Todo',
+    options: [
+      { label: 'Backlog', value: 'Backlog' },
+      { label: 'Todo', value: 'Todo' },
+      { label: 'In Progress', value: 'In Progress' },
+      { label: 'Review', value: 'Review' },
+      { label: 'Done', value: 'Done' },
+    ],
+  },
+  priority: {
+    name: 'priority',
+    type: 'select',
+    label: 'Priority',
+    defaultValue: 'Medium',
+    options: [
+      { label: 'Critical', value: 'Critical' },
+      { label: 'High', value: 'High' },
+      { label: 'Medium', value: 'Medium' },
+      { label: 'Low', value: 'Low' },
+    ],
+  },
+  assignee: { name: 'assignee', type: 'text', label: 'Assignee' },
+  due_date: { name: 'due_date', type: 'date', label: 'Due Date' },
+  description: { name: 'description', type: 'textarea', label: 'Description' },
+};
+
+export const TaskSchema = {
   name: 'task',
   label: 'Task',
   icon: 'check-circle-2',
   titleFormat: '{title}',
-  fields: {
-    title: Field.text({
-      label: 'Title',
-      required: true,
-      searchable: true,
-    }),
-    status: Field.select(
-      ['Backlog', 'Todo', 'In Progress', 'Review', 'Done'],
-      { label: 'Status', defaultValue: 'Todo' }
-    ),
-    priority: Field.select(
-      ['Critical', 'High', 'Medium', 'Low'],
-      { label: 'Priority', defaultValue: 'Medium' }
-    ),
-    assignee: Field.text({ label: 'Assignee' }),
-    due_date: Field.date({ label: 'Due Date' }),
-    description: Field.textarea({ label: 'Description' }),
-  },
+  fields,
   list_views: {
     all: {
       label: 'All Tasks',
@@ -109,10 +128,16 @@ export const TaskSchema = ObjectSchema.create({
       sort: [['priority', 'asc']],
     },
   },
-});
+};
 ```
 
-Each `Field.*()` call produces a `FieldMetadata` entry that ObjectUI uses to choose the correct renderer, apply validation, and generate form controls automatically.
+An object's metadata is a plain document — the same shape a backend serves from
+`DataSource.getObjectSchema()` — so it is written as a literal rather than built
+by a helper. `FieldMetadata` is the union every field entry belongs to (`text`,
+`select`, `date`, `textarea`, …), and typing the `fields` record against it is
+what makes a wrong `type` or a misspelled key fail at compile time. ObjectUI
+reads those entries to choose the renderer, apply validation, and generate form
+controls automatically.
 
 ## Step 4: Create a Data Source
 

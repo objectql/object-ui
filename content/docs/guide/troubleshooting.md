@@ -154,8 +154,9 @@ import type { FormSchema } from '@object-ui/types/form';
 import type { LayoutSchema } from '@object-ui/types/layout';
 import type { DataDisplaySchema } from '@object-ui/types/data-display';
 
-// Zod validation schemas
-import { componentSchema } from '@object-ui/types/zod';
+// Zod validation schemas — same PascalCase names as the types, so alias one of
+// the two when a module imports both.
+import { ComponentSchema as ComponentSchemaValidator } from '@object-ui/types/zod';
 ```
 
 The `@object-ui/types` package exports multiple entry points (`base`, `layout`, `form`, `data-display`, `feedback`, `overlay`, `navigation`, `complex`, `data`, `zod`). Check `packages/types/package.json` for the full list.

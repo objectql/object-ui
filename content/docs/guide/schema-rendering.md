@@ -20,10 +20,12 @@ The `SchemaRenderer` is the primary component that interprets your JSON schemas:
 
 ```tsx
 import { SchemaRenderer } from '@object-ui/react'
-import { registerDefaultRenderers } from '@object-ui/components'
+import { initializeComponents } from '@object-ui/components'
+// Side-effect import: loading the package runs its own field registration.
+import '@object-ui/fields'
 
 // Register components once at app initialization
-registerDefaultRenderers()
+initializeComponents()
 
 function App() {
   const schema = {
@@ -97,12 +99,11 @@ Use expression syntax `${}` to reference data:
 The schema renderer uses a component registry to map schema types to React components:
 
 ```tsx
-import { getComponentRegistry } from '@object-ui/react'
+import { ComponentRegistry } from '@object-ui/core'
 
-const registry = getComponentRegistry()
-
+// `ComponentRegistry` is a process-level singleton — import it, do not construct one.
 // Register a custom component
-registry.register('my-component', MyComponent)
+ComponentRegistry.register('my-component', MyComponent)
 
 // Now you can use it in schemas
 const schema = {
@@ -289,18 +290,18 @@ The renderer includes built-in error boundaries:
 Full type safety for your schemas:
 
 ```tsx
-import type { PageSchema, FormSchema } from '@object-ui/core'
+import type { PageNodeSchema, FormSchema } from '@object-ui/types'
 
-const schema: PageSchema = {
+const form: FormSchema = {
+  type: "form",
+  // TypeScript will validate this entire structure
+  fields: []
+}
+
+const schema: PageNodeSchema = {
   type: "page",
   title: "Typed Page",
-  body: {
-    type: "form",
-    // TypeScript will validate this entire structure
-    body: [
-      // ...
-    ]
-  }
+  body: [form]
 }
 ```
 

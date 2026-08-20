@@ -14,10 +14,11 @@ Schema Type → Component Registry → React Component
 
 ## Getting the Registry
 
-```tsx
-import { getComponentRegistry } from '@object-ui/react'
+`ComponentRegistry` is a process-level singleton exported by `@object-ui/core`.
+Import it directly — there is no accessor function and nothing to construct:
 
-const registry = getComponentRegistry()
+```tsx
+import { ComponentRegistry } from '@object-ui/core'
 ```
 
 ## Registering Components
@@ -27,11 +28,19 @@ const registry = getComponentRegistry()
 The easiest way to get started is to register all default components:
 
 ```tsx
-import { registerDefaultRenderers } from '@object-ui/components'
+import { initializeComponents } from '@object-ui/components'
+// Side-effect import: loading the package runs its own field registration.
+import '@object-ui/fields'
 
 // Call once at app initialization
-registerDefaultRenderers()
+initializeComponents()
 ```
+
+Loading each package registers what it owns — the components and the field
+widgets both land in the one `ComponentRegistry`; `initializeComponents()` exists
+so a bundler cannot tree-shake the side-effect import away. The individual
+renderers are not exported for hand-registration: registration is what loading
+the package does.
 
 This registers all built-in components like:
 - Forms: `input`, `textarea`, `select`, `checkbox`, etc.
@@ -39,26 +48,13 @@ This registers all built-in components like:
 - Layout: `page`, `grid`, `flex`, `container`, etc.
 - Feedback: `alert`, `dialog`, `toast`, etc.
 
-### Registering Individual Components
-
-Register specific components one at a time:
-
-```tsx
-import { getComponentRegistry } from '@object-ui/react'
-import { InputRenderer } from '@object-ui/components'
-
-const registry = getComponentRegistry()
-
-registry.register('input', InputRenderer)
-```
-
 ### Registering Custom Components
 
 Create and register your own components:
 
 ```tsx
-import { getComponentRegistry } from '@object-ui/react'
-import type { BaseSchema } from '@object-ui/core'
+import { ComponentRegistry } from '@object-ui/core'
+import type { BaseSchema } from '@object-ui/types'
 
 interface MyComponentSchema extends BaseSchema {
   type: 'my-component'
@@ -75,8 +71,7 @@ function MyComponent(props: MyComponentSchema) {
   )
 }
 
-const registry = getComponentRegistry()
-registry.register('my-component', MyComponent)
+ComponentRegistry.register('my-component', MyComponent)
 ```
 
 Now you can use it in schemas:
@@ -125,18 +120,14 @@ function MyRenderer(props: ComponentProps<MyComponentSchema>) {
 Register components with additional metadata:
 
 ```tsx
-registry.register('my-component', MyComponent, {
-  displayName: 'My Custom Component',
+ComponentRegistry.register('my-component', MyComponent, {
+  label: 'My Custom Component',
   category: 'Custom',
   icon: 'component-icon',
-  description: 'A custom component for special use cases',
-  schema: {
-    type: 'object',
-    properties: {
-      title: { type: 'string' },
-      content: { type: 'string' }
-    }
-  }
+  inputs: [
+    { name: 'title', type: 'string', label: 'Title' },
+    { name: 'content', type: 'string', label: 'Content' }
+  ]
 })
 ```
 
@@ -147,13 +138,8 @@ This metadata is used by the Visual Designer to provide better editing experienc
 Register components that load on demand:
 
 ```tsx
-import { lazy } from 'react'
-
-const HeavyComponent = lazy(() => import('./HeavyComponent'))
-
-registry.register('heavy-component', HeavyComponent, {
-  lazy: true
-})
+// The loader runs the first time a schema asks for `heavy-component`.
+ComponentRegistry.registerLazy('heavy-component', () => import('./HeavyComponent'))
 ```
 
 ### Overriding Built-in Components
@@ -161,13 +147,15 @@ registry.register('heavy-component', HeavyComponent, {
 Override default components with your own:
 
 ```tsx
-import { registerDefaultRenderers } from '@object-ui/components'
+import { ComponentRegistry } from '@object-ui/core'
+import { initializeComponents } from '@object-ui/components'
+import '@object-ui/fields'
 
 // Register defaults first
-registerDefaultRenderers()
+initializeComponents()
 
 // Override specific component
-registry.register('button', MyCustomButton)
+ComponentRegistry.register('button', MyCustomButton)
 ```
 
 ## Component Categories
@@ -250,14 +238,14 @@ Default components are organized by category:
 ### Get All Registered Types
 
 ```tsx
-const types = registry.getRegisteredTypes()
+const types = ComponentRegistry.getAllTypes()
 console.log(types) // ['input', 'button', 'form', ...]
 ```
 
 ### Check if Type is Registered
 
 ```tsx
-if (registry.has('my-component')) {
+if (ComponentRegistry.has('my-component')) {
   console.log('Component is registered')
 }
 ```
@@ -265,10 +253,10 @@ if (registry.has('my-component')) {
 ### Get Component Metadata
 
 ```tsx
-const metadata = registry.getMetadata('input')
+const metadata = ComponentRegistry.getMeta('input')
 console.log(metadata)
 // {
-//   displayName: 'Input',
+//   label: 'Input',
 //   category: 'Form',
 //   icon: 'input-icon',
 //   ...
@@ -281,9 +269,10 @@ console.log(metadata)
 
 ```tsx
 // main.tsx or App.tsx
-import { registerDefaultRenderers } from '@object-ui/components'
+import { initializeComponents } from '@object-ui/components'
+import '@object-ui/fields'
 
-registerDefaultRenderers()
+initializeComponents()
 
 function App() {
   // Your app code
@@ -293,7 +282,7 @@ function App() {
 ### 2. Use TypeScript for Custom Components
 
 ```tsx
-import type { BaseSchema } from '@object-ui/core'
+import type { BaseSchema } from '@object-ui/types'
 
 interface CustomSchema extends BaseSchema {
   type: 'custom'
@@ -314,12 +303,11 @@ Use kebab-case for component types:
 ### 4. Provide Meaningful Metadata
 
 ```tsx
-registry.register('rating', RatingComponent, {
-  displayName: 'Star Rating',
+ComponentRegistry.register('rating', RatingComponent, {
+  label: 'Star Rating',
   category: 'Form',
   icon: 'star',
-  description: 'A 5-star rating input component',
-  tags: ['form', 'input', 'rating']
+  labelling: 'group'
 })
 ```
 
@@ -346,27 +334,26 @@ Group related components into plugin packages:
 
 ```tsx
 // @my-org/objectui-plugin-charts
-import { getComponentRegistry } from '@object-ui/react'
+import { ComponentRegistry } from '@object-ui/core'
 import { BarChart } from './BarChart'
 import { LineChart } from './LineChart'
 import { PieChart } from './PieChart'
 
 export function registerChartComponents() {
-  const registry = getComponentRegistry()
-  
-  registry.register('bar-chart', BarChart)
-  registry.register('line-chart', LineChart)
-  registry.register('pie-chart', PieChart)
+  ComponentRegistry.register('bar-chart', BarChart)
+  ComponentRegistry.register('line-chart', LineChart)
+  ComponentRegistry.register('pie-chart', PieChart)
 }
 ```
 
 Usage:
 
 ```tsx
-import { registerDefaultRenderers } from '@object-ui/components'
+import { initializeComponents } from '@object-ui/components'
+import '@object-ui/fields'
 import { registerChartComponents } from '@my-org/objectui-plugin-charts'
 
-registerDefaultRenderers()
+initializeComponents()
 registerChartComponents()
 ```
 
@@ -376,8 +363,8 @@ Here's a complete example of a custom form component:
 
 ```tsx
 import { forwardRef } from 'react'
-import { getComponentRegistry } from '@object-ui/react'
-import type { BaseSchema } from '@object-ui/core'
+import { ComponentRegistry } from '@object-ui/core'
+import type { BaseSchema } from '@object-ui/types'
 import { cn } from '@/lib/utils'
 
 interface RatingSchema extends BaseSchema {
@@ -434,22 +421,17 @@ const RatingComponent = forwardRef<HTMLDivElement, { schema: RatingSchema }>(
 RatingComponent.displayName = 'Rating'
 
 // Register the component
-const registry = getComponentRegistry()
-registry.register('rating', RatingComponent, {
-  displayName: 'Star Rating',
+ComponentRegistry.register('rating', RatingComponent, {
+  label: 'Star Rating',
   category: 'Form',
-  description: 'A star rating input component',
-  schema: {
-    type: 'object',
-    properties: {
-      name: { type: 'string' },
-      label: { type: 'string' },
-      maxStars: { type: 'number', default: 5 },
-      required: { type: 'boolean' },
-      disabled: { type: 'boolean' }
-    },
-    required: ['name']
-  }
+  labelling: 'group',
+  inputs: [
+    { name: 'name', type: 'string', label: 'Name', required: true },
+    { name: 'label', type: 'string', label: 'Label' },
+    { name: 'maxStars', type: 'number', label: 'Max stars', defaultValue: 5 },
+    { name: 'required', type: 'boolean', label: 'Required' },
+    { name: 'disabled', type: 'boolean', label: 'Disabled' }
+  ]
 })
 
 export { RatingComponent }

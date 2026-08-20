@@ -10,7 +10,7 @@ This reference documents every ObjectUI schema type with annotated JSON examples
 > **Import:** All types are available from `@object-ui/types`.
 >
 > ```typescript
-> import type { PageSchema, FormSchema, TableSchema, /* ... */ } from '@object-ui/types';
+> import type { PageNodeSchema, FormSchema, TableSchema, /* ... */ } from '@object-ui/types';
 > ```
 
 ---
@@ -68,7 +68,7 @@ All schema types extend `BaseSchema`. These shared properties are available on e
 
 ## Layout Schemas
 
-### PageSchema
+### PageNodeSchema
 
 Top-level page container. Defines a full page with optional regions (header, sidebar, footer).
 
@@ -196,7 +196,7 @@ A responsive grid layout. Columns can be a fixed number or responsive breakpoint
 | `gap` | `number` | Gap between grid items (Tailwind spacing scale). |
 | `children` | `SchemaNode \| SchemaNode[]` | Grid items. |
 
-**Related:** [DivSchema](#divschema), [CardSchema](#cardschema), [DashboardSchema](#dashboardschema)
+**Related:** [DivSchema](#divschema), [CardSchema](#cardschema), [DashboardComponentSchema](#dashboardcomponentschema)
 
 ---
 
@@ -233,7 +233,7 @@ A tabbed interface for organizing content into switchable panels.
 | `orientation` | `"horizontal" \| "vertical"` | Tab bar orientation. |
 | `items` | `TabItem[]` | Tab definitions, each with `value`, `label`, `icon`, `content`, and optional `disabled`. |
 
-**Related:** [CardSchema](#cardschema), [PageSchema](#pageschema)
+**Related:** [CardSchema](#cardschema), [PageNodeSchema](#pagenodeschema)
 
 ---
 
@@ -469,7 +469,7 @@ A chart visualization supporting multiple chart types.
 | `animate` | `boolean` | Enable entry animations. |
 | `config` | `Record<string, any>` | Additional chart library configuration. |
 
-**Related:** [DashboardSchema](#dashboardschema), [CardSchema](#cardschema)
+**Related:** [DashboardComponentSchema](#dashboardcomponentschema), [CardSchema](#cardschema)
 
 ---
 
@@ -971,7 +971,7 @@ A drag-and-drop Kanban board with columns and cards.
 
 ---
 
-### DashboardSchema
+### DashboardComponentSchema
 
 A widget-based dashboard with configurable grid layout and auto-refresh.
 
@@ -1076,7 +1076,7 @@ A multi-view calendar for displaying and managing events.
 | `onEventUpdate` | `function` | Callback when an event is modified. |
 | `onDateChange` | `function` | Callback when the visible date range changes. |
 
-**Related:** [ObjectViewSchema](#objectviewschema), [DashboardSchema](#dashboardschema)
+**Related:** [ObjectViewSchema](#objectviewschema), [DashboardComponentSchema](#dashboardcomponentschema)
 
 ---
 
@@ -1281,7 +1281,7 @@ Import only the types you need:
 
 ```typescript
 // Layout
-import type { PageSchema, DivSchema, CardSchema, GridSchema, TabsSchema } from '@object-ui/types';
+import type { PageNodeSchema, DivSchema, CardSchema, GridSchema, TabsSchema } from '@object-ui/types';
 
 // Forms
 import type { FormSchema, InputSchema, SelectSchema, ButtonSchema } from '@object-ui/types';
@@ -1296,7 +1296,7 @@ import type { CRUDSchema, ActionSchema, DetailSchema } from '@object-ui/types';
 import type { ObjectGridSchema, ObjectFormSchema, ObjectViewSchema } from '@object-ui/types';
 
 // Complex
-import type { KanbanSchema, DashboardSchema, CalendarViewSchema } from '@object-ui/types';
+import type { KanbanSchema, DashboardComponentSchema, CalendarViewSchema } from '@object-ui/types';
 
 // Views
 import type { DetailViewSchema, ViewSwitcherSchema } from '@object-ui/types';

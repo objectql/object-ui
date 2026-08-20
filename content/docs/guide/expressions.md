@@ -530,44 +530,48 @@ This logs all expression evaluations to the console.
 
 ### Custom Functions
 
-Extend the expression context with custom functions:
+There is no global evaluator to extend: `SchemaRenderer` builds a fresh
+`ExpressionEvaluator` for each evaluation, so a function has to reach it through
+the evaluation context. Anything callable you put in the context is callable in
+an expression, under exactly the name you gave it:
 
 ```tsx
-import { getExpressionEvaluator } from '@object-ui/core'
+import { evaluateExpression } from '@object-ui/core'
 
-const evaluator = getExpressionEvaluator()
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
 
-evaluator.registerFunction('formatCurrency', (value: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(value)
-})
+// => '$1,234.50'
+evaluateExpression('${formatCurrency(price)}', { formatCurrency, price: 1234.5 })
 ```
 
-Use in schemas:
+That is the direct-evaluation path. A component expression rendered by
+`SchemaRenderer` resolves against the scope the renderer itself builds — the
+provider's data source (as `data`), the host scope (`user` / `current_user`) and
+page variables — so a function you registered elsewhere is not reachable from a
+schema expression. Compute the value before it reaches the schema, and bind the
+result.
 
-```json
-{
-  "type": "text",
-  "value": "${formatCurrency(price)}"
-}
+Hold an evaluator when you want one context reused — construct it, then call
+`evaluate`:
+
+```tsx
+import { ExpressionEvaluator } from '@object-ui/core'
+
+const evaluator = new ExpressionEvaluator({ user: { role: 'admin' } })
+
+evaluator.evaluate('${user.role === "admin"}')
 ```
 
 ### Custom Operators
 
-Register custom operators for domain-specific logic:
-
-```tsx
-evaluator.registerOperator('contains', (array, item) => {
-  return array.includes(item)
-})
-```
+Expressions are JavaScript, evaluated against the context — operators are the
+language's own. A membership test is written with the array method:
 
 ```json
 {
   "type": "button",
-  "visibleOn": "${user.permissions contains 'admin'}"
+  "visibleOn": "${user.permissions.includes('admin')}"
 }
 ```
 
