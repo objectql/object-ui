@@ -357,9 +357,11 @@ jobs:
     # Written as "not push" rather than "is pull_request" (objectui#3523): the
     # third event this workflow now sees is `merge_group`, and a queue build
     # that runs no tests is the hole this repository just paid for. `push` is
-    # still excluded because `test-coverage` below is the push lane, unsharded
-    # so Codecov receives one complete report. PR and push behaviour is
-    # unchanged — only the previously impossible third case moves.
+    # still excluded because the coverage lane below is the push lane: it is
+    # sharded the same 4 ways since objectui#5403, and its `coverage-report`
+    # job merges the four blob reports so Codecov still receives ONE complete
+    # report. PR and push behaviour is unchanged — only the previously
+    # impossible third case moves.
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
     # Bound the job so a stalled runner / non-exiting test worker fails fast and
@@ -440,14 +442,84 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm test --shard=${{ matrix.shard }}/4
 
-  # Push to main/develop: one unsharded run so Codecov still receives a single
-  # complete report. Nothing blocks on this job, so it isn't worth the blob
-  # report merge that sharding a coverage run would require.
+  # Push to main/develop: the coverage lane, sharded 4 ways with a blob-report
+  # merge (objectui#5403). The comment that used to sit here declined to shard
+  # it — "nothing blocks on this job, so it isn't worth the blob report merge
+  # that sharding a coverage run would require". That trade was priced when the
+  # job was shorter. Re-measured on aa949ba2 — current `main`, and the FIRST
+  # commit where objectui#5402's fix is in — with both arms on the same commit
+  # and the same runner class (instrument: `proto-5403-shard-coverage.yml` on
+  # branch `claude/issue-5403-proto`, runs 32387182880 and 32387778786;
+  # elapsed from each job's own `started_at`/`completed_at`):
+  #
+  #   4 shards, slowest shard job   11 min 25 s / 10 min 52 s  (two rounds)
+  #   + the merge job                ~1 min 15 s  (13 s of it the merge itself)
+  #   = the sharded lane            ~12 min 40 s / ~12 min 07 s
+  #   the unsharded run             39 min 51 s of tests, 40 min 19 s of job
+  #
+  # ⚠️ The unblock comment on #5403 predicted that #5402 would have made the
+  # unsharded arm FASTER than the 39 min 05 s measured before it. It has not:
+  # 39 min 51 s on this commit, which is the old figure back within run-to-run
+  # noise. And measured at the level the cap acts on — the JOB — it is 40 min
+  # 19 s, i.e. `timeout-minutes: 40` would have killed this run about twenty
+  # seconds before the suite finished. That is the fifth occurrence of a
+  # timeout that has already fired four times, and a job killed at 40 minutes
+  # uploads nothing at all. Unsharded, this lane is not merely slow; it no
+  # longer reliably reaches its own upload step.
+  #
+  # Equivalence of the merged report is the acceptance test; it is measured
+  # rather than assumed, and the numbers are in the pull request that made this
+  # change — along with what happens on a red suite, which is the state `main`
+  # is in on this commit.
+  #
+  # `timeout-minutes: 40` is deliberately UNCHANGED. It had already fired four
+  # times on the unsharded job; at a quarter of the work per runner the margin
+  # stops being tight on its own, and raising or lowering a cap is a separate
+  # decision from this one.
+  #
+  # ## Why the shard legs override the coverage thresholds, and the merge does
+  # ## not
+  #
+  # `coverage.thresholds` in `vitest.config.mts` is checked by the v8 provider's
+  # `generateReports()` on EVERY coverage run — there is no shard-awareness
+  # anywhere in that path (`@vitest/coverage-v8/dist/provider.js`: `if (this
+  # .options.thresholds) await this.reportThresholds(...)`, reached from
+  # `reportCoverage()` and from `mergeReports()` alike). Sharding without the
+  # override would therefore evaluate the whole-suite thresholds FIVE times per
+  # push: once per shard over a quarter of the suite, plus once on the merged
+  # report. Those four extra evaluations are assertions this lane has never
+  # made, they judge partial data, and the only verdict they can add is a false
+  # red. The override keeps the check at exactly ONE evaluation over the
+  # complete report — the shape this lane had while it was unsharded.
+  #
+  # ⚠️ It is NOT here because the shards were seen to fail: that prediction was
+  # measured and refuted. A shard leg run WITHOUT the override passes today
+  # (proto run 32387182880, "PROTO shard 1/4 WITHOUT the threshold override",
+  # conclusion=success, reproduced in run 32387778786) — the v8 provider reports
+  # only the files a run actually loaded, so one shard's percentage lands near
+  # the whole suite's rather than at a quarter of it.
+  #
+  # That the gate still fires on the merged report is a code path, not a
+  # guess: `mergeReports()` calls `generateReports(coverageMap, true)`, the
+  # same function that ends in `if (this.options.thresholds) await this
+  # .reportThresholds(...)`. ⚠️ The CI ablation that was meant to demonstrate it
+  # end-to-end could not: on this commit the merged blobs carry a failing shard,
+  # so both the enforced leg and the 99%-threshold leg go red for that reason
+  # and neither separates the thresholds from the failures. Said here rather
+  # than left as a claim the run does not actually support.
   test-coverage:
-    name: Test (coverage)
+    name: Test (coverage shard ${{ matrix.shard }}/4)
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 40
+
+    strategy:
+      # Report every shard's failures, not just the first one to break — and
+      # the merge below refuses to publish anything unless all four are green,
+      # so there is nothing to save by stopping early.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     steps:
       - name: Checkout code
@@ -470,14 +542,181 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run tests with coverage
-        run: pnpm test:coverage --coverage.reporter=json --coverage.reporter=text
+      # `--reporter=blob` makes the run write `.vitest-reports/blob-N-4.json`
+      # (the shard index is in the FILE NAME, which is what lets the four
+      # artifacts be downloaded into one directory below without colliding —
+      # measured, not assumed). The blob carries this shard's raw coverage as
+      # well as its test results; the coverage report proper is produced once,
+      # by the merge.
+      - name: Run tests with coverage (shard ${{ matrix.shard }}/4)
+        run: >-
+          pnpm test:coverage --reporter=blob --shard=${{ matrix.shard }}/4
+          --coverage.thresholds.lines=0 --coverage.thresholds.functions=0
+          --coverage.thresholds.branches=0 --coverage.thresholds.statements=0
 
+      # `always()`: a shard that went red is exactly when someone wants its
+      # blob. It holds the failing results AND the coverage this runner
+      # collected, and it survives a red run — which is why the `coverage`
+      # directory being deleted on failure (vitest's `reportOnFailure: false`,
+      # objectui#5402) stops mattering for this lane. `if-no-files-found: error`
+      # because "the reporter wrote nothing" is a real finding, not a shrug.
+      #
+      # `retention-days: 7` is a deliberate, adjustable number rather than the
+      # 90-day default: a blob is ~6 MB, so four per push at roughly 18 merges a
+      # working day is ~3 GB of steady-state storage at a week. A week is what
+      # makes a Monday-morning question about a Friday-evening red run
+      # answerable; shorten it if the storage matters more than that.
+      - name: Upload this shard's blob report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-blob-${{ matrix.shard }}
+          path: .vitest-reports/*
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
+
+  # The other half of objectui#5403: merge the four blob reports into ONE
+  # complete coverage report, upload that, and — whatever happens — say out
+  # loud whether Codecov actually received it.
+  #
+  # ## Why this job exists rather than an `if:` on the upload step
+  #
+  # `Upload coverage to Codecov` used to carry no `if:` at all, so it inherited
+  # the implicit `success()` and was SKIPPED whenever the suite failed: 311 of
+  # 373 coverage jobs, and 120 of the 121 most recent. From outside, "Codecov
+  # received nothing" and "Codecov received an unchanged report" look identical
+  # — which is how four dark days went unnoticed while the job failed 100% of
+  # the time (objectui#5402). Nothing blocks on this lane, so the fix cannot be
+  # "block on it"; the fix is that the lane STATES its own outcome. This job is
+  # green only when Codecov got a complete report for this commit, and red —
+  # with an error annotation naming the reason — every time it did not.
+  #
+  # ⛔ The upload is deliberately NOT unconditional. A merged report built from
+  # fewer than four shards would understate coverage on every file the missing
+  # shard exercised, and a wrong number on the dashboard is worse than a
+  # missing one. So the merge and the upload run only when all four shards are
+  # green AND all four blobs actually arrived; everything else takes the loud
+  # path.
+  #
+  # The job keeps the name `Test (coverage)` the unsharded job had: it is the
+  # context that answers "did the coverage lane deliver for this commit", and
+  # `scripts/dependabot-merge-gate.mjs` classifies it by that name.
+  coverage-report:
+    name: Test (coverage)
+    needs: test-coverage
+    # `always()` so the verdict step below still runs when a shard failed —
+    # that is the entire point. The event guard keeps this lane push-only, as
+    # the unsharded job was.
+    if: always() && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # Every step up to the verdict is gated on the shards having passed:
+      # on a red run this job does a checkout-free ~10 seconds and reports.
+      - name: Checkout code
+        if: needs.test-coverage.result == 'success'
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Enable Corepack
+        if: needs.test-coverage.result == 'success'
+        run: corepack enable
+
+      - name: Verify pnpm version
+        if: needs.test-coverage.result == 'success'
+        run: pnpm --version
+
+      - name: Setup Node.js
+        if: needs.test-coverage.result == 'success'
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: needs.test-coverage.result == 'success'
+        run: pnpm install --frozen-lockfile
+
+      - name: Download every shard's blob report
+        if: needs.test-coverage.result == 'success'
+        uses: actions/download-artifact@v7
+        with:
+          pattern: coverage-blob-*
+          path: .vitest-reports
+          merge-multiple: true
+
+      # A zero is not a reading: `--merge-reports` is perfectly happy to merge
+      # three blobs and print a confident, wrong total. Count them first.
+      - name: Refuse to merge a partial set of shard reports
+        if: needs.test-coverage.result == 'success'
+        run: |
+          # `mkdir -p` first, and no `2>/dev/null` anywhere: a missing directory
+          # must not abort this step before it can print the annotation below,
+          # and a swallowed stderr is the fail-CLOSED spelling objectui#3723
+          # removed from this file (pinned by merge-queue-reporting.test.ts).
+          mkdir -p .vitest-reports
+          ls -la .vitest-reports/
+          blobs=$(find .vitest-reports -maxdepth 1 -type f -name 'blob-*-4.json' | wc -l)
+          if [ "$blobs" -ne 4 ]; then
+            echo "::error title=Coverage merge::expected 4 shard blob reports, found $blobs — a merged report built from a partial set understates coverage, refusing to upload"
+            exit 1
+          fi
+          echo "all 4 shard blob reports present"
+
+      # No tests run here: `--merge-reports` reads the blobs and produces the
+      # single complete report Codecov gets. It is also where the configured
+      # coverage thresholds are enforced, over the whole map.
+      - name: Merge the shard reports into one coverage report
+        if: needs.test-coverage.result == 'success'
+        run: pnpm test:coverage --merge-reports --coverage.reporter=json --coverage.reporter=text
+
+      # `fail_ci_if_error: true` (it was `false`): an upload that errors is the
+      # same silence this card exists to remove — with `false` the step reports
+      # success and the dashboard quietly keeps last week's number. Nothing
+      # blocks on this lane, so the cost of a Codecov outage showing up red
+      # here is attention, which is the point.
       - name: Upload coverage to Codecov
+        id: codecov
+        if: needs.test-coverage.result == 'success'
         uses: codecov/codecov-action@v7
         with:
-          fail_ci_if_error: false
+          fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
+
+      # The loud part. Runs on every path — including the one where every step
+      # above was skipped, which without this step would leave this job GREEN
+      # while Codecov got nothing.
+      - name: Say out loud whether Codecov received this commit
+        if: always()
+        env:
+          SHARDS: ${{ needs.test-coverage.result }}
+          UPLOAD: ${{ steps.codecov.outcome }}
+        run: |
+          if [ "$SHARDS" = 'success' ] && [ "$UPLOAD" = 'success' ]; then
+            echo "::notice title=Codecov updated::the merged 4-shard report was uploaded for $GITHUB_SHA"
+            {
+              echo "### Coverage: Codecov received a complete report"
+              echo
+              echo "- commit: \`$GITHUB_SHA\`"
+              echo "- shards: all 4 green, all 4 blob reports merged"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "::error title=Codecov NOT updated::shards=$SHARDS upload=$UPLOAD — no report was uploaded for $GITHUB_SHA, so the coverage number on the dashboard is STALE, not unchanged"
+          {
+            echo "### Coverage: Codecov received NOTHING for this commit"
+            echo
+            echo "- commit: \`$GITHUB_SHA\`"
+            echo "- shard jobs: \`$SHARDS\`"
+            echo "- upload step: \`$UPLOAD\`"
+            echo
+            echo "The number on the Codecov dashboard is the one from an earlier"
+            echo "commit. It did not stay the same because coverage did not change."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
 
   # Build + E2E merged into one job: avoids artifact upload/download (~30s)
   # and a duplicate `pnpm install` (~60s). This job only needs the console SPA

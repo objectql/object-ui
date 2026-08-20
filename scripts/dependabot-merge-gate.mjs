@@ -169,6 +169,16 @@ export const OPTIONAL_CONTEXTS = Object.freeze({
 });
 
 /**
+ * The four coverage shards share one reason, spelled once (objectui#5403 split
+ * the single `test-coverage` job into a 4-way matrix plus a merge job). They
+ * are listed individually rather than matched by pattern, for the same reason
+ * `REQUIRED_CONTEXTS` spells the four PR shards out: a pattern is satisfied by
+ * whichever shard happens to exist.
+ */
+const COVERAGE_SHARD_NOT_A_GATE =
+  "ci.yml's push-only coverage lane (`if: github.event_name == 'push'`), so on a pull request it reports conclusion=skipped by design. Coverage is deliberately not recomputed per pull request — v8 instrumentation adds 40-100% overhead — so the PR lane is the four `Test (shard N/4)` jobs above.";
+
+/**
  * Everything else a pull request to `main` produces, and why it cannot gate.
  * Kept as a named list rather than an implicit "anything not required is
  * ignored", so that a new check has to be classified by a human instead of
@@ -178,7 +188,11 @@ export const NOT_A_GATE = Object.freeze({
   dependabot:
     'This workflow itself. The gate runs inside this job, so requiring it would deadlock at its own deadline.',
   'Test (coverage)':
-    "ci.yml's push lane (`if: github.event_name == 'push'`), so on a pull request it reports conclusion=skipped by design. The PR lane is the four shards above.",
+    "ci.yml's push lane (`if: github.event_name == 'push'`), so on a pull request it reports conclusion=skipped by design. Since objectui#5403 this is the job at the END of the coverage lane — it merges the four shard blob reports, uploads the one complete report to Codecov, and goes red whenever Codecov received nothing. The PR lane is the four `Test (shard N/4)` jobs above.",
+  'Test (coverage shard 1/4)': COVERAGE_SHARD_NOT_A_GATE,
+  'Test (coverage shard 2/4)': COVERAGE_SHARD_NOT_A_GATE,
+  'Test (coverage shard 3/4)': COVERAGE_SHARD_NOT_A_GATE,
+  'Test (coverage shard 4/4)': COVERAGE_SHARD_NOT_A_GATE,
   'Live E2E (informational)':
     'live-e2e.yml is declared INFORMATIONAL and NON-REQUIRED in its own header and runs `continue-on-error: true`; ci-cd-pipeline.md says in as many words not to add it to required checks.',
   label:
