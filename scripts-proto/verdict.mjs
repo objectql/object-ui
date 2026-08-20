@@ -36,7 +36,9 @@ const name = [
   `stmtA-${ta.c}of${ta.s}`,
   `stmtB-${tb.c}of${tb.s}`,
   `stmtDiff-${tb.c - ta.c}`,
-  `deltaPP-${deltaPP}`.replace('.', 'p').replace('-0p', 'minus0p'),
+  // Spell the sign as a word: an earlier version encoded it with a hyphen and
+  // the value's own hyphen made the sign unreadable in the artifact name.
+  `deltaPP-${Number(deltaPP) < 0 ? 'NEG' : 'POS'}-${Math.abs(Number(deltaPP)).toFixed(4).replace('.', 'p')}`,
   `regressed-${regressed}`,
 ].join('__');
 console.log(name);
