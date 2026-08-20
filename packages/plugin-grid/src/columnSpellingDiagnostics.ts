@@ -147,7 +147,17 @@ function describeEntry(col: unknown): string {
     return `${seen} — \`${DECLARED_COLUMN_FIELD_KEY}\` is a ${field === null ? 'null' : typeof field} `
       + `(${quote(field)}), and only a non-empty string names a field.`;
   }
-  return `${seen} — \`${DECLARED_COLUMN_FIELD_KEY}\` is an empty string, so the column names no field.`;
+  if (field.length === 0) {
+    return `${seen} — \`${DECLARED_COLUMN_FIELD_KEY}\` is an empty string, so the column names no field.`;
+  }
+  // Unreachable while `hidden` is judged before this function is called (it is,
+  // in `partitionAuthoredColumns`) — a non-empty string `field` is exactly what
+  // `resolvesToDataColumn` accepts. Kept explicit anyway: this line used to be
+  // the `field.length === 0` message with no length check under it, so removing
+  // the `hidden` carve-out made the diagnostic tell a well-formed column that
+  // its `field` was "an empty string". A message must never assert something it
+  // did not check. (Found by the objectui#5349 reverse-verification.)
+  return `${seen} — \`${DECLARED_COLUMN_FIELD_KEY}\` is '${field}', and the column still did not resolve.`;
 }
 
 /**
