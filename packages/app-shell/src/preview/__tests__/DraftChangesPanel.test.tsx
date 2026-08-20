@@ -17,7 +17,17 @@ vi.mock('@object-ui/i18n', () => ({
   }),
 }));
 
-import { DraftChangesPanel, computeChangeDetail } from '../DraftChangesPanel';
+import {
+  META_URL_TO_SINGULAR as SPEC_META_URL_TO_SINGULAR,
+  canonicalMetaUrlType as specCanonicalMetaUrlType,
+} from '@objectstack/spec/shared';
+
+import {
+  DraftChangesPanel,
+  META_URL_TO_SINGULAR,
+  canonicalMetaUrlType,
+  computeChangeDetail,
+} from '../DraftChangesPanel';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -155,5 +165,126 @@ describe('DraftChangesPanel', () => {
     // status is added in the draft; title unchanged → only the + row shows.
     expect(screen.getByText('+ status')).toBeInTheDocument();
     expect(screen.queryByText(/~ title/)).not.toBeInTheDocument();
+  });
+});
+
+/* ─────────── `/meta` type segment is singular — always (objectstack#9180) ─────────── */
+
+/**
+ * The panel is DATA-DRIVEN, not authored: `type` arrives from the
+ * `/api/v1/meta/_drafts` feed's stored rows with a `typeof` check and nothing
+ * else, so a row stored under a pre-#7894 plural spelling made the Console emit
+ * a plural `/meta` item route. These pins assert the EMITTED addresses, with a
+ * fixture that carries a plural stored `type` — a route-spelling fix passes
+ * vacuously against an already-singular fixture.
+ *
+ * Nothing here asserts anything about the at-rest data: residue stays exactly
+ * as stored, and this change adds no write path.
+ */
+
+/** Record every URL the panel requests, and answer each route shape. */
+function mockRoutesRecording(
+  drafts: Array<{ type: string; name: string; packageId?: string | null }>,
+): string[] {
+  const urls: string[] = [];
+  global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    urls.push(url);
+    const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+    if (url.includes('/_drafts')) {
+      return ok(drafts.map((d) => ({ packageId: 'com.x', ...d })));
+    }
+    const segments = url.split('?')[0].replace('/api/v1/meta/', '').split('/');
+    // `/meta/:type` is the published-name list; `/meta/:type/:name` is an item.
+    if (segments.length === 1) return ok([{ name: 'ticket' }]);
+    return ok(url.includes('state=draft') ? { item: DRAFT_TICKET } : PUBLISHED_TICKET);
+  }) as unknown as typeof fetch;
+  return urls;
+}
+
+/** Every `/meta` request except the `_drafts` feed the values come from. */
+const metaRoutes = (urls: string[]) => urls.filter((u) => !u.includes('/_drafts'));
+
+describe('DraftChangesPanel — /meta routes are addressed in the singular', () => {
+  it('reads the published list of a PLURAL stored type at its singular route', async () => {
+    const urls = mockRoutesRecording([{ type: 'objects', name: 'ticket' }]);
+    renderPanel();
+    await waitFor(() => expect(screen.getByText('ticket')).toBeInTheDocument());
+    await waitFor(() => expect(metaRoutes(urls)).toContain('/api/v1/meta/object'));
+    expect(metaRoutes(urls).filter((u) => /\/meta\/objects\b/.test(u))).toEqual([]);
+  });
+
+  it('reads both item bodies of a PLURAL stored type at singular routes', async () => {
+    const urls = mockRoutesRecording([{ type: 'objects', name: 'ticket' }]);
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId('draft-entry-toggle')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('draft-entry-toggle'));
+    await waitFor(() => expect(screen.getByTestId('draft-entry-detail')).toBeInTheDocument());
+    const items = metaRoutes(urls).filter((u) => u.includes('/ticket'));
+    expect(items).toContain('/api/v1/meta/object/ticket?package=com.x');
+    expect(items).toContain('/api/v1/meta/object/ticket?state=draft&package=com.x');
+    expect(items.filter((u) => /\/meta\/objects\b/.test(u))).toEqual([]);
+  });
+
+  it('FOLDS `capabilities`, never strips it — `capabilitie` is what a rule emits', async () => {
+    const urls = mockRoutesRecording([{ type: 'capabilities', name: 'billing_admin' }]);
+    renderPanel();
+    await waitFor(() => expect(screen.getByText('billing_admin')).toBeInTheDocument());
+    await waitFor(() => expect(metaRoutes(urls)).toContain('/api/v1/meta/capability'));
+    // `capabilities` and `capabilitie` both contain the stripped stem, so one
+    // assertion covers the unfixed spelling AND the `replace(/s$/, '')` fix.
+    expect(metaRoutes(urls).filter((u) => u.includes('capabilitie'))).toEqual([]);
+  });
+
+  it('leaves an already-canonical type and a plugin-registered kind untouched', async () => {
+    const urls = mockRoutesRecording([
+      { type: 'view', name: 'ticket_list' },
+      { type: 'my_plugin_kind', name: 'thing' },
+    ]);
+    renderPanel();
+    await waitFor(() => expect(screen.getByText('ticket_list')).toBeInTheDocument());
+    await waitFor(() => expect(metaRoutes(urls)).toContain('/api/v1/meta/view'));
+    expect(metaRoutes(urls)).toContain('/api/v1/meta/my_plugin_kind');
+  });
+
+  it('groups and labels the drafts under the canonical singular type', async () => {
+    mockRoutesRecording([{ type: 'objects', name: 'ticket' }]);
+    renderPanel();
+    await waitFor(() => expect(screen.getByText('ticket')).toBeInTheDocument());
+    expect(screen.getByRole('heading', { level: 4 }).textContent).toBe('object · 1');
+  });
+});
+
+/**
+ * The mirror's drift guard. `@objectstack/spec/shared` owns the `/meta` URL
+ * spelling contract; the panel mirrors the table instead of importing it
+ * because the import costs +213.4 KB min / +60.1 KB gz on the console's EAGER
+ * graph (see the table's doc comment for the measurement and for why lazy
+ * loading cannot move those bytes). Tests are not bundled, so the real map is
+ * imported HERE and a type declared, renamed or respelled upstream fails CI
+ * rather than silently emitting a plural route.
+ */
+describe('DraftChangesPanel — the mirrored spelling table tracks @objectstack/spec', () => {
+  it('mirrors META_URL_TO_SINGULAR key for key', () => {
+    expect(META_URL_TO_SINGULAR).toEqual(SPEC_META_URL_TO_SINGULAR);
+  });
+
+  it('folds every spelling the spec folds, and passes the rest through identically', () => {
+    for (const spelling of Object.keys(SPEC_META_URL_TO_SINGULAR)) {
+      expect(canonicalMetaUrlType(spelling)).toBe(specCanonicalMetaUrlType(spelling));
+    }
+    for (const canonical of new Set(Object.values(SPEC_META_URL_TO_SINGULAR))) {
+      expect(canonicalMetaUrlType(canonical)).toBe(specCanonicalMetaUrlType(canonical));
+    }
+    // A plugin-registered kind has no plural spelling of its own — unchanged.
+    expect(canonicalMetaUrlType('my_plugin_kind')).toBe(
+      specCanonicalMetaUrlType('my_plugin_kind'),
+    );
+  });
+
+  it('is a mapping, not a suffix rule', () => {
+    expect(canonicalMetaUrlType('capabilities')).toBe('capability');
+    expect('capabilities'.replace(/s$/, '')).toBe('capabilitie'); // what a rule would emit
+    expect(canonicalMetaUrlType('externalCatalogs')).toBe('external_catalog');
   });
 });
