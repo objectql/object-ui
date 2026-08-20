@@ -123,17 +123,18 @@ When the entire string is a single `${expression}`, the result preserves its typ
 
 ## Rule: Data Binding Path Resolution
 
-The `bind` field is NOT expression-evaluated. It's a path string resolved by `useDataScope()`:
+The `bind` field is NOT expression-evaluated. It's a path string resolved by `useDataScope()`, and only a component that calls that hook reads it:
 
 ```json
 {
-  "type": "data-table",
-  "bind": "customers",  // Resolved as dataSource.customers
-  "columns": [...]
+  "type": "list",
+  "bind": "customerNames"  // Resolved as dataSource.customerNames
 }
 ```
 
 **Nested paths work:** `"bind": "app.settings.users"` resolves `dataSource.app.settings.users`.
+
+**Readers only.** `list` and `tree-view` (`@object-ui/components`) and the `object-*` plugin widgets call `useDataScope`. `data-table` does NOT: it reads its rows from an inline `data` array on the node, so a `bind` on it is ignored and the table renders its header over an empty body — no error, no warning.
 
 ## Rule: Action Event Structure
 

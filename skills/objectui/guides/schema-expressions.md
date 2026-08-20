@@ -370,12 +370,43 @@ in `dependsOn`.
 
 ## Data binding with `bind`
 
-The `bind` field is NOT expression-evaluated. It's a path string resolved by `useDataScope()`:
+The `bind` field is NOT expression-evaluated. It's a path string resolved by
+`useDataScope()` — and **only a component that calls that hook reads it**.
+
+```json
+{
+  "type": "list",
+  "bind": "customerNames"
+}
+```
+
+When `SchemaRendererProvider` receives
+`dataSource = { customerNames: ["Ada Lovelace", "Grace Hopper"] }`, `list` calls
+`useDataScope("customerNames")` and renders one entry per array element.
+
+**Nested paths work:** `"bind": "app.settings.users"` resolves `dataSource.app.settings.users`.
+
+### Which components read `bind`
+
+`useDataScope` is called by `list` and `tree-view` in `@object-ui/components`,
+and by the `object-*` widgets the plugin packages register (`object-grid`,
+`object-kanban`, `object-chart`, `object-data-table`, `object-gallery`,
+`object-timeline`, `object-pivot-table`). Every other component ignores `bind`
+completely — no error, no warning, nothing in the console.
+
+`data-table` is the one that catches authors out. It takes its rows from an
+inline `data` array on the node and never calls `useDataScope`, so a `bind` on
+it resolves nothing: the table renders its header over the "No results found"
+empty state. Nothing is thrown and nothing is logged — a table that looks built
+and is blank is the whole failure.
 
 ```json
 {
   "type": "data-table",
-  "bind": "customers",
+  "data": [
+    { "name": "Ada Lovelace", "email": "ada@example.com" },
+    { "name": "Grace Hopper", "email": "grace@example.com" }
+  ],
   "columns": [
     { "name": "name", "label": "Name" },
     { "name": "email", "label": "Email" }
@@ -383,9 +414,9 @@ The `bind` field is NOT expression-evaluated. It's a path string resolved by `us
 }
 ```
 
-When `SchemaRendererProvider` receives `dataSource = { customers: [...] }`, the table component calls `useDataScope("customers")` and gets the array.
-
-**Nested paths work:** `"bind": "app.settings.users"` resolves `dataSource.app.settings.users`.
+To show *provider* data in a `data-table`, resolve the array in the host and put
+it on the node — the same "expand in the host" route the next section describes
+for per-record nodes.
 
 ## No per-item template iteration (`list` is data-as-nodes)
 
