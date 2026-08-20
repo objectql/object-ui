@@ -2828,6 +2828,113 @@ const NATIVE_INPUT_FIELD_TYPES: Record<string, string> = {
   password: 'password',
 };
 
+/**
+ * Declared field types whose VALUE is a SECRET — objectui#5322.
+ *
+ * The one type family where "render something plausible" is the wrong answer.
+ * Every other type in this branch degrades to a text box that is merely LESS
+ * capable than the widget the author declared; a `password` degrades to a text
+ * box that PUTS THE SECRET ON SCREEN, and does it in the shape the author is
+ * least likely to notice (an input, in the right slot, with the right label).
+ *
+ * Membership is the declared type — the `field:` prefix already stripped by
+ * {@link normalizeFieldType} — so the one entry answers both spellings.
+ * `secret` (the ObjectQL type `mapFieldTypeToFormType` maps to
+ * `field:password`) reaches this set through that mapping, as `password`.
+ */
+const SECRET_FIELD_TYPES = new Set(['password']);
+
+/**
+ * `field:<type>` ids already reported missing, keyed by widget id + field name.
+ *
+ * Module-level and de-duplicated for the reason `_reportedUnrecognizedRules`
+ * above is: a schema-driven caller re-renders this field on every keystroke
+ * elsewhere on the form, and a diagnostic that repeats forever gets muted by
+ * the very reader it is written for (objectui#3965).
+ */
+const _reportedMissingSecretWidgets = new Set<string>();
+
+/**
+ * Report a missing SECRET field widget — loudly, once per widget id + field.
+ *
+ * NOT dev-gated, unlike {@link reportUnrecognizedRulesOnce}. That one is a
+ * metadata lint whose audience is the author at their desk; this one is a
+ * REGISTRATION failure on a security-relevant field, and an app that reaches
+ * production in this state is exactly the one whose console should say so.
+ * Same call this file's spec-vocabulary boundary (#3090) and
+ * `RetiredFieldTombstone` (`packages/fields`, objectui#4814) already made for
+ * the same class of entry — one this renderer cannot honour.
+ */
+function reportMissingSecretWidget(widgetType: string, fieldName: string): void {
+  const memo = `${widgetType}::${fieldName}`;
+  if (_reportedMissingSecretWidgets.has(memo)) return;
+  _reportedMissingSecretWidgets.add(memo);
+  // The message doubles as the fix instruction — it is what an agent
+  // iterating on the metadata (or on the host bootstrap) will read and follow.
+  console.error(
+    `[object-ui] form field '${fieldName}': widget '${widgetType}' is NOT registered, so this ` +
+      `form has no widget for a SECRET value. The field renders a refusal instead of an input — ` +
+      `the default input branch would render it as \`type="text"\` and put the secret on screen ` +
+      `in clear text (objectui#5322). Register the field widgets — \`registerAllFields()\` from ` +
+      `\`@object-ui/fields\` — so '${widgetType}' resolves. In a hand-authored standalone form, ` +
+      `write the built-in spelling \`{ type: 'password' }\` instead, which renders the native ` +
+      `masked input on this branch.`,
+  );
+}
+
+/**
+ * The refusal a `field:`-namespaced SECRET field renders when its widget is not
+ * registered — objectui#5322.
+ *
+ * Shape borrowed from `RetiredFieldTombstone` (`packages/fields`) and this
+ * file's own spec-vocabulary boundary (#3090), this repo's settled answer to
+ * "an authored entry this renderer cannot honour": an inline alert that NAMES
+ * the offending entry, plus a `console.error` whose text doubles as the fix
+ * instruction. Nothing is thrown — one unrenderable field must not take down
+ * the rest of the record form — and nothing is silently substituted, which is
+ * the whole point.
+ *
+ * A COMPONENT, not inline JSX, for the same reason `BuiltinSelectEmptyState`
+ * above is one: `renderFieldComponent` is a plain helper that early-returns, so
+ * a hook called there would run conditionally (rules-of-hooks).
+ *
+ * `...rest` is forwarded because `<FormControl>` is a Radix `Slot`: it hands the
+ * control its `id` / `aria-describedby` / `aria-invalid`, so dropping the rest
+ * props here would unlink the field's own label and error message. What is
+ * deliberately NOT forwarded is the field's `value`/`onChange` bundle — the
+ * point of the refusal is that the secret reaches no element at all, so this
+ * component is handed the two identifying strings and nothing else.
+ */
+function MissingSecretFieldWidget({
+  widgetType,
+  fieldName,
+  className,
+  ...rest
+}: {
+  widgetType: string;
+  fieldName: string;
+} & React.HTMLAttributes<HTMLDivElement>) {
+  React.useEffect(() => {
+    reportMissingSecretWidget(widgetType, fieldName);
+  }, [widgetType, fieldName]);
+  return (
+    <div
+      role="alert"
+      data-testid="field-missing-secret-widget"
+      data-missing-field-widget={widgetType}
+      className={cn(
+        'rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive',
+        className,
+      )}
+      {...rest}
+    >
+      {`This field was not rendered: its widget \`${widgetType}\` is not registered. ` +
+        `Register the field widgets (\`registerAllFields()\` from \`@object-ui/fields\`). ` +
+        `A secret is never rendered in a plain text box.`}
+    </div>
+  );
+}
+
 function openNativePickerOnClick(inputType: string | undefined) {
   if (!inputType || !NATIVE_PICKER_INPUT_TYPES.has(inputType)) return undefined;
   return (e: React.MouseEvent<HTMLInputElement>) => {
@@ -3256,6 +3363,73 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
     }
 
     default: {
+      // ── The unregistered-widget default, objectui#5322 ──────────────────
+      //
+      // Two spellings reach this branch and they do NOT mean the same thing,
+      // so the ruling of 2026-08-19 is answered on each in its own terms
+      // ("the unregistered-widget default must respect the declared input
+      // type, OR refuse to render the value rather than degrade to clear
+      // text", with "for `password` specifically, prefer masking/refusal over
+      // best-effort rendering"):
+      //
+      //  - A BARE `password` / `email` is a declared input type on the
+      //    built-in path. It claims no registered widget, this branch IS its
+      //    intended home, and `NATIVE_INPUT_FIELD_TYPES` renders it natively
+      //    (objectui#5254). Nothing below changes that — a fix that traded one
+      //    spelling for the other would not be a fix.
+      //
+      //  - A `field:`-prefixed id is a REGISTRY KEY. Reaching this branch with
+      //    one is proof of an unmet contract: the app declares a widget that
+      //    is not registered (no `registerAllFields()`, or no
+      //    `@object-ui/fields` at all). `mapFieldTypeToFormType` emits the
+      //    prefixed id for EVERY object-derived form, so this is the normal
+      //    path and not an edge case.
+      //
+      // Measured on this branch point (f2e11ae6f), before the change, with
+      // nothing registered under `field:`:
+      //
+      //   field:password → type="text"   attrs=["class","id",
+      //                    "aria-describedby","aria-invalid","type","name"]
+      //   field:email    → type="text"
+      //   password       → type="password"      (PR5326, unchanged)
+      //   email          → type="email"         (PR5326, unchanged)
+      //
+      // i.e. the object-derived spelling of a password field put the secret on
+      // screen in clear text. PRE-EXISTING: `NATIVE_INPUT_FIELD_TYPES` is keyed
+      // on the raw type, so the prefixed spelling always missed it — this is
+      // not a regression from objectui#5254, which was measured on
+      // `origin/main` before that change too.
+      //
+      // The declared type — the prefix stripped — is what the two halves below
+      // read. Only `field:` is stripped (`normalizeFieldType`): it is the one
+      // namespace that means "field widget", the one the producer emits, and
+      // the one this card measured. A `ui:`-qualified id keeps rendering
+      // exactly as it does today.
+      const declaredType = normalizeFieldType(type);
+
+      // ── Half 1: REFUSE, for a secret ────────────────────────────────────
+      // Masking the value would already close the leak the card names, and it
+      // is what the bare spelling does. It is not enough HERE, because here we
+      // additionally KNOW the app shipped without the widget it declares: a
+      // masked box would let the user type a secret into a form whose password
+      // widget (its own strength meter, confirm pair, reveal toggle, submit
+      // handling) is absent, and would look like it worked. So the value is
+      // not rendered at all, in any form, and the refusal says why.
+      //
+      // Deliberately narrow — `password` only, and only under `field:`. Every
+      // other unregistered `field:*` id (`field:currency`, `field:qrcode` …)
+      // still renders the text box it renders today: turning the whole class
+      // into refusals would change fields this card neither moved nor
+      // measured, the same restraint `NATIVE_INPUT_FIELD_TYPES` above states.
+      if (type.startsWith('field:') && SECRET_FIELD_TYPES.has(declaredType)) {
+        return (
+          <MissingSecretFieldWidget
+            widgetType={type}
+            fieldName={String(fieldProps.name ?? '')}
+          />
+        );
+      }
+
       // The declared ceiling is resolved HERE, in BOTH authored spellings,
       // rather than left to ride the pass-through onto the DOM
       // (objectui#5253). Identical mechanism, identical reasons and identical
@@ -3295,13 +3469,24 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       const maxLength = (fieldProps as any).maxLength ?? (fieldProps as any).max_length;
       return (
         <Input
+          // ── Half 2: RESPECT the declared input type ───────────────────
           // An authored `inputType` first, then the native type this field's
           // own declared `type` names (objectui#5254 — `email` / `password`
           // reach this branch since the cross-namespace fallback was removed,
           // and must keep rendering the native input they always rendered:
           // without this a `type: 'password'` field would show the secret as
           // clear text). `'text'` for everything else, exactly as before.
-          type={inputType || NATIVE_INPUT_FIELD_TYPES[type] || 'text'}
+          //
+          // Keyed on `declaredType`, not the raw `type` (objectui#5322): the
+          // table's two members are DECLARED FIELD TYPES
+          // (`EmailFieldMetadata` / `PasswordFieldMetadata` in
+          // `@object-ui/types`), and `field:email` declares `email` just as
+          // plainly as a bare `email` does. Before this the prefixed spelling
+          // missed the table and lost the native keyboard and validation.
+          // `field:password` never reaches here — half 1 above refuses it —
+          // so this line answers `field:email`, and the two bare spellings
+          // exactly as before.
+          type={inputType || NATIVE_INPUT_FIELD_TYPES[declaredType] || 'text'}
           placeholder={placeholder}
           className={cn(readonlyInputClass)}
           {...fallbackProps}
