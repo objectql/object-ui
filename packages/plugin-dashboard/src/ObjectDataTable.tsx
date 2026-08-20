@@ -311,8 +311,28 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
       }
     }
 
+    // The AUTO-DERIVED half of this widget's headers. It spells the convention
+    // with `humanizeFieldKey` — the same function `normalizeColumns` (the
+    // DECLARED half, above) and `deriveStaticTableColumns` (the static half of
+    // the same `table` widget family) already use, whose docstring names itself
+    // the single home for this convention "because both halves of the `table`
+    // widget family need it and they must agree".
+    //
+    // This line used to carry a THIRD, inline spelling that split camelCase but
+    // never turned `_` into a space, so one field key rendered under two
+    // spellings on one dashboard — measured, as headers over the same
+    // `crm_opportunity` columns (objectui#5425):
+    //
+    //   auto-derived (here)                 Close_date · Needs_analysis
+    //   declared `columns: ['close_date']`  Close Date · Needs Analysis
+    //   static `data-table`, no columns     Close Date · Needs Analysis
+    //
+    // That is the defect class objectui#5425 rules out — "a value cannot appear
+    // twice under two spellings" — so the odd one out adopts the convention
+    // rather than the convention gaining a fourth dialect. The i18n wrapper is
+    // unchanged: a bundle entry still wins, and this is only its fallback.
     const buildHeader = (k: string) => {
-      const humanized = k.charAt(0).toUpperCase() + k.slice(1).replace(/([A-Z])/g, ' $1');
+      const humanized = humanizeFieldKey(k);
       return objectName ? fieldLabel(objectName, k, humanized) : humanized;
     };
 
