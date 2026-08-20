@@ -61,6 +61,23 @@ function resolveModule(target: string): string | null {
     const indexFile = path.join(target, `index${ext}`);
     if (fs.existsSync(indexFile)) return indexFile;
   }
+  // An ESM-correct specifier addresses the EMITTED file: `./Foo.js` is how a
+  // package whose build preserves specifiers has to spell `Foo.tsx`, because
+  // Node's resolver does not extension-search relative specifiers (objectui#4538,
+  // enforced per pull request by `pnpm check:esm-specifiers`). Tried only after
+  // every candidate above has failed, so a package that genuinely ships a `.js`
+  // next to its TypeScript still resolves to that file and nothing that already
+  // resolved changes answer.
+  //
+  // Load-bearing, and it degraded SILENTLY: the relative branch of the walk
+  // drops an unresolvable specifier with no record, so as packages converted to
+  // explicit extensions the walk kept shrinking while every assertion stayed
+  // green. Measured on `main` before objectui#5357: 236 relative specifiers
+  // dropped and 890 files walked, against 1242 once they resolve. Only the
+  // `filesWalked` floor could see it, and only once app-shell — the largest
+  // package — converted too and took the count to 401.
+  const asSource = target.replace(/\.(js|jsx|mjs|cjs)$/, '');
+  if (asSource !== target) return resolveModule(asSource);
   return null;
 }
 
