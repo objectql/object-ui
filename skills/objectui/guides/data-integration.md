@@ -140,7 +140,8 @@ const staticData = {
 </SchemaRendererProvider>
 ```
 
-Components with `bind: "customers"` will then access `staticData.customers`.
+Components that read `bind` (see "Via `bind` + `useDataScope`" below) will then
+access `staticData.customers` when given `bind: "customers"`.
 
 ## ObjectStackAdapter
 
