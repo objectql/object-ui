@@ -57,8 +57,10 @@ import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 
 // The REAL renderers, imported at module scope so `data-table` / `list` are in
 // the registry before the first render (AGENTS.md §测试纪律 — never behind a
-// lazy boundary inside a bounded window).
-import '@object-ui/components';
+// lazy boundary inside a bounded window). The relative path is required: this
+// file lives INSIDE `@object-ui/components`, and the bare specifier would be a
+// package self-import (`scripts/check-package-self-import.mjs`).
+import '../renderers';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../../..');
@@ -90,19 +92,22 @@ function jsonBlocks(md: string): string[] {
  * so a `https://` inside a string value is safe. Returns undefined for blocks
  * that are illustrative rather than complete (e.g. `"columns": [...]`).
  */
-function parseBlock(body: string): any | undefined {
+function parseBlock(body: string): unknown {
   const stripped = body.replace(/(^|\s)\/\/[^\n]*/g, '$1');
   try {
-    return JSON.parse(stripped);
+    return JSON.parse(stripped) as unknown;
   } catch {
     return undefined;
   }
 }
 
-function blocksOfType(md: string, type: string): any[] {
+function blocksOfType(md: string, type: string): Record<string, unknown>[] {
   return jsonBlocks(md)
     .map(parseBlock)
-    .filter((node): node is Record<string, unknown> => !!node && node.type === type);
+    .filter(
+      (node): node is Record<string, unknown> =>
+        !!node && typeof node === 'object' && (node as Record<string, unknown>).type === type,
+    );
 }
 
 /** Every rendered body cell's text, row-major. */
@@ -182,7 +187,7 @@ describe('skill guides — the taught `data-table` form renders rows (#5126)', (
     // provider that really does hold the array. This is the measurement that
     // rules the old teaching false; it is not a claim about the docs.
     const [taught] = blocksOfType(readGuide('skills/objectui/guides/schema-expressions.md'), 'data-table');
-    const { data: _rows, ...withoutData } = taught as Record<string, unknown>;
+    const { data: _rows, ...withoutData } = taught;
     const bound = { ...withoutData, bind: 'customers' };
 
     renderNode(bound, { customers: _rows });
