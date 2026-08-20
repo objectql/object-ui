@@ -1,0 +1,176 @@
+# THROWAWAY MEASUREMENT INSTRUMENT — objectui#5395, run 2. NOT TO BE MERGED.
+#
+# Run 1 priced the wall clock. It could not answer the second half of the
+# question — is the merged 4-shard coverage report equivalent to the unsharded
+# one — because the unsharded LIVE run wrote no coverage file at all once the
+# suite failed. This run answers both:
+#
+#   * `u-live`  reproduces the production recipe and reports whether any
+#               coverage artefact exists afterwards. That is a finding either way.
+#   * `u-blob`  runs unsharded through the SAME blob+merge path the sharded arm
+#               uses, so the only difference between the two reports compared at
+#               the end is 1 process versus 4.
+#
+# Changes no gate; `ci.yml` is untouched on this branch.
+name: PROTO 5395 coverage equivalence
+
+on:
+  push:
+    branches:
+      - 'claude/issue-5395-ci-cost-model-verification'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proto-5395-equiv-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  u-live:
+    name: PROTO unsharded LIVE (production recipe)
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+        with: { submodules: true }
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with: { node-version: '22.x', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - name: Run tests with coverage
+        continue-on-error: true
+        run: pnpm test:coverage --coverage.reporter=json --coverage.reporter=text
+      - name: Did the live run leave a coverage report behind?
+        if: always()
+        run: |
+          if [ -d coverage ]; then
+            echo "::error title=PROTO-5395-LIVE-ARTEFACTS::coverage/ exists, entries: $(ls coverage | tr '\n' ' ')"
+          else
+            echo "::error title=PROTO-5395-LIVE-ARTEFACTS::NO coverage/ DIRECTORY AT ALL after the live unsharded run"
+          fi
+      - name: Summarise
+        if: always()
+        run: node scripts-proto/summarise-coverage.mjs coverage/coverage-final.json LIVE
+
+  u-blob:
+    name: PROTO unsharded via blob
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+        with: { submodules: true }
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with: { node-version: '22.x', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - name: Run tests with coverage (unsharded, blob reporter)
+        continue-on-error: true
+        run: pnpm exec vitest run --coverage --reporter=blob
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: eq-blob-unsharded
+          path: .vitest-reports/*
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+  s-blob:
+    name: PROTO sharded via blob ${{ matrix.shard }}/4
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+        with: { submodules: true }
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with: { node-version: '22.x', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - name: Run tests with coverage (shard ${{ matrix.shard }}/4, blob reporter)
+        continue-on-error: true
+        run: pnpm exec vitest run --coverage --reporter=blob --shard=${{ matrix.shard }}/4
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: eq-blob-shard-${{ matrix.shard }}
+          path: .vitest-reports/*
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+  m-unsharded:
+    name: PROTO merge (unsharded arm)
+    needs: u-blob
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with: { submodules: true }
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with: { node-version: '22.x', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v7
+        with: { name: eq-blob-unsharded, path: .vitest-reports }
+      - name: Merge
+        continue-on-error: true
+        run: pnpm exec vitest run --merge-reports --coverage --coverage.reporter=json --coverage.reporter=text
+      - name: Summarise
+        if: always()
+        run: node scripts-proto/summarise-coverage.mjs coverage/coverage-final.json ARM-UNSHARDED
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: eq-cov-unsharded
+          path: coverage/coverage-final.json
+          retention-days: 1
+          if-no-files-found: error
+
+  m-sharded:
+    name: PROTO merge (4-shard arm)
+    needs: s-blob
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with: { submodules: true }
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with: { node-version: '22.x', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v7
+        with: { pattern: eq-blob-shard-*, path: .vitest-reports, merge-multiple: true }
+      - name: Merge
+        continue-on-error: true
+        run: pnpm exec vitest run --merge-reports --coverage --coverage.reporter=json --coverage.reporter=text
+      - name: Summarise
+        if: always()
+        run: node scripts-proto/summarise-coverage.mjs coverage/coverage-final.json ARM-SHARDED
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: eq-cov-sharded
+          path: coverage/coverage-final.json
+          retention-days: 1
+          if-no-files-found: error
+
+  cmp:
+    name: PROTO compare the two arms
+    needs: [m-unsharded, m-sharded]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with: { name: eq-cov-unsharded, path: unsharded }
+      - uses: actions/download-artifact@v7
+        with: { name: eq-cov-sharded, path: sharded }
+      - run: node scripts-proto/compare-coverage.mjs unsharded/coverage-final.json sharded/coverage-final.json
