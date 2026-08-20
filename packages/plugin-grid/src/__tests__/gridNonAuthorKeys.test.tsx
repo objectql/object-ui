@@ -78,17 +78,53 @@
  * The control in 1-3 is `bulkActionDefs`: declared, spec-accepted, clean
  * through the parser. Without it, all three assertions would pass just as
  * happily against a registry that published nothing at all.
+ *
+ * ## The fifth key the census found — and why it is NOT a fifth non-author key
+ *
+ * objectui#5240 filed `userActions` as a sixth cast-read grid key, on the
+ * reading that it was one more "deliberately unlisted" surface with no
+ * producer. Measurement refuted that, twice over, so the maintainer ruled on
+ * 2026-08-20 (Q1=A · Q2=B · Q3=B) that the fix lands with the MEASURED reason
+ * rather than the assumed one. What is actually wrong is a **name collision**:
+ *
+ *   - VIEW-level `userActions` is TOOLBAR POLICY — the spec's
+ *     `UserActionsConfigSchema` (`sort`, `search`, `filter`, `refresh`,
+ *     `rowHeight`, `addRecordForm`, `editInline`, `buttons`), which REJECTS
+ *     `edit` BY NAME. `ListViewSchema` accepts it, so it is spec-legal, and it
+ *     is really written: `SpecBridge.transformListView` copies it onto the
+ *     `object-grid` node `ObjectGrid` renders, and `app-shell`'s `ObjectView`
+ *     builds one unconditionally. "Nobody authors it" was false.
+ *   - OBJECT-level `userActions` is the CRUD-PREDICATE block (`edit` /
+ *     `delete` / `create` carrying `visibleWhen` / `disabledWhen`,
+ *     objectui#2614) — the only shape `listViewPredicates` can read, since its
+ *     loop skips every non-object value.
+ *
+ * `ObjectGrid` used to read the key VIEW-FIRST when harvesting predicate
+ * fields for `$select`, so an authored toolbar block SHADOWED the object's CRUD
+ * predicates and silently dropped their operands from the projection —
+ * objectui#3501's fail-closed CEL fault (`No such key`), reached with a success
+ * receipt. That read is now object-only, and both read sites carry the
+ * collision comment.
+ *
+ * The pin below is therefore shaped differently from the four above: it does
+ * NOT assert "no producer writes this" (two do) and it does not claim the key
+ * is non-author surface. It asserts the four things the comments DO claim —
+ * the two shapes, the producer, and the harvest's blindness to the toolbar
+ * one — plus the renderer behaviour that shadowing broke. The RENDER channel of
+ * the surviving object-block read is already pinned four times over by
+ * `rowCrudEffectiveOps.test.tsx`'s `userActions` opt-out control group, so it
+ * is cited here rather than duplicated.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
-import { ComponentRegistry } from '@object-ui/core';
-import { ComponentPropsMap } from '@objectstack/spec/ui';
+import { ComponentRegistry, collectPredicateFieldRefs, listViewPredicates } from '@object-ui/core';
+import { ComponentPropsMap, ListViewSchema, UserActionsConfigSchema } from '@objectstack/spec/ui';
 import { manifestFromConfigs, validateTree } from '@object-ui/sdui-parser';
 import { registerAllFields } from '@object-ui/fields';
-import { ActionProvider } from '@object-ui/react';
+import { ActionProvider, SpecBridge } from '@object-ui/react';
 
 import { ObjectGrid } from '../ObjectGrid';
 // Module scope, not a hook: this import IS the registration (AGENTS.md's
@@ -398,5 +434,162 @@ describe('the renderer still reads all four (objectui#5091 kept every read site)
     // The harvest ADDS; it never replaces what the columns asked for.
     expect(select).toContain('name');
     expect(select).toContain('id');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The FIFTH key the census found — `userActions` — which is a NAME COLLISION,
+// not a fifth non-author key (objectui#5240, maintainer ruling 2026-08-20:
+// Q1=A · Q3=B). See the docblock's last section for the full story; each
+// assertion below pins one clause of the collision comment now carried at both
+// read sites in `ObjectGrid.tsx`.
+// ---------------------------------------------------------------------------
+
+/** What a VIEW author legitimately writes: toolbar policy. */
+const VIEW_TOOLBAR_BLOCK = { sort: true, search: true, filter: false };
+/** What an OBJECT declares under the same name: a CRUD predicate block. */
+const OBJECT_CRUD_BLOCK = { edit: { visibleWhen: 'record.status == "open"' } };
+/** The toolbar vocabulary the comment lists by name. */
+const TOOLBAR_KEYS = [
+  'sort', 'search', 'filter', 'refresh', 'rowHeight', 'addRecordForm', 'editInline', 'buttons',
+];
+
+/** Unrecognized KEYS from a failed parse — a key verdict, never a document one. */
+const unrecognizedKeys = (result: { success: boolean; error?: unknown }): string[] =>
+  ((result as { error: { issues: Array<{ code: string; keys?: string[] }> } }).error?.issues ?? [])
+    .filter((issue) => issue.code === 'unrecognized_keys')
+    .flatMap((issue) => issue.keys ?? []);
+
+describe('`userActions` is two blocks sharing one name — the view one is toolbar policy (objectui#5240)', () => {
+  it.each(['edit', 'delete', 'create'])('the view-level schema refuses the CRUD key `%s` by name', (key) => {
+    const result = UserActionsConfigSchema.safeParse({ [key]: { visibleWhen: 'record.status == "open"' } });
+    expect(
+      result.success,
+      `\`UserActionsConfigSchema\` now ACCEPTS \`${key}\` — the two \`userActions\` blocks no longer`
+        + ' collide, so re-read the collision comments in `ObjectGrid.tsx`: their premise was that a'
+        + ' CRUD predicate block can never legally arrive on a VIEW.',
+    ).toBe(false);
+    expect(unrecognizedKeys(result)).toContain(key);
+  });
+
+  it('…and accepts the toolbar vocabulary, so those refusals are about the KEY', () => {
+    // The control. Without it, "the view schema refuses `edit`" would pass just
+    // as happily against a schema that refuses everything.
+    expect(UserActionsConfigSchema.safeParse(VIEW_TOOLBAR_BLOCK).success).toBe(true);
+    expect(
+      Object.keys((UserActionsConfigSchema as unknown as { shape: Record<string, unknown> }).shape),
+      'the toolbar vocabulary changed — the comments at both read sites spell it out by name.',
+    ).toEqual(expect.arrayContaining(TOOLBAR_KEYS));
+  });
+});
+
+describe('the view-level key is AUTHORED, not an unwritten surface (objectui#5240)', () => {
+  it('a view document carrying the toolbar block is spec-legal', () => {
+    // This is the measurement that killed the original "deliberately unlisted,
+    // zero producers" reading. If it ever goes false, the collision comments
+    // are describing a repo that no longer exists.
+    const result = ListViewSchema.safeParse({
+      name: 'my_view',
+      label: 'My View',
+      columns: [{ field: 'name' }],
+      userActions: VIEW_TOOLBAR_BLOCK,
+    });
+    expect(result.success, JSON.stringify((result as { error?: unknown }).error ?? {})).toBe(true);
+  });
+
+  it('…while the CRUD block is refused on a view, at the userActions path', () => {
+    const result = ListViewSchema.safeParse({
+      name: 'my_view',
+      label: 'My View',
+      columns: [{ field: 'name' }],
+      userActions: OBJECT_CRUD_BLOCK,
+    });
+    expect(result.success).toBe(false);
+    expect(unrecognizedKeys(result)).toContain('edit');
+  });
+
+  it('the PRODUCER writes it onto the very `object-grid` node ObjectGrid renders', () => {
+    // The producer IS the evidence, same as the `NON_AUTHOR_KEYS` table above —
+    // except here it proves the opposite: the key is written, so "nobody
+    // authors it" was never available as a reason.
+    const node = new SpecBridge().transformListView({
+      name: 'accounts',
+      columns: [{ field: 'name', label: 'Name' }],
+      userActions: VIEW_TOOLBAR_BLOCK,
+    } as never) as unknown as Record<string, unknown>;
+    expect(
+      node.type,
+      'the list bridge no longer emits `object-grid` — the collision comments name this producer.',
+    ).toBe('object-grid');
+    expect(
+      node.userActions,
+      'the list bridge stopped copying `userActions` onto the grid node. If that is the'
+        + ' producer-side fix (the spec-coordination card the 2026-08-20 ruling routed through'
+        + ' triage), the collision comments in `ObjectGrid.tsx` are due a re-read — do not just'
+        + ' delete this assertion.',
+    ).toEqual(VIEW_TOOLBAR_BLOCK);
+  });
+});
+
+describe('only the OBJECT block is interpretable by the predicate harvest (objectui#5240)', () => {
+  it('the toolbar block yields ZERO predicate fields', () => {
+    // Every value is a boolean, so `listViewPredicates` skips all of them. This
+    // is why shadowing was silent: not an error, just nothing harvested.
+    expect(collectPredicateFieldRefs(listViewPredicates({ userActions: VIEW_TOOLBAR_BLOCK }))).toEqual([]);
+  });
+
+  it('the object CRUD block yields its operand', () => {
+    expect(collectPredicateFieldRefs(listViewPredicates({ userActions: OBJECT_CRUD_BLOCK }))).toContain('status');
+  });
+});
+
+/**
+ * `$select` for a grid whose OBJECT declares the CRUD predicate block, with
+ * whatever the view carries layered on top.
+ */
+const projectionSelect = async (viewExtra: Record<string, unknown>): Promise<string[]> => {
+  const adapter = makeAdapter({
+    // `status` is deliberately NOT a column: a predicate-only field is the
+    // ordinary case the harvest exists for.
+    fields: { id: { type: 'text' }, name: { type: 'text' }, status: { type: 'select' } },
+    userActions: OBJECT_CRUD_BLOCK,
+  });
+  render(
+    <ActionProvider>
+      <ObjectGrid
+        schema={{
+          type: 'object-grid',
+          objectName: 'test_object',
+          columns: [{ field: 'name', label: 'Name' }],
+          ...viewExtra,
+        } as any}
+        dataSource={adapter as any}
+      />
+    </ActionProvider>,
+  );
+  await waitFor(() => expect(adapter.find).toHaveBeenCalled());
+  return (adapter.find.mock.calls.at(-1)?.[1]?.$select ?? []) as string[];
+};
+
+describe('a view-level toolbar block must not shadow the object CRUD predicates (objectui#5240)', () => {
+  it('the object block reaches $select — the surviving read is still there', async () => {
+    // Pins the READ, not the fix: green on both legs of the shadowing change,
+    // red the moment the `userActions` line is dropped from the harvest.
+    expect(
+      await projectionSelect({}),
+      "the object's `userActions.edit.visibleWhen` operand is missing from `$select` — CEL faults"
+        + ' on the absent key and the row Edit button fails closed for everyone (objectui#3501).',
+    ).toContain('status');
+  });
+
+  it('…and a spec-legal toolbar block on the view does not knock it out', async () => {
+    // The regression itself. Read view-first, the `??` took this block, the
+    // harvest found no predicates in it, and `status` left the projection —
+    // with a success receipt at every step.
+    expect(
+      await projectionSelect({ userActions: VIEW_TOOLBAR_BLOCK }),
+      'a view-level toolbar block is shadowing the object CRUD predicates again: the projection'
+        + ' lost `status`. The read at the `$select` harvest must stay object-only.',
+    ).toContain('status');
   });
 });

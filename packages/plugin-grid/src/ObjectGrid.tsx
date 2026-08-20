@@ -904,6 +904,18 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     hasOnEdit: !!onEdit,
     hasOnDelete: !!onDelete,
     managedBy: (objectSchema as any)?.managedBy,
+    // KEY COLLISION — the OBJECT's block, and the only one this can consume.
+    // `userActions` names two different shapes: on a VIEW it is toolbar policy
+    // (`UserActionsConfigSchema` — `sort`/`search`/`filter`/`refresh`/
+    // `rowHeight`/`addRecordForm`/`editInline`/`buttons`, which rejects `edit`
+    // BY NAME), on an OBJECT it is the CRUD-predicate block `edit`/`delete`/
+    // `create` carrying `visibleWhen`/`disabledWhen`. Only the object block
+    // means anything to `resolveRowCrudAffordances` — or to
+    // `listViewPredicates` at the `$select` read below, which carries the full
+    // measurement. So this read stays `objectSchema`-only and must never gain a
+    // `(schema as any).userActions ??` left operand: that is the shadowing this
+    // grid was fixed for (maintainer ruling of 2026-08-20 on objectui#5240,
+    // Q3=B). Pinned by `__tests__/gridNonAuthorKeys.test.tsx`.
     userActions: (objectSchema as any)?.userActions,
     effectiveApiOperations: effectiveApiOps,
     permissionUpdate,
@@ -1115,7 +1127,40 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
                   rowActionDefs: (schema as any).rowActionDefs,
                   bulkActionDefs: (schema as any).bulkActionDefs,
                   objectActions: (resolvedSchema as any)?.actions,
-                  userActions: (schema as any).userActions ?? (resolvedSchema as any)?.userActions,
+                  // KEY COLLISION — `userActions` names TWO different blocks,
+                  // and only the OBJECT's is interpretable here. This read is
+                  // therefore `resolvedSchema`-only; it must never regain a
+                  // `(schema as any).userActions ??` left operand. Maintainer
+                  // ruling of 2026-08-20 on objectui#5240 (Q1=A), on these
+                  // measurements against `@objectstack/spec@17.0.0`:
+                  //
+                  //   - VIEW-level `userActions` is TOOLBAR POLICY —
+                  //     `UserActionsConfigSchema` (`sort`, `search`, `filter`,
+                  //     `refresh`, `rowHeight`, `addRecordForm`, `editInline`,
+                  //     `buttons`), which REJECTS `edit` BY NAME
+                  //     (`unrecognized_keys`). `ListViewSchema` accepts it, so
+                  //     it is spec-legal and really authored: `react/src/
+                  //     spec-bridge/bridges/list-view.ts` copies it onto the
+                  //     `object-grid` node this component receives as `schema`,
+                  //     and `app-shell/src/views/ObjectView.tsx` builds one
+                  //     unconditionally. It is NOT an unwritten key.
+                  //   - OBJECT-level `userActions` is the CRUD-PREDICATE block
+                  //     (`edit` / `delete` / `create` carrying `visibleWhen` /
+                  //     `disabledWhen`, objectui#2614) — what
+                  //     `resolveRowCrudAffordances` consumes above, and the only
+                  //     shape `listViewPredicates` can read: its loop skips
+                  //     every non-object value, so a toolbar block yields ZERO
+                  //     predicates.
+                  //
+                  // Read view-first, a legitimately authored toolbar block
+                  // therefore SHADOWED the object's CRUD predicates and dropped
+                  // their operands from `$select`; CEL then faults `No such
+                  // key`, fails CLOSED, and the row Edit/Delete button vanishes
+                  // for everyone with nothing pointing at the projection
+                  // (objectui#3501 — the whole reason this harvest exists).
+                  // Both halves of the collision, and this read itself, are
+                  // pinned by `__tests__/gridNonAuthorKeys.test.tsx`.
+                  userActions: (resolvedSchema as any)?.userActions,
                 })).filter((f) => isProjectableField(f, declared as Record<string, unknown>))
               : [];
             const withPredicates = (list: any[]): any[] => {
