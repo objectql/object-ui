@@ -3217,6 +3217,8 @@ const ar = {
     submittedAgo: 'قُدِّم {{when}}',
     completedAt: 'اكتمل {{when}}',
     waitingOn: 'بانتظار',
+    approverNameSeparator: '، ',
+    approverUnstaffed: '{{seat}} (لا يشغلها أحد حاليًا)',
     history: 'النشاط',
     noActions: 'لا إجراءات بعد.',
     actSubmit: 'تقديم',

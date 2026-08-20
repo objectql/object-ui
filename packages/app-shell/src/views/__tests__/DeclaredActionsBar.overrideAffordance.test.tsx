@@ -101,7 +101,9 @@ vi.mock('@object-ui/components', async () => {
   };
 });
 
+import { AdapterCtx } from '@object-ui/react';
 import { DeclaredActionsBar } from '../DeclaredActionsBar';
+import { resetApproverDirectoryCache } from '../../hooks/useApproverDirectory';
 
 /**
  * The declared gates, in the spelling this suite's evaluator can evaluate.
@@ -171,15 +173,73 @@ const STAFFED_REQUEST = {
   pending_approver_names: { u_qa_head: 'Qian Hua', u_prod_head: 'Li Lei' },
 };
 
-function renderBar(viewer: Record<string, unknown>, record: Record<string, unknown> = STAFFED_REQUEST) {
+function renderBar(
+  viewer: Record<string, unknown>,
+  record: Record<string, unknown> = STAFFED_REQUEST,
+  adapter: unknown = null,
+) {
   return render(
-    <DeclaredActionsBar
-      objectName="sys_approval_request"
-      record={{ ...record, viewer }}
-      location="record_section"
-      actions={ACTIONS}
-    />,
+    <AdapterCtx.Provider value={adapter as never}>
+      <DeclaredActionsBar
+        objectName="sys_approval_request"
+        record={{ ...record, viewer }}
+        location="record_section"
+        actions={ACTIONS}
+      />
+    </AdapterCtx.Provider>,
   );
+}
+
+/**
+ * A request routed to a POSITION the server did not resolve — objectui#5414's
+ * second surface. Before that card this dialog printed the reference verbatim:
+ * a paragraph of plain governance prose ending `— position:sales_manager`.
+ */
+const POSITION_REQUEST = {
+  id: 'req_3',
+  status: 'pending',
+  record_id: 'opp_1',
+  pending_approvers: ['position:sales_manager'],
+};
+
+/** The directory legs `useApproverDirectory` reads, doubled. */
+function positionDirectory(opts: { label: string; holders?: Array<{ id: string; name: string }> }) {
+  return {
+    find: vi.fn(async (object: string) => {
+      if (object === 'sys_position') return { data: [{ name: 'sales_manager', label: opts.label }] };
+      if (object === 'sys_user_position') {
+        return {
+          data: (opts.holders ?? []).map((h, i) => ({
+            id: `up_${i}`, position: 'sales_manager', user_id: h.id,
+          })),
+        };
+      }
+      if (object === 'sys_user') {
+        return { data: (opts.holders ?? []).map((h) => ({ id: h.id, name: h.name })) };
+      }
+      return { data: [] };
+    }),
+  };
+}
+
+/**
+ * The composed warning, polled until the directory lookup has landed.
+ *
+ * The bar surfaces its resolved slate ONLY through the dispatch, so the click
+ * sits inside the poll rather than in front of it. That is cheap and safe here:
+ * `execute` is called synchronously by `handleClick`, `executeSpy` is inert, and
+ * a retry that arrives while the previous click is still in flight is dropped by
+ * the component's own `loading` guard.
+ */
+async function noticeMatching(expected: RegExp): Promise<string> {
+  let notice = '';
+  await waitFor(() => {
+    executeSpy.mockClear();
+    fireEvent.click(screen.getByTestId('declared-action-approval_approve'));
+    notice = String(executeSpy.mock.calls[0]?.[0]?.overrideNotice ?? '');
+    expect(notice).toMatch(expected);
+  });
+  return notice;
 }
 
 const OVERRIDE_ONLY = { can_act: false, is_submitter: false, can_override: true };
@@ -187,6 +247,7 @@ const DESIGNATED_APPROVER = { can_act: true, is_submitter: false, can_override: 
 
 beforeEach(() => {
   executeSpy.mockClear();
+  resetApproverDirectoryCache();
 });
 
 describe('DeclaredActionsBar — override-only viewer (objectui#5178)', () => {
@@ -325,5 +386,50 @@ describe('DeclaredActionsBar — the ordinary path is untouched (objectui#5178)'
     const finalise = screen.getByTestId('declared-action-approval_finalise_now');
     expect(finalise.getAttribute('data-override-decision')).toBe('true');
     expect(finalise.textContent).toContain('Override Finalise');
+  });
+});
+
+describe('DeclaredActionsBar — the bypassed party is NAMED, not referenced (objectui#5414)', () => {
+  it('never prints the raw engine reference, even with no directory to read', async () => {
+    renderBar(OVERRIDE_ONLY, POSITION_REQUEST);
+    const notice = await noticeMatching(/Sales Manager/);
+    expect(notice).not.toContain('position:sales_manager');
+    // …and the sentence around it is still the whole warning.
+    expect(notice).toContain('finalises the step immediately');
+    expect(notice).toContain('recorded as an admin override');
+  });
+
+  it('names the people filling the seat when the directory can answer', async () => {
+    renderBar(
+      OVERRIDE_ONLY,
+      POSITION_REQUEST,
+      positionDirectory({
+        label: 'Sales Manager',
+        holders: [{ id: 'u1', name: 'Zhang Wei' }, { id: 'u2', name: 'Li Na' }],
+      }),
+    );
+    const notice = await noticeMatching(/Zhang Wei/);
+    expect(notice).toContain('Sales Manager · Zhang Wei, Li Na');
+    expect(notice).not.toContain('position:sales_manager');
+  });
+
+  it('says the seat is unstaffed — the rescue case this path exists for', async () => {
+    renderBar(
+      OVERRIDE_ONLY,
+      POSITION_REQUEST,
+      positionDirectory({ label: 'Sales Manager', holders: [] }),
+    );
+    const notice = await noticeMatching(/no current holder/);
+    expect(notice).toContain('Sales Manager (no current holder)');
+  });
+
+  it('asks the directory nothing on the ordinary, non-override path', async () => {
+    // The cost gate: this bar renders on every record page, and a viewer who is
+    // not overriding must not pay for a lookup they will never see.
+    const adapter = positionDirectory({ label: 'Sales Manager' });
+    renderBar(DESIGNATED_APPROVER, POSITION_REQUEST, adapter);
+    await waitFor(() =>
+      expect(screen.getByTestId('declared-action-approval_approve')).toBeTruthy());
+    expect(adapter.find).not.toHaveBeenCalled();
   });
 });

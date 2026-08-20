@@ -3209,6 +3209,8 @@ const ko = {
     submittedAgo: '{{when}} 제출됨',
     completedAt: '{{when}} 완료됨',
     waitingOn: '대기 중인 승인자',
+    approverNameSeparator: ', ',
+    approverUnstaffed: '{{seat}}(현재 담당자 없음)',
     history: '승인 활동',
     noActions: '아직 작업이 없습니다.',
     actSubmit: '제출',

@@ -3221,6 +3221,8 @@ const ru = {
     submittedAgo: 'Отправлен {{when}}',
     completedAt: 'Завершён {{when}}',
     waitingOn: 'Ожидает решения',
+    approverNameSeparator: ', ',
+    approverUnstaffed: '{{seat}} (сейчас не занята)',
     history: 'История',
     noActions: 'Действий пока нет.',
     actSubmit: 'Отправлен',

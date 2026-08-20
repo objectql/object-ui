@@ -3523,6 +3523,8 @@ const en = {
     submittedAgo: 'Submitted {{when}}',
     completedAt: 'Completed {{when}}',
     waitingOn: 'Waiting on',
+    approverNameSeparator: ', ',
+    approverUnstaffed: '{{seat}} (no current holder)',
     history: 'Activity',
     noActions: 'No actions yet.',
     actSubmit: 'Submitted',

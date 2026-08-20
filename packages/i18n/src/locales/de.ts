@@ -3210,6 +3210,8 @@ const de = {
     submittedAgo: 'Eingereicht {{when}}',
     completedAt: 'Abgeschlossen {{when}}',
     waitingOn: 'Wartet auf',
+    approverNameSeparator: ', ',
+    approverUnstaffed: '{{seat}} (derzeit unbesetzt)',
     history: 'Aktivität',
     noActions: 'Noch keine Aktionen.',
     actSubmit: 'Eingereicht',

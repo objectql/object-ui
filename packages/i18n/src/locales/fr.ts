@@ -3212,6 +3212,8 @@ const fr = {
     submittedAgo: 'Soumise {{when}}',
     completedAt: 'Terminée {{when}}',
     waitingOn: 'En attente de',
+    approverNameSeparator: ', ',
+    approverUnstaffed: '{{seat}} (poste actuellement vacant)',
     history: 'Activité',
     noActions: 'Aucune action pour le moment.',
     actSubmit: 'Soumise',

@@ -3210,6 +3210,8 @@ const ja = {
     submittedAgo: '{{when}}に申請',
     completedAt: '{{when}}に完了',
     waitingOn: '承認待ちの担当者',
+    approverNameSeparator: '、',
+    approverUnstaffed: '{{seat}}（現在の担当者なし）',
     history: '承認履歴',
     noActions: 'まだ操作はありません。',
     actSubmit: '申請',

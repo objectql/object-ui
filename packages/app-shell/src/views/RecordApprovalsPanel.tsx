@@ -20,6 +20,19 @@ import {
   type ApprovalRequestLite,
 } from '../hooks/useRecordApprovals.js';
 import { isViaOverrideRow } from '../utils/approvalOverride.js';
+import {
+  approverCopyFrom,
+  approverDisplay,
+  formatIdentity,
+  prettifyMachineName,
+  unresolvedApproverRefs,
+  DEFAULT_APPROVER_COPY,
+  type ApproverDisplayCopy,
+} from '../utils/approverIdentity.js';
+import {
+  useApproverDirectory,
+  type ApproverDirectory,
+} from '../hooks/useApproverDirectory.js';
 
 /**
  * RecordApprovalsPanel — the record page's read-only approval surface
@@ -98,25 +111,11 @@ const ACTION_DOT: Record<string, string> = {
 };
 
 /**
- * Render an actor/approver identifier in a friendly form (mirrors the
- * Approval Center): emails as-is, `role:<name>` labeled, opaque 16+ char ids
- * middle-truncated — a raw UUID wall is exactly what #3461 complains about.
+ * Identity formatting moved to `utils/approverIdentity` in objectui#5414 — the
+ * panel, the merged timeline and the admin-override dialog must not each own a
+ * copy. Re-exported here because this module is where it was published.
  */
-export function formatIdentity(id: string | null | undefined): string {
-  if (!id) return '—';
-  if (id.includes('@')) return id;
-  if (id.startsWith('role:')) return `Role: ${id.slice(5)}`;
-  if (id.length > 14) return `${id.slice(0, 6)}…${id.slice(-4)}`;
-  return id;
-}
-
-/** `manager_review` → "Manager Review" (display fallback for legacy rows). */
-function prettifyMachineName(raw: string | null | undefined): string {
-  if (!raw) return '—';
-  const base = String(raw).replace(/^flow:/, '').trim();
-  return base.split(/[_\-\s]+/).filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || '—';
-}
+export { formatIdentity };
 
 /**
  * Collapse the pending-approver chips, keyed by (name, group) so 会签
@@ -125,22 +124,54 @@ function prettifyMachineName(raw: string | null | undefined): string {
  * with a count. Mirrors the Approval Center's `approverChips` (#2762 P1-2 /
  * objectui#2807); the tooltip keeps the underlying ids inspectable.
  */
+export interface ApproverChip {
+  label: string;
+  group?: string;
+  count: number;
+  title: string;
+  /**
+   * The people filling the seat, already joined for display. Absent (rather
+   * than empty) when there is nothing to add, so a caller comparing chips with
+   * `toEqual` sees the same shape it always did.
+   */
+  detail?: string;
+  /** Probed AND empty — set only when the seat is genuinely unstaffed. */
+  unstaffed?: boolean;
+}
+
 export function approverChips(
   r: ApprovalRequestLite,
-): Array<{ label: string; group?: string; count: number; title: string }> {
+  opts?: { directory?: ApproverDirectory; copy?: ApproverDisplayCopy },
+): ApproverChip[] {
+  const copy = opts?.copy ?? DEFAULT_APPROVER_COPY;
+  const directory = opts?.directory ?? {};
   const order: string[] = [];
-  const byKey = new Map<string, { label: string; group?: string; count: number; title: string }>();
+  const byKey = new Map<string, ApproverChip>();
   for (const a of r.pending_approvers || []) {
-    const label = r.pending_approver_names?.[a] || formatIdentity(a);
+    const shown = approverDisplay(a, {
+      serverName: r.pending_approver_names?.[a],
+      resolved: directory[a],
+      copy,
+    });
+    const label = shown.label;
     const gs = r.pending_approver_groups?.[a];
     const group = gs && gs.length ? gs.join(' / ') : undefined;
-    const key = group ? `${label} ${group}` : label;
+    // The seat's people are part of its identity: two positions can share a
+    // label, and collapsing them would merge two different slates into one chip.
+    const key = [label, shown.detail, group].filter(Boolean).join(' ');
     const seen = byKey.get(key);
     if (seen) {
       seen.count += 1;
       if (a && !seen.title.split(', ').includes(a)) seen.title += `, ${a}`;
     } else {
-      byKey.set(key, { label, group, count: 1, title: a || label });
+      byKey.set(key, {
+        label,
+        group,
+        count: 1,
+        title: a || label,
+        ...(shown.detail ? { detail: shown.detail } : {}),
+        ...(shown.unstaffed ? { unstaffed: true } : {}),
+      });
       order.push(key);
     }
   }
@@ -182,6 +213,25 @@ export const RecordApprovalsPanel: React.FC<RecordApprovalsPanelProps> = ({
   const [actions, setActions] = React.useState<ApprovalActionLite[]>([]);
   const [actionsLoading, setActionsLoading] = React.useState(false);
   const [reminding, setReminding] = React.useState(false);
+
+  /**
+   * Resolve the pending approvers the SERVER could not name (objectui#5414).
+   *
+   * `positi…ager` was `formatIdentity('position:sales_manager')` — the raw
+   * engine reference, middle-truncated to fit its chip. The gate below keeps
+   * this free on a backend that resolves its own slate: a request whose
+   * `pending_approver_names` covers every id yields an empty list, and the
+   * hook never touches the adapter.
+   */
+  const approverRefs = React.useMemo(
+    () => unresolvedApproverRefs(pendingRequest),
+    [pendingRequest],
+  );
+  const approverDirectory = useApproverDirectory(approverRefs);
+  const approverCopy = React.useMemo<ApproverDisplayCopy>(
+    () => approverCopyFrom(t as unknown as Parameters<typeof approverCopyFrom>[0]),
+    [t],
+  );
 
   // Reload key: the id set plus each request's decision state, as a stable
   // string — so the timeline refetches when a decision lands (the host's
@@ -430,9 +480,19 @@ export const RecordApprovalsPanel: React.FC<RecordApprovalsPanelProps> = ({
               {tr('waitingOn', 'Waiting on')}
             </div>
             <div className="flex flex-wrap gap-1">
-              {approverChips(pendingRequest).map((chip, i) => (
-                <Badge key={`${chip.label}-${chip.group ?? ''}-${i}`} variant="outline" className="text-[11px]" title={chip.title}>
+              {approverChips(pendingRequest, { directory: approverDirectory, copy: approverCopy }).map((chip, i) => (
+                <Badge
+                  key={`${chip.label}-${chip.group ?? ''}-${i}`}
+                  variant="outline"
+                  className="text-[11px]"
+                  /* The raw `position:…` reference belongs on hover, not as the
+                     primary identification — objectui#5414. */
+                  title={chip.title}
+                  data-testid="approver-chip"
+                  data-unstaffed={chip.unstaffed ? 'true' : undefined}
+                >
                   {chip.label}
+                  {chip.detail && <span className="ml-1 text-muted-foreground">· {chip.detail}</span>}
                   {chip.group && <span className="ml-1 text-muted-foreground">· {chip.group}</span>}
                   {chip.count > 1 && <span className="ml-1 text-muted-foreground">×{chip.count}</span>}
                 </Badge>

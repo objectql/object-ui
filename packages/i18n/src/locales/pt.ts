@@ -3209,6 +3209,8 @@ const pt = {
     submittedAgo: 'Enviada {{when}}',
     completedAt: 'Concluída {{when}}',
     waitingOn: 'Aguardando',
+    approverNameSeparator: ', ',
+    approverUnstaffed: '{{seat}} (atualmente sem titular)',
     history: 'Atividade',
     noActions: 'Nenhuma ação ainda.',
     actSubmit: 'Enviada',

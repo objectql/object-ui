@@ -3214,6 +3214,8 @@ const es = {
     submittedAgo: 'Enviada {{when}}',
     completedAt: 'Completada {{when}}',
     waitingOn: 'A la espera de',
+    approverNameSeparator: ', ',
+    approverUnstaffed: '{{seat}} (actualmente sin titular)',
     history: 'Actividad',
     noActions: 'Aún no hay acciones.',
     actSubmit: 'Enviada',

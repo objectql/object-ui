@@ -3334,6 +3334,8 @@ const zh = {
     submittedAgo: '提交于{{when}}',
     completedAt: '完成于{{when}}',
     waitingOn: '等待以下审批人',
+    approverNameSeparator: '、',
+    approverUnstaffed: '{{seat}}（暂无在岗人员）',
     history: '审批动态',
     noActions: '暂无操作记录。',
     actSubmit: '提交',

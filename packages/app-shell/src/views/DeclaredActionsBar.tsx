@@ -58,6 +58,12 @@ import { useMetadataItem } from '@object-ui/react';
 import { decisionOutputDefs, decisionOutputParams } from '../utils/decisionOutputParams.js';
 import { getIcon } from '../utils/getIcon.js';
 import { isOverrideDecision, bypassedApproverNames } from '../utils/approvalOverride.js';
+import {
+  approverCopyFrom,
+  approverDisplay,
+  unresolvedApproverRefs,
+} from '../utils/approverIdentity.js';
+import { useApproverDirectory } from '../hooks/useApproverDirectory.js';
 
 export interface DeclaredActionsBarProps {
   /** Object whose declared actions to render (e.g. `sys_approval_request`). */
@@ -190,8 +196,27 @@ const DeclaredActionButton: React.FC<{
    * naming *who* was about to be bypassed would have stopped, so the empty case
    * (the unstaffed-position rescue the override path exists for) gets its own
    * wording rather than an empty list.
+   *
+   * objectui#5414 — and those names must be NAMES. `bypassedApproverNames`
+   * defaults its formatter to identity, so an engine reference reached this
+   * dialog raw: a paragraph of plain governance prose ending
+   * `—— position:sales_manager`. Resolution is gated on `isOverride`, so an
+   * ordinary record page asks the directory nothing, and the shared cache in
+   * `useApproverDirectory` means the panel and every button on the same request
+   * resolve one slate once.
    */
-  const bypassed = useMemo(() => bypassedApproverNames(record), [record]);
+  const bypassedRefs = useMemo(
+    () => (isOverride ? unresolvedApproverRefs(record) : []),
+    [isOverride, record],
+  );
+  const approverDirectory = useApproverDirectory(bypassedRefs);
+  const bypassed = useMemo(() => {
+    const copy = approverCopyFrom(t as unknown as Parameters<typeof approverCopyFrom>[0]);
+    return bypassedApproverNames(record, (id) => {
+      const shown = approverDisplay(id, { resolved: approverDirectory[id], copy });
+      return shown.detail ? `${shown.label} · ${shown.detail}` : shown.label;
+    });
+  }, [record, approverDirectory, t]);
   // The declared label, localized — resolved ONCE here so the button text, the
   // param dialog's title and the override framing below can never come from
   // different bundle reads (objectui#4265).
