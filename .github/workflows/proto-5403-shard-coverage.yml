@@ -109,7 +109,10 @@ jobs:
   merge:
     name: PROTO merge blob reports
     needs: shard
-    if: ${{ !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') }}
+    # Measurement-only relaxation: the SHIPPED job refuses to merge unless every
+    # shard is green. Here the point is to obtain a merged report to compare
+    # against the unsharded one, so a red shard must not abort the measurement.
+    if: ${{ always() && !contains(github.event.head_commit.message, '[threshold-probe]') && !contains(github.event.head_commit.message, '[diag]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -139,10 +142,12 @@ jobs:
           ls -la .vitest-reports/
           if [ "$blobs" -ne 4 ]; then
             echo "::error title=PROTO-5403::expected 4 blob reports, found $blobs"
-            exit 1
           fi
       - name: Merge the shard reports into one coverage report
-        run: pnpm test:coverage --merge-reports --coverage.reporter=json --coverage.reporter=text
+        continue-on-error: true
+        run: >-
+          pnpm test:coverage --merge-reports --coverage.reporter=json
+          --coverage.reporter=text --coverage.reportOnFailure=true
       - name: Summarise merged coverage
         id: summary
         if: always()
@@ -204,7 +209,7 @@ jobs:
       - name: Run tests with coverage
         id: baserun
         continue-on-error: true
-        run: pnpm test:coverage --coverage.reporter=json --coverage.reporter=text
+        run: pnpm test:coverage --coverage.reporter=json --coverage.reporter=text --coverage.reportOnFailure=true
       - name: Summarise unsharded coverage
         id: summary
         if: always()
